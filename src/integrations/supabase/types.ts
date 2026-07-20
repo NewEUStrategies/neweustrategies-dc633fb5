@@ -2728,42 +2728,6 @@ export type Database = {
           },
         ]
       }
-      glossary_terms: {
-        Row: {
-          created_at: string
-          definition_en: string | null
-          definition_pl: string
-          id: string
-          slug: string
-          tenant_id: string
-          term_en: string
-          term_pl: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          definition_en?: string | null
-          definition_pl: string
-          id?: string
-          slug: string
-          tenant_id?: string
-          term_en?: string
-          term_pl: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          definition_en?: string | null
-          definition_pl?: string
-          id?: string
-          slug?: string
-          tenant_id?: string
-          term_en?: string
-          term_pl?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       icon_library: {
         Row: {
           created_at: string
@@ -4565,47 +4529,6 @@ export type Database = {
           },
         ]
       }
-      outbound_link_checks: {
-        Row: {
-          checked_at: string
-          error: string | null
-          id: string
-          ok: boolean
-          post_id: string
-          status_code: number | null
-          tenant_id: string
-          url: string
-        }
-        Insert: {
-          checked_at?: string
-          error?: string | null
-          id?: string
-          ok: boolean
-          post_id: string
-          status_code?: number | null
-          tenant_id: string
-          url: string
-        }
-        Update: {
-          checked_at?: string
-          error?: string | null
-          id?: string
-          ok?: boolean
-          post_id?: string
-          status_code?: number | null
-          tenant_id?: string
-          url?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "outbound_link_checks_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       pages: {
         Row: {
           author_id: string | null
@@ -4624,7 +4547,6 @@ export type Database = {
           menu_order: number
           og_image_generated_url: string | null
           parent_id: string | null
-          publish_at: string | null
           published_at: string | null
           search_vector: unknown
           seo_canonical_url: string | null
@@ -4664,7 +4586,6 @@ export type Database = {
           menu_order?: number
           og_image_generated_url?: string | null
           parent_id?: string | null
-          publish_at?: string | null
           published_at?: string | null
           search_vector?: unknown
           seo_canonical_url?: string | null
@@ -4704,7 +4625,6 @@ export type Database = {
           menu_order?: number
           og_image_generated_url?: string | null
           parent_id?: string | null
-          publish_at?: string | null
           published_at?: string | null
           search_vector?: unknown
           seo_canonical_url?: string | null
@@ -5456,47 +5376,6 @@ export type Database = {
           },
         ]
       }
-      post_changelog: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          entry_date: string
-          id: string
-          note_en: string | null
-          note_pl: string
-          post_id: string
-          tenant_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          entry_date?: string
-          id?: string
-          note_en?: string | null
-          note_pl: string
-          post_id: string
-          tenant_id?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          entry_date?: string
-          id?: string
-          note_en?: string | null
-          note_pl?: string
-          post_id?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "post_changelog_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       post_categories: {
         Row: {
           category_id: string
@@ -5563,41 +5442,6 @@ export type Database = {
         }
         Relationships: []
       }
-      post_feedback: {
-        Row: {
-          created_at: string
-          helpful: boolean
-          id: string
-          post_id: string
-          tenant_id: string
-          voter_hash: string | null
-        }
-        Insert: {
-          created_at?: string
-          helpful: boolean
-          id?: string
-          post_id: string
-          tenant_id: string
-          voter_hash?: string | null
-        }
-        Update: {
-          created_at?: string
-          helpful?: boolean
-          id?: string
-          post_id?: string
-          tenant_id?: string
-          voter_hash?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "post_feedback_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       post_layout_settings: {
         Row: {
           audio_layout: string
@@ -5634,9 +5478,7 @@ export type Database = {
           quick_view_info: boolean
           show_author_card: boolean
           show_bottom_newsletter: boolean
-          show_citation: boolean
           show_floating_share_bar: boolean
-          show_quote_share: boolean
           show_post_tags_bar: boolean
           show_prev_next: boolean
           show_sources_bar: boolean
@@ -5685,9 +5527,7 @@ export type Database = {
           quick_view_info?: boolean
           show_author_card?: boolean
           show_bottom_newsletter?: boolean
-          show_citation?: boolean
           show_floating_share_bar?: boolean
-          show_quote_share?: boolean
           show_post_tags_bar?: boolean
           show_prev_next?: boolean
           show_sources_bar?: boolean
@@ -5736,9 +5576,7 @@ export type Database = {
           quick_view_info?: boolean
           show_author_card?: boolean
           show_bottom_newsletter?: boolean
-          show_citation?: boolean
           show_floating_share_bar?: boolean
-          show_quote_share?: boolean
           show_post_tags_bar?: boolean
           show_prev_next?: boolean
           show_sources_bar?: boolean
@@ -5753,44 +5591,6 @@ export type Database = {
           wide_align_max_width?: number
         }
         Relationships: []
-      }
-      post_preview_tokens: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          expires_at: string
-          id: string
-          post_id: string
-          tenant_id: string
-          token: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          expires_at: string
-          id?: string
-          post_id: string
-          tenant_id?: string
-          token: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          expires_at?: string
-          id?: string
-          post_id?: string
-          tenant_id?: string
-          token?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "post_preview_tokens_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       post_programs: {
         Row: {
@@ -5884,42 +5684,6 @@ export type Database = {
           widgets?: Json
         }
         Relationships: []
-      }
-      post_series: {
-        Row: {
-          created_at: string
-          part_number: number
-          post_id: string
-          series_id: string
-        }
-        Insert: {
-          created_at?: string
-          part_number?: number
-          post_id: string
-          series_id: string
-        }
-        Update: {
-          created_at?: string
-          part_number?: number
-          post_id?: string
-          series_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "post_series_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: true
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "post_series_series_id_fkey"
-            columns: ["series_id"]
-            isOneToOne: false
-            referencedRelation: "series"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       post_tags: {
         Row: {
@@ -6016,7 +5780,6 @@ export type Database = {
           post_format: string
           publish_at: string | null
           published_at: string | null
-          outbound_links_checked_at: string | null
           read_minutes: number | null
           related_override: Json | null
           search_vector: unknown
@@ -6062,7 +5825,6 @@ export type Database = {
           post_format?: string
           publish_at?: string | null
           published_at?: string | null
-          outbound_links_checked_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
           search_vector?: unknown
@@ -6108,7 +5870,6 @@ export type Database = {
           post_format?: string
           publish_at?: string | null
           published_at?: string | null
-          outbound_links_checked_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
           search_vector?: unknown
@@ -7776,39 +7537,6 @@ export type Database = {
           tenant_id?: string
           updated_at?: string
           updated_by?: string | null
-        }
-        Relationships: []
-      }
-      series: {
-        Row: {
-          created_at: string
-          description_en: string | null
-          description_pl: string | null
-          id: string
-          name_en: string
-          name_pl: string
-          slug: string
-          tenant_id: string
-        }
-        Insert: {
-          created_at?: string
-          description_en?: string | null
-          description_pl?: string | null
-          id?: string
-          name_en?: string
-          name_pl: string
-          slug: string
-          tenant_id?: string
-        }
-        Update: {
-          created_at?: string
-          description_en?: string | null
-          description_pl?: string | null
-          id?: string
-          name_en?: string
-          name_pl?: string
-          slug?: string
-          tenant_id?: string
         }
         Relationships: []
       }
@@ -9632,7 +9360,6 @@ export type Database = {
           menu_order: number
           og_image_generated_url: string | null
           parent_id: string | null
-          publish_at: string | null
           published_at: string | null
           search_vector: unknown
           seo_canonical_url: string | null
@@ -9711,7 +9438,6 @@ export type Database = {
           post_format: string
           publish_at: string | null
           published_at: string | null
-          outbound_links_checked_at: string | null
           read_minutes: number | null
           related_override: Json | null
           search_vector: unknown
@@ -10128,7 +9854,6 @@ export type Database = {
       prune_integration_deliveries: { Args: never; Returns: number }
       prune_push_queue: { Args: { p_keep?: string }; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
-      publish_due_pages: { Args: never; Returns: number }
       publish_due_posts: { Args: never; Returns: number }
       rate_limit_hit: {
         Args: {
