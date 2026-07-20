@@ -10170,6 +10170,7 @@ export type Database = {
         }
         Returns: unknown
       }
+      nes_search_positive_rest: { Args: { _q: string }; Returns: string }
       nes_search_tsquery: { Args: { _q: string }; Returns: unknown }
       nes_search_tsquery_adv: {
         Args: { _match?: string; _q: string }
