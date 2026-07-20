@@ -2,7 +2,7 @@
 // content is gated by AuthGate and the route is noindex + robots-disallowed,
 // so nothing here is visible to anonymous visitors or crawlers.
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
@@ -36,7 +36,14 @@ import {
   usePeerProfiles,
 } from "@/lib/chat/useConversations";
 import { useUnreadCount } from "@/lib/notifications/useNotifications";
-import type { ChatLang } from "@/lib/chat/time";
+import { relTime, type ChatLang } from "@/lib/chat/time";
+import {
+  MESSAGE_SEARCH_MIN_CHARS,
+  useMessageSearch,
+  type MessageSearchHit,
+} from "@/lib/chat/useMessageSearch";
+import { SearchSnippet } from "@/components/search/SearchSnippet";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 
 type MessagesView = "chats" | "notifications" | "consents";
@@ -119,6 +126,18 @@ function MessagesInner() {
   const [listFilter, setListFilter] = useState<ListFilter>("all");
   const [showArchived, setShowArchived] = useState(false);
   const unreadTotal = useChatUnreadTotal();
+  // Wyszukiwanie w TREŚCI wiadomości (FTS przez search_messages) obok
+  // istniejącego filtra nazw rozmów - jedno pole, dwie sekcje wyników.
+  const debouncedFilter = useDebouncedValue(filter, 220);
+  const messageHitsQ = useMessageSearch(debouncedFilter, null, activeView === "chats");
+  // Skok do trafienia w otwartej rozmowie; nonce ponawia skok przy ponownym
+  // kliknięciu tego samego wyniku.
+  const jumpNonceRef = useRef(0);
+  const [jumpRequest, setJumpRequest] = useState<{
+    convId: string;
+    id: string;
+    nonce: number;
+  } | null>(null);
 
   const { active: activeViews, archived: archivedViews } = useMemo(
     () => splitArchived(views),
@@ -140,6 +159,12 @@ function MessagesInner() {
     setSelected(id);
     setMode("list");
     void navigate({ search: { c: id }, replace: true });
+  };
+
+  const openMessageHit = (hit: MessageSearchHit) => {
+    jumpNonceRef.current += 1;
+    setJumpRequest({ convId: hit.conversation_id, id: hit.id, nonce: jumpNonceRef.current });
+    openConversation(hit.conversation_id);
   };
 
   const normalizedFilter = filter.trim().toLowerCase();
@@ -423,6 +448,65 @@ function MessagesInner() {
                         ))}
                       </ul>
                     )}
+                    {/* Trafienia w TREŚCI wiadomości (FTS) pod listą rozmów -
+                        klik otwiera rozmowę i przewija do wiadomości. */}
+                    {normalizedFilter.length >= MESSAGE_SEARCH_MIN_CHARS && (
+                      <section
+                        aria-label={t("chat.search.sectionTitle")}
+                        className="mt-2 border-t border-border/60 pt-2"
+                      >
+                        <h2 className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {t("chat.search.sectionTitle")}
+                        </h2>
+                        {messageHitsQ.isLoading ? (
+                          <p className="px-2 py-1.5 text-[12px] text-muted-foreground">
+                            {t("chat.search.searching")}
+                          </p>
+                        ) : (messageHitsQ.data ?? []).length === 0 ? (
+                          <p className="px-2 py-1.5 text-[12px] text-muted-foreground">
+                            {t("chat.search.noResults", { q: debouncedFilter.trim() })}
+                          </p>
+                        ) : (
+                          <ul className="flex flex-col gap-0.5">
+                            {(messageHitsQ.data ?? []).map((hit) => {
+                              const hitView = views.find(
+                                (v) => v.conversation.id === hit.conversation_id,
+                              );
+                              const hitName = hitView
+                                ? conversationDisplay(
+                                    hitView,
+                                    peersQ.data,
+                                    t("chat.group.circle"),
+                                    nicknamesQ.data?.get(hit.conversation_id),
+                                  ).name
+                                : "...";
+                              return (
+                                <li key={hit.id}>
+                                  <button
+                                    type="button"
+                                    onClick={() => openMessageHit(hit)}
+                                    className="w-full rounded-[6px] px-2 py-2 text-left transition-colors hover:bg-muted/70 focus-visible:bg-muted/70 focus-visible:outline-none"
+                                  >
+                                    <span className="flex items-baseline justify-between gap-2">
+                                      <span className="truncate text-[12px] font-semibold">
+                                        {hitName}
+                                      </span>
+                                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                                        {relTime(hit.created_at, lang)}
+                                      </span>
+                                    </span>
+                                    <SearchSnippet
+                                      text={hit.snippet ?? ""}
+                                      className="mt-0.5 line-clamp-2 text-[12px] text-muted-foreground"
+                                    />
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </section>
+                    )}
                   </div>
                 </>
               )}
@@ -446,6 +530,11 @@ function MessagesInner() {
                     conversationId={selected}
                     variant="page"
                     autoFocus={false}
+                    jumpRequest={
+                      jumpRequest && jumpRequest.convId === selected
+                        ? { id: jumpRequest.id, nonce: jumpRequest.nonce }
+                        : null
+                    }
                     onBack={() => {
                       setSelected(null);
                       void navigate({ search: {}, replace: true });

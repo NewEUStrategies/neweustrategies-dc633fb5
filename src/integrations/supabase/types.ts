@@ -3734,6 +3734,7 @@ export type Database = {
           id: string
           kind: string
           reply_to_id: string | null
+          search_vector: unknown | null
           sender_id: string
           tenant_id: string
         }
@@ -3753,6 +3754,7 @@ export type Database = {
           id?: string
           kind?: string
           reply_to_id?: string | null
+          search_vector?: unknown | null
           sender_id: string
           tenant_id: string
         }
@@ -3772,6 +3774,7 @@ export type Database = {
           id?: string
           kind?: string
           reply_to_id?: string | null
+          search_vector?: unknown | null
           sender_id?: string
           tenant_id?: string
         }
@@ -10421,6 +10424,24 @@ export type Database = {
           sublabel_en: string
           sublabel_pl: string
           verified: boolean
+        }[]
+      }
+      search_messages: {
+        Args: {
+          _conversation_id?: string
+          _limit?: number
+          _offset?: number
+          _q?: string
+        }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          id: string
+          kind: string
+          rank: number
+          snippet: string
+          sender_id: string
+          total_count: number
         }[]
       }
       search_posts: {

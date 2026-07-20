@@ -50,6 +50,13 @@ export interface MessageListProps {
   firstUnreadId?: string | null;
   /** Unread count snapshot at open (drives the divider label + initial jump). */
   unreadCount?: number;
+  /**
+   * Search-result jump target: once the id shows up in the loaded window the
+   * list scrolls to it, flashes the row and reports back via onJumpHandled.
+   * Paging older history until the id appears is the OWNER's job (ChatWindow).
+   */
+  jumpToId?: string | null;
+  onJumpHandled?: () => void;
   hasOlder: boolean;
   loadingOlder: boolean;
   onLoadOlder: () => void;
@@ -142,6 +149,8 @@ export function MessageList(props: MessageListProps) {
     starredIds = NO_STARS,
     firstUnreadId,
     unreadCount = 0,
+    jumpToId,
+    onJumpHandled,
     hasOlder,
     loadingOlder,
     onLoadOlder,
@@ -231,6 +240,16 @@ export function MessageList(props: MessageListProps) {
     },
     [reducedMotion],
   );
+
+  // Search-result jump: fires as soon as the target row exists in the loaded
+  // window (either it was already there or an older page just prepended it).
+  // Runs AFTER the layout effects, so the prepend anchoring cannot fight the
+  // smooth scroll to the row.
+  useEffect(() => {
+    if (!jumpToId || !byId.has(jumpToId)) return;
+    jumpToMessage(jumpToId);
+    onJumpHandled?.();
+  }, [jumpToId, byId, jumpToMessage, onJumpHandled]);
 
   // Newest own message that the peer has already read -> "seen" receipt.
   const lastMine = useMemo(() => {

@@ -22,6 +22,7 @@ import {
   Palette,
   Pin,
   PinOff,
+  Search,
   Timer,
   UsersRound,
   X,
@@ -87,6 +88,7 @@ import { ChatMediaPanel } from "./ChatMediaPanel";
 import { ForwardDialog } from "./ForwardDialog";
 import { GroupInfoDialog } from "./GroupInfoDialog";
 import { MessageList } from "./MessageList";
+import { MessageSearchBar } from "./MessageSearchBar";
 
 const TYPING_VISIBLE_MS = 4000;
 const EMPTY_REACTIONS_MAP: ReadonlyMap<string, never[]> = new Map();
@@ -108,6 +110,11 @@ export interface ChatWindowProps {
   /** Page variant only: mobile back-to-list action. */
   onBack?: () => void;
   autoFocus?: boolean;
+  /**
+   * External "scroll to this message" request (inbox-wide message search).
+   * nonce re-arms the jump when the same hit is clicked twice in a row.
+   */
+  jumpRequest?: { id: string; nonce: number } | null;
   className?: string;
 }
 
@@ -119,6 +126,7 @@ export function ChatWindow(props: ChatWindowProps) {
     onMinimize,
     onBack,
     autoFocus = true,
+    jumpRequest,
     className,
   } = props;
   const { t, i18n } = useTranslation();
@@ -357,6 +365,12 @@ export function ChatWindow(props: ChatWindowProps) {
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  // Wyszukiwanie w treści rozmowy + skok do trafienia. Jump target żyje tutaj
+  // (nie w MessageList), bo dociąganie starszych stron aż do znalezienia
+  // wiadomości wymaga messagesQ; MessageList tylko przewija, gdy id już jest.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [jumpTarget, setJumpTarget] = useState<string | null>(null);
+  const jumpPagesLeftRef = useRef(0);
 
   useEffect(() => {
     setReplyTo(null);
@@ -410,6 +424,44 @@ export function ChatWindow(props: ChatWindowProps) {
   );
   const { fetchNextPage } = messagesQ;
   const handleLoadOlder = useCallback(() => void fetchNextPage(), [fetchNextPage]);
+
+  // Zewnętrzne żądanie skoku (wyszukiwarka skrzynki) - nonce pozwala ponowić
+  // skok do tej samej wiadomości. Budżet stron ogranicza automatyczne
+  // dociąganie historii (12 stron = ~480 wiadomości wstecz).
+  const JUMP_PAGE_BUDGET = 12;
+  useEffect(() => {
+    if (!jumpRequest) return;
+    jumpPagesLeftRef.current = JUMP_PAGE_BUDGET;
+    setJumpTarget(jumpRequest.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpRequest?.id, jumpRequest?.nonce]);
+
+  const jumpTargetLoaded = useMemo(
+    () => !!jumpTarget && messages.some((m) => m.id === jumpTarget),
+    [jumpTarget, messages],
+  );
+  useEffect(() => {
+    if (!jumpTarget || jumpTargetLoaded) return;
+    // Trafienie poza załadowanym oknem: dociągaj starsze strony, aż wiadomość
+    // wejdzie do okna (MessageList wtedy przewinie), wyczerpie się historia
+    // (np. wiadomość właśnie znikła po TTL) albo skończy się budżet stron.
+    if (!messagesQ.hasNextPage || jumpPagesLeftRef.current <= 0) {
+      toast.error(t("chat.search.jumpFailed"));
+      setJumpTarget(null);
+      return;
+    }
+    if (messagesQ.isFetchingNextPage) return;
+    jumpPagesLeftRef.current -= 1;
+    void fetchNextPage();
+  }, [
+    jumpTarget,
+    jumpTargetLoaded,
+    messagesQ.hasNextPage,
+    messagesQ.isFetchingNextPage,
+    fetchNextPage,
+    t,
+  ]);
+  const handleJumpHandled = useCallback(() => setJumpTarget(null), []);
   const handleClearReply = useCallback(() => setReplyTo(null), []);
   const handleCancelEdit = useCallback(() => setEditTarget(null), []);
   const handleTyping = useCallback(
@@ -545,6 +597,22 @@ export function ChatWindow(props: ChatWindowProps) {
     if (!isGroup) return peerName;
     return peersQ.data?.get(senderId)?.display_name ?? "...";
   };
+
+  const searchToggle = (
+    <button
+      type="button"
+      onClick={() => setSearchOpen((v) => !v)}
+      className={cn(
+        "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        searchOpen && "bg-muted text-foreground",
+      )}
+      aria-label={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
+      aria-pressed={searchOpen}
+      title={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
+    >
+      <Search className="h-4 w-4" aria-hidden />
+    </button>
+  );
 
   const mediaToggle = (
     <button
@@ -743,6 +811,18 @@ export function ChatWindow(props: ChatWindowProps) {
 
   const mainCol = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {searchOpen && (
+        <MessageSearchBar
+          conversationId={conversationId}
+          lang={lang}
+          resolveAuthorName={resolveAuthorName}
+          onJump={(hit) => {
+            jumpPagesLeftRef.current = JUMP_PAGE_BUDGET;
+            setJumpTarget(hit.id);
+          }}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
       <MessageList
         lang={lang}
         myUserId={user.id}
@@ -763,6 +843,8 @@ export function ChatWindow(props: ChatWindowProps) {
         starredIds={starredIdsQ.data}
         firstUnreadId={firstUnreadId}
         unreadCount={unreadSnapshot?.count ?? 0}
+        jumpToId={jumpTarget}
+        onJumpHandled={handleJumpHandled}
         hasOlder={!!messagesQ.hasNextPage}
         loadingOlder={messagesQ.isFetchingNextPage || messagesQ.isLoading}
         onLoadOlder={handleLoadOlder}
@@ -972,6 +1054,7 @@ export function ChatWindow(props: ChatWindowProps) {
               </div>
             </>
           )}
+          {searchToggle}
           {blockToggle}
           {mediaToggle}
           {conversationMenu}
@@ -1022,6 +1105,7 @@ export function ChatWindow(props: ChatWindowProps) {
           </div>
           <div className="text-[10px] leading-tight text-muted-foreground">{headerSubtitle}</div>
         </div>
+        {searchToggle}
         {blockToggle}
         {mediaToggle}
         {conversationMenu}
