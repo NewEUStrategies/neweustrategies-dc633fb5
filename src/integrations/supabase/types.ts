@@ -8750,6 +8750,134 @@ export type Database = {
       }
     }
     Views: {
+      author_profiles_public: {
+        Row: {
+          avatar_url: string | null
+          bio_en: string | null
+          bio_pl: string | null
+          brand_accent: string | null
+          brand_accent_dark: string | null
+          company: string | null
+          counterpart_lang: string | null
+          counterpart_user_id: string | null
+          created_at: string | null
+          custom_socials: Json | null
+          facebook_url: string | null
+          full_bio_en: string | null
+          full_bio_pl: string | null
+          id: string | null
+          instagram_url: string | null
+          is_public: boolean | null
+          job_title: string | null
+          layout_overrides: Json | null
+          layout_preset: string | null
+          layout_section_order: string[] | null
+          layout_template_id: string | null
+          linkedin_url: string | null
+          media_contact_name: string | null
+          org_functions: Json | null
+          spotify_url: string | null
+          tenant_id: string | null
+          updated_at: string | null
+          user_id: string | null
+          website_url: string | null
+          x_url: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
+          brand_accent?: string | null
+          brand_accent_dark?: string | null
+          company?: string | null
+          counterpart_lang?: string | null
+          counterpart_user_id?: string | null
+          created_at?: string | null
+          custom_socials?: Json | null
+          facebook_url?: string | null
+          full_bio_en?: string | null
+          full_bio_pl?: string | null
+          id?: string | null
+          instagram_url?: string | null
+          is_public?: boolean | null
+          job_title?: string | null
+          layout_overrides?: Json | null
+          layout_preset?: string | null
+          layout_section_order?: string[] | null
+          layout_template_id?: string | null
+          linkedin_url?: string | null
+          media_contact_name?: string | null
+          org_functions?: Json | null
+          spotify_url?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          website_url?: string | null
+          x_url?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
+          brand_accent?: string | null
+          brand_accent_dark?: string | null
+          company?: string | null
+          counterpart_lang?: string | null
+          counterpart_user_id?: string | null
+          created_at?: string | null
+          custom_socials?: Json | null
+          facebook_url?: string | null
+          full_bio_en?: string | null
+          full_bio_pl?: string | null
+          id?: string | null
+          instagram_url?: string | null
+          is_public?: boolean | null
+          job_title?: string | null
+          layout_overrides?: Json | null
+          layout_preset?: string | null
+          layout_section_order?: string[] | null
+          layout_template_id?: string | null
+          linkedin_url?: string | null
+          media_contact_name?: string | null
+          org_functions?: Json | null
+          spotify_url?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          website_url?: string | null
+          x_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "author_profiles_counterpart_user_id_fkey"
+            columns: ["counterpart_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "author_profiles_counterpart_user_id_fkey"
+            columns: ["counterpart_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "author_profiles_layout_template_id_fkey"
+            columns: ["layout_template_id"]
+            isOneToOne: false
+            referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "author_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_access_public: {
         Row: {
           created_at: string | null
