@@ -9,6 +9,9 @@
 // Użycie:
 //   bunx vite build --config vite.smoke.config.ts
 //   node .output/server/index.mjs   # + test Playwright przeciw :3000
+//   bun run scripts/check-chunk-graph.ts
+//
+// UWAGA: trzymać w synchronizacji z vite.config.ts (kopiuj sekcję vite).
 // @lovable.dev/vite-tanstack-config already includes the following - do NOT add them manually
 // or the app will break with duplicate plugins:
 //   - tanstackStart, viteReact, tailwindcss, tsConfigPaths, nitro (build-only using cloudflare as a default target),
@@ -74,26 +77,27 @@ export default defineConfig({
           minify: "esbuild",
           rollupOptions: {
             output: {
+              // Bez hoistowania importów tranzytywnych: nagłówki chunków
+              // zawierają wtedy wyłącznie PRAWDZIWE krawędzie modułów, więc
+              // graf inicjalizacji jest deterministyczny i audytowalny
+              // (scripts/check-chunk-graph.ts). Koszt (głębszy waterfall przy
+              // dynamic importach) pokrywa modulepreload z mapDeps.
+              hoistTransitiveImports: false,
               manualChunks(id: string) {
                 if (!id.includes("/node_modules/")) return undefined;
-                // React runtime + shim use-sync-external-store razem (TDZ/cycle
-                // safety). INCYDENT 2026-07-20: shim (zależność @radix-ui/
-                // react-use-is-hydrated i @tanstack/react-store) wylądował w
-                // entry, a vendor-radix tworzył cykl chunków z entry (przez
-                // @floating-ui itd.); przy inicjalizacji CJS-interop shim
-                // dostawał undefined ("Cannot set properties of undefined
-                // (setting 'useSyncExternalStore')"), boot klienta padał i
-                // KAŻDA strona po SSR była martwa (brak hydratacji). Dlatego:
-                //   - shim jedzie w vendor-react (nie ma innych zależności),
-                //   - vendor-radix ZLIKWIDOWANY (Radix ma drobne CJS-owe
-                //     zależności poza swoim scope - aria-hidden,
-                //     react-remove-scroll, @floating-ui - które zostają w
-                //     entry i domykają cykl entry <-> vendor-radix),
-                //   - vendor-i18n obejmuje też CJS-owe zależności
-                //     react-i18next (html-parse-stringify, void-elements),
-                //     żeby nie powstał identyczny cykl.
-                // Regresyjny smoke boot-testu przeglądarkowego: patrz
-                // vite.smoke.config.ts + scripts w opisie commita.
+                // ZASADA (incydent 2026-07-20, martwa hydratacja na KAŻDEJ
+                // stronie): chunk vendorowy musi zawierać DOMKNIĘCIE
+                // zależności swoich pakietów spoza vendor-react. Rozdzielenie
+                // pakietu od jego zależności (use-sync-external-store poza
+                // radixem, html-parse-stringify poza react-i18next) tworzy
+                // cykl chunków entry <-> vendor; przy CJS-interop kolejność
+                // inicjalizacji się wywraca ("Cannot set properties of
+                // undefined (setting 'useSyncExternalStore')") i boot klienta
+                // pada przed hydrateRoot - strona zostaje statycznym SSR-em,
+                // bez żadnego błędu widocznego dla użytkownika. Dev i testy
+                // jednostkowe tej klasy NIE ŁAPIĄ (w dev nie ma chunków);
+                // gate: scripts/check-chunk-graph.ts (cykle) + boot-test
+                // przeglądarkowy na buildzie vite.smoke.config.ts.
                 if (
                   /\/node_modules\/(react|react-dom|scheduler|use-sync-external-store)\//.test(id)
                 ) {
@@ -101,6 +105,15 @@ export default defineConfig({
                 }
                 if (id.includes("/node_modules/@supabase/")) return "vendor-supabase";
                 if (id.includes("/node_modules/@tanstack/")) return "vendor-tanstack";
+                // Radix + jego sidecary (scroll-lock, aria-hidden, floating-ui)
+                // w JEDNYM chunku - patrz zasada domknięcia wyżej.
+                if (
+                  /\/node_modules\/(@radix-ui|@floating-ui|aria-hidden|react-remove-scroll|react-remove-scroll-bar|react-style-singleton|use-callback-ref|use-sidecar|get-nonce)\//.test(
+                    id,
+                  )
+                ) {
+                  return "vendor-radix";
+                }
                 if (
                   /\/node_modules\/(i18next|react-i18next|html-parse-stringify|void-elements)\//.test(
                     id,
