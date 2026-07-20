@@ -130,7 +130,7 @@ export function MegaPanelView({
                     )
                   ) : null}
                 </div>
-                <ul className="flex flex-col gap-4">
+                <ul className="flex flex-col gap-1.5">
                   {(col.links ?? []).map((lnk, j) => {
                     const label = pickLocalized(lnk.label_pl, lnk.label_en, lang);
                     if (!label) return null;
@@ -138,20 +138,20 @@ export function MegaPanelView({
                       <li key={j}>
                         <AppLink
                           href={safeUrl(lnk.href) || "#"}
-                          className="group flex items-center gap-3"
+                          className="menu-card-item"
                           role="menuitem"
                         >
                           {lnk.icon ? (
-                            <span
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground ring-1 ring-border/60 transition-colors group-hover:bg-brand/10 group-hover:text-brand group-hover:ring-brand/30"
-                              aria-hidden
-                            >
+                            <span className="menu-card-item__icon" aria-hidden>
                               <DynamicIcon name={lnk.icon} size={16} strokeWidth={1.75} />
                             </span>
                           ) : null}
-                          <span className="block text-[15px] font-normal leading-tight text-foreground transition-colors group-hover:text-brand">
-                            {label}
-                          </span>
+                          <span className="menu-card-item__label">{label}</span>
+                          <ArrowRight
+                            size={14}
+                            className="menu-card-item__chevron"
+                            aria-hidden
+                          />
                         </AppLink>
                       </li>
                     );
