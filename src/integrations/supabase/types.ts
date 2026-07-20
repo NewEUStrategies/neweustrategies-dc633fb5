@@ -8450,6 +8450,51 @@ export type Database = {
       }
     }
     Views: {
+      content_access_public: {
+        Row: {
+          created_at: string | null
+          entity_id: string | null
+          entity_type: Database["public"]["Enums"]["access_entity_type"] | null
+          id: string | null
+          mode: Database["public"]["Enums"]["access_mode"] | null
+          one_time_currency: string | null
+          one_time_price_cents: number | null
+          plan_ids: string[] | null
+          teaser_en: string | null
+          teaser_pl: string | null
+          tenant_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
+          id?: string | null
+          mode?: Database["public"]["Enums"]["access_mode"] | null
+          one_time_currency?: string | null
+          one_time_price_cents?: number | null
+          plan_ids?: string[] | null
+          teaser_en?: string | null
+          teaser_pl?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
+          id?: string | null
+          mode?: Database["public"]["Enums"]["access_mode"] | null
+          one_time_currency?: string | null
+          one_time_price_cents?: number | null
+          plan_ids?: string[] | null
+          teaser_en?: string | null
+          teaser_pl?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       crm_leads_all: {
         Row: {
           aliases: Json | null
