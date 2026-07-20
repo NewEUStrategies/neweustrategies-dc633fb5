@@ -53,7 +53,18 @@ export function SearchButtonWidget({
   fontSize: number;
 }) {
   const router = useRouter();
-  const [q, setQ] = useState("");
+  // Sync the header search bar with /search?q=... so header and page never
+  // disagree. We read the router state (updated on every navigation) and
+  // mirror it into the local input when the user isn't actively typing.
+  const routerLocation = useRouterState({ select: (s) => s.location });
+  const urlQ = useMemo(() => {
+    const path = routerLocation.pathname || "";
+    if (!/(^|\/)search(\/?$|\?)/.test(path) && !path.endsWith("/search")) return "";
+    const sp = routerLocation.search as Record<string, unknown> | undefined;
+    const raw = sp && typeof sp.q === "string" ? sp.q : "";
+    return raw;
+  }, [routerLocation.pathname, routerLocation.search]);
+  const [q, setQ] = useState(urlQ);
   const [items, setItems] = useState<AutosuggestItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
