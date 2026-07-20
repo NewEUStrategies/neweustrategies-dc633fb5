@@ -44,7 +44,12 @@ function FollowsPage() {
   const [tab, setTab] = useState<FollowTargetType>("author");
 
   const ids = useMemo(() => {
-    const out = { author: [] as string[], category: [] as string[], tag: [] as string[] };
+    const out = {
+      author: [] as string[],
+      category: [] as string[],
+      tag: [] as string[],
+      program: [] as string[],
+    };
     (follows ?? []).forEach((f) => {
       out[f.target_type].push(f.target_id);
     });
@@ -90,6 +95,19 @@ function FollowsPage() {
     },
   });
 
+  const programsQ = useQuery({
+    queryKey: ["follows.programs", ids.program],
+    enabled: !!user && ids.program.length > 0,
+    queryFn: async (): Promise<CategoryLite[]> => {
+      const { data, error } = await supabase
+        .from("programs")
+        .select("id, slug, name_pl, name_en")
+        .in("id", ids.program);
+      if (error) throw error;
+      return (data ?? []) as CategoryLite[];
+    },
+  });
+
   // Obserwacje, których nie da się już rozwiązać (usunięty byt / profil ukryty
   // przez RLS) nie znikają po cichu - dostają wiersz z możliwością unfollow,
   // dzięki czemu liczniki zakładek zgadzają się z zawartością list.
@@ -99,6 +117,9 @@ function FollowsPage() {
       ? ids.category.filter((id) => !categoriesQ.data.some((c) => c.id === id))
       : [],
     tag: tagsQ.data ? ids.tag.filter((id) => !tagsQ.data.some((tg) => tg.id === id)) : [],
+    program: programsQ.data
+      ? ids.program.filter((id) => !programsQ.data.some((pr) => pr.id === id))
+      : [],
   };
 
   const UnresolvedRow = ({ type, id }: { type: FollowTargetType; id: string }) => (
@@ -134,6 +155,9 @@ function FollowsPage() {
             </TabsTrigger>
             <TabsTrigger value="tag">
               {t("profile.follows.tabTags")} ({ids.tag.length})
+            </TabsTrigger>
+            <TabsTrigger value="program">
+              {t("profile.follows.tabPrograms")} ({ids.program.length})
             </TabsTrigger>
           </TabsList>
 
@@ -243,6 +267,38 @@ function FollowsPage() {
                 ))}
                 {missing.tag.map((id) => (
                   <UnresolvedRow key={id} type="tag" id={id} />
+                ))}
+              </ul>
+            )}
+          </TabsContent>
+
+          <TabsContent value="program" className="mt-4">
+            {ids.program.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("profile.follows.empty")}</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {(programsQ.data ?? []).map((pr) => (
+                  <li key={pr.id} className="flex items-center gap-3 py-3">
+                    <Link
+                      to="/programs/$slug"
+                      params={{ slug: pr.slug }}
+                      className="flex-1 font-medium hover:underline truncate"
+                    >
+                      {lang === "en" ? pr.name_en || pr.name_pl : pr.name_pl || pr.name_en}
+                    </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        toggle.mutate({ targetType: "program", targetId: pr.id, on: false })
+                      }
+                    >
+                      {t("profile.follows.unfollow")}
+                    </Button>
+                  </li>
+                ))}
+                {missing.program.map((id) => (
+                  <UnresolvedRow key={id} type="program" id={id} />
                 ))}
               </ul>
             )}
