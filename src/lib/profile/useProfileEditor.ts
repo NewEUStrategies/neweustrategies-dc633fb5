@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -58,55 +58,68 @@ const MAX_SIZE: Record<UploadKind, number> = {
 const FIELDS =
   "display_name, first_name, last_name, job_title, current_company, specialization, location, phone, bio, bio_pl, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
 
+export const profileEditorKey = (uid: string | null | undefined) =>
+  ["profile-editor", uid ?? undefined] as const;
+
 /**
  * Inline profile editor: per-field optimistic save with toast feedback.
- * Mirrors the public profile shape so the same UI is both viewer and editor.
+ *
+ * Reads the identity from `useAuth()` context (single AuthProvider round-trip)
+ * and caches the profile row in React Query under `profileEditorKey(uid)` with
+ * staleTime 5 min / gcTime 30 min. Navigating away from and back to any editor
+ * surface reuses the cached row instead of re-hitting the Data API. Mutations
+ * update the cache via `setQueryData` (optimistic) and revert on error.
  */
 export function useProfileEditor() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [data, setData] = useState<ProfileEditorRow>(EMPTY);
-  const [loading, setLoading] = useState(true);
+  const uid = user?.id;
+
+  const query = useQuery({
+    queryKey: profileEditorKey(uid),
+    enabled: !!uid,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    queryFn: async (): Promise<ProfileEditorRow> => {
+      const { data: row, error } = await supabase
+        .from("profiles")
+        .select(FIELDS)
+        .eq("id", uid!)
+        .maybeSingle();
+      if (error) throw error;
+      if (!row) return EMPTY;
+      const r = row as ProfileEditorRow & { bio_pl?: string | null };
+      // Canonical bio = bio_pl (fallback to legacy single-language `bio`).
+      return { ...r, bio: r.bio_pl ?? r.bio ?? null };
+    },
+  });
+
+  const data: ProfileEditorRow = query.data ?? EMPTY;
+  const loading = !!uid && query.isLoading;
+
   const [progress, setProgress] = useState<Record<UploadKind, number>>({ avatar: 0, cover: 0 });
   const [status, setStatus] = useState<Record<UploadKind, Status>>({
     avatar: "idle",
     cover: "idle",
   });
 
-  const refresh = useCallback(async (uid: string) => {
-    const { data: row } = await supabase
-      .from("profiles")
-      .select(FIELDS)
-      .eq("id", uid)
-      .maybeSingle();
-    if (row) {
-      const r = row as ProfileEditorRow & { bio_pl?: string | null };
-      // Canonical bio = bio_pl (fallback to legacy single-language `bio`).
-      setData({ ...r, bio: r.bio_pl ?? r.bio ?? null });
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    void refresh(user.id);
-  }, [user, refresh]);
-
   const invalidateHeader = useCallback(() => {
-    if (!user) return;
-    void qc.invalidateQueries({ queryKey: ["header-profile", user.id] });
-    void qc.invalidateQueries({ queryKey: ["greeting", user.id] });
+    if (!uid) return;
+    void qc.invalidateQueries({ queryKey: ["header-profile", uid] });
+    void qc.invalidateQueries({ queryKey: ["greeting", uid] });
     // The profile sidebar (name + initials) reads its own query; without this it
     // kept showing the pre-edit name until a full reload.
-    void qc.invalidateQueries({ queryKey: ["profile-sidebar", user.id] });
-  }, [qc, user]);
+    void qc.invalidateQueries({ queryKey: ["profile-sidebar", uid] });
+  }, [qc, uid]);
 
   const saveField = useCallback(
     async <K extends keyof ProfileEditorRow>(field: K, value: ProfileEditorRow[K]) => {
-      if (!user) return;
-      const prev = data[field];
+      if (!uid) return;
+      const key = profileEditorKey(uid);
+      const prevRow = qc.getQueryData<ProfileEditorRow>(key) ?? EMPTY;
+      const prev = prevRow[field];
       // optimistic
-      setData((d) => ({ ...d, [field]: value }));
+      qc.setQueryData<ProfileEditorRow>(key, { ...prevRow, [field]: value });
       // "bio" is canonical bio_pl on the wire, so a single-field edit writes the
       // same column the social/public surfaces read (no more divergent bios).
       const column = field === "bio" ? "bio_pl" : field;
@@ -114,20 +127,20 @@ export function useProfileEditor() {
       const { error } = await supabase
         .from("profiles")
         .update(patch as never)
-        .eq("id", user.id);
+        .eq("id", uid);
       if (error) {
-        setData((d) => ({ ...d, [field]: prev }));
+        qc.setQueryData<ProfileEditorRow>(key, { ...prevRow, [field]: prev });
         toast.error(error.message);
         return;
       }
       invalidateHeader();
     },
-    [user, data, invalidateHeader],
+    [uid, qc, invalidateHeader],
   );
 
   const upload = useCallback(
     async (file: File, kind: UploadKind) => {
-      if (!user || !data.tenant_id) return;
+      if (!uid || !data.tenant_id) return;
       if (file.size > MAX_SIZE[kind]) {
         setStatus((s) => ({ ...s, [kind]: "failed" }));
         toast.error("File too large");
@@ -137,7 +150,7 @@ export function useProfileEditor() {
       setProgress((p) => ({ ...p, [kind]: 0 }));
 
       const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${data.tenant_id}/users/${user.id}/${kind}-${Date.now()}.${ext}`;
+      const path = `${data.tenant_id}/users/${uid}/${kind}-${Date.now()}.${ext}`;
 
       try {
         const { data: signed, error: signErr } = await supabase.storage
@@ -174,7 +187,7 @@ export function useProfileEditor() {
         toast.error(e instanceof Error ? e.message : "Upload failed");
       }
     },
-    [user, data.tenant_id, saveField],
+    [uid, data.tenant_id, saveField],
   );
 
   return {
