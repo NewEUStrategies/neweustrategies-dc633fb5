@@ -34,6 +34,7 @@ import {
 } from "@/lib/builder/formFieldConfig";
 import { CountryCombobox } from "@/components/interests/CountryCombobox";
 import { FloatingInput } from "@/components/ui/floating-input";
+import { Checkbox } from "@/components/ui/checkbox";
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
