@@ -221,9 +221,32 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
         }
       `}</style>
       <div className="mx-auto max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5">
-        {/* Search - same widget as builder header, smaller in the condensed reading bar.
-            Hidden on mobile; icons (notifications / messages / profile) take over. */}
-        <div className="hidden sm:block relative z-50 min-w-0 overflow-visible w-[190px] md:w-[240px] lg:w-[280px]">
+        {/* Search + horizontal logo cluster. Logo uses the same theme-aware
+            Branding → Logo → Mobile asset as the main header, so dark/light
+            variants align automatically. */}
+        <div className="hidden sm:flex items-center gap-2 lg:gap-3 min-w-0">
+          <Link
+            to="/"
+            aria-label="New European Strategies"
+            data-reading-icon
+            className="shrink-0 inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded"
+          >
+            {horizontalLogo ? (
+              <img
+                src={horizontalLogo}
+                alt=""
+                className="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain"
+                loading="eager"
+                decoding="async"
+              />
+            ) : (
+              <span className="font-display text-[12px] lg:text-[13px] font-bold tracking-tight text-foreground">
+                NES
+              </span>
+            )}
+          </Link>
+          <div className="relative z-50 min-w-0 overflow-visible w-[160px] md:w-[200px] lg:w-[240px]">
+
           <SearchButtonWidget
             label={t.search}
             mode="dropdown"
