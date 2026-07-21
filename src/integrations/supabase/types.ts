@@ -10638,6 +10638,7 @@ export type Database = {
         Returns: undefined
       }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
+      is_connected_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
         Returns: boolean
