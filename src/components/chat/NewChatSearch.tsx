@@ -64,9 +64,20 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
                   onClick={() =>
                     start.mutate(person.id, {
                       onSuccess: (conversationId) => onOpened(conversationId),
-                      onError: () => toast.error(t("chat.startError")),
+                      onError: (err) => {
+                        const msg = err instanceof Error ? err.message : "";
+                        toast.error(
+                          msg.includes("not in your network")
+                            ? t("chat.notInNetwork", {
+                                defaultValue:
+                                  "Możesz pisać tylko do osób z Twojej zaakceptowanej sieci kontaktów.",
+                              })
+                            : t("chat.startError"),
+                        );
+                      },
                     })
                   }
+
                   className="flex w-full items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-left transition-colors hover:bg-muted/60 disabled:opacity-60"
                 >
                   <ChatAvatar
