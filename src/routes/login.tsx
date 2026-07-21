@@ -152,6 +152,16 @@ function LoginPage() {
         if (msg.includes("rate_limited")) {
           throw new Error(rateLimitedMessage());
         }
+        if (msg.includes("invalid_input")) {
+          // ZodError z walidatora - pokazujemy czytelny komunikat zamiast
+          // surowego JSON-a i zostawiamy formularz w bezpiecznym stanie
+          // (bez redirectu, bez blank screen); użytkownik poprawia dane.
+          throw new Error(
+            isPl
+              ? "Nieprawidłowe dane logowania - sprawdź adres email i spróbuj ponownie."
+              : "Invalid sign-in details - check your email and try again.",
+          );
+        }
         throw guardErr;
       }
 
