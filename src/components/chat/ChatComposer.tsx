@@ -453,7 +453,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           </button>
         </div>
       ) : (
-        <div className="flex items-end gap-1">
+        <div className="flex items-center gap-1">
           <input
             ref={fileInputRef}
             type="file"
