@@ -424,7 +424,7 @@ function AdminCompaniesPage() {
                       key={c.id}
                       className="group cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/40 data-[selected=true]:bg-primary/5"
                       data-selected={checked || undefined}
-                      onClick={() => navigate({ to: "/admin/companies/$id", params: { id: c.id } })}
+                      onClick={() => setDrawerId(c.id)}
                     >
                       <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
