@@ -107,9 +107,13 @@ const BLOCKS_COLUMNS_PAGES = ["id", "slug", "status", "builder_data", "tenant_id
 d("db schema: required tables are reachable via Data API", () => {
   it.each(REQUIRED_TABLES)("table %s exists and accepts a projection", async (table) => {
     const { error } = await client!.from(table).select("*").limit(0);
-    // A missing table produces PGRST205 / 42P01. RLS on a reachable table
-    // returns an empty array with no error — that is a pass.
-    expect(error, `${table}: ${error?.message ?? ""}`).toBeNull();
+    // A missing table produces PGRST205 / 42P01. RLS returning an empty
+    // array (no error) is a pass. `42501` (permission denied) also proves
+    // the table exists — the anon role just lacks SELECT, which is by
+    // design for PII-bearing tables like `profiles` / `author_profiles`.
+    if (error && error.code !== "42501") {
+      expect.fail(`${table}: ${error.message} (${error.code})`);
+    }
   });
 });
 
