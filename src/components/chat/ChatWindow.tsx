@@ -1090,6 +1090,7 @@ export function ChatWindow(props: ChatWindowProps) {
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <section
       className={cn(
         "pointer-events-auto flex w-[420px] max-w-[calc(100vw-16px)] flex-col overflow-hidden sm:w-[460px] lg:w-[500px]",
