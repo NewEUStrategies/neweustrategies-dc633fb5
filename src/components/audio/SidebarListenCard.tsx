@@ -235,7 +235,7 @@ export function SidebarListenCard({
                     FOCUS_RING,
                   ].join(" ")}
                 >
-                  <Sparkles className="h-3 w-3" aria-hidden />
+                  <Wand2 className="h-3 w-3" aria-hidden />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={6} className="rounded-[6px]">
