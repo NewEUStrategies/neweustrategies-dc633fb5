@@ -663,12 +663,16 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={listQ.isFetching}
-                      onClick={() => setLimit((n) => n + NOTIFICATIONS_PAGE_SIZE)}
+                      disabled={listQ.isFetchingNextPage}
+                      onClick={() => void listQ.fetchNextPage()}
+                      aria-label={t("notifications.loadMore", { defaultValue: "Załaduj więcej" })}
                     >
-                      {listQ.isFetching
+                      {listQ.isFetchingNextPage
                         ? t("common.loading", { defaultValue: "Ładowanie..." })
-                        : t("notifications.loadMore", { defaultValue: "Załaduj więcej" })}
+                        : t("notifications.loadMore", {
+                            defaultValue: "Załaduj więcej",
+                            count: NOTIFICATIONS_PAGE_SIZE,
+                          })}
                     </Button>
                   </div>
                 )}
