@@ -1096,7 +1096,6 @@ export function ChatWindow(props: ChatWindowProps) {
             </>
           )}
           {searchToggle}
-          {blockToggle}
           {mediaToggle}
           {conversationMenu}
         </div>
