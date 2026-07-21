@@ -34,6 +34,7 @@ import {
 import type { EChartsCoreOption } from "echarts/core";
 import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
 import { ChartCard } from "./ChartCard";
+import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
 import { InsightSection } from "./InsightSection";
 import { buildGscInsights } from "./gscInsights";
@@ -348,12 +349,16 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           itemStyle: { borderColor: "hsl(var(--background))", borderWidth: 2, gapWidth: 2 },
           levels: [{ colorSaturation: [0.35, 0.7] }],
           data: top.map((r) => {
-            const path = (r.keys[0] ?? "/").replace(/^https?:\/\/[^/]+/, "");
+            const raw = r.keys[0] ?? "/";
+            const path = raw.replace(/^https?:\/\/[^/]+/, "");
             return {
               name: path.length > 30 ? path.slice(0, 30) + "…" : path,
               value: r.impressions,
               ctr: r.ctr,
               clicks: r.clicks,
+              position: r.position,
+              fullPath: path,
+              rawUrl: raw,
             };
           }),
         },
@@ -398,6 +403,116 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
       series: [{ type: "heatmap", coordinateSystem: "calendar", data }],
     };
   }, [dateRows, t]);
+
+  // ---- Drill-down handlers ----
+  const gscRowMetrics = (r: GscRow) => [
+    { label: t("adminAnalytics.gsc.clicks"), value: r.clicks.toLocaleString("pl-PL") },
+    { label: t("adminAnalytics.gsc.impressions"), value: r.impressions.toLocaleString("pl-PL") },
+    { label: "CTR", value: `${(r.ctr * 100).toFixed(2)}%` },
+    { label: t("adminAnalytics.gsc.avgPosition"), value: r.position.toFixed(1) },
+  ];
+
+  const trendClick = (p: ChartClickParams): ChartDrillDetail | null => {
+    const sorted = dateRows
+      .slice()
+      .sort((a, b) => (a.keys[0] ?? "").localeCompare(b.keys[0] ?? ""));
+    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+    const row = sorted[idx];
+    if (!row) return null;
+    return {
+      title: t("adminAnalytics.gsc.charts.trendTitle"),
+      subtitle: p.seriesName,
+      date: row.keys[0] ?? "",
+      metrics: gscRowMetrics(row),
+    };
+  };
+
+  const topQueriesClick = (p: ChartClickParams): ChartDrillDetail | null => {
+    const top = queryRows.slice().sort((a, b) => b.clicks - a.clicks).slice(0, 15).reverse();
+    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+    const row = top[idx];
+    if (!row) return null;
+    return {
+      title: row.keys[0] ?? "",
+      subtitle: t("adminAnalytics.gsc.charts.topQueriesTitle"),
+      metrics: gscRowMetrics(row),
+    };
+  };
+
+  const positionBucketClick = (p: ChartClickParams): ChartDrillDetail | null => {
+    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+    const bucket = POSITION_BUCKETS[idx];
+    if (!bucket) return null;
+    let clicks = 0;
+    let impressions = 0;
+    for (const r of queryRows) {
+      if (r.position >= bucket.min && r.position <= bucket.max) {
+        clicks += r.clicks;
+        impressions += r.impressions;
+      }
+    }
+    const ctr = impressions > 0 ? clicks / impressions : 0;
+    return {
+      title: `${t("adminAnalytics.gsc.avgPosition")}: ${bucket.label}`,
+      subtitle: t("adminAnalytics.gsc.charts.positionTitle"),
+      metrics: [
+        { label: t("adminAnalytics.gsc.clicks"), value: clicks.toLocaleString("pl-PL") },
+        { label: t("adminAnalytics.gsc.impressions"), value: impressions.toLocaleString("pl-PL") },
+        { label: "CTR", value: `${(ctr * 100).toFixed(2)}%` },
+      ],
+    };
+  };
+
+  const donutClickFrom =
+    (rows: GscRow[], dimLabel: string) =>
+    (p: ChartClickParams): ChartDrillDetail | null => {
+      const name = p.name ?? "?";
+      const row = rows.find((r) => (r.keys[0] ?? "?") === name);
+      if (!row) return null;
+      return { title: name, subtitle: dimLabel, metrics: gscRowMetrics(row) };
+    };
+
+  const pageTreemapClick = (p: ChartClickParams): ChartDrillDetail | null => {
+    const d = p.data as
+      | { fullPath?: string; rawUrl?: string; value?: number; ctr?: number; clicks?: number; position?: number }
+      | undefined;
+    if (!d?.fullPath) return null;
+    const impressions = d.value ?? 0;
+    const ctr = d.ctr ?? 0;
+    return {
+      title: d.fullPath,
+      subtitle: t("adminAnalytics.gsc.charts.pagesTitle"),
+      url: d.rawUrl ?? d.fullPath,
+      urlLabel: d.fullPath,
+      metrics: [
+        { label: t("adminAnalytics.gsc.clicks"), value: (d.clicks ?? 0).toLocaleString("pl-PL") },
+        { label: t("adminAnalytics.gsc.impressions"), value: impressions.toLocaleString("pl-PL") },
+        { label: "CTR", value: `${(ctr * 100).toFixed(2)}%` },
+        { label: t("adminAnalytics.gsc.avgPosition"), value: (d.position ?? 0).toFixed(1) },
+      ],
+      links: [
+        {
+          href: d.rawUrl ?? d.fullPath,
+          label: t("adminAnalytics.drillDialog.openInNewTab"),
+        },
+      ],
+    };
+  };
+
+  const calendarClick = (p: ChartClickParams): ChartDrillDetail | null => {
+    const value = p.value as [string, number] | undefined;
+    if (!value) return null;
+    const [day, clicks] = value;
+    const row = dateRows.find((r) => (r.keys[0] ?? "") === day);
+    return {
+      title: t("adminAnalytics.gsc.charts.calendarTitle"),
+      date: day,
+      metrics: row
+        ? gscRowMetrics(row)
+        : [{ label: t("adminAnalytics.gsc.clicks"), value: String(clicks) }],
+    };
+  };
+
 
   if (!configured) {
     return (
@@ -535,6 +650,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           option={trendOption}
           csv={trendCsv}
           height={320}
+          onDataClick={trendClick}
         />
         <ChartCard
           title={t("adminAnalytics.gsc.charts.topQueriesTitle")}
@@ -542,6 +658,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           option={topQueriesOption}
           csv={queriesCsv}
           height={320}
+          onDataClick={topQueriesClick}
         />
       </div>
 
@@ -552,18 +669,21 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           subtitle={t("adminAnalytics.gsc.charts.positionSubtitle")}
           option={positionHistogramOption}
           height={280}
+          onDataClick={positionBucketClick}
         />
         <ChartCard
           title={t("adminAnalytics.gsc.charts.countriesTitle")}
           subtitle={t("adminAnalytics.gsc.charts.countriesSubtitle")}
           option={donutOption(countryRows, t("adminAnalytics.gsc.charts.countriesTitle"))}
           height={280}
+          onDataClick={donutClickFrom(countryRows, t("adminAnalytics.gsc.charts.countriesTitle"))}
         />
         <ChartCard
           title={t("adminAnalytics.gsc.charts.devicesTitle")}
           subtitle={t("adminAnalytics.gsc.charts.devicesSubtitle")}
           option={donutOption(deviceRows, t("adminAnalytics.gsc.charts.devicesTitle"))}
           height={280}
+          onDataClick={donutClickFrom(deviceRows, t("adminAnalytics.gsc.charts.devicesTitle"))}
         />
       </div>
 
@@ -574,14 +694,18 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           subtitle={t("adminAnalytics.gsc.charts.pagesSubtitle")}
           option={treemapOption}
           height={320}
+          onDataClick={pageTreemapClick}
         />
         <ChartCard
           title={t("adminAnalytics.gsc.charts.calendarTitle")}
           subtitle={t("adminAnalytics.gsc.charts.calendarSubtitle")}
           option={calendarOption}
           height={320}
+          onDataClick={calendarClick}
         />
       </div>
+
+
 
       {/* Interpretacja + rekomendacje per element dashboardu */}
       <InsightSection

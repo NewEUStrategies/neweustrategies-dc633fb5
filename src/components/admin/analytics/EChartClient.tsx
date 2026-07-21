@@ -43,6 +43,7 @@ import {
 } from "echarts/components";
 import type { EChartsCoreOption, ECharts } from "echarts/core";
 import { resolveChartTheme, baseOption, type ResolvedTheme } from "./chartTheme";
+import type { ChartClickParams } from "./ChartDrillDialog";
 
 echartsUse([
   CanvasRenderer,
@@ -71,6 +72,7 @@ export interface EChartClientProps {
   option: EChartsCoreOption;
   height?: number | string;
   onReady?: (instance: ECharts) => void;
+  onDataClick?: (params: ChartClickParams) => void;
   className?: string;
   themeVersion?: number;
 }
@@ -84,6 +86,7 @@ export function EChartClient({
   option,
   height = 320,
   onReady,
+  onDataClick,
   className,
   themeVersion = 0,
 }: EChartClientProps) {
@@ -91,6 +94,8 @@ export function EChartClient({
   const [tick, setTick] = useState(0);
   const theme = useMemo(() => resolveChartTheme(), [themeVersion, tick]);
   const merged = useMemo(() => mergeWithTheme(option, theme), [option, theme]);
+  const clickRef = useRef<((p: ChartClickParams) => void) | undefined>(onDataClick);
+  clickRef.current = onDataClick;
 
   // Re-read tokens after mount in case the theme provider hasn't written
   // ready-to-use values on the html element on the very first paint.
@@ -102,12 +107,21 @@ export function EChartClient({
     if (!ref.current) return;
     const inst = ref.current.getEchartsInstance();
     onReady?.(inst);
+    // Register once; ref keeps handler fresh across renders.
+    const handler = (params: unknown) => clickRef.current?.(params as ChartClickParams);
+    inst.on("click", handler);
+    return () => {
+      inst.off("click", handler);
+    };
   }, [onReady]);
 
   return (
     <div
       className={className}
-      style={{ height: typeof height === "number" ? `${height}px` : height }}
+      style={{
+        height: typeof height === "number" ? `${height}px` : height,
+        cursor: onDataClick ? "pointer" : undefined,
+      }}
     >
       <ReactECharts
         ref={ref}
