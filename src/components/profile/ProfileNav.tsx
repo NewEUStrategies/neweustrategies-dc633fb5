@@ -2,6 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useMyOrganization } from "@/lib/billing/membership";
 
 type NavKey =
   | "overview"
@@ -13,6 +14,7 @@ type NavKey =
   | "follows"
   | "network"
   | "membership"
+  | "organization"
   | "billing"
   | "subscription"
   | "orders"
@@ -49,9 +51,14 @@ const FINANCE: NavItem[] = [
   { to: "/profile/privacy", key: "privacy" },
 ];
 
+// Pozycja "Organizacja" pojawia się tylko u posiadaczy miejsca w organizacji
+// (B2B) - dla pozostałych to martwy link, więc nie zaśmieca nawigacji.
+const ORGANIZATION_ITEM: NavItem = { to: "/profile/organization", key: "organization" };
+
 export function ProfileNav() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
+  const myOrg = useMyOrganization();
 
   const isActive = (to: string) =>
     pathname === to || (to !== "/profile" && pathname.startsWith(to));
@@ -96,7 +103,9 @@ export function ProfileNav() {
       {groupHeading("profile.navGroups.content")}
       {CONTENT.map(renderItem)}
       {groupHeading("profile.navGroups.finance")}
-      {FINANCE.map(renderItem)}
+      {(myOrg.data ? [FINANCE[0], ORGANIZATION_ITEM, ...FINANCE.slice(1)] : FINANCE).map(
+        renderItem,
+      )}
     </nav>
   );
 }

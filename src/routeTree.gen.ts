@@ -60,6 +60,7 @@ import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
 import { Route as ProfilePrivacyRouteImport } from './routes/profile.privacy'
 import { Route as ProfilePersonalityRouteImport } from './routes/profile.personality'
+import { Route as ProfileOrganizationRouteImport } from './routes/profile.organization'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
@@ -462,6 +463,11 @@ const ProfilePrivacyRoute = ProfilePrivacyRouteImport.update({
 const ProfilePersonalityRoute = ProfilePersonalityRouteImport.update({
   id: '/personality',
   path: '/personality',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileOrganizationRoute = ProfileOrganizationRouteImport.update({
+  id: '/organization',
+  path: '/organization',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileOrdersRoute = ProfileOrdersRouteImport.update({
@@ -1336,6 +1342,7 @@ export interface FileRoutesByFullPath {
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/organization': typeof ProfileOrganizationRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -1531,6 +1538,7 @@ export interface FileRoutesByTo {
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/organization': typeof ProfileOrganizationRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -1732,6 +1740,7 @@ export interface FileRoutesById {
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/organization': typeof ProfileOrganizationRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -1935,6 +1944,7 @@ export interface FileRouteTypes {
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
+    | '/profile/organization'
     | '/profile/personality'
     | '/profile/privacy'
     | '/profile/security'
@@ -2130,6 +2140,7 @@ export interface FileRouteTypes {
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
+    | '/profile/organization'
     | '/profile/personality'
     | '/profile/privacy'
     | '/profile/security'
@@ -2330,6 +2341,7 @@ export interface FileRouteTypes {
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
+    | '/profile/organization'
     | '/profile/personality'
     | '/profile/privacy'
     | '/profile/security'
@@ -2852,6 +2864,13 @@ declare module '@tanstack/react-router' {
       path: '/personality'
       fullPath: '/profile/personality'
       preLoaderRoute: typeof ProfilePersonalityRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/organization': {
+      id: '/profile/organization'
+      path: '/organization'
+      fullPath: '/profile/organization'
+      preLoaderRoute: typeof ProfileOrganizationRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/orders': {
@@ -4241,6 +4260,7 @@ interface ProfileRouteChildren {
   ProfileInterestsRoute: typeof ProfileInterestsRoute
   ProfileMembershipRoute: typeof ProfileMembershipRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
+  ProfileOrganizationRoute: typeof ProfileOrganizationRoute
   ProfilePersonalityRoute: typeof ProfilePersonalityRoute
   ProfilePrivacyRoute: typeof ProfilePrivacyRoute
   ProfileSecurityRoute: typeof ProfileSecurityRoute
@@ -4259,6 +4279,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileInterestsRoute: ProfileInterestsRoute,
   ProfileMembershipRoute: ProfileMembershipRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
+  ProfileOrganizationRoute: ProfileOrganizationRoute,
   ProfilePersonalityRoute: ProfilePersonalityRoute,
   ProfilePrivacyRoute: ProfilePrivacyRoute,
   ProfileSecurityRoute: ProfileSecurityRoute,

@@ -278,6 +278,11 @@ function OrganizationSection({
             {t("membership.sources.expires", { date: fmtDate(org.expires_at) })}
           </p>
         )}
+        {/* Pełne zarządzanie (zaproszenia e-mail, ponowienia, usuwanie) żyje w
+            dedykowanym panelu samoobsługi - hub pokazuje skrót + wejście. */}
+        <Button asChild size="sm" variant="outline">
+          <Link to="/profile/organization">{t("membership.organization.openPanel")}</Link>
+        </Button>
         {org.my_role === "owner" && <SeatManager orgId={org.org_id} />}
       </CardContent>
     </Card>

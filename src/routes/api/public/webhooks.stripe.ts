@@ -170,6 +170,7 @@ async function handle(request: Request): Promise<Response> {
           amount_cents?: number;
           currency?: string;
           receipt_email?: string;
+          invoice_url?: string;
         };
         const updates: OrderUpdate = {
           status: "paid",
@@ -183,6 +184,23 @@ async function handle(request: Request): Promise<Response> {
         if (amountTotal !== null) updates.amount_cents = amountTotal;
         if (currency) updates.currency = currency.toUpperCase();
         if (customerEmail) updates.receipt_email = customerEmail;
+
+        // Faktura Stripe (z NIP-em z tax_id_collection): sesja niesie id
+        // faktury dla subskrypcji zawsze, dla trybu payment - gdy włączono
+        // invoice_creation. Best-effort: brak linku nie blokuje księgowania,
+        // "Pobierz fakturę" w /profile/orders po prostu się nie pokaże.
+        const invoiceId = str(session, "invoice");
+        const stripeSecret = process.env.STRIPE_SECRET_KEY;
+        if (invoiceId && stripeSecret) {
+          const { fetchStripeInvoiceUrl } = await import("@/lib/billing/stripe.server");
+          const invoiceRes = await fetchStripeInvoiceUrl(invoiceId, stripeSecret);
+          if (invoiceRes.ok && invoiceRes.url) {
+            updates.invoice_url = invoiceRes.url;
+          } else if (!invoiceRes.ok) {
+            console.warn("[stripe-webhook] invoice url fetch failed", invoiceId, invoiceRes.error);
+          }
+        }
+
         await supabaseAdmin
           .from("payment_orders")
           .update(updates)

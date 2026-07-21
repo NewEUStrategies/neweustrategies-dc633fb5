@@ -1,11 +1,12 @@
 // Reusable billing-details form (no Card wrapper) shared by /profile/billing and
 // the inline checkout step, so a buyer who lacks billing details can complete
 // them WITHOUT being ejected out of the checkout funnel to a separate page.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchMyBillingProfile, upsertMyBillingProfile } from "@/lib/billing/queries";
+import { validateTaxId } from "@/lib/billing/nip";
 import type { BillingProfileInput } from "@/lib/billing/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,11 +71,34 @@ export function BillingProfileForm({
     }
   }, [data]);
 
+  // Walidacja NIP/VAT na żywo: pełna suma kontrolna dla PL, format dla reszty.
+  // Audyt platformy wytknął NIP jako wolny tekst - faktura z literówką w NIP
+  // jest bezwartościowa dla działu księgowości kupującego.
+  const taxIdCheck = useMemo(
+    () => validateTaxId(form.tax_id ?? "", form.country_code || "PL"),
+    [form.tax_id, form.country_code],
+  );
+  const taxIdError =
+    form.is_company && !taxIdCheck.ok
+      ? taxIdCheck.reason === "checksum"
+        ? t("profile.billing.taxIdChecksum")
+        : (form.country_code || "PL").toUpperCase() === "PL"
+          ? t("profile.billing.taxIdFormat")
+          : t("profile.billing.taxIdVatFormat")
+      : null;
+
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.is_company && !taxIdCheck.ok) return;
     setBusy(true);
     try {
-      await upsertMyBillingProfile(form);
+      // Zapis znormalizowanego identyfikatora (bez separatorów/prefiksu PL),
+      // żeby faktury i eksporty księgowe dostawały spójny format.
+      await upsertMyBillingProfile(
+        form.is_company && taxIdCheck.ok && taxIdCheck.normalized
+          ? { ...form, tax_id: taxIdCheck.normalized }
+          : form,
+      );
       await qc.invalidateQueries({ queryKey: ["my-billing"] });
       toast.success(t("profile.billing.saved"));
       onSaved?.();
@@ -145,7 +169,18 @@ export function BillingProfileForm({
               value={form.tax_id ?? ""}
               onChange={(e) => set("tax_id", e.target.value)}
               maxLength={40}
+              inputMode={(form.country_code || "PL").toUpperCase() === "PL" ? "numeric" : "text"}
+              aria-invalid={!!taxIdError}
+              aria-describedby={taxIdError ? "tax_id_error" : undefined}
+              className={
+                taxIdError ? "border-destructive focus-visible:ring-destructive/40" : undefined
+              }
             />
+            {taxIdError && (
+              <p id="tax_id_error" role="alert" className="text-xs text-destructive">
+                {taxIdError}
+              </p>
+            )}
           </div>
         )}
 
@@ -250,7 +285,7 @@ export function BillingProfileForm({
           />
         </div>
 
-        <Button type="submit" disabled={busy} title={t("profile.billing.tip.save")}>
+        <Button type="submit" disabled={busy || !!taxIdError} title={t("profile.billing.tip.save")}>
           {submitLabel ?? t("profile.billing.save")}
         </Button>
       </form>

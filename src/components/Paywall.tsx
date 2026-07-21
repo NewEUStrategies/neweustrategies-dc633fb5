@@ -30,6 +30,7 @@ import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 // anglojęzyczny czytelnik widział polskie formatowanie cen na paywallu).
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { meterPaywallVariant, type MeterState, type MeteringSettings } from "@/lib/access/metering";
 import "@/lib/i18n-paywall";
 
 type Props = {
@@ -41,12 +42,27 @@ type Props = {
   onPasswordVerify?: (password: string) => Promise<boolean>;
   /** Async loading indicator forwarded from the parent's password unlock hook. */
   passwordVerifying?: boolean;
+  /** Metering paywalla: konfiguracja tenantu (jeśli włączona). */
+  meterSettings?: MeteringSettings | null;
+  /** Czy ten byt uczestniczy w meteringu (meteringApplies z resolvera). */
+  meterApplies?: boolean;
+  /** Stan licznika z próby odblokowania (null, gdy nie próbowano). */
+  meterState?: MeterState | null;
 };
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 30;
 
-export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVerifying }: Props) {
+export function Paywall({
+  rule,
+  lang,
+  fallbackText,
+  onPasswordVerify,
+  passwordVerifying,
+  meterSettings = null,
+  meterApplies = false,
+  meterState = null,
+}: Props) {
   const { t } = useTranslation();
   const { session } = useAuth();
   const navigate = useNavigate();
@@ -135,6 +151,15 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
     }
   };
 
+  // Wariant komunikatu wynikający z meteringu: "register" (anonim - CTA na
+  // darmowe konto z limitem N/mies.) lub "exhausted" (limit wyczerpany).
+  const meterVariant = meterPaywallVariant({
+    isLoggedIn: !!session,
+    settings: meterSettings,
+    applies: meterApplies,
+    state: meterState,
+  });
+
   const buyableEntity = rule.entity_type === "post" || rule.entity_type === "page";
   const startOneTime = async () => {
     if (!session) return;
@@ -181,18 +206,29 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
           {rule.mode === "members" ? <LogIn className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
         </div>
         <h2 className="font-display text-2xl font-bold mb-2">
-          {rule.mode === "members"
-            ? t("paywall.membersOnly")
-            : rule.mode === "password"
-              ? t("paywall.passwordOnly")
-              : t("paywall.paidOnly")}
+          {meterVariant === "register"
+            ? t("paywall.meter.registerTitle")
+            : meterVariant === "exhausted"
+              ? t("paywall.meter.exhaustedTitle")
+              : rule.mode === "members"
+                ? t("paywall.membersOnly")
+                : rule.mode === "password"
+                  ? t("paywall.passwordOnly")
+                  : t("paywall.paidOnly")}
         </h2>
         <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
-          {rule.mode === "members"
-            ? t("paywall.membersDesc")
-            : rule.mode === "password"
-              ? t("paywall.passwordDesc")
-              : t("paywall.paidDesc")}
+          {meterVariant === "register"
+            ? t("paywall.meter.registerDesc", { count: meterSettings?.member_monthly_limit ?? 0 })
+            : meterVariant === "exhausted"
+              ? t("paywall.meter.exhaustedDesc", {
+                  used: meterState?.used ?? 0,
+                  limit: meterState?.monthlyLimit ?? 0,
+                })
+              : rule.mode === "members"
+                ? t("paywall.membersDesc")
+                : rule.mode === "password"
+                  ? t("paywall.passwordDesc")
+                  : t("paywall.paidDesc")}
         </p>
 
         {/* Password-protected */}
@@ -260,17 +296,38 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
           </form>
         )}
 
-        {/* Members-only / not logged in */}
+        {/* Members-only / not logged in. Wariant "register" odwraca akcenty:
+            rejestracja (wejście do darmowego limitu meteringu) jest primary. */}
         {rule.mode !== "password" && !session && (
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link to="/login">
-              <Button>
-                <LogIn className="w-4 h-4 mr-2" /> {t("paywall.signin")}
-              </Button>
-            </Link>
-            <Link to="/login" search={{ mode: "signup" }}>
-              <Button variant="outline">{t("paywall.signup")}</Button>
-            </Link>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {meterVariant === "register" ? (
+                <>
+                  <Link to="/login" search={{ mode: "signup" }}>
+                    <Button>{t("paywall.signup")}</Button>
+                  </Link>
+                  <Link to="/login">
+                    <Button variant="outline">
+                      <LogIn className="w-4 h-4 mr-2" /> {t("paywall.signin")}
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/login">
+                    <Button>
+                      <LogIn className="w-4 h-4 mr-2" /> {t("paywall.signin")}
+                    </Button>
+                  </Link>
+                  <Link to="/login" search={{ mode: "signup" }}>
+                    <Button variant="outline">{t("paywall.signup")}</Button>
+                  </Link>
+                </>
+              )}
+            </div>
+            {meterVariant === "register" && (
+              <p className="text-xs text-muted-foreground">{t("paywall.meter.registerNote")}</p>
+            )}
           </div>
         )}
 
@@ -302,6 +359,11 @@ export function Paywall({ rule, lang, fallbackText, onPasswordVerify, passwordVe
                           {intervalLabel}
                         </span>
                       </div>
+                      {p.trial_days > 0 && p.interval !== "one_time" && (
+                        <span className="mt-1 inline-block rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand-ink">
+                          {t("paywall.trialBadge", { days: p.trial_days })}
+                        </span>
+                      )}
                       {desc && (
                         <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{desc}</p>
                       )}
