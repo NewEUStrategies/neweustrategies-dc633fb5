@@ -10,6 +10,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 // renderuje się w chrome każdej strony, a namespace-import z dynamicznym
 // lookupem wciągał CAŁĄ bibliotekę ikon (~640 KB raw) do bundla wejściowego.
 import {
+  AlarmClock,
   Bell,
   BellOff,
   Check,
@@ -78,6 +79,7 @@ const KIND_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   comment: MessageCircle,
   security: ShieldAlert,
   connection: UserCheck,
+  crm_task: AlarmClock,
 };
 
 // Internal hrefs render a real <a href> for semantics, but plain left-clicks

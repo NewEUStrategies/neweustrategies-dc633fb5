@@ -8,9 +8,11 @@ import { AuthGate } from "@/components/profile/AuthGate";
 import { fetchMyBillingProfile, fetchPlanById } from "@/lib/billing/queries";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
+import { CouponInput } from "@/components/checkout/CouponInput";
 import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
@@ -29,6 +31,7 @@ function CheckoutPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const checkout = useServerFn(createCheckoutOrder);
 
   const plan = useQuery({
@@ -42,6 +45,8 @@ function CheckoutPage() {
     enabled: !!session,
   });
 
+  const { data: checkoutSettings } = useCheckoutSettings();
+
   useEffect(() => {
     if (plan.isSuccess && !plan.data) {
       toast.error(t("checkout.notFound"));
@@ -49,6 +54,8 @@ function CheckoutPage() {
   }, [plan.isSuccess, plan.data, t]);
 
   const hasBilling = !!billing.data?.address_line1 && !!billing.data?.city;
+  const originalCents = plan.data?.price_cents ?? 0;
+  const finalCents = Math.max(originalCents - (coupon?.discountCents ?? 0), 0);
 
   const submit = async () => {
     if (!plan.data || !hasBilling) return;
@@ -60,17 +67,25 @@ function CheckoutPage() {
           plan_id: plan.data.id,
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",
+          ...(coupon ? { coupon_code: coupon.code } : {}),
         },
       });
       if (!res.ok) {
-        toast.error(t("checkout.stripeNotConfigured"));
+        if (res.mode === "coupon") {
+          toast.error(
+            t("coupon.applyFailed", {
+              defaultValue: "Nie udało się zastosować kuponu",
+            }),
+          );
+        } else {
+          toast.error(t("checkout.stripeNotConfigured"));
+        }
         setBusy(false);
         return;
       }
       if (res.mode === "stripe") {
         window.location.href = res.url;
       } else {
-        // Mock mode - go to internal success page
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
       }
     } catch {
@@ -153,11 +168,51 @@ function CheckoutPage() {
                         </p>
                       )}
                     </div>
-                    <div className="border-t pt-4 flex items-center justify-between">
-                      <span className="font-medium">{t("checkout.total")}</span>
-                      <span className="text-2xl font-bold">
-                        {formatMoney(plan.data.price_cents, plan.data.currency, i18n.language)}
-                      </span>
+                    {plan.data.trial_days > 0 && plan.data.interval !== "one_time" && (
+                      <p className="rounded-md bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+                        {t("checkout.trialLine", { days: plan.data.trial_days })}
+                      </p>
+                    )}
+                    <CouponInput
+                      planId={plan.data.id}
+                      amountCents={plan.data.price_cents}
+                      currency={plan.data.currency}
+                      onChange={(payload) =>
+                        setCoupon(
+                          payload
+                            ? {
+                                code: payload.code,
+                                discountCents: payload.result.discount_cents,
+                              }
+                            : null,
+                        )
+                      }
+                    />
+                    <div className="border-t pt-4 space-y-1">
+                      {coupon && coupon.discountCents > 0 && (
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>
+                            {t("checkout.subtotal", { defaultValue: "Wartość" })}
+                          </span>
+                          <span className="line-through">
+                            {formatMoney(originalCents, plan.data.currency, i18n.language)}
+                          </span>
+                        </div>
+                      )}
+                      {coupon && coupon.discountCents > 0 && (
+                        <div className="flex items-center justify-between text-xs text-emerald-600">
+                          <span>{t("coupon.discount", { defaultValue: "Rabat" })}</span>
+                          <span>
+                            -{formatMoney(coupon.discountCents, plan.data.currency, i18n.language)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-medium">{t("checkout.total")}</span>
+                        <span className="text-2xl font-bold">
+                          {formatMoney(finalCents, plan.data.currency, i18n.language)}
+                        </span>
+                      </div>
                     </div>
                     <Button
                       className="w-full"
@@ -171,11 +226,7 @@ function CheckoutPage() {
                         <>
                           <Lock className="mr-2 h-4 w-4" />
                           {t("checkout.payNow", {
-                            amount: formatMoney(
-                              plan.data.price_cents,
-                              plan.data.currency,
-                              i18n.language,
-                            ),
+                            amount: formatMoney(finalCents, plan.data.currency, i18n.language),
                           })}
                         </>
                       )}
@@ -183,6 +234,17 @@ function CheckoutPage() {
                     <p className="text-xs text-muted-foreground text-center">
                       {t("checkout.terms")}
                     </p>
+                    {(checkoutSettings?.allow_promotion_codes ||
+                      checkoutSettings?.automatic_tax ||
+                      checkoutSettings?.tax_id_collection) && (
+                      <ul className="space-y-1 border-t pt-3 text-xs text-muted-foreground">
+                        {checkoutSettings.allow_promotion_codes && (
+                          <li>{t("checkout.promoHint")}</li>
+                        )}
+                        {checkoutSettings.automatic_tax && <li>{t("checkout.taxHint")}</li>}
+                        {checkoutSettings.tax_id_collection && <li>{t("checkout.taxIdHint")}</li>}
+                      </ul>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">{t("checkout.notFound")}</p>

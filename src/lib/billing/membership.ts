@@ -111,13 +111,14 @@ export interface OrgSeatRow {
   role: "owner" | "member" | string;
   claimed_at: string | null;
   created_at: string;
+  last_invited_at: string | null;
 }
 
 /** Miejsca organizacji - widoczne dla właściciela (RLS: is_org_owner). */
 export async function fetchOrgSeats(orgId: string): Promise<OrgSeatRow[]> {
   const { data, error } = await supabase
     .from("organization_seats")
-    .select("id, invited_email, role, claimed_at, created_at")
+    .select("id, invited_email, role, claimed_at, created_at, last_invited_at")
     .eq("org_id", orgId)
     .order("created_at", { ascending: true });
   if (error) throw error;

@@ -1,15 +1,16 @@
--- pgTAP: CRM lead scoring (20260718130000).
+-- pgTAP: CRM lead scoring (20260718130000 + page_view z 20260721113000).
 --
 --   1. compute_crm_lead_score liczy sygnaly fit (bez decay) + behawioralne.
 --   2. Triggery sygnalowe przeliczaja wynik (contact_form, email open/click).
 --   3. Pasma (band) wg progow.
+--   3c. Odsłony (post_views) liczą się tylko dla zalogowanych, trigger przelicza.
 --   4. RLS crm_scoring_settings: izolacja tenantow + admin-write.
 --   5. Guard RPC recompute_crm_lead_score: nie-staff dostaje odmowe.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(11);
+SELECT plan(13);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -144,6 +145,40 @@ SELECT ok(
       AND e->>'key' = 'comment'
   ),
   'approved comment contributes the comment signal'
+);
+
+-- ── 3c. Odsłony treści (page_view): trigger + wpis w breakdown ───────────────
+INSERT INTO public.pages (id, tenant_id, slug) VALUES
+  ('cc666666-6666-6666-6666-666666666666', 'cc111111-1111-1111-1111-111111111111', 'sc-home');
+INSERT INTO public.posts (id, slug, author_id, status, tenant_id, parent_page_id, title_pl)
+VALUES ('cc777777-7777-7777-7777-777777777777', 'sc-post',
+        'cc000000-0000-0000-0000-0000000000aa', 'published',
+        'cc111111-1111-1111-1111-111111111111',
+        'cc666666-6666-6666-6666-666666666666', 'Post scoringu');
+
+SELECT score INTO TEMP score_before_view
+  FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333';
+
+-- Odsłona zalogowanego uzytkownika -> tg_score_on_post_view przelicza lead.
+INSERT INTO public.post_views (post_id, tenant_id, viewer_hash, user_id)
+VALUES ('cc777777-7777-7777-7777-777777777777', 'cc111111-1111-1111-1111-111111111111',
+        'hash-sc-1', 'cc000000-0000-0000-0000-0000000000cc');
+
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM public.crm_leads,
+      jsonb_array_elements(score_breakdown) e
+    WHERE id = 'cc333333-3333-3333-3333-333333333333'
+      AND e->>'key' = 'page_view'
+  ),
+  'signed-in page view recomputes lead and records the page_view signal'
+);
+
+SELECT cmp_ok(
+  (SELECT score FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333'),
+  '>=',
+  (SELECT score FROM score_before_view),
+  'page view never lowers the score (weight 1, cap 10)'
 );
 
 -- ── 4. RLS crm_scoring_settings: tenant isolation ────────────────────────────

@@ -68,6 +68,7 @@ const KIND_OPTIONS: KindFilter[] = [
   "subscription",
   "content",
   "saved_search",
+  "crm_task",
   "system",
 ];
 
@@ -86,7 +87,13 @@ function fmtDate(iso: string, lang: Lang): string {
     timeStyle: "short",
   });
 }
-function NotificationIcon({ name, className }: { name: string | null | undefined; className?: string }) {
+function NotificationIcon({
+  name,
+  className,
+}: {
+  name: string | null | undefined;
+  className?: string;
+}) {
   if (!name) return <Circle className={className} aria-hidden />;
   return <DynamicIcon name={name} className={className} />;
 }

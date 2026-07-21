@@ -19,6 +19,7 @@ import { tickNewsletterCampaigns } from "@/lib/newsletter-campaigns.functions";
 import {
   processDigests,
   processPushJobs,
+  runCrmTaskReminders,
   runEventReminders,
 } from "@/lib/notifications/dispatch.server";
 
@@ -30,6 +31,7 @@ export interface JobsTickResult {
   digestDaily: { claimed: number; sent: number } | { error: string };
   digestWeekly: { claimed: number; sent: number } | { error: string };
   eventReminders: number | { error: string };
+  crmTaskReminders: number | { error: string };
   linkCheck: { postsScanned: number; linksChecked: number; broken: number } | { error: string };
   integrations: { claimed: number; delivered: number; failed: number } | { error: string };
   semanticIndex: { scanned: number; embedded: number; skipped?: string } | { error: string };
@@ -66,6 +68,14 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
   } catch (err) {
     eventReminders = { error: err instanceof Error ? err.message : String(err) };
   }
+  let crmTaskReminders: JobsTickResult["crmTaskReminders"];
+  try {
+    // Follow-upy CRM: skaner watermarkowy (run_crm_task_reminders) enqueue'uje
+    // notyfikacje kind 'crm_task' + emituje crm_task.due.v1 na szynę.
+    crmTaskReminders = await runCrmTaskReminders();
+  } catch (err) {
+    crmTaskReminders = { error: err instanceof Error ? err.message : String(err) };
+  }
   let linkCheck: JobsTickResult["linkCheck"];
   try {
     // Rotacyjny skan linków wychodzących (B7): 3 wpisy per tick, wpisy
@@ -100,6 +110,7 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
     digestDaily,
     digestWeekly,
     eventReminders,
+    crmTaskReminders,
     linkCheck,
     integrations,
     semanticIndex,

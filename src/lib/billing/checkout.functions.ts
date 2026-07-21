@@ -2,6 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { stripeRecurringInterval, type StripeRecurringInterval } from "@/lib/billing/entitlement";
+import {
+  checkoutSessionExtraParams,
+  normalizeCheckoutSettings,
+} from "@/lib/billing/checkoutSettings";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 
 // Create a payment order (server-side, RLS as user).
@@ -17,6 +21,10 @@ const createOrderSchema = z.object({
   entity_id: z.string().uuid().nullable().optional(),
   success_path: z.string().min(1),
   cancel_path: z.string().min(1),
+  // Kupon B2B: kod aplikowany przy zamówieniu. Rabat wyliczamy WYŁĄCZNIE
+  // serwerowo (validate_b2b_coupon → atomowe redeem_b2b_coupon), więc klient
+  // nigdy nie może obniżyć unit_amount ręcznie.
+  coupon_code: z.string().trim().max(64).optional(),
 });
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
@@ -86,6 +94,43 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     if (amountCents <= 0) throw new Error("zero_amount");
 
+    // Zapamiętujemy oryginalną kwotę do audytu użycia kuponu (redemption row).
+    const originalCents = amountCents;
+    let couponId: string | null = null;
+    let couponCode: string | null = null;
+    let couponDiscountCents = 0;
+    if (data.coupon_code && data.coupon_code.trim().length > 0) {
+      const normalizedCode = data.coupon_code.trim().toUpperCase();
+      const { data: rows, error: validateErr } = await supabase.rpc("validate_b2b_coupon", {
+        _code: normalizedCode,
+        _plan_id: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
+        _amount_cents: amountCents,
+        _currency: currency,
+      });
+      if (validateErr) throw validateErr;
+      const row = (rows ?? [])[0];
+      if (!row || !row.ok) {
+        return {
+          ok: false as const,
+          mode: "coupon" as const,
+          error: (row?.error ?? "not_found") as string,
+        };
+      }
+      couponId = row.coupon_id;
+      couponCode = normalizedCode;
+      couponDiscountCents = row.discount_cents;
+      amountCents = row.final_cents;
+      // Bezpiecznik: rabat 100% (final=0) traktujemy jak darmowy przydział -
+      // najpierw i tak minimalna kwota Stripe, więc odrzucamy < 100 gr.
+      if (amountCents < 50) {
+        return {
+          ok: false as const,
+          mode: "coupon" as const,
+          error: "final_amount_too_low" as const,
+        };
+      }
+    }
+
     // Fail-closed ZANIM powstanie zamówienie: produkcja bez działającej
     // konfiguracji Stripe (brak klucza LUB brak origin do success_url) odmawia
     // checkoutu zamiast po cichu wpaść w tryb mock i rozdać dostęp za darmo.
@@ -101,12 +146,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       };
     }
 
-    // Receipt e-mail comes from the verified auth claims - profiles.email is
-    // no longer SELECT-able by the authenticated role (column grant excludes
-    // PII) and the JWT e-mail is the authoritative address anyway.
     const receiptEmail = context.claims.email ?? null;
 
-    // Insert pending order
+    // Insert pending order (z metadanymi kuponu - webhook potem policzy revenue netto).
     const { data: order, error: insertError } = await supabase
       .from("payment_orders")
       .insert({
@@ -120,11 +162,45 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         entity_id: data.entity_id ?? null,
         provider: "stripe",
         receipt_email: receiptEmail,
-        metadata: { label },
+        metadata: {
+          label,
+          ...(couponCode
+            ? {
+                coupon_code: couponCode,
+                coupon_id: couponId,
+                coupon_discount_cents: couponDiscountCents,
+                original_amount_cents: originalCents,
+              }
+            : {}),
+        },
       })
       .select("id")
       .single();
     if (insertError) throw insertError;
+
+    // Atomowe rezerwowanie użycia kuponu - RPC sam sprawdza limity pod
+    // blokadą wiersza, więc nawet równoległe zamówienia nie przekroczą maxa.
+    if (couponId) {
+      const { data: redeemed, error: redeemErr } = await supabase.rpc("redeem_b2b_coupon", {
+        _coupon_id: couponId,
+        _order_id: order.id,
+        _applied_cents: couponDiscountCents,
+        _original_cents: originalCents,
+        _currency: currency,
+      });
+      if (redeemErr || !redeemed) {
+        // Ktoś przejął ostatnie użycie zanim doszliśmy tutaj - unieważniamy zamówienie.
+        await supabase
+          .from("payment_orders")
+          .update({ status: "canceled" })
+          .eq("id", order.id);
+        return {
+          ok: false as const,
+          mode: "coupon" as const,
+          error: "limit_reached" as const,
+        };
+      }
+    }
 
     // Stripe Checkout Session (best-effort - only if secret configured)
     const stripeSecret = process.env.STRIPE_SECRET_KEY;
@@ -132,8 +208,20 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     if (stripeSecret && origin) {
       try {
+        // Ustawienia checkoutu tenantu (kupony / Stripe Tax / NIP / faktury) -
+        // czytane serwerowo, więc klient nie ma jak ich nadpisać. Brak wiersza
+        // = konserwatywne domyślne (normalizeCheckoutSettings).
+        const { data: checkoutSettingsRow } = await supabase
+          .from("checkout_settings")
+          .select(
+            "allow_promotion_codes, automatic_tax, tax_id_collection, billing_address_collection, invoice_creation",
+          )
+          .maybeSingle();
+        const checkoutSettings = normalizeCheckoutSettings(checkoutSettingsRow);
+
+        const sessionMode = data.kind === "subscription" ? "subscription" : "payment";
         const params = new URLSearchParams();
-        params.set("mode", data.kind === "subscription" ? "subscription" : "payment");
+        params.set("mode", sessionMode);
         params.set("success_url", `${origin}${data.success_path}?order=${order.id}`);
         params.set("cancel_url", `${origin}${data.cancel_path}?order=${order.id}`);
         params.set("client_reference_id", order.id);
@@ -152,6 +240,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
         params.set("line_items[0][quantity]", "1");
         params.set("metadata[order_id]", order.id);
+        // Kupony, podatki, NIP i faktury - reguły zależności między parametrami
+        // żyją w jednej, czystej funkcji (unit-testy w checkoutSettings.test).
+        for (const [key, value] of checkoutSessionExtraParams(checkoutSettings, sessionMode)) {
+          params.set(key, value);
+        }
 
         const resp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
           method: "POST",

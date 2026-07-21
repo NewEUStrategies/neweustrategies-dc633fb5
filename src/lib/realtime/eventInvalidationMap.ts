@@ -53,6 +53,24 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     ["crm-lead", eventPayloadText(event, "lead_id")],
     linkedItemsKeys.all,
   ],
+  // Follow-upy CRM: lista zadań leada + panel "do zrobienia" + skrzynka
+  // (follow_up_at na leadzie utrzymuje trigger, więc odświeżamy też leady).
+  "crm_task.created.v1": (event) => [
+    ["crm-tasks"],
+    ["crm-lead", eventPayloadText(event, "lead_id")],
+    ["crm-leads"],
+  ],
+  "crm_task.completed.v1": (event) => [
+    ["crm-tasks"],
+    ["crm-lead", eventPayloadText(event, "lead_id")],
+    ["crm-leads"],
+  ],
+  "crm_task.due.v1": (event, ctx) => [
+    ["crm-tasks"],
+    ["crm-lead", eventPayloadText(event, "lead_id")],
+    ["notifications"],
+    pendingCounterKeys.user(ctx.userId),
+  ],
 
   "newsletter_subscriber.subscribed.v1": () => [["newsletter-subscribers"], ["newsletter-kpis"]],
   "newsletter_subscriber.confirmed.v1": () => [

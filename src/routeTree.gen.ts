@@ -60,6 +60,7 @@ import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
 import { Route as ProfilePrivacyRouteImport } from './routes/profile.privacy'
 import { Route as ProfilePersonalityRouteImport } from './routes/profile.personality'
+import { Route as ProfileOrganizationRouteImport } from './routes/profile.organization'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
@@ -83,7 +84,6 @@ import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
-import { Route as AdminWorkflowsRouteImport } from './routes/admin.workflows'
 import { Route as AdminWebStoriesRouteImport } from './routes/admin.web-stories'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTrackerGuideRouteImport } from './routes/admin.tracker-guide'
@@ -111,6 +111,7 @@ import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminOrganizationsRouteImport } from './routes/admin.organizations'
 import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
 import { Route as AdminNamesRouteImport } from './routes/admin.names'
+import { Route as AdminMonetizationRouteImport } from './routes/admin.monetization'
 import { Route as AdminMembershipRouteImport } from './routes/admin.membership'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
@@ -129,6 +130,7 @@ import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminCrmRouteImport } from './routes/admin.crm'
+import { Route as AdminCouponsRouteImport } from './routes/admin.coupons'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminContactRouteImport } from './routes/admin.contact'
 import { Route as AdminCommunityRouteImport } from './routes/admin.community'
@@ -465,6 +467,11 @@ const ProfilePersonalityRoute = ProfilePersonalityRouteImport.update({
   path: '/personality',
   getParentRoute: () => ProfileRoute,
 } as any)
+const ProfileOrganizationRoute = ProfileOrganizationRouteImport.update({
+  id: '/organization',
+  path: '/organization',
+  getParentRoute: () => ProfileRoute,
+} as any)
 const ProfileOrdersRoute = ProfileOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -579,11 +586,6 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
   id: '/api/tts',
   path: '/api/tts',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AdminWorkflowsRoute = AdminWorkflowsRouteImport.update({
-  id: '/workflows',
-  path: '/workflows',
-  getParentRoute: () => AdminRoute,
 } as any)
 const AdminWebStoriesRoute = AdminWebStoriesRouteImport.update({
   id: '/web-stories',
@@ -720,6 +722,11 @@ const AdminNamesRoute = AdminNamesRouteImport.update({
   path: '/names',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminMonetizationRoute = AdminMonetizationRouteImport.update({
+  id: '/monetization',
+  path: '/monetization',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminMembershipRoute = AdminMembershipRouteImport.update({
   id: '/membership',
   path: '/membership',
@@ -810,6 +817,11 @@ const AdminCrmRoute = AdminCrmRouteImport.update({
   path: '/crm',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCouponsRoute = AdminCouponsRouteImport.update({
+  id: '/coupons',
+  path: '/coupons',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminContentAreaRoute = AdminContentAreaRouteImport.update({
   id: '/content-area',
   path: '/content-area',
@@ -887,10 +899,10 @@ const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
-const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AdminNewsletterRoute,
+const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
+  id: '/api/public/vitals',
+  path: '/api/public/vitals',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
   id: '/',
@@ -1274,6 +1286,7 @@ export interface FileRoutesByFullPath {
   '/admin/community': typeof AdminCommunityRouteWithChildren
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/coupons': typeof AdminCouponsRoute
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
@@ -1292,6 +1305,7 @@ export interface FileRoutesByFullPath {
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/membership': typeof AdminMembershipRoute
+  '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
   '/admin/organizations': typeof AdminOrganizationsRouteWithChildren
@@ -1343,6 +1357,7 @@ export interface FileRoutesByFullPath {
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/organization': typeof ProfileOrganizationRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -1473,6 +1488,7 @@ export interface FileRoutesByTo {
   '/admin/comments': typeof AdminCommentsRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/coupons': typeof AdminCouponsRoute
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
@@ -1491,6 +1507,7 @@ export interface FileRoutesByTo {
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/membership': typeof AdminMembershipRoute
+  '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/organizations': typeof AdminOrganizationsRouteWithChildren
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -1539,6 +1556,7 @@ export interface FileRoutesByTo {
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/organization': typeof ProfileOrganizationRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -1672,6 +1690,7 @@ export interface FileRoutesById {
   '/admin/community': typeof AdminCommunityRouteWithChildren
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/coupons': typeof AdminCouponsRoute
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
@@ -1690,6 +1709,7 @@ export interface FileRoutesById {
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/membership': typeof AdminMembershipRoute
+  '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRouteWithChildren
   '/admin/organizations': typeof AdminOrganizationsRouteWithChildren
@@ -1741,6 +1761,7 @@ export interface FileRoutesById {
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/organization': typeof ProfileOrganizationRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -1876,6 +1897,7 @@ export interface FileRouteTypes {
     | '/admin/community'
     | '/admin/contact'
     | '/admin/content-area'
+    | '/admin/coupons'
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
@@ -1894,6 +1916,7 @@ export interface FileRouteTypes {
     | '/admin/login-settings'
     | '/admin/media'
     | '/admin/membership'
+    | '/admin/monetization'
     | '/admin/names'
     | '/admin/newsletter'
     | '/admin/organizations'
@@ -1945,6 +1968,7 @@ export interface FileRouteTypes {
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
+    | '/profile/organization'
     | '/profile/personality'
     | '/profile/privacy'
     | '/profile/security'
@@ -2075,6 +2099,7 @@ export interface FileRouteTypes {
     | '/admin/comments'
     | '/admin/contact'
     | '/admin/content-area'
+    | '/admin/coupons'
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
@@ -2093,6 +2118,7 @@ export interface FileRouteTypes {
     | '/admin/login-settings'
     | '/admin/media'
     | '/admin/membership'
+    | '/admin/monetization'
     | '/admin/names'
     | '/admin/organizations'
     | '/admin/pages'
@@ -2141,6 +2167,7 @@ export interface FileRouteTypes {
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
+    | '/profile/organization'
     | '/profile/personality'
     | '/profile/privacy'
     | '/profile/security'
@@ -2273,6 +2300,7 @@ export interface FileRouteTypes {
     | '/admin/community'
     | '/admin/contact'
     | '/admin/content-area'
+    | '/admin/coupons'
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
@@ -2291,6 +2319,7 @@ export interface FileRouteTypes {
     | '/admin/login-settings'
     | '/admin/media'
     | '/admin/membership'
+    | '/admin/monetization'
     | '/admin/names'
     | '/admin/newsletter'
     | '/admin/organizations'
@@ -2342,6 +2371,7 @@ export interface FileRouteTypes {
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
+    | '/profile/organization'
     | '/profile/personality'
     | '/profile/privacy'
     | '/profile/security'
@@ -2544,11 +2574,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RssDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/robots.txt': {
-      id: '/robots.txt'
-      path: '/robots.txt'
-      fullPath: '/robots.txt'
-      preLoaderRoute: typeof RobotsDottxtRouteImport
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -2866,6 +2896,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfilePersonalityRouteImport
       parentRoute: typeof ProfileRoute
     }
+    '/profile/organization': {
+      id: '/profile/organization'
+      path: '/organization'
+      fullPath: '/profile/organization'
+      preLoaderRoute: typeof ProfileOrganizationRouteImport
+      parentRoute: typeof ProfileRoute
+    }
     '/profile/orders': {
       id: '/profile/orders'
       path: '/orders'
@@ -3026,13 +3063,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/tts'
       preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/admin/workflows': {
-      id: '/admin/workflows'
-      path: '/workflows'
-      fullPath: '/admin/workflows'
-      preLoaderRoute: typeof AdminWorkflowsRouteImport
-      parentRoute: typeof AdminRoute
     }
     '/admin/web-stories': {
       id: '/admin/web-stories'
@@ -3223,6 +3253,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNamesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/monetization': {
+      id: '/admin/monetization'
+      path: '/monetization'
+      fullPath: '/admin/monetization'
+      preLoaderRoute: typeof AdminMonetizationRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/membership': {
       id: '/admin/membership'
       path: '/membership'
@@ -3347,6 +3384,13 @@ declare module '@tanstack/react-router' {
       path: '/crm'
       fullPath: '/admin/crm'
       preLoaderRoute: typeof AdminCrmRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/coupons': {
+      id: '/admin/coupons'
+      path: '/coupons'
+      fullPath: '/admin/coupons'
+      preLoaderRoute: typeof AdminCouponsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/content-area': {
@@ -4127,6 +4171,7 @@ interface AdminRouteChildren {
   AdminCommunityRoute: typeof AdminCommunityRouteWithChildren
   AdminContactRoute: typeof AdminContactRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
+  AdminCouponsRoute: typeof AdminCouponsRoute
   AdminCrmRoute: typeof AdminCrmRoute
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
@@ -4145,6 +4190,7 @@ interface AdminRouteChildren {
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
   AdminMembershipRoute: typeof AdminMembershipRoute
+  AdminMonetizationRoute: typeof AdminMonetizationRoute
   AdminNamesRoute: typeof AdminNamesRoute
   AdminNewsletterRoute: typeof AdminNewsletterRouteWithChildren
   AdminOrganizationsRoute: typeof AdminOrganizationsRouteWithChildren
@@ -4189,6 +4235,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCommunityRoute: AdminCommunityRouteWithChildren,
   AdminContactRoute: AdminContactRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
+  AdminCouponsRoute: AdminCouponsRoute,
   AdminCrmRoute: AdminCrmRoute,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
@@ -4207,6 +4254,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
   AdminMembershipRoute: AdminMembershipRoute,
+  AdminMonetizationRoute: AdminMonetizationRoute,
   AdminNamesRoute: AdminNamesRoute,
   AdminNewsletterRoute: AdminNewsletterRouteWithChildren,
   AdminOrganizationsRoute: AdminOrganizationsRouteWithChildren,
@@ -4262,6 +4310,7 @@ interface ProfileRouteChildren {
   ProfileInterestsRoute: typeof ProfileInterestsRoute
   ProfileMembershipRoute: typeof ProfileMembershipRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
+  ProfileOrganizationRoute: typeof ProfileOrganizationRoute
   ProfilePersonalityRoute: typeof ProfilePersonalityRoute
   ProfilePrivacyRoute: typeof ProfilePrivacyRoute
   ProfileSecurityRoute: typeof ProfileSecurityRoute
@@ -4280,6 +4329,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileInterestsRoute: ProfileInterestsRoute,
   ProfileMembershipRoute: ProfileMembershipRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
+  ProfileOrganizationRoute: ProfileOrganizationRoute,
   ProfilePersonalityRoute: ProfilePersonalityRoute,
   ProfilePrivacyRoute: ProfilePrivacyRoute,
   ProfileSecurityRoute: ProfileSecurityRoute,

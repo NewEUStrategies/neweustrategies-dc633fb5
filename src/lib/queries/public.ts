@@ -14,7 +14,7 @@ import { edgeTtlCache } from "@/lib/ssrCache";
 // paywall teaser renders server-side (good for SEO); the body itself stays gated
 // behind get_entity_content.
 const ACCESS_RULE_COLS =
-  "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en";
+  "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, metering_policy";
 
 async function fetchAccessRule(
   entityType: "post" | "page",

@@ -160,7 +160,7 @@ export function CountryCombobox({
   const activeId = open && filtered[highlight] ? `${listId}-opt-${highlight}` : undefined;
 
   const inputBase =
-    "h-10 px-3 rounded border border-input bg-background font-sans leading-none w-full";
+    "h-10 px-3 rounded border border-border bg-background font-sans leading-none w-full";
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>

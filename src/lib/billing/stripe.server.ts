@@ -73,6 +73,44 @@ export async function cancelStripeSubscriptionAtPeriodEnd(
 
 export type StripeResumeResult = { ok: true } | { ok: false; error: string };
 
+export type StripeInvoiceUrlResult =
+  | { ok: true; url: string | null }
+  | { ok: false; error: string };
+
+interface StripeInvoiceBody {
+  hosted_invoice_url?: string | null;
+  invoice_pdf?: string | null;
+}
+
+/**
+ * Pobiera link do hostowanej faktury Stripe (z NIP-em zebranym przez
+ * tax_id_collection). Best-effort: wołający traktuje błąd jako brak linku -
+ * faktura i tak istnieje po stronie Stripe, my tylko nie mamy skrótu.
+ */
+export async function fetchStripeInvoiceUrl(
+  invoiceId: string,
+  secretKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<StripeInvoiceUrlResult> {
+  let resp: Response;
+  try {
+    resp = await fetchImpl(`https://api.stripe.com/v1/invoices/${encodeURIComponent(invoiceId)}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${secretKey}` },
+    });
+  } catch (e) {
+    return { ok: false, error: `network_error: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  if (!resp.ok) {
+    const body = (await resp.json().catch(() => ({}))) as StripeErrorBody;
+    const code = body.error?.code ?? "";
+    const message = body.error?.message ?? "";
+    return { ok: false, error: `stripe_error: ${resp.status} ${code || message.slice(0, 120)}` };
+  }
+  const body = (await resp.json().catch(() => ({}))) as StripeInvoiceBody;
+  return { ok: true, url: body.hosted_invoice_url ?? body.invoice_pdf ?? null };
+}
+
 /**
  * Cofa cancel_at_period_end (wznowienie odnowień) - dozwolone dopóki bieżący
  * okres trwa. Brak subskrypcji po stronie Stripe = nie ma czego wznawiać

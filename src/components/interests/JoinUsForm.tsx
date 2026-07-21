@@ -20,7 +20,9 @@ import {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
+import { Check, ChevronDown, UserPlus, X } from "lucide-react";
+import { SubscribeButton } from "@/components/ui/subscribe-button";
+
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
@@ -34,6 +36,7 @@ import {
 } from "@/lib/builder/formFieldConfig";
 import { CountryCombobox } from "@/components/interests/CountryCombobox";
 import { FloatingInput } from "@/components/ui/floating-input";
+import { Checkbox } from "@/components/ui/checkbox";
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
@@ -690,7 +693,7 @@ export function JoinUsForm({
   }
 
   const inputCls =
-    "h-10 px-3 rounded border border-input bg-background font-sans leading-none w-full";
+    "h-10 px-3 rounded border border-border bg-background font-sans leading-none w-full";
   const inputStyle = placeholderSize
     ? ({ fontSize: `${placeholderSize}px` } satisfies CSSProperties)
     : ({ fontSize: "14px" } satisfies CSSProperties);
@@ -942,7 +945,7 @@ export function JoinUsForm({
                   onClick={() => setDropOpen((v) => !v)}
                   aria-haspopup="listbox"
                   aria-expanded={dropOpen}
-                  className="flex w-full items-center justify-between rounded border border-input bg-background px-3 py-2 text-sm text-left"
+                  className="flex w-full items-center justify-between rounded border border-border bg-background px-3 py-2 text-sm text-left"
                   style={droplistButtonStyle}
                   data-edit-target="placeholderSize"
                 >
@@ -1027,16 +1030,12 @@ export function JoinUsForm({
                                         active ? "bg-brand/10 text-brand" : "hover:bg-accent",
                                       )}
                                     >
-                                      <span
-                                        className={cn(
-                                          "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition",
-                                          active
-                                            ? "border-brand bg-brand text-brand-foreground"
-                                            : "border-input bg-background",
-                                        )}
-                                      >
-                                        {active && <Check className="h-2.5 w-2.5" />}
-                                      </span>
+                                      <Checkbox
+                                        checked={active}
+                                        tabIndex={-1}
+                                        aria-hidden="true"
+                                        className="pointer-events-none h-[16px] w-[16px]"
+                                      />
                                       <span className="min-w-0 flex-1 truncate">{it.label}</span>
                                     </button>
                                   );
@@ -1118,20 +1117,17 @@ export function JoinUsForm({
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={state === "loading"}
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-brand px-4 py-0 font-sans font-semibold leading-none text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
-        style={{ fontSize: buttonSize ? `${buttonSize}px` : "14px" }}
+      <SubscribeButton
+        loading={state === "loading"}
+        loadingLabel={btnLoading}
+        className="w-full sm:w-auto"
+        style={{ fontSize: buttonSize ? `${buttonSize}px` : undefined }}
         data-edit-target="buttonSize"
       >
-        {state === "loading" ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <UserPlus className="w-4 h-4" />
-        )}
-        {state === "loading" ? btnLoading : btnLabel}
-      </button>
+        <UserPlus className="w-4 h-4 text-current" aria-hidden />
+        {btnLabel}
+      </SubscribeButton>
+
 
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
       <p

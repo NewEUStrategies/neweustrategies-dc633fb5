@@ -232,7 +232,21 @@ function AdminShellInner({
       id: "monetization",
       label: t("admin.navGroups.monetization"),
       items: [
+        {
+          to: "/admin/monetization",
+          icon: TrendingUp,
+          label: t("admin.nav.monetization", {
+            defaultValue: lang === "pl" ? "Dashboard monetyzacji" : "Monetization",
+          }),
+        },
         { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
+        {
+          to: "/admin/coupons",
+          icon: Megaphone,
+          label: t("admin.nav.coupons", {
+            defaultValue: lang === "pl" ? "Kupony B2B" : "B2B coupons",
+          }),
+        },
         {
           to: "/admin/membership",
           icon: Crown,

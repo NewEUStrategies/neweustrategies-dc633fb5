@@ -13,7 +13,14 @@ import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 
 const limiter = createRateLimiter({ capacity: 30, refillPerSec: 0.5 });
 
-const JOBS = new Set(["all", "push", "digest-daily", "digest-weekly", "event-reminders"]);
+const JOBS = new Set([
+  "all",
+  "push",
+  "digest-daily",
+  "digest-weekly",
+  "event-reminders",
+  "crm-task-reminders",
+]);
 
 function unauthorized(): Response {
   return new Response(JSON.stringify({ error: "unauthorized" }), {
@@ -56,7 +63,7 @@ export const Route = createFileRoute("/api/public/community-cron")({
           });
         }
 
-        const { processPushJobs, processDigests, runEventReminders } =
+        const { processPushJobs, processDigests, runEventReminders, runCrmTaskReminders } =
           await import("@/lib/notifications/dispatch.server");
 
         const result: Record<string, unknown> = {};
@@ -72,6 +79,9 @@ export const Route = createFileRoute("/api/public/community-cron")({
           }
           if (job === "all" || job === "event-reminders") {
             result.eventReminders = await runEventReminders();
+          }
+          if (job === "all" || job === "crm-task-reminders") {
+            result.crmTaskReminders = await runCrmTaskReminders();
           }
         } catch (err) {
           console.error("[community-cron] job failed", job, err);

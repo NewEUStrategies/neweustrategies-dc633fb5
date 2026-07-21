@@ -519,6 +519,134 @@ export type Database = {
           },
         ]
       }
+      b2b_coupon_redemptions: {
+        Row: {
+          applied_cents: number
+          coupon_id: string
+          created_at: string
+          currency: string
+          id: string
+          order_id: string | null
+          original_cents: number
+          tenant_id: string
+          user_id: string | null
+        }
+        Insert: {
+          applied_cents: number
+          coupon_id: string
+          created_at?: string
+          currency: string
+          id?: string
+          order_id?: string | null
+          original_cents: number
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Update: {
+          applied_cents?: number
+          coupon_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          order_id?: string | null
+          original_cents?: number
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_coupon_redemptions_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupon_redemptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "payment_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_coupons: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          description: string | null
+          discount_cents: number | null
+          discount_kind: string
+          discount_percent: number | null
+          id: string
+          max_redemptions: number | null
+          metadata: Json
+          name: string | null
+          organization_id: string | null
+          plan_ids: string[]
+          redemptions_count: number
+          tenant_id: string
+          updated_at: string
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind: string
+          discount_percent?: number | null
+          id?: string
+          max_redemptions?: number | null
+          metadata?: Json
+          name?: string | null
+          organization_id?: string | null
+          plan_ids?: string[]
+          redemptions_count?: number
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind?: string
+          discount_percent?: number | null
+          id?: string
+          max_redemptions?: number | null
+          metadata?: Json
+          name?: string | null
+          organization_id?: string | null
+          plan_ids?: string[]
+          redemptions_count?: number
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_coupons_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "member_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_profiles: {
         Row: {
           address_line1: string | null
@@ -886,6 +1014,47 @@ export type Database = {
           },
         ]
       }
+      checkout_settings: {
+        Row: {
+          allow_promotion_codes: boolean
+          automatic_tax: boolean
+          billing_address_collection: string
+          invoice_creation: boolean
+          tax_id_collection: boolean
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allow_promotion_codes?: boolean
+          automatic_tax?: boolean
+          billing_address_collection?: string
+          invoice_creation?: boolean
+          tax_id_collection?: boolean
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allow_promotion_codes?: boolean
+          automatic_tax?: boolean
+          billing_address_collection?: string
+          invoice_creation?: boolean
+          tax_id_collection?: boolean
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_errors: {
         Row: {
           created_at: string
@@ -1205,6 +1374,7 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id: string
+          metering_policy: string
           mode: Database["public"]["Enums"]["access_mode"]
           one_time_currency: string | null
           one_time_price_cents: number | null
@@ -1222,6 +1392,7 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id?: string
+          metering_policy?: string
           mode?: Database["public"]["Enums"]["access_mode"]
           one_time_currency?: string | null
           one_time_price_cents?: number | null
@@ -1239,6 +1410,7 @@ export type Database = {
           entity_id?: string
           entity_type?: Database["public"]["Enums"]["access_entity_type"]
           id?: string
+          metering_policy?: string
           mode?: Database["public"]["Enums"]["access_mode"]
           one_time_currency?: string | null
           one_time_price_cents?: number | null
@@ -1850,6 +2022,76 @@ export type Database = {
             foreignKeyName: "crm_scoring_settings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_tasks: {
+        Row: {
+          assignee_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          due_at: string
+          id: string
+          lead_id: string
+          note: string | null
+          reminded_at: string | null
+          status: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at: string
+          id?: string
+          lead_id: string
+          note?: string | null
+          reminded_at?: string | null
+          status?: string
+          tenant_id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at?: string
+          id?: string
+          lead_id?: string
+          note?: string | null
+          reminded_at?: string | null
+          status?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_tasks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -3805,6 +4047,136 @@ export type Database = {
           },
         ]
       }
+      metered_views: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["access_entity_type"]
+          id: string
+          period_month: string
+          tenant_id: string
+          user_id: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["access_entity_type"]
+          id?: string
+          period_month?: string
+          tenant_id: string
+          user_id?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: Database["public"]["Enums"]["access_entity_type"]
+          id?: string
+          period_month?: string
+          tenant_id?: string
+          user_id?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metered_views_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metering_event_log: {
+        Row: {
+          entity_id: string | null
+          entity_type: string | null
+          id: number
+          metadata: Json
+          monthly_limit: number | null
+          occurred_at: string
+          outcome: string
+          reason: string | null
+          tenant_id: string
+          used_before: number | null
+          user_id: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: number
+          metadata?: Json
+          monthly_limit?: number | null
+          occurred_at?: string
+          outcome: string
+          reason?: string | null
+          tenant_id?: string
+          used_before?: number | null
+          user_id?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: number
+          metadata?: Json
+          monthly_limit?: number | null
+          occurred_at?: string
+          outcome?: string
+          reason?: string | null
+          tenant_id?: string
+          used_before?: number | null
+          user_id?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: []
+      }
+      metering_settings: {
+        Row: {
+          anon_monthly_limit: number
+          enabled: boolean
+          member_monthly_limit: number
+          meter_members: boolean
+          meter_paid: boolean
+          show_counter: boolean
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          anon_monthly_limit?: number
+          enabled?: boolean
+          member_monthly_limit?: number
+          meter_members?: boolean
+          meter_paid?: boolean
+          show_counter?: boolean
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          anon_monthly_limit?: number
+          enabled?: boolean
+          member_monthly_limit?: number
+          meter_members?: boolean
+          meter_paid?: boolean
+          show_counter?: boolean
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metering_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mobile_drawer_configs: {
         Row: {
           created_at: string
@@ -4339,6 +4711,7 @@ export type Database = {
           enabled_comment: boolean
           enabled_connection: boolean
           enabled_content: boolean
+          enabled_crm_task: boolean
           enabled_follow: boolean
           enabled_message: boolean
           enabled_saved_search: boolean
@@ -4366,6 +4739,7 @@ export type Database = {
           enabled_comment?: boolean
           enabled_connection?: boolean
           enabled_content?: boolean
+          enabled_crm_task?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -4393,6 +4767,7 @@ export type Database = {
           enabled_comment?: boolean
           enabled_connection?: boolean
           enabled_content?: boolean
+          enabled_crm_task?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -4531,7 +4906,9 @@ export type Database = {
           claimed_at: string | null
           created_at: string
           id: string
+          invited_by: string | null
           invited_email: string
+          last_invited_at: string | null
           org_id: string
           role: string
           tenant_id: string
@@ -4541,7 +4918,9 @@ export type Database = {
           claimed_at?: string | null
           created_at?: string
           id?: string
+          invited_by?: string | null
           invited_email: string
+          last_invited_at?: string | null
           org_id: string
           role?: string
           tenant_id: string
@@ -4551,7 +4930,9 @@ export type Database = {
           claimed_at?: string | null
           created_at?: string
           id?: string
+          invited_by?: string | null
           invited_email?: string
+          last_invited_at?: string | null
           org_id?: string
           role?: string
           tenant_id?: string
@@ -8947,6 +9328,7 @@ export type Database = {
           entity_id: string | null
           entity_type: Database["public"]["Enums"]["access_entity_type"] | null
           id: string | null
+          metering_policy: string | null
           mode: Database["public"]["Enums"]["access_mode"] | null
           one_time_currency: string | null
           one_time_price_cents: number | null
@@ -8961,6 +9343,7 @@ export type Database = {
           entity_id?: string | null
           entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
           id?: string | null
+          metering_policy?: string | null
           mode?: Database["public"]["Enums"]["access_mode"] | null
           one_time_currency?: string | null
           one_time_price_cents?: number | null
@@ -8975,6 +9358,7 @@ export type Database = {
           entity_id?: string | null
           entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
           id?: string | null
+          metering_policy?: string | null
           mode?: Database["public"]["Enums"]["access_mode"] | null
           one_time_currency?: string | null
           one_time_price_cents?: number | null
@@ -9498,6 +9882,26 @@ export type Database = {
         Args: { _requester: string; _target: string }
         Returns: boolean
       }
+      consume_metered_view: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _visitor_id?: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          consumed: boolean
+          content_en: string
+          content_pl: string
+          granted: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
       content_access_has_password: {
         Args: {
           _entity_id: string
@@ -9516,6 +9920,10 @@ export type Database = {
           api_key: string
           webhook_secret: string
         }[]
+      }
+      crm_import_leads: {
+        Args: { p_rows: Json; p_source?: string }
+        Returns: Json
       }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_score_touch_user: {
@@ -10078,6 +10486,18 @@ export type Database = {
           status: string
         }[]
       }
+      log_metering_event: {
+        Args: {
+          _entity_id: string
+          _entity_type: string
+          _monthly_limit?: number
+          _outcome: string
+          _reason?: string
+          _used_before?: number
+          _visitor_id?: string
+        }
+        Returns: undefined
+      }
       log_search_query: {
         Args: { _lang?: string; _q: string; _results?: number }
         Returns: undefined
@@ -10095,6 +10515,26 @@ export type Database = {
         Returns: undefined
       }
       member_conversation_ids: { Args: never; Returns: string[] }
+      metering_state: {
+        Args: { _visitor_id?: string }
+        Returns: {
+          enabled: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      monetization_dashboard: {
+        Args: {
+          _from?: string
+          _organization_id?: string
+          _plan_id?: string
+          _to?: string
+        }
+        Returns: Json
+      }
       my_connection_requests: {
         Args: { p_direction?: string; p_limit?: number; p_offset?: number }
         Returns: {
@@ -10266,6 +10706,15 @@ export type Database = {
         Args: { p_email: string; p_org: string; p_role?: string }
         Returns: string
       }
+      org_touch_seat_invite: {
+        Args: { p_seat: string }
+        Returns: {
+          invited_email: string
+          last_invited_at: string
+          org_name: string
+          seat_id: string
+        }[]
+      }
       page_breadcrumbs: {
         Args: { _page_id: string }
         Returns: {
@@ -10385,6 +10834,16 @@ export type Database = {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
       }
+      redeem_b2b_coupon: {
+        Args: {
+          _applied_cents: number
+          _coupon_id: string
+          _currency: string
+          _order_id: string
+          _original_cents: number
+        }
+        Returns: boolean
+      }
       related_posts_signals: {
         Args: { _since_days?: number; _tenant: string }
         Returns: Json
@@ -10426,6 +10885,7 @@ export type Database = {
         Args: { p_event_id: string; p_status: string }
         Returns: Json
       }
+      run_crm_task_reminders: { Args: never; Returns: number }
       run_event_reminders: { Args: never; Returns: number }
       run_saved_search_alerts: {
         Args: { p_max_searches?: number }
@@ -10659,6 +11119,24 @@ export type Database = {
       user_tier_rank: {
         Args: { p_tenant?: string; p_user: string }
         Returns: number
+      }
+      validate_b2b_coupon: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _plan_id: string
+        }
+        Returns: {
+          coupon_id: string
+          discount_cents: number
+          discount_kind: string
+          discount_percent: number
+          error: string
+          final_cents: number
+          label: string
+          ok: boolean
+        }[]
       }
       verify_content_password: {
         Args: {
