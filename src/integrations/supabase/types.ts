@@ -1836,34 +1836,58 @@ export type Database = {
       }
       crm_companies: {
         Row: {
+          address: string | null
           aliases: Json
+          branch: string | null
+          city: string | null
+          country: string | null
           created_at: string
+          created_by: string | null
           domain: string | null
           id: string
           name: string
           name_norm: string | null
+          phone: string | null
+          postal_code: string | null
           tenant_id: string
           updated_at: string
+          website: string | null
         }
         Insert: {
+          address?: string | null
           aliases?: Json
+          branch?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
+          created_by?: string | null
           domain?: string | null
           id?: string
           name: string
           name_norm?: string | null
+          phone?: string | null
+          postal_code?: string | null
           tenant_id: string
           updated_at?: string
+          website?: string | null
         }
         Update: {
+          address?: string | null
           aliases?: Json
+          branch?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
+          created_by?: string | null
           domain?: string | null
           id?: string
           name?: string
           name_norm?: string | null
+          phone?: string | null
+          postal_code?: string | null
           tenant_id?: string
           updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }
@@ -7197,6 +7221,7 @@ export type Database = {
           cover_url: string | null
           created_at: string
           current_company: string | null
+          current_company_id: string | null
           discoverable: boolean
           discovery_search: string | null
           display_name: string | null
@@ -7232,6 +7257,7 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           current_company?: string | null
+          current_company_id?: string | null
           discoverable?: boolean
           discovery_search?: string | null
           display_name?: string | null
@@ -7267,6 +7293,7 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           current_company?: string | null
+          current_company_id?: string | null
           discoverable?: boolean
           discovery_search?: string | null
           display_name?: string | null
@@ -7294,6 +7321,13 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_current_company_id_fkey"
+            columns: ["current_company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -10372,6 +10406,7 @@ export type Database = {
           cover_url: string | null
           created_at: string
           current_company: string | null
+          current_company_id: string | null
           discoverable: boolean
           discovery_search: string | null
           display_name: string | null
@@ -10639,6 +10674,10 @@ export type Database = {
       }
       leave_group_conversation: {
         Args: { p_conversation_id: string }
+        Returns: undefined
+      }
+      link_current_company: {
+        Args: { _company_id: string }
         Returns: undefined
       }
       linked_item_label: {
