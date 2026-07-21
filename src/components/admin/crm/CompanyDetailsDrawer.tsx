@@ -471,15 +471,36 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
                   </TabsContent>
 
                   <TabsContent value="contacts" className="mt-0 space-y-2">
-                    {profiles.length === 0 ? (
+                    <div className="flex items-center justify-between pb-1">
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {t("Powiązane kontakty", "Linked contacts")}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 gap-1.5 text-[12px]"
+                        onClick={() => setAddOpen(true)}
+                      >
+                        <UserPlus className="h-3 w-3" aria-hidden />
+                        {t("Dodaj", "Add")}
+                      </Button>
+                    </div>
+                    {profiles.length === 0 && leads.length === 0 ? (
                       <EmptyState
                         icon={<Users className="h-6 w-6" aria-hidden />}
                         text={t("Brak powiązanych kontaktów.", "No linked contacts.")}
                       />
                     ) : (
-                      profiles.map((p) => (
-                        <ContactCard key={p.id} p={p} lang={lang} onClose={() => onOpenChange(false)} />
-                      ))
+                      <>
+                        {profiles.map((p) => (
+                          <ContactCard
+                            key={p.id}
+                            p={p}
+                            lang={lang}
+                            onClose={() => onOpenChange(false)}
+                          />
+                        ))}
+                      </>
                     )}
                   </TabsContent>
 
@@ -491,9 +512,23 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
                       />
                     ) : (
                       leads.map((l) => (
-                        <LeadCard key={l.id} l={l} lang={lang} fmt={fmt} onClose={() => onOpenChange(false)} />
+                        <LeadCard
+                          key={l.id}
+                          l={l}
+                          lang={lang}
+                          fmt={fmt}
+                          onClose={() => onOpenChange(false)}
+                        />
                       ))
                     )}
+                  </TabsContent>
+
+                  <TabsContent value="activity" className="mt-0 space-y-2">
+                    <ActivityFeed
+                      companyId={company.id}
+                      enabled={tab === "activity"}
+                      lang={lang}
+                    />
                   </TabsContent>
                 </div>
               </ScrollArea>
@@ -501,6 +536,15 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
           )}
         </div>
       </SheetContent>
+      {company && (
+        <AddContactDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          companyId={company.id}
+          companyName={company.name}
+          lang={lang}
+        />
+      )}
     </Sheet>
   );
 }
