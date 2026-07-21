@@ -2,7 +2,7 @@
 // newsletter subscriptions. Shows consent history (form name, version, text),
 // pipeline stages, notes, and Merydian push controls. Super Admins can switch
 // to a cross-tenant view via the scope toggle.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +28,9 @@ import { PresenceIndicator } from "@/components/molecules/PresenceIndicator";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { ScoringSettingsDialog } from "@/components/admin/crm/ScoringSettingsDialog";
+import { FollowUpsPanel } from "@/components/admin/crm/FollowUpsPanel";
+import { ImportLeadsCsvDialog } from "@/components/admin/crm/ImportLeadsCsvDialog";
+import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
 import { SCORE_BANDS, SCORE_BAND_LABELS, type ScoreBand } from "@/lib/crm/scoring";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -62,10 +65,28 @@ import {
   Trash2,
   Plus,
 } from "@/lib/lucide-shim";
-import { RefreshCw, Tag as TagIcon, Clock, FileDown, Printer } from "lucide-react";
+import {
+  RefreshCw,
+  Tag as TagIcon,
+  Clock,
+  FileDown,
+  Printer,
+  Upload,
+  AlarmClock,
+} from "lucide-react";
 import { toast } from "sonner";
 
+interface CrmSearch {
+  /** Deep-link z notyfikacji/powiązań: /admin/crm?lead=<id>&task=<id>. */
+  lead?: string;
+  task?: string;
+}
+
 export const Route = createFileRoute("/admin/crm")({
+  validateSearch: (search: Record<string, unknown>): CrmSearch => ({
+    lead: typeof search.lead === "string" && search.lead.length > 0 ? search.lead : undefined,
+    task: typeof search.task === "string" && search.task.length > 0 ? search.task : undefined,
+  }),
   head: () => ({ meta: [{ title: "CRM | Admin" }, { name: "robots", content: "noindex" }] }),
   component: AdminCrmPage,
 });
@@ -148,6 +169,7 @@ const PL = {
   stageAll: "Wszystkie etapy",
   refresh: "Odśwież",
   export: "Eksport CSV",
+  importCsv: "Import CSV",
   integrations: "Integracje",
   pipeline: "Pipeline",
   list: "Lista",
@@ -176,6 +198,7 @@ const PL = {
   detail: {
     title: "Karta leada",
     overview: "Profil",
+    tasks: "Zadania",
     consents: "Zgody",
     history: "Historia formularzy",
     notes: "Notatki",
@@ -255,6 +278,7 @@ const EN = {
   stageAll: "All stages",
   refresh: "Refresh",
   export: "Export CSV",
+  importCsv: "Import CSV",
   integrations: "Integrations",
   pipeline: "Pipeline",
   list: "List",
@@ -283,6 +307,7 @@ const EN = {
   detail: {
     title: "Lead card",
     overview: "Profile",
+    tasks: "Tasks",
     consents: "Consents",
     history: "Form history",
     notes: "Notes",
@@ -398,15 +423,36 @@ function AdminCrmPage() {
 }
 
 function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
+  const urlSearch = Route.useSearch();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState<Stage | "all">("all");
   const [scope, setScope] = useState<"tenant" | "all">("tenant");
   const [sort, setSort] = useState<"activity" | "score">("activity");
   const [band, setBand] = useState<ScoreBand | "all">("all");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(urlSearch.lead ?? null);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(urlSearch.task ?? null);
+  const [importOpen, setImportOpen] = useState(false);
   const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
   const { isAdmin } = useAuth();
   const lang: "pl" | "en" = L === PL ? "pl" : "en";
+
+  // Deep-link z notyfikacji przypomnienia (/admin/crm?lead=…&task=…) otwiera
+  // kartę leada na zakładce zadań - także przy nawigacji w już otwartej karcie.
+  useEffect(() => {
+    if (urlSearch.lead) {
+      setOpenId(urlSearch.lead);
+      setOpenTaskId(urlSearch.task ?? null);
+    }
+  }, [urlSearch.lead, urlSearch.task]);
+
+  const closeDrawer = () => {
+    setOpenId(null);
+    setOpenTaskId(null);
+    if (urlSearch.lead || urlSearch.task) {
+      void navigate({ to: "/admin/crm", search: {}, replace: true });
+    }
+  };
 
   const q = useQuery({
     queryKey: ["crm-leads", { search, stage, scope, sort, band }],
@@ -529,12 +575,24 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             {L.refresh}
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="w-3.5 h-3.5 mr-1" />
+            {L.importCsv}
+          </Button>
           <Button variant="outline" size="sm" onClick={onExport}>
             <Download className="w-3.5 h-3.5 mr-1" />
             {L.export}
           </Button>
         </div>
       </div>
+
+      <FollowUpsPanel
+        lang={lang}
+        onOpenLead={(leadId, taskId) => {
+          setOpenId(leadId);
+          setOpenTaskId(taskId);
+        }}
+      />
 
       <div className="rounded-md border overflow-hidden">
         <table className="w-full text-[13px]">
@@ -595,7 +653,8 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         </table>
       </div>
 
-      <LeadDrawer leadId={openId} onClose={() => setOpenId(null)} L={L} />
+      <LeadDrawer leadId={openId} highlightTaskId={openTaskId} onClose={closeDrawer} L={L} />
+      <ImportLeadsCsvDialog open={importOpen} onOpenChange={setImportOpen} lang={lang} />
     </div>
   );
 }
@@ -621,10 +680,12 @@ function StageBadge({ stage, L }: { stage: Stage; L: typeof PL }) {
 
 function LeadDrawer({
   leadId,
+  highlightTaskId,
   onClose,
   L,
 }: {
   leadId: string | null;
+  highlightTaskId?: string | null;
   onClose: () => void;
   L: typeof PL;
 }) {
@@ -703,10 +764,18 @@ function LeadDrawer({
         {!lead ? (
           <div className="py-10 text-center text-muted-foreground text-sm">…</div>
         ) : (
-          <Tabs defaultValue="overview" className="mt-3">
+          <Tabs
+            key={lead.id}
+            defaultValue={highlightTaskId ? "tasks" : "overview"}
+            className="mt-3"
+          >
             <TabsList className="flex flex-wrap">
               <TabsTrigger value="overview" className="text-[12px]">
                 {L.detail.overview}
+              </TabsTrigger>
+              <TabsTrigger value="tasks" className="text-[12px]">
+                <AlarmClock className="w-3 h-3 mr-1" />
+                {L.detail.tasks}
               </TabsTrigger>
               <TabsTrigger value="timeline" className="text-[12px]">
                 <Clock className="w-3 h-3 mr-1" />
@@ -726,6 +795,13 @@ function LeadDrawer({
                 {L.detail.integ}
               </TabsTrigger>
             </TabsList>
+            <TabsContent value="tasks" className="pt-3">
+              <LeadTasksPanel
+                leadId={lead.id}
+                lang={L === PL ? "pl" : "en"}
+                highlightTaskId={highlightTaskId}
+              />
+            </TabsContent>
             <TabsContent value="timeline" className="pt-3">
               <LeadTimeline leadId={leadId!} L={L} />
             </TabsContent>

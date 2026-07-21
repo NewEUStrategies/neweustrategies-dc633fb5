@@ -15,6 +15,7 @@ export const TOGGLEABLE_NOTIFICATION_KINDS = [
   "subscription",
   "content",
   "saved_search",
+  "crm_task",
   "tracker",
   "system",
 ] as const satisfies readonly NotificationKind[];

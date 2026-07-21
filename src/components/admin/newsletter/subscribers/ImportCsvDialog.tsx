@@ -4,7 +4,7 @@
 // Krok 2: mapowanie kolumn (auto-detekcja + rozwijalne pola)
 // Krok 3: podglad + zatwierdzenie -> server fn importNewsletterSubscribers
 //
-// CSV parser: prosty (delimiter , lub ;, cudzyslow "). Do 5000 wierszy.
+// Parser CSV jest wspolny z importem leadow CRM: @/lib/csv/parseCsv.
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Upload, FileText } from "lucide-react";
 import { importNewsletterSubscribers } from "@/lib/newsletter-admin.functions";
+import { parseCsv } from "@/lib/csv/parseCsv";
 
 type FieldKey =
   | "email"
@@ -52,44 +53,6 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   source: "Zrodlo",
   "": "-- pomin --",
 };
-
-function parseCsv(text: string): { header: string[]; rows: string[][] } {
-  const delim = text.includes(";") && !text.includes(",") ? ";" : ",";
-  const lines: string[][] = [];
-  let cur: string[] = [];
-  let field = "";
-  let inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQ) {
-      if (c === '"' && text[i + 1] === '"') {
-        field += '"';
-        i++;
-      } else if (c === '"') inQ = false;
-      else field += c;
-    } else {
-      if (c === '"') inQ = true;
-      else if (c === delim) {
-        cur.push(field);
-        field = "";
-      } else if (c === "\n") {
-        cur.push(field);
-        field = "";
-        lines.push(cur);
-        cur = [];
-      } else if (c === "\r") {
-        /* skip */
-      } else field += c;
-    }
-  }
-  if (field.length || cur.length) {
-    cur.push(field);
-    lines.push(cur);
-  }
-  const nonEmpty = lines.filter((r) => r.some((v) => v.trim().length));
-  const header = nonEmpty[0] ?? [];
-  return { header, rows: nonEmpty.slice(1) };
-}
 
 function autoMap(header: string[]): FieldKey[] {
   return header.map((h): FieldKey => {

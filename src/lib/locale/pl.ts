@@ -1789,6 +1789,7 @@ export const pl = {
         subscription: "Aktualizacje subskrypcji",
         content: "Nowe treści",
         saved_search: "Alerty zapisanych wyszukiwań",
+        crm_task: "Przypomnienia o follow-upach CRM",
         tracker: "Aktualizacje trackera legislacyjnego",
         connection: "Zaproszenia do sieci kontaktów",
         system: "Ogłoszenia systemowe",

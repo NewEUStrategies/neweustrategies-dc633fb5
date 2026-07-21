@@ -163,3 +163,10 @@ export async function runEventReminders(): Promise<number> {
   if (error) throw error;
   return data ?? 0;
 }
+
+/** Fallback dla środowisk bez pg_cron: przypomnienia o follow-upach CRM. */
+export async function runCrmTaskReminders(): Promise<number> {
+  const { data, error } = await supabaseAdmin.rpc("run_crm_task_reminders");
+  if (error) throw error;
+  return data ?? 0;
+}

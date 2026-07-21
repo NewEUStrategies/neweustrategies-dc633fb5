@@ -13,6 +13,7 @@ const prefs: NotificationPreferences = {
   enabled_tracker: true,
   enabled_connection: true,
   enabled_saved_search: true,
+  enabled_crm_task: false,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
@@ -35,6 +36,7 @@ describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
       "subscription",
       "content",
       "saved_search",
+      "crm_task",
       "tracker",
       "system",
     ]);
@@ -48,6 +50,7 @@ describe("isNotificationKindEnabled", () => {
     expect(isNotificationKindEnabled(prefs, "comment")).toBe(false);
     expect(isNotificationKindEnabled(prefs, "subscription")).toBe(false);
     expect(isNotificationKindEnabled(prefs, "content")).toBe(true);
+    expect(isNotificationKindEnabled(prefs, "crm_task")).toBe(false);
   });
 
   it("always reports security as enabled, regardless of the stored flag", () => {
