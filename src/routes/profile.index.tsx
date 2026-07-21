@@ -196,6 +196,7 @@ function ProfileInline() {
             {data.current_company ? (
               editable ? (
                 <button
+                  ref={companyTriggerRef}
                   type="button"
                   onClick={() => setCompanyPickerOpen(true)}
                   className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground align-middle transition-colors hover:text-primary"
