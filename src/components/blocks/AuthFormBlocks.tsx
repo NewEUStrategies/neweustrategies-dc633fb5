@@ -137,6 +137,13 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
             }),
           );
         }
+        if (msg.includes("invalid_input")) {
+          throw new Error(
+            t("auth.invalidInput", {
+              defaultValue: "Nieprawidłowe dane - sprawdź adres email i spróbuj ponownie.",
+            }),
+          );
+        }
         throw guardErr;
       }
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -472,6 +479,13 @@ export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; l
           throw new Error(
             t("auth.rateLimited", {
               defaultValue: "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
+            }),
+          );
+        }
+        if (msg.includes("invalid_input")) {
+          throw new Error(
+            t("auth.invalidInput", {
+              defaultValue: "Nieprawidłowy adres email - popraw i spróbuj ponownie.",
             }),
           );
         }

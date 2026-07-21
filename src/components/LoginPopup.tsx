@@ -105,6 +105,13 @@ export function LoginPopup() {
             }),
           );
         }
+        if (msg.includes("invalid_input")) {
+          throw new Error(
+            t("auth.invalidInput", {
+              defaultValue: "Nieprawidłowe dane - sprawdź adres email i spróbuj ponownie.",
+            }),
+          );
+        }
         throw guardErr;
       }
       if (mode === "signup") {
