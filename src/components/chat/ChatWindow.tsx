@@ -898,6 +898,7 @@ export function ChatWindow(props: ChatWindowProps) {
         myUserId={user.id}
         messages={messages}
         reactions={reactionsQ.data ?? EMPTY_REACTIONS_MAP}
+        reactorProfiles={reactorProfiles}
         peerName={peerName}
         peerAvatarUrl={peerAvatar}
         isGroup={isGroup}
