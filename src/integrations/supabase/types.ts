@@ -519,6 +519,134 @@ export type Database = {
           },
         ]
       }
+      b2b_coupon_redemptions: {
+        Row: {
+          applied_cents: number
+          coupon_id: string
+          created_at: string
+          currency: string
+          id: string
+          order_id: string | null
+          original_cents: number
+          tenant_id: string
+          user_id: string | null
+        }
+        Insert: {
+          applied_cents: number
+          coupon_id: string
+          created_at?: string
+          currency: string
+          id?: string
+          order_id?: string | null
+          original_cents: number
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Update: {
+          applied_cents?: number
+          coupon_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          order_id?: string | null
+          original_cents?: number
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_coupon_redemptions_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupon_redemptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "payment_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_coupons: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          description: string | null
+          discount_cents: number | null
+          discount_kind: string
+          discount_percent: number | null
+          id: string
+          max_redemptions: number | null
+          metadata: Json
+          name: string | null
+          organization_id: string | null
+          plan_ids: string[]
+          redemptions_count: number
+          tenant_id: string
+          updated_at: string
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind: string
+          discount_percent?: number | null
+          id?: string
+          max_redemptions?: number | null
+          metadata?: Json
+          name?: string | null
+          organization_id?: string | null
+          plan_ids?: string[]
+          redemptions_count?: number
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind?: string
+          discount_percent?: number | null
+          id?: string
+          max_redemptions?: number | null
+          metadata?: Json
+          name?: string | null
+          organization_id?: string | null
+          plan_ids?: string[]
+          redemptions_count?: number
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_coupons_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "member_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_profiles: {
         Row: {
           address_line1: string | null
@@ -3959,6 +4087,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      metering_event_log: {
+        Row: {
+          entity_id: string | null
+          entity_type: string | null
+          id: number
+          metadata: Json
+          monthly_limit: number | null
+          occurred_at: string
+          outcome: string
+          reason: string | null
+          tenant_id: string
+          used_before: number | null
+          user_id: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: number
+          metadata?: Json
+          monthly_limit?: number | null
+          occurred_at?: string
+          outcome: string
+          reason?: string | null
+          tenant_id?: string
+          used_before?: number | null
+          user_id?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: number
+          metadata?: Json
+          monthly_limit?: number | null
+          occurred_at?: string
+          outcome?: string
+          reason?: string | null
+          tenant_id?: string
+          used_before?: number | null
+          user_id?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: []
       }
       metering_settings: {
         Row: {
@@ -10313,6 +10486,18 @@ export type Database = {
           status: string
         }[]
       }
+      log_metering_event: {
+        Args: {
+          _entity_id: string
+          _entity_type: string
+          _monthly_limit?: number
+          _outcome: string
+          _reason?: string
+          _used_before?: number
+          _visitor_id?: string
+        }
+        Returns: undefined
+      }
       log_search_query: {
         Args: { _lang?: string; _q: string; _results?: number }
         Returns: undefined
@@ -10340,6 +10525,15 @@ export type Database = {
           show_counter: boolean
           used: number
         }[]
+      }
+      monetization_dashboard: {
+        Args: {
+          _from?: string
+          _organization_id?: string
+          _plan_id?: string
+          _to?: string
+        }
+        Returns: Json
       }
       my_connection_requests: {
         Args: { p_direction?: string; p_limit?: number; p_offset?: number }
@@ -10640,6 +10834,16 @@ export type Database = {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
       }
+      redeem_b2b_coupon: {
+        Args: {
+          _applied_cents: number
+          _coupon_id: string
+          _currency: string
+          _order_id: string
+          _original_cents: number
+        }
+        Returns: boolean
+      }
       related_posts_signals: {
         Args: { _since_days?: number; _tenant: string }
         Returns: Json
@@ -10915,6 +11119,24 @@ export type Database = {
       user_tier_rank: {
         Args: { p_tenant?: string; p_user: string }
         Returns: number
+      }
+      validate_b2b_coupon: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _plan_id: string
+        }
+        Returns: {
+          coupon_id: string
+          discount_cents: number
+          discount_kind: string
+          discount_percent: number
+          error: string
+          final_cents: number
+          label: string
+          ok: boolean
+        }[]
       }
       verify_content_password: {
         Args: {

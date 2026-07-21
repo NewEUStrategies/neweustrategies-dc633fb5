@@ -206,6 +206,25 @@ export function useMeteredAccess(
         builder_data: row.builder_data,
         blocks_data: row.blocks_data,
       };
+      // Debug log dla dashboardu monetyzacji: odmowa / registration-wall.
+      // Sukces ("consumed") loguje trigger po INSERT na metered_views.
+      if (!row.granted) {
+        const outcome = row.requires_registration ? "requires_registration" : "denied";
+        const reason = row.requires_registration
+          ? "anon_limit_zero"
+          : row.monthly_limit > 0 && row.used >= row.monthly_limit
+            ? "monthly_limit_reached"
+            : "no_access";
+        void supabase.rpc("log_metering_event", {
+          _entity_type: entityType,
+          _entity_id: entityId as string,
+          _outcome: outcome,
+          _reason: reason,
+          _visitor_id: uid ? undefined : (visitorId as string | undefined),
+          _used_before: row.used,
+          _monthly_limit: row.monthly_limit,
+        });
+      }
       return {
         body: row.granted && hasRenderableBody(body) ? body : EMPTY_BODY,
         meter: toMeterState(row),
