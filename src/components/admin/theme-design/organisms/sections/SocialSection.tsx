@@ -27,16 +27,40 @@ export function SocialSection({ draft, set, setColor, previewMode }: SectionEdit
     <Section title={t("adminThemeDesign.sections.social")}>
       <FieldGrid>
         <Field label={t("adminThemeDesign.f.iconColor")}>
-          <ColorControl section="socialIcons" field="color" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="socialIcons"
+            field="color"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.hoverColor")}>
-          <ColorControl section="socialIcons" field="hoverColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="socialIcons"
+            field="hoverColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.bg")}>
-          <ColorControl section="socialIcons" field="bgColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="socialIcons"
+            field="bgColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.hoverBg")}>
-          <ColorControl section="socialIcons" field="hoverBgColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="socialIcons"
+            field="hoverBgColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.sizePx")}>
           <PxStepper value={si.size} onChange={(v) => set("socialIcons", { size: v })} />

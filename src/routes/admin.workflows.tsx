@@ -283,9 +283,7 @@ function KpiCard({
     <Card
       onClick={onClick}
       className={
-        clickable
-          ? "cursor-pointer transition-colors hover:border-brand/40 hover:bg-brand/5"
-          : ""
+        clickable ? "cursor-pointer transition-colors hover:border-brand/40 hover:bg-brand/5" : ""
       }
     >
       <CardContent className="space-y-1 p-3">
@@ -301,4 +299,3 @@ function KpiCard({
     </Card>
   );
 }
-

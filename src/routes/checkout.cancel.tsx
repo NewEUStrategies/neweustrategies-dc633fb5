@@ -15,7 +15,6 @@ export const Route = createFileRoute("/checkout/cancel")({
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
-
 });
 
 function CancelPage() {

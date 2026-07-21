@@ -41,44 +41,9 @@ export const programsPl = {
     programsCount_many: "{{count}} programów",
     programsCount_other: "{{count}} programów",
   },
-};
-
-export const programsEn = {
-  programs: {
-    indexTitle: "Research programs",
-    indexIntro:
-      "Our specializations are long-running lines of research, not content categories. Each program runs its own team, projects, publications, events and partners.",
-    thesis: "Thesis & research scope",
-    scope: "Research scope",
-    researchQuestions: "Key research questions",
-    lead: "Program lead",
-    team: "Team",
-    projects: "Projects",
-    projectStatus: {
-      planned: "Planned",
-      active: "Active",
-      completed: "Completed",
-    },
-    latestPublications: "Latest publications",
-    flagshipReports: "Flagship reports",
-    podcasts: "Podcasts & video",
-    events: "Events",
-    partners: "Partners",
-    newsletter: "Program newsletter",
-    newsletterIntro: "Subscribe to get analysis and invitations from this program.",
-    contact: "Contact",
-    contactIntro: "Have a question for this program's team? Get in touch.",
-    contactCta: "Contact us",
-    backToPrograms: "Back to programs",
-    explore: "Explore the program",
-    empty: "No programs published yet.",
-    sectionEmpty: "Coming soon.",
-    loadError: "Failed to load programs. Please try again later.",
-    programsCount_one: "{{count}} program",
-    programsCount_few: "{{count}} programs",
-    programsCount_many: "{{count}} programs",
-    programsCount_other: "{{count}} programs",
-  },
+  // Panel /admin/research-programs. Blok przeniesiony z programsEn, gdzie
+  // trafil omylkowo (Object.assign nadpisywal go wersja angielska, a PL
+  // zostawal bez kluczy - pilnuje tego i18nSupportBundles.test.ts).
   adminPrograms: {
     title: "Landing programów badawczych",
     subtitle: "Pełne strony programów (teza, zespół, projekty, partnerzy, kuratorowane treści).",
@@ -146,6 +111,44 @@ export const programsEn = {
       recordUuid: "UUID rekordu",
       hint: "Wklej UUID posta / podcastu / wydarzenia. Kolejność wg pola sort_order.",
     },
+  },
+};
+
+export const programsEn = {
+  programs: {
+    indexTitle: "Research programs",
+    indexIntro:
+      "Our specializations are long-running lines of research, not content categories. Each program runs its own team, projects, publications, events and partners.",
+    thesis: "Thesis & research scope",
+    scope: "Research scope",
+    researchQuestions: "Key research questions",
+    lead: "Program lead",
+    team: "Team",
+    projects: "Projects",
+    projectStatus: {
+      planned: "Planned",
+      active: "Active",
+      completed: "Completed",
+    },
+    latestPublications: "Latest publications",
+    flagshipReports: "Flagship reports",
+    podcasts: "Podcasts & video",
+    events: "Events",
+    partners: "Partners",
+    newsletter: "Program newsletter",
+    newsletterIntro: "Subscribe to get analysis and invitations from this program.",
+    contact: "Contact",
+    contactIntro: "Have a question for this program's team? Get in touch.",
+    contactCta: "Contact us",
+    backToPrograms: "Back to programs",
+    explore: "Explore the program",
+    empty: "No programs published yet.",
+    sectionEmpty: "Coming soon.",
+    loadError: "Failed to load programs. Please try again later.",
+    programsCount_one: "{{count}} program",
+    programsCount_few: "{{count}} programs",
+    programsCount_many: "{{count}} programs",
+    programsCount_other: "{{count}} programs",
   },
 };
 

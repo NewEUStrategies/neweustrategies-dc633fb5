@@ -24,19 +24,49 @@ export function ModeSwitchSection({ draft, set, setColor, previewMode }: Section
     <Section title={t("adminThemeDesign.sections.modeSwitch")}>
       <FieldGrid>
         <Field label={t("adminThemeDesign.f.trackBg")}>
-          <ColorControl section="modeSwitcher" field="trackBg" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="modeSwitcher"
+            field="trackBg"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.trackBorder")}>
-          <ColorControl section="modeSwitcher" field="trackBorder" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="modeSwitcher"
+            field="trackBorder"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.inactiveColor")}>
-          <ColorControl section="modeSwitcher" field="inactiveColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="modeSwitcher"
+            field="inactiveColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.activeBg")}>
-          <ColorControl section="modeSwitcher" field="activeBg" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="modeSwitcher"
+            field="activeBg"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.activeColor")}>
-          <ColorControl section="modeSwitcher" field="activeColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="modeSwitcher"
+            field="activeColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.radius")}>
           <PxStepper value={ms.radius} onChange={(v) => set("modeSwitcher", { radius: v })} />

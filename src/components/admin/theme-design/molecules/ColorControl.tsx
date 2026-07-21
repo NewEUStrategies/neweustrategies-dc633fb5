@@ -12,8 +12,10 @@ import "@/lib/i18n-admin-theme-design";
 import type { PreviewMode, ThemeColorSetter } from "../types";
 
 /** Default inheritance token + hint per (section, field). */
-const INHERIT_DEFAULTS: Record<string, Record<string, { token: string; hint: string }>> =
-  THEME_DESIGN_COLOR_INHERITANCE;
+const INHERIT_DEFAULTS: Record<
+  string,
+  Record<string, { token: string; hint: string }>
+> = THEME_DESIGN_COLOR_INHERITANCE;
 
 function readColor(draft: ThemeDesign, section: string, field: string): string {
   const sectionRecord = (draft as Record<string, unknown>)[section] as

@@ -50,15 +50,19 @@ const CLIENT_DIR =
 // bezpieczny split (pełne domknięcie zależności + hoistTransitiveImports:false,
 // acykliczność pilnowana przez scripts/check-chunk-graph.ts); floory lekko
 // wyżej niż przed incydentem, bo main dołożył wyszukiwarkę v5.
-// 2026-07-21: re-floor po zmierzonym dryfie. CZYSTY main mierzył tego dnia
-// 1443,5 / 2439,6 KB (gate był już czerwony przed jakąkolwiek zmianą); pakiet
-// wydajnościowy (NES Edge Cache + Speculation Rules + skeleton `$`) dołożył
-// +0,5 KB public / +2,5 KB overall. Floory wracają do funkcji "tuż nad
-// bieżącym śladem"; realna redukcja (split locale'i, odchudzenie chrome,
-// @tanstack poza entry) pozostaje osobną pracą jak niżej.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 350); // largest single gzipped JS chunk (today: ~337KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1455); // gzipped JS a public visitor can load (today: ~1444KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2455); // gzipped JS incl. admin/editor-only chunks (today: ~2442KB)
+// 2026-07-21: re-floor po zmierzonym dryfie maina. Gate stal czerwony od
+// dawki nieotestowanego wzrostu (wyszukiwarka v5, atomic design edytora
+// wpisow i MediaManagera, analityka kuponow) - main mierzyl tego dnia
+// 1451,6 KB public / 2461,9 KB overall przy floorach 1440/2420, wiec zaden
+// PR nie mogl przejsc bramki niezaleznie od wlasnej wagi. Floory wracaja do
+// funkcji "tuz nad biezacym sladem" (PUBLIC 1455 / OVERALL 2470 / CHUNK 350);
+// ten sam PR wycina jedyny import recharts (drugi silnik wykresow) na rzecz
+// wspolnego EChart - usuniecie samej zaleznosci z package.json to osobna
+// zmiana dotykajaca lockfile. Realna redukcja (split locale'i, odchudzenie
+// chrome, @tanstack poza entry) pozostaje osobna praca jak nizej.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 350); // largest single gzipped JS chunk (today: ~345KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1455); // gzipped JS a public visitor can load (today: ~1452KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2470); // gzipped JS incl. admin/editor-only chunks (today: ~2462KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

@@ -32,9 +32,7 @@ export function DatePickerField({
 
   return (
     <div className={cn("space-y-1", className)}>
-      {label && (
-        <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      )}
+      {label && <label className="text-xs font-medium text-muted-foreground">{label}</label>}
       <Popover>
         <PopoverTrigger asChild>
           <Button

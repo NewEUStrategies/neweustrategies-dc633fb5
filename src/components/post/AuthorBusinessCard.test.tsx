@@ -26,7 +26,9 @@ describe("AuthorBusinessCard", () => {
     );
     expect(screen.getByText("Anna Kowalska")).toBeInTheDocument();
     expect(screen.getByText("Redaktor · New European Strategies")).toBeInTheDocument();
-    expect(screen.getByText("Ekspertka od polityki międzynarodowej.")).toBeInTheDocument();
+    // Kontrakt po redesignie: bio jest przyjmowane (kompatybilnosc propow),
+    // ale karta go NIE wyswietla - pelne bio zyje na profilu autora.
+    expect(screen.queryByText("Ekspertka od polityki międzynarodowej.")).not.toBeInTheDocument();
     expect(screen.getByLabelText("LinkedIn")).toHaveAttribute(
       "href",
       "https://linkedin.com/in/anna",
@@ -44,7 +46,10 @@ describe("AuthorBusinessCard", () => {
 
   it("nie renderuje sekcji social, gdy brak jakichkolwiek danych kontaktowych", () => {
     renderWithQueryClient(<AuthorBusinessCard lang="pl" name="Jan Nowak" bio="Krótkie bio." />);
-    expect(screen.getByText("Krótkie bio.")).toBeInTheDocument();
+    expect(screen.getByText("Jan Nowak")).toBeInTheDocument();
+    // Bio jest zdeprecjonowane w karcie (nie renderuje sie), a sekcja social
+    // bez danych kontaktowych w ogole nie powstaje.
+    expect(screen.queryByText("Krótkie bio.")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("E-mail")).not.toBeInTheDocument();
   });
 

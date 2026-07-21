@@ -428,7 +428,11 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   };
 
   const topQueriesClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const top = queryRows.slice().sort((a, b) => b.clicks - a.clicks).slice(0, 15).reverse();
+    const top = queryRows
+      .slice()
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 15)
+      .reverse();
     const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
     const row = top[idx];
     if (!row) return null;
@@ -474,7 +478,14 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
 
   const pageTreemapClick = (p: ChartClickParams): ChartDrillDetail | null => {
     const d = p.data as
-      | { fullPath?: string; rawUrl?: string; value?: number; ctr?: number; clicks?: number; position?: number }
+      | {
+          fullPath?: string;
+          rawUrl?: string;
+          value?: number;
+          ctr?: number;
+          clicks?: number;
+          position?: number;
+        }
       | undefined;
     if (!d?.fullPath) return null;
     const impressions = d.value ?? 0;
@@ -512,7 +523,6 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
         : [{ label: t("adminAnalytics.gsc.clicks"), value: String(clicks) }],
     };
   };
-
 
   if (!configured) {
     return (
@@ -704,8 +714,6 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
           onDataClick={calendarClick}
         />
       </div>
-
-
 
       {/* Interpretacja + rekomendacje per element dashboardu */}
       <InsightSection

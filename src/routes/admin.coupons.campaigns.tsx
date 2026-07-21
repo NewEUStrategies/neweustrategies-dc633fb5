@@ -502,7 +502,10 @@ function CampaignCreateDialog({
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/60">
           <div>
             <Label>{L("Nadaje subskrypcję", "Grants subscription")}</Label>
-            <Select value={tierKey || "none"} onValueChange={(v) => setTierKey(v === "none" ? "" : v)}>
+            <Select
+              value={tierKey || "none"}
+              onValueChange={(v) => setTierKey(v === "none" ? "" : v)}
+            >
               <SelectTrigger className="h-10 rounded-[6px]">
                 <SelectValue placeholder={L("Brak", "None")} />
               </SelectTrigger>
@@ -541,7 +544,11 @@ function CampaignCreateDialog({
       </div>
       <DialogFooter>
         <Button onClick={submit} disabled={busy} className="h-10 rounded-[6px]">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : L("Utwórz kampanię", "Create campaign")}
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            L("Utwórz kampanię", "Create campaign")
+          )}
         </Button>
       </DialogFooter>
     </DialogContent>

@@ -1,10 +1,14 @@
 // Zakładka Analityka - agregaty per kupon + wykres słupkowy TOP10.
-import { useState } from "react";
+// Wykres przez wspólny wrapper EChart (standard analityki w tym repo):
+// SSR-safe stub + lazy EChartClient, bez wciągania silnika wykresów do grafu
+// SSR i bez dodatkowej zależności (recharts nie jest w package.json).
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import type { EChartsCoreOption } from "echarts/core";
+import { EChart } from "@/components/admin/analytics/EChart";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
@@ -54,12 +58,39 @@ function AnalyticsPage() {
   const totalRevenue = rows.reduce((s, r) => s + Number(r.revenue_cents), 0);
   const totalDiscount = rows.reduce((s, r) => s + Number(r.discount_cents_total), 0);
   const conversion =
-    rows.length > 0 ? ((rows.filter((r) => Number(r.redemptions) > 0).length / rows.length) * 100).toFixed(1) : "0";
+    rows.length > 0
+      ? ((rows.filter((r) => Number(r.redemptions) > 0).length / rows.length) * 100).toFixed(1)
+      : "0";
   const top10 = rows.slice(0, 10).map((r) => ({
     code: r.code,
     redemptions: Number(r.redemptions),
     revenue: Number(r.revenue_cents) / 100,
   }));
+
+  const top10Option = useMemo<EChartsCoreOption>(
+    () => ({
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+      grid: { left: 8, right: 8, top: 16, bottom: 8, containLabel: true },
+      xAxis: {
+        type: "category",
+        data: top10.map((r) => r.code),
+        axisLabel: { rotate: 30, fontSize: 11, overflow: "truncate", width: 110 },
+      },
+      yAxis: { type: "value", axisLabel: { fontSize: 11 } },
+      series: [
+        {
+          name: L("Realizacje", "Redemptions"),
+          type: "bar",
+          data: top10.map((r) => r.redemptions),
+          barMaxWidth: 36,
+          itemStyle: { borderRadius: [6, 6, 0, 0], color: "#2a78d6" },
+          label: { show: true, position: "top", fontSize: 10 },
+        },
+      ],
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, lang],
+  );
 
   return (
     <div className="space-y-6">
@@ -71,10 +102,7 @@ function AnalyticsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label={L("Kupony", "Coupons")} value={String(rows.length)} />
         <Stat label={L("Realizacje", "Redemptions")} value={String(totalRedemptions)} />
-        <Stat
-          label={L("Przychód", "Revenue")}
-          value={`${(totalRevenue / 100).toFixed(2)}`}
-        />
+        <Stat label={L("Przychód", "Revenue")} value={`${(totalRevenue / 100).toFixed(2)}`} />
         <Stat label={L("Konwersja", "Conversion")} value={`${conversion}%`} />
       </div>
 
@@ -89,34 +117,9 @@ function AnalyticsPage() {
               {L("Wczytywanie…", "Loading…")}
             </div>
           ) : top10.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6">
-              {L("Brak danych.", "No data.")}
-            </p>
+            <p className="text-sm text-muted-foreground py-6">{L("Brak danych.", "No data.")}</p>
           ) : (
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={top10}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="code"
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    angle={-30}
-                    textAnchor="end"
-                    height={70}
-                  />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--popover))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: 6,
-                    }}
-                  />
-                  <Bar dataKey="redemptions" fill="hsl(var(--brand))" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <EChart option={top10Option} height={320} />
           )}
         </CardContent>
       </Card>
@@ -129,9 +132,7 @@ function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           {rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6">
-              {L("Brak danych.", "No data.")}
-            </p>
+            <p className="text-sm text-muted-foreground py-6">{L("Brak danych.", "No data.")}</p>
           ) : (
             <div className="overflow-x-auto -mx-4 px-4">
               <table className="w-full text-sm">

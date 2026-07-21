@@ -112,4 +112,3 @@ export function CouponInput({ planId, amountCents, currency, onChange }: Props) 
     </div>
   );
 }
-

@@ -32,6 +32,32 @@ interface BucketedItem {
   index: number;
 }
 
+// Czysta projekcja lokalizacji routera -> fraza ?q= z /search (PL i /en).
+// Wydzielona, bo czyta ja zarowno inicjalizacja stanu (synchronicznie, bez
+// subskrypcji), jak i SearchUrlQSync (subskrypcja na nawigacje).
+function urlQFromLocation(location: { pathname: string; search: unknown }): string {
+  const path = location.pathname || "";
+  if (!/(^|\/)search(\/?$|\?)/.test(path) && !path.endsWith("/search")) return "";
+  const sp = location.search as Record<string, unknown> | undefined;
+  return sp && typeof sp.q === "string" ? sp.q : "";
+}
+
+/**
+ * Most subskrypcji routera renderowany TYLKO, gdy RouterProvider istnieje.
+ * Dzieki temu hook useRouterState nigdy nie odpala bez kontekstu (render w
+ * testach jednostkowych / poza aplikacja), a widget degraduje do zwyklego
+ * pola wyszukiwania zamiast sie wywracac. Wzorzec "hook w dziecku" zamiast
+ * warunkowego hooka - zgodny z rules-of-hooks.
+ */
+function SearchUrlQSync({ onUrlQ }: { onUrlQ: (value: string) => void }) {
+  const location = useRouterState({ select: (s) => s.location });
+  const urlQ = urlQFromLocation(location);
+  useEffect(() => {
+    onUrlQ(urlQ);
+  }, [urlQ, onUrlQ]);
+  return null;
+}
+
 export function SearchButtonWidget({
   label,
   heading,
@@ -52,18 +78,20 @@ export function SearchButtonWidget({
   radius: number;
   fontSize: number;
 }) {
-  const router = useRouter();
+  // warn:false - poza RouterProvider (testy jednostkowe, render izolowany)
+  // router jest undefined, a widget dziala jako zwykle pole wyszukiwania;
+  // synchronizacja ?q= i nawigacja SPA wlaczaja sie tylko z routerem.
+  const router = useRouter({ warn: false });
   // Sync the header search bar with /search?q=... so header and page never
-  // disagree. We read the router state (updated on every navigation) and
-  // mirror it into the local input when the user isn't actively typing.
-  const routerLocation = useRouterState({ select: (s) => s.location });
-  const urlQ = useMemo(() => {
-    const path = routerLocation.pathname || "";
-    if (!/(^|\/)search(\/?$|\?)/.test(path) && !path.endsWith("/search")) return "";
-    const sp = routerLocation.search as Record<string, unknown> | undefined;
-    const raw = sp && typeof sp.q === "string" ? sp.q : "";
-    return raw;
-  }, [routerLocation.pathname, routerLocation.search]);
+  // disagree. The subscription lives in <SearchUrlQSync> (rendered only with
+  // a router); the initial value is read synchronously to avoid a first-frame
+  // flash of an empty input on /search.
+  const [urlQ, setUrlQ] = useState(() => {
+    // Optional chaining az do location: poza aplikacja router bywa nie tylko
+    // nieobecny, ale i CZESCIOWY (testy mockuja useRouter samym navigate).
+    const location = router?.state?.location;
+    return location ? urlQFromLocation(location) : "";
+  });
   const [q, setQ] = useState(urlQ);
   const [items, setItems] = useState<AutosuggestItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -80,6 +108,16 @@ export function SearchButtonWidget({
   const listboxId = useId();
   const optionId = (i: number): string => `${listboxId}-opt-${i}`;
   const t = (k: string): string => i18n.t(`search.widget.${k}`, { lng: lang }) as string;
+
+  // Nawigacja SPA, gdy router istnieje; twarde przejscie, gdy widget renderuje
+  // sie poza RouterProvider (izolowany render) - identyczny URL, pelna strona.
+  const navigateToHref = (href: string): void => {
+    if (router) {
+      void router.navigate({ href } as never);
+    } else if (typeof window !== "undefined") {
+      window.location.assign(href);
+    }
+  };
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -101,12 +139,15 @@ export function SearchButtonWidget({
 
   // Mirror ?q= from /search into the header input on navigation - so header
   // and page always show the same phrase. We skip while the input is focused
-  // to avoid clobbering what the user is typing.
+  // to avoid clobbering what the user is typing, and we mirror ONLY when a
+  // router location exists as the source of truth - without it (isolated
+  // render) there is no URL to mirror and wiping the input would be a bug.
+  const hasRouterSync = Boolean(router?.state);
   useEffect(() => {
-    if (focused) return;
+    if (!hasRouterSync || focused) return;
     if (urlQ !== q) setQ(urlQ);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlQ, focused]);
+  }, [urlQ, focused, hasRouterSync]);
 
   const runSearch = async (term: string) => {
     const t = term.trim();
@@ -234,11 +275,11 @@ export function SearchButtonWidget({
       if (chosen) {
         addRecentSearch(q);
         setFocused(false);
-        void router.navigate({ href: suggestionHref(chosen.item) } as never);
+        navigateToHref(suggestionHref(chosen.item));
       } else if (hasQuery) {
         addRecentSearch(q);
         setFocused(false);
-        void router.navigate({ href: searchAllHref } as never);
+        navigateToHref(searchAllHref);
       }
     }
   };
@@ -264,6 +305,7 @@ export function SearchButtonWidget({
           '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif',
       }}
     >
+      {router?.state ? <SearchUrlQSync onUrlQ={setUrlQ} /> : null}
       <div className="input-group" style={{ height: `${h}px`, overflow: "visible" }}>
         <input
           ref={inputRef}
@@ -338,7 +380,7 @@ export function SearchButtonWidget({
               if (hasQuery) {
                 addRecentSearch(q);
                 setFocused(false);
-                void router.navigate({ href: searchAllHref } as never);
+                navigateToHref(searchAllHref);
               } else {
                 inputRef.current?.focus();
               }

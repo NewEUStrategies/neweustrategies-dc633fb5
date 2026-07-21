@@ -199,8 +199,13 @@ describe("EN language chrome", () => {
       { label_pl: "Język", label_en: "Language" },
       { lang: "en" },
     );
-    fireEvent.click(container.querySelector("button")!);
-    expect(container.querySelector('[role="listbox"]')).toBeTruthy();
+    // Redesign: segmentowy przycisk PL|EN - przy aktywnym EN etykieta ARIA
+    // wskazuje kierunek EN -> PL, a aktywna polowka (druga) jest wytluszczona.
+    const btn = container.querySelector("button");
+    expect(btn?.getAttribute("aria-label")).toBe("Language: EN → PL");
+    const halves = btn ? Array.from(btn.querySelectorAll("span")) : [];
+    expect(halves[1]?.className).toContain("font-bold");
+    expect(container.querySelector('[role="listbox"]')).toBeNull();
   });
 });
 

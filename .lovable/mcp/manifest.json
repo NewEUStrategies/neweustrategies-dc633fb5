@@ -6,9 +6,7 @@
     "type": "oauth",
     "issuer": "https://unnltowbgszpdzwpawdu.supabase.co/auth/v1",
     "resource_name": "NEW EU Strategies MCP",
-    "accepted_audiences": [
-      "authenticated"
-    ]
+    "accepted_audiences": ["authenticated"]
   },
   "mcp": {
     "server": {
@@ -36,10 +34,7 @@
             },
             "lang": {
               "type": "string",
-              "enum": [
-                "pl",
-                "en"
-              ],
+              "enum": ["pl", "en"],
               "default": "pl",
               "description": "Language variant to search."
             },
@@ -51,9 +46,7 @@
               "description": "Maximum posts to return."
             }
           },
-          "required": [
-            "query"
-          ],
+          "required": ["query"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
@@ -78,17 +71,12 @@
             },
             "lang": {
               "type": "string",
-              "enum": [
-                "pl",
-                "en"
-              ],
+              "enum": ["pl", "en"],
               "default": "pl",
               "description": "Language variant."
             }
           },
-          "required": [
-            "slug"
-          ],
+          "required": ["slug"],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
@@ -108,10 +96,7 @@
           "properties": {
             "lang": {
               "type": "string",
-              "enum": [
-                "pl",
-                "en"
-              ],
+              "enum": ["pl", "en"],
               "default": "pl",
               "description": "Language variant."
             },

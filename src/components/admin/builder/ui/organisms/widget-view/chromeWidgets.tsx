@@ -9,7 +9,9 @@ import { setClientLang } from "@/lib/i18n/localeRuntime";
 
 export function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n } = useTranslation();
-  const router = useRouter();
+  // warn:false - poza RouterProvider (testy jednostkowe, render izolowany)
+  // przełącznik dalej działa: zmiana języka + twarde przejście na URL celu.
+  const router = useRouter({ warn: false });
   const current: AppLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const next: AppLang = current === "pl" ? "en" : "pl";
 
@@ -24,13 +26,20 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
     } catch {
       /* noop */
     }
-    const internal = stripLangPrefix(router.state.location.pathname).pathname;
+    const currentPath =
+      router?.state?.location?.pathname ??
+      (typeof window !== "undefined" ? window.location.pathname : "/");
+    const internal = stripLangPrefix(currentPath).pathname;
     const target = localizedPath(internal, next);
-    try {
-      void router.navigate({ href: target, replace: true, resetScroll: false });
-    } catch {
-      window.location.href = target;
+    if (router) {
+      try {
+        void router.navigate({ href: target, replace: true, resetScroll: false });
+        return;
+      } catch {
+        /* spadnij do twardej nawigacji */
+      }
     }
+    if (typeof window !== "undefined") window.location.href = target;
   };
 
   const activeHalf = "font-bold text-foreground bg-brand/15";

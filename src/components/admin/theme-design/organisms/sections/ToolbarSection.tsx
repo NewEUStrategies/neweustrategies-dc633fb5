@@ -28,22 +28,58 @@ export function ToolbarSection({ draft, set, setColor, previewMode }: SectionEdi
     <Section title={t("adminThemeDesign.sections.toolbar")}>
       <FieldGrid>
         <Field label={t("adminThemeDesign.f.bg")}>
-          <ColorControl section="toolbarButton" field="bgColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="toolbarButton"
+            field="bgColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.iconTextColor")}>
-          <ColorControl section="toolbarButton" field="color" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="toolbarButton"
+            field="color"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.hoverBg")}>
-          <ColorControl section="toolbarButton" field="hoverBgColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="toolbarButton"
+            field="hoverBgColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.hoverColor")}>
-          <ColorControl section="toolbarButton" field="hoverColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="toolbarButton"
+            field="hoverColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.activeBg")}>
-          <ColorControl section="toolbarButton" field="activeBgColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="toolbarButton"
+            field="activeBgColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.activeColor")}>
-          <ColorControl section="toolbarButton" field="activeColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="toolbarButton"
+            field="activeColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.radius")}>
           <PxStepper value={tb.radius} onChange={(v) => set("toolbarButton", { radius: v })} />
@@ -60,7 +96,11 @@ export function ToolbarSection({ draft, set, setColor, previewMode }: SectionEdi
       </FieldGrid>
       <PreviewFrame>
         <div style={previewVars} className="flex flex-wrap items-center gap-2">
-          <button className="cms-tb-btn" data-active="true" title={t("adminThemeDesign.activeTitle")}>
+          <button
+            className="cms-tb-btn"
+            data-active="true"
+            title={t("adminThemeDesign.activeTitle")}
+          >
             <Monitor />
           </button>
           <button className="cms-tb-btn">

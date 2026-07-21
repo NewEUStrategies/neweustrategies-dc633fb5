@@ -410,7 +410,6 @@ const pl = {
   },
 };
 
-
 const en: typeof pl = {
   profile: {
     title: "My profile",
@@ -814,7 +813,6 @@ const en: typeof pl = {
     signUp: "Create account",
   },
 };
-
 
 type ProfileExtras = {
   profile: {

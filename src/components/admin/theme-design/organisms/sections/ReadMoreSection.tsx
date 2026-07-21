@@ -1,6 +1,14 @@
 // Organism: editor for the "Read more" button.
 import { useTranslation } from "react-i18next";
-import { Section, FieldGrid, Field, ToggleField, PreviewFrame, PxStepper, NumStepper } from "../../atoms";
+import {
+  Section,
+  FieldGrid,
+  Field,
+  ToggleField,
+  PreviewFrame,
+  PxStepper,
+  NumStepper,
+} from "../../atoms";
 import { ColorControl } from "../../molecules";
 import type { SectionEditorProps } from "../../types";
 import "@/lib/i18n-admin-theme-design";
@@ -42,10 +50,16 @@ export function ReadMoreSection({ draft, set, setColor, previewMode }: SectionEd
           <PxStepper value={btn.radius} onChange={(v) => set("readMoreButton", { radius: v })} />
         </Field>
         <Field label={t("adminThemeDesign.f.paddingX")}>
-          <PxStepper value={btn.paddingX} onChange={(v) => set("readMoreButton", { paddingX: v })} />
+          <PxStepper
+            value={btn.paddingX}
+            onChange={(v) => set("readMoreButton", { paddingX: v })}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.paddingY")}>
-          <PxStepper value={btn.paddingY} onChange={(v) => set("readMoreButton", { paddingY: v })} />
+          <PxStepper
+            value={btn.paddingY}
+            onChange={(v) => set("readMoreButton", { paddingY: v })}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.weight")}>
           <NumStepper

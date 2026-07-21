@@ -14,10 +14,22 @@ export function ListIndexSection({ draft, set, setColor, previewMode }: SectionE
       <p className="text-xs text-muted-foreground -mt-2">{t("adminThemeDesign.desc.listIndex")}</p>
       <FieldGrid>
         <Field label={t("adminThemeDesign.f.colorLight")}>
-          <ColorControl section="listIndex" field="colorLight" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="listIndex"
+            field="colorLight"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.colorDark")}>
-          <ColorControl section="listIndex" field="colorDark" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="listIndex"
+            field="colorDark"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.opacity")}>
           <NumberInput
@@ -25,7 +37,9 @@ export function ListIndexSection({ draft, set, setColor, previewMode }: SectionE
             min={0}
             max={1}
             value={li.opacity}
-            onChange={(value) => set("listIndex", { opacity: Math.max(0, Math.min(1, value ?? 0)) })}
+            onChange={(value) =>
+              set("listIndex", { opacity: Math.max(0, Math.min(1, value ?? 0)) })
+            }
           />
         </Field>
         <Field label={t("adminThemeDesign.f.weight")}>
