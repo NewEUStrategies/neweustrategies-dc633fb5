@@ -149,6 +149,7 @@ import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
+import { Route as AdminCouponsIndexRouteImport } from './routes/admin.coupons.index'
 import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
 import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slug.amp'
 import { Route as TagSlugRssDotxmlRouteImport } from './routes/tag.$slug.rss[.]xml'
@@ -191,6 +192,9 @@ import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newslet
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
+import { Route as AdminCouponsRedemptionsRouteImport } from './routes/admin.coupons.redemptions'
+import { Route as AdminCouponsCampaignsRouteImport } from './routes/admin.coupons.campaigns'
+import { Route as AdminCouponsAnalyticsRouteImport } from './routes/admin.coupons.analytics'
 import { Route as AdminCommunityQaRouteImport } from './routes/admin.community.qa'
 import { Route as AdminCommunityPollsRouteImport } from './routes/admin.community.polls'
 import { Route as AdminCommunityNotificationsRouteImport } from './routes/admin.community.notifications'
@@ -916,6 +920,11 @@ const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminCouponsIndexRoute = AdminCouponsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminCouponsRoute,
+} as any)
 const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -1129,6 +1138,21 @@ const AdminNewsletterCampaignsRoute =
     path: '/campaigns',
     getParentRoute: () => AdminNewsletterRoute,
   } as any)
+const AdminCouponsRedemptionsRoute = AdminCouponsRedemptionsRouteImport.update({
+  id: '/redemptions',
+  path: '/redemptions',
+  getParentRoute: () => AdminCouponsRoute,
+} as any)
+const AdminCouponsCampaignsRoute = AdminCouponsCampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
+  getParentRoute: () => AdminCouponsRoute,
+} as any)
+const AdminCouponsAnalyticsRoute = AdminCouponsAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AdminCouponsRoute,
+} as any)
 const AdminCommunityQaRoute = AdminCommunityQaRouteImport.update({
   id: '/qa',
   path: '/qa',
@@ -1299,7 +1323,7 @@ export interface FileRoutesByFullPath {
   '/admin/community': typeof AdminCommunityRouteWithChildren
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
-  '/admin/coupons': typeof AdminCouponsRoute
+  '/admin/coupons': typeof AdminCouponsRouteWithChildren
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
@@ -1407,6 +1431,9 @@ export interface FileRoutesByFullPath {
   '/admin/community/notifications': typeof AdminCommunityNotificationsRoute
   '/admin/community/polls': typeof AdminCommunityPollsRoute
   '/admin/community/qa': typeof AdminCommunityQaRoute
+  '/admin/coupons/analytics': typeof AdminCouponsAnalyticsRoute
+  '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
+  '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -1449,6 +1476,7 @@ export interface FileRoutesByFullPath {
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
+  '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -1502,7 +1530,6 @@ export interface FileRoutesByTo {
   '/admin/comments': typeof AdminCommentsRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
-  '/admin/coupons': typeof AdminCouponsRoute
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
@@ -1607,6 +1634,9 @@ export interface FileRoutesByTo {
   '/admin/community/notifications': typeof AdminCommunityNotificationsRoute
   '/admin/community/polls': typeof AdminCommunityPollsRoute
   '/admin/community/qa': typeof AdminCommunityQaRoute
+  '/admin/coupons/analytics': typeof AdminCouponsAnalyticsRoute
+  '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
+  '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -1648,6 +1678,7 @@ export interface FileRoutesByTo {
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community': typeof AdminCommunityIndexRoute
+  '/admin/coupons': typeof AdminCouponsIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
@@ -1705,7 +1736,7 @@ export interface FileRoutesById {
   '/admin/community': typeof AdminCommunityRouteWithChildren
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
-  '/admin/coupons': typeof AdminCouponsRoute
+  '/admin/coupons': typeof AdminCouponsRouteWithChildren
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
@@ -1813,6 +1844,9 @@ export interface FileRoutesById {
   '/admin/community/notifications': typeof AdminCommunityNotificationsRoute
   '/admin/community/polls': typeof AdminCommunityPollsRoute
   '/admin/community/qa': typeof AdminCommunityQaRoute
+  '/admin/coupons/analytics': typeof AdminCouponsAnalyticsRoute
+  '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
+  '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -1855,6 +1889,7 @@ export interface FileRoutesById {
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
+  '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -2021,6 +2056,9 @@ export interface FileRouteTypes {
     | '/admin/community/notifications'
     | '/admin/community/polls'
     | '/admin/community/qa'
+    | '/admin/coupons/analytics'
+    | '/admin/coupons/campaigns'
+    | '/admin/coupons/redemptions'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -2063,6 +2101,7 @@ export interface FileRouteTypes {
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
+    | '/admin/coupons/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -2116,7 +2155,6 @@ export interface FileRouteTypes {
     | '/admin/comments'
     | '/admin/contact'
     | '/admin/content-area'
-    | '/admin/coupons'
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
@@ -2221,6 +2259,9 @@ export interface FileRouteTypes {
     | '/admin/community/notifications'
     | '/admin/community/polls'
     | '/admin/community/qa'
+    | '/admin/coupons/analytics'
+    | '/admin/coupons/campaigns'
+    | '/admin/coupons/redemptions'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -2262,6 +2303,7 @@ export interface FileRouteTypes {
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community'
+    | '/admin/coupons'
     | '/admin/newsletter'
     | '/admin/settings'
     | '/admin/users'
@@ -2426,6 +2468,9 @@ export interface FileRouteTypes {
     | '/admin/community/notifications'
     | '/admin/community/polls'
     | '/admin/community/qa'
+    | '/admin/coupons/analytics'
+    | '/admin/coupons/campaigns'
+    | '/admin/coupons/redemptions'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -2468,6 +2513,7 @@ export interface FileRouteTypes {
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
+    | '/admin/coupons/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -3538,6 +3584,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterIndexRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/coupons/': {
+      id: '/admin/coupons/'
+      path: '/'
+      fullPath: '/admin/coupons/'
+      preLoaderRoute: typeof AdminCouponsIndexRouteImport
+      parentRoute: typeof AdminCouponsRoute
+    }
     '/admin/community/': {
       id: '/admin/community/'
       path: '/'
@@ -3832,6 +3885,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterCampaignsRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/coupons/redemptions': {
+      id: '/admin/coupons/redemptions'
+      path: '/redemptions'
+      fullPath: '/admin/coupons/redemptions'
+      preLoaderRoute: typeof AdminCouponsRedemptionsRouteImport
+      parentRoute: typeof AdminCouponsRoute
+    }
+    '/admin/coupons/campaigns': {
+      id: '/admin/coupons/campaigns'
+      path: '/campaigns'
+      fullPath: '/admin/coupons/campaigns'
+      preLoaderRoute: typeof AdminCouponsCampaignsRouteImport
+      parentRoute: typeof AdminCouponsRoute
+    }
+    '/admin/coupons/analytics': {
+      id: '/admin/coupons/analytics'
+      path: '/analytics'
+      fullPath: '/admin/coupons/analytics'
+      preLoaderRoute: typeof AdminCouponsAnalyticsRouteImport
+      parentRoute: typeof AdminCouponsRoute
+    }
     '/admin/community/qa': {
       id: '/admin/community/qa'
       path: '/qa'
@@ -4041,6 +4115,24 @@ const AdminCommunityRouteWithChildren = AdminCommunityRoute._addFileChildren(
   AdminCommunityRouteChildren,
 )
 
+interface AdminCouponsRouteChildren {
+  AdminCouponsAnalyticsRoute: typeof AdminCouponsAnalyticsRoute
+  AdminCouponsCampaignsRoute: typeof AdminCouponsCampaignsRoute
+  AdminCouponsRedemptionsRoute: typeof AdminCouponsRedemptionsRoute
+  AdminCouponsIndexRoute: typeof AdminCouponsIndexRoute
+}
+
+const AdminCouponsRouteChildren: AdminCouponsRouteChildren = {
+  AdminCouponsAnalyticsRoute: AdminCouponsAnalyticsRoute,
+  AdminCouponsCampaignsRoute: AdminCouponsCampaignsRoute,
+  AdminCouponsRedemptionsRoute: AdminCouponsRedemptionsRoute,
+  AdminCouponsIndexRoute: AdminCouponsIndexRoute,
+}
+
+const AdminCouponsRouteWithChildren = AdminCouponsRoute._addFileChildren(
+  AdminCouponsRouteChildren,
+)
+
 interface AdminNewsletterCampaignsRouteChildren {
   AdminNewsletterCampaignsIdRoute: typeof AdminNewsletterCampaignsIdRoute
   AdminNewsletterCampaignsIndexRoute: typeof AdminNewsletterCampaignsIndexRoute
@@ -4204,7 +4296,7 @@ interface AdminRouteChildren {
   AdminCommunityRoute: typeof AdminCommunityRouteWithChildren
   AdminContactRoute: typeof AdminContactRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
-  AdminCouponsRoute: typeof AdminCouponsRoute
+  AdminCouponsRoute: typeof AdminCouponsRouteWithChildren
   AdminCrmRoute: typeof AdminCrmRoute
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
@@ -4268,7 +4360,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCommunityRoute: AdminCommunityRouteWithChildren,
   AdminContactRoute: AdminContactRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
-  AdminCouponsRoute: AdminCouponsRoute,
+  AdminCouponsRoute: AdminCouponsRouteWithChildren,
   AdminCrmRoute: AdminCrmRoute,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,

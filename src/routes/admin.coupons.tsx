@@ -1,481 +1,91 @@
-// Panel admina: zarządzanie kuponami B2B (CRUD, aktywacja/dezaktywacja,
-// limity, ważność, plan, organizacja, metadane). Zapisy wchodzą przez RLS
-// dla ról admin/editor (patrz migracja 20260721 b2b_coupons).
-import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+// Layout strony Kupony B2B - zakładki + Outlet dla podstron.
+// Zakładki: lista, kampanie, realizacje, analityka.
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { BadgePercent, Plus, Trash2, Copy, Check, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { B2bCouponRow, CouponDiscountKind } from "@/lib/billing/coupons";
-import { normalizeCouponCode } from "@/lib/billing/coupons";
+import { BadgePercent, LayoutList, Send, ListChecks, BarChart3 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/coupons")({
-  component: AdminCouponsPage,
+  component: AdminCouponsLayout,
 });
 
-function AdminCouponsPage() {
+function AdminCouponsLayout() {
   const { i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
 
-  const couponsQ = useQuery({
-    queryKey: ["admin", "b2b-coupons"],
-    queryFn: async (): Promise<B2bCouponRow[]> => {
-      const { data, error } = await supabase
-        .from("b2b_coupons")
-        .select(
-          "id, code, name, description, discount_kind, discount_percent, discount_cents, currency, active, max_redemptions, redemptions_count, valid_from, valid_until, plan_ids, organization_id, metadata, created_at, updated_at",
-        )
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []) as B2bCouponRow[];
+  const tabs = [
+    {
+      to: "/admin/coupons",
+      exact: true,
+      label: L("Kupony", "Coupons"),
+      icon: LayoutList,
     },
-  });
-
-  const plansQ = useQuery({
-    queryKey: ["admin", "b2b-coupons", "plans"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("access_plans")
-        .select("id, name_pl, name_en, active")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return data ?? [];
+    {
+      to: "/admin/coupons/campaigns",
+      label: L("Kampanie", "Campaigns"),
+      icon: Send,
     },
-  });
-
-  const toggle = useMutation({
-    mutationFn: async (row: B2bCouponRow) => {
-      const { error } = await supabase
-        .from("b2b_coupons")
-        .update({ active: !row.active })
-        .eq("id", row.id);
-      if (error) throw error;
+    {
+      to: "/admin/coupons/redemptions",
+      label: L("Realizacje", "Redemptions"),
+      icon: ListChecks,
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "b2b-coupons"] }),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const remove = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("b2b_coupons").delete().eq("id", id);
-      if (error) throw error;
+    {
+      to: "/admin/coupons/analytics",
+      label: L("Analityka", "Analytics"),
+      icon: BarChart3,
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "b2b-coupons"] }),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const active = useMemo(() => (couponsQ.data ?? []).filter((c) => c.active).length, [couponsQ.data]);
-  const total = couponsQ.data?.length ?? 0;
+  ] as const;
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <BadgePercent className="h-5 w-5" />
-            {L("Kupony B2B", "B2B coupons")}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {L(
-              "Zarządzaj kodami rabatowymi dla klientów firmowych. Limity, ważność i plany są egzekwowane na serwerze.",
-              "Manage B2B discount codes. Limits, validity and plan scope are enforced server-side.",
-            )}
-          </p>
-        </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              {L("Nowy kupon", "New coupon")}
-            </Button>
-          </DialogTrigger>
-          <CouponCreateDialog
-            plans={plansQ.data ?? []}
-            onCreated={() => {
-              setOpen(false);
-              void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupons"] });
-            }}
-          />
-        </Dialog>
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold flex items-center gap-2">
+          <BadgePercent className="h-5 w-5" />
+          {L("Kupony B2B", "B2B coupons")}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {L(
+            "Zarządzaj kodami, kampaniami masowymi i analityką. Integracja z CRM, newsletterem i subskrypcjami platformy.",
+            "Manage codes, bulk campaigns and analytics. Integrated with CRM, newsletter and platform subscriptions.",
+          )}
+        </p>
       </header>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label={L("Wszystkie", "Total")} value={String(total)} />
-        <StatCard label={L("Aktywne", "Active")} value={String(active)} />
-        <StatCard
-          label={L("Użycia łącznie", "Total redemptions")}
-          value={String(
-            (couponsQ.data ?? []).reduce((sum, c) => sum + (c.redemptions_count || 0), 0),
-          )}
-        />
-        <StatCard
-          label={L("Wygasłe", "Expired")}
-          value={String(
-            (couponsQ.data ?? []).filter(
-              (c) => c.valid_until && new Date(c.valid_until).getTime() < Date.now(),
-            ).length,
-          )}
-        />
-      </div>
+      <nav
+        role="tablist"
+        aria-label={L("Zakładki kuponów", "Coupon tabs")}
+        className="flex flex-wrap gap-1 border-b border-border/60"
+      >
+        {tabs.map((t) => {
+          const active = t.exact ? pathname === t.to : pathname.startsWith(t.to);
+          const Icon = t.icon;
+          return (
+            <Link
+              key={t.to}
+              to={t.to}
+              role="tab"
+              aria-selected={active}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-2 text-sm rounded-t-[6px] transition-colors",
+                "hover:bg-muted/40",
+                active
+                  ? "border-b-2 border-brand text-foreground font-medium -mb-px"
+                  : "text-muted-foreground",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {t.label}
+            </Link>
+          );
+        })}
+      </nav>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{L("Lista kuponów", "Coupon list")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {couponsQ.isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {L("Wczytywanie…", "Loading…")}
-            </div>
-          ) : (couponsQ.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6">
-              {L("Brak kuponów. Utwórz pierwszy.", "No coupons yet. Create your first one.")}
-            </p>
-          ) : (
-            <div className="overflow-x-auto -mx-4 px-4">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground uppercase">
-                  <tr className="border-b border-border/60">
-                    <th className="text-left py-2 pr-3">{L("Kod", "Code")}</th>
-                    <th className="text-left py-2 pr-3">{L("Rabat", "Discount")}</th>
-                    <th className="text-left py-2 pr-3">{L("Użycia", "Uses")}</th>
-                    <th className="text-left py-2 pr-3">{L("Ważność", "Validity")}</th>
-                    <th className="text-left py-2 pr-3">{L("Status", "Status")}</th>
-                    <th className="text-right py-2">{L("Akcje", "Actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(couponsQ.data ?? []).map((c) => (
-                    <tr key={c.id} className="border-b border-border/40">
-                      <td className="py-3 pr-3">
-                        <div className="flex items-center gap-2">
-                          <code className="font-mono font-semibold text-sm">{c.code}</code>
-                          <button
-                            type="button"
-                            aria-label="Kopiuj"
-                            className="text-muted-foreground hover:text-foreground"
-                            onClick={() => {
-                              void navigator.clipboard.writeText(c.code);
-                              toast.success(L("Skopiowano", "Copied"));
-                            }}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        {c.name && <div className="text-xs text-muted-foreground">{c.name}</div>}
-                      </td>
-                      <td className="py-3 pr-3">
-                        {c.discount_kind === "percent"
-                          ? `${c.discount_percent}%`
-                          : `${((c.discount_cents ?? 0) / 100).toFixed(2)} ${c.currency ?? ""}`}
-                      </td>
-                      <td className="py-3 pr-3">
-                        {c.redemptions_count}
-                        {c.max_redemptions != null ? ` / ${c.max_redemptions}` : ""}
-                      </td>
-                      <td className="py-3 pr-3 text-xs">
-                        {c.valid_from ? new Date(c.valid_from).toLocaleDateString(lang) : "—"}
-                        {" → "}
-                        {c.valid_until ? new Date(c.valid_until).toLocaleDateString(lang) : "∞"}
-                      </td>
-                      <td className="py-3 pr-3">
-                        {c.active ? (
-                          <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10">
-                            <Check className="h-3 w-3 mr-1" />
-                            {L("Aktywny", "Active")}
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">{L("Nieaktywny", "Inactive")}</Badge>
-                        )}
-                      </td>
-                      <td className="py-3 text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <Switch
-                            checked={c.active}
-                            onCheckedChange={() => toggle.mutate(c)}
-                            aria-label="toggle-active"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="delete"
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  L("Usunąć kupon?", "Delete coupon?") + ` ${c.code}`,
-                                )
-                              ) {
-                                remove.mutate(c.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="pt-2">
+        <Outlet />
+      </div>
     </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="text-xs uppercase text-muted-foreground">{label}</div>
-        <div className="text-2xl font-semibold mt-1">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
-interface CreateDialogProps {
-  plans: Array<{ id: string; name_pl: string | null; name_en: string | null; active: boolean }>;
-  onCreated: () => void;
-}
-
-function CouponCreateDialog({ plans, onCreated }: CreateDialogProps) {
-  const { i18n } = useTranslation();
-  const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
-
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [kind, setKind] = useState<CouponDiscountKind>("percent");
-  const [percent, setPercent] = useState<number>(10);
-  const [cents, setCents] = useState<number>(1000);
-  const [currency, setCurrency] = useState("PLN");
-  const [maxRedemptions, setMaxRedemptions] = useState<string>("");
-  const [validFrom, setValidFrom] = useState<string>("");
-  const [validUntil, setValidUntil] = useState<string>("");
-  const [planIds, setPlanIds] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-
-  const submit = async () => {
-    const norm = normalizeCouponCode(code);
-    if (!norm) {
-      toast.error(L("Podaj kod", "Enter a code"));
-      return;
-    }
-    if (kind === "percent" && (percent < 1 || percent > 100)) {
-      toast.error(L("Procent 1–100", "Percent 1–100"));
-      return;
-    }
-    if (kind === "fixed" && cents <= 0) {
-      toast.error(L("Kwota > 0", "Amount > 0"));
-      return;
-    }
-    setBusy(true);
-    const payload = {
-      code: norm,
-      name: name.trim() || null,
-      description: description.trim() || null,
-      discount_kind: kind,
-      discount_percent: kind === "percent" ? percent : null,
-      discount_cents: kind === "fixed" ? cents : null,
-      currency: kind === "fixed" ? currency.toUpperCase() : null,
-      max_redemptions: maxRedemptions ? Number(maxRedemptions) : null,
-      valid_from: validFrom ? new Date(validFrom).toISOString() : null,
-      valid_until: validUntil ? new Date(validUntil).toISOString() : null,
-      plan_ids: planIds,
-    };
-    const { error } = await supabase.from("b2b_coupons").insert(payload);
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(L("Kupon utworzony", "Coupon created"));
-    onCreated();
-  };
-
-  return (
-    <DialogContent className="max-w-lg">
-      <DialogHeader>
-        <DialogTitle>{L("Nowy kupon B2B", "New B2B coupon")}</DialogTitle>
-      </DialogHeader>
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>{L("Kod", "Code")}</Label>
-            <Input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="NES-B2B-10"
-              className="uppercase"
-            />
-          </div>
-          <div>
-            <Label>{L("Nazwa (opcjonalnie)", "Name (optional)")}</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-        </div>
-
-        <div>
-          <Label>{L("Opis wewnętrzny", "Internal description")}</Label>
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>{L("Typ rabatu", "Discount type")}</Label>
-            <Select value={kind} onValueChange={(v) => setKind(v as CouponDiscountKind)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="percent">%</SelectItem>
-                <SelectItem value="fixed">{L("Kwotowy", "Fixed")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {kind === "percent" ? (
-            <div>
-              <Label>{L("Procent", "Percent")}</Label>
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={percent}
-                onChange={(e) => setPercent(Number(e.target.value))}
-              />
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label>{L("Kwota (grosze)", "Amount (cents)")}</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={cents}
-                  onChange={(e) => setCents(Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <Label>{L("Waluta", "Currency")}</Label>
-                <Input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={4} />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>{L("Limit użyć", "Max redemptions")}</Label>
-            <Input
-              type="number"
-              min={1}
-              value={maxRedemptions}
-              onChange={(e) => setMaxRedemptions(e.target.value)}
-              placeholder={L("bez limitu", "unlimited")}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>{L("Ważny od", "Valid from")}</Label>
-              <Input
-                type="datetime-local"
-                value={validFrom}
-                onChange={(e) => setValidFrom(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>{L("Ważny do", "Valid until")}</Label>
-              <Input
-                type="datetime-local"
-                value={validUntil}
-                onChange={(e) => setValidUntil(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <Label>{L("Ogranicz do planów (opcjonalnie)", "Restrict to plans (optional)")}</Label>
-          <div className="rounded-md border border-border/60 p-2 max-h-40 overflow-y-auto space-y-1">
-            {plans.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                {L("Brak planów", "No plans available")}
-              </p>
-            )}
-            {plans.map((p) => {
-              const on = planIds.includes(p.id);
-              return (
-                <label
-                  key={p.id}
-                  className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/40 rounded px-1.5 py-1"
-                >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={(e) =>
-                      setPlanIds((prev) =>
-                        e.target.checked
-                          ? [...prev, p.id]
-                          : prev.filter((id) => id !== p.id),
-                      )
-                    }
-                  />
-                  <span className={p.active ? "" : "text-muted-foreground line-through"}>
-                    {(lang === "pl" ? p.name_pl : p.name_en) || p.name_pl || p.name_en}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      <DialogFooter>
-        <Button onClick={submit} disabled={busy}>
-          {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            L("Utwórz kupon", "Create coupon")
-          )}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
   );
 }
