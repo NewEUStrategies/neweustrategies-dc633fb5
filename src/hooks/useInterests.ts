@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 const ANON_KEY = "nes.interests.anon.v1";
 
@@ -146,21 +147,10 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
 }
 
 function useCurrentUserId() {
-  const [uid, setUid] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    supabase.auth.getUser().then(({ data }) => {
-      if (!cancelled) setUid(data.user?.id ?? null);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUid(session?.user?.id ?? null);
-    });
-    return () => {
-      cancelled = true;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-  return uid;
+  // Czytamy tożsamość z jedynego AuthProvider w __root.tsx zamiast wołać
+  // supabase.auth.getUser() (osobne żądanie do Auth API na każde mount).
+  const { user } = useAuth();
+  return user?.id ?? null;
 }
 
 export function useMyInterests() {

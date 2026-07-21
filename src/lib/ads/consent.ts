@@ -161,8 +161,10 @@ function clearConsent() {
 
 async function syncConsentToProfile(state: ConsentState): Promise<void> {
   try {
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth?.user?.id;
+    // getSession() czyta lokalnie z pamięci klienta Supabase (bez requestu do
+    // Auth API) - te same tokeny, na których polega AuthProvider z __root.tsx.
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess?.session?.user?.id;
     if (!uid) return;
     const { data: ownRows } = await supabase.rpc("get_own_profile");
     const prevPrefs = (ownRows?.[0]?.prefs ?? {}) as Record<string, unknown>;
@@ -175,8 +177,8 @@ async function syncConsentToProfile(state: ConsentState): Promise<void> {
 
 async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
   try {
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth?.user?.id;
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess?.session?.user?.id;
     if (!uid) return null;
     const { data: ownRows } = await supabase.rpc("get_own_profile");
     const prefs = (ownRows?.[0]?.prefs ?? {}) as Record<string, unknown>;

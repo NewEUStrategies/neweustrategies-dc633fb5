@@ -9,6 +9,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,10 @@ const DISCUSSION_DEFAULTS: DiscussionSettings = {
 export function CommentsSection({ postId, lang }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [userId, setUserId] = useState<string | null>(null);
+  // Tożsamość czytamy z jedynego AuthProvider (__root.tsx) - bez osobnego
+  // supabase.auth.getUser() na mount i bez własnego onAuthStateChange listenera.
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [limit, setLimit] = useState(COMMENTS_PAGE_SIZE);
   const discussion = useSiteSetting<DiscussionSettings>("discussion", DISCUSSION_DEFAULTS);
   const commentsOpen = discussion.allow_comments;
@@ -70,23 +74,6 @@ export function CommentsSection({ postId, lang }: Props) {
             : "Thank you - your comment will appear once approved by moderation.",
       }),
     );
-
-  useEffect(() => {
-    // Sync current user id so we can show controls for own rows; the auth
-    // listener keeps it fresh and MUST be unsubscribed on unmount (a useMemo
-    // "cleanup" is never invoked by React and leaked one subscription per mount).
-    let cancelled = false;
-    supabase.auth.getUser().then(({ data }) => {
-      if (!cancelled) setUserId(data.user?.id ?? null);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUserId(session?.user?.id ?? null);
-    });
-    return () => {
-      cancelled = true;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
 
   // Base key (no limit) so mutations can invalidate every fetched window at once.
   const listKey = ["post-comments", postId] as const;
