@@ -671,20 +671,24 @@ export function ChatWindow(props: ChatWindowProps) {
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
   const conversationMenu = (
     <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            menuOpen && "bg-muted text-foreground",
-          )}
-          aria-label={t("chat.menu.title")}
-          aria-haspopup="menu"
-          title={t("chat.menu.title")}
-        >
-          <MoreVertical className="h-4 w-4" aria-hidden />
-        </button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                menuOpen && "bg-muted text-foreground",
+              )}
+              aria-label={t("chat.menu.title")}
+              aria-haspopup="menu"
+            >
+              <MoreVertical className="h-4 w-4" aria-hidden />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{t("chat.menu.title")}</TooltipContent>
+      </Tooltip>
       <PopoverContent
         side="bottom"
         align="end"
