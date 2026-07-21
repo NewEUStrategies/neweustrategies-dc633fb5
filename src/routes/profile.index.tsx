@@ -709,6 +709,7 @@ function ProfileInline() {
         onOpenChange={setCompanyPickerOpen}
         currentCompanyId={data.current_company_id}
         currentCompanyName={data.current_company}
+        returnFocusRef={companyTriggerRef}
       />
     </TooltipProvider>
   );
