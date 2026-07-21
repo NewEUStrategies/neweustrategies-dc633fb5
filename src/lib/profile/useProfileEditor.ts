@@ -56,7 +56,7 @@ const MAX_SIZE: Record<UploadKind, number> = {
 // user-bio editors thus converge on profiles.bio_pl (mirror trigger keeps the
 // legacy `bio` column populated for older readers).
 const FIELDS =
-  "display_name, first_name, last_name, job_title, current_company, specialization, location, phone, bio, bio_pl, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
+  "display_name, first_name, last_name, job_title, current_company, current_company_id, specialization, location, phone, bio, bio_pl, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
 
 export const profileEditorKey = (uid: string | null | undefined) =>
   ["profile-editor", uid ?? undefined] as const;
