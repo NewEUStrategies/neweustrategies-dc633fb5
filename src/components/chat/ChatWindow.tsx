@@ -1010,6 +1010,7 @@ export function ChatWindow(props: ChatWindowProps) {
 
   if (variant === "page") {
     return (
+      <TooltipProvider delayDuration={200}>
       <div
         className={cn("flex h-full min-h-0 flex-col", themeClass(theme), className)}
         data-active-conversation={conversationId}
