@@ -1,5 +1,7 @@
-// Boczna nawigacja kroku "Szczegóły" edytora wpisu: grupy zakładek metadanych.
-// Wyodrębnione 1:1 z trasy admin.posts.$slug (grupy i etykiety bez zmian).
+// Organizm: boczna nawigacja kroku "Szczegóły" edytora wpisu. Grupy zakładek
+// metadanych; etykiety i podpowiedzi są w pełni i18n (PL/EN). Wyodrębnione z
+// trasy admin.posts.$slug - grupy i kolejność bez zmian.
+import { useTranslation } from "react-i18next";
 import {
   FileText,
   Settings as SettingsIcon,
@@ -11,6 +13,7 @@ import {
   Mic,
 } from "@/lib/lucide-shim";
 import { History, Database, ListChecks } from "lucide-react";
+import "@/lib/i18n-admin-post-panes";
 
 export type DetailsTab =
   | "general"
@@ -28,81 +31,101 @@ export type DetailsTab =
 
 type TabDef = {
   id: DetailsTab;
-  label: string;
+  labelKey: string;
   icon: typeof SettingsIcon;
-  hint?: string;
+  hintKey?: string;
 };
 
-const GROUPS: { id: string; label: string; tabs: TabDef[] }[] = [
+const GROUPS: { id: string; labelKey: string; tabs: TabDef[] }[] = [
   {
     id: "content",
-    label: "Treść",
+    labelKey: "adminPostPanes.nav.groupContent",
     tabs: [
-      { id: "general", label: "Ogólne", icon: FileText, hint: "Tytuły i zajawki" },
+      {
+        id: "general",
+        labelKey: "adminPostPanes.nav.general",
+        icon: FileText,
+        hintKey: "adminPostPanes.nav.generalHint",
+      },
       {
         id: "takeaways",
-        label: "Dowiesz się…",
+        labelKey: "adminPostPanes.nav.takeaways",
         icon: ListChecks,
-        hint: "Kluczowe punkty PL/EN + wariant",
+        hintKey: "adminPostPanes.nav.takeawaysHint",
       },
       {
         id: "audio",
-        label: "Audio (MP3)",
+        labelKey: "adminPostPanes.nav.audio",
         icon: Mic,
-        hint: "PL/EN · fallback do lektora AI",
+        hintKey: "adminPostPanes.nav.audioHint",
       },
     ],
   },
   {
     id: "structure",
-    label: "Struktura",
+    labelKey: "adminPostPanes.nav.groupStructure",
     tabs: [
       {
         id: "settings",
-        label: "Ustawienia strony",
+        labelKey: "adminPostPanes.nav.settings",
         icon: SettingsIcon,
-        hint: "Spis treści · Ochrona treści",
+        hintKey: "adminPostPanes.nav.settingsHint",
       },
-      { id: "layout", label: "Layout", icon: Layers, hint: "Format i wygląd" },
-      { id: "taxonomy", label: "Kategorie i tagi", icon: TagIcon },
+      {
+        id: "layout",
+        labelKey: "adminPostPanes.nav.layout",
+        icon: Layers,
+        hintKey: "adminPostPanes.nav.layoutHint",
+      },
+      { id: "taxonomy", labelKey: "adminPostPanes.nav.taxonomy", icon: TagIcon },
       {
         id: "related",
-        label: "Powiązane wpisy",
+        labelKey: "adminPostPanes.nav.related",
         icon: LinkIconLucide,
-        hint: "Override",
+        hintKey: "adminPostPanes.nav.relatedHint",
       },
     ],
   },
   {
     id: "seo",
-    label: "SEO i meta",
+    labelKey: "adminPostPanes.nav.groupSeoMeta",
     tabs: [
       {
         id: "seo",
-        label: "SEO i podgląd",
+        labelKey: "adminPostPanes.nav.seo",
         icon: Search,
-        hint: "Meta title/description, OG",
+        hintKey: "adminPostPanes.nav.seoHint",
       },
-      { id: "meta", label: "Custom meta", icon: Database, hint: "Własne pola" },
+      {
+        id: "meta",
+        labelKey: "adminPostPanes.nav.meta",
+        icon: Database,
+        hintKey: "adminPostPanes.nav.metaHint",
+      },
     ],
   },
   {
     id: "publication",
-    label: "Publikacja",
+    labelKey: "adminPostPanes.nav.groupPublication",
     tabs: [
       {
         id: "publish",
-        label: "Publikacja",
+        labelKey: "adminPostPanes.nav.publish",
         icon: SettingsIcon,
-        hint: "Status, slug, cover",
+        hintKey: "adminPostPanes.nav.publishHint",
       },
-      { id: "access", label: "Dostęp", icon: Lock, hint: "Paywall / role" },
+      {
+        id: "access",
+        labelKey: "adminPostPanes.nav.access",
+        icon: Lock,
+        hintKey: "adminPostPanes.nav.accessHint",
+      },
     ],
   },
   {
     id: "history",
-    label: "Historia",
-    tabs: [{ id: "revisions", label: "Historia zmian", icon: History }],
+    labelKey: "adminPostPanes.nav.groupHistory",
+    tabs: [{ id: "revisions", labelKey: "adminPostPanes.nav.revisions", icon: History }],
   },
 ];
 
@@ -113,18 +136,20 @@ export function PostDetailsNav({
   active: DetailsTab;
   onSelect: (tab: DetailsTab) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <aside className="md:w-64 shrink-0">
       <nav className="bg-card border border-border rounded-lg p-2 space-y-3 sticky top-4">
         {GROUPS.map((group, gi) => (
           <div key={group.id} className={gi > 0 ? "pt-2 border-t border-border" : ""}>
             <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-              {group.label}
+              {t(group.labelKey)}
             </div>
             <div className="space-y-0.5">
               {group.tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = active === tab.id;
+                const hint = tab.hintKey ? t(tab.hintKey) : undefined;
                 return (
                   <button
                     key={tab.id}
@@ -139,14 +164,14 @@ export function PostDetailsNav({
                       className={`w-4 h-4 mt-0.5 shrink-0 ${isActive ? "" : "text-muted-foreground"}`}
                     />
                     <span className="flex-1 min-w-0">
-                      <span className="block font-medium leading-tight">{tab.label}</span>
-                      {tab.hint && (
+                      <span className="block font-medium leading-tight">{t(tab.labelKey)}</span>
+                      {hint && (
                         <span
                           className={`block text-[11px] leading-tight mt-0.5 ${
                             isActive ? "text-brand-foreground/80" : "text-muted-foreground"
                           }`}
                         >
-                          {tab.hint}
+                          {hint}
                         </span>
                       )}
                     </span>

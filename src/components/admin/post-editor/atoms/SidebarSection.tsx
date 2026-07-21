@@ -1,7 +1,9 @@
+// Atom: collapsible card section used across the editor sidebar/document panes.
+// A titled, optionally-iconed header toggles a body open/closed. Purely
+// presentational - callers own the content.
 import { useState } from "react";
 import type { ElementType, ReactNode } from "react";
-import { ChevronDown, HelpCircle } from "lucide-react";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { ChevronDown } from "lucide-react";
 
 export function SidebarSection({
   title,
@@ -31,26 +33,5 @@ export function SidebarSection({
       </button>
       {open && <div className="px-4 pb-4 space-y-3">{children}</div>}
     </div>
-  );
-}
-
-// Small inline help affordance: a "?" icon that reveals a tooltip on
-// hover/focus. Keeps the dense editor controls self-explanatory without adding
-// permanent visual clutter. Requires a <TooltipProvider> ancestor (mounted
-// once around the whole EditPost tree).
-export function InfoHint({ text }: { text: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={text}
-          className="inline-flex align-middle text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
-        >
-          <HelpCircle className="w-3.5 h-3.5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">{text}</TooltipContent>
-    </Tooltip>
   );
 }

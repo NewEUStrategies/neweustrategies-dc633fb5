@@ -1,33 +1,11 @@
-// Karta "Checklista publikacji" w sidebarze edytora wpisu. Czysta prezentacja
-// wyniku buildPublishChecklist - ta sama ocena zasila bramkę przy przejściu
-// w published/scheduled (admin.posts.$slug.tsx), więc karta i dialog nigdy
-// się nie rozjeżdżają.
+// Molekuła "Checklista publikacji" w sidebarze edytora wpisu. Czysta
+// prezentacja wyniku buildPublishChecklist - ta sama ocena zasila bramkę przy
+// przejściu w published/scheduled (usePostEditorForm), więc karta i dialog
+// nigdy się nie rozjeżdżają.
 import { useTranslation } from "react-i18next";
-import { Check, X, Circle } from "lucide-react";
-import type { PublishChecklist, ChecklistItem } from "@/lib/content/publishChecklist";
+import type { PublishChecklist } from "@/lib/content/publishChecklist";
+import { ChecklistItemRow } from "../atoms";
 import "@/lib/i18n-admin-post-panes";
-
-function ItemRow({ item }: { item: ChecklistItem }) {
-  const { t } = useTranslation();
-  const label = t(`adminPostPanes.publishChecklist.items.${item.id}`);
-  return (
-    <li className="flex items-center gap-2 text-xs py-0.5">
-      {item.ok ? (
-        <Check
-          className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-500"
-          aria-hidden
-        />
-      ) : item.level === "required" ? (
-        <X className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden />
-      ) : (
-        <Circle className="h-3 w-3 shrink-0 text-amber-500" aria-hidden />
-      )}
-      <span className={item.ok ? "text-muted-foreground line-through decoration-border" : ""}>
-        {label}
-      </span>
-    </li>
-  );
-}
 
 export function PublishChecklistCard({ checklist }: { checklist: PublishChecklist }) {
   const { t } = useTranslation();
@@ -67,7 +45,7 @@ export function PublishChecklistCard({ checklist }: { checklist: PublishChecklis
         </p>
         <ul>
           {required.map((item) => (
-            <ItemRow key={item.id} item={item} />
+            <ChecklistItemRow key={item.id} item={item} />
           ))}
         </ul>
       </div>
@@ -77,7 +55,7 @@ export function PublishChecklistCard({ checklist }: { checklist: PublishChecklis
         </p>
         <ul>
           {recommended.map((item) => (
-            <ItemRow key={item.id} item={item} />
+            <ChecklistItemRow key={item.id} item={item} />
           ))}
         </ul>
       </div>

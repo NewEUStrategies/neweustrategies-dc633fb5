@@ -1,10 +1,12 @@
 // Warstwa danych edytora wpisu: wiersz posta (RPC get_post_for_edit) +
-// słowniki taksonomii + relacje wpisu. Wyodrębnione 1:1 z trasy
-// admin.posts.$slug (rozbicie monolitu; zachowanie bez zmian).
+// słowniki taksonomii + relacje wpisu. Wszystkie odczyty są ograniczone do
+// aktywnego tenanta (useRequiredTenant + filtr tenant_id / RPC z kontrolą
+// tenanta po stronie serwera), więc obszar roboczy jednej firmy nigdy nie
+// zaczytuje danych innej. Wyodrębnione 1:1 z trasy admin.posts.$slug.
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import type { CategoryOpt, PostForm, TagOpt } from "./postForm";
+import type { CategoryOpt, PostForm, TagOpt } from "../types";
 
 export function usePostEditorData(routeSlug: string) {
   const tenantId = useRequiredTenant();

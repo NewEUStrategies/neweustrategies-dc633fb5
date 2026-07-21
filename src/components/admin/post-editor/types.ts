@@ -1,5 +1,6 @@
 // Typy formularza edytora wpisu - wspólny kontrakt trasy admin.posts.$slug
-// i hooków/kart edytora (rozbicie monolitu ~1550 linii; zachowanie bez zmian).
+// i całego drzewa atomic-design edytora (atomy / molekuły / organizmy / hooki /
+// lib). Wyodrębnione z monolitu ~1550 linii; zachowanie bez zmian.
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { LocalizedBlocks } from "@/lib/blocks/types";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
@@ -56,3 +57,14 @@ export interface TagOpt {
   id: string;
   name: string;
 }
+
+/** Bilingual auto reading-time hint shown next to the manual `read_minutes`
+ *  field (same core + settings as the public site). */
+export interface AutoReadMinutes {
+  pl: { minutes: number };
+  en: { minutes: number };
+}
+
+/** Two-step editor flow: metadata first ("details"), then the writing surface
+ *  ("content"). */
+export type EditorStep = "details" | "content";
