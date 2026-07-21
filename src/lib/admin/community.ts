@@ -566,58 +566,83 @@ export async function cleanupFailedPushSubscriptions(): Promise<number> {
 
 // ------- Engagement overview --------
 
-export interface EngagementSnapshot {
-  total_users: number;
-  new_users_7d: number;
-  crm_leads_total: number;
-  comments_last_7d: number;
-  poll_votes_last_7d: number;
-  event_rsvps_upcoming: number;
-  qa_questions_last_7d: number;
-  contributor_pending: number;
+export interface EngagementUpcomingEvent {
+  slug: string;
+  title_pl: string | null;
+  title_en: string | null;
+  starts_at: string;
+  going: number;
 }
 
-export async function fetchEngagementSnapshot(): Promise<EngagementSnapshot> {
-  const since7 = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-  const now = new Date().toISOString();
-  const [users, newUsers, crmLeads, comments7, pollVotes7, rsvpsUpcoming, qa7, contribPending] =
-    await Promise.all([
-      supabase.from("profiles").select("id", { count: "exact", head: true }),
-      supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", since7),
-      supabase.from("crm_leads").select("id", { count: "exact", head: true }),
-      supabase
-        .from("comments")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", since7),
-      supabase
-        .from("poll_votes")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", since7),
-      supabase
-        .from("event_rsvps")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", since7),
-      supabase
-        .from("qa_questions")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", since7),
-      supabase
-        .from("contributor_submissions")
-        .select("id", { count: "exact", head: true })
-        .in("status", ["submitted", "in_review"]),
-    ]);
-  void now;
+/**
+ * Kształt jsonb zwracanego przez RPC get_engagement_overview() (migracja
+ * 20260713099000): zdrowie społeczności w jednym round-tripie - liczebność
+ * i przyrost, aktywni 7/30 dni (unia realnych działań), lejek subskrypcji
+ * z rozkładem warstw, opt-in kanałów oraz puls modułów społeczności.
+ */
+export interface EngagementOverview {
+  members_total: number;
+  members_new_30d: number;
+  active_7d: number;
+  active_30d: number;
+  subscriptions_active: number;
+  tier_distribution: Record<string, number>;
+  push_optin: number;
+  digest_optin: number;
+  events_upcoming: number;
+  rsvps_upcoming: number;
+  qa_open_questions: number;
+  poll_votes_30d: number;
+  submissions_pending: number;
+  tracker_follows: number;
+  top_upcoming_events: EngagementUpcomingEvent[];
+}
+
+export async function fetchEngagementOverview(): Promise<EngagementOverview> {
+  const { data, error } = await supabase.rpc("get_engagement_overview");
+  if (error) throw error;
+  const obj = (data ?? {}) as Record<string, unknown>;
+  const n = (v: unknown) => (typeof v === "number" ? v : Number(v ?? 0));
+
+  const tiers: Record<string, number> = {};
+  const rawTiers = obj.tier_distribution;
+  if (rawTiers && typeof rawTiers === "object" && !Array.isArray(rawTiers)) {
+    for (const [key, value] of Object.entries(rawTiers as Record<string, unknown>)) {
+      tiers[key] = n(value);
+    }
+  }
+
+  const events: EngagementUpcomingEvent[] = [];
+  if (Array.isArray(obj.top_upcoming_events)) {
+    for (const item of obj.top_upcoming_events) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const e = item as Record<string, unknown>;
+      if (typeof e.slug !== "string" || typeof e.starts_at !== "string") continue;
+      events.push({
+        slug: e.slug,
+        title_pl: typeof e.title_pl === "string" ? e.title_pl : null,
+        title_en: typeof e.title_en === "string" ? e.title_en : null,
+        starts_at: e.starts_at,
+        going: n(e.going),
+      });
+    }
+  }
+
   return {
-    total_users: users.count ?? 0,
-    new_users_7d: newUsers.count ?? 0,
-    crm_leads_total: crmLeads.count ?? 0,
-    comments_last_7d: comments7.count ?? 0,
-    poll_votes_last_7d: pollVotes7.count ?? 0,
-    event_rsvps_upcoming: rsvpsUpcoming.count ?? 0,
-    qa_questions_last_7d: qa7.count ?? 0,
-    contributor_pending: contribPending.count ?? 0,
+    members_total: n(obj.members_total),
+    members_new_30d: n(obj.members_new_30d),
+    active_7d: n(obj.active_7d),
+    active_30d: n(obj.active_30d),
+    subscriptions_active: n(obj.subscriptions_active),
+    tier_distribution: tiers,
+    push_optin: n(obj.push_optin),
+    digest_optin: n(obj.digest_optin),
+    events_upcoming: n(obj.events_upcoming),
+    rsvps_upcoming: n(obj.rsvps_upcoming),
+    qa_open_questions: n(obj.qa_open_questions),
+    poll_votes_30d: n(obj.poll_votes_30d),
+    submissions_pending: n(obj.submissions_pending),
+    tracker_follows: n(obj.tracker_follows),
+    top_upcoming_events: events,
   };
 }

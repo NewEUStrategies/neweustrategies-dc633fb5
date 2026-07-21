@@ -899,10 +899,10 @@ const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
-const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AdminNewsletterRoute,
+const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
+  id: '/api/public/vitals',
+  path: '/api/public/vitals',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
   id: '/',
@@ -1333,6 +1333,7 @@ export interface FileRoutesByFullPath {
   '/admin/tracker-guide': typeof AdminTrackerGuideRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
+  '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
@@ -1531,6 +1532,7 @@ export interface FileRoutesByTo {
   '/admin/tracker': typeof AdminTrackerRoute
   '/admin/tracker-guide': typeof AdminTrackerGuideRoute
   '/admin/web-stories': typeof AdminWebStoriesRoute
+  '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
@@ -1735,6 +1737,7 @@ export interface FileRoutesById {
   '/admin/tracker-guide': typeof AdminTrackerGuideRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
+  '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
@@ -1941,6 +1944,7 @@ export interface FileRouteTypes {
     | '/admin/tracker-guide'
     | '/admin/users'
     | '/admin/web-stories'
+    | '/admin/workflows'
     | '/api/tts'
     | '/author/$slug'
     | '/category/$slug'
@@ -2139,6 +2143,7 @@ export interface FileRouteTypes {
     | '/admin/tracker'
     | '/admin/tracker-guide'
     | '/admin/web-stories'
+    | '/admin/workflows'
     | '/api/tts'
     | '/author/$slug'
     | '/category/$slug'
@@ -2342,6 +2347,7 @@ export interface FileRouteTypes {
     | '/admin/tracker-guide'
     | '/admin/users'
     | '/admin/web-stories'
+    | '/admin/workflows'
     | '/api/tts'
     | '/author/$slug'
     | '/category/$slug'
@@ -2568,11 +2574,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RssDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/robots.txt': {
-      id: '/robots.txt'
-      path: '/robots.txt'
-      fullPath: '/robots.txt'
-      preLoaderRoute: typeof RobotsDottxtRouteImport
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -4212,6 +4218,7 @@ interface AdminRouteChildren {
   AdminTrackerGuideRoute: typeof AdminTrackerGuideRoute
   AdminUsersRoute: typeof AdminUsersRouteWithChildren
   AdminWebStoriesRoute: typeof AdminWebStoriesRoute
+  AdminWorkflowsRoute: typeof AdminWorkflowsRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminSuperMobileDrawerRoute: typeof AdminSuperMobileDrawerRoute
 }
@@ -4275,6 +4282,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminTrackerGuideRoute: AdminTrackerGuideRoute,
   AdminUsersRoute: AdminUsersRouteWithChildren,
   AdminWebStoriesRoute: AdminWebStoriesRoute,
+  AdminWorkflowsRoute: AdminWorkflowsRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminSuperMobileDrawerRoute: AdminSuperMobileDrawerRoute,
 }
