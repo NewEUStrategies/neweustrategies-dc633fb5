@@ -65,6 +65,12 @@ export const Route = createFileRoute("/admin/companies")({
       { name: "robots", content: "noindex" },
     ],
   }),
+  // Drawer firmy żyje w URL (?company=<id>) - dzięki temu Back/Forward
+  // przeglądarki działa naturalnie, a link można udostępnić.
+  validateSearch: (search: Record<string, unknown>): { company?: string } => {
+    const raw = typeof search.company === "string" ? search.company : undefined;
+    return raw && /^[0-9a-f-]{36}$/i.test(raw) ? { company: raw } : {};
+  },
   component: AdminCompaniesPage,
 });
 
