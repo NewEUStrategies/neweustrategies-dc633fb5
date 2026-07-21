@@ -30,6 +30,7 @@ import {
   GalleryHorizontal as LGalleryHorizontal,
   Globe as LGlobe,
   GripVertical as LGripVertical,
+  Headphones as LHeadphones,
   Heading1 as LHeading1,
   Heading2 as LHeading2,
   Heading3 as LHeading3,
@@ -231,6 +232,7 @@ export const MapPin = makeIcon("MapPin", LMapPin);
 export const Megaphone = makeIcon("Megaphone", LMegaphone);
 export const Menu = makeIcon("Menu", LMenu);
 export const Minus = makeIcon("Minus", LMinus);
+export const Headphones = makeIcon("Headphones", LHeadphones);
 export const Monitor = makeIcon("Monitor", LMonitor);
 export const Moon = makeIcon("Moon", LMoon);
 export const MoreHorizontal = makeIcon("MoreHorizontal", LMoreHorizontal);
