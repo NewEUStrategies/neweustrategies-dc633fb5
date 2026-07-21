@@ -144,10 +144,11 @@ export function ChatWindow(props: ChatWindowProps) {
   const isGroup = !!view && isGroupView(view);
   const display = view
     ? conversationDisplay(view, peersQ.data, t("chat.group.circle"), conversationNicknames)
-    : { isGroup: false, name: "...", avatarUrl: null, peerId: null };
+    : { isGroup: false, name: "...", avatarUrl: null, peerId: null, slug: null };
   const peerId = display.peerId;
   const peerName = display.name;
   const peerAvatar = display.avatarUrl;
+  const peerSlug = display.slug;
 
   // Reactor lookup: powers avatars + tooltip names on reaction chips.
   // Combines peer profiles with a synthesized "self" entry pulled from the
@@ -1083,7 +1084,12 @@ export function ChatWindow(props: ChatWindowProps) {
               aria-label={t("chat.group.info")}
               title={t("chat.group.info")}
             >
-              <ChatAvatar name={peerName} avatarUrl={peerAvatar} size="sm" />
+              <ChatAvatar
+                name={peerName}
+                avatarUrl={peerAvatar}
+                size="sm"
+                to={peerSlug ? `/author/${peerSlug}` : undefined}
+              />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
                   <span className="truncate">{peerName}</span>
@@ -1165,6 +1171,7 @@ export function ChatWindow(props: ChatWindowProps) {
           avatarUrl={peerAvatar}
           online={!isGroup && peerOnline}
           size="md"
+          to={peerSlug ? `/author/${peerSlug}` : undefined}
         />
         <div className="min-w-0 flex-1 pl-0.5">
           <div className="flex items-center gap-1 truncate text-[14px] font-semibold leading-tight">

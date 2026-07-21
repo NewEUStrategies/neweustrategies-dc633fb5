@@ -18,6 +18,7 @@ function profile(id: string, name: string): PeerProfile {
     id,
     display_name: name,
     avatar_url: "",
+    slug: "",
     current_company: "",
     job_title: "",
     specialization: "",
