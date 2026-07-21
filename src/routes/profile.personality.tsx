@@ -9,7 +9,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, History, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Brain, History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -329,7 +329,7 @@ function PersonalityRoute() {
             <ArrowLeft className="h-3.5 w-3.5" /> {t("profile.personality.back")}
           </Link>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <Brain className="h-5 w-5 text-primary" />
             {t("personality.dashboardTitle")}
           </h1>
           <p className="text-sm text-muted-foreground">{t("personality.dashboardSubtitle")}</p>
@@ -391,7 +391,7 @@ function PersonalityRoute() {
           </Link>
         )}
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Sparkles className="h-5 w-5 text-primary" />
+          <Brain className="h-5 w-5 text-primary" />
           {t("profile.personality.title")}
         </h1>
         <p className="text-sm text-muted-foreground">{t("profile.personality.intro")}</p>
