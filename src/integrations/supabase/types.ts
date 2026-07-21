@@ -1899,6 +1899,76 @@ export type Database = {
           },
         ]
       }
+      crm_tasks: {
+        Row: {
+          assignee_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          due_at: string
+          id: string
+          lead_id: string
+          note: string | null
+          reminded_at: string | null
+          status: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at: string
+          id?: string
+          lead_id: string
+          note?: string | null
+          reminded_at?: string | null
+          status?: string
+          tenant_id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at?: string
+          id?: string
+          lead_id?: string
+          note?: string | null
+          reminded_at?: string | null
+          status?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_tasks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cross_references: {
         Row: {
           created_at: string
@@ -4468,6 +4538,7 @@ export type Database = {
           enabled_comment: boolean
           enabled_connection: boolean
           enabled_content: boolean
+          enabled_crm_task: boolean
           enabled_follow: boolean
           enabled_message: boolean
           enabled_saved_search: boolean
@@ -4495,6 +4566,7 @@ export type Database = {
           enabled_comment?: boolean
           enabled_connection?: boolean
           enabled_content?: boolean
+          enabled_crm_task?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -4522,6 +4594,7 @@ export type Database = {
           enabled_comment?: boolean
           enabled_connection?: boolean
           enabled_content?: boolean
+          enabled_crm_task?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -9675,6 +9748,10 @@ export type Database = {
           webhook_secret: string
         }[]
       }
+      crm_import_leads: {
+        Args: { p_rows: Json; p_source?: string }
+        Returns: Json
+      }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_score_touch_user: {
         Args: { p_tenant: string; p_user: string }
@@ -10604,6 +10681,7 @@ export type Database = {
         Args: { p_event_id: string; p_status: string }
         Returns: Json
       }
+      run_crm_task_reminders: { Args: never; Returns: number }
       run_event_reminders: { Args: never; Returns: number }
       run_saved_search_alerts: {
         Args: { p_max_searches?: number }
