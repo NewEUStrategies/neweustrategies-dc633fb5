@@ -252,7 +252,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
           className="w-auto rounded-full border-border/60 bg-popover p-1 shadow-xl"
         >
           <div className="flex items-center gap-0.5">
-            {QUICK_REACTIONS.map((emoji) => (
+            {QUICK_REACTIONS.map((emoji, i) => (
               <button
                 key={emoji}
                 type="button"
@@ -260,12 +260,14 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
                   onReact(message, emoji, myReaction);
                   setReactOpen(false);
                 }}
+                style={{ animationDelay: `${i * 22}ms` }}
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none",
-                  "motion-safe:transition-transform motion-safe:hover:scale-125",
-                  myReaction === emoji && "bg-muted",
+                  "chat-reaction-pop flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none",
+                  "motion-safe:transition-transform motion-safe:hover:scale-125 motion-safe:active:scale-95",
+                  myReaction === emoji && "bg-muted ring-1 ring-primary/40",
                 )}
                 aria-label={emoji}
+                aria-pressed={myReaction === emoji}
               >
                 {emoji}
               </button>
