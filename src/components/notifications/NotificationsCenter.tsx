@@ -182,18 +182,25 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   // list fetches (so a stale response cannot clobber the patch), snapshot every
   // cached notifications list, apply the updater per list, and hand back the
   // snapshot for rollback on error.
+  // Optymistyczne łatanie działa na `InfiniteData<NotificationRow[]>`:
+  // walkujemy strony i patchujemy każdą - jeden mapper zachowuje układ stron
+  // (żeby paginacja nie posypała się po mark-read/delete).
   const patchNotificationLists = async (
     patch: (rows: NotificationRow[], key: QueryKey) => NotificationRow[],
   ): Promise<{ previous: NotificationListSnapshot }> => {
     await qc.cancelQueries(NOTIFICATION_LIST_FILTERS);
-    const previous = qc.getQueriesData<NotificationRow[]>(NOTIFICATION_LIST_FILTERS);
-    for (const [key, rows] of previous) {
-      if (rows) qc.setQueryData(key, patch(rows, key));
+    const previous = qc.getQueriesData<NotificationInfiniteData>(NOTIFICATION_LIST_FILTERS);
+    for (const [key, cached] of previous) {
+      if (!cached) continue;
+      qc.setQueryData<NotificationInfiniteData>(key, {
+        ...cached,
+        pages: cached.pages.map((rows) => patch(rows, key)),
+      });
     }
     return { previous };
   };
   const rollbackNotificationLists = (ctx: { previous: NotificationListSnapshot } | undefined) => {
-    for (const [key, rows] of ctx?.previous ?? []) qc.setQueryData(key, rows);
+    for (const [key, cached] of ctx?.previous ?? []) qc.setQueryData(key, cached);
   };
   // Re-sync with the server whatever happened - the "notifications" prefix
   // also covers the unread-count query, so it stays consistent too.
@@ -257,9 +264,13 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
     onSettled: invalidateNotifications,
   });
 
-  const items = listQ.data ?? [];
-  // The raw fetch (pre client-side search) hit the ceiling -> more may exist.
-  const canLoadMore = items.length >= limit;
+  // Spłaszczamy strony do jednej tablicy - komponent renderuje ciągłą listę,
+  // a `fetchNextPage()` domawia kolejne strony pod tym samym queryKey.
+  const items: NotificationRow[] = useMemo(
+    () => listQ.data?.pages.flat() ?? [],
+    [listQ.data],
+  );
+  const canLoadMore = !!listQ.hasNextPage;
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
