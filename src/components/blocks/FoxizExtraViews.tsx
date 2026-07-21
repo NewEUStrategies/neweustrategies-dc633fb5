@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { morePostsBlockQueryOptions } from "@/lib/queries/blocks";
 import { Clock, Eye, User, Calendar, FolderOpen, Star, LogIn, LogOut } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
