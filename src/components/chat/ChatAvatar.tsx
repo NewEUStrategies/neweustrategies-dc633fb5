@@ -38,11 +38,7 @@ export function ChatAvatar({
     <span className={cn("relative inline-block shrink-0", className)}>
       {/* Product spec: user profile pictures use a 6px corner radius. */}
       <Avatar
-        className={cn(
-          SIZES[size],
-          "rounded-[6px]",
-          to && "transition-opacity hover:opacity-80",
-        )}
+        className={cn(SIZES[size], "rounded-[6px]", to && "transition-opacity hover:opacity-80")}
       >
         {avatarUrl ? (
           <AvatarImage
@@ -64,4 +60,3 @@ export function ChatAvatar({
     </Link>
   );
 }
-
