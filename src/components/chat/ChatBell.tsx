@@ -147,24 +147,32 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
               <UnreadBadge count={unread} size="lg" className="static" labelKey="chat.unread" />
             )}
           </h2>
-          <button
-            type="button"
-            onClick={() => setMode(mode === "new" ? "list" : "new")}
-            className={cn(
-              "inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors motion-safe:transition-transform motion-safe:hover:scale-105",
-              mode === "new"
-                ? "bg-[var(--brand)] text-white hover:opacity-90"
-                : "bg-background text-foreground shadow-sm hover:bg-muted",
-            )}
-            aria-label={t("chat.newMessage")}
-            title={t("chat.newMessage")}
-          >
-            {mode === "new" ? (
-              <X className="h-3.5 w-3.5" aria-hidden />
-            ) : (
-              <SquarePen className="h-3.5 w-3.5" aria-hidden />
-            )}
-          </button>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => setMode(mode === "new" ? "list" : "new")}
+                  className={cn(
+                    "inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors motion-safe:transition-transform motion-safe:hover:scale-105",
+                    mode === "new"
+                      ? "bg-[var(--brand)] text-white hover:opacity-90"
+                      : "bg-background text-foreground shadow-sm hover:bg-muted",
+                  )}
+                  aria-label={mode === "new" ? t("chat.close") : t("chat.newMessage")}
+                >
+                  {mode === "new" ? (
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  ) : (
+                    <Search className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                {mode === "new" ? t("chat.close") : t("chat.newMessage")}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         {mode === "new" ? (
