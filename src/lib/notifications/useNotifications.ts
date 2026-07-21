@@ -162,11 +162,11 @@ export function useNotificationsInfinite(
     // odzyskaniu sesji z lokalnego cache'u (dublowanie requestów po logu).
     enabled: !!user && !authLoading,
     initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
+    getNextPageParam: (lastPage: NotificationRow[], allPages: NotificationRow[][]) => {
       if (lastPage.length < norm.pageSize) return undefined;
       return allPages.length; // kolejny indeks strony (0, 1, 2, ...)
     },
-    queryFn: async ({ pageParam }): Promise<NotificationRow[]> => {
+    queryFn: async ({ pageParam }: { pageParam: number }): Promise<NotificationRow[]> => {
       const from = pageParam * norm.pageSize;
       const to = from + norm.pageSize - 1;
       let q = supabase
