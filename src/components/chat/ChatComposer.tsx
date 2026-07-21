@@ -565,12 +565,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 className="w-auto rounded-full border-border/60 bg-popover/95 p-1.5 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-popover/80"
               >
                 <div className="flex items-center gap-0.5">
-                  {QUICK_REACTIONS.map((emoji) => (
+                  {QUICK_REACTIONS.map((emoji, i) => (
                     <button
                       key={emoji}
                       type="button"
                       onClick={() => sendQuickEmoji(emoji)}
-                      className="flex h-9 w-9 items-center justify-center rounded-full text-[19px] leading-none transition-transform hover:bg-muted motion-safe:hover:scale-125"
+                      style={{ animationDelay: `${i * 22}ms` }}
+                      className="chat-reaction-pop flex h-9 w-9 items-center justify-center rounded-full text-[19px] leading-none transition-transform hover:bg-muted motion-safe:hover:scale-125 motion-safe:active:scale-95"
                       aria-label={t("chat.quickSend", { emoji })}
                       title={emoji}
                     >
