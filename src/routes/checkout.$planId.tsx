@@ -172,11 +172,46 @@ function CheckoutPage() {
                         {t("checkout.trialLine", { days: plan.data.trial_days })}
                       </p>
                     )}
-                    <div className="border-t pt-4 flex items-center justify-between">
-                      <span className="font-medium">{t("checkout.total")}</span>
-                      <span className="text-2xl font-bold">
-                        {formatMoney(plan.data.price_cents, plan.data.currency, i18n.language)}
-                      </span>
+                    <CouponInput
+                      planId={plan.data.id}
+                      amountCents={plan.data.price_cents}
+                      currency={plan.data.currency}
+                      onChange={(payload) =>
+                        setCoupon(
+                          payload
+                            ? {
+                                code: payload.code,
+                                discountCents: payload.result.discount_cents,
+                              }
+                            : null,
+                        )
+                      }
+                    />
+                    <div className="border-t pt-4 space-y-1">
+                      {coupon && coupon.discountCents > 0 && (
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>
+                            {t("checkout.subtotal", { defaultValue: "Wartość" })}
+                          </span>
+                          <span className="line-through">
+                            {formatMoney(originalCents, plan.data.currency, i18n.language)}
+                          </span>
+                        </div>
+                      )}
+                      {coupon && coupon.discountCents > 0 && (
+                        <div className="flex items-center justify-between text-xs text-emerald-600">
+                          <span>{t("coupon.discount", { defaultValue: "Rabat" })}</span>
+                          <span>
+                            -{formatMoney(coupon.discountCents, plan.data.currency, i18n.language)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-medium">{t("checkout.total")}</span>
+                        <span className="text-2xl font-bold">
+                          {formatMoney(finalCents, plan.data.currency, i18n.language)}
+                        </span>
+                      </div>
                     </div>
                     <Button
                       className="w-full"
@@ -190,11 +225,7 @@ function CheckoutPage() {
                         <>
                           <Lock className="mr-2 h-4 w-4" />
                           {t("checkout.payNow", {
-                            amount: formatMoney(
-                              plan.data.price_cents,
-                              plan.data.currency,
-                              i18n.language,
-                            ),
+                            amount: formatMoney(finalCents, plan.data.currency, i18n.language),
                           })}
                         </>
                       )}
