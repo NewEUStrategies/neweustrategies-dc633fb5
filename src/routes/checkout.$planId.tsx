@@ -19,9 +19,13 @@ import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
-    meta: [{ title: "Checkout" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [
+      { title: "Checkout · Finalizacja zamówienia" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
   }),
 });
+
 
 function CheckoutPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
@@ -72,17 +76,14 @@ function CheckoutPage() {
       });
       if (!res.ok) {
         if (res.mode === "coupon") {
-          toast.error(
-            t("coupon.applyFailed", {
-              defaultValue: "Nie udało się zastosować kuponu",
-            }),
-          );
+          toast.error(t("checkout.applyFailed"));
         } else {
           toast.error(t("checkout.stripeNotConfigured"));
         }
         setBusy(false);
         return;
       }
+
       if (res.mode === "stripe") {
         window.location.href = res.url;
       } else {
@@ -191,20 +192,21 @@ function CheckoutPage() {
                     <div className="border-t pt-4 space-y-1">
                       {coupon && coupon.discountCents > 0 && (
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>{t("checkout.subtotal", { defaultValue: "Wartość" })}</span>
+                          <span>{t("checkout.subtotal")}</span>
                           <span className="line-through">
                             {formatMoney(originalCents, plan.data.currency, i18n.language)}
                           </span>
                         </div>
                       )}
                       {coupon && coupon.discountCents > 0 && (
-                        <div className="flex items-center justify-between text-xs text-emerald-600">
-                          <span>{t("coupon.discount", { defaultValue: "Rabat" })}</span>
+                        <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400">
+                          <span>{t("coupon.discount")}</span>
                           <span>
                             -{formatMoney(coupon.discountCents, plan.data.currency, i18n.language)}
                           </span>
                         </div>
                       )}
+
                       <div className="flex items-center justify-between pt-1">
                         <span className="font-medium">{t("checkout.total")}</span>
                         <span className="text-2xl font-bold">

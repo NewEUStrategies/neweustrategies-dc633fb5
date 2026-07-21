@@ -59,15 +59,15 @@ export function CouponInput({ planId, amountCents, currency, onChange }: Props) 
     <div className="rounded-md border border-border/60 bg-background/50 p-3 space-y-2">
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         <BadgePercent className="h-3.5 w-3.5" />
-        <span>{t("coupon.title", { defaultValue: "Kupon B2B" })}</span>
+        <span>{t("coupon.title")}</span>
       </div>
       {applied?.result?.ok ? (
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Check className="h-4 w-4 text-emerald-500" />
+              <Check className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
               <span className="truncate">{applied.code}</span>
-              <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-600">
+              <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                 {formatDiscountLabel(
                   applied.result.discount_kind,
                   applied.result.discount_percent,
@@ -78,7 +78,7 @@ export function CouponInput({ planId, amountCents, currency, onChange }: Props) 
               </span>
             </div>
             <div className="text-xs text-muted-foreground">
-              {t("coupon.savings", { defaultValue: "Oszczędzasz" })}{" "}
+              {t("coupon.savings")}{" "}
               <span className="font-semibold text-foreground">
                 {formatMoney(applied.result.discount_cents, currency, i18n.language)}
               </span>
@@ -93,7 +93,7 @@ export function CouponInput({ planId, amountCents, currency, onChange }: Props) 
           <Input
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            placeholder={t("coupon.placeholder", { defaultValue: "np. NES-B2B-10" })}
+            placeholder={t("coupon.placeholder")}
             className="h-9 text-sm uppercase"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -101,22 +101,15 @@ export function CouponInput({ planId, amountCents, currency, onChange }: Props) 
                 void apply();
               }
             }}
-            aria-label={t("coupon.title", { defaultValue: "Kupon B2B" })}
+            aria-label={t("coupon.title")}
           />
           <Button size="sm" onClick={apply} disabled={loading || !code.trim()} className="h-9">
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              t("coupon.apply", { defaultValue: "Zastosuj" })
-            )}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("coupon.apply")}
           </Button>
         </div>
       )}
-      {errorKey && (
-        <p className="text-xs text-destructive">
-          {t(errorKey, { defaultValue: "Kod nieprawidłowy" })}
-        </p>
-      )}
+      {errorKey && <p className="text-xs text-destructive">{t(errorKey)}</p>}
     </div>
   );
 }
+

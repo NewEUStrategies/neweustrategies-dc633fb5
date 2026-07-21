@@ -378,6 +378,29 @@ const pl = {
     promoHint: "Masz kupon? Kod rabatowy wpiszesz na bezpiecznej stronie płatności Stripe.",
     taxHint: "VAT zostanie naliczony automatycznie według Twojego adresu.",
     taxIdHint: "NIP/VAT ID do faktury podasz na stronie płatności.",
+    subtotal: "Wartość",
+    applyFailed: "Nie udało się zastosować kuponu.",
+    headTitle: "Finalizacja zamówienia · Checkout",
+    successHeadTitle: "Dziękujemy za zakup · Payment success",
+    cancelHeadTitle: "Płatność anulowana · Payment canceled",
+  },
+  coupon: {
+    title: "Kupon B2B",
+    placeholder: "np. NES-B2B-10",
+    apply: "Zastosuj",
+    savings: "Oszczędzasz",
+    discount: "Rabat",
+    error: {
+      emptyCode: "Wpisz kod kuponu.",
+      invalidAmount: "Nieprawidłowa kwota zamówienia.",
+      notFound: "Nie znaleziono takiego kodu.",
+      inactive: "Ten kupon jest nieaktywny.",
+      notYetValid: "Ten kupon nie jest jeszcze ważny.",
+      expired: "Ten kupon wygasł.",
+      limitReached: "Wykorzystano limit użyć tego kuponu.",
+      planNotEligible: "Ten kupon nie obowiązuje na wybrany plan.",
+      currencyMismatch: "Waluta kuponu nie pasuje do zamówienia.",
+    },
   },
   auth: {
     required: "Wymagane logowanie",
@@ -386,6 +409,7 @@ const pl = {
     signUp: "Załóż konto",
   },
 };
+
 
 const en: typeof pl = {
   profile: {
@@ -759,6 +783,29 @@ const en: typeof pl = {
     promoHint: "Have a coupon? Enter your promo code on Stripe's secure payment page.",
     taxHint: "VAT is calculated automatically based on your address.",
     taxIdHint: "You can provide your VAT ID for the invoice on the payment page.",
+    subtotal: "Subtotal",
+    applyFailed: "Could not apply the coupon.",
+    headTitle: "Checkout · Finalizacja zamówienia",
+    successHeadTitle: "Payment success · Dziękujemy za zakup",
+    cancelHeadTitle: "Payment canceled · Płatność anulowana",
+  },
+  coupon: {
+    title: "B2B coupon",
+    placeholder: "e.g. NES-B2B-10",
+    apply: "Apply",
+    savings: "You save",
+    discount: "Discount",
+    error: {
+      emptyCode: "Enter a coupon code.",
+      invalidAmount: "Invalid order amount.",
+      notFound: "That code was not found.",
+      inactive: "This coupon is inactive.",
+      notYetValid: "This coupon is not valid yet.",
+      expired: "This coupon has expired.",
+      limitReached: "This coupon has reached its usage limit.",
+      planNotEligible: "This coupon does not apply to the selected plan.",
+      currencyMismatch: "Coupon currency does not match this order.",
+    },
   },
   auth: {
     required: "Sign-in required",
@@ -767,6 +814,7 @@ const en: typeof pl = {
     signUp: "Create account",
   },
 };
+
 
 type ProfileExtras = {
   profile: {
