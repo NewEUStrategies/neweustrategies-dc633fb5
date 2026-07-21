@@ -18,6 +18,18 @@ const pl = {
       fullscreen: "Pełny ekran",
       exitFullscreen: "Zamknij pełny ekran",
     },
+    drillDialog: {
+      hint: "Kliknij element wykresu, aby zobaczyć szczegóły",
+      metrics: "Metryki",
+      links: "Powiązane",
+      openInNewTab: "Otwórz w nowej karcie",
+      noDrill: "Brak dodatkowych informacji dla tego elementu.",
+      rating: {
+        good: "Dobrze",
+        needs: "Do poprawy",
+        poor: "Słabo",
+      },
+    },
     timeRange: {
       preset24h: "24 godz.",
       preset7d: "7 dni",
@@ -716,6 +728,18 @@ const en = {
       exportCsv: "Export CSV",
       fullscreen: "Full screen",
       exitFullscreen: "Exit full screen",
+    },
+    drillDialog: {
+      hint: "Click a chart element to see details",
+      metrics: "Metrics",
+      links: "Related",
+      openInNewTab: "Open in a new tab",
+      noDrill: "No additional details for this element.",
+      rating: {
+        good: "Good",
+        needs: "Needs improvement",
+        poor: "Poor",
+      },
     },
     timeRange: {
       preset24h: "24 h",

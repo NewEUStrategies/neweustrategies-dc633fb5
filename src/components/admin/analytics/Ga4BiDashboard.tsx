@@ -34,6 +34,7 @@ import {
 import type { EChartsCoreOption } from "echarts/core";
 import { runGa4Report, type Ga4Report } from "@/lib/analytics/ga4.functions";
 import { ChartCard } from "./ChartCard";
+import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
 import { InsightSection } from "./InsightSection";
 import { buildGa4Insights } from "./ga4Insights";
@@ -317,6 +318,96 @@ export function Ga4BiDashboard({
     };
   }, [pageQ.data]);
 
+  // ---- Drill-down handlers ----
+  const trendClick = (p: ChartClickParams): ChartDrillDetail | null => {
+    const rows = (dateQ.data?.rows ?? [])
+      .slice()
+      .sort((a, b) => (a.dims[0] ?? "").localeCompare(b.dims[0] ?? ""));
+    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+    const row = rows[idx];
+    if (!row) return null;
+    const raw = row.dims[0] ?? "";
+    const date = raw.length === 8 ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}` : raw;
+    const headers = dateQ.data?.metricHeaders ?? [];
+    const val = (m: CoreMetric): number => parseNumber(row.metrics[headers.indexOf(m)]);
+    return {
+      title: t("adminAnalytics.ga4.charts.trendTitle"),
+      subtitle: p.seriesName,
+      date,
+      metrics: [
+        { label: t("adminAnalytics.ga4.sessions"), value: val("sessions").toLocaleString("pl-PL") },
+        {
+          label: t("adminAnalytics.ga4.activeUsers"),
+          value: val("activeUsers").toLocaleString("pl-PL"),
+        },
+        {
+          label: t("adminAnalytics.ga4.views"),
+          value: val("screenPageViews").toLocaleString("pl-PL"),
+        },
+        {
+          label: t("adminAnalytics.ga4.engagement"),
+          value: `${(val("engagementRate") * 100).toFixed(1)}%`,
+        },
+      ],
+    };
+  };
+
+  const donutClickFrom =
+    (report: Ga4Report | undefined, dimLabel: string) =>
+    (p: ChartClickParams): ChartDrillDetail | null => {
+      if (typeof p.value !== "number" && typeof (p.data as { value?: unknown })?.value !== "number")
+        return null;
+      const name = p.name ?? "?";
+      const value = typeof p.value === "number" ? p.value : (p.data as { value: number }).value;
+      const total = (report?.rows ?? []).reduce(
+        (acc, r) =>
+          acc + parseNumber(r.metrics[(report?.metricHeaders ?? []).indexOf("sessions")]),
+        0,
+      );
+      const pct = total > 0 ? (value / total) * 100 : 0;
+      return {
+        title: name,
+        subtitle: dimLabel,
+        metrics: [
+          { label: t("adminAnalytics.ga4.sessions"), value: value.toLocaleString("pl-PL") },
+          { label: "%", value: `${pct.toFixed(1)}%` },
+        ],
+      };
+    };
+
+  const topPagesClick = (p: ChartClickParams): ChartDrillDetail | null => {
+    const rows = (pageQ.data?.rows ?? []).slice();
+    const headers = pageQ.data?.metricHeaders ?? [];
+    const idxViews = headers.indexOf("screenPageViews");
+    const idxEng = headers.indexOf("engagementRate");
+    rows.sort((a, b) => parseNumber(b.metrics[idxViews]) - parseNumber(a.metrics[idxViews]));
+    const top = rows.slice(0, 15).reverse();
+    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+    const row = top[idx];
+    if (!row) return null;
+    const path = row.dims[0] ?? "/";
+    return {
+      title: path,
+      subtitle: t("adminAnalytics.ga4.charts.topPagesTitle"),
+      url: path,
+      urlLabel: path,
+      metrics: [
+        {
+          label: t("adminAnalytics.ga4.views"),
+          value: parseNumber(row.metrics[idxViews]).toLocaleString("pl-PL"),
+        },
+        {
+          label: t("adminAnalytics.ga4.engagement"),
+          value: `${(parseNumber(row.metrics[idxEng]) * 100).toFixed(1)}%`,
+        },
+      ],
+      links: [
+        { href: path, label: t("adminAnalytics.drillDialog.openInNewTab"), external: false },
+      ],
+    };
+  };
+
+
   const modeText =
     activeMode === "oauth_refresh"
       ? t("adminAnalytics.ga4.modeOauth")
@@ -416,6 +507,7 @@ export function Ga4BiDashboard({
           option={trendOption}
           height={320}
           className="xl:col-span-2"
+          onDataClick={trendClick}
         />
         <ChartCard
           title={t("adminAnalytics.ga4.charts.engagementTitle")}
@@ -431,18 +523,21 @@ export function Ga4BiDashboard({
           subtitle={t("adminAnalytics.ga4.charts.sourcesSubtitle")}
           option={donutFrom(sourceQ.data)}
           height={280}
+          onDataClick={donutClickFrom(sourceQ.data, t("adminAnalytics.ga4.charts.sourcesTitle"))}
         />
         <ChartCard
           title={t("adminAnalytics.ga4.charts.countriesTitle")}
           subtitle={t("adminAnalytics.ga4.charts.countriesSubtitle")}
           option={donutFrom(countryQ.data)}
           height={280}
+          onDataClick={donutClickFrom(countryQ.data, t("adminAnalytics.ga4.charts.countriesTitle"))}
         />
         <ChartCard
           title={t("adminAnalytics.ga4.charts.devicesTitle")}
           subtitle={t("adminAnalytics.ga4.charts.devicesSubtitle")}
           option={donutFrom(deviceQ.data, 5)}
           height={280}
+          onDataClick={donutClickFrom(deviceQ.data, t("adminAnalytics.ga4.charts.devicesTitle"))}
         />
       </div>
 
@@ -451,7 +546,9 @@ export function Ga4BiDashboard({
         subtitle={t("adminAnalytics.ga4.charts.topPagesSubtitle")}
         option={topPagesOption}
         height={340}
+        onDataClick={topPagesClick}
       />
+
 
       {/* Interpretacja + rekomendacje per element dashboardu */}
       <InsightSection

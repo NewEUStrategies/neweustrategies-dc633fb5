@@ -27,6 +27,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { getVitalsSummary, type VitalsSummaryResult } from "@/lib/observability/vitals.functions";
 import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
 import { ChartCard } from "./ChartCard";
+import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
 import { VitalsRecommendations } from "./VitalsRecommendations";
 import { TimeRangeFilter, buildPresetRange, type TimeRangeValue } from "./TimeRangeFilter";
@@ -197,7 +198,13 @@ export function VitalsBiDashboard() {
           data: paths.map((p) => {
             const lcp = p.metrics.find((m) => m.metric === "LCP")?.p75 ?? 0;
             const shown = p.path.length > 26 ? p.path.slice(0, 26) + "…" : p.path;
-            return { name: shown, value: p.total, lcp, itemStyle: { color: colorFor(lcp) } };
+            return {
+              name: shown,
+              value: p.total,
+              lcp,
+              fullPath: p.path,
+              itemStyle: { color: colorFor(lcp) },
+            };
           }),
         },
       ],
@@ -234,6 +241,101 @@ export function VitalsBiDashboard() {
       ],
     };
   }, [report, t]);
+
+  // Drill-down: click a chart element to inspect the underlying sample.
+  const activeMetrics = useMemo(
+    () => METRIC_ORDER.filter((m) => metricsByName.has(m)),
+    [metricsByName],
+  );
+
+  const buildTrendClick = (metric: VitalName) => (p: ChartClickParams): ChartDrillDetail | null => {
+    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+    const trend = report?.trends[idx];
+    const val = trend?.p75[metric] ?? null;
+    if (!trend || val === null || val === undefined) return null;
+    const [g, poor] = VITAL_THRESHOLDS[metric];
+    const tone: "good" | "warn" | "bad" = val <= g ? "good" : val <= poor ? "warn" : "bad";
+    const ratingKey =
+      tone === "good" ? "good" : tone === "warn" ? "needs" : "poor";
+    return {
+      title: `${metric} p75`,
+      subtitle: t("adminAnalytics.vitals.trendSubtitle"),
+      date: trend.day,
+      metrics: [
+        { label: `${metric} p75`, value: fmtValue(metric, val), tone },
+        {
+          label: t("adminAnalytics.drillDialog.rating.good"),
+          value: `<= ${fmtValue(metric, g)}`,
+          tone: "good",
+        },
+        {
+          label: t("adminAnalytics.drillDialog.rating.poor"),
+          value: `> ${fmtValue(metric, poor)}`,
+          tone: "bad",
+        },
+        {
+          label: t("adminAnalytics.vitals.samplesLabel"),
+          value: t(`adminAnalytics.drillDialog.rating.${ratingKey}`),
+          tone,
+        },
+      ],
+    };
+  };
+
+  const ratingStackClick = (p: ChartClickParams): ChartDrillDetail | null => {
+    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+    const metric = activeMetrics[idx];
+    const m = metric ? metricsByName.get(metric) : undefined;
+    if (!metric || !m) return null;
+    return {
+      title: metric,
+      subtitle: p.seriesName ?? t("adminAnalytics.vitals.ratingsSubtitle"),
+      metrics: [
+        { label: t("adminAnalytics.drillDialog.rating.good"), value: String(m.good), tone: "good" },
+        {
+          label: t("adminAnalytics.drillDialog.rating.needs"),
+          value: String(m.needsImprovement),
+          tone: "warn",
+        },
+        { label: t("adminAnalytics.drillDialog.rating.poor"), value: String(m.poor), tone: "bad" },
+        { label: "p75", value: fmtValue(metric, m.p75) },
+      ],
+    };
+  };
+
+  const pathTreemapClick = (p: ChartClickParams): ChartDrillDetail | null => {
+    const d = p.data as
+      | { fullPath?: string; value?: number; lcp?: number }
+      | undefined;
+    if (!d?.fullPath) return null;
+    const [g, poor] = VITAL_THRESHOLDS.LCP;
+    const lcp = d.lcp ?? 0;
+    const tone: "good" | "warn" | "bad" | "neutral" = !lcp
+      ? "neutral"
+      : lcp <= g
+        ? "good"
+        : lcp <= poor
+          ? "warn"
+          : "bad";
+    return {
+      title: d.fullPath,
+      subtitle: t("adminAnalytics.vitals.pathsSubtitle"),
+      url: d.fullPath,
+      urlLabel: d.fullPath,
+      metrics: [
+        { label: t("adminAnalytics.vitals.samplesLabel"), value: String(d.value ?? 0) },
+        { label: "LCP p75", value: lcp ? fmtValue("LCP", lcp) : "-", tone },
+      ],
+      links: [
+        {
+          href: d.fullPath,
+          label: t("adminAnalytics.drillDialog.openInNewTab"),
+          external: false,
+        },
+      ],
+    };
+  };
+
 
   return (
     <div className="space-y-4">
@@ -295,13 +397,14 @@ export function VitalsBiDashboard() {
 
           {/* Trends per metric */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {METRIC_ORDER.filter((m) => metricsByName.has(m)).map((metric) => (
+            {activeMetrics.map((metric) => (
               <ChartCard
                 key={metric}
                 title={t("adminAnalytics.vitals.trendTitle", { metric })}
                 subtitle={t("adminAnalytics.vitals.trendSubtitle")}
                 option={trendOption(metric)}
                 height={260}
+                onDataClick={buildTrendClick(metric)}
               />
             ))}
           </div>
@@ -314,6 +417,7 @@ export function VitalsBiDashboard() {
               option={ratingStackOption}
               height={280}
               className="xl:col-span-2"
+              onDataClick={ratingStackClick}
             />
             <ChartCard
               title={t("adminAnalytics.vitals.ratingOverall")}
@@ -329,7 +433,9 @@ export function VitalsBiDashboard() {
             subtitle={t("adminAnalytics.vitals.pathsSubtitle")}
             option={pathTreemapOption}
             height={340}
+            onDataClick={pathTreemapClick}
           />
+
 
           {/* Interpretacja + rekomendacje - priorytetyzowana lista działań
               per metryka i per ścieżka, zbudowana z tego samego raportu. */}

@@ -20,6 +20,11 @@ import { Download, Maximize2, Minimize2, MoreHorizontal } from "lucide-react";
 import type { ECharts, EChartsCoreOption } from "echarts/core";
 import { EChart } from "./EChart";
 import { exportCsv, exportPng } from "./exportChart";
+import {
+  ChartDrillDialog,
+  type ChartClickParams,
+  type ChartDrillDetail,
+} from "./ChartDrillDialog";
 
 export interface ChartCardProps {
   title: string;
@@ -35,6 +40,13 @@ export interface ChartCardProps {
   /** Extra content rendered below the chart (e.g. footer chips, legend). */
   footer?: ReactNode;
   themeVersion?: number;
+  /**
+   * Map an ECharts click event to a drill-down payload. When it returns a
+   * non-null detail, the card opens a dialog with title / date / URL /
+   * description / metrics / links. Returning `null` skips the dialog (useful
+   * for elements that carry no drillable context, e.g. threshold markLines).
+   */
+  onDataClick?: (params: ChartClickParams) => ChartDrillDetail | null;
 }
 
 function slug(s: string): string {
@@ -55,9 +67,11 @@ export function ChartCard({
   className,
   footer,
   themeVersion,
+  onDataClick,
 }: ChartCardProps) {
   const { t } = useTranslation();
   const [full, setFull] = useState(false);
+  const [drill, setDrill] = useState<ChartDrillDetail | null>(null);
   const instanceRef = useRef<ECharts | null>(null);
 
   const handleReady = useCallback((inst: ECharts) => {
@@ -71,6 +85,15 @@ export function ChartCard({
   const doCsv = useCallback(() => {
     if (csv) exportCsv(csv.filename, csv.headers, csv.rows);
   }, [csv]);
+
+  const handleClick = useCallback(
+    (params: ChartClickParams) => {
+      if (!onDataClick) return;
+      const detail = onDataClick(params);
+      if (detail) setDrill(detail);
+    },
+    [onDataClick],
+  );
 
   return (
     <Card
@@ -88,6 +111,11 @@ export function ChartCard({
           </div>
           {subtitle ? (
             <div className="text-xs text-muted-foreground mt-0.5 truncate">{subtitle}</div>
+          ) : null}
+          {onDataClick ? (
+            <div className="text-[10px] text-muted-foreground/80 mt-0.5">
+              {t("adminAnalytics.drillDialog.hint")}
+            </div>
           ) : null}
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -137,6 +165,7 @@ export function ChartCard({
           option={option}
           height={full ? "calc(100vh - 120px)" : height}
           onReady={handleReady}
+          onDataClick={onDataClick ? handleClick : undefined}
           themeVersion={themeVersion}
         />
       </div>
@@ -145,6 +174,7 @@ export function ChartCard({
           {footer}
         </div>
       ) : null}
+      <ChartDrillDialog open={drill !== null} onOpenChange={(v) => !v && setDrill(null)} detail={drill} />
     </Card>
   );
 }
