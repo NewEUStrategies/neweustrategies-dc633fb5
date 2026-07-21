@@ -8,6 +8,7 @@ import { AuthGate } from "@/components/profile/AuthGate";
 import { fetchMyBillingProfile, fetchPlanById } from "@/lib/billing/queries";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
@@ -41,6 +42,10 @@ function CheckoutPage() {
     queryFn: fetchMyBillingProfile,
     enabled: !!session,
   });
+
+  // Ustawienia checkoutu (kupony / VAT / NIP) - tylko copy pod przyciskiem;
+  // realne parametry sesji Stripe składa serwer w createCheckoutOrder.
+  const { data: checkoutSettings } = useCheckoutSettings();
 
   useEffect(() => {
     if (plan.isSuccess && !plan.data) {
@@ -153,6 +158,11 @@ function CheckoutPage() {
                         </p>
                       )}
                     </div>
+                    {plan.data.trial_days > 0 && plan.data.interval !== "one_time" && (
+                      <p className="rounded-md bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+                        {t("checkout.trialLine", { days: plan.data.trial_days })}
+                      </p>
+                    )}
                     <div className="border-t pt-4 flex items-center justify-between">
                       <span className="font-medium">{t("checkout.total")}</span>
                       <span className="text-2xl font-bold">
@@ -183,6 +193,17 @@ function CheckoutPage() {
                     <p className="text-xs text-muted-foreground text-center">
                       {t("checkout.terms")}
                     </p>
+                    {(checkoutSettings?.allow_promotion_codes ||
+                      checkoutSettings?.automatic_tax ||
+                      checkoutSettings?.tax_id_collection) && (
+                      <ul className="space-y-1 border-t pt-3 text-xs text-muted-foreground">
+                        {checkoutSettings.allow_promotion_codes && (
+                          <li>{t("checkout.promoHint")}</li>
+                        )}
+                        {checkoutSettings.automatic_tax && <li>{t("checkout.taxHint")}</li>}
+                        {checkoutSettings.tax_id_collection && <li>{t("checkout.taxIdHint")}</li>}
+                      </ul>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">{t("checkout.notFound")}</p>

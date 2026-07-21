@@ -19,6 +19,7 @@ const pl = {
       follows: "Obserwowane",
       network: "Moja sieć",
       membership: "Członkostwo",
+      organization: "Organizacja",
       billing: "Dane rozliczeniowe",
       subscription: "Subskrypcja",
       orders: "Historia płatności",
@@ -244,6 +245,9 @@ const pl = {
       save: "Zapisz dane",
       saved: "Dane zapisane",
       saveError: "Nie udało się zapisać danych. Spróbuj ponownie.",
+      taxIdFormat: "Nieprawidłowy format NIP - wpisz 10 cyfr (możesz użyć myślników).",
+      taxIdChecksum: "NIP ma błędną cyfrę kontrolną - sprawdź numer.",
+      taxIdVatFormat: "Nieprawidłowy format numeru VAT.",
       tip: {
         isCompany: "Włącz, jeśli kupujesz jako firma - pojawi się pole na NIP.",
         fullName: "Pełne imię i nazwisko, jak ma być widoczne na fakturze.",
@@ -370,6 +374,10 @@ const pl = {
     fillBilling: "Uzupełnij dane rozliczeniowe.",
     stripeNotConfigured:
       "Bramka płatności nie jest jeszcze skonfigurowana. Skontaktuj się z administratorem.",
+    trialLine: "Pierwsze {{days}} dni za darmo - pierwsza płatność po okresie próbnym.",
+    promoHint: "Masz kupon? Kod rabatowy wpiszesz na bezpiecznej stronie płatności Stripe.",
+    taxHint: "VAT zostanie naliczony automatycznie według Twojego adresu.",
+    taxIdHint: "NIP/VAT ID do faktury podasz na stronie płatności.",
   },
   auth: {
     required: "Wymagane logowanie",
@@ -395,6 +403,7 @@ const en: typeof pl = {
       follows: "Following",
       network: "My network",
       membership: "Membership",
+      organization: "Organisation",
       billing: "Billing details",
       subscription: "Subscription",
       orders: "Payment history",
@@ -619,6 +628,9 @@ const en: typeof pl = {
       save: "Save details",
       saved: "Saved",
       saveError: "Could not save your details. Please try again.",
+      taxIdFormat: "Invalid NIP format - enter 10 digits (dashes are fine).",
+      taxIdChecksum: "The NIP check digit is wrong - please verify the number.",
+      taxIdVatFormat: "Invalid VAT number format.",
       tip: {
         isCompany: "Enable if you're purchasing as a business - a VAT field will appear.",
         fullName: "Full name as it should appear on the invoice.",
@@ -743,6 +755,10 @@ const en: typeof pl = {
     loginRequired: "Please sign in to continue.",
     fillBilling: "Fill in your billing details first.",
     stripeNotConfigured: "Payment gateway is not configured yet. Please contact the administrator.",
+    trialLine: "First {{days}} days free - the first charge comes after the trial.",
+    promoHint: "Have a coupon? Enter your promo code on Stripe's secure payment page.",
+    taxHint: "VAT is calculated automatically based on your address.",
+    taxIdHint: "You can provide your VAT ID for the invoice on the payment page.",
   },
   auth: {
     required: "Sign-in required",

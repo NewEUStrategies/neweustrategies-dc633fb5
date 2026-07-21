@@ -16,6 +16,8 @@ export interface ContentAccessRule {
   one_time_currency: string | null;
   teaser_pl: string | null;
   teaser_en: string | null;
+  /** Udział w meteringu paywalla: inherit (globalne ustawienia) / metered / exempt. */
+  metering_policy?: string | null;
   /** Presence flag only. The hash itself is never selectable client-side (column privilege revoked). */
   has_password?: boolean;
   password_hint_pl?: string | null;

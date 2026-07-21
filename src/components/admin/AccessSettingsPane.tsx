@@ -6,6 +6,11 @@ import type {
   AccessPlan,
   ContentAccessRule,
 } from "@/hooks/useContentAccess";
+import {
+  normalizeMeteringPolicy,
+  useMeteringSettings,
+  type MeteringPolicy,
+} from "@/lib/access/metering";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,7 +47,10 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
     one_time_currency: "PLN",
     teaser_pl: "",
     teaser_en: "",
+    metering_policy: "inherit",
   });
+  // Globalna konfiguracja meteringu - podpowiedź w panelu, gdy jest wyłączona.
+  const { data: meterSettings } = useMeteringSettings();
   const [pwd, setPwd] = useState<PasswordState>({
     hasPassword: false,
     newPassword: "",
@@ -60,7 +68,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
           ? supabase
               .from("content_access")
               .select(
-                "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, password_hint_pl, password_hint_en, tenant_id",
+                "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, metering_policy, password_hint_pl, password_hint_en, tenant_id",
               )
               .eq("entity_type", entityType)
               .eq("entity_id", entityId)
@@ -102,6 +110,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
       one_time_currency: rule.one_time_currency || "PLN",
       teaser_pl: rule.teaser_pl ?? null,
       teaser_en: rule.teaser_en ?? null,
+      metering_policy: normalizeMeteringPolicy(rule.metering_policy),
       password_hint_pl: rule.mode === "password" ? pwd.hintPl || null : null,
       password_hint_en: rule.mode === "password" ? pwd.hintEn || null : null,
     };
@@ -287,6 +296,31 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
             </div>
           </div>
         </>
+      )}
+
+      {(rule.mode === "members" || rule.mode === "paid") && (
+        <div>
+          <Label className="text-xs">{t("adminPostPanes.access.metering")}</Label>
+          <Select
+            value={normalizeMeteringPolicy(rule.metering_policy)}
+            onValueChange={(v) => setRule({ ...rule, metering_policy: v as MeteringPolicy })}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inherit">{t("adminPostPanes.access.meteringInherit")}</SelectItem>
+              <SelectItem value="metered">{t("adminPostPanes.access.meteringMetered")}</SelectItem>
+              <SelectItem value="exempt">{t("adminPostPanes.access.meteringExempt")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {t("adminPostPanes.access.meteringHelper")}
+            {meterSettings && !meterSettings.enabled && (
+              <> {t("adminPostPanes.access.meteringDisabledHint")}</>
+            )}
+          </p>
+        </div>
       )}
 
       {rule.mode !== "public" && (

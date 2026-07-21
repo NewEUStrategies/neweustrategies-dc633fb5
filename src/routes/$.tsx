@@ -50,6 +50,9 @@ import {
   pickBody,
   type BodyParts,
 } from "@/lib/access/gating";
+import { meteringApplies, useMeteredAccess, useMeteringSettings } from "@/lib/access/metering";
+import { MeterBanner } from "@/components/molecules/MeterBanner";
+import { useAuth } from "@/hooks/useAuth";
 import { getRequestUrl } from "@/lib/seo/request";
 import {
   buildContentHead,
@@ -532,7 +535,21 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     it.id,
     needsUnlock && accessRule?.mode === "password",
   );
-  const body = pickBody(pickBody(ssrBody, unlocked), pwdUnlock.body);
+  // Metering paywalla: nieuprawniony czytelnik może odblokować zabramkowany
+  // byt "na licznik" (N darmowych/mies. - consume_metered_view). Uprawnionych
+  // RPC i tak wypuszcza bez konsumpcji, więc równoległość z useUnlockedContent
+  // jest bezpieczna. Anonim bez własnego limitu (rejestracyjna ściana) nie
+  // wywołuje RPC - wariant "register" wynika z samych ustawień.
+  const { session: authSession } = useAuth();
+  const { data: meterSettingsData } = useMeteringSettings();
+  const meterSettings = meterSettingsData ?? null;
+  const meterEligible =
+    nonPasswordGate &&
+    meteringApplies(meterSettings, accessRule?.mode, accessRule?.metering_policy);
+  const meterAttempt =
+    meterEligible && (!!authSession || (meterSettings?.anon_monthly_limit ?? 0) > 0);
+  const metered = useMeteredAccess(isPost ? "post" : "page", it.id, meterAttempt);
+  const body = pickBody(pickBody(pickBody(ssrBody, unlocked), pwdUnlock.body), metered.body);
 
   const rawDoc = parseBuilderDoc(body.builder_data);
   const rawHtml =
@@ -704,9 +721,16 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
           fallbackText={excerpt}
           onPasswordVerify={pwdUnlock.verify}
           passwordVerifying={pwdUnlock.loading}
+          meterSettings={meterSettings}
+          meterApplies={meterEligible}
+          meterState={metered.meter}
         />
       ) : (
         <>
+          {/* Licznik meteringu - tylko gdy body przyszło "na licznik". */}
+          {metered.meter && metered.meter.granted && hasRenderableBody(body) && (
+            <MeterBanner meter={metered.meter} />
+          )}
           {isPost && <PostSeriesNav postId={it.id} lang={lang} />}
           {(() => {
             const hasBullets = takeaways.length > 0;

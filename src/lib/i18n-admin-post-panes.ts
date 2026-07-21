@@ -32,6 +32,13 @@ const pl = {
       teaserPl: "Teaser PL (opcjonalny)",
       teaserEn: "Teaser EN (opcjonalny)",
       teaserHelper: "Gdy nie podasz teasera, system automatycznie pokaże ok. 20% początku treści.",
+      metering: "Metering (darmowy limit miesięczny)",
+      meteringInherit: "Dziedzicz z ustawień globalnych",
+      meteringMetered: "Zawsze licz do limitu (metered)",
+      meteringExempt: "Wyłącz z limitu (twarda blokada)",
+      meteringHelper:
+        "Globalny limit i przełączniki trybów ustawisz w Kokpit → Paywall. Ta opcja jest zsynchronizowana między edytorem wpisu, edytorem strony i panelem paywalla - to jedna i ta sama reguła.",
+      meteringDisabledHint: "Metering jest globalnie wyłączony - włącz go w Kokpit → Paywall.",
     },
     general: {
       titleGeneral: "Ogólne",
@@ -232,6 +239,13 @@ const en = {
       teaserEn: "Teaser EN (optional)",
       teaserHelper:
         "If you don't provide a teaser, the system automatically shows about 20% of the content start.",
+      metering: "Metering (free monthly quota)",
+      meteringInherit: "Inherit from global settings",
+      meteringMetered: "Always count towards the quota (metered)",
+      meteringExempt: "Exclude from the quota (hard wall)",
+      meteringHelper:
+        "Set the global quota and mode toggles in Admin → Paywall. This option is synchronized across the post editor, the page editor and the paywall panel - it is one and the same rule.",
+      meteringDisabledHint: "Metering is globally disabled - enable it in Admin → Paywall.",
     },
     general: {
       titleGeneral: "General",

@@ -2,6 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { stripeRecurringInterval, type StripeRecurringInterval } from "@/lib/billing/entitlement";
+import {
+  checkoutSessionExtraParams,
+  normalizeCheckoutSettings,
+} from "@/lib/billing/checkoutSettings";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 
 // Create a payment order (server-side, RLS as user).
@@ -132,8 +136,20 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     if (stripeSecret && origin) {
       try {
+        // Ustawienia checkoutu tenantu (kupony / Stripe Tax / NIP / faktury) -
+        // czytane serwerowo, więc klient nie ma jak ich nadpisać. Brak wiersza
+        // = konserwatywne domyślne (normalizeCheckoutSettings).
+        const { data: checkoutSettingsRow } = await supabase
+          .from("checkout_settings")
+          .select(
+            "allow_promotion_codes, automatic_tax, tax_id_collection, billing_address_collection, invoice_creation",
+          )
+          .maybeSingle();
+        const checkoutSettings = normalizeCheckoutSettings(checkoutSettingsRow);
+
+        const sessionMode = data.kind === "subscription" ? "subscription" : "payment";
         const params = new URLSearchParams();
-        params.set("mode", data.kind === "subscription" ? "subscription" : "payment");
+        params.set("mode", sessionMode);
         params.set("success_url", `${origin}${data.success_path}?order=${order.id}`);
         params.set("cancel_url", `${origin}${data.cancel_path}?order=${order.id}`);
         params.set("client_reference_id", order.id);
@@ -152,6 +168,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
         params.set("line_items[0][quantity]", "1");
         params.set("metadata[order_id]", order.id);
+        // Kupony, podatki, NIP i faktury - reguły zależności między parametrami
+        // żyją w jednej, czystej funkcji (unit-testy w checkoutSettings.test).
+        for (const [key, value] of checkoutSessionExtraParams(checkoutSettings, sessionMode)) {
+          params.set(key, value);
+        }
 
         const resp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
           method: "POST",

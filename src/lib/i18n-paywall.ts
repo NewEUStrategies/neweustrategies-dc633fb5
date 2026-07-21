@@ -32,6 +32,30 @@ const pl = {
     secureNote: "Bezpieczna płatność. Dostęp odblokuje się automatycznie po opłaceniu.",
     checkoutFail: "Nie udało się rozpocząć płatności - spróbuj ponownie.",
     seeAllPlans: "Zobacz wszystkie plany",
+    trialBadge: "{{days}} dni za darmo",
+    meter: {
+      counter: "Darmowy artykuł {{used}} z {{limit}} w tym miesiącu",
+      remaining_one: "Pozostał Ci jeszcze {{count}} darmowy artykuł.",
+      remaining_few: "Pozostały Ci jeszcze {{count}} darmowe artykuły.",
+      remaining_many: "Pozostało Ci jeszcze {{count}} darmowych artykułów.",
+      remaining_other: "Pozostało Ci jeszcze {{count}} darmowego artykułu.",
+      lastOne: "To Twój ostatni darmowy artykuł w tym miesiącu.",
+      createAccount: "Załóż konto",
+      seePlans: "Zobacz plany",
+      registerTitle: "Czytaj dalej za darmo",
+      registerDesc_one:
+        "Załóż bezpłatne konto i czytaj {{count}} artykuł premium miesięcznie bez opłat.",
+      registerDesc_few:
+        "Załóż bezpłatne konto i czytaj {{count}} artykuły premium miesięcznie bez opłat.",
+      registerDesc_many:
+        "Załóż bezpłatne konto i czytaj {{count}} artykułów premium miesięcznie bez opłat.",
+      registerDesc_other:
+        "Załóż bezpłatne konto i czytaj {{count}} artykułu premium miesięcznie bez opłat.",
+      registerNote: "Rejestracja jest darmowa i zajmuje mniej niż minutę.",
+      exhaustedTitle: "Wykorzystano darmowy limit",
+      exhaustedDesc:
+        "Przeczytano {{used}} z {{limit}} darmowych artykułów w tym miesiącu. Wybierz plan, aby czytać bez ograniczeń - limit odnowi się z początkiem kolejnego miesiąca.",
+    },
   },
 };
 
@@ -61,6 +85,30 @@ const en: typeof pl = {
     secureNote: "Secure payment. Access unlocks automatically once paid.",
     checkoutFail: "Could not start checkout - please try again.",
     seeAllPlans: "See all plans",
+    trialBadge: "{{days}} days free",
+    meter: {
+      counter: "Free article {{used}} of {{limit}} this month",
+      remaining_one: "You have {{count}} free article left.",
+      remaining_few: "You have {{count}} free articles left.",
+      remaining_many: "You have {{count}} free articles left.",
+      remaining_other: "You have {{count}} free articles left.",
+      lastOne: "This is your last free article this month.",
+      createAccount: "Create account",
+      seePlans: "See plans",
+      registerTitle: "Keep reading for free",
+      registerDesc_one:
+        "Create a free account and read {{count}} premium article a month at no cost.",
+      registerDesc_few:
+        "Create a free account and read {{count}} premium articles a month at no cost.",
+      registerDesc_many:
+        "Create a free account and read {{count}} premium articles a month at no cost.",
+      registerDesc_other:
+        "Create a free account and read {{count}} premium articles a month at no cost.",
+      registerNote: "Signing up is free and takes less than a minute.",
+      exhaustedTitle: "Free limit reached",
+      exhaustedDesc:
+        "You have read {{used}} of {{limit}} free articles this month. Choose a plan to read without limits - the counter resets at the start of next month.",
+    },
   },
 };
 
