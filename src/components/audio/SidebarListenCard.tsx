@@ -3,7 +3,7 @@
 // odtwarzanie, kolejne przełączają play/pause. Po zmianie strony bottom bar
 // przejmuje kontrolę bez utraty ciągłości.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Download, Play, Pause, Wand2 } from "@/lib/lucide-shim";
+import { Loader2, Download, Play, Pause, Headphones } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -220,8 +220,8 @@ export function SidebarListenCard({
           {t.label}
         </h3>
         <div className="h-px flex-1 bg-border/60" />
-        {/* Sparkle informuje o AI narracji - ukrywamy gdy jest wgrany MP3
-            (wtedy odtwarzamy oryginał, ElevenLabs nie jest używany). */}
+        {/* Headphones informują o możliwości odsłuchu / narracji AI - ukrywamy
+            gdy jest wgrany MP3 (wtedy odtwarzamy oryginał, ElevenLabs nie jest używany). */}
         {!audioUrl && (
           <TooltipProvider delayDuration={200}>
             <Tooltip>
@@ -235,7 +235,7 @@ export function SidebarListenCard({
                     FOCUS_RING,
                   ].join(" ")}
                 >
-                  <Wand2 className="h-3 w-3" aria-hidden />
+                  <Headphones className="h-3 w-3" aria-hidden />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={6} className="rounded-[6px]">
