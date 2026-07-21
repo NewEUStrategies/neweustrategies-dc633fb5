@@ -375,144 +375,236 @@ export type Database = {
       };
       author_profiles: {
         Row: {
-          avatar_url: string | null;
-          bio_en: string | null;
-          bio_pl: string | null;
-          brand_accent: string | null;
-          brand_accent_dark: string | null;
-          company: string | null;
-          contact_email: string | null;
-          counterpart_lang: string | null;
-          counterpart_user_id: string | null;
-          created_at: string;
-          custom_socials: Json;
-          facebook_url: string | null;
-          full_bio_en: string | null;
-          full_bio_pl: string | null;
-          id: string;
-          instagram_url: string | null;
-          is_public: boolean;
-          job_title: string | null;
-          layout_overrides: Json | null;
-          layout_preset: string | null;
-          layout_section_order: string[] | null;
-          layout_template_id: string | null;
-          linkedin_url: string | null;
-          media_contact_email: string | null;
-          media_contact_name: string | null;
-          media_contact_phone: string | null;
-          org_functions: Json;
-          phone: string | null;
-          spotify_url: string | null;
-          tenant_id: string;
-          updated_at: string;
-          user_id: string;
-          website_url: string | null;
-          x_url: string | null;
-        };
+          avatar_url: string | null
+          bio_en: string | null
+          bio_pl: string | null
+          brand_accent: string | null
+          brand_accent_dark: string | null
+          company: string | null
+          contact_email: string | null
+          counterpart_lang: string | null
+          counterpart_user_id: string | null
+          created_at: string
+          custom_socials: Json
+          facebook_url: string | null
+          full_bio_en: string | null
+          full_bio_pl: string | null
+          id: string
+          instagram_url: string | null
+          is_public: boolean
+          job_title: string | null
+          layout_overrides: Json | null
+          layout_preset: string | null
+          layout_section_order: string[] | null
+          layout_template_id: string | null
+          linkedin_url: string | null
+          media_contact_email: string | null
+          media_contact_name: string | null
+          media_contact_phone: string | null
+          org_functions: Json
+          phone: string | null
+          spotify_url: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          website_url: string | null
+          x_url: string | null
+        }
         Insert: {
-          avatar_url?: string | null;
-          bio_en?: string | null;
-          bio_pl?: string | null;
-          brand_accent?: string | null;
-          brand_accent_dark?: string | null;
-          company?: string | null;
-          contact_email?: string | null;
-          counterpart_lang?: string | null;
-          counterpart_user_id?: string | null;
-          created_at?: string;
-          custom_socials?: Json;
-          facebook_url?: string | null;
-          full_bio_en?: string | null;
-          full_bio_pl?: string | null;
-          id?: string;
-          instagram_url?: string | null;
-          is_public?: boolean;
-          job_title?: string | null;
-          layout_overrides?: Json | null;
-          layout_preset?: string | null;
-          layout_section_order?: string[] | null;
-          layout_template_id?: string | null;
-          linkedin_url?: string | null;
-          media_contact_email?: string | null;
-          media_contact_name?: string | null;
-          media_contact_phone?: string | null;
-          org_functions?: Json;
-          phone?: string | null;
-          spotify_url?: string | null;
-          tenant_id: string;
-          updated_at?: string;
-          user_id: string;
-          website_url?: string | null;
-          x_url?: string | null;
-        };
+          avatar_url?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
+          brand_accent?: string | null
+          brand_accent_dark?: string | null
+          company?: string | null
+          contact_email?: string | null
+          counterpart_lang?: string | null
+          counterpart_user_id?: string | null
+          created_at?: string
+          custom_socials?: Json
+          facebook_url?: string | null
+          full_bio_en?: string | null
+          full_bio_pl?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_public?: boolean
+          job_title?: string | null
+          layout_overrides?: Json | null
+          layout_preset?: string | null
+          layout_section_order?: string[] | null
+          layout_template_id?: string | null
+          linkedin_url?: string | null
+          media_contact_email?: string | null
+          media_contact_name?: string | null
+          media_contact_phone?: string | null
+          org_functions?: Json
+          phone?: string | null
+          spotify_url?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          website_url?: string | null
+          x_url?: string | null
+        }
         Update: {
-          avatar_url?: string | null;
-          bio_en?: string | null;
-          bio_pl?: string | null;
-          brand_accent?: string | null;
-          brand_accent_dark?: string | null;
-          company?: string | null;
-          contact_email?: string | null;
-          counterpart_lang?: string | null;
-          counterpart_user_id?: string | null;
-          created_at?: string;
-          custom_socials?: Json;
-          facebook_url?: string | null;
-          full_bio_en?: string | null;
-          full_bio_pl?: string | null;
-          id?: string;
-          instagram_url?: string | null;
-          is_public?: boolean;
-          job_title?: string | null;
-          layout_overrides?: Json | null;
-          layout_preset?: string | null;
-          layout_section_order?: string[] | null;
-          layout_template_id?: string | null;
-          linkedin_url?: string | null;
-          media_contact_email?: string | null;
-          media_contact_name?: string | null;
-          media_contact_phone?: string | null;
-          org_functions?: Json;
-          phone?: string | null;
-          spotify_url?: string | null;
-          tenant_id?: string;
-          updated_at?: string;
-          user_id?: string;
-          website_url?: string | null;
-          x_url?: string | null;
-        };
+          avatar_url?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
+          brand_accent?: string | null
+          brand_accent_dark?: string | null
+          company?: string | null
+          contact_email?: string | null
+          counterpart_lang?: string | null
+          counterpart_user_id?: string | null
+          created_at?: string
+          custom_socials?: Json
+          facebook_url?: string | null
+          full_bio_en?: string | null
+          full_bio_pl?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_public?: boolean
+          job_title?: string | null
+          layout_overrides?: Json | null
+          layout_preset?: string | null
+          layout_section_order?: string[] | null
+          layout_template_id?: string | null
+          linkedin_url?: string | null
+          media_contact_email?: string | null
+          media_contact_name?: string | null
+          media_contact_phone?: string | null
+          org_functions?: Json
+          phone?: string | null
+          spotify_url?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          website_url?: string | null
+          x_url?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: "author_profiles_counterpart_user_id_fkey";
-            columns: ["counterpart_user_id"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
+            foreignKeyName: "author_profiles_counterpart_user_id_fkey"
+            columns: ["counterpart_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "author_profiles_counterpart_user_id_fkey";
-            columns: ["counterpart_user_id"];
-            isOneToOne: false;
-            referencedRelation: "profiles_public";
-            referencedColumns: ["id"];
+            foreignKeyName: "author_profiles_counterpart_user_id_fkey"
+            columns: ["counterpart_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "author_profiles_layout_template_id_fkey";
-            columns: ["layout_template_id"];
-            isOneToOne: false;
-            referencedRelation: "builder_templates";
-            referencedColumns: ["id"];
+            foreignKeyName: "author_profiles_layout_template_id_fkey"
+            columns: ["layout_template_id"]
+            isOneToOne: false
+            referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "author_profiles_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
+            foreignKeyName: "author_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
+      b2b_coupon_campaigns: {
+        Row: {
+          code_count: number
+          code_length: number
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          description: string | null
+          discount_cents: number | null
+          discount_kind: string
+          discount_percent: number | null
+          generated_count: number
+          grants_duration_days: number | null
+          grants_tier_key: string | null
+          id: string
+          max_redemptions_per_code: number | null
+          metadata: Json
+          name: string
+          newsletter_campaign_id: string | null
+          newsletter_segment: string | null
+          plan_ids: string[]
+          prefix: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          code_count: number
+          code_length?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind: string
+          discount_percent?: number | null
+          generated_count?: number
+          grants_duration_days?: number | null
+          grants_tier_key?: string | null
+          id?: string
+          max_redemptions_per_code?: number | null
+          metadata?: Json
+          name: string
+          newsletter_campaign_id?: string | null
+          newsletter_segment?: string | null
+          plan_ids?: string[]
+          prefix?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          code_count?: number
+          code_length?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind?: string
+          discount_percent?: number | null
+          generated_count?: number
+          grants_duration_days?: number | null
+          grants_tier_key?: string | null
+          id?: string
+          max_redemptions_per_code?: number | null
+          metadata?: Json
+          name?: string
+          newsletter_campaign_id?: string | null
+          newsletter_segment?: string | null
+          plan_ids?: string[]
+          prefix?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_coupon_campaigns_newsletter_campaign_id_fkey"
+            columns: ["newsletter_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       b2b_coupon_redemptions: {
         Row: {
           applied_cents: number;
@@ -566,81 +658,133 @@ export type Database = {
       };
       b2b_coupons: {
         Row: {
-          active: boolean;
-          code: string;
-          created_at: string;
-          created_by: string | null;
-          currency: string | null;
-          description: string | null;
-          discount_cents: number | null;
-          discount_kind: string;
-          discount_percent: number | null;
-          id: string;
-          max_redemptions: number | null;
-          metadata: Json;
-          name: string | null;
-          organization_id: string | null;
-          plan_ids: string[];
-          redemptions_count: number;
-          tenant_id: string;
-          updated_at: string;
-          valid_from: string | null;
-          valid_until: string | null;
-        };
+          active: boolean
+          assigned_company_id: string | null
+          assigned_lead_id: string | null
+          campaign_id: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          description: string | null
+          discount_cents: number | null
+          discount_kind: string
+          discount_percent: number | null
+          grants_duration_days: number | null
+          grants_tier_key: string | null
+          id: string
+          lead_score_bonus: number
+          max_redemptions: number | null
+          metadata: Json
+          name: string | null
+          newsletter_segment: string | null
+          organization_id: string | null
+          plan_ids: string[]
+          prefix: string | null
+          redemptions_count: number
+          tenant_id: string
+          updated_at: string
+          valid_from: string | null
+          valid_until: string | null
+        }
         Insert: {
-          active?: boolean;
-          code: string;
-          created_at?: string;
-          created_by?: string | null;
-          currency?: string | null;
-          description?: string | null;
-          discount_cents?: number | null;
-          discount_kind: string;
-          discount_percent?: number | null;
-          id?: string;
-          max_redemptions?: number | null;
-          metadata?: Json;
-          name?: string | null;
-          organization_id?: string | null;
-          plan_ids?: string[];
-          redemptions_count?: number;
-          tenant_id?: string;
-          updated_at?: string;
-          valid_from?: string | null;
-          valid_until?: string | null;
-        };
+          active?: boolean
+          assigned_company_id?: string | null
+          assigned_lead_id?: string | null
+          campaign_id?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind: string
+          discount_percent?: number | null
+          grants_duration_days?: number | null
+          grants_tier_key?: string | null
+          id?: string
+          lead_score_bonus?: number
+          max_redemptions?: number | null
+          metadata?: Json
+          name?: string | null
+          newsletter_segment?: string | null
+          organization_id?: string | null
+          plan_ids?: string[]
+          prefix?: string | null
+          redemptions_count?: number
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
         Update: {
-          active?: boolean;
-          code?: string;
-          created_at?: string;
-          created_by?: string | null;
-          currency?: string | null;
-          description?: string | null;
-          discount_cents?: number | null;
-          discount_kind?: string;
-          discount_percent?: number | null;
-          id?: string;
-          max_redemptions?: number | null;
-          metadata?: Json;
-          name?: string | null;
-          organization_id?: string | null;
-          plan_ids?: string[];
-          redemptions_count?: number;
-          tenant_id?: string;
-          updated_at?: string;
-          valid_from?: string | null;
-          valid_until?: string | null;
-        };
+          active?: boolean
+          assigned_company_id?: string | null
+          assigned_lead_id?: string | null
+          campaign_id?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind?: string
+          discount_percent?: number | null
+          grants_duration_days?: number | null
+          grants_tier_key?: string | null
+          id?: string
+          lead_score_bonus?: number
+          max_redemptions?: number | null
+          metadata?: Json
+          name?: string | null
+          newsletter_segment?: string | null
+          organization_id?: string | null
+          plan_ids?: string[]
+          prefix?: string | null
+          redemptions_count?: number
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: "b2b_coupons_organization_id_fkey";
-            columns: ["organization_id"];
-            isOneToOne: false;
-            referencedRelation: "member_organizations";
-            referencedColumns: ["id"];
+            foreignKeyName: "b2b_coupons_assigned_company_id_fkey"
+            columns: ["assigned_company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+          {
+            foreignKeyName: "b2b_coupons_assigned_lead_id_fkey"
+            columns: ["assigned_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupons_assigned_lead_id_fkey"
+            columns: ["assigned_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupons_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_coupon_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupons_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "member_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_profiles: {
         Row: {
           address_line1: string | null;
@@ -2546,52 +2690,55 @@ export type Database = {
       };
       event_rsvps: {
         Row: {
-          created_at: string;
-          event_id: string;
-          id: string;
-          reminded_at: string | null;
-          status: string;
-          tenant_id: string;
-          updated_at: string;
-          user_id: string;
-        };
+          created_at: string
+          event_id: string
+          id: string
+          reminded_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          waitlisted_at: string | null
+        }
         Insert: {
-          created_at?: string;
-          event_id: string;
-          id?: string;
-          reminded_at?: string | null;
-          status?: string;
-          tenant_id: string;
-          updated_at?: string;
-          user_id: string;
-        };
+          created_at?: string
+          event_id: string
+          id?: string
+          reminded_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          waitlisted_at?: string | null
+        }
         Update: {
-          created_at?: string;
-          event_id?: string;
-          id?: string;
-          reminded_at?: string | null;
-          status?: string;
-          tenant_id?: string;
-          updated_at?: string;
-          user_id?: string;
-        };
+          created_at?: string
+          event_id?: string
+          id?: string
+          reminded_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          waitlisted_at?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: "event_rsvps_event_id_fkey";
-            columns: ["event_id"];
-            isOneToOne: false;
-            referencedRelation: "events";
-            referencedColumns: ["id"];
+            foreignKeyName: "event_rsvps_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "event_rsvps_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
+            foreignKeyName: "event_rsvps_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
       event_speakers: {
         Row: {
           event_id: string;
@@ -9693,11 +9840,26 @@ export type Database = {
       authorize_resource_download: {
         Args: { p_resource: string };
         Returns: {
-          file_name: string;
-          file_path: string;
-          mime_type: string;
-        }[];
-      };
+          file_name: string
+          file_path: string
+          mime_type: string
+        }[]
+      }
+      b2b_coupons_analytics: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          code: string
+          coupon_id: string
+          discount_cents_total: number
+          name: string
+          redemptions: number
+          revenue_cents: number
+        }[]
+      }
+      bulk_generate_coupons_for_campaign: {
+        Args: { _campaign_id: string }
+        Returns: number
+      }
       bump_tenant_counter: {
         Args: { p_delta: number; p_key: string; p_tenant_id: string };
         Returns: undefined;
@@ -9898,12 +10060,20 @@ export type Database = {
       };
       content_access_has_password: {
         Args: {
-          _entity_id: string;
-          _entity_type: Database["public"]["Enums"]["access_entity_type"];
-        };
-        Returns: boolean;
-      };
-      create_event_group: { Args: { p_event_id: string }; Returns: string };
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+        }
+        Returns: boolean
+      }
+      contribution_scores: {
+        Args: { p_since: string }
+        Returns: {
+          breakdown: Json
+          points: number
+          user_id: string
+        }[]
+      }
+      create_event_group: { Args: { p_event_id: string }; Returns: string }
       create_group_conversation: {
         Args: { p_member_ids: string[]; p_title: string };
         Returns: string;
@@ -10025,14 +10195,26 @@ export type Database = {
       get_chat_peers: {
         Args: { p_user_ids: string[] };
         Returns: {
-          avatar_url: string;
-          current_company: string;
-          display_name: string;
-          id: string;
-          job_title: string;
-          specialization: string;
-        }[];
-      };
+          avatar_url: string
+          current_company: string
+          display_name: string
+          id: string
+          job_title: string
+          specialization: string
+        }[]
+      }
+      get_contributor_leaderboard: {
+        Args: { p_days?: number; p_limit?: number }
+        Returns: {
+          avatar_url: string
+          board_position: number
+          breakdown: Json
+          display_name: string
+          points: number
+          slug: string
+          user_id: string
+        }[]
+      }
       get_correlated_events: {
         Args: { p_correlation_id: string };
         Returns: {
@@ -10069,21 +10251,27 @@ export type Database = {
       get_event_access: {
         Args: { p_event_id: string };
         Returns: {
-          can_join: boolean;
-          can_watch: boolean;
-          join_url: string;
-          reason: string;
-          recording_url: string;
-        }[];
-      };
+          can_join: boolean
+          can_watch: boolean
+          join_url: string
+          reason: string
+          recording_url: string
+          watch_reason: string
+        }[]
+      }
       get_event_rsvp_counts: {
         Args: { p_event_ids: string[] };
         Returns: {
-          event_id: string;
-          going: number;
-          interested: number;
-        }[];
-      };
+          event_id: string
+          going: number
+          interested: number
+          waitlist: number
+        }[]
+      }
+      get_event_waitlist_position: {
+        Args: { p_event_id: string }
+        Returns: number
+      }
       get_followed_feed: {
         Args: { p_limit?: number; p_offset?: number };
         Returns: {
@@ -10114,9 +10302,10 @@ export type Database = {
         }[];
       };
       get_my_qa_question_ids: {
-        Args: { p_session_id: string };
-        Returns: string[];
-      };
+        Args: { p_session_id: string }
+        Returns: string[]
+      }
+      get_my_reputation: { Args: { p_days?: number }; Returns: Json }
       get_or_create_direct_conversation: {
         Args: { p_peer_id: string };
         Returns: string;
@@ -10781,16 +10970,23 @@ export type Database = {
         }[];
       };
       profiles_generate_unique_slug: {
-        Args: { _base: string };
-        Returns: string;
-      };
-      prune_command_idempotency: { Args: never; Returns: number };
-      prune_domain_events: { Args: { p_keep?: string }; Returns: number };
-      prune_integration_deliveries: { Args: never; Returns: number };
-      prune_push_queue: { Args: { p_keep?: string }; Returns: number };
-      public_tenant_id: { Args: never; Returns: string };
-      publish_due_pages: { Args: never; Returns: number };
-      publish_due_posts: { Args: never; Returns: number };
+        Args: { _base: string }
+        Returns: string
+      }
+      promote_event_waitlist: { Args: { p_event_id: string }; Returns: number }
+      prune_command_idempotency: { Args: never; Returns: number }
+      prune_domain_events: { Args: { p_keep?: string }; Returns: number }
+      prune_integration_deliveries: { Args: never; Returns: number }
+      prune_push_queue: { Args: { p_keep?: string }; Returns: number }
+      public_tenant_id: { Args: never; Returns: string }
+      publish_due_pages: { Args: never; Returns: number }
+      publish_due_posts: { Args: never; Returns: number }
+      publish_qa_session_summary: {
+        Args: { p_publish?: boolean; p_session_id: string }
+        Returns: Json
+      }
+      qa_escape_html: { Args: { p_text: string }; Returns: string }
+      qa_text_to_html: { Args: { p_text: string }; Returns: string }
       rate_limit_hit: {
         Args: {
           _max: number;
@@ -10830,14 +11026,24 @@ export type Database = {
       };
       redeem_b2b_coupon: {
         Args: {
-          _applied_cents: number;
-          _coupon_id: string;
-          _currency: string;
-          _order_id: string;
-          _original_cents: number;
-        };
-        Returns: boolean;
-      };
+          _applied_cents: number
+          _coupon_id: string
+          _currency: string
+          _order_id: string
+          _original_cents: number
+        }
+        Returns: boolean
+      }
+      redeem_b2b_coupon_with_effects: {
+        Args: {
+          _applied_cents: number
+          _coupon_id: string
+          _currency: string
+          _order_id: string
+          _original_cents: number
+        }
+        Returns: boolean
+      }
       related_posts_signals: {
         Args: { _since_days?: number; _tenant: string };
         Returns: Json;

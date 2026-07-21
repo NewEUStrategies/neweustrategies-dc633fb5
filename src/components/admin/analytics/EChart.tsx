@@ -17,11 +17,14 @@
  */
 import { Suspense, lazy, useEffect, useState } from "react";
 import type { EChartsCoreOption, ECharts } from "echarts/core";
+import type { ChartClickParams } from "./ChartDrillDialog";
 
 export interface EChartProps {
   option: EChartsCoreOption;
   height?: number | string;
   onReady?: (instance: ECharts) => void;
+  /** ECharts `click` handler. Wired via `instance.on('click', ...)`. */
+  onDataClick?: (params: ChartClickParams) => void;
   className?: string;
   /** Bump to force a re-read of CSS chart tokens (e.g. after theme change). */
   themeVersion?: number;

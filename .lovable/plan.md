@@ -1,68 +1,102 @@
-## Kontekst
+## Cel
 
-Wszystkie 4 filary do wdrożenia (kolejność wg priorytetu). Kategorię kanoniczną wybieram na podstawie audytu bazy - żadna z 6 kategorii ekonomicznych nie ma jeszcze przypisanych wpisów (post_count=0), więc merge jest bezpieczny strukturalnie, ale trzeba zachować redirecty 301 na wypadek istniejących linków z zewnątrz.
+Rozbudowa `/admin/coupons` do pełnowymiarowej strony zarządzania kuponami B2B z 4 zakładkami, ujednoliconymi kalendarzami (shadcn Popover + Calendar) i drop-listami (Select) zgodnie z layoutem, oraz integracjami: CRM (leady/organizacje), Newsletter (kampanie z unikalnymi kodami), Subskrypcja (auto-grant membership).
 
-## Faza 1: Scalenie kategorii (backend)
+## Zakres UI/UX
 
-Obecny stan w `categories`:
+**Layout**: `AdminShell` z `Tabs` (shadcn) - te same tokeny `--td-*`, floating-input, 6px rounding, checkbox premium. Wszystkie date pickery → `Popover` + `Calendar` (`pointer-events-auto`, PL/EN locale via `date-fns`). Wszystkie `<select>` → shadcn `Select` z tokenami `--input-border`.
 
-- Ekonomia (`ekonomia`) - parent group
-  - Finanse i Bankowość, Rynki finansowe (dzieci)
-- Gospodarka (`gospodarka`) - parent group
-  - Gospodarka światowa (dziecko)
-- Finanse (`finanse`) - osobne, sierota
+## Zakładki
 
-Rekomendacja (kanoniczna = `gospodarka`, bo szersza i naturalna po polsku dla analiz):
+1. **Kupony** (`/admin/coupons` - default)
+   - Rozbudowany CRUD (obecny + kolumny: `redemption_count`, `revenue_generated`, `assigned_org_id`, `grants_plan_id`, `grants_duration_days`)
+   - Filtry: status, plan, wygaśnięcie, tenant, organizacja
+   - Bulk actions (aktywuj/dezaktywuj/eksport)
 
-```text
-Gospodarka (canonical)
-├── Finanse i bankowość
-├── Rynki finansowe
-└── Gospodarka światowa
+2. **Kampanie** (`/admin/coupons/campaigns`)
+   - Bulk generator: N kodów, prefix, długość, plan, wartość, wygaśnięcie, przypisanie do segmentu newslettera
+   - Podgląd + eksport CSV
+   - Integracja: tworzy `newsletter_campaigns` z merge tagiem `{{coupon_code}}` per subskrybent
+
+3. **Realizacje** (`/admin/coupons/redemptions`)
+   - Timeline z `b2b_coupon_redemptions` + join do `crm_leads`, `crm_companies`, `profiles`, `payment_orders`
+   - Filtry: data, kupon, organizacja, status membership
+   - Eksport CSV
+
+4. **Analityka** (`/admin/coupons/analytics`)
+   - Metryki: total redemptions, konwersja (issued→used), MRR z kuponów, top 10 kuponów, top organizacje
+   - Wykresy (`recharts`): linie czasowe + słupki
+   - Filtry per data/tenant/plan
+
+## Migracje DB
+
+```sql
+-- Rozszerzenie b2b_coupons
+ALTER TABLE b2b_coupons
+  ADD COLUMN campaign_id UUID,
+  ADD COLUMN assigned_org_id UUID REFERENCES crm_companies(id),
+  ADD COLUMN assigned_lead_id UUID REFERENCES crm_leads(id),
+  ADD COLUMN grants_plan_id UUID REFERENCES membership_tiers(id),
+  ADD COLUMN grants_duration_days INTEGER,
+  ADD COLUMN newsletter_segment TEXT,
+  ADD COLUMN prefix TEXT;
+
+-- Nowa tabela coupon_campaigns (bulk generation)
+CREATE TABLE b2b_coupon_campaigns (
+  id UUID PK, tenant_id, name, prefix, code_count, plan_id,
+  discount_type, discount_value, expires_at, newsletter_campaign_id,
+  segment_query JSONB, status, created_by, created_at, updated_at
+);
+
+-- RPC: bulk_generate_coupons(campaign_id, count) -> zwraca kody
+-- RPC: redeem_coupon_with_side_effects(code, user_id) 
+--   → 1) redeem, 2) INSERT crm_leads note, 3) IF grants_plan_id 
+--     → INSERT membership_grants (plan, expiry)
+-- Trigger: on b2b_coupon_redemptions INSERT → update crm_leads.score += bonus
 ```
 
-Akcje:
+Grants + RLS (admin/staff write, tenant scope na read).
 
-1. Migracja: przepiąć dzieci `Ekonomia` pod `Gospodarka`, przepiąć `Finanse` pod `Gospodarka`, przepiąć wpisy z usuwanych kategorii (jeśli pojawią się przed wdrożeniem).
-2. Dodać wpisy do `redirects` (301): `/kategoria/ekonomia` → `/kategoria/gospodarka`, `/kategoria/finanse` → `/kategoria/gospodarka`.
-3. Usunąć zduplikowane kategorie po migracji wpisów.
-4. Panel admina `/admin/categories`: dodać akcję "Scal w..." (merge tool) dla przyszłych duplikatów - jeden dropdown, przenosi post_categories i tworzy redirect automatycznie.
+## Integracje
 
-## Faza 2: Walidator SEO w edytorze wpisów
+- **CRM**: Redemption tworzy notatkę w `crm_lead_notes`, event w `crm_leads.last_activity_at`, +N do lead score
+- **Newsletter**: Formularz "Wyślij kampanię" tworzy `newsletter_campaigns` z listą subskrybentów z segmentu, każdy dostaje unikalny kod z puli
+- **Membership**: RPC `redeem_coupon_with_side_effects` przy sukcesie inseruje `membership_grants` z `plan_id`, `granted_at=now()`, `expires_at=now()+grants_duration_days`
 
-W metaboxie edytora wpisu (`/admin/posts/:id`):
+## Struktura plików
 
-- Licznik znaków dla `seo_title` (38-68) i `seo_description` (120-160) z paskiem postępu (zielony/żółty/czerwony).
-- Walidator struktury nagłówków w treści: dokładnie jeden H1, ostrzeżenie gdy H2 pomijane przed H3.
-- Auto-fallback: gdy `seo_title` puste, użyj `title`; gdy `seo_description` puste, wygeneruj z pierwszego akapitu (max 155 znaków).
-- Server-side w renderze wpisu (`src/routes/posts.$slug.tsx`) - już jest `head()` z title/description; dodać walidację długości w loaderze i logować ostrzeżenia do `audit_log`.
+```text
+src/routes/admin.coupons.tsx              (layout + zakładka Kupony)
+src/routes/admin.coupons.campaigns.tsx    (zakładka Kampanie)
+src/routes/admin.coupons.redemptions.tsx  (zakładka Realizacje)
+src/routes/admin.coupons.analytics.tsx    (zakładka Analityka)
+src/components/admin/coupons/
+  CouponFormDialog.tsx        (rozbudowany, z Popover+Calendar, Select)
+  CouponCampaignForm.tsx      (bulk generator)
+  RedemptionsTable.tsx
+  CouponAnalyticsCharts.tsx
+  DateRangePicker.tsx         (współdzielony, dopasowany do layoutu)
+src/lib/coupons.functions.ts  (createServerFn: bulk generate, send newsletter, analytics)
+```
 
-## Faza 3: Powiązane analizy (2-3 linki wewnętrzne)
+## i18n
 
-- Widget "Powiązane analizy" pod treścią wpisu (już istnieje `related_posts_config` + `related_post_clicks`).
-- Algorytm: 3 wpisy z tej samej kategorii + wspólne tagi (weight: kategoria 60%, tagi 40%), sortowane po `published_at DESC` z ostatnich 12 miesięcy.
-- W edytorze: sekcja "Sugerowane linki wewnętrzne" pokazująca 5 kandydatów; jednym kliknięciem wstawia link do treści przy pierwszym wystąpieniu tytułu/hasła.
-- Fallback gdy brak dopasowań: 3 najnowsze wpisy z tej samej kategorii.
+Klucze `admin.coupons.*` w PL/EN (list, form, campaigns, redemptions, analytics, validation).
 
-## Faza 4: Google Search Console
+## Testy
 
-- Connector Google Search Console (już dostępny w Lovable) - meta-tag verification przez `head()` w `__root.tsx` (token z `import.meta.env.VITE_GSC_VERIFICATION`).
-- Widok `/admin/seo/search-console`: top 25 zapytań miesięcznie (impresje, kliknięcia, CTR, pozycja) - dane z gateway `standard_connectors--call_gateway_connection` (`/webmasters/v3/searchanalytics/query`).
-- Widok "Top strony" + "Pages with drops" (spadek pozycji > 5 vs. poprzedni miesiąc) - proste tabele, filtr per data.
-- i18n PL/EN dla całego panelu.
-
-## Zakres poza tym planem
-
-- Core Web Vitals: już zbierane w `web_vitals`. Dashboard kwartalny wdrożę w osobnym kroku - dajmy znać jak faza 1-4 przejdą.
-- Kompresja obrazów WebP: to zmiana infrastrukturalna (transformer server-side) - osobny plan, wymaga decyzji o loaderze.
+- RPC `redeem_coupon_with_side_effects`: happy path + expired + limit exceeded + membership grant assertion
+- Bulk generator: unique codes, no collisions
+- RLS: tenant isolation na wszystkich nowych tabelach
 
 ## Kolejność wdrożenia
 
-1. Faza 1 (migracja + redirects) - 1 turn
-2. Faza 2 (walidator meta) - 1 turn
-3. Faza 3 (powiązane + sugestie) - 1 turn
-4. Faza 4 (GSC connector + dashboard) - 1 turn, wymaga potwierdzenia i połączenia konta Google przez Ciebie
-
-## Pytanie zamykające
-
-Kanoniczna = `Gospodarka` (moja rekomendacja). Jeśli wolisz `Ekonomia` jako korzeń, powiedz - zamiana trywialna. Ruszam z Fazą 1?
+1. Migracja DB (nowe kolumny, tabela campaigns, RPC, triggery, GRANT, RLS)
+2. `coupons.functions.ts` (server functions)
+3. Wspólne komponenty (DateRangePicker, formy z shadcn)
+4. Route Kupony (upgrade istniejącej)
+5. Route Kampanie
+6. Route Realizacje
+7. Route Analityka
+8. i18n + link w sidebarze AdminShell
+9. Weryfikacja (build + preview)
