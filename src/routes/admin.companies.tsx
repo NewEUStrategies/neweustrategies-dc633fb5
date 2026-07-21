@@ -136,7 +136,7 @@ function LogoCell({ name, domain }: { name: string; domain: string | null }) {
 function AdminCompaniesPage() {
   const { i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
-  const navigate = useNavigate();
+  const [drawerId, setDrawerId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState<string>("all");
   const [branch, setBranch] = useState<string>("all");
