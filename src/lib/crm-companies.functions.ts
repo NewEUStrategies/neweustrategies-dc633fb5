@@ -105,9 +105,11 @@ export const updateCrmCompany = createServerFn({ method: "POST" })
   .inputValidator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
-    const supa = context.supabase as {
+    const supa = context.supabase as unknown as {
       from: (t: string) => {
-        update: (v: unknown) => { eq: (c: string, v: string) => Promise<{ error: { message: string } | null }> };
+        update: (v: unknown) => {
+          eq: (c: string, v: string) => Promise<{ error: { message: string } | null }>;
+        };
       };
     };
     const { error } = await supa.from("crm_companies").update(patch).eq("id", id);
