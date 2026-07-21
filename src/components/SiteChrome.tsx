@@ -58,12 +58,22 @@ export function SiteChrome({ children }: { children: ReactNode }) {
 
   // Auth-gated + globalny toggle chat_enabled z site_settings.community_modules.
   // Superadmin może wyłączyć chat globalnie z /admin/community bez rebuildu.
-  const chatDock =
-    !user || isAdmin || isLogin || !community.chat_enabled ? null : (
-      <Suspense fallback={null}>
-        <ChatDock />
-      </Suspense>
-    );
+  // Renderujemy wrapper zawsze w tej samej pozycji drzewa (nawet gdy brak
+  // uprawnień => pusty div) - dzięki temu ChatDock nie jest odmontowywany przy
+  // przechodzeniu admin<->public i utrzymuje własną klatkę View Transitions.
+  const chatDock = (
+    <div
+      data-chat-dock-slot
+      style={{ viewTransitionName: "chat-dock" }}
+      className="contents"
+    >
+      {!user || isAdmin || isLogin || !community.chat_enabled ? null : (
+        <Suspense fallback={null}>
+          <ChatDock />
+        </Suspense>
+      )}
+    </div>
+  );
 
   if (isAdmin || isLogin || ownChrome) {
     return (

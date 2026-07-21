@@ -1617,12 +1617,25 @@ select option {
   ::view-transition-new(admin-main) {
     animation-name: vt-fade-in;
   }
+  /* Chat dock: mounted once w SiteChrome. Podczas View Transition musi
+     pozostać w miejscu (bez cross-fade/slide), inaczej "znika i wczytuje się"
+     przy każdej nawigacji. Nazwany snapshot + brak animacji = stabilna klatka
+     nakładki niezależnie od zmiany trasy. */
+  ::view-transition-old(chat-dock),
+  ::view-transition-new(chat-dock) {
+    animation: none !important;
+    mix-blend-mode: normal;
+  }
 }
 @keyframes vt-fade-out {
   to {
     opacity: 0;
     transform: translateY(-4px);
-  }
+}
+@keyframes route-skeleton-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 }
 @keyframes vt-fade-in {
   from {
