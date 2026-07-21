@@ -135,6 +135,7 @@ export function MessageList(props: MessageListProps) {
     myUserId,
     messages,
     reactions,
+    reactorProfiles,
     peerName,
     peerAvatarUrl,
     isGroup = false,
