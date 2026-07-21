@@ -600,51 +600,69 @@ export function ChatWindow(props: ChatWindowProps) {
   };
 
   const searchToggle = (
-    <button
-      type="button"
-      onClick={() => setSearchOpen((v) => !v)}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-        searchOpen && "bg-muted text-foreground",
-      )}
-      aria-label={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
-      aria-pressed={searchOpen}
-      title={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
-    >
-      <Search className="h-4 w-4" aria-hidden />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setSearchOpen((v) => !v)}
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            searchOpen && "bg-muted text-foreground",
+          )}
+          aria-label={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
+          aria-pressed={searchOpen}
+        >
+          <Search className="h-4 w-4" aria-hidden />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
+      </TooltipContent>
+    </Tooltip>
   );
 
   const mediaToggle = (
-    <button
-      type="button"
-      onClick={() => setMediaOpen((v) => !v)}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-        mediaOpen && "bg-muted text-foreground",
-      )}
-      aria-label={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
-      aria-pressed={mediaOpen}
-      title={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
-    >
-      <Images className="h-4 w-4" aria-hidden />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setMediaOpen((v) => !v)}
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            mediaOpen && "bg-muted text-foreground",
+          )}
+          aria-label={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+          aria-pressed={mediaOpen}
+        >
+          <Images className="h-4 w-4" aria-hidden />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+      </TooltipContent>
+    </Tooltip>
   );
 
   const blockToggle = peerId ? (
-    <button
-      type="button"
-      onClick={() => setBlockDialogOpen(true)}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-        peerBlocked && "text-destructive hover:text-destructive",
-      )}
-      aria-label={peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
-      aria-haspopup="dialog"
-      title={peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
-    >
-      <Ban className="h-4 w-4" aria-hidden />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setBlockDialogOpen(true)}
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            peerBlocked && "text-destructive hover:text-destructive",
+          )}
+          aria-label={peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
+          aria-haspopup="dialog"
+        >
+          <Ban className="h-4 w-4" aria-hidden />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
+      </TooltipContent>
+    </Tooltip>
   ) : null;
 
   const menuItemClass =
