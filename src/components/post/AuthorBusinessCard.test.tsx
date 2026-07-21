@@ -27,7 +27,10 @@ describe("AuthorBusinessCard", () => {
     expect(screen.getByText("Anna Kowalska")).toBeInTheDocument();
     expect(screen.getByText("Redaktor · New European Strategies")).toBeInTheDocument();
     expect(screen.getByText("Ekspertka od polityki międzynarodowej.")).toBeInTheDocument();
-    expect(screen.getByLabelText("LinkedIn")).toHaveAttribute("href", "https://linkedin.com/in/anna");
+    expect(screen.getByLabelText("LinkedIn")).toHaveAttribute(
+      "href",
+      "https://linkedin.com/in/anna",
+    );
     expect(screen.getByLabelText("X")).toHaveAttribute("href", "https://x.com/anna");
     expect(screen.getByLabelText("E-mail")).toHaveAttribute("href", "mailto:anna@example.com");
     expect(screen.getByText("Zobacz profil")).toHaveAttribute("href", "/author/anna-kowalska");
@@ -47,7 +50,12 @@ describe("AuthorBusinessCard", () => {
 
   it("używa angielskich etykiet dla języka en", () => {
     renderWithQueryClient(
-      <AuthorBusinessCard lang="en" name="Jane Smith" href="/author/jane" email="jane@example.com" />,
+      <AuthorBusinessCard
+        lang="en"
+        name="Jane Smith"
+        href="/author/jane"
+        email="jane@example.com"
+      />,
     );
     expect(screen.getByLabelText("About the author")).toBeInTheDocument();
     expect(screen.getByText("View profile")).toBeInTheDocument();

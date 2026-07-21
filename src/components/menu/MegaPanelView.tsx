@@ -147,11 +147,7 @@ export function MegaPanelView({
                             </span>
                           ) : null}
                           <span className="menu-card-item__label">{label}</span>
-                          <ArrowRight
-                            size={14}
-                            className="menu-card-item__chevron"
-                            aria-hidden
-                          />
+                          <ArrowRight size={14} className="menu-card-item__chevron" aria-hidden />
                         </AppLink>
                       </li>
                     );

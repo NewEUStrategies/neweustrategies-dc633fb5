@@ -52,9 +52,6 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-
-
-
 export interface AuthorBusinessCardProps {
   lang: Lang;
   name: string | null;
@@ -124,7 +121,6 @@ export function AuthorBusinessCard({
     );
   };
 
-
   const socials: SocialItem[] = [
     { key: "x", url: xUrl ?? "", label: "X", Fallback: XIcon },
     { key: "linkedin", url: linkedinUrl ?? "", label: "LinkedIn", Fallback: Linkedin },
@@ -143,11 +139,7 @@ export function AuthorBusinessCard({
     >
       <div className="flex items-start gap-3">
         {avatarUrl ? (
-          <AppLink
-            href={href || "#"}
-            className="relative shrink-0"
-            aria-label={displayName}
-          >
+          <AppLink href={href || "#"} className="relative shrink-0" aria-label={displayName}>
             <img
               src={avatarUrl}
               alt={displayName}
@@ -171,10 +163,7 @@ export function AuthorBusinessCard({
         <div className="flex min-w-0 flex-1 flex-col">
           <h3 className="min-w-0 text-sm font-semibold leading-tight text-foreground">
             {href ? (
-              <AppLink
-                href={href}
-                className="hover:text-[color:var(--brand)] hover:underline"
-              >
+              <AppLink href={href} className="hover:text-[color:var(--brand)] hover:underline">
                 {displayName}
               </AppLink>
             ) : (
@@ -219,7 +208,10 @@ export function AuthorBusinessCard({
             {isFollowing ? (
               <Check className="h-3.5 w-3.5" aria-hidden />
             ) : (
-              <Plus className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90" aria-hidden />
+              <Plus
+                className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90"
+                aria-hidden
+              />
             )}
             <span>{isFollowing ? t.following : t.follow}</span>
           </button>

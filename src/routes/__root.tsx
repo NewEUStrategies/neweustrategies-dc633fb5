@@ -17,6 +17,8 @@ import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url"
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
 import { fontPreloadLinks } from "../lib/seo/fontPreload";
 import { buildRootHead, feedDiscoveryLinks } from "../lib/seo/meta";
+import { speculationRulesJson } from "../lib/seo/speculationRules";
+import { afterPrerendering } from "../lib/prerender";
 import { getOrigin } from "../lib/seo/request";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
@@ -207,6 +209,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // readers and crawlers find the feeds regardless of the entry URL.
         ...feedDiscoveryLinks(getOrigin()),
       ],
+      // Speculation Rules API: natywny prefetch (hover) + prerender
+      // (pointerdown) publicznych nawigacji; powierzchnie zalogowane i
+      // transakcyjne wykluczone (wspólna lista z NES Edge Cache). Beacony są
+      // osłonięte przed prerenderem w src/lib/prerender.ts.
+      scripts: [{ type: "speculationrules", children: speculationRulesJson() }],
     };
   },
   // Prefetch the entire site_settings bulk map on the server. The same query
@@ -345,10 +352,17 @@ function RootComponent() {
   useEffect(() => {
     if (!consentMounted || !categories.analytics) return;
     let cleanup: (() => void) | undefined;
-    void import("../lib/observability").then((m) => {
-      cleanup = m.initObservability();
+    let cancelled = false;
+    // Prerender (Speculation Rules) nie jest wizytą: telemetria startuje
+    // dopiero przy aktywacji strony, inaczej hover zawyżałby RUM.
+    const stopPrerenderWait = afterPrerendering(() => {
+      void import("../lib/observability").then((m) => {
+        if (!cancelled) cleanup = m.initObservability();
+      });
     });
     return () => {
+      cancelled = true;
+      stopPrerenderWait();
       cleanup?.();
     };
   }, [consentMounted, categories.analytics]);

@@ -72,7 +72,14 @@ describe("PeopleOrgResults", () => {
   it("wyświetla logo organizacji, gdy jest dostępne", () => {
     const { container } = render(
       <PeopleOrgResults
-        items={[item({ kind: "organization", id: "o1", label_pl: "NATO", logoUrl: "https://example.com/nato.png" })]}
+        items={[
+          item({
+            kind: "organization",
+            id: "o1",
+            label_pl: "NATO",
+            logoUrl: "https://example.com/nato.png",
+          }),
+        ]}
         lang="pl"
       />,
     );
@@ -103,7 +110,14 @@ describe("PeopleOrgStrip", () => {
   it("wyświetla miniaturkę logo organizacji w pigułce", () => {
     const { container } = render(
       <PeopleOrgStrip
-        items={[item({ kind: "organization", id: "o1", label_pl: "NATO", logoUrl: "https://example.com/nato.png" })]}
+        items={[
+          item({
+            kind: "organization",
+            id: "o1",
+            label_pl: "NATO",
+            logoUrl: "https://example.com/nato.png",
+          }),
+        ]}
         lang="pl"
         onSeeAll={vi.fn()}
       />,

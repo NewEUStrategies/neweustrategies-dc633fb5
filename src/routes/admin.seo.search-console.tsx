@@ -5,11 +5,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  listGscSites,
-  queryGscAnalytics,
-  type GscRow,
-} from "@/lib/analytics/gsc.functions";
+import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
 import {
   Select,
   SelectContent,
@@ -17,7 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, ExternalLink, TrendingUp, MousePointerClick, Eye, Target } from "@/lib/lucide-shim";
+import {
+  Search,
+  ExternalLink,
+  TrendingUp,
+  MousePointerClick,
+  Eye,
+  Target,
+} from "@/lib/lucide-shim";
 
 export const Route = createFileRoute("/admin/seo/search-console")({
   component: SearchConsolePanel,
@@ -131,7 +134,8 @@ function SearchConsolePanel() {
   }, [queriesQuery.data]);
 
   const notConfigured = sitesQuery.data && sitesQuery.data.configured === false;
-  const noSites = sitesQuery.data && sitesQuery.data.configured && sitesQuery.data.sites.length === 0;
+  const noSites =
+    sitesQuery.data && sitesQuery.data.configured && sitesQuery.data.sites.length === 0;
 
   return (
     <div className="space-y-5">

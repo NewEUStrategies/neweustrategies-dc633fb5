@@ -11,16 +11,16 @@ się lepiej niż podmioty, z którymi faktycznie konkuruje o czytelnika, ekspert
 
 **Grupy porównawcze (8 kolumn):**
 
-| Skrót      | Grupa                        | Reprezentanci oceniani                                                        |
-| ---------- | ---------------------------- | ----------------------------------------------------------------------------- |
-| **NES**    | ta platforma                 | ocena z kodu (`OCENA_MODULOW_2026-07-20.md`)                                   |
-| **TT PL**  | think-tanki polskie          | PISM, OSW, Klub Jagielloński, Nowa Konfederacja, INE, Sobieski, Batory        |
-| **TT EU**  | think-tanki zachodnioeurop.  | ECFR, Bruegel, Chatham House, RUSI, SWP, IFRI, CEPS, Clingendael              |
-| **TT RU**  | think-tanki rosyjskie        | Klub Wałdajski, RIAC, IMEMO, SVOP / Russia in Global Affairs                  |
-| **TT CN**  | think-tanki chińskie         | CICIR, CIIS, SIIS, CASS, CCG, Taihe                                            |
-| **TT JP**  | think-tanki japońskie        | JIIA, Sasakawa Peace Foundation, RIETI, NIDS, Genron NPO, Tokyo Foundation    |
-| **TT USA** | think-tanki amerykańskie     | CSIS, Brookings, Carnegie, CFR, RAND, Atlantic Council, CNAS, Wilson Center   |
-| **Media**  | serwisy publiczne mediów     | Reuters, Politico (.eu/.com), Bloomberg.com, FT, The Economist, Axios, Euractiv, EUobserver, Foreign Policy |
+| Skrót      | Grupa                       | Reprezentanci oceniani                                                                                      |
+| ---------- | --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **NES**    | ta platforma                | ocena z kodu (`OCENA_MODULOW_2026-07-20.md`)                                                                |
+| **TT PL**  | think-tanki polskie         | PISM, OSW, Klub Jagielloński, Nowa Konfederacja, INE, Sobieski, Batory                                      |
+| **TT EU**  | think-tanki zachodnioeurop. | ECFR, Bruegel, Chatham House, RUSI, SWP, IFRI, CEPS, Clingendael                                            |
+| **TT RU**  | think-tanki rosyjskie       | Klub Wałdajski, RIAC, IMEMO, SVOP / Russia in Global Affairs                                                |
+| **TT CN**  | think-tanki chińskie        | CICIR, CIIS, SIIS, CASS, CCG, Taihe                                                                         |
+| **TT JP**  | think-tanki japońskie       | JIIA, Sasakawa Peace Foundation, RIETI, NIDS, Genron NPO, Tokyo Foundation                                  |
+| **TT USA** | think-tanki amerykańskie    | CSIS, Brookings, Carnegie, CFR, RAND, Atlantic Council, CNAS, Wilson Center                                 |
+| **Media**  | serwisy publiczne mediów    | Reuters, Politico (.eu/.com), Bloomberg.com, FT, The Economist, Axios, Euractiv, EUobserver, Foreign Policy |
 
 **Wykluczone zgodnie z zakresem:** osobne platformy premium mediów — Politico PRO, Bloomberg
 Terminal/BGOV/Law, Reuters Eikon/Connect, Axios Pro, Euractiv Pro, FP Analytics. FT.com i Economist.com
@@ -106,17 +106,17 @@ Jak grupy realizują ten moduł: media = newsroomy z live/wideo/grafiką i dopra
 długie raporty + komentarze + podcasty, czysto ale statycznie; TT EU podobnie skromniej; TT PL/RU/CN/JP =
 strony-archiwa z PDF-ami.
 
-| Kryterium                                   | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA | Media   |
-| ------------------------------------------- | ------- | ----- | ----- | ----- | ----- | ----- | ------ | ------- |
-| Doświadczenie czytania artykułu             | 6,5     | 4,5   | 6,0   | 4,5   | 3,0   | 4,0   | 7,0    | **9,0** |
-| Szerokość formatów (analizy, podcast, wideo, live, stories) | **9,0** | 4,5 | 6,0 | 4,5 | 3,0 | 4,0 | 7,5 | **9,0** |
-| Paywall / monetyzacja treści                | **9,0** | 2,5   | 5,0   | 1,0   | 1,0   | 1,0   | 1,5    | 7,5     |
-| Personalizacja / rekomendacje               | **8,0** | 1,0   | 1,5   | 1,0   | 2,0   | 1,0   | 2,0    | 6,5     |
-| Audio artykułów / TTS                       | **9,0** | 1,0   | 2,0   | 1,0   | 1,0   | 1,0   | 2,0    | 7,0     |
-| Wielojęzyczność treści                      | **9,0** | 5,5   | 5,0   | 7,0   | 4,0   | 5,5   | 3,0    | 6,0     |
-| SEO / dystrybucja techniczna                | **9,0** | 4,0   | 6,0   | 4,0   | 2,0   | 4,0   | 7,0    | **9,0** |
-| Live / formaty newsowe                      | 7,0     | 2,0   | 2,5   | 3,0   | 2,0   | 2,0   | 3,5    | **9,0** |
-| **Średnia**                                 | **8,3** | 3,1   | 4,3   | 3,3   | 2,3   | 2,8   | 4,2    | 7,9     |
+| Kryterium                                                   | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA | Media   |
+| ----------------------------------------------------------- | ------- | ----- | ----- | ----- | ----- | ----- | ------ | ------- |
+| Doświadczenie czytania artykułu                             | 6,5     | 4,5   | 6,0   | 4,5   | 3,0   | 4,0   | 7,0    | **9,0** |
+| Szerokość formatów (analizy, podcast, wideo, live, stories) | **9,0** | 4,5   | 6,0   | 4,5   | 3,0   | 4,0   | 7,5    | **9,0** |
+| Paywall / monetyzacja treści                                | **9,0** | 2,5   | 5,0   | 1,0   | 1,0   | 1,0   | 1,5    | 7,5     |
+| Personalizacja / rekomendacje                               | **8,0** | 1,0   | 1,5   | 1,0   | 2,0   | 1,0   | 2,0    | 6,5     |
+| Audio artykułów / TTS                                       | **9,0** | 1,0   | 2,0   | 1,0   | 1,0   | 1,0   | 2,0    | 7,0     |
+| Wielojęzyczność treści                                      | **9,0** | 5,5   | 5,0   | 7,0   | 4,0   | 5,5   | 3,0    | 6,0     |
+| SEO / dystrybucja techniczna                                | **9,0** | 4,0   | 6,0   | 4,0   | 2,0   | 4,0   | 7,0    | **9,0** |
+| Live / formaty newsowe                                      | 7,0     | 2,0   | 2,5   | 3,0   | 2,0   | 2,0   | 3,5    | **9,0** |
+| **Średnia**                                                 | **8,3** | 3,1   | 4,3   | 3,3   | 2,3   | 2,8   | 4,2    | 7,9     |
 
 **Wzorce do naśladowania:** czytanie — Bloomberg/FT (typografia, tempo, zero szumu wokół tekstu); audio —
 The Economist (pełne wydanie audio) i Bloomberg (audio artykułów); personalizacja — FT myFT (obserwowanie
@@ -141,15 +141,15 @@ Jak grupy realizują ten moduł: media = zespoły graphics kodujące własne int
 Graphics, Reuters Graphics — szczyt kategorii); TT USA = microsites i dashboardy budowane przez studia
 (iDeas Lab); TT EU = pojedyncze explorery (ECFR) i datasety (Bruegel); reszta = strony statyczne od agencji.
 
-| Kryterium                                        | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA  | Media   |
-| ------------------------------------------------ | ------- | ----- | ----- | ----- | ----- | ----- | ------- | ------- |
-| Huby programów / stron tematycznych              | **8,0** | 3,5   | 6,0   | 4,0   | 3,0   | 3,5   | 7,5     | 7,0     |
-| Microsites / interaktywne raporty (dorobek)      | 6,5     | 1,5   | 6,5   | 3,0   | 2,0   | 3,0   | 8,5     | **9,0** |
-| Builder self-service (tworzenie bez dewelopera)  | **9,5** | 2,0   | 2,5   | 2,0   | 2,0   | 2,0   | 3,0     | 3,0     |
-| Wydajność / jakość techniczna stron              | **9,0** | 4,0   | 5,5   | 4,0   | 3,0   | 4,0   | 6,0     | 7,5     |
-| Landingi konwersji (członkostwo, darowizny, subskrypcja) | 7,0 | 3,0 | 5,5 | 2,0 | 1,0 | 2,0 | 5,0     | **8,0** |
-| Eksperymenty A/B na stronach                     | **9,0** | 1,0   | 1,5   | 1,0   | 1,0   | 1,0   | 2,0     | 7,0     |
-| **Średnia**                                      | **8,2** | 2,5   | 4,6   | 2,7   | 2,0   | 2,6   | 5,3     | 6,9     |
+| Kryterium                                                | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA | Media   |
+| -------------------------------------------------------- | ------- | ----- | ----- | ----- | ----- | ----- | ------ | ------- |
+| Huby programów / stron tematycznych                      | **8,0** | 3,5   | 6,0   | 4,0   | 3,0   | 3,5   | 7,5    | 7,0     |
+| Microsites / interaktywne raporty (dorobek)              | 6,5     | 1,5   | 6,5   | 3,0   | 2,0   | 3,0   | 8,5    | **9,0** |
+| Builder self-service (tworzenie bez dewelopera)          | **9,5** | 2,0   | 2,5   | 2,0   | 2,0   | 2,0   | 3,0    | 3,0     |
+| Wydajność / jakość techniczna stron                      | **9,0** | 4,0   | 5,5   | 4,0   | 3,0   | 4,0   | 6,0    | 7,5     |
+| Landingi konwersji (członkostwo, darowizny, subskrypcja) | 7,0     | 3,0   | 5,5   | 2,0   | 1,0   | 2,0   | 5,0    | **8,0** |
+| Eksperymenty A/B na stronach                             | **9,0** | 1,0   | 1,5   | 1,0   | 1,0   | 1,0   | 2,0    | 7,0     |
+| **Średnia**                                              | **8,2** | 2,5   | 4,6   | 2,7   | 2,0   | 2,6   | 5,3    | 6,9     |
 
 **Wzorce do naśladowania:** interaktywny storytelling — Bloomberg Graphics i Reuters Graphics (poza zasięgiem
 bez studia, ale kierunek estetyczny); microsites think-tankowe — CSIS ChinaPower/Missile Threat (trwałe
@@ -174,15 +174,15 @@ Jak grupy realizują ten moduł: media = proste wyszukiwarki serwisowe (filtr se
 (myFT-alerty tematów); TT USA = od przyzwoitych filtrów po wzorcowy RAND (pełne fasety bazy badań);
 TT EU = filtry tematyczne; TT PL/CN = domyślne wyszukiwarki CMS; TT RU/JP = taksonomie bez inteligencji.
 
-| Kryterium                                   | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA | Media |
-| ------------------------------------------- | ------- | ----- | ----- | ----- | ----- | ----- | ------ | ----- |
-| Trafność (języki, ranking, treść pełna)     | **8,0** | 3,0   | 5,0   | 4,5   | 3,0   | 4,0   | 6,0    | 6,0   |
-| Fasety / filtry                             | **8,0** | 3,0   | 5,5   | 4,0   | 2,5   | 4,0   | 6,5    | 5,5   |
-| Autosugestie / „czy chodziło o…"            | **8,0** | 1,5   | 3,0   | 2,0   | 2,0   | 2,0   | 4,0    | 4,5   |
-| Wyszukiwanie ekspertów / osób               | **8,0** | 2,0   | 5,5   | 4,5   | 2,0   | 2,5   | 6,0    | 2,5   |
-| Zapisane wyszukiwania / alerty              | **5,0** | 1,0   | 1,5   | 1,0   | 1,0   | 1,0   | 2,0    | 3,5   |
-| Składnia zaawansowana                       | **8,0** | 1,0   | 1,5   | 1,5   | 1,0   | 1,5   | 2,5    | 2,5   |
-| **Średnia**                                 | **7,5** | 1,9   | 3,7   | 2,9   | 1,9   | 2,5   | 4,5    | 4,1   |
+| Kryterium                               | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA | Media |
+| --------------------------------------- | ------- | ----- | ----- | ----- | ----- | ----- | ------ | ----- |
+| Trafność (języki, ranking, treść pełna) | **8,0** | 3,0   | 5,0   | 4,5   | 3,0   | 4,0   | 6,0    | 6,0   |
+| Fasety / filtry                         | **8,0** | 3,0   | 5,5   | 4,0   | 2,5   | 4,0   | 6,5    | 5,5   |
+| Autosugestie / „czy chodziło o…"        | **8,0** | 1,5   | 3,0   | 2,0   | 2,0   | 2,0   | 4,0    | 4,5   |
+| Wyszukiwanie ekspertów / osób           | **8,0** | 2,0   | 5,5   | 4,5   | 2,0   | 2,5   | 6,0    | 2,5   |
+| Zapisane wyszukiwania / alerty          | **5,0** | 1,0   | 1,5   | 1,0   | 1,0   | 1,0   | 2,0    | 3,5   |
+| Składnia zaawansowana                   | **8,0** | 1,0   | 1,5   | 1,5   | 1,0   | 1,5   | 2,5    | 2,5   |
+| **Średnia**                             | **7,5** | 1,9   | 3,7   | 2,9   | 1,9   | 2,5   | 4,5    | 4,1   |
 
 **Wzorce:** RAND (najlepsza wyszukiwarka think-tankowa świata — fasetowa baza badań; NES już jest blisko,
 a w podpowiedziach/składni wyżej); FT myFT (alerty tematów — jedyny element, w którym media publiczne biją
@@ -206,14 +206,14 @@ Uczciwa rama: **czatu użytkownik–użytkownik nie ma nikt w całym zestawieniu
 społeczności członkowskie, Q&A/ankiety, kanały relacji (push/newslettery). Chińskie TT prowadzą społeczności
 w grupach WeChat — poza własną platformą (odnotowane w ocenie).
 
-| Kryterium                                        | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA | Media   |
-| ------------------------------------------------ | ------- | ----- | ----- | ----- | ----- | ----- | ------ | ------- |
-| Czat 1:1 i grupowy na platformie                 | **8,5** | 0     | 0     | 0     | 0     | 0     | 0      | 0       |
-| Komentarze / dyskusje pod treścią                | **7,0** | 2,0   | 1,5   | 2,0   | 1,0   | 1,0   | 1,0    | 3,0     |
-| Społeczność członkowska online                   | **8,0** | 2,0   | 4,0   | 2,0   | 3,0   | 2,0   | 2,5    | 2,0     |
-| Q&A / ankiety / wydarzenia interaktywne          | **7,0** | 2,0   | 4,0   | 3,0   | 2,0   | 3,0   | 4,0    | 4,0     |
-| Kanały relacji (push, newslettery, digesty)      | 8,0     | 2,0   | 3,5   | 2,0   | 4,0   | 2,0   | 4,5    | **8,0** |
-| **Średnia**                                      | **7,7** | 1,6   | 2,6   | 1,8   | 2,0   | 1,6   | 2,4    | 3,4     |
+| Kryterium                                   | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA | Media   |
+| ------------------------------------------- | ------- | ----- | ----- | ----- | ----- | ----- | ------ | ------- |
+| Czat 1:1 i grupowy na platformie            | **8,5** | 0     | 0     | 0     | 0     | 0     | 0      | 0       |
+| Komentarze / dyskusje pod treścią           | **7,0** | 2,0   | 1,5   | 2,0   | 1,0   | 1,0   | 1,0    | 3,0     |
+| Społeczność członkowska online              | **8,0** | 2,0   | 4,0   | 2,0   | 3,0   | 2,0   | 2,5    | 2,0     |
+| Q&A / ankiety / wydarzenia interaktywne     | **7,0** | 2,0   | 4,0   | 3,0   | 2,0   | 3,0   | 4,0    | 4,0     |
+| Kanały relacji (push, newslettery, digesty) | 8,0     | 2,0   | 3,5   | 2,0   | 4,0   | 2,0   | 4,5    | **8,0** |
+| **Średnia**                                 | **7,7** | 1,6   | 2,6   | 1,8   | 2,0   | 1,6   | 2,4    | 3,4     |
 
 **Wzorce:** kultura komentarzy — FT (jedyne media, które utrzymały wartościową sekcję komentarzy; Reuters
 i Bloomberg je usunęły); newslettery jako relacja — Politico Playbook (agendotwórczy standard kategorii);
@@ -239,7 +239,7 @@ Jak grupy realizują ten moduł: think-tanki = statyczne lub półdynamiczne str
 i Brookings: bio, tematy, pełny dorobek, kontakt dla mediów); media = skromne strony autorów; **profile
 czytelników i networking nie istnieją nigdzie** poza kontem subskrypcyjnym.
 
-| Kryterium                                          | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA | Media |
+| Kryterium                                           | **NES** | TT PL | TT EU | TT RU | TT CN | TT JP | TT USA | Media |
 | --------------------------------------------------- | ------- | ----- | ----- | ----- | ----- | ----- | ------ | ----- |
 | Strony ekspertów (bio, dorobek, kontakt dla mediów) | **9,0** | 4,0   | 7,0   | 5,0   | 3,0   | 3,5   | 7,5    | 4,5   |
 | Katalog / wyszukiwarka ekspertów                    | **8,0** | 2,5   | 6,0   | 5,0   | 2,5   | 2,5   | 6,5    | 2,0   |

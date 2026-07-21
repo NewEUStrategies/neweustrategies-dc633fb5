@@ -194,6 +194,7 @@ export function AuthorBioView({
         src={author.avatarUrl}
         alt={author.name}
         className={`${avatarShape} object-cover w-full h-full ${isSplit ? "shadow-sm" : "ring-2 ring-border"}`}
+        responsive
         sizes={isSplit ? "220px" : "96px"}
       />
     ) : (

@@ -16,10 +16,7 @@ interface SeoValidationSummaryProps {
   headingIssues?: HeadingIssue[];
 }
 
-export function SeoValidationSummary({
-  issues,
-  headingIssues = [],
-}: SeoValidationSummaryProps) {
+export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidationSummaryProps) {
   const { t } = useTranslation();
   const all: Array<{ key: string; severity: "error" | "warning"; text: string }> = [];
 
@@ -61,7 +58,8 @@ export function SeoValidationSummary({
       });
     } else if (h.kind === "skipped_level") {
       text = t("admin.seo.validation.skippedLevel", {
-        defaultValue: "Przeskoczony poziom nagłówka: H{{from}} → H{{to}}. Zachowaj hierarchię H2 → H3 → H4.",
+        defaultValue:
+          "Przeskoczony poziom nagłówka: H{{from}} → H{{to}}. Zachowaj hierarchię H2 → H3 → H4.",
         from: h.from,
         to: h.to,
       });

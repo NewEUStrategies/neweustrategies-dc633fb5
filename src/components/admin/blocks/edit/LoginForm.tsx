@@ -25,7 +25,11 @@ type Key =
   | "variant";
 
 type BoolKey =
-  "showRemember" | "showShowPassword" | "showForgot" | "showRegister" | "showOAuthGoogle";
+  | "showRemember"
+  | "showShowPassword"
+  | "showForgot"
+  | "showRegister"
+  | "showOAuthGoogle";
 
 export function LoginFormBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();

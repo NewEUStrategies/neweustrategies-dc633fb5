@@ -17,13 +17,14 @@
 // Overlay rejestrują oba dashboardy (ten sam lazy chunk co komponent strony).
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Bug } from "lucide-react";
+import { Bug, Zap } from "lucide-react";
 import { Gauge } from "@/lib/lucide-shim";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VitalsBiDashboard } from "@/components/admin/analytics/VitalsBiDashboard";
 import { ClientErrorsDashboard } from "@/components/admin/analytics/ClientErrorsDashboard";
+import { EdgeCacheCard } from "@/components/admin/performance/EdgeCacheCard";
 
-const TABS = ["vitals", "errors"] as const;
+const TABS = ["vitals", "errors", "cache"] as const;
 type PerformanceTab = (typeof TABS)[number];
 
 export const Route = createFileRoute("/admin/performance")({
@@ -53,7 +54,7 @@ function PerformancePage() {
         value={tab}
         onValueChange={(value) =>
           void navigate({
-            search: { tab: value === "vitals" ? undefined : "errors" },
+            search: { tab: value === "vitals" ? undefined : (value as PerformanceTab) },
             replace: true,
           })
         }
@@ -67,6 +68,10 @@ function PerformancePage() {
             <Bug className="h-3.5 w-3.5" aria-hidden />
             {t("adminAnalytics.clientErrors.title")}
           </TabsTrigger>
+          <TabsTrigger value="cache" className="gap-1.5">
+            <Zap className="h-3.5 w-3.5" aria-hidden />
+            {t("adminEdgeCache.tab")}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="vitals" className="mt-4">
           <VitalsBiDashboard />
@@ -78,6 +83,9 @@ function PerformancePage() {
             </p>
             <ClientErrorsDashboard />
           </div>
+        </TabsContent>
+        <TabsContent value="cache" className="mt-4">
+          <EdgeCacheCard />
         </TabsContent>
       </Tabs>
     </div>

@@ -547,7 +547,6 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             <SendHorizontal className="h-[18px] w-[18px]" aria-hidden />
           </button>
         </form>
-
       </div>
     </div>
   );

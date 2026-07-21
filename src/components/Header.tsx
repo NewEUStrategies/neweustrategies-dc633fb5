@@ -112,7 +112,6 @@ function HeaderInner({ adPageType = "all" }: HeaderProps) {
     };
   }, []);
 
-
   if (!cfg.builder_data || !cfg.builder_data.sections?.length) return null;
 
   const openA11y = t("common.openMenu");

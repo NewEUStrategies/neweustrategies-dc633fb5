@@ -16,7 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertTriangle, XCircle } from "@/lib/lucide-shim";
+import {
+  Loader2,
+  RefreshCw,
+  ExternalLink,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+} from "@/lib/lucide-shim";
 import { inspectGscUrl, listGscSites, type GscSite } from "@/lib/analytics/gsc.functions";
 
 interface Props {
@@ -40,8 +47,14 @@ interface InspectionResult {
       referringUrls?: string[];
       crawledAs?: string;
     };
-    mobileUsabilityResult?: { verdict?: string; issues?: Array<{ severity?: string; message?: string }> };
-    richResultsResult?: { verdict?: string; detectedItems?: Array<{ richResultType?: string; items?: unknown[] }> };
+    mobileUsabilityResult?: {
+      verdict?: string;
+      issues?: Array<{ severity?: string; message?: string }>;
+    };
+    richResultsResult?: {
+      verdict?: string;
+      detectedItems?: Array<{ richResultType?: string; items?: unknown[] }>;
+    };
     inspectionResultLink?: string;
   };
 }
@@ -124,7 +137,11 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
     setRunning(true);
     try {
       const res = await inspect({
-        data: { siteUrl: activeSite, inspectionUrl, languageCode: lang === "en" ? "en-US" : "pl-PL" },
+        data: {
+          siteUrl: activeSite,
+          inspectionUrl,
+          languageCode: lang === "en" ? "en-US" : "pl-PL",
+        },
       });
       setResult(JSON.parse(res.raw) as InspectionResult);
       toast.success(t("admin.seo.gsc.inspectDone", { defaultValue: "Sprawdzono w Google Index" }));
@@ -237,7 +254,12 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
           <Row
             label={t("admin.seo.gsc.richResults", { defaultValue: "Rich results" })}
             verdict={rich?.verdict}
-            detail={rich?.detectedItems?.map((d) => d.richResultType).filter(Boolean).join(", ") || undefined}
+            detail={
+              rich?.detectedItems
+                ?.map((d) => d.richResultType)
+                .filter(Boolean)
+                .join(", ") || undefined
+            }
           />
           {idx?.lastCrawlTime ? (
             <p className="text-[10px] text-muted-foreground">

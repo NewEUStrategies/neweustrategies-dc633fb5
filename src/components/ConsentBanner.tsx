@@ -582,9 +582,7 @@ export function ConsentBanner() {
                       <table className="w-full text-[11px]">
                         <thead>
                           <tr className="text-[color:var(--cb-fg,var(--muted-foreground))]/80 border-b border-[color:var(--cb-border,var(--border))]">
-                            <th className="text-left font-medium px-3 py-2">
-                              {tr("common.name")}
-                            </th>
+                            <th className="text-left font-medium px-3 py-2">{tr("common.name")}</th>
                             <th className="text-left font-medium px-3 py-2">
                               {tr("common.party")}
                             </th>

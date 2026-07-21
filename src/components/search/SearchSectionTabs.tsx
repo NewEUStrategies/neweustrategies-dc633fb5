@@ -6,12 +6,7 @@
 import { useTranslation } from "react-i18next";
 import { FileText, Info, Layers, LayoutGrid, Tags, Users } from "@/lib/lucide-shim";
 import { SEARCH_TABS, type SearchTab } from "@/lib/search/facetModel";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Props {
   active: SearchTab;

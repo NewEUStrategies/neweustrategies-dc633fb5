@@ -23,7 +23,6 @@ import { FloatingInput } from "@/components/ui/floating-input";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
-
 type Mode = "signin" | "signup";
 
 export function LoginPopup() {
@@ -241,7 +240,6 @@ export function LoginPopup() {
                     : settings.signup_label_en}
             </Button>
           </form>
-
 
           {settings.allow_public_signup && (
             <div className="text-center text-sm pt-2 border-t border-border mt-3">

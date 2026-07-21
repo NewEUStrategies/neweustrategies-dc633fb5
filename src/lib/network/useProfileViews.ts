@@ -58,9 +58,7 @@ export function useRecordProfileView(): UseMutationResult<void, Error, string> {
 }
 
 /** Lista widzów bieżącego użytkownika (max `limit`). */
-export function useMyProfileViewers(
-  limit = 20,
-): UseQueryResult<ReadonlyArray<ProfileViewer>> {
+export function useMyProfileViewers(limit = 20): UseQueryResult<ReadonlyArray<ProfileViewer>> {
   const { user } = useAuth();
   return useQuery({
     queryKey: keys.viewers(user?.id ?? "none", limit),
@@ -119,11 +117,7 @@ export function useMyProfileViewMode(): UseQueryResult<ProfileViewMode> {
 }
 
 /** Zmienia tryb widoczności viewer'a (public/anonymous/private). */
-export function useUpdateProfileViewMode(): UseMutationResult<
-  void,
-  Error,
-  ProfileViewMode
-> {
+export function useUpdateProfileViewMode(): UseMutationResult<void, Error, ProfileViewMode> {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({

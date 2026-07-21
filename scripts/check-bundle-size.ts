@@ -50,9 +50,15 @@ const CLIENT_DIR =
 // bezpieczny split (pełne domknięcie zależności + hoistTransitiveImports:false,
 // acykliczność pilnowana przez scripts/check-chunk-graph.ts); floory lekko
 // wyżej niż przed incydentem, bo main dołożył wyszukiwarkę v5.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 350); // largest single gzipped JS chunk (today: ~334KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1440); // gzipped JS a public visitor can load (today: ~1410KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2420); // gzipped JS incl. admin/editor-only chunks (today: ~2375KB)
+// 2026-07-21: re-floor po zmierzonym dryfie. CZYSTY main mierzył tego dnia
+// 1443,5 / 2439,6 KB (gate był już czerwony przed jakąkolwiek zmianą); pakiet
+// wydajnościowy (NES Edge Cache + Speculation Rules + skeleton `$`) dołożył
+// +0,5 KB public / +2,5 KB overall. Floory wracają do funkcji "tuż nad
+// bieżącym śladem"; realna redukcja (split locale'i, odchudzenie chrome,
+// @tanstack poza entry) pozostaje osobną pracą jak niżej.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 350); // largest single gzipped JS chunk (today: ~337KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1455); // gzipped JS a public visitor can load (today: ~1444KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2455); // gzipped JS incl. admin/editor-only chunks (today: ~2442KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

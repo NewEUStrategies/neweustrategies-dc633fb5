@@ -114,11 +114,11 @@ funkcji trzeba potwierdzić dostarczanie na żywych usługach push:
   (staff lub host; sesja `answering`/`closed`, min. 1 odpowiedziane pytanie)
   kompiluje odpowiedzi w dwujęzyczny wpis spięty przez `qa_sessions.post_id`
   - idempotentny upsert (ponowne uruchomienie odświeża treść, nie duplikuje;
-  publikacja jest jednokierunkowa). Publikacja respektuje workflow
-  redakcyjny (`can_publish_content` - host/edytor kompiluje szkic, publikuje
-  admin) i powiadamia autorów pytań. Wpis ląduje pod stroną `blog` tenanta
-  (posts.parent_page_id). Panel: Admin → Community → Q&A → ikona
-  "Podsumowanie jako treść".
+    publikacja jest jednokierunkowa). Publikacja respektuje workflow
+    redakcyjny (`can_publish_content` - host/edytor kompiluje szkic, publikuje
+    admin) i powiadamia autorów pytań. Wpis ląduje pod stroną `blog` tenanta
+    (posts.parent_page_id). Panel: Admin → Community → Q&A → ikona
+    "Podsumowanie jako treść".
 - **Reputacja i tablica kontrybutorów** (`20260721152000`): punkty liczone
   z istniejących danych (`contribution_scores` - wagi w jednym CASE),
   tablica `/contributors` przez `get_contributor_leaderboard` pokazuje

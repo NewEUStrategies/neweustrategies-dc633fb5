@@ -6,6 +6,7 @@ import { recordPostView } from "@/lib/views/postViews.functions";
 import { getViewerHash } from "@/lib/views/viewerHash";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { afterPrerendering } from "@/lib/prerender";
 
 export function useRecordPostView(postId: string | undefined | null, authorId?: string | null) {
   const record = useServerFn(recordPostView);
@@ -29,33 +30,41 @@ export function useRecordPostView(postId: string | undefined | null, authorId?: 
     if (!postId || fired.current === postId) return;
     fired.current = postId;
     const viewerHash = getViewerHash();
-    // 1.5 s delay - filters out instant back/forward navigation.
-    const t = window.setTimeout(() => {
-      const userId = userIdRef.current;
-      // Don't let an author inflate their own post's public view count / trending
-      // rank by reloading it (best-effort; anon views still count as designed).
-      const isAuthor = !!userId && !!authorIdRef.current && userId === authorIdRef.current;
-      if (!isAuthor) {
-        recordRef.current({ data: { postId, viewerHash } }).catch(() => {
-          /* silent: view counts are best-effort */
-        });
-      }
-      // The view counter runs as anon and can't attribute the read to the user,
-      // so record the signed-in user's read history here (owner-RLS, authed
-      // session). This is what feeds recommendations' "already read" exclusion
-      // and read-based interest scoring - previously nothing ever wrote it.
-      if (userId) {
-        void supabase
-          .from("user_read_history")
-          .upsert(
-            { user_id: userId, post_id: postId, read_at: new Date().toISOString() },
-            { onConflict: "user_id,post_id" },
-          )
-          .then(undefined, () => {
-            /* best-effort */
+    let t: number | undefined;
+    // Strona prerenderowana spekulacyjnie (Speculation Rules) nie jest
+    // odsłoną - odliczanie rusza dopiero po aktywacji (prerenderingchange).
+    const stopPrerenderWait = afterPrerendering(() => {
+      // 1.5 s delay - filters out instant back/forward navigation.
+      t = window.setTimeout(() => {
+        const userId = userIdRef.current;
+        // Don't let an author inflate their own post's public view count / trending
+        // rank by reloading it (best-effort; anon views still count as designed).
+        const isAuthor = !!userId && !!authorIdRef.current && userId === authorIdRef.current;
+        if (!isAuthor) {
+          recordRef.current({ data: { postId, viewerHash } }).catch(() => {
+            /* silent: view counts are best-effort */
           });
-      }
-    }, 1500);
-    return () => window.clearTimeout(t);
+        }
+        // The view counter runs as anon and can't attribute the read to the user,
+        // so record the signed-in user's read history here (owner-RLS, authed
+        // session). This is what feeds recommendations' "already read" exclusion
+        // and read-based interest scoring - previously nothing ever wrote it.
+        if (userId) {
+          void supabase
+            .from("user_read_history")
+            .upsert(
+              { user_id: userId, post_id: postId, read_at: new Date().toISOString() },
+              { onConflict: "user_id,post_id" },
+            )
+            .then(undefined, () => {
+              /* best-effort */
+            });
+        }
+      }, 1500);
+    });
+    return () => {
+      stopPrerenderWait();
+      if (t !== undefined) window.clearTimeout(t);
+    };
   }, [postId]);
 }

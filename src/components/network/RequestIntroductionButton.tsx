@@ -20,10 +20,7 @@ export interface RequestIntroductionButtonProps {
   displayName: string;
 }
 
-export function RequestIntroductionButton({
-  userId,
-  displayName,
-}: RequestIntroductionButtonProps) {
+export function RequestIntroductionButton({ userId, displayName }: RequestIntroductionButtonProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const modules = useCommunityModules();
@@ -41,12 +38,7 @@ export function RequestIntroductionButton({
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 gap-1.5"
-        onClick={() => setOpen(true)}
-      >
+      <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setOpen(true)}>
         <UsersRound className="h-3.5 w-3.5" />
         {t("network.introductions.requestCta")}
       </Button>

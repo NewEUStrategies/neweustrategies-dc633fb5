@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { useSaveArticle } from "@/hooks/useSaveArticle";
 import type { BookmarkEntityType } from "@/hooks/useBookmarks";
 import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
+import { rafThrottle } from "@/lib/rafThrottle";
 import type { ReadingPanelSettings, SocialKey } from "@/lib/sidebarBuilder/types";
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
@@ -219,9 +220,11 @@ export function FloatingShareBar({
     return () => obs.disconnect();
   }, []);
 
-  // Reading progress + visibility.
+  // Reading progress + visibility. rAF-throttle: getBoundingClientRect (odczyt
+  // layoutu) + dwa setState odpalają raz na klatkę, nie raz na zdarzenie -
+  // to najgorętszy handler strony artykułu (INP/TBT).
   useEffect(() => {
-    const onScroll = (): void => {
+    const onScroll = rafThrottle((): void => {
       const y = window.scrollY;
       setVisible(y > showAfter);
       const root = getArticleRoot();
@@ -232,13 +235,14 @@ export function FloatingShareBar({
         const pct = end > start ? (window.scrollY - start) / (end - start) : 0;
         setProgress(Math.min(1, Math.max(0, pct)));
       }
-    };
+    });
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
+      onScroll.cancel();
     };
   }, [showAfter]);
 

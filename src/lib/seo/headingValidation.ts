@@ -30,7 +30,10 @@ interface HeadingRef {
 const HTML_HEADING_RE = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
 
 function stripTags(input: string): string {
-  return input.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+  return input
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Extract heading refs from an HTML body string. */
@@ -91,10 +94,7 @@ export function headingsFromBlocks(blocks: unknown): HeadingRef[] {
 }
 
 /** Combine HTML and block sources; block tree wins when both are present. */
-export function collectHeadings(input: {
-  html?: string | null;
-  blocks?: unknown;
-}): HeadingRef[] {
+export function collectHeadings(input: { html?: string | null; blocks?: unknown }): HeadingRef[] {
   const fromBlocks = headingsFromBlocks(input.blocks);
   if (fromBlocks.length > 0) return fromBlocks;
   return headingsFromHtml(input.html);

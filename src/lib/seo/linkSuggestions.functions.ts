@@ -54,7 +54,12 @@ export const suggestInternalLinks = createServerFn({ method: "POST" })
     const tenantId = profile?.tenant_id;
     if (!tenantId) return [];
 
-    const searchTokens = tokens(titlePl, titleEn, contentPl?.slice(0, 4000), contentEn?.slice(0, 4000));
+    const searchTokens = tokens(
+      titlePl,
+      titleEn,
+      contentPl?.slice(0, 4000),
+      contentEn?.slice(0, 4000),
+    );
 
     const scores = new Map<string, { score: number; reasons: Set<string> }>();
     const bump = (id: string, s: number, reason: string) => {

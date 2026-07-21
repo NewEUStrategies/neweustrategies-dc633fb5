@@ -26,6 +26,7 @@ import { useHasMounted } from "@/hooks/useHasMounted";
 import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hooks/useBookmarks";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
+import { rafThrottle } from "@/lib/rafThrottle";
 
 type ReadingHeaderThemeLogo = {
   logo?: {
@@ -35,7 +36,6 @@ type ReadingHeaderThemeLogo = {
     mobile_dark?: string;
   };
 };
-
 
 interface Props {
   title: string;
@@ -118,7 +118,6 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-
   // Save-for-later state for the current article.
   const { data: bookmarks } = useBookmarks();
   const toggleBookmark = useToggleBookmark();
@@ -150,10 +149,15 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
   }, [visible]);
 
   useEffect(() => {
-    const onScroll = (): void => setVisible(window.scrollY > showAfter);
+    // rAF-throttle: przy szybkim scrollu handler odpala raz na klatkę,
+    // nie raz na zdarzenie (INP/TBT strony artykułu).
+    const onScroll = rafThrottle((): void => setVisible(window.scrollY > showAfter));
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      onScroll.cancel();
+    };
   }, [showAfter]);
 
   return (
@@ -246,21 +250,19 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             )}
           </Link>
           <div className="relative z-50 min-w-0 overflow-visible w-[160px] md:w-[200px] lg:w-[240px]">
-
-          <SearchButtonWidget
-            label={t.search}
-            mode="dropdown"
-            heading={t.search}
-            liveResults
-            limit={8}
-            lang={lang}
-            height={24}
-            radius={6}
-            fontSize={11}
-          />
+            <SearchButtonWidget
+              label={t.search}
+              mode="dropdown"
+              heading={t.search}
+              liveResults
+              limit={8}
+              lang={lang}
+              height={24}
+              radius={6}
+              fontSize={11}
+            />
           </div>
         </div>
-
 
         {/* Mobile-only icon cluster replacing the search widget.
             Zawiera lupę i hamburger, które przez zdarzenia okna otwierają ten

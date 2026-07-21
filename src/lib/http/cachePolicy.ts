@@ -33,10 +33,16 @@ export function cacheControlHeader(input: CacheControlInput): string {
 }
 
 // Defaults tuned for a content site: a tiny browser TTL (snappy back/forward
-// without serving long-stale content from the user's own cache), a few minutes
-// of shared/CDN freshness, and a full day of stale-while-revalidate.
+// without serving long-stale content from the user's own cache), shared/CDN
+// freshness measured in minutes, and a full day of stale-while-revalidate.
+//
+// `s-maxage` addresses any shared cache in front of the app; the in-process
+// NES Edge Cache (src/lib/http/documentCache.server.ts) independently CAPS
+// its own freshness at DOCUMENT_CACHE_MAX_FRESH_MS (3 min) and is purged on
+// publish, so a longer s-maxage here never delays editorial updates on the
+// surface we control - browsers only ever see max-age (60 s).
 export const PUBLIC_CONTENT_MAX_AGE = 60; // s, browser
-export const PUBLIC_CONTENT_S_MAXAGE = 300; // s, CDN/edge
+export const PUBLIC_CONTENT_S_MAXAGE = 900; // s, CDN/edge
 export const PUBLIC_CONTENT_SWR = 86400; // s, serve-stale window
 
 export interface ContentCachePolicy {

@@ -95,6 +95,7 @@ import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
 import { InlineToc } from "@/components/post/InlineToc";
+import { ContentSkeleton } from "@/components/content/ContentSkeleton";
 import { mergeTocSettings, useTocDefaults, type TocOverride } from "@/lib/toc/settings";
 import { useReadingAdBudget } from "@/lib/ads/readingMode";
 
@@ -379,6 +380,9 @@ export const Route = createFileRoute("/$")({
   },
 
   component: PublicPage,
+  // Zimna nawigacja kliencka do wpisu/strony: artykułowy skeleton zamiast
+  // pustego ekranu (spójnie z ArchiveSkeleton na trasach archiwów).
+  pendingComponent: ContentSkeleton,
   notFoundComponent: PublicNotFound,
   errorComponent: PublicErrorComponent,
 });

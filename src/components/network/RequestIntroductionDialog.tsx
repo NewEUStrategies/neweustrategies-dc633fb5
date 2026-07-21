@@ -50,10 +50,7 @@ export function RequestIntroductionDialog({
   const [search, setSearch] = useState("");
 
   const connectionsQ = useMyConnections(search, 30);
-  const connections = useMemo(
-    () => (connectionsQ.data?.pages ?? []).flat(),
-    [connectionsQ.data],
-  );
+  const connections = useMemo(() => (connectionsQ.data?.pages ?? []).flat(), [connectionsQ.data]);
 
   // ID mostów już użytych w aktywnych wprowadzeniach do tego targetu.
   const usedBridges = useMemo(() => {
@@ -196,12 +193,7 @@ export function RequestIntroductionDialog({
             />
             <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
               <span>{t("network.introductions.messageHint")}</span>
-              <span
-                className={cn(
-                  "tabular-nums",
-                  !inRange && len > 0 && "text-destructive",
-                )}
-              >
+              <span className={cn("tabular-nums", !inRange && len > 0 && "text-destructive")}>
                 {len} / {INTRO_MESSAGE_MAX}
               </span>
             </div>

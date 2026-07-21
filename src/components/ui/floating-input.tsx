@@ -55,11 +55,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
           {label}
         </label>
         {error ? (
-          <p
-            id={errorId}
-            className="mt-1.5 pl-1 text-xs text-destructive"
-            role="alert"
-          >
+          <p id={errorId} className="mt-1.5 pl-1 text-xs text-destructive" role="alert">
             {error}
           </p>
         ) : null}
@@ -69,10 +65,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
 );
 FloatingInput.displayName = "FloatingInput";
 
-type BaseTextareaProps = Omit<
-  React.TextareaHTMLAttributes<HTMLTextAreaElement>,
-  "placeholder"
->;
+type BaseTextareaProps = Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "placeholder">;
 
 export interface FloatingTextareaProps extends BaseTextareaProps {
   label: string;
@@ -80,37 +73,36 @@ export interface FloatingTextareaProps extends BaseTextareaProps {
   containerClassName?: string;
 }
 
-export const FloatingTextarea = React.forwardRef<
-  HTMLTextAreaElement,
-  FloatingTextareaProps
->(({ label, error, id, className, containerClassName, required, rows = 4, ...rest }, ref) => {
-  const inputId = useFallbackId("fta", id);
-  const errorId = error ? `${inputId}-err` : undefined;
-  return (
-    <div
-      className={cn("input-group", containerClassName)}
-      data-invalid={error ? "true" : undefined}
-    >
-      <textarea
-        {...rest}
-        ref={ref}
-        id={inputId}
-        required={required}
-        rows={rows}
-        placeholder=" "
-        aria-invalid={error ? true : undefined}
-        aria-describedby={errorId}
-        className={cn("input", className)}
-      />
+export const FloatingTextarea = React.forwardRef<HTMLTextAreaElement, FloatingTextareaProps>(
+  ({ label, error, id, className, containerClassName, required, rows = 4, ...rest }, ref) => {
+    const inputId = useFallbackId("fta", id);
+    const errorId = error ? `${inputId}-err` : undefined;
+    return (
+      <div
+        className={cn("input-group", containerClassName)}
+        data-invalid={error ? "true" : undefined}
+      >
+        <textarea
+          {...rest}
+          ref={ref}
+          id={inputId}
+          required={required}
+          rows={rows}
+          placeholder=" "
+          aria-invalid={error ? true : undefined}
+          aria-describedby={errorId}
+          className={cn("input", className)}
+        />
         <label htmlFor={inputId} className="user-label">
           {label}
         </label>
-      {error ? (
-        <p id={errorId} className="mt-1.5 pl-1 text-xs text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
-});
+        {error ? (
+          <p id={errorId} className="mt-1.5 pl-1 text-xs text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    );
+  },
+);
 FloatingTextarea.displayName = "FloatingTextarea";

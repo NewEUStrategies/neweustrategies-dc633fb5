@@ -1128,7 +1128,6 @@ export function JoinUsForm({
         {btnLabel}
       </SubscribeButton>
 
-
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
       <p
         className="font-sans leading-relaxed text-muted-foreground"

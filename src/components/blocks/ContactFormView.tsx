@@ -727,15 +727,10 @@ function Field({
     injected = cloneElement(el, { className: merged, placeholder: " " });
   }
   return (
-    <div
-      className={`input-group ${className ?? ""}`}
-      data-invalid={error ? "true" : undefined}
-    >
+    <div className={`input-group ${className ?? ""}`} data-invalid={error ? "true" : undefined}>
       {injected}
       <label className="user-label">{label}</label>
-      {error && (
-        <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>
-      )}
+      {error && <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>}
     </div>
   );
 }

@@ -191,9 +191,7 @@ function CheckoutPage() {
                     <div className="border-t pt-4 space-y-1">
                       {coupon && coupon.discountCents > 0 && (
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>
-                            {t("checkout.subtotal", { defaultValue: "Wartość" })}
-                          </span>
+                          <span>{t("checkout.subtotal", { defaultValue: "Wartość" })}</span>
                           <span className="line-through">
                             {formatMoney(originalCents, plan.data.currency, i18n.language)}
                           </span>
