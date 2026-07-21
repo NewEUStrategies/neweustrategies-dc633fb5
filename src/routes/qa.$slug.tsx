@@ -8,12 +8,20 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, MessageSquare, Sparkles, ThumbsUp } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpenCheck,
+  MessageSquare,
+  Sparkles,
+  ThumbsUp,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   askQaQuestion,
   fetchPublicQaSessionBySlug,
   fetchPublicQaQuestions,
+  fetchQaSummaryPost,
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useAuth } from "@/hooks/useAuth";
@@ -66,6 +74,16 @@ function QaDetail() {
     queryKey: ["public-qa-questions", sessionId],
     queryFn: () => fetchPublicQaQuestions(sessionId!),
     enabled: !!sessionId,
+  });
+
+  // Podsumowanie sesji jako treść: RLS pokazuje wyłącznie opublikowany wpis
+  // (szkic z redakcyjnej kolejki nie wycieka do banera).
+  const summaryPostId = sessionQ.data?.post_id ?? null;
+  const summaryQ = useQuery({
+    queryKey: ["qa-summary-post", summaryPostId],
+    queryFn: () => fetchQaSummaryPost(summaryPostId!),
+    enabled: !!summaryPostId,
+    staleTime: 60_000,
   });
 
   const askM = useMutation({
@@ -138,6 +156,23 @@ function QaDetail() {
         <h1 className="text-4xl font-bold tracking-tight">{title}</h1>
         {intro && <p className="mt-3 whitespace-pre-line text-muted-foreground">{intro}</p>}
       </header>
+
+      {/* Wiedza nie ginie po zamknięciu sesji: link do opublikowanego
+          podsumowania (publish_qa_session_summary) nad listą pytań. */}
+      {summaryQ.data && (
+        <section className="mb-8 rounded-lg border border-primary/40 bg-primary/5 p-5">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <BookOpenCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+            {t("community.qa.summaryAvailable")}
+          </p>
+          <Button asChild size="sm" className="mt-3">
+            <Link to="/post/$slug" params={{ slug: summaryQ.data.slug }}>
+              {t("community.qa.summaryRead")}
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        </section>
+      )}
 
       <section className="mb-10 rounded-lg border border-border bg-card p-5">
         <h2 className="mb-3 text-lg font-semibold">{t("community.qa.ask")}</h2>

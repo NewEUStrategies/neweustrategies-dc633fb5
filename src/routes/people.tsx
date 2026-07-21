@@ -7,7 +7,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, Eye, EyeOff, MapPin, MessageCircle, Search, Users, X } from "lucide-react";
+import {
+  BadgeCheck,
+  Eye,
+  EyeOff,
+  MapPin,
+  MessageCircle,
+  Search,
+  Trophy,
+  Users,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +51,7 @@ import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { cn } from "@/lib/utils";
 import { ensureI18n as ensureChatI18n } from "@/lib/i18n-chat";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
+import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 export const Route = createFileRoute("/people")({
   component: PeoplePage,
   head: () => ({
@@ -52,6 +63,7 @@ function PeoplePage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureChatI18n();
   ensureNetworkI18n();
+  ensureCommunityI18n();
   const { t } = useTranslation();
   return (
     <AuthGate
@@ -283,22 +295,30 @@ function PeopleInner() {
           <h1 className="text-xl font-bold leading-tight">{t("people.title")}</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{t("people.subtitle")}</p>
         </div>
-        {modules.connections_enabled && (
+        <div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="outline" size="sm" className="gap-1.5">
-            <Link to="/network">
-              <Users className="h-3.5 w-3.5" aria-hidden />
-              {t("network.networkLink")}
-              {pendingInvites > 0 && (
-                <span
-                  className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold text-white"
-                  aria-label={t("network.pendingBadge", { count: pendingInvites })}
-                >
-                  {pendingInvites}
-                </span>
-              )}
+            <Link to="/contributors">
+              <Trophy className="h-3.5 w-3.5" aria-hidden />
+              {t("community.reputation.boardLink")}
             </Link>
           </Button>
-        )}
+          {modules.connections_enabled && (
+            <Button asChild variant="outline" size="sm" className="gap-1.5">
+              <Link to="/network">
+                <Users className="h-3.5 w-3.5" aria-hidden />
+                {t("network.networkLink")}
+                {pendingInvites > 0 && (
+                  <span
+                    className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold text-white"
+                    aria-label={t("network.pendingBadge", { count: pendingInvites })}
+                  >
+                    {pendingInvites}
+                  </span>
+                )}
+              </Link>
+            </Button>
+          )}
+        </div>
       </header>
 
       <div className="mb-4">

@@ -36,6 +36,7 @@ import { Route as FeedRouteImport } from './routes/feed'
 import { Route as ExpertsRouteImport } from './routes/experts'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as CookiesRouteImport } from './routes/cookies'
+import { Route as ContributorsRouteImport } from './routes/contributors'
 import { Route as ContributeRouteImport } from './routes/contribute'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
@@ -346,6 +347,11 @@ const EventsRoute = EventsRouteImport.update({
 const CookiesRoute = CookiesRouteImport.update({
   id: '/cookies',
   path: '/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContributorsRoute = ContributorsRouteImport.update({
+  id: '/contributors',
+  path: '/contributors',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContributeRoute = ContributeRouteImport.update({
@@ -1252,6 +1258,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/contribute': typeof ContributeRoute
+  '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
@@ -1456,6 +1463,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/contribute': typeof ContributeRoute
+  '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
@@ -1656,6 +1664,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/contribute': typeof ContributeRoute
+  '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
@@ -1863,6 +1872,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/contribute'
+    | '/contributors'
     | '/cookies'
     | '/events'
     | '/experts'
@@ -2067,6 +2077,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/contribute'
+    | '/contributors'
     | '/cookies'
     | '/events'
     | '/experts'
@@ -2266,6 +2277,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/contribute'
+    | '/contributors'
     | '/cookies'
     | '/events'
     | '/experts'
@@ -2472,6 +2484,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
   ContributeRoute: typeof ContributeRoute
+  ContributorsRoute: typeof ContributorsRoute
   CookiesRoute: typeof CookiesRoute
   EventsRoute: typeof EventsRouteWithChildren
   ExpertsRoute: typeof ExpertsRoute
@@ -2732,6 +2745,13 @@ declare module '@tanstack/react-router' {
       path: '/cookies'
       fullPath: '/cookies'
       preLoaderRoute: typeof CookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contributors': {
+      id: '/contributors'
+      path: '/contributors'
+      fullPath: '/contributors'
+      preLoaderRoute: typeof ContributorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contribute': {
@@ -4428,6 +4448,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
   ContributeRoute: ContributeRoute,
+  ContributorsRoute: ContributorsRoute,
   CookiesRoute: CookiesRoute,
   EventsRoute: EventsRouteWithChildren,
   ExpertsRoute: ExpertsRoute,

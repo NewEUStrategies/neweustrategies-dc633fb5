@@ -289,6 +289,38 @@ export async function moderateQaQuestion(
   if (error) throw error;
 }
 
+export interface QaSummaryResult {
+  post_id: string;
+  slug: string;
+  status: "draft" | "published" | "archived";
+  questions: number;
+}
+
+/**
+ * Kompiluje odpowiedziane pytania sesji w dwujęzyczny wpis (szkic lub od razu
+ * publikacja) i spina go z sesją przez qa_sessions.post_id. Uprawnienia
+ * (staff/host), idempotentny upsert i escaping egzekwuje RPC.
+ */
+export async function publishQaSessionSummary(
+  sessionId: string,
+  publish: boolean,
+): Promise<QaSummaryResult> {
+  // `as never`: RPC z migracji 20260721151000, jeszcze nie w wygenerowanych
+  // typach - do usunięcia przy regeneracji types.ts.
+  const { data, error } = await supabase.rpc(
+    "publish_qa_session_summary" as never,
+    { p_session_id: sessionId, p_publish: publish } as never,
+  );
+  if (error) throw error;
+  const obj = (data ?? {}) as Record<string, unknown>;
+  return {
+    post_id: typeof obj.post_id === "string" ? obj.post_id : "",
+    slug: typeof obj.slug === "string" ? obj.slug : "",
+    status: obj.status === "published" || obj.status === "archived" ? obj.status : "draft",
+    questions: typeof obj.questions === "number" ? obj.questions : 0,
+  };
+}
+
 export interface CreateQaSessionInput {
   slug: string;
   title_pl: string;

@@ -98,6 +98,33 @@ funkcji trzeba potwierdzić dostarczanie na żywych usługach push:
 - **Przypomnienia o wydarzeniach**: `run_event_reminders()` wysyła raz
   (stempel `reminded_at`) dla RSVP `going` na <24 h przed startem; woła je
   pg_cron (`event-reminders`, 5 \* \* \* \*) oraz oba endpointy ticku.
+- **Lista rezerwowa** (`20260721150000`): komplet miejsc nie odrzuca
+  chętnych - `rsvp_event` degraduje `going` do `waitlist` (kolejka FIFO po
+  `waitlisted_at`, pozycja stabilna przy ponowieniach). Zwolnienie miejsca
+  (rezygnacja z `going` albo podniesienie `capacity` w adminie) awansuje
+  czoło kolejki i wysyła powiadomienie "Masz miejsce". Awans zeruje
+  `reminded_at`, więc przypomnienie <24 h nadal wyjdzie. Klient nigdy nie
+  żąda statusu `waitlist` wprost; pozycję podaje
+  `get_event_waitlist_position`.
+- **Nagrania za bramką warstwy** (`20260721150000`): `get_event_access`
+  oddaje `recording_url` tylko przy fladze `recordings` warstwy (lub staff);
+  `watch_reason` (`ok`/`none`/`auth_required`/`tier_required`) steruje
+  upsellami w UI. Usunięcie flagi z warstwy natychmiast zamyka nagrania.
+- **Podsumowania sesji Q&A** (`20260721151000`): `publish_qa_session_summary`
+  (staff lub host; sesja `answering`/`closed`, min. 1 odpowiedziane pytanie)
+  kompiluje odpowiedzi w dwujęzyczny wpis spięty przez `qa_sessions.post_id`
+  - idempotentny upsert (ponowne uruchomienie odświeża treść, nie duplikuje;
+  publikacja jest jednokierunkowa). Publikacja respektuje workflow
+  redakcyjny (`can_publish_content` - host/edytor kompiluje szkic, publikuje
+  admin) i powiadamia autorów pytań. Wpis ląduje pod stroną `blog` tenanta
+  (posts.parent_page_id). Panel: Admin → Community → Q&A → ikona
+  "Podsumowanie jako treść".
+- **Reputacja i tablica kontrybutorów** (`20260721152000`): punkty liczone
+  z istniejących danych (`contribution_scores` - wagi w jednym CASE),
+  tablica `/contributors` przez `get_contributor_leaderboard` pokazuje
+  wyłącznie profile `discoverable=true` i pomija konta redakcyjne; własny
+  wynik przez `get_my_reputation` widzi każdy zalogowany. Progi poziomów:
+  `src/lib/community/reputation.ts` (prezentacja, nie DB).
 - **Kręgi**: limit 50 osób, kandydaci filtrowani serwerowo (blokady,
   `allow_messages_from`); tryb cichy członka nie zatrzymuje wiadomości
   grupy (guard zawężony do 1:1 w `20260713200000`).

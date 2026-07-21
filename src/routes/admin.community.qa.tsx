@@ -1,14 +1,26 @@
 // /admin/community/qa — moderacja sesji Q&A i pytań.
 // - Lista sesji ze statusem → workflow (draft → scheduled → open → answering → closed)
 // - Drill do pytań w sesji: approve/reject/answer
-import { createFileRoute } from "@tanstack/react-router";
+// - Podsumowanie sesji jako treść: publish_qa_session_summary (szkic albo
+//   publikacja) dla sesji answering/closed - wiedza nie ginie po zamknięciu.
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { pl as plLocale, enGB } from "date-fns/locale";
-import { HelpCircle, Check, X, Play, Pause, Archive, MessageSquare, Save } from "lucide-react";
+import {
+  HelpCircle,
+  Check,
+  X,
+  Play,
+  Pause,
+  Archive,
+  MessageSquare,
+  Save,
+  BookOpenCheck,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +47,7 @@ import {
   fetchQaQuestions,
   fetchQaSessions,
   moderateQaQuestion,
+  publishQaSessionSummary,
   updateQaSession,
   type QaQuestionRow,
   type QaQuestionStatus,
@@ -196,6 +209,9 @@ function AdminCommunityQa() {
                         <Archive className="w-4 h-4" />
                       </Button>
                     )}
+                    {(s.status === "answering" || s.status === "closed") && (
+                      <SummaryButton isPl={isPl} session={s} />
+                    )}
                     {s.status === "closed" && (
                       <Button
                         variant="ghost"
@@ -218,6 +234,99 @@ function AdminCommunityQa() {
         <QuestionsDialog isPl={isPl} session={selected} onClose={() => setSelected(null)} />
       )}
     </div>
+  );
+}
+
+/**
+ * Podsumowanie sesji jako treść: RPC publish_qa_session_summary kompiluje
+ * odpowiedziane pytania (głosy > starszeństwo) w dwujęzyczny wpis. Szkic
+ * trafia do redakcyjnej kolejki; publikacja powiadamia autorów pytań.
+ */
+function SummaryButton({ isPl, session }: { isPl: boolean; session: QaSessionRow }) {
+  const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+
+  const m = useMutation({
+    mutationFn: (publish: boolean) => publishQaSessionSummary(session.id, publish),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ["admin-qa-sessions"] });
+      setOpen(false);
+      toast.success(
+        result.status === "published"
+          ? isPl
+            ? `Opublikowano podsumowanie (${result.questions} pyt.)`
+            : `Recap published (${result.questions} questions)`
+          : isPl
+            ? `Utworzono szkic podsumowania (${result.questions} pyt.)`
+            : `Recap draft created (${result.questions} questions)`,
+        {
+          action: {
+            label: isPl ? "Otwórz w edytorze" : "Open in editor",
+            onClick: () =>
+              void navigate({ to: "/admin/posts/$slug", params: { slug: result.slug } }),
+          },
+        },
+      );
+    },
+    onError: (e: Error) => {
+      const msg = e.message ?? "";
+      if (msg.includes("no answered questions")) {
+        toast.error(
+          isPl
+            ? "Brak odpowiedzianych pytań - najpierw odpowiedz na pytania."
+            : "No answered questions yet - answer questions first.",
+        );
+      } else if (msg.includes("publish requires editorial role")) {
+        // Workflow redakcyjny (can_publish_content): publikuje admin;
+        // edytor/host może utworzyć szkic.
+        toast.error(
+          isPl
+            ? "Publikacja wymaga roli administratora - utwórz szkic."
+            : "Publishing requires an admin role - create a draft instead.",
+        );
+      } else {
+        toast.error(isPl ? "Nie udało się utworzyć podsumowania." : "Could not build the recap.");
+      }
+    },
+  });
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        title={isPl ? "Podsumowanie jako treść" : "Recap as content"}
+        onClick={() => setOpen(true)}
+      >
+        <BookOpenCheck className="w-4 h-4 text-primary" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {isPl ? "Podsumowanie sesji jako treść" : "Session recap as content"}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {isPl
+              ? "Odpowiedziane pytania (w porządku głosów społeczności) trafią do dwujęzycznego wpisu spiętego z sesją. Ponowne uruchomienie odświeży istniejący wpis - bez duplikatów."
+              : "Answered questions (ordered by community votes) become a bilingual post linked to this session. Re-running refreshes the existing post - no duplicates."}
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={m.isPending}>
+              {isPl ? "Anuluj" : "Cancel"}
+            </Button>
+            <Button variant="secondary" onClick={() => m.mutate(false)} disabled={m.isPending}>
+              {isPl ? "Utwórz szkic" : "Create draft"}
+            </Button>
+            <Button onClick={() => m.mutate(true)} disabled={m.isPending}>
+              {isPl ? "Opublikuj od razu" : "Publish now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

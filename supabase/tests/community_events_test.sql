@@ -3,7 +3,8 @@
 --   1. Publiczny odczyt: tylko opublikowane wydarzenia publicznego tenanta;
 --      join_url/recording_url odciete grantem kolumnowym (jedyna sciezka:
 --      RPC get_event_access).
---   2. rsvp_event: wyscig o ostatnie miejsce pod FOR UPDATE ('events: full'),
+--   2. rsvp_event: wyscig o ostatnie miejsce pod FOR UPDATE (komplet ->
+--      lista rezerwowa, patrz community_events_waitlist_test.sql),
 --      idempotentne ponowienie, zwolnienie miejsca przez 'cancelled',
 --      'interested' nie konsumuje miejsca.
 --   3. Bramki warstw: visibility='members' wymaga rangi >=1 (reader odpada),
@@ -125,11 +126,13 @@ SELECT is(
 
 SELECT set_config('request.jwt.claims',
   '{"sub":"d1000000-0000-0000-0000-0000000000cc","role":"authenticated"}', true);
-SELECT throws_ok(
-  $$ SELECT public.rsvp_event('d3333333-3333-3333-3333-333333333301', 'going') $$,
-  'P0001',
-  'events: full',
-  'trzecie going odbija sie o limit miejsc'
+-- Od 20260721150000 komplet nie odrzuca chetnego ('events: full') - trzecie
+-- going laduje na liscie rezerwowej FIFO (szczegoly kolejki:
+-- community_events_waitlist_test.sql).
+SELECT is(
+  ((public.rsvp_event('d3333333-3333-3333-3333-333333333301', 'going')) ->> 'status'),
+  'waitlist',
+  'trzecie going przy komplecie laduje na liscie rezerwowej'
 );
 
 SELECT lives_ok(
