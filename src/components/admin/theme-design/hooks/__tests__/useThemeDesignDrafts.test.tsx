@@ -160,11 +160,11 @@ describe("useThemeDesignDrafts - tenant isolation", () => {
 
   it("does not reset drafts on the initial tenant resolution", async () => {
     h.tenant.current = "tenant-A";
-    const { result } = setup();
+    const { result, rerender } = setup();
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.set("blockHeading", { fontSize: "40px" }));
     // Re-render with the SAME tenant - the edit must be preserved.
-    act(() => result.rerender());
+    act(() => rerender());
     expect(result.current.draft?.blockHeading.fontSize).toBe("40px");
   });
 });
