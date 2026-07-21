@@ -2560,6 +2560,7 @@ export type Database = {
           tenant_id: string
           updated_at: string
           user_id: string
+          waitlisted_at: string | null
         }
         Insert: {
           created_at?: string
@@ -2570,6 +2571,7 @@ export type Database = {
           tenant_id: string
           updated_at?: string
           user_id: string
+          waitlisted_at?: string | null
         }
         Update: {
           created_at?: string
@@ -2580,6 +2582,7 @@ export type Database = {
           tenant_id?: string
           updated_at?: string
           user_id?: string
+          waitlisted_at?: string | null
         }
         Relationships: [
           {
@@ -9909,6 +9912,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      contribution_scores: {
+        Args: { p_since: string }
+        Returns: {
+          breakdown: Json
+          points: number
+          user_id: string
+        }[]
+      }
       create_event_group: { Args: { p_event_id: string }; Returns: string }
       create_group_conversation: {
         Args: { p_member_ids: string[]; p_title: string }
@@ -10039,6 +10050,18 @@ export type Database = {
           specialization: string
         }[]
       }
+      get_contributor_leaderboard: {
+        Args: { p_days?: number; p_limit?: number }
+        Returns: {
+          avatar_url: string
+          board_position: number
+          breakdown: Json
+          display_name: string
+          points: number
+          slug: string
+          user_id: string
+        }[]
+      }
       get_correlated_events: {
         Args: { p_correlation_id: string }
         Returns: {
@@ -10080,6 +10103,7 @@ export type Database = {
           join_url: string
           reason: string
           recording_url: string
+          watch_reason: string
         }[]
       }
       get_event_rsvp_counts: {
@@ -10088,7 +10112,12 @@ export type Database = {
           event_id: string
           going: number
           interested: number
+          waitlist: number
         }[]
+      }
+      get_event_waitlist_position: {
+        Args: { p_event_id: string }
+        Returns: number
       }
       get_followed_feed: {
         Args: { p_limit?: number; p_offset?: number }
@@ -10123,6 +10152,7 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: string[]
       }
+      get_my_reputation: { Args: { p_days?: number }; Returns: Json }
       get_or_create_direct_conversation: {
         Args: { p_peer_id: string }
         Returns: string
@@ -10790,6 +10820,7 @@ export type Database = {
         Args: { _base: string }
         Returns: string
       }
+      promote_event_waitlist: { Args: { p_event_id: string }; Returns: number }
       prune_command_idempotency: { Args: never; Returns: number }
       prune_domain_events: { Args: { p_keep?: string }; Returns: number }
       prune_integration_deliveries: { Args: never; Returns: number }
@@ -10797,6 +10828,12 @@ export type Database = {
       public_tenant_id: { Args: never; Returns: string }
       publish_due_pages: { Args: never; Returns: number }
       publish_due_posts: { Args: never; Returns: number }
+      publish_qa_session_summary: {
+        Args: { p_publish?: boolean; p_session_id: string }
+        Returns: Json
+      }
+      qa_escape_html: { Args: { p_text: string }; Returns: string }
+      qa_text_to_html: { Args: { p_text: string }; Returns: string }
       rate_limit_hit: {
         Args: {
           _max: number
