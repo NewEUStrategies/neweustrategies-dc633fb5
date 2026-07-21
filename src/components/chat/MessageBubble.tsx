@@ -150,7 +150,7 @@ function ReactionChips({
         return (
           <button
             key={emoji}
-            key-data-emoji={emoji}
+            data-emoji={emoji}
             type="button"
             onClick={() => onReact(emoji, myReaction)}
             aria-pressed={isMine}
