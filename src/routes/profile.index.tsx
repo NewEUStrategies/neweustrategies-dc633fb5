@@ -82,6 +82,7 @@ function ProfileInline() {
   const { data, loading, saveField, upload, progress, status } = useProfileEditor();
   const [previewAsGuest, setPreviewAsGuest] = useState(false);
   const [tab, setTab] = useState<TabKey>("about");
+  const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
 
   // Propaguj tryb podglądu gościa do layoutu /profile (ukrywa sidebar) i
   // sprzątaj przy odmontowaniu, żeby powrót na /profile/* nie zostawiał
