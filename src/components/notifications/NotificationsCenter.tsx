@@ -73,8 +73,8 @@ const KIND_OPTIONS: KindFilter[] = [
   "system",
 ];
 
-/** Rows fetched per page; "load more" grows the window by this amount. */
-const NOTIFICATIONS_PAGE_SIZE = 50;
+// Rozmiar strony pochodzi z warstwy danych - Bell i Center współdzielą cache
+// tylko wtedy, gdy używają tego samego `pageSize` (patrz useNotifications.ts).
 
 function pickTitle(n: NotificationRow, lang: Lang): string {
   return (lang === "en" && n.title_en) || n.title_pl;
