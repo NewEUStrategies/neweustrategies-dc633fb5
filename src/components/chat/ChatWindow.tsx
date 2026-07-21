@@ -1133,26 +1133,34 @@ export function ChatWindow(props: ChatWindowProps) {
         {mediaToggle}
         {conversationMenu}
         {onMinimize && (
-          <button
-            type="button"
-            onClick={onMinimize}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label={t("chat.minimize")}
-            title={t("chat.minimize")}
-          >
-            <Minus className="h-4 w-4" aria-hidden />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onMinimize}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                aria-label={t("chat.minimize")}
+              >
+                <Minus className="h-4 w-4" aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t("chat.minimize")}</TooltipContent>
+          </Tooltip>
         )}
         {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label={t("chat.close")}
-            title={t("chat.close")}
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                aria-label={t("chat.close")}
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t("chat.close")}</TooltipContent>
+          </Tooltip>
         )}
       </header>
       {body}
