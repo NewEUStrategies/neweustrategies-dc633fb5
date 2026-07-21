@@ -163,45 +163,53 @@ function AdminWorkflowsPage() {
     };
   }, [definitions, recentRuns]);
 
+  const jumpToFailed = () => {
+    setRunStatusFilter("failed");
+    setSearch({ tab: "runs", workflow: undefined });
+  };
+
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="font-display flex items-center gap-2 text-xl font-bold">
+      <header className="flex flex-col gap-3 border-b border-border pb-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] bg-brand/10 text-brand">
             <WorkflowIcon className="h-5 w-5" aria-hidden />
-            {t("adminWorkflows.title")}
-          </h1>
-          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-            {t("adminWorkflows.subtitle")}
-          </p>
+          </span>
+          <div>
+            <h1 className="font-display text-xl font-bold">{t("adminWorkflows.title")}</h1>
+            <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">
+              {t("adminWorkflows.subtitle")}
+            </p>
+          </div>
         </div>
-        <Button onClick={() => setEditorDraft(emptyWorkflowDraft())}>
+        <Button onClick={() => setEditorDraft(emptyWorkflowDraft())} className="md:self-center">
           <PlusCircle className="mr-2 h-4 w-4" aria-hidden />
           {t("adminWorkflows.definitions.newRecipe")}
         </Button>
       </header>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label={t("adminWorkflows.kpi.activeDefinitions")} value={kpis.active} />
-        <KpiCard
-          label={t("adminWorkflows.kpi.runsWindow", { count: RUNS_WINDOW })}
-          value={kpis.runs}
-        />
-        <KpiCard
-          label={t("adminWorkflows.kpi.failuresWindow", { count: RUNS_WINDOW })}
-          value={kpis.failed}
-          tone={kpis.failed > 0 ? "destructive" : "default"}
-        />
-        <KpiCard label={t("adminWorkflows.kpi.templatesInstalled")} value={kpis.installed} />
-      </div>
-
       <Tabs value={tab} onValueChange={(value) => setSearch({ tab: value as WorkflowsTab })}>
         <TabsList className="flex w-full flex-wrap justify-start sm:w-auto">
           <TabsTrigger value="definitions">{t("adminWorkflows.tabs.definitions")}</TabsTrigger>
-          <TabsTrigger value="runs">{t("adminWorkflows.tabs.runs")}</TabsTrigger>
           <TabsTrigger value="templates">{t("adminWorkflows.tabs.templates")}</TabsTrigger>
+          <TabsTrigger value="runs">{t("adminWorkflows.tabs.runs")}</TabsTrigger>
           <TabsTrigger value="trace">{t("adminWorkflows.tabs.trace")}</TabsTrigger>
         </TabsList>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiCard label={t("adminWorkflows.kpi.activeDefinitions")} value={kpis.active} />
+          <KpiCard label={t("adminWorkflows.kpi.templatesInstalled")} value={kpis.installed} />
+          <KpiCard
+            label={t("adminWorkflows.kpi.runsWindow", { count: RUNS_WINDOW })}
+            value={kpis.runs}
+          />
+          <KpiCard
+            label={t("adminWorkflows.kpi.failuresWindow", { count: RUNS_WINDOW })}
+            value={kpis.failed}
+            tone={kpis.failed > 0 ? "destructive" : "default"}
+            onClick={kpis.failed > 0 ? jumpToFailed : undefined}
+          />
+        </div>
 
         <TabsContent value="definitions" className="mt-4">
           <WorkflowDefinitionsPanel
@@ -220,6 +228,14 @@ function AdminWorkflowsPage() {
           />
         </TabsContent>
 
+        <TabsContent value="templates" className="mt-4">
+          <WorkflowTemplatesPanel
+            templates={templates}
+            definitions={definitions}
+            loading={templatesQuery.isLoading}
+          />
+        </TabsContent>
+
         <TabsContent value="runs" className="mt-4">
           <WorkflowRunsPanel
             definitions={definitions}
@@ -229,14 +245,6 @@ function AdminWorkflowsPage() {
               setSearch({ workflow: next.workflowId ?? undefined });
             }}
             onShowTrace={showTrace}
-          />
-        </TabsContent>
-
-        <TabsContent value="templates" className="mt-4">
-          <WorkflowTemplatesPanel
-            templates={templates}
-            definitions={definitions}
-            loading={templatesQuery.isLoading}
           />
         </TabsContent>
 
@@ -263,13 +271,23 @@ function KpiCard({
   label,
   value,
   tone = "default",
+  onClick,
 }: {
   label: string;
   value: number;
   tone?: "default" | "destructive";
+  onClick?: () => void;
 }) {
+  const clickable = typeof onClick === "function";
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      className={
+        clickable
+          ? "cursor-pointer transition-colors hover:border-brand/40 hover:bg-brand/5"
+          : ""
+      }
+    >
       <CardContent className="space-y-1 p-3">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div
@@ -283,3 +301,4 @@ function KpiCard({
     </Card>
   );
 }
+
