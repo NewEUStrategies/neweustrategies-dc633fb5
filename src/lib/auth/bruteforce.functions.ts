@@ -81,7 +81,20 @@ const preAuthSchema = z.object({
 });
 
 export const preAuthGuard = createServerFn({ method: "POST" })
-  .inputValidator((raw: unknown) => preAuthSchema.parse(raw))
+  .inputValidator((raw: unknown) => {
+    const parsed = preAuthSchema.safeParse(raw);
+    if (parsed.success) return parsed.data;
+    // Zamieniamy ZodError na stabilny, tagowany Error - dzięki temu klient nie
+    // dostaje surowego JSON-a w toastcie ani blank screen z error boundary,
+    // tylko przewidywalny kod, który UI mapuje na komunikat + bezpieczny stan.
+    const issue = parsed.error.issues[0];
+    const err = new Error(
+      `auth: invalid_input${issue?.path?.length ? `:${issue.path.join(".")}` : ""}`,
+    );
+    (err as Error & { code?: string; issues?: unknown }).code = "invalid_input";
+    (err as Error & { code?: string; issues?: unknown }).issues = parsed.error.issues;
+    throw err;
+  })
   .handler(async ({ data }) => {
     const ipHash = currentIpHash();
     const emailSubject = hashSubject(`email:${data.kind}`, data.email);
