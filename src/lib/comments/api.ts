@@ -151,8 +151,8 @@ export async function createComment(input: {
   body: string;
   parentId?: string | null;
 }): Promise<CommentRow> {
-  const { data: authData } = await supabase.auth.getUser();
-  const user = authData.user;
+  const { data: authData } = await supabase.auth.getSession();
+  const user = authData.session?.user;
   if (!user) throw new Error("auth_required");
   const trimmed = input.body.trim();
   if (trimmed.length < 1 || trimmed.length > 5000) throw new Error("invalid_length");
