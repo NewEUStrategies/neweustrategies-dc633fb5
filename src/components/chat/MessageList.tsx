@@ -446,6 +446,7 @@ export function MessageList(props: MessageListProps) {
                   groupStart={groupStart}
                   groupEnd={groupEnd}
                   reactions={reactions.get(message.id) ?? NO_REACTIONS}
+                  reactorProfiles={reactorProfiles}
                   myUserId={myUserId}
                   repliedMessage={replied}
                   repliedAuthorName={
