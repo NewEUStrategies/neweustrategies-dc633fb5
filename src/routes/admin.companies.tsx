@@ -146,7 +146,7 @@ function AdminCompaniesPage() {
   const navigate = Route.useNavigate();
   const setDrawerId = (id: string | null) => {
     void navigate({
-      search: (prev) => ({ ...prev, company: id ?? undefined }),
+      search: (prev: { company?: string }) => ({ ...prev, company: id ?? undefined }),
       replace: false,
     });
   };
