@@ -34,6 +34,7 @@ import {
 } from "@/lib/builder/formFieldConfig";
 import { CountryCombobox } from "@/components/interests/CountryCombobox";
 import { FloatingInput } from "@/components/ui/floating-input";
+import { Checkbox } from "@/components/ui/checkbox";
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
@@ -1027,16 +1028,12 @@ export function JoinUsForm({
                                         active ? "bg-brand/10 text-brand" : "hover:bg-accent",
                                       )}
                                     >
-                                      <span
-                                        className={cn(
-                                          "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition",
-                                          active
-                                            ? "border-brand bg-brand text-brand-foreground"
-                                            : "border-border bg-background",
-                                        )}
-                                      >
-                                        {active && <Check className="h-2.5 w-2.5" />}
-                                      </span>
+                                      <Checkbox
+                                        checked={active}
+                                        tabIndex={-1}
+                                        aria-hidden="true"
+                                        className="pointer-events-none h-[16px] w-[16px]"
+                                      />
                                       <span className="min-w-0 flex-1 truncate">{it.label}</span>
                                     </button>
                                   );
