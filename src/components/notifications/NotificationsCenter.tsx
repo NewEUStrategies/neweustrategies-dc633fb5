@@ -148,7 +148,8 @@ function listKeyIsOnlyUnread(key: readonly unknown[]): boolean {
   );
 }
 
-type NotificationListSnapshot = Array<[QueryKey, NotificationRow[] | undefined]>;
+type NotificationInfiniteData = InfiniteData<NotificationRow[], number>;
+type NotificationListSnapshot = Array<[QueryKey, NotificationInfiniteData | undefined]>;
 
 export type NotificationsCenterMode = "full" | "inbox" | "preferences" | "consents";
 
@@ -159,13 +160,8 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   const [tab, setTab] = useState<TabValue>(initialTab);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
-  const [limit, setLimit] = useState(NOTIFICATIONS_PAGE_SIZE);
-
-  // Switching tab/kind starts a fresh window - never carry an inflated limit
-  // (grown by "load more") into a different filter.
-  useEffect(() => {
-    setLimit(NOTIFICATIONS_PAGE_SIZE);
-  }, [tab, kindFilter]);
+  // Paginacja jest teraz w warstwie danych - `useNotificationsInfinite`
+  // trzyma strony w cache i sam resetuje je przy zmianie queryKey (tab/kind).
 
   useNotificationsRealtime();
   useNotificationPreferencesRealtime();
@@ -176,8 +172,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   const updatePrefs = useUpdateNotificationPreferences();
   const prefs: NotificationPreferences = prefsQ.data ?? DEFAULT_NOTIFICATION_PREFERENCES;
 
-  const listQ = useNotifications({
-    limit,
+  const listQ = useNotificationsInfinite({
     onlyUnread: tab === "unread",
     kind: kindFilter === "all" ? null : kindFilter,
   });
