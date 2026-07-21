@@ -519,6 +519,98 @@ export type Database = {
           },
         ]
       }
+      b2b_coupon_campaigns: {
+        Row: {
+          code_count: number
+          code_length: number
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          description: string | null
+          discount_cents: number | null
+          discount_kind: string
+          discount_percent: number | null
+          generated_count: number
+          grants_duration_days: number | null
+          grants_tier_key: string | null
+          id: string
+          max_redemptions_per_code: number | null
+          metadata: Json
+          name: string
+          newsletter_campaign_id: string | null
+          newsletter_segment: string | null
+          plan_ids: string[]
+          prefix: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          code_count: number
+          code_length?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind: string
+          discount_percent?: number | null
+          generated_count?: number
+          grants_duration_days?: number | null
+          grants_tier_key?: string | null
+          id?: string
+          max_redemptions_per_code?: number | null
+          metadata?: Json
+          name: string
+          newsletter_campaign_id?: string | null
+          newsletter_segment?: string | null
+          plan_ids?: string[]
+          prefix?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          code_count?: number
+          code_length?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_cents?: number | null
+          discount_kind?: string
+          discount_percent?: number | null
+          generated_count?: number
+          grants_duration_days?: number | null
+          grants_tier_key?: string | null
+          id?: string
+          max_redemptions_per_code?: number | null
+          metadata?: Json
+          name?: string
+          newsletter_campaign_id?: string | null
+          newsletter_segment?: string | null
+          plan_ids?: string[]
+          prefix?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_coupon_campaigns_newsletter_campaign_id_fkey"
+            columns: ["newsletter_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       b2b_coupon_redemptions: {
         Row: {
           applied_cents: number
@@ -573,6 +665,9 @@ export type Database = {
       b2b_coupons: {
         Row: {
           active: boolean
+          assigned_company_id: string | null
+          assigned_lead_id: string | null
+          campaign_id: string | null
           code: string
           created_at: string
           created_by: string | null
@@ -581,12 +676,17 @@ export type Database = {
           discount_cents: number | null
           discount_kind: string
           discount_percent: number | null
+          grants_duration_days: number | null
+          grants_tier_key: string | null
           id: string
+          lead_score_bonus: number
           max_redemptions: number | null
           metadata: Json
           name: string | null
+          newsletter_segment: string | null
           organization_id: string | null
           plan_ids: string[]
+          prefix: string | null
           redemptions_count: number
           tenant_id: string
           updated_at: string
@@ -595,6 +695,9 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          assigned_company_id?: string | null
+          assigned_lead_id?: string | null
+          campaign_id?: string | null
           code: string
           created_at?: string
           created_by?: string | null
@@ -603,12 +706,17 @@ export type Database = {
           discount_cents?: number | null
           discount_kind: string
           discount_percent?: number | null
+          grants_duration_days?: number | null
+          grants_tier_key?: string | null
           id?: string
+          lead_score_bonus?: number
           max_redemptions?: number | null
           metadata?: Json
           name?: string | null
+          newsletter_segment?: string | null
           organization_id?: string | null
           plan_ids?: string[]
+          prefix?: string | null
           redemptions_count?: number
           tenant_id?: string
           updated_at?: string
@@ -617,6 +725,9 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          assigned_company_id?: string | null
+          assigned_lead_id?: string | null
+          campaign_id?: string | null
           code?: string
           created_at?: string
           created_by?: string | null
@@ -625,12 +736,17 @@ export type Database = {
           discount_cents?: number | null
           discount_kind?: string
           discount_percent?: number | null
+          grants_duration_days?: number | null
+          grants_tier_key?: string | null
           id?: string
+          lead_score_bonus?: number
           max_redemptions?: number | null
           metadata?: Json
           name?: string | null
+          newsletter_segment?: string | null
           organization_id?: string | null
           plan_ids?: string[]
+          prefix?: string | null
           redemptions_count?: number
           tenant_id?: string
           updated_at?: string
@@ -638,6 +754,34 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "b2b_coupons_assigned_company_id_fkey"
+            columns: ["assigned_company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupons_assigned_lead_id_fkey"
+            columns: ["assigned_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupons_assigned_lead_id_fkey"
+            columns: ["assigned_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupons_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_coupon_campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "b2b_coupons_organization_id_fkey"
             columns: ["organization_id"]
@@ -9707,6 +9851,21 @@ export type Database = {
           mime_type: string
         }[]
       }
+      b2b_coupons_analytics: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          code: string
+          coupon_id: string
+          discount_cents_total: number
+          name: string
+          redemptions: number
+          revenue_cents: number
+        }[]
+      }
+      bulk_generate_coupons_for_campaign: {
+        Args: { _campaign_id: string }
+        Returns: number
+      }
       bump_tenant_counter: {
         Args: { p_delta: number; p_key: string; p_tenant_id: string }
         Returns: undefined
@@ -10872,6 +11031,16 @@ export type Database = {
         Returns: undefined
       }
       redeem_b2b_coupon: {
+        Args: {
+          _applied_cents: number
+          _coupon_id: string
+          _currency: string
+          _order_id: string
+          _original_cents: number
+        }
+        Returns: boolean
+      }
+      redeem_b2b_coupon_with_effects: {
         Args: {
           _applied_cents: number
           _coupon_id: string
