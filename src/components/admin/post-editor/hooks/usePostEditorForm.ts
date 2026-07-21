@@ -22,7 +22,7 @@ import {
 } from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
-import type { PostForm } from "./postForm";
+import type { PostForm } from "../types";
 import type { PostEditorData } from "./usePostEditorData";
 
 export function usePostEditorForm(routeSlug: string, data: PostEditorData) {

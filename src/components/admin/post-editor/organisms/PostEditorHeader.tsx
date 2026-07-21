@@ -1,19 +1,22 @@
-// Górny pasek edytora wpisu: powrót/krok, wskaźnik kroków 1→2, autosave bar,
-// usuwanie i zapis. Wyodrębnione 1:1 z trasy admin.posts.$slug.
+// Organizm: górny pasek edytora wpisu - powrót/krok, wskaźnik kroków 1->2,
+// autosave bar, usuwanie i zapis. Wyodrębnione 1:1 z trasy admin.posts.$slug.
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Save, Trash2, FileText, Settings as SettingsIcon } from "@/lib/lucide-shim";
+import { ArrowLeft, Save, Trash2 } from "@/lib/lucide-shim";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
-import type { PostEditorFormApi } from "./usePostEditorForm";
+import { StepIndicator } from "../molecules";
+import type { EditorStep } from "../types";
+import type { PostEditorFormApi } from "../hooks";
+import "@/lib/i18n-admin-post-panes";
 
 export function PostEditorHeader({
   step,
   onStepChange,
   formApi,
 }: {
-  step: "details" | "content";
-  onStepChange: (step: "details" | "content") => void;
+  step: EditorStep;
+  onStepChange: (step: EditorStep) => void;
   formApi: PostEditorFormApi;
 }) {
   const { t } = useTranslation();
@@ -32,26 +35,11 @@ export function PostEditorHeader({
           onClick={() => onStepChange("details")}
           className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
         >
-          <ArrowLeft className="w-4 h-4" /> Szczegóły wpisu
+          <ArrowLeft className="w-4 h-4" /> {t("adminPostPanes.editor.detailsStep")}
         </button>
       )}
       <div className="flex items-center gap-2">
-        {/* Step indicator */}
-        <div className="hidden md:flex items-center gap-1 mr-2 text-xs">
-          <button
-            onClick={() => onStepChange("details")}
-            className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "details" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
-          >
-            <SettingsIcon className="w-3.5 h-3.5" /> 1. Szczegóły
-          </button>
-          <span className="text-muted-foreground">→</span>
-          <button
-            onClick={() => onStepChange("content")}
-            className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "content" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
-          >
-            <FileText className="w-3.5 h-3.5" /> 2. Treść
-          </button>
-        </div>
+        <StepIndicator step={step} onStepChange={onStepChange} />
         <AutosaveBar
           status={autosave.status}
           error={autosave.error}
