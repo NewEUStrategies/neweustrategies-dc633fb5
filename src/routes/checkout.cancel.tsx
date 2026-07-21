@@ -10,8 +10,12 @@ export const Route = createFileRoute("/checkout/cancel")({
   }),
   component: CancelPage,
   head: () => ({
-    meta: [{ title: "Płatność anulowana" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [
+      { title: "Payment canceled · Płatność anulowana" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
   }),
+
 });
 
 function CancelPage() {
