@@ -303,6 +303,13 @@ function AdminShellInner({
           label: t("admin.nav.crm", { defaultValue: lang === "pl" ? "CRM" : "CRM" }),
         },
         {
+          to: "/admin/companies",
+          icon: Users,
+          label: t("admin.nav.companies", {
+            defaultValue: lang === "pl" ? "Firmy CRM" : "CRM companies",
+          }),
+        },
+        {
           to: "/admin/workflows",
           icon: Workflow,
           label: t("admin.nav.workflows", {
