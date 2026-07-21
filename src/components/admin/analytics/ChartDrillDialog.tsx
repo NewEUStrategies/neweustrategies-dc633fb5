@@ -95,9 +95,7 @@ export function ChartDrillDialog({ open, onOpenChange, detail }: ChartDrillDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg rounded-[6px]">
         <DialogHeader>
-          <DialogTitle className="font-display text-base leading-tight">
-            {detail.title}
-          </DialogTitle>
+          <DialogTitle className="font-display text-base leading-tight">{detail.title}</DialogTitle>
           {detail.subtitle ? (
             <DialogDescription className="text-xs">{detail.subtitle}</DialogDescription>
           ) : null}

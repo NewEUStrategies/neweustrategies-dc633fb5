@@ -24,7 +24,7 @@ vi.mock("@/integrations/supabase/client", () => {
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k,
-    i18n: { language: "pl" },
+    i18n: { language: "pl", changeLanguage: () => {} },
   }),
   // lib/i18n.ts (reached via the widget import graph) calls
   // `i18n.use(initReactI18next)` at module import - a full-module mock must
@@ -141,10 +141,12 @@ describe("document-level listeners", () => {
     expect(container).toBeTruthy();
   });
 
-  it("language dropdown closes on outside mousedown", () => {
+  it("language toggle przelacza bezposrednio - zero dropdownu i listenerow dokumentu", () => {
+    // Redesign: segmentowy przycisk PL|EN nie otwiera zadnej nakladki, wiec
+    // nie zostawia po sobie document-level listenerow do zamykania.
     const { container } = widget("lang-switcher", { label_pl: "Język" });
-    fireEvent.click(screen.getByRole("button", { name: "Język" }));
-    expect(container.querySelector('[role="listbox"]')).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Język: PL → EN" }));
+    expect(container.querySelector('[role="listbox"]')).toBeNull();
     act(() => {
       document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     });

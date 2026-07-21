@@ -248,39 +248,40 @@ export function VitalsBiDashboard() {
     [metricsByName],
   );
 
-  const buildTrendClick = (metric: VitalName) => (p: ChartClickParams): ChartDrillDetail | null => {
-    const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
-    const trend = report?.trends[idx];
-    const val = trend?.p75[metric] ?? null;
-    if (!trend || val === null || val === undefined) return null;
-    const [g, poor] = VITAL_THRESHOLDS[metric];
-    const tone: "good" | "warn" | "bad" = val <= g ? "good" : val <= poor ? "warn" : "bad";
-    const ratingKey =
-      tone === "good" ? "good" : tone === "warn" ? "needs" : "poor";
-    return {
-      title: `${metric} p75`,
-      subtitle: t("adminAnalytics.vitals.trendSubtitle"),
-      date: trend.day,
-      metrics: [
-        { label: `${metric} p75`, value: fmtValue(metric, val), tone },
-        {
-          label: t("adminAnalytics.drillDialog.rating.good"),
-          value: `<= ${fmtValue(metric, g)}`,
-          tone: "good",
-        },
-        {
-          label: t("adminAnalytics.drillDialog.rating.poor"),
-          value: `> ${fmtValue(metric, poor)}`,
-          tone: "bad",
-        },
-        {
-          label: t("adminAnalytics.vitals.samplesLabel"),
-          value: t(`adminAnalytics.drillDialog.rating.${ratingKey}`),
-          tone,
-        },
-      ],
+  const buildTrendClick =
+    (metric: VitalName) =>
+    (p: ChartClickParams): ChartDrillDetail | null => {
+      const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
+      const trend = report?.trends[idx];
+      const val = trend?.p75[metric] ?? null;
+      if (!trend || val === null || val === undefined) return null;
+      const [g, poor] = VITAL_THRESHOLDS[metric];
+      const tone: "good" | "warn" | "bad" = val <= g ? "good" : val <= poor ? "warn" : "bad";
+      const ratingKey = tone === "good" ? "good" : tone === "warn" ? "needs" : "poor";
+      return {
+        title: `${metric} p75`,
+        subtitle: t("adminAnalytics.vitals.trendSubtitle"),
+        date: trend.day,
+        metrics: [
+          { label: `${metric} p75`, value: fmtValue(metric, val), tone },
+          {
+            label: t("adminAnalytics.drillDialog.rating.good"),
+            value: `<= ${fmtValue(metric, g)}`,
+            tone: "good",
+          },
+          {
+            label: t("adminAnalytics.drillDialog.rating.poor"),
+            value: `> ${fmtValue(metric, poor)}`,
+            tone: "bad",
+          },
+          {
+            label: t("adminAnalytics.vitals.samplesLabel"),
+            value: t(`adminAnalytics.drillDialog.rating.${ratingKey}`),
+            tone,
+          },
+        ],
+      };
     };
-  };
 
   const ratingStackClick = (p: ChartClickParams): ChartDrillDetail | null => {
     const idx = typeof p.dataIndex === "number" ? p.dataIndex : -1;
@@ -304,9 +305,7 @@ export function VitalsBiDashboard() {
   };
 
   const pathTreemapClick = (p: ChartClickParams): ChartDrillDetail | null => {
-    const d = p.data as
-      | { fullPath?: string; value?: number; lcp?: number }
-      | undefined;
+    const d = p.data as { fullPath?: string; value?: number; lcp?: number } | undefined;
     if (!d?.fullPath) return null;
     const [g, poor] = VITAL_THRESHOLDS.LCP;
     const lcp = d.lcp ?? 0;
@@ -335,7 +334,6 @@ export function VitalsBiDashboard() {
       ],
     };
   };
-
 
   return (
     <div className="space-y-4">
@@ -435,7 +433,6 @@ export function VitalsBiDashboard() {
             height={340}
             onDataClick={pathTreemapClick}
           />
-
 
           {/* Interpretacja + rekomendacje - priorytetyzowana lista działań
               per metryka i per ścieżka, zbudowana z tego samego raportu. */}

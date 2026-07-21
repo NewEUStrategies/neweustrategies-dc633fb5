@@ -93,6 +93,50 @@ describe("grantEntitlement", () => {
     expect(find("update")).toBeFalsy();
   });
 
+  it("brakujacy wiersz planu degraduje do domyslnego interwalu (plan?.interval ?? null)", async () => {
+    // 1st maybeSingle: lookup planu zwraca pusto (plan usuniety/rozjazd id) -
+    // grant nie moze sie wywrocic; periodEndFor(null) daje bezpieczny default.
+    h.state.maybeSingleQueue = [
+      { data: null, error: null },
+      { data: null, error: null },
+    ];
+
+    await grantEntitlement(subOrder, "sub_defaults");
+
+    const insert = find("insert");
+    expect(insert).toBeTruthy();
+    const row = insert!.args[0] as Record<string, unknown>;
+    expect(row.status).toBe("active");
+    // Domyslny okres jest skonczonym, przyszlym terminem (nie lifetime-null).
+    expect(typeof row.current_period_end).toBe("string");
+    expect(new Date(row.current_period_end as string).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("plan lifetime (one_time + plan_id, bez encji) pomija lookup interwalu i zapisuje bez wygasania", async () => {
+    // Galaz `!entitlement.lifetime` == false: zero zapytan o access_plans,
+    // current_period_end zostaje NULL (has_content_access: nigdy nie wygasa).
+    const lifetimeOrder: GrantableOrder = {
+      ...subOrder,
+      id: "ord_life",
+      kind: "one_time",
+      plan_id: "plan_life",
+      entity_type: null,
+      entity_id: null,
+    };
+    // Jedyny maybeSingle to sprawdzenie istniejacej subskrypcji.
+    h.state.maybeSingleQueue = [{ data: null, error: null }];
+
+    await grantEntitlement(lifetimeOrder, "cs_lifetime_1");
+
+    expect(tables()).not.toContain("access_plans");
+    const insert = find("insert");
+    expect(insert).toBeTruthy();
+    const row = insert!.args[0] as Record<string, unknown>;
+    expect(row.status).toBe("active");
+    expect(row.current_period_end).toBeNull();
+    expect(row.external_ref).toBe("cs_lifetime_1");
+  });
+
   it("refreshes an existing subscription instead of duplicating it (Stripe replay)", async () => {
     h.state.maybeSingleQueue = [
       { data: { interval: "month" }, error: null },

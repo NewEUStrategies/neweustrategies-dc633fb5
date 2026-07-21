@@ -21,7 +21,6 @@ export const Route = createFileRoute("/checkout/success")({
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
-
 });
 
 const RETURN_KEY = "checkout:returnTo";

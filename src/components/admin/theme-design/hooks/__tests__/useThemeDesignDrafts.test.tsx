@@ -118,9 +118,7 @@ describe("useThemeDesignDrafts - save orchestration", () => {
     act(() => result.current.saveAll());
 
     expect(h.saveTd).toHaveBeenCalledTimes(1);
-    expect(h.saveTd).toHaveBeenCalledWith(
-      expect.objectContaining({ lang: "pl" }),
-    );
+    expect(h.saveTd).toHaveBeenCalledWith(expect.objectContaining({ lang: "pl" }));
     expect(h.saveCarousel).toHaveBeenCalledTimes(1);
     // Overlay draft never changed -> no columns to write.
     expect(h.saveOverlay).not.toHaveBeenCalled();

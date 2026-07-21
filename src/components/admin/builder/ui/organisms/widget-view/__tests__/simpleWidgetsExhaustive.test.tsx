@@ -392,12 +392,13 @@ describe("theme toggle + language switcher (interactive)", () => {
     fireEvent.click(btn!);
   });
 
-  it("opens the language dropdown and selects an option", () => {
+  it("przelacza jezyk segmentowanym przelacznikiem PL|EN (bez dropdownu)", () => {
+    // Redesign widgetu: zamiast dropdownu z listbox/option jest jeden przycisk
+    // segmentowy PL|EN; klik przelacza wprost na drugi jezyk.
     renderNode("lang-switcher", { label_pl: "Język" });
-    const trigger = screen.getByRole("button", { name: "Język" });
+    const trigger = screen.getByRole("button", { name: "Język: PL → EN" });
     fireEvent.click(trigger);
-    const en = screen.getByRole("option", { name: /EN/ });
-    fireEvent.click(en);
+    expect(screen.queryByRole("listbox")).toBeNull();
     expect(changeLanguage).toHaveBeenCalledWith("en");
   });
 });

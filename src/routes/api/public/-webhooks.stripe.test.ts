@@ -76,6 +76,19 @@ vi.mock("@/lib/billing/grant.server", () => ({
   grantEntitlement: (...args: unknown[]) => h.grant(...args),
 }));
 
+// Dynamiczny import w handlerze (fetchStripeInvoiceUrl) trafia w ten mock -
+// pozwala testowac galaz "invoice_url" bez sieci i bez realnego klucza.
+const invoiceMock = vi.hoisted(() => ({
+  fn: vi.fn(async (_invoiceId: string, _secret: string) => ({
+    ok: true as boolean,
+    url: "https://stripe.example/inv_1.pdf" as string | null,
+    error: undefined as string | undefined,
+  })),
+}));
+vi.mock("@/lib/billing/stripe.server", () => ({
+  fetchStripeInvoiceUrl: (invoiceId: string, secret: string) => invoiceMock.fn(invoiceId, secret),
+}));
+
 import { __handleForTests as handle } from "./webhooks.stripe";
 
 const SECRET = "whsec_test_secret";
@@ -241,6 +254,196 @@ describe("stripe webhook handler", () => {
     expect(call("from")?.args).toEqual(["donations"]);
     expect((call("update")?.args[0] as { status?: string }).status).toBe("refunded");
     expect(call("eq")?.args).toEqual(["provider_intent_id", "pi_don_1"]);
+  });
+
+  it("checkout.session.completed dokleja invoice_url z API Stripe, gdy sesja niesie fakturę", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_1";
+    h.state.result = {
+      data: { id: "ord_inv", user_id: "u1", kind: "subscription", entity_type: null },
+      error: null,
+    };
+    const payload = JSON.stringify({
+      id: "evt_inv",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_inv_1",
+          client_reference_id: "ord_inv",
+          subscription: "sub_inv",
+          invoice: "in_123",
+          amount_total: 4900,
+          currency: "pln",
+        },
+      },
+    });
+    const res = await handle(req(payload));
+    delete process.env.STRIPE_SECRET_KEY;
+    expect(res.status).toBe(200);
+    expect(invoiceMock.fn).toHaveBeenCalledWith("in_123", "sk_test_1");
+    const update = call("update");
+    expect((update?.args[0] as { invoice_url?: string }).invoice_url).toBe(
+      "https://stripe.example/inv_1.pdf",
+    );
+  });
+
+  it("nieudane pobranie faktury nie blokuje ksiegowania (best-effort, bez invoice_url)", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_1";
+    invoiceMock.fn.mockResolvedValueOnce({ ok: false, url: null, error: "boom" });
+    h.state.result = {
+      data: { id: "ord_inv2", user_id: "u1", kind: "subscription", entity_type: null },
+      error: null,
+    };
+    const payload = JSON.stringify({
+      id: "evt_inv2",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_inv_2",
+          client_reference_id: "ord_inv2",
+          subscription: "sub_inv2",
+          invoice: "in_456",
+          amount_total: 100,
+          currency: "eur",
+        },
+      },
+    });
+    const res = await handle(req(payload));
+    delete process.env.STRIPE_SECRET_KEY;
+    expect(res.status).toBe(200);
+    const update = call("update");
+    expect(Object.prototype.hasOwnProperty.call(update?.args[0] as object, "invoice_url")).toBe(
+      false,
+    );
+  });
+
+  it("customer.subscription.updated lustrzy period_end i czysci oczekujace anulowanie", async () => {
+    const payload = JSON.stringify({
+      id: "evt_su_active",
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub_9",
+          status: "active",
+          cancel_at_period_end: false,
+          current_period_end: 1893456000,
+        },
+      },
+    });
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+    expect(call("from")?.args).toEqual(["user_subscriptions"]);
+    const update = call("update")?.args[0] as {
+      status: string;
+      canceled_at?: string | null;
+      current_period_end?: string;
+    };
+    expect(update.status).toBe("active");
+    expect(update.canceled_at).toBeNull();
+    expect(update.current_period_end).toBe(new Date(1893456000 * 1000).toISOString());
+    expect(call("eq")?.args).toEqual(["external_ref", "sub_9"]);
+  });
+
+  it("customer.subscription.updated z cancel_at_period_end stempluje canceled_at (nadal active)", async () => {
+    const payload = JSON.stringify({
+      id: "evt_su_pending",
+      type: "customer.subscription.updated",
+      data: { object: { id: "sub_10", status: "active", cancel_at_period_end: true } },
+    });
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+    const update = call("update")?.args[0] as { status: string; canceled_at?: string | null };
+    expect(update.status).toBe("active");
+    expect(typeof update.canceled_at).toBe("string");
+  });
+
+  it("customer.subscription.updated mapuje canceled/incomplete_expired na lokalny cancel", async () => {
+    const payload = JSON.stringify({
+      id: "evt_su_cancel",
+      type: "customer.subscription.updated",
+      data: { object: { id: "sub_11", status: "incomplete_expired" } },
+    });
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+    const update = call("update")?.args[0] as { status: string; canceled_at?: string | null };
+    expect(update.status).toBe("canceled");
+    expect(typeof update.canceled_at).toBe("string");
+  });
+
+  it("customer.subscription.updated bez id jest no-opem", async () => {
+    const payload = JSON.stringify({
+      id: "evt_su_noid",
+      type: "customer.subscription.updated",
+      data: { object: { status: "active" } },
+    });
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+    expect(call("update")).toBeUndefined();
+  });
+
+  it("charge.refunded cofa jednorazowy zakup encji dokladnie po (user, entity)", async () => {
+    h.state.result = {
+      data: {
+        id: "ord_ref1",
+        user_id: "u_ref",
+        kind: "one_time",
+        entity_type: "post",
+        entity_id: "post_1",
+        provider_session_id: "cs_ref1",
+        provider_subscription_id: null,
+      },
+      error: null,
+    };
+    const payload = JSON.stringify({
+      id: "evt_ref1",
+      type: "charge.refunded",
+      data: { object: { payment_intent: "pi_ref1" } },
+    });
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+    const froms = h.state.calls.filter((c) => c.method === "from").map((c) => c.args[0]);
+    expect(froms).toEqual(
+      expect.arrayContaining(["donations", "payment_orders", "user_purchases"]),
+    );
+    const eqPairs = h.state.calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eqPairs).toEqual(
+      expect.arrayContaining([
+        ["user_id", "u_ref"],
+        ["entity_type", "post"],
+        ["entity_id", "post_1"],
+      ]),
+    );
+  });
+
+  it("charge.refunded gasi WYLACZNIE subskrypcje oplacona tym zamowieniem (external_ref)", async () => {
+    h.state.result = {
+      data: {
+        id: "ord_ref2",
+        user_id: "u_sub",
+        kind: "subscription",
+        entity_type: null,
+        entity_id: null,
+        provider_session_id: "cs_ref2",
+        provider_subscription_id: "sub_ref2",
+      },
+      error: null,
+    };
+    const payload = JSON.stringify({
+      id: "evt_ref2",
+      type: "charge.refunded",
+      data: { object: { payment_intent: "pi_ref2" } },
+    });
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+    const froms = h.state.calls.filter((c) => c.method === "from").map((c) => c.args[0]);
+    expect(froms).toEqual(expect.arrayContaining(["user_subscriptions"]));
+    const eqPairs = h.state.calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eqPairs).toEqual(
+      expect.arrayContaining([
+        ["external_ref", "sub_ref2"],
+        ["status", "active"],
+        ["user_id", "u_sub"],
+      ]),
+    );
   });
 
   it("is idempotent: a replay of an already-paid order grants nothing", async () => {

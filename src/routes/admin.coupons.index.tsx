@@ -158,7 +158,10 @@ function CouponsListPage() {
             placeholder={L("Szukaj po kodzie/nazwie", "Search by code/name")}
             className="h-10 w-56 rounded-[6px]"
           />
-          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}>
+          <Select
+            value={filterStatus}
+            onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}
+          >
             <SelectTrigger className="h-10 w-40 rounded-[6px]">
               <SelectValue />
             </SelectTrigger>
@@ -191,7 +194,10 @@ function CouponsListPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label={L("Wszystkie", "Total")} value={String(rows.length)} />
         <StatCard label={L("Aktywne", "Active")} value={String(active)} />
-        <StatCard label={L("Użycia łącznie", "Total redemptions")} value={String(totalRedemptions)} />
+        <StatCard
+          label={L("Użycia łącznie", "Total redemptions")}
+          value={String(totalRedemptions)}
+        />
         <StatCard label={L("Wygasłe", "Expired")} value={String(expired)} />
       </div>
 
@@ -218,7 +224,9 @@ function CouponsListPage() {
                     <th className="text-left py-2 pr-3">{L("Rabat", "Discount")}</th>
                     <th className="text-left py-2 pr-3">{L("Użycia", "Uses")}</th>
                     <th className="text-left py-2 pr-3">{L("Ważność", "Validity")}</th>
-                    <th className="text-left py-2 pr-3">{L("Plan / Subskrypcja", "Plan / Subscription")}</th>
+                    <th className="text-left py-2 pr-3">
+                      {L("Plan / Subskrypcja", "Plan / Subscription")}
+                    </th>
                     <th className="text-left py-2 pr-3">{L("Status", "Status")}</th>
                     <th className="text-right py-2">{L("Akcje", "Actions")}</th>
                   </tr>
@@ -424,11 +432,7 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
 
         <div>
           <Label>{L("Opis wewnętrzny", "Internal description")}</Label>
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-          />
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -510,7 +514,10 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/60">
           <div>
             <Label>{L("Nadaje subskrypcję (opcjonalnie)", "Grants subscription (optional)")}</Label>
-            <Select value={grantsTierKey || "none"} onValueChange={(v) => setGrantsTierKey(v === "none" ? "" : v)}>
+            <Select
+              value={grantsTierKey || "none"}
+              onValueChange={(v) => setGrantsTierKey(v === "none" ? "" : v)}
+            >
               <SelectTrigger className="h-10 rounded-[6px]">
                 <SelectValue placeholder={L("Brak", "None")} />
               </SelectTrigger>
@@ -556,9 +563,7 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
                   <Checkbox
                     checked={on}
                     onCheckedChange={(v) =>
-                      setPlanIds((prev) =>
-                        v ? [...prev, p.id] : prev.filter((id) => id !== p.id),
-                      )
+                      setPlanIds((prev) => (v ? [...prev, p.id] : prev.filter((id) => id !== p.id)))
                     }
                   />
                   <span className={p.active ? "" : "text-muted-foreground line-through"}>
@@ -572,11 +577,7 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
       </div>
       <DialogFooter>
         <Button onClick={submit} disabled={busy} className="h-10 rounded-[6px]">
-          {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            L("Utwórz kupon", "Create coupon")
-          )}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : L("Utwórz kupon", "Create coupon")}
         </Button>
       </DialogFooter>
     </DialogContent>

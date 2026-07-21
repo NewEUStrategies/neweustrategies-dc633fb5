@@ -9,11 +9,7 @@ export interface MorphPlayPauseProps {
 
 export function MorphPlayPause({ playing, className }: MorphPlayPauseProps) {
   return (
-    <span
-      className={cn("mpp", className)}
-      data-playing={playing ? "true" : "false"}
-      aria-hidden
-    >
+    <span className={cn("mpp", className)} data-playing={playing ? "true" : "false"} aria-hidden>
       {/* Play - trójkąt z lekko zaokrąglonymi wierzchołkami */}
       <svg
         className="mpp-svg mpp-svg-play"

@@ -20,11 +20,7 @@ import { Download, Maximize2, Minimize2, MoreHorizontal } from "lucide-react";
 import type { ECharts, EChartsCoreOption } from "echarts/core";
 import { EChart } from "./EChart";
 import { exportCsv, exportPng } from "./exportChart";
-import {
-  ChartDrillDialog,
-  type ChartClickParams,
-  type ChartDrillDetail,
-} from "./ChartDrillDialog";
+import { ChartDrillDialog, type ChartClickParams, type ChartDrillDetail } from "./ChartDrillDialog";
 
 export interface ChartCardProps {
   title: string;
@@ -174,7 +170,11 @@ export function ChartCard({
           {footer}
         </div>
       ) : null}
-      <ChartDrillDialog open={drill !== null} onOpenChange={(v) => !v && setDrill(null)} detail={drill} />
+      <ChartDrillDialog
+        open={drill !== null}
+        onOpenChange={(v) => !v && setDrill(null)}
+        detail={drill}
+      />
     </Card>
   );
 }

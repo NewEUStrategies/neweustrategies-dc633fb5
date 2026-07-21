@@ -100,10 +100,7 @@ function RedemptionsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Stat label={L("Realizacje", "Redemptions")} value={String(totals.count)} />
-        <Stat
-          label={L("Przychód", "Revenue")}
-          value={`${(totals.revenue / 100).toFixed(2)}`}
-        />
+        <Stat label={L("Przychód", "Revenue")} value={`${(totals.revenue / 100).toFixed(2)}`} />
         <Stat
           label={L("Rabat udzielony", "Discount granted")}
           value={`${(totals.discount / 100).toFixed(2)}`}

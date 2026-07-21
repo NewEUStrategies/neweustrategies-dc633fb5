@@ -221,9 +221,10 @@ export function LivePreviewStage({
                   className="cms-thumb relative overflow-hidden"
                   style={{
                     aspectRatio: draft.thumbnail.aspectRatio,
-                    background: index % 2
-                      ? "linear-gradient(135deg, #2b3550 0%, #0f172a 100%)"
-                      : "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)",
+                    background:
+                      index % 2
+                        ? "linear-gradient(135deg, #2b3550 0%, #0f172a 100%)"
+                        : "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)",
                   }}
                 />
                 <h3 className="cms-post-title" style={{ fontSize: "14px" }}>
@@ -239,9 +240,10 @@ export function LivePreviewStage({
                 className="h-1.5 rounded-full"
                 style={{
                   width: index === 0 ? 20 : 8,
-                  background: index === 0
-                    ? "var(--brand, currentColor)"
-                    : "color-mix(in oklab, currentColor 25%, transparent)",
+                  background:
+                    index === 0
+                      ? "var(--brand, currentColor)"
+                      : "color-mix(in oklab, currentColor 25%, transparent)",
                 }}
               />
             ))}

@@ -327,7 +327,8 @@ export function Ga4BiDashboard({
     const row = rows[idx];
     if (!row) return null;
     const raw = row.dims[0] ?? "";
-    const date = raw.length === 8 ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}` : raw;
+    const date =
+      raw.length === 8 ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}` : raw;
     const headers = dateQ.data?.metricHeaders ?? [];
     const val = (m: CoreMetric): number => parseNumber(row.metrics[headers.indexOf(m)]);
     return {
@@ -360,8 +361,7 @@ export function Ga4BiDashboard({
       const name = p.name ?? "?";
       const value = typeof p.value === "number" ? p.value : (p.data as { value: number }).value;
       const total = (report?.rows ?? []).reduce(
-        (acc, r) =>
-          acc + parseNumber(r.metrics[(report?.metricHeaders ?? []).indexOf("sessions")]),
+        (acc, r) => acc + parseNumber(r.metrics[(report?.metricHeaders ?? []).indexOf("sessions")]),
         0,
       );
       const pct = total > 0 ? (value / total) * 100 : 0;
@@ -401,12 +401,9 @@ export function Ga4BiDashboard({
           value: `${(parseNumber(row.metrics[idxEng]) * 100).toFixed(1)}%`,
         },
       ],
-      links: [
-        { href: path, label: t("adminAnalytics.drillDialog.openInNewTab"), external: false },
-      ],
+      links: [{ href: path, label: t("adminAnalytics.drillDialog.openInNewTab"), external: false }],
     };
   };
-
 
   const modeText =
     activeMode === "oauth_refresh"
@@ -548,7 +545,6 @@ export function Ga4BiDashboard({
         height={340}
         onDataClick={topPagesClick}
       />
-
 
       {/* Interpretacja + rekomendacje per element dashboardu */}
       <InsightSection

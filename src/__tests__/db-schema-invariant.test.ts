@@ -119,18 +119,12 @@ d("db schema: required tables are reachable via Data API", () => {
 
 d("db schema: PR #58 (BlocksRenderer) data model is unchanged", () => {
   it("posts still exposes every column the block renderer reads", async () => {
-    const { error } = await client!
-      .from("posts")
-      .select(BLOCKS_COLUMNS_POSTS.join(","))
-      .limit(0);
+    const { error } = await client!.from("posts").select(BLOCKS_COLUMNS_POSTS.join(",")).limit(0);
     expect(error, `posts projection failed: ${error?.message ?? ""}`).toBeNull();
   });
 
   it("pages still exposes every column the block renderer reads", async () => {
-    const { error } = await client!
-      .from("pages")
-      .select(BLOCKS_COLUMNS_PAGES.join(","))
-      .limit(0);
+    const { error } = await client!.from("pages").select(BLOCKS_COLUMNS_PAGES.join(",")).limit(0);
     expect(error, `pages projection failed: ${error?.message ?? ""}`).toBeNull();
   });
 

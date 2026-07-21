@@ -61,10 +61,22 @@ export function PostTitleSection({ draft, set, setColor, previewMode }: SectionE
           />
         </Field>
         <Field label={t("adminThemeDesign.f.color")}>
-          <ColorControl section="postTitle" field="color" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="postTitle"
+            field="color"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.colorHover")}>
-          <ColorControl section="postTitle" field="hoverColor" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="postTitle"
+            field="hoverColor"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.transform")}>
           <Select
@@ -85,7 +97,10 @@ export function PostTitleSection({ draft, set, setColor, previewMode }: SectionE
           </Select>
         </Field>
         <Field label={t("adminThemeDesign.f.letterSpacing")}>
-          <PxStepper value={pt.letterSpacing} onChange={(v) => set("postTitle", { letterSpacing: v })} />
+          <PxStepper
+            value={pt.letterSpacing}
+            onChange={(v) => set("postTitle", { letterSpacing: v })}
+          />
         </Field>
       </FieldGrid>
       <PreviewFrame>

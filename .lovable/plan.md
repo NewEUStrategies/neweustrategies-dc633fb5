@@ -49,8 +49,8 @@ CREATE TABLE b2b_coupon_campaigns (
 );
 
 -- RPC: bulk_generate_coupons(campaign_id, count) -> zwraca kody
--- RPC: redeem_coupon_with_side_effects(code, user_id) 
---   → 1) redeem, 2) INSERT crm_leads note, 3) IF grants_plan_id 
+-- RPC: redeem_coupon_with_side_effects(code, user_id)
+--   → 1) redeem, 2) INSERT crm_leads note, 3) IF grants_plan_id
 --     → INSERT membership_grants (plan, expiry)
 -- Trigger: on b2b_coupon_redemptions INSERT → update crm_leads.score += bonus
 ```

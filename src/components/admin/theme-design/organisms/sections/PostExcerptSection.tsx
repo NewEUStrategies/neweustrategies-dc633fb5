@@ -33,7 +33,10 @@ export function PostExcerptSection({ draft, set, setColor, previewMode }: Sectio
           <PxStepper value={pe.fontSize} onChange={(v) => set("postExcerpt", { fontSize: v })} />
         </Field>
         <Field label={t("adminThemeDesign.f.weight")}>
-          <NumStepper value={pe.fontWeight} onChange={(v) => set("postExcerpt", { fontWeight: v })} />
+          <NumStepper
+            value={pe.fontWeight}
+            onChange={(v) => set("postExcerpt", { fontWeight: v })}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.lineHeight")}>
           <Input
@@ -42,7 +45,13 @@ export function PostExcerptSection({ draft, set, setColor, previewMode }: Sectio
           />
         </Field>
         <Field label={t("adminThemeDesign.f.color")}>
-          <ColorControl section="postExcerpt" field="color" mode={previewMode} draft={draft} setColor={setColor} />
+          <ColorControl
+            section="postExcerpt"
+            field="color"
+            mode={previewMode}
+            draft={draft}
+            setColor={setColor}
+          />
         </Field>
         <Field label={t("adminThemeDesign.f.marginTop")}>
           <PxStepper value={pe.marginTop} onChange={(v) => set("postExcerpt", { marginTop: v })} />

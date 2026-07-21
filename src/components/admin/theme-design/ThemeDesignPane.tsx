@@ -38,12 +38,7 @@ export function ThemeDesignPane() {
   const { t } = useTranslation();
   const c = useThemeDesignDrafts();
 
-  if (
-    c.loading ||
-    !c.draft ||
-    !c.carouselDraft ||
-    !c.overlayDraft
-  ) {
+  if (c.loading || !c.draft || !c.carouselDraft || !c.overlayDraft) {
     return <p className="text-sm text-muted-foreground">{t("adminThemeDesign.loading")}</p>;
   }
 

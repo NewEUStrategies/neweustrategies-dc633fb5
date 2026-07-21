@@ -26,7 +26,6 @@ export const Route = createFileRoute("/checkout/$planId")({
   }),
 });
 
-
 function CheckoutPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProfileI18n();
