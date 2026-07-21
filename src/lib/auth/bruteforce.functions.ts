@@ -72,8 +72,11 @@ async function hitBucket(opts: HitOptions): Promise<{ allowed: boolean; hits: nu
 // Buckets are hashed subjects; return value is generic ("ok") so no
 // enumeration signal leaks even if a caller inspects the response.
 // -----------------------------------------------------------------------------
+// Akceptujemy również "signin" jako alias "login" - część UI (LoginPopup,
+// /login) używa tej nazwy dla trybu logowania. Preprocess mapuje wartość
+// przed walidacją enum, żeby jedno źródło prawdy było po stronie serwera.
 const preAuthSchema = z.object({
-  kind: z.enum(["login", "reset", "signup"]),
+  kind: z.preprocess((v) => (v === "signin" ? "login" : v), z.enum(["login", "reset", "signup"])),
   email: z.string().trim().toLowerCase().email().max(254),
 });
 
