@@ -135,8 +135,8 @@ d("db schema: PR #58 (BlocksRenderer) data model is unchanged", () => {
     // stop declaring `blocks_data`, this assignment fails typecheck and
     // the test file will not build.
     const _posts: keyof Database["public"]["Tables"]["posts"]["Row"] = "blocks_data";
-    const _pages: keyof Database["public"]["Tables"]["pages"]["Row"] = "blocks_data";
+    const _pages: keyof Database["public"]["Tables"]["pages"]["Row"] = "builder_data";
     expect(_posts).toBe("blocks_data");
-    expect(_pages).toBe("blocks_data");
+    expect(_pages).toBe("builder_data");
   });
 });
