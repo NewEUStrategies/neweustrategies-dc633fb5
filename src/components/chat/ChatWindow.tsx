@@ -1091,19 +1091,19 @@ export function ChatWindow(props: ChatWindowProps) {
           name={peerName}
           avatarUrl={peerAvatar}
           online={!isGroup && peerOnline}
-          size="sm"
+          size="md"
         />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1 truncate text-[13px] font-semibold leading-tight">
+        <div className="min-w-0 flex-1 pl-0.5">
+          <div className="flex items-center gap-1 truncate text-[14px] font-semibold leading-tight">
             <span className="truncate">{peerName}</span>
             {muted && (
               <BellOff
-                className="h-3 w-3 shrink-0 text-muted-foreground"
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
                 aria-label={t("chat.menu.mutedBadge")}
               />
             )}
           </div>
-          <div className="text-[10px] leading-tight text-muted-foreground">{headerSubtitle}</div>
+          <div className="text-[11px] leading-tight text-muted-foreground">{headerSubtitle}</div>
         </div>
         {searchToggle}
         {blockToggle}
