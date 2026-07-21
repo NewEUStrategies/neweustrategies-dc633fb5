@@ -164,11 +164,15 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Company>>({});
   const [copied, setCopied] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [tab, setTab] = useState<"overview" | "contacts" | "leads" | "activity">("overview");
 
   useEffect(() => {
     if (!open) {
       setEditing(false);
       setForm({});
+      setAddOpen(false);
+      setTab("overview");
     }
   }, [open]);
 
