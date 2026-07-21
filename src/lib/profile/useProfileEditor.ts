@@ -31,6 +31,7 @@ const EMPTY: ProfileEditorRow = {
   last_name: null,
   job_title: null,
   current_company: null,
+  current_company_id: null,
   specialization: null,
   location: null,
   phone: null,
