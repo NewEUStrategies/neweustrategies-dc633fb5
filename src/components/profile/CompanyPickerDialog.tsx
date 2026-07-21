@@ -43,6 +43,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   currentCompanyId?: string | null;
   currentCompanyName?: string | null;
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
 };
 
 const EMPTY_FORM = {
