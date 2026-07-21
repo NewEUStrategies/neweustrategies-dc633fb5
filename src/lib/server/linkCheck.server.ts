@@ -51,16 +51,27 @@ async function probe(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
+    // SSRF guard: refuse private/loopback/link-local/cloud-metadata targets
+    // before we make the request. `redirect: "manual"` prevents a 30x from
+    // bouncing to an internal host after the pre-check.
+    const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
+    await assertPublicHttpUrl(url);
     // GET, nie HEAD: częsta blokada HEAD (403/405) dawałaby fałszywe alarmy.
     const res = await fetch(url, {
       method: "GET",
-      redirect: "follow",
+      redirect: "manual",
       signal: controller.signal,
       headers: { "User-Agent": "NES-LinkMonitor/1.0 (+https://neweuropeanstrategies.com)" },
     });
     // 403/429 traktujemy jako "żywe, ale bramkowane" - nie alarmujemy.
+    // 3xx bez follow: link istnieje, zostawiamy jako ok.
     const gated = res.status === 403 || res.status === 429 || res.status === 999;
-    return { ok: res.status < 400 || gated, status: res.status, error: null };
+    const redirected = res.status >= 300 && res.status < 400;
+    return {
+      ok: res.status < 400 || gated || redirected,
+      status: res.status,
+      error: null,
+    };
   } catch (err) {
     return { ok: false, status: null, error: err instanceof Error ? err.message : String(err) };
   } finally {
