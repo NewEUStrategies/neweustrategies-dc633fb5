@@ -203,7 +203,7 @@ export function CompanyPickerDialog({
       void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
       invalidateProfile();
       toast.success(t("company.toast.created", { defaultValue: "Firma dodana" }));
-      onOpenChange(false);
+      closeAndRestoreFocus();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(t("company.errors.createFailed", { defaultValue: "Nie udało się dodać firmy" }) + ` (${msg})`);
