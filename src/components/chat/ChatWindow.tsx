@@ -1067,8 +1067,8 @@ export function ChatWindow(props: ChatWindowProps) {
   return (
     <section
       className={cn(
-        "pointer-events-auto flex w-[320px] max-w-[calc(100vw-16px)] flex-col overflow-hidden",
-        "h-[430px] max-h-[min(70vh,430px)] rounded-t-[6px] border border-b-0 border-border/60 bg-background shadow-2xl",
+        "pointer-events-auto flex w-[420px] max-w-[calc(100vw-16px)] flex-col overflow-hidden sm:w-[460px] lg:w-[500px]",
+        "h-[600px] max-h-[min(85vh,640px)] rounded-t-[6px] border border-b-0 border-border/60 bg-background shadow-2xl",
         "motion-safe:animate-in motion-safe:slide-in-from-bottom-4 motion-safe:fade-in-0 motion-safe:duration-200",
         themeClass(theme),
         className,
@@ -1086,7 +1086,7 @@ export function ChatWindow(props: ChatWindowProps) {
         }
       }}
     >
-      <header className="flex items-center gap-2 border-b border-border/60 bg-background px-2 py-1.5 shadow-sm">
+      <header className="flex items-center gap-1.5 border-b border-border/60 bg-background px-3 py-2 shadow-sm">
         <ChatAvatar
           name={peerName}
           avatarUrl={peerAvatar}
