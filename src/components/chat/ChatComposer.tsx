@@ -260,14 +260,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // One-tap quick emoji (personalized per conversation, Messenger-style):
   // available whenever the box is empty; sent as a normal text message so it
   // renders enlarged via the emoji-only path.
-  const sendQuickEmoji = () => {
+  const sendQuickEmoji = (emoji: string = quickEmoji) => {
     onSend({
       conversationId,
       kind: "text",
-      body: quickEmoji,
+      body: emoji,
       replyToId: replyTo?.id ?? null,
     });
     onClearReply();
+    setReactionsOpen(false);
     requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
   };
 
