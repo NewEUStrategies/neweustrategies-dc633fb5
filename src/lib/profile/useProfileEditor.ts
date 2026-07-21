@@ -12,6 +12,7 @@ export interface ProfileEditorRow {
   last_name: string | null;
   job_title: string | null;
   current_company: string | null;
+  current_company_id: string | null;
   specialization: string | null;
   location: string | null;
   phone: string | null;
