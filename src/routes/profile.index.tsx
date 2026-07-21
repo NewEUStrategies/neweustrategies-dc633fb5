@@ -701,6 +701,12 @@ function ProfileInline() {
           )}
         </div>
       </div>
+      <CompanyPickerDialog
+        open={companyPickerOpen}
+        onOpenChange={setCompanyPickerOpen}
+        currentCompanyId={data.current_company_id}
+        currentCompanyName={data.current_company}
+      />
     </TooltipProvider>
   );
 }
