@@ -32,6 +32,11 @@ import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 import { AttachmentAudio, AttachmentFile, AttachmentImage } from "./AttachmentContent";
 
+export interface ReactorProfile {
+  display_name: string;
+  avatar_url: string | null;
+}
+
 export interface MessageBubbleProps {
   message: ChatMessage;
   mine: boolean;
@@ -40,6 +45,8 @@ export interface MessageBubbleProps {
   groupEnd: boolean;
   reactions: ReadonlyArray<ReactionRow>;
   myUserId: string;
+  /** Optional lookup for avatar + display name shown on reaction chips. */
+  reactorProfiles?: ReadonlyMap<string, ReactorProfile>;
   repliedMessage?: ChatMessage;
   repliedAuthorName?: string;
   /** Own text message within the 5-minute edit window. */
