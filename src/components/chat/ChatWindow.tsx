@@ -1085,6 +1085,7 @@ export function ChatWindow(props: ChatWindowProps) {
         </div>
         {body}
       </div>
+      </TooltipProvider>
     );
   }
 
