@@ -88,6 +88,7 @@ import { ChatMediaPanel } from "./ChatMediaPanel";
 import { ForwardDialog } from "./ForwardDialog";
 import { GroupInfoDialog } from "./GroupInfoDialog";
 import { MessageList } from "./MessageList";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { MessageSearchBar } from "./MessageSearchBar";
 
 const TYPING_VISIBLE_MS = 4000;
