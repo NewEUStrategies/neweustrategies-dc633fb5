@@ -1,0 +1,2 @@
+ALTER TABLE public.rate_limits ALTER COLUMN subject_id TYPE text USING subject_id::text;
+DELETE FROM public.rate_limits WHERE scope LIKE 'auth\_%' ESCAPE '\' OR scope LIKE 'content\_password%' ESCAPE '\';
