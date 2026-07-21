@@ -115,8 +115,6 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 const prefsKey = (uid: string | undefined) =>
   ["notifications", "preferences", uid ?? "anon"] as const;
 
-const listKey = (uid: string | undefined, filter: NotificationsFilter) =>
-  ["notifications", uid ?? "anon", filter] as const;
 const countKey = (uid: string | undefined) =>
   ["notifications", "unread-count", uid ?? "anon"] as const;
 
