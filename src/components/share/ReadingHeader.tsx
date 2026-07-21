@@ -26,6 +26,7 @@ import { useHasMounted } from "@/hooks/useHasMounted";
 import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hooks/useBookmarks";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
+import { rafThrottle } from "@/lib/rafThrottle";
 
 type ReadingHeaderThemeLogo = {
   logo?: {
@@ -150,10 +151,15 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
   }, [visible]);
 
   useEffect(() => {
-    const onScroll = (): void => setVisible(window.scrollY > showAfter);
+    // rAF-throttle: przy szybkim scrollu handler odpala raz na klatkę,
+    // nie raz na zdarzenie (INP/TBT strony artykułu).
+    const onScroll = rafThrottle((): void => setVisible(window.scrollY > showAfter));
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      onScroll.cancel();
+    };
   }, [showAfter]);
 
   return (

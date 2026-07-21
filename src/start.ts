@@ -4,6 +4,7 @@ import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { isLocalizablePath, localizedPath, normalizeLang } from "@/lib/i18n/localePath";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
 import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
+import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
 
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
@@ -204,6 +205,11 @@ export const startInstance = createStart(() => ({
   //      as a 404).
   //   3. redirectMiddleware short-circuits WP-legacy paths.
   //   4. legacyLangQueryMiddleware canonicalises `?lang=` before route dispatch.
+  //   5. documentCacheMiddleware (NES Edge Cache) sits INNERMOST - right above
+  //      the router - so redirects and language canonicalisation always run
+  //      first, and a memory HIT replays only the router's own render while the
+  //      outer middleware (security headers, 404 log) re-decorates every
+  //      response, cached or not.
   //
   // All DB-touching middleware wraps its work in try/catch and swallows
   // failures - the SSR document path stays deterministic even if Supabase is
@@ -214,6 +220,7 @@ export const startInstance = createStart(() => ({
     seo404Middleware,
     redirectMiddleware,
     legacyLangQueryMiddleware,
+    documentCacheMiddleware,
   ],
   functionMiddleware: [attachSupabaseAuth],
 }));

@@ -42,6 +42,7 @@ export function ExpertMaterialCard({
           <OptimizedImage
             src={material.cover_url}
             alt=""
+            responsive
             sizes={CARD_IMAGE_SIZES}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />

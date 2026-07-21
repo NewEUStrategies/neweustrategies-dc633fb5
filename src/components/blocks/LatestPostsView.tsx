@@ -52,6 +52,12 @@ export function LatestPostsView({ count, category, showExcerpt, showImage, layou
                 <OptimizedImage
                   src={p.cover_image_url}
                   alt={title}
+                  responsive
+                  sizes={
+                    layout === "grid"
+                      ? "(min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      : "96px"
+                  }
                   className="w-full h-full object-cover"
                 />
               </AppLink>

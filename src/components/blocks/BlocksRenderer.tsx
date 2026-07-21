@@ -971,7 +971,15 @@ function BlockView({
           className={`not-prose my-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center ${isRight ? "md:[&>*:first-child]:order-2" : ""} ${cls}`}
         >
           <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-            {url && <OptimizedImage src={url} alt="" className="w-full h-full object-cover" />}
+            {url && (
+              <OptimizedImage
+                src={url}
+                alt=""
+                responsive
+                sizes="(min-width: 768px) 50vw, 100vw"
+                className="w-full h-full object-cover"
+              />
+            )}
           </div>
           <div className="prose dark:prose-invert max-w-none whitespace-pre-line">{text}</div>
         </div>
