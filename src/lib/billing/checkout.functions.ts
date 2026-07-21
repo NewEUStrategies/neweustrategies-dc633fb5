@@ -21,6 +21,10 @@ const createOrderSchema = z.object({
   entity_id: z.string().uuid().nullable().optional(),
   success_path: z.string().min(1),
   cancel_path: z.string().min(1),
+  // Kupon B2B: kod aplikowany przy zamówieniu. Rabat wyliczamy WYŁĄCZNIE
+  // serwerowo (validate_b2b_coupon → atomowe redeem_b2b_coupon), więc klient
+  // nigdy nie może obniżyć unit_amount ręcznie.
+  coupon_code: z.string().trim().max(64).optional(),
 });
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
