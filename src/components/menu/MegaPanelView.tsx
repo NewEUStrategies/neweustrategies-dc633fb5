@@ -51,7 +51,20 @@ export function MegaPanelView({
   const featuredExcerpt = featured
     ? pickLocalized(featured.excerpt_pl, featured.excerpt_en, lang)
     : "";
-  const featuredEyebrow = featured?.post_format ? featured.post_format.toString() : eyebrowFallback;
+
+  const formatLabels: Record<string, { pl: string; en: string }> = {
+    standard: { pl: "Artykuł", en: "Article" },
+    video: { pl: "Wideo", en: "Video" },
+    audio: { pl: "Audio", en: "Audio" },
+    gallery: { pl: "Galeria", en: "Gallery" },
+  };
+  const featuredEyebrow = featured?.post_format
+    ? pickLocalized(
+        formatLabels[featured.post_format]?.pl,
+        formatLabels[featured.post_format]?.en,
+        lang,
+      ) || eyebrowFallback
+    : eyebrowFallback;
 
   const authorLabel = lang === "en" ? "By" : "Autor";
   const unknownAuthor = lang === "en" ? "Unknown author" : "Nieznany autor";
