@@ -103,9 +103,21 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
     .toUpperCase();
   const isAuthed = mounted && !!session;
 
+  // Horizontal logo (mobile variant = horizontal wordmark) resolved from
+  // Branding → Logo settings, with dark-mode fallback chain identical to
+  // the main site header, so the reading bar matches theme + tenant.
+  const themeSettings = useSiteSetting<ReadingHeaderThemeLogo>("theme_options", {});
+  const { theme: themeMode } = useTheme();
+  const isDark = themeMode === "dark";
+  const themeLogo = themeSettings.logo ?? {};
+  const horizontalLogo = isDark
+    ? themeLogo.mobile_dark || themeLogo.mobile || themeLogo.main_dark || themeLogo.main || ""
+    : themeLogo.mobile || themeLogo.mobile_dark || themeLogo.main || themeLogo.main_dark || "";
+
   const [visible, setVisible] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
 
   // Save-for-later state for the current article.
   const { data: bookmarks } = useBookmarks();
