@@ -52,6 +52,7 @@ import {
   BookOpen,
   Briefcase,
   ShieldCheck,
+  Workflow,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -286,6 +287,13 @@ function AdminShellInner({
           to: "/admin/crm",
           icon: Users,
           label: t("admin.nav.crm", { defaultValue: lang === "pl" ? "CRM" : "CRM" }),
+        },
+        {
+          to: "/admin/workflows",
+          icon: Workflow,
+          label: t("admin.nav.workflows", {
+            defaultValue: lang === "pl" ? "Automatyzacje" : "Automations",
+          }),
         },
         {
           to: "/admin/integrations",
