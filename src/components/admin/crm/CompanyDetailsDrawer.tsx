@@ -25,9 +25,19 @@ import {
   Calendar,
   Copy,
   Check,
+  UserPlus,
+  Activity,
+  StickyNote,
+  Pencil as PencilIcon,
+  PlusCircle,
 } from "lucide-react";
 
-import { getCrmCompany, updateCrmCompany } from "@/lib/crm-companies.functions";
+import {
+  getCrmCompany,
+  updateCrmCompany,
+  createCrmContactForCompany,
+  getCrmCompanyActivity,
+} from "@/lib/crm-companies.functions";
 import {
   Sheet,
   SheetContent,
@@ -35,6 +45,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
