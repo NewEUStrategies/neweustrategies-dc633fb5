@@ -394,8 +394,12 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
 
           {/* Body */}
           {company && (
-            <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
-              <TabsList className="mx-4 mt-3 grid w-auto grid-cols-3 rounded-md bg-muted/60">
+            <Tabs
+              value={tab}
+              onValueChange={(v) => setTab(v as typeof tab)}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <TabsList className="mx-4 mt-3 grid w-auto grid-cols-4 rounded-md bg-muted/60">
                 <TabsTrigger value="overview" className="text-xs">
                   {t("Dane", "Overview")}
                 </TabsTrigger>
@@ -404,6 +408,9 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
                 </TabsTrigger>
                 <TabsTrigger value="leads" className="text-xs">
                   {t(`Leady (${leads.length})`, `Leads (${leads.length})`)}
+                </TabsTrigger>
+                <TabsTrigger value="activity" className="text-xs">
+                  {t("Aktywność", "Activity")}
                 </TabsTrigger>
               </TabsList>
 
