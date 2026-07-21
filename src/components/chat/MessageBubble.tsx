@@ -593,6 +593,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
           myUserId={myUserId}
           onReact={(emoji, current) => onReact(message, emoji, current)}
           mine={mine}
+          reactorProfiles={reactorProfiles}
         />
         {message.failed && (
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-destructive">
