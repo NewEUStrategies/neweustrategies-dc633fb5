@@ -55,7 +55,7 @@ function ProfileLayout() {
   return (
     <AuthGate>
       <div className="profile-shell bg-muted/40 py-6 md:py-10">
-        <div className="container mx-auto max-w-6xl px-3 sm:px-4">
+        <div className="container mx-auto max-w-[90rem] px-3 sm:px-4">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_4px_20px_-4px_color-mix(in oklab, var(--foreground) 8%, transparent)]">
             <div className="flex flex-col md:flex-row">
               {/* Sidebar - ukryty w pełnym podglądzie gościa na /profile */}
