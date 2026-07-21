@@ -150,10 +150,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 function RouteLoadingSkeleton() {
-  // skeleton-shimmer (styles.css) reads as active progress instead of an idle
-  // pulse - perceived speed during slow (>500ms) route transitions.
+  // Delayed fade-in (opacity 0 -> 1 after 180ms) sprawia, że krótkie
+  // przejścia (<200ms, gdy trasa jest już preloadowana) nie migają
+  // szkieletem - użytkownik widzi tylko płynny cross-fade View Transitions,
+  // a shimmer pojawia się dopiero przy naprawdę wolnych ładowaniach.
   return (
-    <div className="min-h-[55vh] w-full px-4 py-8 lg:px-8" aria-busy="true">
+    <div
+      className="min-h-[55vh] w-full px-4 py-8 lg:px-8 animate-[route-skeleton-in_260ms_ease-out_140ms_both]"
+      aria-busy="true"
+    >
       <div className="mx-auto max-w-[1200px] space-y-6">
         <div className="skeleton-shimmer h-5 w-40 rounded" />
         <div className="skeleton-shimmer h-10 w-2/3 max-w-2xl rounded" />
