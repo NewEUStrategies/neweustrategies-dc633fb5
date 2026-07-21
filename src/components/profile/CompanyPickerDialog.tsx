@@ -120,15 +120,27 @@ export function CompanyPickerDialog({
     if (saving) return;
     setSaving(true);
     try {
-      const { error } = await supabase.rpc("link_current_company", {
-        _company_id: companyId,
-      });
-      if (error) throw error;
+      if (companyId) {
+        const { error } = await supabase.rpc("link_current_company", {
+          _company_id: companyId,
+        });
+        if (error) throw error;
+      } else {
+        if (!user?.id) throw new Error("not_authenticated");
+        const { error } = await supabase
+          .from("profiles")
+          .update({ current_company_id: null, current_company: null })
+          .eq("id", user.id);
+        if (error) throw error;
+      }
       invalidateProfile();
       onOpenChange(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(t("company.errors.linkFailed", { defaultValue: "Nie udało się przypisać firmy" }) + ` (${msg})`);
+      toast.error(
+        t("company.errors.linkFailed", { defaultValue: "Nie udało się przypisać firmy" }) +
+          ` (${msg})`,
+      );
     } finally {
       setSaving(false);
     }
