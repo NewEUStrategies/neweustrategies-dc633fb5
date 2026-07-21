@@ -25,9 +25,19 @@ import {
   Calendar,
   Copy,
   Check,
+  UserPlus,
+  Activity,
+  StickyNote,
+  Pencil as PencilIcon,
+  PlusCircle,
 } from "lucide-react";
 
-import { getCrmCompany, updateCrmCompany } from "@/lib/crm-companies.functions";
+import {
+  getCrmCompany,
+  updateCrmCompany,
+  createCrmContactForCompany,
+  getCrmCompanyActivity,
+} from "@/lib/crm-companies.functions";
 import {
   Sheet,
   SheetContent,
@@ -35,6 +45,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -147,11 +164,15 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Company>>({});
   const [copied, setCopied] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [tab, setTab] = useState<"overview" | "contacts" | "leads" | "activity">("overview");
 
   useEffect(() => {
     if (!open) {
       setEditing(false);
       setForm({});
+      setAddOpen(false);
+      setTab("overview");
     }
   }, [open]);
 
@@ -312,10 +333,20 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
                 {/* Actions */}
                 <div className="flex items-center gap-1.5">
                   {!editing ? (
-                    <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={startEdit}>
-                      <Pencil className="h-3 w-3" aria-hidden />
-                      {t("Edytuj", "Edit")}
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={startEdit}>
+                        <Pencil className="h-3 w-3" aria-hidden />
+                        {t("Edytuj", "Edit")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-8 gap-1.5"
+                        onClick={() => setAddOpen(true)}
+                      >
+                        <UserPlus className="h-3 w-3" aria-hidden />
+                        {t("Dodaj kontakt", "Add contact")}
+                      </Button>
+                    </>
                   ) : (
                     <>
                       <Button
@@ -363,8 +394,12 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
 
           {/* Body */}
           {company && (
-            <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
-              <TabsList className="mx-4 mt-3 grid w-auto grid-cols-3 rounded-md bg-muted/60">
+            <Tabs
+              value={tab}
+              onValueChange={(v) => setTab(v as typeof tab)}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <TabsList className="mx-4 mt-3 grid w-auto grid-cols-4 rounded-md bg-muted/60">
                 <TabsTrigger value="overview" className="text-xs">
                   {t("Dane", "Overview")}
                 </TabsTrigger>
@@ -373,6 +408,9 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
                 </TabsTrigger>
                 <TabsTrigger value="leads" className="text-xs">
                   {t(`Leady (${leads.length})`, `Leads (${leads.length})`)}
+                </TabsTrigger>
+                <TabsTrigger value="activity" className="text-xs">
+                  {t("Aktywność", "Activity")}
                 </TabsTrigger>
               </TabsList>
 
@@ -433,15 +471,36 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
                   </TabsContent>
 
                   <TabsContent value="contacts" className="mt-0 space-y-2">
-                    {profiles.length === 0 ? (
+                    <div className="flex items-center justify-between pb-1">
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {t("Powiązane kontakty", "Linked contacts")}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 gap-1.5 text-[12px]"
+                        onClick={() => setAddOpen(true)}
+                      >
+                        <UserPlus className="h-3 w-3" aria-hidden />
+                        {t("Dodaj", "Add")}
+                      </Button>
+                    </div>
+                    {profiles.length === 0 && leads.length === 0 ? (
                       <EmptyState
                         icon={<Users className="h-6 w-6" aria-hidden />}
                         text={t("Brak powiązanych kontaktów.", "No linked contacts.")}
                       />
                     ) : (
-                      profiles.map((p) => (
-                        <ContactCard key={p.id} p={p} lang={lang} onClose={() => onOpenChange(false)} />
-                      ))
+                      <>
+                        {profiles.map((p) => (
+                          <ContactCard
+                            key={p.id}
+                            p={p}
+                            lang={lang}
+                            onClose={() => onOpenChange(false)}
+                          />
+                        ))}
+                      </>
                     )}
                   </TabsContent>
 
@@ -453,9 +512,23 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
                       />
                     ) : (
                       leads.map((l) => (
-                        <LeadCard key={l.id} l={l} lang={lang} fmt={fmt} onClose={() => onOpenChange(false)} />
+                        <LeadCard
+                          key={l.id}
+                          l={l}
+                          lang={lang}
+                          fmt={fmt}
+                          onClose={() => onOpenChange(false)}
+                        />
                       ))
                     )}
+                  </TabsContent>
+
+                  <TabsContent value="activity" className="mt-0 space-y-2">
+                    <ActivityFeed
+                      companyId={company.id}
+                      enabled={tab === "activity"}
+                      lang={lang}
+                    />
                   </TabsContent>
                 </div>
               </ScrollArea>
@@ -463,6 +536,15 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
           )}
         </div>
       </SheetContent>
+      {company && (
+        <AddContactDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          companyId={company.id}
+          companyName={company.name}
+          lang={lang}
+        />
+      )}
     </Sheet>
   );
 }
@@ -713,5 +795,339 @@ function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
       <span className="opacity-50">{icon}</span>
       {text}
     </div>
+  );
+}
+
+// ---- Activity feed ------------------------------------------------------
+type ActivityEvent = {
+  id: string;
+  kind: "audit" | "note" | "lead_created";
+  action: string;
+  created_at: string;
+  actor_id: string | null;
+  lead_id: string | null;
+  lead_label: string | null;
+  body?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+function ActivityFeed({
+  companyId,
+  enabled,
+  lang,
+}: {
+  companyId: string;
+  enabled: boolean;
+  lang: "pl" | "en";
+}) {
+  const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const fn = useServerFn(getCrmCompanyActivity);
+  const q = useQuery({
+    queryKey: ["admin", "crm-company-activity", companyId],
+    enabled: enabled && !!companyId,
+    queryFn: async () => {
+      const res = await fn({ data: { id: companyId } });
+      return JSON.parse(res.json) as ActivityEvent[];
+    },
+    staleTime: 15_000,
+  });
+  const fmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+    [lang],
+  );
+
+  if (q.isLoading) {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-12" />
+        ))}
+      </div>
+    );
+  }
+  const events = q.data ?? [];
+  if (events.length === 0) {
+    return (
+      <EmptyState
+        icon={<Activity className="h-6 w-6" aria-hidden />}
+        text={t("Brak zarejestrowanych zdarzeń.", "No recorded activity.")}
+      />
+    );
+  }
+  return (
+    <ol className="relative space-y-1.5 border-l border-border/60 pl-3.5">
+      {events.map((e) => (
+        <ActivityRow key={e.id} e={e} lang={lang} fmt={fmt} t={t} />
+      ))}
+    </ol>
+  );
+}
+
+function ActivityRow({
+  e,
+  lang,
+  fmt,
+  t,
+}: {
+  e: ActivityEvent;
+  lang: "pl" | "en";
+  fmt: Intl.DateTimeFormat;
+  t: (pl: string, en: string) => string;
+}) {
+  const { icon, tone, label } = describeAction(e, lang);
+  const tones: Record<string, string> = {
+    sky: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
+    amber: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    emerald: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    violet: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+    muted: "bg-muted text-muted-foreground",
+  };
+  return (
+    <li className="relative rounded-md border bg-card p-2.5">
+      <span
+        aria-hidden
+        className={`absolute -left-[19px] top-3 grid h-5 w-5 place-items-center rounded-full ring-2 ring-background ${tones[tone]}`}
+      >
+        {icon}
+      </span>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-medium text-foreground">{label}</div>
+          {e.lead_label && (
+            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              {t("Kontakt", "Contact")}: {e.lead_label}
+            </div>
+          )}
+          {e.body && (
+            <div className="mt-1 whitespace-pre-wrap rounded bg-muted/40 p-2 text-[12px] text-foreground/90">
+              {e.body}
+            </div>
+          )}
+          {e.metadata && Array.isArray((e.metadata as { fields?: unknown }).fields) &&
+            (e.metadata as { fields: string[] }).fields.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {(e.metadata as { fields: string[] }).fields.map((f) => (
+                  <span
+                    key={f}
+                    className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                  >
+                    {f}
+                  </span>
+                ))}
+              </div>
+            )}
+        </div>
+        <time
+          className="shrink-0 text-[10px] tabular-nums text-muted-foreground"
+          dateTime={e.created_at}
+        >
+          {fmt.format(new Date(e.created_at))}
+        </time>
+      </div>
+    </li>
+  );
+}
+
+function describeAction(
+  e: ActivityEvent,
+  lang: "pl" | "en",
+): { icon: React.ReactNode; tone: "sky" | "amber" | "emerald" | "violet" | "muted"; label: string } {
+  const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  if (e.kind === "note")
+    return {
+      icon: <StickyNote className="h-3 w-3" aria-hidden />,
+      tone: "violet",
+      label: t("Dodano notatkę", "Note added"),
+    };
+  if (e.kind === "lead_created" || e.action === "crm.contact.create")
+    return {
+      icon: <PlusCircle className="h-3 w-3" aria-hidden />,
+      tone: "emerald",
+      label: t("Utworzono kontakt", "Contact created"),
+    };
+  if (e.action === "crm.company.update")
+    return {
+      icon: <PencilIcon className="h-3 w-3" aria-hidden />,
+      tone: "sky",
+      label: t("Zaktualizowano firmę", "Company updated"),
+    };
+  if (e.action.startsWith("crm.lead."))
+    return {
+      icon: <Target className="h-3 w-3" aria-hidden />,
+      tone: "amber",
+      label: e.action.replace(/^crm\.lead\./, "Lead: "),
+    };
+  return {
+    icon: <Activity className="h-3 w-3" aria-hidden />,
+    tone: "muted",
+    label: e.action,
+  };
+}
+
+// ---- Add contact dialog -------------------------------------------------
+function AddContactDialog({
+  open,
+  onOpenChange,
+  companyId,
+  companyName,
+  lang,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  companyId: string;
+  companyName: string;
+  lang: "pl" | "en";
+}) {
+  const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const qc = useQueryClient();
+  const createFn = useServerFn(createCrmContactForCompany);
+  const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [position, setPosition] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      setEmail("");
+      setFirstName("");
+      setLastName("");
+      setPhone("");
+      setPosition("");
+    }
+  }, [open]);
+
+  const create = useMutation({
+    mutationFn: async () =>
+      createFn({
+        data: {
+          company_id: companyId,
+          email: email.trim(),
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+          phone: phone.trim() || null,
+          position: position.trim() || null,
+        },
+      }),
+    onSuccess: async () => {
+      toast.success(t("Dodano kontakt", "Contact added"));
+      onOpenChange(false);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin", "crm-company", companyId] }),
+        qc.invalidateQueries({ queryKey: ["admin", "crm-company-activity", companyId] }),
+        qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] }),
+      ]);
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "error";
+      if (msg === "duplicate_email") {
+        toast.error(
+          t(
+            "Kontakt z tym e-mailem już istnieje w tenancie.",
+            "A contact with this email already exists in this tenant.",
+          ),
+        );
+      } else {
+        toast.error(msg);
+      }
+    },
+  });
+
+  const canSubmit = email.trim().length > 3 && email.includes("@") && !create.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle className="text-base">
+            {t("Dodaj kontakt", "Add contact")}
+          </DialogTitle>
+          <p className="text-[12px] text-muted-foreground">
+            {t(
+              `Nowy kontakt zostanie powiązany z firmą "${companyName}".`,
+              `The new contact will be linked to "${companyName}".`,
+            )}
+          </p>
+        </DialogHeader>
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {t("E-mail", "Email")}
+            </Label>
+            <Input
+              type="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 h-9 text-[13px]"
+              placeholder="jan.kowalski@example.com"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {t("Imię", "First name")}
+            </Label>
+            <Input
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="mt-1 h-9 text-[13px]"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {t("Nazwisko", "Last name")}
+            </Label>
+            <Input
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="mt-1 h-9 text-[13px]"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {t("Telefon", "Phone")}
+            </Label>
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="mt-1 h-9 text-[13px]"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {t("Stanowisko", "Position")}
+            </Label>
+            <Input
+              value={position}
+              onChange={(e) => setPosition(e.target.value)}
+              className="mt-1 h-9 text-[13px]"
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            disabled={create.isPending}
+          >
+            {t("Anuluj", "Cancel")}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => create.mutate()}
+            disabled={!canSubmit}
+            className="gap-1.5"
+          >
+            <UserPlus className="h-3 w-3" aria-hidden />
+            {create.isPending ? t("Zapis…", "Saving…") : t("Dodaj kontakt", "Add contact")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

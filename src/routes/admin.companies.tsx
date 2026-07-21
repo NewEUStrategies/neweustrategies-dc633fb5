@@ -65,6 +65,12 @@ export const Route = createFileRoute("/admin/companies")({
       { name: "robots", content: "noindex" },
     ],
   }),
+  // Drawer firmy żyje w URL (?company=<id>) - dzięki temu Back/Forward
+  // przeglądarki działa naturalnie, a link można udostępnić.
+  validateSearch: (search: Record<string, unknown>): { company?: string } => {
+    const raw = typeof search.company === "string" ? search.company : undefined;
+    return raw && /^[0-9a-f-]{36}$/i.test(raw) ? { company: raw } : {};
+  },
   component: AdminCompaniesPage,
 });
 
@@ -136,7 +142,14 @@ function LogoCell({ name, domain }: { name: string; domain: string | null }) {
 function AdminCompaniesPage() {
   const { i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
-  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const { company: drawerId } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const setDrawerId = (id: string | null) => {
+    void navigate({
+      search: (prev: { company?: string }) => ({ ...prev, company: id ?? undefined }),
+      replace: false,
+    });
+  };
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState<string>("all");
   const [branch, setBranch] = useState<string>("all");
