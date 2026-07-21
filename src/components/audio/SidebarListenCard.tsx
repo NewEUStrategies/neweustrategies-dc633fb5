@@ -3,7 +3,8 @@
 // odtwarzanie, kolejne przełączają play/pause. Po zmianie strony bottom bar
 // przejmuje kontrolę bez utraty ciągłości.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Download, Play, Pause, Headphones } from "@/lib/lucide-shim";
+import { Loader2, Download, Headphones } from "@/lib/lucide-shim";
+import { MorphPlayPause } from "@/components/audio/MorphPlayPause";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -266,14 +267,7 @@ export function SidebarListenCard({
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
-            <>
-              <span key={`play-${playing}`} className="lpt-icon lpt-play">
-                <Play className="h-4 w-4 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
-              </span>
-              <span key={`pause-${playing}`} className="lpt-icon lpt-pause">
-                <Pause className="h-4 w-4" aria-hidden />
-              </span>
-            </>
+            <MorphPlayPause playing={playing} />
           )}
         </button>
 

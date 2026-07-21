@@ -2,7 +2,8 @@
 // widoczny tylko gdy w playerze siedzi jakiś track. Płynnie pojawia się gdy
 // user uruchomi odsłuch, przetrwa zmiany stron.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Loader2, Download, Play, Pause, X, Share2 } from "@/lib/lucide-shim";
+import { Loader2, Download, X, Share2 } from "@/lib/lucide-shim";
+import { MorphPlayPause } from "@/components/audio/MorphPlayPause";
 import { Rewind, FastForward } from "lucide-react";
 import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player";
 import { formatPlaybackRate, nextPlaybackRate } from "@/lib/audio/playbackRate";
@@ -232,19 +233,18 @@ export function GlobalAudioBar() {
                 disabled={loading}
                 aria-label={playing ? t.pause : t.play}
                 aria-pressed={playing}
+                data-playing={playing ? "true" : "false"}
                 className={[
-                  "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
-                  "bg-brand text-brand-foreground shadow-md",
+                  "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[6px]",
+                  "bg-brand text-brand-foreground shadow-md overflow-hidden",
                   "hover:brightness-110 active:scale-95 transition disabled:opacity-70",
                   FOCUS_RING,
                 ].join(" ")}
               >
                 {loading ? (
                   <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-                ) : playing ? (
-                  <Pause className="h-5 w-5" aria-hidden strokeWidth={2.5} />
                 ) : (
-                  <Play className="h-5 w-5 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
+                  <MorphPlayPause playing={playing} />
                 )}
               </button>
               <button
