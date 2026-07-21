@@ -77,7 +77,7 @@ function ProfileInline() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProfileExtras2I18n();
   const { t } = useTranslation();
-  const { user, roles, session } = useAuth();
+  const { user, roles, session, isAdmin } = useAuth();
   const { data, loading, saveField, upload, progress, status } = useProfileEditor();
   const [previewAsGuest, setPreviewAsGuest] = useState(false);
   const [tab, setTab] = useState<TabKey>("about");
@@ -130,7 +130,7 @@ function ProfileInline() {
     },
   });
 
-  const isStaff = roles.includes("admin") || roles.includes("super_admin");
+  const isStaff = isAdmin;
   const editable = !previewAsGuest;
 
   if (loading) {
