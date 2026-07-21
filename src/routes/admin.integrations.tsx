@@ -26,6 +26,11 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { dispatchIntegrationDeliveries } from "@/lib/integrations/dispatch.functions";
+import {
+  INTEGRATION_KINDS,
+  normalizeIntegrationKind,
+  type IntegrationKind,
+} from "@/lib/integrations/formats";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,11 +53,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/admin/integrations")({
   head: () => ({
     meta: [
-      { title: "Integracje wychodzące — Admin" },
+      { title: "Integracje wychodzące - Admin" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -105,6 +117,54 @@ function parseEventTypes(csv: string): string[] {
     .filter((s) => s.length > 0);
 }
 
+type Localize = (pl: string, en: string) => string;
+
+function kindLabel(kind: IntegrationKind, L: Localize): string {
+  switch (kind) {
+    case "webhook":
+      return L("Webhook (generyczny JSON + HMAC)", "Webhook (generic JSON + HMAC)");
+    case "slack":
+      return "Slack (Block Kit)";
+    case "hubspot":
+      return "HubSpot (CRM v3, kontakty)";
+    case "gcal":
+      return L("Google Calendar (generyczny JSON)", "Google Calendar (generic JSON)");
+    case "confluence":
+      return L("Confluence (generyczny JSON)", "Confluence (generic JSON)");
+  }
+}
+
+function kindHint(raw: string, L: Localize): string {
+  switch (normalizeIntegrationKind(raw)) {
+    case "slack":
+      return L(
+        "Wklej URL Slack Incoming Webhook (https://hooks.slack.com/services/…). Zdarzenia są renderowane jako wiadomości Block Kit - podpis HMAC nie jest wysyłany.",
+        "Paste a Slack Incoming Webhook URL (https://hooks.slack.com/services/…). Events are rendered as Block Kit messages - no HMAC signature is sent.",
+      );
+    case "hubspot":
+      return L(
+        "URL to baza API (zwykle https://api.hubapi.com). Zdarzenia leadów i newslettera trafiają jako upsert kontaktu po e-mailu; pozostałe zdarzenia są pomijane. W polu sekretu ustaw token prywatnej aplikacji HubSpot (Bearer).",
+        "URL is the API base (usually https://api.hubapi.com). Lead and newsletter events are upserted as contacts by e-mail; other events are skipped. Set the HubSpot private app token (Bearer) in the secret field.",
+      );
+    default:
+      return L(
+        "Odbiorca dostaje pełną kopertę zdarzenia jako JSON POST; przy ustawionym sekrecie payload jest podpisany HMAC-SHA256 (x-nes-signature).",
+        "The receiver gets the full event envelope as a JSON POST; with a secret set the payload is signed with HMAC-SHA256 (x-nes-signature).",
+      );
+  }
+}
+
+function kindUrlPlaceholder(raw: string): string {
+  switch (normalizeIntegrationKind(raw)) {
+    case "slack":
+      return "https://hooks.slack.com/services/T000/B000/XXXX";
+    case "hubspot":
+      return "https://api.hubapi.com";
+    default:
+      return "https://example.com/webhooks/nes";
+  }
+}
+
 function AdminIntegrationsPage() {
   const { i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
@@ -147,7 +207,7 @@ function AdminIntegrationsPage() {
       const events = parseEventTypes(d.event_types_csv);
       const payload = {
         name: d.name.trim(),
-        integration: d.integration.trim() || "webhook",
+        integration: normalizeIntegrationKind(d.integration),
         url: d.url.trim(),
         event_types: events,
         enabled: d.enabled,
@@ -238,7 +298,8 @@ function AdminIntegrationsPage() {
 
   const rows = endpointsQ.data ?? [];
   const counts = deliveriesQ.data ?? {};
-  const pending = (counts["pending"] ?? 0) + (counts["retry"] ?? 0);
+  // Statusy z CHECK-a integration_deliveries: queued/delivering/delivered/failed/dead.
+  const pending = (counts["queued"] ?? 0) + (counts["delivering"] ?? 0);
   const dead = counts["dead"] ?? 0;
   const delivered = counts["delivered"] ?? 0;
   const failed = counts["failed"] ?? 0;
@@ -479,19 +540,28 @@ function EndpointDialog({
               id="int-name"
               value={draft.name}
               onChange={(e) => set({ name: e.target.value })}
-              placeholder={L("np. Zapier - nowe kampanie", "e.g. Zapier — new campaigns")}
+              placeholder={L("np. Zapier - nowe kampanie", "e.g. Zapier - new campaigns")}
             />
           </div>
 
           <div className="grid gap-2 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="int-type">{L("Typ", "Kind")}</Label>
-              <Input
-                id="int-type"
-                value={draft.integration}
-                onChange={(e) => set({ integration: e.target.value })}
-                placeholder="webhook"
-              />
+              <Label htmlFor="int-type">{L("Format / adapter", "Format / adapter")}</Label>
+              <Select
+                value={normalizeIntegrationKind(draft.integration)}
+                onValueChange={(v) => set({ integration: v as IntegrationKind })}
+              >
+                <SelectTrigger id="int-type">
+                  <SelectValue placeholder="webhook" />
+                </SelectTrigger>
+                <SelectContent>
+                  {INTEGRATION_KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {kindLabel(k, L)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex items-center gap-3 pt-6">
               <Switch
@@ -505,6 +575,8 @@ function EndpointDialog({
             </div>
           </div>
 
+          <p className="text-xs text-muted-foreground">{kindHint(draft.integration, L)}</p>
+
           <div className="grid gap-2">
             <Label htmlFor="int-url">URL</Label>
             <Input
@@ -512,7 +584,7 @@ function EndpointDialog({
               type="url"
               value={draft.url}
               onChange={(e) => set({ url: e.target.value })}
-              placeholder="https://example.com/webhooks/nes"
+              placeholder={kindUrlPlaceholder(draft.integration)}
             />
           </div>
 
@@ -528,7 +600,7 @@ function EndpointDialog({
               rows={3}
               value={draft.event_types_csv}
               onChange={(e) => set({ event_types_csv: e.target.value })}
-              placeholder="post.published, newsletter.campaign.sent, contact.submitted"
+              placeholder="post.published.v1, crm_lead.created.v1, crm_task.due.v1, newsletter_subscriber.confirmed.v1"
             />
             <p className="text-xs text-muted-foreground">
               {L(
@@ -541,20 +613,31 @@ function EndpointDialog({
           <div className="grid gap-2 rounded-md border p-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <KeyRound className="h-4 w-4" aria-hidden />
-              {L("Sekret podpisu HMAC", "HMAC signing secret")}
+              {normalizeIntegrationKind(draft.integration) === "hubspot"
+                ? L("Token dostępu (Bearer)", "Access token (Bearer)")
+                : L("Sekret podpisu HMAC", "HMAC signing secret")}
             </div>
             <p className="text-xs text-muted-foreground">
-              {L(
-                'Sekret trzymamy w Vault - platforma go nigdy nie zwraca do przeglądarki. Wpisz nową wartość, żeby ustawić lub zrotować; zaznacz "wyczyść", żeby usunąć podpisywanie.',
-                'Secret lives in Vault - the platform never returns it to the browser. Type a new value to set or rotate it; tick "clear" to remove signing.',
-              )}
+              {normalizeIntegrationKind(draft.integration) === "hubspot"
+                ? L(
+                    "Token prywatnej aplikacji HubSpot trzymamy w Vault - nigdy nie wraca do przeglądarki. Bez tokenu dostawy do HubSpota kończą się błędem konfiguracji.",
+                    "The HubSpot private app token lives in Vault - it is never returned to the browser. Without it, HubSpot deliveries fail as a configuration error.",
+                  )
+                : L(
+                    'Sekret trzymamy w Vault - platforma go nigdy nie zwraca do przeglądarki. Wpisz nową wartość, żeby ustawić lub zrotować; zaznacz "wyczyść", żeby usunąć podpisywanie.',
+                    'Secret lives in Vault - the platform never returns it to the browser. Type a new value to set or rotate it; tick "clear" to remove signing.',
+                  )}
             </p>
             <Input
               type="password"
               autoComplete="new-password"
               value={draft.new_secret}
               onChange={(e) => set({ new_secret: e.target.value, clear_secret: false })}
-              placeholder={L("Nowy sekret (min. 16 znaków)", "New secret (16+ chars)")}
+              placeholder={
+                normalizeIntegrationKind(draft.integration) === "hubspot"
+                  ? "pat-eu1-…"
+                  : L("Nowy sekret (min. 16 znaków)", "New secret (16+ chars)")
+              }
               disabled={draft.clear_secret}
             />
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -565,8 +648,8 @@ function EndpointDialog({
                 onChange={(e) => set({ clear_secret: e.target.checked, new_secret: "" })}
               />
               {L(
-                "Wyczyść sekret (endpoint będzie wysyłać bez podpisu)",
-                "Clear secret (endpoint will send unsigned)",
+                "Wyczyść sekret (webhook wysyła bez podpisu; HubSpot przestaje dostarczać)",
+                "Clear secret (webhook sends unsigned; HubSpot stops delivering)",
               )}
             </label>
           </div>

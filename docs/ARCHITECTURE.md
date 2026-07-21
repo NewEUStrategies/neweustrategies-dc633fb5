@@ -388,7 +388,16 @@ etykiety rozwiązane w bazie) przez `useLinkedItems` / `LinkedItemsCard`.
 - **Integracje wychodzące:** router (trigger na `domain_events`) fanoutuje do
   `integration_deliveries` per `integration_endpoints` (filtr event_types);
   dispatcher `dispatchIntegrationDeliveries` (HMAC-SHA256, backoff, dead po 8
-  próbach) tyka opportunistycznie przy wejściu staffu do /admin/crm.
+  próbach) tyka opportunistycznie przy wejściu staffu do /admin/crm oraz
+  cronem jobs-tick. **Adaptery formatów** (`src/lib/integrations/formats.ts`,
+  czyste funkcje + testy): `integration_endpoints.integration` wybiera format
+  payloadu - `webhook` wysyła surową kopertę 1:1 z podpisem HMAC (stabilny
+  kontrakt), `slack` renderuje Block Kit (incoming webhook, bez podpisu),
+  `hubspot` robi upsert kontaktu po e-mailu przez CRM v3 batch API (URL w
+  konfiguracji to baza API, sekret z Vault jako token Bearer; zdarzenia
+  niekontaktowe są świadomie pomijane jako sukces, brak tokenu = failed).
+  `gcal`/`confluence` spadają do generycznej koperty. Braki konfiguracyjne
+  (`tenant_id` przy INSERT z panelu) domyka migracja `20260721110000`.
 
 pgTAP: `supabase/tests/cohesion_layer_test.sql`; TS:
 `src/lib/realtime/__tests__/*`, `src/lib/http/__tests__/idempotency.test.ts`,
@@ -443,9 +452,12 @@ szynę zdarzeń i tabele modułów.
   (SECURITY DEFINER, migracja `20260718130000`) sumuje sygnały:
   - **behawioralne z decay** (półokres konfigurowalny): `email_open`,
     `email_click` (z `newsletter_campaign_events` po e-mailu subskrybenta),
-    `contact_form` (`contact_messages`), `event_rsvp`, `resource_download`,
-    `comment`, `purchase` (`user_purchases` active), `donation`. Wkład zdarzenia
-    maleje wykładniczo: `0.5^(wiek_dni / half_life_days)`, z sufitem per sygnał.
+    `page_view` (`post_views`, tylko zalogowani; migracja `20260721113000` -
+    trigger dławiony do pierwszej odsłony użytkownika w oknie godziny, bo to
+    sygnał wysokowolumenowy), `contact_form` (`contact_messages`),
+    `event_rsvp`, `resource_download`, `comment`, `purchase` (`user_purchases`
+    active), `donation`. Wkład zdarzenia maleje wykładniczo:
+    `0.5^(wiek_dni / half_life_days)`, z sufitem per sygnał.
   - **statusowe/fit bez decay**: `newsletter_confirmed`, `marketing_consent`,
     `has_company`, `has_position`, `has_phone`, `has_linkedin`.
   Wynik → pasmo `hot|warm|cool|cold` wg progów tenanta. Wagi/sufity/progi/decay
@@ -463,6 +475,23 @@ szynę zdarzeń i tabele modułów.
   skrzynkę na żywo przez mapę inwalidacji - bez nowych kanałów realtime. Trigger
   na `crm_leads` jest kolumnowo zawężony do pól fit/tożsamości, a `compute`
   pisze wyłącznie kolumny `score_*` → brak rekursji.
+- **Follow-upy/zadania (`crm_tasks`, migracja `20260721120000`).** Zadania per
+  lead (termin, przypisanie, `open|done|cancelled`); trigger utrzymuje
+  `crm_leads.follow_up_at = MIN(due_at)` otwartych zadań (istniejąca kolumna
+  i eksport CSV dostają realne dane). Przypomnienia robi skaner watermarkowy
+  `run_crm_task_reminders()` (wzorzec `run_event_reminders`): pg_cron co 10
+  min + jobs-tick + `community-cron` (job `crm-task-reminders`) →
+  `enqueue_notification(kind 'crm_task', href /admin/crm?lead=…&task=…)` do
+  przypisanego (fallback: owner leada → autor zadania) + `crm_task.due.v1` na
+  szynie (outbox/Slack widzi follow-upy bez dodatkowego kodu). Przesunięcie
+  terminu otwartego zadania w przyszłość zeruje watermark. UI: zakładka
+  „Zadania" w karcie leada + pasek „Follow-upy do zrobienia" nad skrzynką;
+  deep-link `?lead=&task=` otwiera kartę na zakładce zadań. **Import CSV z
+  dedupem:** RPC `crm_import_leads` (staff, do 500 wierszy per wywołanie -
+  klient stronicuje) reuse'uje `crm_upsert_from_form` (merge po `email_norm`,
+  unia tagów, source `import`); dialog importu dzieli parser CSV z
+  newsletterem (`src/lib/csv/parseCsv.ts`). pgTAP:
+  `supabase/tests/crm_tasks_followups_test.sql`.
 - **RPC panelu:** `recompute_crm_lead_score` (pojedynczy, guard `is_staff` +
   tenant) i `recompute_crm_lead_scores` (hurtowo po zmianie wag) - to drugie
   **porcjami z kursorem po `id`** (zwraca `{processed,last_id,done}`), a klient

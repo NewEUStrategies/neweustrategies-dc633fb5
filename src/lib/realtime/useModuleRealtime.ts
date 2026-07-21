@@ -20,7 +20,7 @@ export const MODULE_AGGREGATES: Record<ModuleRealtimeKey, readonly DomainAggrega
   content: ["post"],
   comments: ["comment"],
   chat: ["message"],
-  crm: ["crm_lead", "crm_note", "newsletter_subscriber"],
+  crm: ["crm_lead", "crm_note", "crm_task", "newsletter_subscriber"],
   newsletter: ["newsletter_subscriber"],
 };
 

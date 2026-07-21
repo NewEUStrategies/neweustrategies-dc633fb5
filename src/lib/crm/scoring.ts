@@ -1,10 +1,11 @@
 // CRM lead scoring - typy, domyślne wagi i pomocnicze funkcje wyświetlania.
 //
 // Źródłem prawdy dla LICZENIA jest baza (compute_crm_lead_score +
-// crm_scoring_default_weights, migracja 20260718130000). Ten moduł jest
-// lustrem domyślnych wartości na potrzeby panelu ustawień i etykiet -
-// zmiana wag w SQL wymaga aktualizacji tutaj (pilnuje tego test parzystości
-// kluczy w src/lib/crm/__tests__/scoring.test.ts).
+// crm_scoring_default_weights, migracja 20260718130000; sygnał page_view
+// doszedł w 20260721113000). Ten moduł jest lustrem domyślnych wartości na
+// potrzeby panelu ustawień i etykiet - zmiana wag w SQL wymaga aktualizacji
+// tutaj (pilnuje tego test parzystości kluczy
+// w src/lib/crm/__tests__/scoring.test.ts).
 
 export type ScoreBand = "hot" | "warm" | "cool" | "cold";
 
@@ -23,6 +24,7 @@ export const SCORE_SIGNAL_KEYS = [
   // behawioralne (decay)
   "email_open",
   "email_click",
+  "page_view",
   "contact_form",
   "event_rsvp",
   "resource_download",
@@ -44,6 +46,7 @@ export type ScoreSignalKey = (typeof SCORE_SIGNAL_KEYS)[number];
 export const DEFAULT_SCORING_WEIGHTS: Record<ScoreSignalKey, ScoringWeight> = {
   email_open: { points: 2, cap: 16 },
   email_click: { points: 6, cap: 30 },
+  page_view: { points: 1, cap: 10 },
   contact_form: { points: 25, cap: 50 },
   event_rsvp: { points: 15, cap: 30 },
   resource_download: { points: 12, cap: 36 },
@@ -90,6 +93,7 @@ export const SCORE_SIGNAL_LABELS: Record<"pl" | "en", Record<ScoreSignalKey, str
   pl: {
     email_open: "Otwarcia e-maili",
     email_click: "Kliknięcia w e-mailach",
+    page_view: "Odsłony treści (zalogowani)",
     contact_form: "Formularze kontaktowe",
     event_rsvp: "Zapisy na wydarzenia",
     resource_download: "Pobrania z biblioteki",
@@ -106,6 +110,7 @@ export const SCORE_SIGNAL_LABELS: Record<"pl" | "en", Record<ScoreSignalKey, str
   en: {
     email_open: "Email opens",
     email_click: "Email clicks",
+    page_view: "Content views (signed-in)",
     contact_form: "Contact forms",
     event_rsvp: "Event RSVPs",
     resource_download: "Library downloads",

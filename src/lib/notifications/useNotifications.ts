@@ -19,7 +19,8 @@ export type NotificationKind =
   | "message"
   | "tracker"
   | "connection"
-  | "saved_search";
+  | "saved_search"
+  | "crm_task";
 
 /** Who may START a new conversation with the user (existing threads live on). */
 export type AllowMessagesFrom = "everyone" | "existing" | "nobody";
@@ -39,6 +40,8 @@ export interface NotificationPreferences {
   enabled_connection: boolean;
   /** Alerty zapisanych wyszukiwań (producent: run_saved_search_alerts). */
   enabled_saved_search: boolean;
+  /** Przypomnienia o follow-upach CRM (producent: run_crm_task_reminders). */
+  enabled_crm_task: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
   /**
@@ -88,6 +91,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_tracker: true,
   enabled_connection: true,
   enabled_saved_search: true,
+  enabled_crm_task: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,

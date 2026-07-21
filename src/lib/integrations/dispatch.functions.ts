@@ -3,23 +3,28 @@
 // Zdarzenia domenowe są fanoutowane do integration_deliveries triggerem w DB
 // (router czyta filtry endpointów per tenant). Ta funkcja serwerowa zdejmuje
 // paczkę dostaw claim-em (FOR UPDATE SKIP LOCKED - równolegli dispatcherzy
-// się nie gryzą), wysyła HTTP POST z podpisem HMAC-SHA256 i raportuje wynik
-// (backoff wykładniczy + status dead po 8 próbach liczy baza).
+// się nie gryzą), buduje żądanie w formacie odbiorcy (formats.ts: generyczny
+// webhook + HMAC-SHA256, Slack Block Kit, HubSpot contact upsert) i raportuje
+// wynik (backoff wykładniczy + status dead po 8 próbach liczy baza).
 //
 // Wywoływana opportunistycznie z panelu admina (ta sama doktryna co
 // publish_due_posts: pierwszy tick przy wejściu staffu, bez osobnej
-// infrastruktury schedulera po stronie aplikacji).
+// infrastruktury schedulera po stronie aplikacji) oraz cronem jobs-tick.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/integrations/supabase/require-staff";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  formatDelivery,
+  normalizeIntegrationKind,
+  parseDeliveryEnvelope,
+} from "@/lib/integrations/formats";
 
 const DispatchInput = z.object({
   limit: z.number().int().min(1).max(100).default(20),
 });
 
 const SIGNATURE_HEADER = "x-nes-signature";
-const EVENT_HEADER = "x-nes-event";
 const DELIVERY_TIMEOUT_MS = 10_000;
 
 async function hmacSha256Hex(secret: string, body: string): Promise<string> {
@@ -62,7 +67,7 @@ export async function runIntegrationDispatch(limit: number): Promise<DispatchSum
     for (const delivery of deliveries) {
       const { data: endpoint, error: endpointError } = await supabaseAdmin
         .from("integration_endpoints")
-        .select("url, enabled")
+        .select("url, enabled, integration")
         .eq("id", delivery.endpoint_id)
         .maybeSingle();
 
@@ -74,40 +79,55 @@ export async function runIntegrationDispatch(limit: number): Promise<DispatchSum
       } else if (!endpoint.enabled) {
         lastError = "endpoint disabled";
       } else {
-        const body = JSON.stringify(delivery.payload);
-        const headers: Record<string, string> = {
-          "content-type": "application/json",
-          [EVENT_HEADER]: delivery.event_type,
-        };
-        // Signing secret now lives in Supabase Vault (migracja 20260714090000);
-        // read it via the service-role-only RPC, not a plaintext column.
+        // Secret lives in Supabase Vault (migracja 20260714090000); read it via
+        // the service-role-only RPC. Dla webhooka to klucz HMAC, dla HubSpota
+        // token Bearer - formats.ts decyduje, jak go użyć.
         const { data: secretVal } = await supabaseAdmin.rpc(
           "integration_endpoint_get_secret" as never,
           { _endpoint_id: delivery.endpoint_id } as never,
         );
-        const signingSecret = typeof secretVal === "string" ? secretVal : null;
-        if (signingSecret) {
-          headers[SIGNATURE_HEADER] = await hmacSha256Hex(signingSecret, body);
-        }
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
-        try {
-          // SSRF guard: endpoint.url is tenant-configured (import cached after first call).
-          const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
-          await assertPublicHttpUrl(endpoint.url);
-          const response = await fetch(endpoint.url, {
-            method: "POST",
-            headers,
-            body,
-            signal: controller.signal,
-            redirect: "manual",
-          });
-          ok = response.ok;
-          if (!ok) lastError = `HTTP ${response.status}`;
-        } catch (e) {
-          lastError = e instanceof Error ? e.message : "network error";
-        } finally {
-          clearTimeout(timer);
+        const secretText: unknown = secretVal;
+        const secret = typeof secretText === "string" && secretText.length > 0 ? secretText : null;
+        const kind = normalizeIntegrationKind(endpoint.integration);
+        const formatted = formatDelivery({
+          kind,
+          endpointUrl: endpoint.url,
+          envelope: parseDeliveryEnvelope(delivery.payload, delivery.event_type),
+          raw: delivery.payload,
+          secret,
+        });
+
+        if (formatted.kind === "skip") {
+          // Zdarzenie nie mapuje się na format odbiorcy (np. HubSpot dostaje
+          // tylko zdarzenia kontaktowe) - kończymy sukcesem bez HTTP.
+          ok = true;
+        } else if (formatted.kind === "fail") {
+          lastError = formatted.reason;
+        } else {
+          const { url, body, headers, sign } = formatted.request;
+          if (sign && secret) {
+            headers[SIGNATURE_HEADER] = await hmacSha256Hex(secret, body);
+          }
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
+          try {
+            // SSRF guard: endpoint.url is tenant-configured (import cached after first call).
+            const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
+            await assertPublicHttpUrl(url);
+            const response = await fetch(url, {
+              method: "POST",
+              headers,
+              body,
+              signal: controller.signal,
+              redirect: "manual",
+            });
+            ok = response.ok;
+            if (!ok) lastError = `HTTP ${response.status}`;
+          } catch (e) {
+            lastError = e instanceof Error ? e.message : "network error";
+          } finally {
+            clearTimeout(timer);
+          }
         }
       }
 

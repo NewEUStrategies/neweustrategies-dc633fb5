@@ -1818,6 +1818,7 @@ export const en = {
         subscription: "Subscription updates",
         content: "New content",
         saved_search: "Saved search alerts",
+        crm_task: "CRM follow-up reminders",
         tracker: "Legislative tracker updates",
         connection: "Network invitations",
         system: "System announcements",
