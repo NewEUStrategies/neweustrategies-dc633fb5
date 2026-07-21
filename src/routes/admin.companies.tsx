@@ -3,13 +3,14 @@
 // wyszukiwarką, gęstą tabelą i wielo-zaznaczeniem. Klik w wiersz otwiera
 // `/admin/companies/:id`. Zabezpieczone przez `requireStaff` w server-fn
 // oraz `_authenticated` layout w AdminShell.
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 
 import { listCrmCompanies } from "@/lib/crm-companies.functions";
+import { CompanyDetailsDrawer } from "@/components/admin/crm/CompanyDetailsDrawer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -135,7 +136,7 @@ function LogoCell({ name, domain }: { name: string; domain: string | null }) {
 function AdminCompaniesPage() {
   const { i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
-  const navigate = useNavigate();
+  const [drawerId, setDrawerId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState<string>("all");
   const [branch, setBranch] = useState<string>("all");
@@ -423,7 +424,7 @@ function AdminCompaniesPage() {
                       key={c.id}
                       className="group cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/40 data-[selected=true]:bg-primary/5"
                       data-selected={checked || undefined}
-                      onClick={() => navigate({ to: "/admin/companies/$id", params: { id: c.id } })}
+                      onClick={() => setDrawerId(c.id)}
                     >
                       <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
@@ -517,6 +518,14 @@ function AdminCompaniesPage() {
           </table>
         </div>
       </div>
+
+      <CompanyDetailsDrawer
+        companyId={drawerId}
+        open={drawerId !== null}
+        onOpenChange={(v) => {
+          if (!v) setDrawerId(null);
+        }}
+      />
     </div>
   );
 }
