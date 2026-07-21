@@ -118,6 +118,15 @@ export function CompanyPickerDialog({
     }
   };
 
+  // Zamknięcie dialogu + oddanie focusu do triggera w sekcji firmy (a11y:
+  // klawiaturowy użytkownik nie ląduje na <body> po zapisie).
+  const closeAndRestoreFocus = () => {
+    onOpenChange(false);
+    window.setTimeout(() => {
+      returnFocusRef?.current?.focus();
+    }, 80);
+  };
+
   const linkCompany = async (companyId: string | null) => {
     if (saving) return;
     setSaving(true);
@@ -136,7 +145,12 @@ export function CompanyPickerDialog({
         if (error) throw error;
       }
       invalidateProfile();
-      onOpenChange(false);
+      toast.success(
+        companyId
+          ? t("company.toast.linked", { defaultValue: "Firma przypisana" })
+          : t("company.toast.detached", { defaultValue: "Firma odłączona" }),
+      );
+      closeAndRestoreFocus();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(
