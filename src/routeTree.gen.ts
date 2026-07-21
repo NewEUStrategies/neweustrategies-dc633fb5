@@ -84,6 +84,7 @@ import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
+import { Route as AdminWorkflowsRouteImport } from './routes/admin.workflows'
 import { Route as AdminWebStoriesRouteImport } from './routes/admin.web-stories'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTrackerGuideRouteImport } from './routes/admin.tracker-guide'
@@ -587,6 +588,11 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
   path: '/api/tts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminWorkflowsRoute = AdminWorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminWebStoriesRoute = AdminWebStoriesRouteImport.update({
   id: '/web-stories',
   path: '/web-stories',
@@ -899,10 +905,10 @@ const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
-const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
-  id: '/api/public/vitals',
-  path: '/api/public/vitals',
-  getParentRoute: () => rootRouteImport,
+const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminNewsletterRoute,
 } as any)
 const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
   id: '/',
@@ -2574,11 +2580,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RssDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -3063,6 +3069,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/tts'
       preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/workflows': {
+      id: '/admin/workflows'
+      path: '/workflows'
+      fullPath: '/admin/workflows'
+      preLoaderRoute: typeof AdminWorkflowsRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/web-stories': {
       id: '/admin/web-stories'
