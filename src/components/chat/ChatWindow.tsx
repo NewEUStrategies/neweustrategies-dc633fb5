@@ -88,6 +88,7 @@ import { ChatMediaPanel } from "./ChatMediaPanel";
 import { ForwardDialog } from "./ForwardDialog";
 import { GroupInfoDialog } from "./GroupInfoDialog";
 import { MessageList } from "./MessageList";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { MessageSearchBar } from "./MessageSearchBar";
 
 const TYPING_VISIBLE_MS = 4000;
@@ -599,51 +600,69 @@ export function ChatWindow(props: ChatWindowProps) {
   };
 
   const searchToggle = (
-    <button
-      type="button"
-      onClick={() => setSearchOpen((v) => !v)}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-        searchOpen && "bg-muted text-foreground",
-      )}
-      aria-label={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
-      aria-pressed={searchOpen}
-      title={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
-    >
-      <Search className="h-4 w-4" aria-hidden />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setSearchOpen((v) => !v)}
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            searchOpen && "bg-muted text-foreground",
+          )}
+          aria-label={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
+          aria-pressed={searchOpen}
+        >
+          <Search className="h-4 w-4" aria-hidden />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
+      </TooltipContent>
+    </Tooltip>
   );
 
   const mediaToggle = (
-    <button
-      type="button"
-      onClick={() => setMediaOpen((v) => !v)}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-        mediaOpen && "bg-muted text-foreground",
-      )}
-      aria-label={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
-      aria-pressed={mediaOpen}
-      title={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
-    >
-      <Images className="h-4 w-4" aria-hidden />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setMediaOpen((v) => !v)}
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            mediaOpen && "bg-muted text-foreground",
+          )}
+          aria-label={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+          aria-pressed={mediaOpen}
+        >
+          <Images className="h-4 w-4" aria-hidden />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+      </TooltipContent>
+    </Tooltip>
   );
 
   const blockToggle = peerId ? (
-    <button
-      type="button"
-      onClick={() => setBlockDialogOpen(true)}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-        peerBlocked && "text-destructive hover:text-destructive",
-      )}
-      aria-label={peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
-      aria-haspopup="dialog"
-      title={peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
-    >
-      <Ban className="h-4 w-4" aria-hidden />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setBlockDialogOpen(true)}
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            peerBlocked && "text-destructive hover:text-destructive",
+          )}
+          aria-label={peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
+          aria-haspopup="dialog"
+        >
+          <Ban className="h-4 w-4" aria-hidden />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
+      </TooltipContent>
+    </Tooltip>
   ) : null;
 
   const menuItemClass =
@@ -652,20 +671,24 @@ export function ChatWindow(props: ChatWindowProps) {
     "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
   const conversationMenu = (
     <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            menuOpen && "bg-muted text-foreground",
-          )}
-          aria-label={t("chat.menu.title")}
-          aria-haspopup="menu"
-          title={t("chat.menu.title")}
-        >
-          <MoreVertical className="h-4 w-4" aria-hidden />
-        </button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                menuOpen && "bg-muted text-foreground",
+              )}
+              aria-label={t("chat.menu.title")}
+              aria-haspopup="menu"
+            >
+              <MoreVertical className="h-4 w-4" aria-hidden />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{t("chat.menu.title")}</TooltipContent>
+      </Tooltip>
       <PopoverContent
         side="bottom"
         align="end"
@@ -987,6 +1010,7 @@ export function ChatWindow(props: ChatWindowProps) {
 
   if (variant === "page") {
     return (
+      <TooltipProvider delayDuration={200}>
       <div
         className={cn("flex h-full min-h-0 flex-col", themeClass(theme), className)}
         data-active-conversation={conversationId}
@@ -1061,10 +1085,12 @@ export function ChatWindow(props: ChatWindowProps) {
         </div>
         {body}
       </div>
+      </TooltipProvider>
     );
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <section
       className={cn(
         "pointer-events-auto flex w-[420px] max-w-[calc(100vw-16px)] flex-col overflow-hidden sm:w-[460px] lg:w-[500px]",
@@ -1110,29 +1136,38 @@ export function ChatWindow(props: ChatWindowProps) {
         {mediaToggle}
         {conversationMenu}
         {onMinimize && (
-          <button
-            type="button"
-            onClick={onMinimize}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label={t("chat.minimize")}
-            title={t("chat.minimize")}
-          >
-            <Minus className="h-4 w-4" aria-hidden />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onMinimize}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                aria-label={t("chat.minimize")}
+              >
+                <Minus className="h-4 w-4" aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t("chat.minimize")}</TooltipContent>
+          </Tooltip>
         )}
         {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label={t("chat.close")}
-            title={t("chat.close")}
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                aria-label={t("chat.close")}
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t("chat.close")}</TooltipContent>
+          </Tooltip>
         )}
       </header>
       {body}
     </section>
+    </TooltipProvider>
   );
 }
