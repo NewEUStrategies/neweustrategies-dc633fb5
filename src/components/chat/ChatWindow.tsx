@@ -1148,7 +1148,6 @@ export function ChatWindow(props: ChatWindowProps) {
           <div className="text-[11px] leading-tight text-muted-foreground">{headerSubtitle}</div>
         </div>
         {searchToggle}
-        {blockToggle}
         {mediaToggle}
         {conversationMenu}
         {onMinimize && (
