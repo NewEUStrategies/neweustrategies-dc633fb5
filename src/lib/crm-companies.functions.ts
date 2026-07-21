@@ -32,7 +32,9 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
   .inputValidator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     let q = tbl(context, "crm_companies")
-      .select("id, name, domain, country, branch, city, website, phone, created_at, updated_at")
+      .select(
+        "id, name, domain, country, branch, city, website, phone, address, postal_code, created_at, updated_at",
+      )
       .order("updated_at", { ascending: false })
       .limit(data.limit);
     if (data.search) {
@@ -40,12 +42,53 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
       q = q.or(`name.ilike.${s},domain.ilike.${s},city.ilike.${s},country.ilike.${s}`);
     }
     const { data: rows, error } = await (q as unknown as Promise<{
-      data: unknown[];
+      data: Array<{ id: string }> | null;
       error: { message: string } | null;
     }>);
     if (error) throw new Error(error.message);
-    return { json: j(rows ?? []) };
+    const list = rows ?? [];
+    const ids = list.map((r) => r.id);
+
+    // Aggregacja leadów i profili po stronie serwera (jednorazowe pobrania).
+    let leadsAgg: Record<string, { total: number; lastActivity: string | null }> = {};
+    let contactsAgg: Record<string, number> = {};
+    if (ids.length > 0) {
+      const { data: leadRows } = (await tbl(context, "crm_leads")
+        .select("company_id, last_activity_at")
+        .in("company_id", ids)
+        .limit(5000)) as unknown as {
+        data: Array<{ company_id: string | null; last_activity_at: string | null }> | null;
+      };
+      for (const r of leadRows ?? []) {
+        if (!r.company_id) continue;
+        const agg = leadsAgg[r.company_id] ?? { total: 0, lastActivity: null };
+        agg.total += 1;
+        if (r.last_activity_at && (!agg.lastActivity || r.last_activity_at > agg.lastActivity)) {
+          agg.lastActivity = r.last_activity_at;
+        }
+        leadsAgg[r.company_id] = agg;
+      }
+      const { data: profileRows } = (await tbl(context, "profiles")
+        .select("current_company_id")
+        .in("current_company_id", ids)
+        .limit(5000)) as unknown as {
+        data: Array<{ current_company_id: string | null }> | null;
+      };
+      for (const r of profileRows ?? []) {
+        if (!r.current_company_id) continue;
+        contactsAgg[r.current_company_id] = (contactsAgg[r.current_company_id] ?? 0) + 1;
+      }
+    }
+
+    const enriched = list.map((r) => ({
+      ...r,
+      leads_count: leadsAgg[r.id]?.total ?? 0,
+      last_lead_activity_at: leadsAgg[r.id]?.lastActivity ?? null,
+      contacts_count: contactsAgg[r.id] ?? 0,
+    }));
+    return { json: j(enriched) };
   });
+
 
 const IdInput = z.object({ id: z.string().uuid() });
 
