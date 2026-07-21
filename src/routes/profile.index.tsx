@@ -193,21 +193,26 @@ function ProfileInline() {
           {/* Company + Job */}
           <div className="mt-0.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-1 gap-y-0.5 text-[13px] leading-[1.2]">
             {data.current_company ? (
-              <span className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground align-middle">
-                <CompanyLogoIcon className="h-11 w-20 shrink-0 self-center object-contain" />
-                <span className="min-w-0 leading-[1.2]">{data.current_company}</span>
-              </span>
+              editable ? (
+                <button
+                  type="button"
+                  onClick={() => setCompanyPickerOpen(true)}
+                  className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground align-middle transition-colors hover:text-primary"
+                  aria-label={t("profile.account.currentCompany")}
+                >
+                  <CompanyLogoIcon className="h-11 w-20 shrink-0 self-center object-contain" />
+                  <span className="min-w-0 leading-[1.2]">{data.current_company}</span>
+                </button>
+              ) : (
+                <span className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground align-middle">
+                  <CompanyLogoIcon className="h-11 w-20 shrink-0 self-center object-contain" />
+                  <span className="min-w-0 leading-[1.2]">{data.current_company}</span>
+                </span>
+              )
             ) : editable ? (
               <button
                 type="button"
-                onClick={() => {
-                  void promptDialog({
-                    title: t("profile.account.currentCompany"),
-                    confirmLabel: t("common.save", { defaultValue: "Zapisz" }),
-                  }).then((v) => {
-                    if (v != null) void saveField("current_company", v.trim() || null);
-                  });
-                }}
+                onClick={() => setCompanyPickerOpen(true)}
                 className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-muted-foreground italic align-middle transition-colors hover:text-foreground"
               >
                 <CompanyLogoIcon className="h-11 w-20 shrink-0 self-center object-contain opacity-60" />
