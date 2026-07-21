@@ -60,8 +60,8 @@ export async function fetchPlanById(planId: string): Promise<AccessPlan | null> 
 }
 
 export async function fetchMyBillingProfile(): Promise<BillingProfile | null> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
+  const { data: auth } = await supabase.auth.getSession();
+  const uid = auth.session?.user?.id;
   if (!uid) return null;
   const { data, error } = await supabase
     .from("billing_profiles")
@@ -73,8 +73,8 @@ export async function fetchMyBillingProfile(): Promise<BillingProfile | null> {
 }
 
 export async function upsertMyBillingProfile(input: BillingProfileInput): Promise<BillingProfile> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
+  const { data: auth } = await supabase.auth.getSession();
+  const uid = auth.session?.user?.id;
   if (!uid) throw new Error("not_authenticated");
   const { data: profile } = await supabase
     .from("profiles")
@@ -94,8 +94,8 @@ export async function upsertMyBillingProfile(input: BillingProfileInput): Promis
 }
 
 export async function fetchMyOrders(): Promise<PaymentOrder[]> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
+  const { data: auth } = await supabase.auth.getSession();
+  const uid = auth.session?.user?.id;
   if (!uid) return [];
   const { data, error } = await supabase
     .from("payment_orders")
@@ -108,8 +108,8 @@ export async function fetchMyOrders(): Promise<PaymentOrder[]> {
 }
 
 export async function fetchMySubscription(): Promise<UserSubscriptionRow | null> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
+  const { data: auth } = await supabase.auth.getSession();
+  const uid = auth.session?.user?.id;
   if (!uid) return null;
   const { data, error } = await supabase
     .from("user_subscriptions")
