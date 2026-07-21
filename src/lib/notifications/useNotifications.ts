@@ -2,7 +2,15 @@
 // Multi-tenant: RLS in DB filters by auth.uid() AND current_tenant_id(),
 // so a compromised client cannot see other tenants' rows even by guessing IDs.
 import { useEffect } from "react";
-import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type UseInfiniteQueryResult,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
