@@ -64,6 +64,7 @@ export function CompanyPickerDialog({
   onOpenChange,
   currentCompanyId,
   currentCompanyName,
+  returnFocusRef,
 }: Props) {
   const { t } = useTranslation();
   const { user, tenantId } = useAuth();
