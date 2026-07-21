@@ -333,10 +333,20 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
                 {/* Actions */}
                 <div className="flex items-center gap-1.5">
                   {!editing ? (
-                    <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={startEdit}>
-                      <Pencil className="h-3 w-3" aria-hidden />
-                      {t("Edytuj", "Edit")}
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={startEdit}>
+                        <Pencil className="h-3 w-3" aria-hidden />
+                        {t("Edytuj", "Edit")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-8 gap-1.5"
+                        onClick={() => setAddOpen(true)}
+                      >
+                        <UserPlus className="h-3 w-3" aria-hidden />
+                        {t("Dodaj kontakt", "Add contact")}
+                      </Button>
+                    </>
                   ) : (
                     <>
                       <Button
