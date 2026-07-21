@@ -174,7 +174,7 @@ export const updateCrmCompany = createServerFn({ method: "POST" })
     const { error } = await supa.from("crm_companies").update(patch).eq("id", id);
     if (error) throw new Error(error.message);
     try {
-      await tbl(context, "audit_log").insert({
+      await write(context, "audit_log").insert({
         actor_id: (context as { userId: string }).userId,
         action: "crm.company.update",
         entity_type: "crm_company",
@@ -231,7 +231,7 @@ export const createCrmContactForCompany = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
     try {
-      await tbl(context, "audit_log").insert({
+      await write(context, "audit_log").insert({
         actor_id: (context as { userId: string }).userId,
         action: "crm.contact.create",
         entity_type: "crm_lead",
