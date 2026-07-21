@@ -146,7 +146,7 @@ function LoginPage() {
       // (fail-closed). Uruchamiane PRZED Supabase Auth, żeby próba nawet nie
       // dotarła do wbudowanego licznika.
       try {
-        await runPreAuthGuard({ data: { kind: mode, email } });
+        await runPreAuthGuard({ data: { kind: mode === "signin" ? "login" : mode, email } });
       } catch (guardErr) {
         const msg = guardErr instanceof Error ? guardErr.message : "";
         if (msg.includes("rate_limited")) {

@@ -95,7 +95,7 @@ export function LoginPopup() {
     setBusy(true);
     try {
       try {
-        await runPreAuthGuard({ data: { kind: mode, email } });
+        await runPreAuthGuard({ data: { kind: mode === "signin" ? "login" : mode, email } });
       } catch (guardErr) {
         const msg = guardErr instanceof Error ? guardErr.message : "";
         if (msg.includes("rate_limited")) {
