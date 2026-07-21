@@ -91,6 +91,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (uid && !editing) setDraft(uid, conversationId, next);
   };
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [reactionsOpen, setReactionsOpen] = useState(false);
   const [uploading, setUploading] = useState<{ name: string; percent: number } | null>(null);
   // A picked attachment waits here so the user can add a caption before it is
   // uploaded+sent (WhatsApp flow). previewUrl is an object URL for images.
