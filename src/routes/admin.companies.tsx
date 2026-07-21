@@ -142,7 +142,14 @@ function LogoCell({ name, domain }: { name: string; domain: string | null }) {
 function AdminCompaniesPage() {
   const { i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
-  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const { company: drawerId } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const setDrawerId = (id: string | null) => {
+    void navigate({
+      search: (prev) => ({ ...prev, company: id ?? undefined }),
+      replace: false,
+    });
+  };
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState<string>("all");
   const [branch, setBranch] = useState<string>("all");
