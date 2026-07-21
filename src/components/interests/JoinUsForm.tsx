@@ -690,7 +690,7 @@ export function JoinUsForm({
   }
 
   const inputCls =
-    "h-10 px-3 rounded border border-input bg-background font-sans leading-none w-full";
+    "h-10 px-3 rounded border border-border bg-background font-sans leading-none w-full";
   const inputStyle = placeholderSize
     ? ({ fontSize: `${placeholderSize}px` } satisfies CSSProperties)
     : ({ fontSize: "14px" } satisfies CSSProperties);
@@ -942,7 +942,7 @@ export function JoinUsForm({
                   onClick={() => setDropOpen((v) => !v)}
                   aria-haspopup="listbox"
                   aria-expanded={dropOpen}
-                  className="flex w-full items-center justify-between rounded border border-input bg-background px-3 py-2 text-sm text-left"
+                  className="flex w-full items-center justify-between rounded border border-border bg-background px-3 py-2 text-sm text-left"
                   style={droplistButtonStyle}
                   data-edit-target="placeholderSize"
                 >
@@ -1032,7 +1032,7 @@ export function JoinUsForm({
                                           "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition",
                                           active
                                             ? "border-brand bg-brand text-brand-foreground"
-                                            : "border-input bg-background",
+                                            : "border-border bg-background",
                                         )}
                                       >
                                         {active && <Check className="h-2.5 w-2.5" />}
