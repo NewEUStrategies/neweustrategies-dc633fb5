@@ -301,7 +301,11 @@ function createMediaImporter(opts: {
       // Lazy import of admin client (server-only).
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-      const res = await fetch(sourceUrl, { redirect: "follow" });
+      // SSRF guard: only fetch public https URLs. `redirect: "manual"` blocks
+      // 30x hops to internal hosts after the pre-check.
+      const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
+      await assertPublicHttpUrl(sourceUrl);
+      const res = await fetch(sourceUrl, { redirect: "manual" });
       if (!res.ok) throw new Error(`fetch ${res.status} ${sourceUrl}`);
       const ct = (res.headers.get("content-type") || "application/octet-stream")
         .split(";")[0]
