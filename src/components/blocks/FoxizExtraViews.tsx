@@ -251,51 +251,17 @@ export function LoginOutView({
   cls,
 }: LoginOutProps) {
   const t = L[lang];
-  const [email, setEmail] = useState<string | null>(null);
-  const [avatar, setAvatar] = useState<string | null>(null);
-  const [name, setName] = useState<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    void supabase.auth.getUser().then(({ data }) => {
-      if (!mounted) return;
-      const u = data.user;
-      if (!u) {
-        setEmail(null);
-        return;
-      }
-      setEmail(u.email ?? null);
-      const meta = (u.user_metadata ?? {}) as {
-        avatar_url?: string;
-        display_name?: string;
-        name?: string;
-      };
-      setAvatar(meta.avatar_url ?? null);
-      setName(meta.display_name ?? meta.name ?? null);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!mounted) return;
-      const u = session?.user;
-      if (!u) {
-        setEmail(null);
-        setAvatar(null);
-        setName(null);
-        return;
-      }
-      setEmail(u.email ?? null);
-      const meta = (u.user_metadata ?? {}) as {
-        avatar_url?: string;
-        display_name?: string;
-        name?: string;
-      };
-      setAvatar(meta.avatar_url ?? null);
-      setName(meta.display_name ?? meta.name ?? null);
-    });
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
+  // Tożsamość czytamy z jedynego AuthProvider (__root.tsx). getUser() +
+  // własny onAuthStateChange na każdy mount widgetu duplikował ruch do Auth API.
+  const { user } = useAuth();
+  const email = user?.email ?? null;
+  const meta = (user?.user_metadata ?? {}) as {
+    avatar_url?: string;
+    display_name?: string;
+    name?: string;
+  };
+  const avatar = meta.avatar_url ?? null;
+  const name = meta.display_name ?? meta.name ?? null;
 
   const onSignOut = useCallback(async () => {
     await supabase.auth.signOut();
