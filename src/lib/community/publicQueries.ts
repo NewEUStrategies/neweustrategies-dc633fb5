@@ -62,7 +62,9 @@ export interface EventAccess {
   join_url: string | null;
   can_watch: boolean;
   recording_url: string | null;
-  reason: "not_found" | "auth_required" | "tier_required" | "rsvp_required" | "ok";
+  reason: "not_found" | "auth_required" | "tier_required" | "rsvp_required" | "waitlisted" | "ok";
+  /** Dlaczego (nie) widać nagrania - benefit warstwy 'recordings' egzekwuje DB. */
+  watch_reason: "not_found" | "none" | "auth_required" | "tier_required" | "ok";
 }
 
 /** Serwerowa ocena dostępu (link do transmisji/nagrania, powód odmowy). */
@@ -77,6 +79,7 @@ export interface EventRsvpCounts {
   event_id: string;
   going: number;
   interested: number;
+  waitlist: number;
 }
 
 export async function fetchEventRsvpCounts(
@@ -92,17 +95,59 @@ export async function fetchEventRsvpCounts(
   return map;
 }
 
-/** RSVP przez RPC: limit miejsc, bramka warstwy i statusy egzekwowane w DB. */
-export async function rsvpEvent(
-  eventId: string,
-  status: "going" | "interested" | "cancelled",
-): Promise<{ status: string; going: number }> {
+/** Status żądany przez klienta; 'waitlist' nadaje wyłącznie serwer. */
+export type RsvpRequestStatus = "going" | "interested" | "cancelled";
+export type RsvpOutcomeStatus = RsvpRequestStatus | "waitlist";
+
+export interface RsvpResult {
+  status: RsvpOutcomeStatus;
+  going: number;
+  waitlist: number;
+  /** Pozycja FIFO, tylko gdy status='waitlist'. */
+  waitlist_position: number | null;
+}
+
+function parseRsvpResult(raw: unknown, requested: RsvpRequestStatus): RsvpResult {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  const status = obj.status;
+  return {
+    status:
+      status === "going" ||
+      status === "interested" ||
+      status === "cancelled" ||
+      status === "waitlist"
+        ? status
+        : requested,
+    going: typeof obj.going === "number" ? obj.going : 0,
+    waitlist: typeof obj.waitlist === "number" ? obj.waitlist : 0,
+    waitlist_position: typeof obj.waitlist_position === "number" ? obj.waitlist_position : null,
+  };
+}
+
+/**
+ * RSVP przez RPC: limit miejsc, bramka warstwy i statusy egzekwowane w DB.
+ * Przy komplecie 'going' degraduje się serwerowo do 'waitlist' (kolejka FIFO
+ * pod blokadą wiersza wydarzenia) - klient czyta wynik z odpowiedzi.
+ */
+export async function rsvpEvent(eventId: string, status: RsvpRequestStatus): Promise<RsvpResult> {
   const { data, error } = await supabase.rpc("rsvp_event", {
     p_event_id: eventId,
     p_status: status,
   });
   if (error) throw error;
-  return (data ?? { status, going: 0 }) as { status: string; going: number };
+  return parseRsvpResult(data, status);
+}
+
+/** Własna pozycja na liście rezerwowej (NULL poza kolejką); wiersze są owner-only. */
+export async function fetchEventWaitlistPosition(eventId: string): Promise<number | null> {
+  // `as never`: RPC z migracji 20260721150000, jeszcze nie w wygenerowanych
+  // typach - do usunięcia przy regeneracji types.ts.
+  const { data, error } = await supabase.rpc(
+    "get_event_waitlist_position" as never,
+    { p_event_id: eventId } as never,
+  );
+  if (error) throw error;
+  return typeof data === "number" ? data : null;
 }
 
 export interface PublicPoll {
@@ -189,14 +234,17 @@ export interface PublicQaSession {
   opens_at: string | null;
   closes_at: string | null;
   host_user_id: string | null;
+  /** Wpis z podsumowaniem sesji (publish_qa_session_summary), gdy istnieje. */
+  post_id: string | null;
 }
+
+const QA_SESSION_COLUMNS =
+  "id, slug, title_pl, title_en, intro_pl, intro_en, status, opens_at, closes_at, host_user_id, post_id";
 
 export async function fetchPublicQaSessions(): Promise<PublicQaSession[]> {
   const { data, error } = await supabase
     .from("qa_sessions")
-    .select(
-      "id, slug, title_pl, title_en, intro_pl, intro_en, status, opens_at, closes_at, host_user_id",
-    )
+    .select(QA_SESSION_COLUMNS)
     .neq("status", "draft")
     .order("opens_at", { ascending: false, nullsFirst: false })
     .limit(100);
@@ -207,14 +255,34 @@ export async function fetchPublicQaSessions(): Promise<PublicQaSession[]> {
 export async function fetchPublicQaSessionBySlug(slug: string): Promise<PublicQaSession | null> {
   const { data, error } = await supabase
     .from("qa_sessions")
-    .select(
-      "id, slug, title_pl, title_en, intro_pl, intro_en, status, opens_at, closes_at, host_user_id",
-    )
+    .select(QA_SESSION_COLUMNS)
     .eq("slug", slug)
     .neq("status", "draft")
     .maybeSingle();
   if (error) throw error;
   return (data ?? null) as PublicQaSession | null;
+}
+
+export interface QaSummaryPostTeaser {
+  slug: string;
+  title_pl: string;
+  title_en: string;
+}
+
+/**
+ * Teaser opublikowanego podsumowania sesji (RLS: publiczny odczyt tylko
+ * opublikowanych wpisów - szkic z redakcyjnej kolejki nie wycieka).
+ */
+export async function fetchQaSummaryPost(postId: string): Promise<QaSummaryPostTeaser | null> {
+  const { data, error } = await supabase
+    .from("posts")
+    .select("slug, title_pl, title_en")
+    .eq("id", postId)
+    .eq("status", "published")
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as QaSummaryPostTeaser | null;
 }
 
 export interface PublicQaQuestion {

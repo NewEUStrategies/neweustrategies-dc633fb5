@@ -3,6 +3,10 @@
 // tego samego statusu = cofnięcie do 'cancelled'. Zmiana statusu robi UPDATE
 // istniejącego wiersza (unique index event_id+user_id), więc jeden użytkownik
 // zawsze ma dokładnie jeden RSVP na wydarzenie.
+// Przy komplecie miejsc 'going' degraduje się SERWEROWO do 'waitlist'
+// (kolejka FIFO w rsvp_event) - klient czyta wynik z odpowiedzi RPC i nigdy
+// sam nie żąda statusu waitlist. Nagranie po wydarzeniu stoi za bramką
+// warstwy (flaga recordings) rozstrzyganą w get_event_access.
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -15,6 +19,7 @@ import {
   Video,
   ArrowLeft,
   Check,
+  ListPlus,
   Star,
   XCircle,
   BadgeCheck,
@@ -26,20 +31,23 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   fetchEventAccess,
   fetchEventRsvpCounts,
+  fetchEventWaitlistPosition,
   fetchPublicEventBySlug,
   rsvpEvent,
+  type RsvpRequestStatus,
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
-import { useMembershipTiers, tierName, useCurrentTier } from "@/lib/billing/tiers";
+import { useMembershipTiers, tierName, tierHasFeature, useCurrentTier } from "@/lib/billing/tiers";
 import { useAuth } from "@/hooks/useAuth";
 import { EventGroupButton } from "@/components/network/EventGroupButton";
+import { AddToCalendar } from "@/components/community/AddToCalendar";
 import { Button } from "@/components/ui/button";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
-type RsvpStatus = "going" | "interested" | "cancelled";
+type RsvpStatus = "going" | "interested" | "cancelled" | "waitlist";
 
 export const Route = createFileRoute("/events/$slug")({
   component: EventDetail,
@@ -109,30 +117,49 @@ function EventDetail() {
   const tiersQ = useMembershipTiers();
   const currentTierQ = useCurrentTier();
 
+  // Pozycja FIFO na liście rezerwowej (wiersze RSVP są owner-only; liczby
+  // ponad własny wiersz wyłącznie przez RPC).
+  const waitlistPosQ = useQuery({
+    queryKey: ["event-waitlist-position", eventId, user?.id],
+    queryFn: () => fetchEventWaitlistPosition(eventId!),
+    enabled: !!eventId && !!user && rsvpQ.data?.status === "waitlist",
+  });
+
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["event-rsvp", eventId, user?.id] });
     void qc.invalidateQueries({ queryKey: ["event-access", eventId, user?.id ?? "anon"] });
     void qc.invalidateQueries({ queryKey: ["event-rsvp-counts", eventId] });
+    void qc.invalidateQueries({ queryKey: ["event-waitlist-position", eventId, user?.id] });
   };
 
   const rsvpM = useMutation({
-    mutationFn: async (target: RsvpStatus) => {
+    mutationFn: async (target: RsvpRequestStatus) => {
       if (!eventQ.data || !user) throw new Error("no user");
       // Ponowne kliknięcie tego samego statusu = cancel (poza samym 'cancelled').
+      // Klik w aktywną listę rezerwową ponawia 'going' - to celowo idempotentne:
+      // jeśli w międzyczasie zwolniło się miejsce, serwer po prostu potwierdzi
+      // 'going' zamiast przypadkiem wypisać z kolejki.
       // Migracja 20260713200000 cofa granty INSERT/UPDATE/DELETE na event_rsvps -
-      // jedyną ścieżką zapisu jest RPC rsvp_event (limit miejsc, bramka warstwy,
-      // egzekwowanie flagi pro_briefings).
-      const nextStatus: RsvpStatus =
+      // jedyną ścieżką zapisu jest RPC rsvp_event (limit miejsc, kolejka FIFO,
+      // bramka warstwy, egzekwowanie flagi pro_briefings).
+      const nextStatus: RsvpRequestStatus =
         rsvpQ.data?.status === target && target !== "cancelled" ? "cancelled" : target;
-      await rsvpEvent(eventQ.data.id, nextStatus);
-      return nextStatus;
+      return rsvpEvent(eventQ.data.id, nextStatus);
     },
-    onSuccess: (nextStatus) => {
-      qc.invalidateQueries({ queryKey: ["event-rsvp", eventQ.data?.id, user?.id] });
+    onSuccess: (result) => {
+      invalidate();
+      if (result.status === "waitlist") {
+        toast.success(
+          result.waitlist_position !== null
+            ? t("community.events.toastWaitlist", { position: result.waitlist_position })
+            : t("community.events.toastWaitlistNoPosition"),
+        );
+        return;
+      }
       const key =
-        nextStatus === "going"
+        result.status === "going"
           ? "community.events.toastGoing"
-          : nextStatus === "interested"
+          : result.status === "interested"
             ? "community.events.toastInterested"
             : "community.events.toastCancelled";
       toast.success(t(key));
@@ -173,9 +200,10 @@ function EventDetail() {
   const access = accessQ.data ?? null;
   const counts = countsQ.data?.get(ev.id);
   const going = counts?.going ?? 0;
+  const waitlistCount = counts?.waitlist ?? 0;
   const seatsLeft = ev.capacity !== null ? Math.max(0, ev.capacity - going) : null;
   const isFull = seatsLeft !== null && seatsLeft === 0;
-  const isGoing = rsvpQ.data?.status === "going";
+  const isWaitlisted = rsvpQ.data?.status === "waitlist";
   const isProBriefing = ev.kind === "briefing" && ev.visibility === "members";
   const membersOnly = ev.visibility === "members";
 
@@ -200,6 +228,16 @@ function EventDetail() {
   })();
 
   const tierBlocked = access?.reason === "tier_required";
+
+  // Najniższa warstwa z benefitem nagrań (flaga features.recordings) - do
+  // czytelnego upsellu przy bramce nagrania.
+  const recordingTierName = (() => {
+    const tiers = tiersQ.data ?? [];
+    const match = [...tiers]
+      .sort((a, b) => a.rank - b.rank)
+      .find((tier) => tierHasFeature(tier.features, "recordings"));
+    return match ? tierName(match, lang) : null;
+  })();
 
   // Pierwszeństwo rejestracji: okno rsvp_opens_at + wcześniejszy dostęp dla
   // członków o randze >= early_rsvp_rank. Twardo egzekwuje to rsvp_event; tu
@@ -287,6 +325,12 @@ function EventDetail() {
               : t("community.events.capacityLeft", { count: seatsLeft ?? 0 })}
             {" · "}
             {t("community.events.goingCount", { count: going })}
+            {waitlistCount > 0 && (
+              <>
+                {" · "}
+                {t("community.events.waitlistCount", { count: waitlistCount })}
+              </>
+            )}
           </MetaRow>
         )}
         {ev.chatham_house && (
@@ -324,17 +368,6 @@ function EventDetail() {
             </a>
           </Button>
         )}
-        {isPast && access?.can_watch && access.recording_url && (
-          <Button asChild variant="secondary">
-            <a href={access.recording_url} target="_blank" rel="noreferrer">
-              <Video className="mr-2 h-4 w-4" aria-hidden="true" />
-              {t("community.events.watchRecording")}
-            </a>
-          </Button>
-        )}
-        {isPast && access?.reason === "tier_required" && (
-          <p className="text-sm text-muted-foreground">{t("community.events.recordingTierHint")}</p>
-        )}
         {!isPast && !user && (
           <p className="text-sm text-muted-foreground">{t("community.events.rsvpSignInHint")}</p>
         )}
@@ -351,9 +384,11 @@ function EventDetail() {
           <RsvpControls
             current={rsvpQ.data?.status ?? null}
             pending={rsvpM.isPending}
+            isFull={isFull}
             onChoose={(s) => rsvpM.mutate(s)}
           />
         ) : null}
+        {!isPast && <AddToCalendar event={ev} lang={lang} />}
       </div>
       {!isPast && user && !rsvpLockedByWindow && rsvpBeforeOpen && hasEarlyAccess && (
         <p className="mt-3 text-sm text-amber-700 dark:text-amber-400" aria-live="polite">
@@ -368,8 +403,51 @@ function EventDetail() {
         >
           {rsvpQ.data.status === "going"
             ? t("community.events.rsvpStatusGoing")
-            : t("community.events.rsvpStatusInterested")}
+            : rsvpQ.data.status === "waitlist"
+              ? typeof waitlistPosQ.data === "number"
+                ? t("community.events.waitlistStatus", { position: waitlistPosQ.data })
+                : t("community.events.waitlistStatusNoPosition")
+              : t("community.events.rsvpStatusInterested")}
         </p>
+      )}
+      {/* Kolejka rezerwowa nie daje wejściówki - link do transmisji pojawia
+          się dopiero po awansie na 'going' (rozstrzyga get_event_access). */}
+      {!isPast && isWaitlisted && access?.reason === "waitlisted" && (
+        <p className="mt-2 text-sm text-muted-foreground">{t("community.events.joinWaitlisted")}</p>
+      )}
+
+      {/* Nagranie po wydarzeniu: benefit warstwy (flaga recordings) - URL
+          nie opuszcza bazy bez uprawnienia, tu tylko czytelny upsell. */}
+      {isPast && !tierBlocked && access && access.watch_reason !== "none" && (
+        <section className="mt-8 rounded-lg border border-border bg-card p-5">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <Video className="h-4 w-4" aria-hidden="true" />
+            {t("community.events.recordingGateTitle")}
+          </h2>
+          {access.can_watch && access.recording_url ? (
+            <Button asChild variant="secondary" className="mt-3">
+              <a href={access.recording_url} target="_blank" rel="noreferrer">
+                <Video className="mr-2 h-4 w-4" aria-hidden="true" />
+                {t("community.events.watchRecording")}
+              </a>
+            </Button>
+          ) : access.watch_reason === "auth_required" ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("community.events.recordingSignInHint")}
+            </p>
+          ) : (
+            <>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {recordingTierName
+                  ? t("community.events.recordingTierRequired", { tier: recordingTierName })
+                  : t("community.events.recordingTierRequiredGeneric")}
+              </p>
+              <Button asChild size="sm" className="mt-3">
+                <Link to="/pricing">{t("community.events.tierUpgradeCta")}</Link>
+              </Button>
+            </>
+          )}
+        </section>
       )}
 
       {/* Wydarzenie jako iskra: host/staff zakłada trwały krąg czatu dla
@@ -382,24 +460,37 @@ function EventDetail() {
 function RsvpControls({
   current,
   pending,
+  isFull,
   onChoose,
 }: {
   current: RsvpStatus | null;
   pending: boolean;
-  onChoose: (s: RsvpStatus) => void;
+  isFull: boolean;
+  onChoose: (s: RsvpRequestStatus) => void;
 }) {
   const { t } = useTranslation();
   const active = current && current !== "cancelled" ? current : null;
+  // Przy komplecie przycisk 'going' staje się wejściem do kolejki rezerwowej;
+  // klient i tak wysyła 'going' - degradację do 'waitlist' rozstrzyga serwer.
+  const waitlistMode = active === "waitlist" || (isFull && active !== "going");
   return (
     <div className="inline-flex flex-wrap items-center gap-2" role="group" aria-label="RSVP">
       <Button
-        variant={active === "going" ? "default" : "outline"}
+        variant={active === "going" || active === "waitlist" ? "default" : "outline"}
         onClick={() => onChoose("going")}
         disabled={pending}
-        aria-pressed={active === "going"}
+        aria-pressed={active === "going" || active === "waitlist"}
       >
-        <Check className="mr-2 h-4 w-4" aria-hidden="true" />
-        {t("community.events.rsvpGoing")}
+        {waitlistMode ? (
+          <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+        ) : (
+          <Check className="mr-2 h-4 w-4" aria-hidden="true" />
+        )}
+        {active === "waitlist"
+          ? t("community.events.waitlistBadge")
+          : waitlistMode
+            ? t("community.events.waitlistJoin")
+            : t("community.events.rsvpGoing")}
       </Button>
       <Button
         variant={active === "interested" ? "default" : "outline"}
