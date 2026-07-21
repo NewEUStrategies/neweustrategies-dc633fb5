@@ -3,6 +3,7 @@
 // 'member-resources' (staff insert/delete). Publiczne pobranie idzie przez
 // server fn downloadMemberResource (bramka rangi + podpisany URL).
 import { supabase } from "@/integrations/supabase/client";
+import { currentUserIdFromSession } from "@/lib/auth/currentUser";
 import type { Database } from "@/integrations/supabase/types";
 
 export type MemberResourceRow = Database["public"]["Tables"]["member_resources"]["Row"];
@@ -25,9 +26,8 @@ export async function fetchAdminResources(): Promise<MemberResourceRow[]> {
  *  Ścieżka MUSI zaczynać się od tenant_id, żeby RLS na storage.objects
  *  ('member resources staff *') odrzuciło dostęp międzytenantowy. */
 export async function uploadResourceFile(file: File): Promise<{ path: string; size: number }> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id ?? "anon";
-  if (uid === "anon") throw new Error("Not authenticated");
+  const uid = await currentUserIdFromSession();
+  if (!uid) throw new Error("Not authenticated");
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("tenant_id")
@@ -63,10 +63,10 @@ export interface ResourceInput {
 }
 
 export async function createResource(input: ResourceInput): Promise<MemberResourceRow> {
-  const { data: auth } = await supabase.auth.getUser();
+  const uid = await currentUserIdFromSession();
   const { data, error } = await supabase
     .from("member_resources")
-    .insert({ ...input, created_by: auth.user?.id ?? null })
+    .insert({ ...input, created_by: uid })
     .select()
     .single();
   if (error) throw error;

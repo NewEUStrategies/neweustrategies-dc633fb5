@@ -221,7 +221,8 @@ export function useExperimentsAdmin() {
 
   const create = useCallback(
     async (name: string): Promise<string | null> => {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: s } = await supabase.auth.getSession();
+      const u = { user: s.session?.user ?? null };
       const { data, error } = await supabase
         .from("builder_experiments")
         .insert({ name, created_by: u.user?.id ?? null })

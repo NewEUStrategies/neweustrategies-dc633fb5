@@ -147,7 +147,7 @@ export function AudioPicker({
     }
     setUploading(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData } = await supabase.auth.getSession().then(r => ({ data: { user: r.data.session?.user ?? null } }));
       const uid = userData.user?.id ?? "anon";
       const ext = (file.name.split(".").pop() || "mp3").toLowerCase();
       const path = `${folder}/${tenantId}/${uid}/${Date.now()}-${Math.random()

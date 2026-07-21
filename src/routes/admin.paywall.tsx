@@ -338,7 +338,7 @@ function MeteringSettingsCard() {
 
   const save = async () => {
     setBusy(true);
-    const { data: auth } = await supabase.auth.getUser();
+    const { data: auth } = await supabase.auth.getSession().then(r => ({ data: { user: r.data.session?.user ?? null } }));
     const { error } = await supabase.from("metering_settings").upsert(
       {
         enabled: form.enabled,
@@ -622,7 +622,7 @@ function CheckoutSettingsCard() {
   const save = async () => {
     if (!current) return;
     setBusy(true);
-    const { data: auth } = await supabase.auth.getUser();
+    const { data: auth } = await supabase.auth.getSession().then(r => ({ data: { user: r.data.session?.user ?? null } }));
     const { error } = await supabase.from("checkout_settings").upsert(
       {
         allow_promotion_codes: current.allow_promotion_codes,

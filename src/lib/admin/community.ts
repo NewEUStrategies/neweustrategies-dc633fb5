@@ -333,8 +333,9 @@ export interface CreateQaSessionInput {
 }
 
 export async function createQaSession(input: CreateQaSessionInput): Promise<QaSessionRow> {
-  const { data: userData, error: uErr } = await supabase.auth.getUser();
-  if (uErr || !userData.user) throw new Error("Not authenticated");
+  const { currentUserIdFromSession } = await import("@/lib/auth/currentUser");
+  const uid = await currentUserIdFromSession();
+  if (!uid) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("qa_sessions")
     .insert({
@@ -346,7 +347,7 @@ export async function createQaSession(input: CreateQaSessionInput): Promise<QaSe
       opens_at: input.opens_at,
       closes_at: input.closes_at,
       status: input.status,
-      host_user_id: userData.user.id,
+      host_user_id: uid,
     })
     .select()
     .single();

@@ -83,7 +83,8 @@ export function useSectionTemplates() {
 
   const save = useCallback(
     async (name: string, section: SectionNode) => {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: s } = await supabase.auth.getSession();
+      const u = { user: s.session?.user ?? null };
       const uid = u.user?.id ?? null;
       const payload = cloneSection(section); // fresh ids
       await supabase.from("builder_templates").insert({
