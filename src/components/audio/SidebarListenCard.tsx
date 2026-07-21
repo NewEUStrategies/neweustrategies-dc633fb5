@@ -3,7 +3,7 @@
 // odtwarzanie, kolejne przełączają play/pause. Po zmianie strony bottom bar
 // przejmuje kontrolę bez utraty ciągłości.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Download, Play, Pause, Sparkles } from "@/lib/lucide-shim";
+import { Loader2, Download, Play, Pause, Wand2 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -235,7 +235,7 @@ export function SidebarListenCard({
                     FOCUS_RING,
                   ].join(" ")}
                 >
-                  <Sparkles className="h-3 w-3" aria-hidden />
+                  <Wand2 className="h-3 w-3" aria-hidden />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={6} className="rounded-[6px]">
