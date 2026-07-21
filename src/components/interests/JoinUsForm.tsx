@@ -20,7 +20,9 @@ import {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronDown, Loader2, UserPlus, X } from "lucide-react";
+import { Check, ChevronDown, UserPlus, X } from "lucide-react";
+import { SubscribeButton } from "@/components/ui/subscribe-button";
+
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
@@ -1115,20 +1117,17 @@ export function JoinUsForm({
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={state === "loading"}
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-brand px-4 py-0 font-sans font-semibold leading-none text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
-        style={{ fontSize: buttonSize ? `${buttonSize}px` : "14px" }}
+      <SubscribeButton
+        loading={state === "loading"}
+        loadingLabel={btnLoading}
+        className="w-full sm:w-auto"
+        style={{ fontSize: buttonSize ? `${buttonSize}px` : undefined }}
         data-edit-target="buttonSize"
       >
-        {state === "loading" ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <UserPlus className="w-4 h-4" />
-        )}
-        {state === "loading" ? btnLoading : btnLabel}
-      </button>
+        <UserPlus className="w-4 h-4 text-current" aria-hidden />
+        {btnLabel}
+      </SubscribeButton>
+
 
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
       <p
