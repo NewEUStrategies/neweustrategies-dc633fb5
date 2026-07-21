@@ -42,6 +42,8 @@ const EmojiPicker = lazy(() => import("./EmojiPicker").then((m) => ({ default: m
 
 const TYPING_THROTTLE_MS = 2500;
 const MAX_BODY_LENGTH = 8000;
+// Prestige reaction bar - curated emotional palette shown inside the popover.
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉"] as const;
 
 export interface ChatComposerProps {
   conversationId: string;
