@@ -542,16 +542,44 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           </div>
 
           {!editing && !text.trim() && !staged && (
-            <button
-              type="button"
-              onClick={sendQuickEmoji}
-              disabled={!!uploading}
-              className="chat-pop-in flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg leading-none transition-colors hover:bg-muted disabled:opacity-35 motion-safe:transition-transform motion-safe:hover:scale-110"
-              aria-label={t("chat.quickSend", { emoji: quickEmoji })}
-              title={t("chat.quickSend", { emoji: quickEmoji })}
-            >
-              <span aria-hidden>{quickEmoji}</span>
-            </button>
+            <Popover open={reactionsOpen} onOpenChange={setReactionsOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  disabled={!!uploading}
+                  className={cn(
+                    "group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all disabled:opacity-35",
+                    "hover:bg-muted hover:text-[var(--chat-user-to)] motion-safe:hover:scale-105",
+                    reactionsOpen && "bg-muted text-[var(--chat-user-to)]",
+                  )}
+                  aria-label={t("chat.quickSend", { emoji: quickEmoji })}
+                  title={t("chat.quickSend", { emoji: quickEmoji })}
+                >
+                  <SmilePlus className="h-4 w-4" aria-hidden />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="center"
+                sideOffset={10}
+                className="w-auto rounded-full border-border/60 bg-popover/95 p-1.5 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-popover/80"
+              >
+                <div className="flex items-center gap-0.5">
+                  {QUICK_REACTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => sendQuickEmoji(emoji)}
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-[19px] leading-none transition-transform hover:bg-muted motion-safe:hover:scale-125"
+                      aria-label={t("chat.quickSend", { emoji })}
+                      title={emoji}
+                    >
+                      <span aria-hidden>{emoji}</span>
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           {!editing && !text.trim() && !staged && recorder.supported ? (
             // WhatsApp morph: empty input shows the mic, typing/staging swaps
