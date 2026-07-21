@@ -1,10 +1,9 @@
 import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
 import { ProfileNav } from "@/components/profile/ProfileNav";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useGuestPreview } from "@/lib/profile/guestPreviewStore";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
@@ -38,20 +37,9 @@ function ProfileLayout() {
   // "Podgląd jak gość" - podstrony /profile/* zachowują nawigację.
   const hideSidebar = isRoot && guestPreview;
 
-  const { data: profile } = useQuery({
-    enabled: !!user?.id,
-    queryKey: ["profile-sidebar", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("display_name, first_name, last_name, avatar_url")
-        .eq("id", user!.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    staleTime: 60_000,
-  });
+  // Ta sama pamięć podręczna, którą karmi useHeaderProfile w headerze - dzięki
+  // temu wejście na /profile nie powoduje drugiego round-tripu do PostgREST.
+  const { data: profile } = useHeaderProfile(user?.id);
 
   const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim();
   const displayName =
