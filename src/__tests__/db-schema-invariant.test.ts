@@ -102,7 +102,7 @@ const BLOCKS_COLUMNS_POSTS = [
   "tenant_id",
 ] as const;
 
-const BLOCKS_COLUMNS_PAGES = ["id", "slug", "status", "blocks_data", "tenant_id"] as const;
+const BLOCKS_COLUMNS_PAGES = ["id", "slug", "status", "builder_data", "tenant_id"] as const;
 
 d("db schema: required tables are reachable via Data API", () => {
   it.each(REQUIRED_TABLES)("table %s exists and accepts a projection", async (table) => {
