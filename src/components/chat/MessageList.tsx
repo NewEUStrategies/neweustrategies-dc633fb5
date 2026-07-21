@@ -24,6 +24,8 @@ export interface MessageListProps {
   /** Chronological (oldest -> newest). */
   messages: ChatMessage[];
   reactions: ReadonlyMap<string, ReactionRow[]>;
+  /** Display name + avatar lookup for reactors (self + peers). */
+  reactorProfiles?: ReadonlyMap<string, { display_name: string; avatar_url: string | null }>;
   peerName: string;
   peerAvatarUrl: string | null;
   /** Group thread ("krąg"): label inbound bubbles with the sender's name. */
