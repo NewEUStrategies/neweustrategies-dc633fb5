@@ -15,29 +15,17 @@ function AdminCouponsLayout() {
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const { pathname } = useLocation();
 
-  const tabs = [
-    {
-      to: "/admin/coupons",
-      exact: true,
-      label: L("Kupony", "Coupons"),
-      icon: LayoutList,
-    },
-    {
-      to: "/admin/coupons/campaigns",
-      label: L("Kampanie", "Campaigns"),
-      icon: Send,
-    },
-    {
-      to: "/admin/coupons/redemptions",
-      label: L("Realizacje", "Redemptions"),
-      icon: ListChecks,
-    },
-    {
-      to: "/admin/coupons/analytics",
-      label: L("Analityka", "Analytics"),
-      icon: BarChart3,
-    },
-  ] as const;
+  const tabs: Array<{
+    to: string;
+    exact?: boolean;
+    label: string;
+    icon: typeof LayoutList;
+  }> = [
+    { to: "/admin/coupons", exact: true, label: L("Kupony", "Coupons"), icon: LayoutList },
+    { to: "/admin/coupons/campaigns", label: L("Kampanie", "Campaigns"), icon: Send },
+    { to: "/admin/coupons/redemptions", label: L("Realizacje", "Redemptions"), icon: ListChecks },
+    { to: "/admin/coupons/analytics", label: L("Analityka", "Analytics"), icon: BarChart3 },
+  ];
 
   return (
     <div className="space-y-6">
