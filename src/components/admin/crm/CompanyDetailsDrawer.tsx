@@ -40,7 +40,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
+const Skeleton = ({ className = "" }: { className?: string }) => (
+  <div className={`animate-pulse rounded bg-muted/60 ${className}`} />
+);
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import type { ScoreBand } from "@/lib/crm/scoring";
 
