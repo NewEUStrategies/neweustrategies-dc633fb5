@@ -146,7 +146,6 @@ function DropdownPanel({
   );
 }
 
-
 /* ------------------------------- Mega panel ------------------------------ */
 // Redesigned editorial mega menu (see MegaPanelView). Ten wrapper wybiera
 // źródło kolumn (admin lub auto-derived z drzewa dzieci), pobiera featured
@@ -230,16 +229,11 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
             )}
           </span>
           <span className="menu-card-item__label">{label}</span>
-          <ChevronRight
-            size={13}
-            aria-hidden
-            className="menu-card-item__chevron"
-          />
+          <ChevronRight size={13} aria-hidden className="menu-card-item__chevron" />
         </AppLink>
       </li>
     );
   }
-
 
   return (
     <li className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
@@ -275,7 +269,6 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     </li>
   );
 }
-
 
 function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const hasPanel = node.mega_enabled || node.children.length > 0;

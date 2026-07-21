@@ -376,8 +376,7 @@ function SecurityPage() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <p className="text-sm text-muted-foreground">
-              {t("profile.security.lastSignIn")}
-              :{" "}
+              {t("profile.security.lastSignIn")}:{" "}
               <span className="font-medium text-foreground">
                 {user?.last_sign_in_at
                   ? new Date(user.last_sign_in_at).toLocaleString(isPl ? "pl-PL" : "en-GB")

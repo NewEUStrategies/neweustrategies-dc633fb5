@@ -320,7 +320,6 @@ function UserDetail() {
               value={data.spotify_url}
             />
           </Card>
-
         </section>
 
         {/* Right: meta */}

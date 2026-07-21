@@ -129,10 +129,7 @@ export function InternalLinkSuggestions(props: Props) {
                   <div className="text-xs font-medium truncate">{title}</div>
                   <div className="text-[10px] text-muted-foreground flex flex-wrap gap-1 mt-0.5">
                     {s.reasons.map((r) => (
-                      <span
-                        key={r}
-                        className="rounded-[4px] bg-muted px-1.5 py-0.5 tabular-nums"
-                      >
+                      <span key={r} className="rounded-[4px] bg-muted px-1.5 py-0.5 tabular-nums">
                         {reasonLabel(r)}
                       </span>
                     ))}

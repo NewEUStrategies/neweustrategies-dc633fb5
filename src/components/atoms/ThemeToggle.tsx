@@ -18,7 +18,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
         "inline-flex items-center justify-center rounded-full text-foreground hover:text-brand",
         "transition-all duration-200 ease-out active:scale-95",
         "w-9 h-9",
-        className
+        className,
       )}
     >
       <span

@@ -383,8 +383,6 @@ export function NewsletterForm({
               >
                 {t("newsletterForm.subscribe")}
               </SubscribeButton>
-
-
             </>
           )}
         </form>
@@ -425,9 +423,7 @@ function FieldWrap({
     <div className="input-group" data-invalid={error ? "true" : undefined}>
       {cloned}
       <label className="user-label">{label}</label>
-      {error && (
-        <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>
-      )}
+      {error && <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>}
     </div>
   );
 }

@@ -460,10 +460,10 @@ szynę zdarzeń i tabele modułów.
     `0.5^(wiek_dni / half_life_days)`, z sufitem per sygnał.
   - **statusowe/fit bez decay**: `newsletter_confirmed`, `marketing_consent`,
     `has_company`, `has_position`, `has_phone`, `has_linkedin`.
-  Wynik → pasmo `hot|warm|cool|cold` wg progów tenanta. Wagi/sufity/progi/decay
-  konfiguruje admin w `crm_scoring_settings` (RLS: read staff, write admin);
-  domyślne wagi żyją w `crm_scoring_default_weights()` i są lustrzane w
-  `src/lib/crm/scoring.ts` (test parzystości kluczy).
+    Wynik → pasmo `hot|warm|cool|cold` wg progów tenanta. Wagi/sufity/progi/decay
+    konfiguruje admin w `crm_scoring_settings` (RLS: read staff, write admin);
+    domyślne wagi żyją w `crm_scoring_default_weights()` i są lustrzane w
+    `src/lib/crm/scoring.ts` (test parzystości kluczy).
 - **Wyjaśnialność.** `crm_leads.score_breakdown` (jsonb `[{key,count,points}]`)
   zasila kartę „Dlaczego ten wynik" (`ScoreBreakdownCard`). Kolumny
   `score`/`score_band`/`score_updated_at` pozwalają sortować i filtrować

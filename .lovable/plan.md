@@ -5,6 +5,7 @@ Wszystkie 4 filary do wdrożenia (kolejność wg priorytetu). Kategorię kanonic
 ## Faza 1: Scalenie kategorii (backend)
 
 Obecny stan w `categories`:
+
 - Ekonomia (`ekonomia`) - parent group
   - Finanse i Bankowość, Rynki finansowe (dzieci)
 - Gospodarka (`gospodarka`) - parent group
@@ -21,6 +22,7 @@ Gospodarka (canonical)
 ```
 
 Akcje:
+
 1. Migracja: przepiąć dzieci `Ekonomia` pod `Gospodarka`, przepiąć `Finanse` pod `Gospodarka`, przepiąć wpisy z usuwanych kategorii (jeśli pojawią się przed wdrożeniem).
 2. Dodać wpisy do `redirects` (301): `/kategoria/ekonomia` → `/kategoria/gospodarka`, `/kategoria/finanse` → `/kategoria/gospodarka`.
 3. Usunąć zduplikowane kategorie po migracji wpisów.
@@ -29,6 +31,7 @@ Akcje:
 ## Faza 2: Walidator SEO w edytorze wpisów
 
 W metaboxie edytora wpisu (`/admin/posts/:id`):
+
 - Licznik znaków dla `seo_title` (38-68) i `seo_description` (120-160) z paskiem postępu (zielony/żółty/czerwony).
 - Walidator struktury nagłówków w treści: dokładnie jeden H1, ostrzeżenie gdy H2 pomijane przed H3.
 - Auto-fallback: gdy `seo_title` puste, użyj `title`; gdy `seo_description` puste, wygeneruj z pierwszego akapitu (max 155 znaków).

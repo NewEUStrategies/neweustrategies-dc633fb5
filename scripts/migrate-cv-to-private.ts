@@ -147,19 +147,19 @@ async function processRow(row: {
   );
   if (!APPLY) return;
 
-  const { data: blob, error: dlErr } = await admin.storage.from(parsed.bucket).download(parsed.path);
+  const { data: blob, error: dlErr } = await admin.storage
+    .from(parsed.bucket)
+    .download(parsed.path);
   if (dlErr || !blob) {
     stats.missingSource += 1;
     console.warn(`  ! source missing: ${dlErr?.message ?? "no body"}`);
     return;
   }
 
-  const { error: upErr } = await admin.storage
-    .from("cv")
-    .upload(targetPath, blob, {
-      contentType: row.mime_type ?? "application/octet-stream",
-      upsert: false,
-    });
+  const { error: upErr } = await admin.storage.from("cv").upload(targetPath, blob, {
+    contentType: row.mime_type ?? "application/octet-stream",
+    upsert: false,
+  });
   if (upErr && !/already exists/i.test(upErr.message)) {
     stats.failed += 1;
     console.error(`  ! upload failed: ${upErr.message}`);

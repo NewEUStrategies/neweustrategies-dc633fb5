@@ -41,4 +41,3 @@ export async function rateLimit({
   const row = Array.isArray(data) ? data[0] : (data as { allowed?: boolean } | null);
   return row?.allowed === true;
 }
-

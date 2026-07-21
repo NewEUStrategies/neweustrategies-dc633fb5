@@ -190,10 +190,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       });
       if (redeemErr || !redeemed) {
         // Ktoś przejął ostatnie użycie zanim doszliśmy tutaj - unieważniamy zamówienie.
-        await supabase
-          .from("payment_orders")
-          .update({ status: "canceled" })
-          .eq("id", order.id);
+        await supabase.from("payment_orders").update({ status: "canceled" }).eq("id", order.id);
         return {
           ok: false as const,
           mode: "coupon" as const,

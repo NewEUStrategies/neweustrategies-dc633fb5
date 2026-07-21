@@ -489,7 +489,11 @@ function EditEventDialog({
             </div>
             <div className="space-y-1.5">
               <FloatingInput
-                label={isPl ? "Ranga wcześniejszego dostępu (np. 10 = członek)" : "Early-access tier rank (e.g. 10 = member)"}
+                label={
+                  isPl
+                    ? "Ranga wcześniejszego dostępu (np. 10 = członek)"
+                    : "Early-access tier rank (e.g. 10 = member)"
+                }
                 type="number"
                 min={0}
                 value={earlyRsvpRank}

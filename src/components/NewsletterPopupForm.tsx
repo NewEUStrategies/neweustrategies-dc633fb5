@@ -10,7 +10,6 @@ import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 
-
 interface Props {
   settings: NewsletterSettings;
   lang: "pl" | "en";
@@ -362,26 +361,24 @@ export function NewsletterPopupForm({
             value={v.list}
             onChange={(e) => upd("list", e.target.value)}
           >
-            <option value="">{t("Wybierz listę mailingową", "Choose your main mailing list")}</option>
+            <option value="">
+              {t("Wybierz listę mailingową", "Choose your main mailing list")}
+            </option>
             {lists.map((l) => (
               <option key={l.id} value={l.id}>
                 {isPl ? l.label_pl : l.label_en}
               </option>
             ))}
           </select>
-          <label className="user-label">
-            {t("Lista mailingowa", "Mailing list")}
-          </label>
+          <label className="user-label">{t("Lista mailingowa", "Mailing list")}</label>
         </div>
       )}
-
 
       <div className="pt-1">
         <SubscribeButton loading={state === "loading"} aria-label={cta}>
           {cta}
         </SubscribeButton>
       </div>
-
 
       {requireTerms && (
         <label className="flex items-start gap-2 text-[12px] text-white/70 leading-relaxed pt-1">

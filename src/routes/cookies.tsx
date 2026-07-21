@@ -13,7 +13,6 @@ import { buildContentHead } from "@/lib/seo/meta";
 import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
 import { OPEN_PREFS_EVENT, useConsent, type ConsentCategory } from "@/lib/ads/consent";
 
-
 interface CategoryCopy {
   key: ConsentCategory;
   Icon: typeof Cookie;
@@ -162,7 +161,6 @@ export const Route = createFileRoute("/cookies")({
     const lang = activeLang(url);
     const c = COPY[lang];
     const seo = pickStaticSeo(loaderData?.seo ?? null, lang, {
-
       title:
         lang === "en"
           ? "Cookie policy - New European Strategies"
@@ -181,7 +179,6 @@ export const Route = createFileRoute("/cookies")({
     });
   },
 });
-
 
 function CookiesPage() {
   const url = typeof window !== "undefined" ? window.location.pathname : "/cookies";

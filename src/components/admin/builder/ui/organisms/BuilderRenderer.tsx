@@ -690,8 +690,7 @@ const RenderInner = memo(function RenderInner({
               data-column-slot
               className="min-w-0 max-w-full overflow-hidden"
               style={{
-                gridColumn:
-                  device === "mobile" ? "auto" : `span ${resolveSpan(c.span, device, 6)}`,
+                gridColumn: device === "mobile" ? "auto" : `span ${resolveSpan(c.span, device, 6)}`,
               }}
             >
               <RenderColumn column={c} lang={lang} device={device} />

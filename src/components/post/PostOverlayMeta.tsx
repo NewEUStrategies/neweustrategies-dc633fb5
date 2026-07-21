@@ -60,8 +60,7 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
   const name = author ? authorName(author, lang) : null;
   const authorHref = author?.slug ? `/${lang === "en" ? "en/" : ""}author/${author.slug}` : null;
 
-  const iconCls =
-    "w-4 h-4 text-current drop-shadow-[0_1px_3px_rgba(0,0,0,0.75)]";
+  const iconCls = "w-4 h-4 text-current drop-shadow-[0_1px_3px_rgba(0,0,0,0.75)]";
 
   return (
     <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -133,4 +132,3 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
     </span>
   );
 }
-

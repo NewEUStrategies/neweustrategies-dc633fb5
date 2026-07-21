@@ -25,9 +25,7 @@ export const SubscribeButton = React.forwardRef<HTMLButtonElement, SubscribeButt
         className={cn("btn-bubbly", className)}
         {...rest}
       >
-        <span className="btn-bubbly__label">
-          {loading ? (loadingLabel ?? "…") : children}
-        </span>
+        <span className="btn-bubbly__label">{loading ? (loadingLabel ?? "…") : children}</span>
       </button>
     );
   },

@@ -1163,12 +1163,12 @@ export const en = {
       meteringAnonLimit: "Quota for anonymous readers (0 = require registration)",
       meteringMeterPaid: "Meter paid articles",
       meteringMeterMembers: "Meter members-only articles",
-      meteringShowCounter: "Show the \"X of N\" counter above articles",
+      meteringShowCounter: 'Show the "X of N" counter above articles',
       meteringSaved: "Metering settings saved",
       meteringSaveError: "Could not save metering settings.",
       overridesTitle: "Per post / page exceptions",
       overridesSubtitle:
-        "Rules with a policy other than \"inherit\". This is the same rule you see in the post and page editors - a change here synchronizes instantly.",
+        'Rules with a policy other than "inherit". This is the same rule you see in the post and page editors - a change here synchronizes instantly.',
       overridesEmpty: "No exceptions - all content inherits the global settings.",
       overridesColEntity: "Content",
       overridesColMode: "Mode",
@@ -1195,7 +1195,7 @@ export const en = {
       addressRequired: "Always required",
       invoiceCreation: "Stripe invoice for one-time payments",
       invoiceCreationHint:
-        "Subscriptions always get invoices; this enables them for one-time purchases too. A \"Download invoice\" link appears in the customer's Orders.",
+        'Subscriptions always get invoices; this enables them for one-time purchases too. A "Download invoice" link appears in the customer\'s Orders.',
       checkoutSaved: "Checkout settings saved",
       checkoutSaveError: "Could not save checkout settings.",
     },

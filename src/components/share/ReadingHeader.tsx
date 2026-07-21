@@ -37,7 +37,6 @@ type ReadingHeaderThemeLogo = {
   };
 };
 
-
 interface Props {
   title: string;
   /** Reveal once the user has scrolled past this many pixels. */
@@ -118,7 +117,6 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
   const [visible, setVisible] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-
 
   // Save-for-later state for the current article.
   const { data: bookmarks } = useBookmarks();
@@ -252,21 +250,19 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             )}
           </Link>
           <div className="relative z-50 min-w-0 overflow-visible w-[160px] md:w-[200px] lg:w-[240px]">
-
-          <SearchButtonWidget
-            label={t.search}
-            mode="dropdown"
-            heading={t.search}
-            liveResults
-            limit={8}
-            lang={lang}
-            height={24}
-            radius={6}
-            fontSize={11}
-          />
+            <SearchButtonWidget
+              label={t.search}
+              mode="dropdown"
+              heading={t.search}
+              liveResults
+              limit={8}
+              lang={lang}
+              height={24}
+              radius={6}
+              fontSize={11}
+            />
           </div>
         </div>
-
 
         {/* Mobile-only icon cluster replacing the search widget.
             Zawiera lupę i hamburger, które przez zdarzenia okna otwierają ten

@@ -44,10 +44,8 @@ function ViewerRow({ viewer }: { viewer: ProfileViewer }) {
   const isAnon = viewer.viewer_mode !== "public";
   const displayName = isAnon
     ? t("network.profileViews.anonymousViewer")
-    : (viewer.display_name?.trim() || t("network.profileViews.anonymousViewer"));
-  const subtitle = !isAnon
-    ? [viewer.job_title, viewer.company].filter(Boolean).join(" - ")
-    : "";
+    : viewer.display_name?.trim() || t("network.profileViews.anonymousViewer");
+  const subtitle = !isAnon ? [viewer.job_title, viewer.company].filter(Boolean).join(" - ") : "";
   const avatar = !isAnon && viewer.avatar_url ? viewer.avatar_url : null;
 
   const inner = (
@@ -56,17 +54,12 @@ function ViewerRow({ viewer }: { viewer: ProfileViewer }) {
         {avatar ? (
           <img src={avatar} alt="" className="h-full w-full object-cover" loading="lazy" />
         ) : (
-          <UserIcon
-            className="absolute inset-0 m-auto h-5 w-5 text-muted-foreground"
-            aria-hidden
-          />
+          <UserIcon className="absolute inset-0 m-auto h-5 w-5 text-muted-foreground" aria-hidden />
         )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold text-foreground">{displayName}</div>
-        {subtitle && (
-          <div className="truncate text-xs text-muted-foreground">{subtitle}</div>
-        )}
+        {subtitle && <div className="truncate text-xs text-muted-foreground">{subtitle}</div>}
       </div>
       <div className="shrink-0 text-[11px] text-muted-foreground">
         {relativeTime(viewer.viewed_at, t)}
@@ -76,11 +69,7 @@ function ViewerRow({ viewer }: { viewer: ProfileViewer }) {
 
   if (!isAnon && viewer.viewer_id) {
     return (
-      <Link
-        to="/author/$slug"
-        params={{ slug: viewer.viewer_id }}
-        className="block no-underline"
-      >
+      <Link to="/author/$slug" params={{ slug: viewer.viewer_id }} className="block no-underline">
         {inner}
       </Link>
     );
@@ -143,9 +132,7 @@ export function ProfileViewsCard() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="public">{t("network.profileViews.modePublic")}</SelectItem>
-            <SelectItem value="anonymous">
-              {t("network.profileViews.modeAnonymous")}
-            </SelectItem>
+            <SelectItem value="anonymous">{t("network.profileViews.modeAnonymous")}</SelectItem>
             <SelectItem value="private">{t("network.profileViews.modePrivate")}</SelectItem>
           </SelectContent>
         </Select>

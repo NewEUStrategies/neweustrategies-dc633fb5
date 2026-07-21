@@ -93,7 +93,10 @@ function AdminCouponsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const active = useMemo(() => (couponsQ.data ?? []).filter((c) => c.active).length, [couponsQ.data]);
+  const active = useMemo(
+    () => (couponsQ.data ?? []).filter((c) => c.active).length,
+    [couponsQ.data],
+  );
   const total = couponsQ.data?.length ?? 0;
 
   return (
@@ -230,11 +233,7 @@ function AdminCouponsPage() {
                             size="icon"
                             aria-label="delete"
                             onClick={() => {
-                              if (
-                                confirm(
-                                  L("Usunąć kupon?", "Delete coupon?") + ` ${c.code}`,
-                                )
-                              ) {
+                              if (confirm(L("Usunąć kupon?", "Delete coupon?") + ` ${c.code}`)) {
                                 remove.mutate(c.id);
                               }
                             }}
@@ -351,11 +350,7 @@ function CouponCreateDialog({ plans, onCreated }: CreateDialogProps) {
 
         <div>
           <Label>{L("Opis wewnętrzny", "Internal description")}</Label>
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-          />
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -395,7 +390,11 @@ function CouponCreateDialog({ plans, onCreated }: CreateDialogProps) {
               </div>
               <div>
                 <Label>{L("Waluta", "Currency")}</Label>
-                <Input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={4} />
+                <Input
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  maxLength={4}
+                />
               </div>
             </div>
           )}
@@ -452,9 +451,7 @@ function CouponCreateDialog({ plans, onCreated }: CreateDialogProps) {
                     checked={on}
                     onChange={(e) =>
                       setPlanIds((prev) =>
-                        e.target.checked
-                          ? [...prev, p.id]
-                          : prev.filter((id) => id !== p.id),
+                        e.target.checked ? [...prev, p.id] : prev.filter((id) => id !== p.id),
                       )
                     }
                   />
@@ -469,11 +466,7 @@ function CouponCreateDialog({ plans, onCreated }: CreateDialogProps) {
       </div>
       <DialogFooter>
         <Button onClick={submit} disabled={busy}>
-          {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            L("Utwórz kupon", "Create coupon")
-          )}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : L("Utwórz kupon", "Create coupon")}
         </Button>
       </DialogFooter>
     </DialogContent>

@@ -206,7 +206,6 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
           )}
         </div>
 
-
         <div className="flex items-center justify-between text-sm">
           {data.showRemember !== false ? (
             <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -401,7 +400,6 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
           />
         )}
 
-
         {data.showNewsletterOptIn !== false && (
           <label className="widget-align-row flex w-full items-center gap-2 text-sm cursor-pointer leading-snug">
             <Checkbox
@@ -511,7 +509,6 @@ export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; l
             onChange={(e) => setEmail(e.target.value)}
             label={L.email}
           />
-
 
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}
@@ -633,7 +630,6 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
               label={L.confirm}
             />
           )}
-
 
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}

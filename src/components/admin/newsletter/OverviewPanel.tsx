@@ -381,7 +381,6 @@ function Toggle({
   );
 }
 
-
 const MODE_OPTIONS: { value: NewsletterMode; title: string; desc: string; icon: typeof Mail }[] = [
   { value: "off", title: "Wylaczony", desc: "Zaden formularz nie jest widoczny.", icon: UserMinus },
   { value: "inline", title: "Tylko inline", desc: "Formularz w stopce / w tresci.", icon: Mail },

@@ -7,14 +7,18 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Check, Clock, Inbox, Send, ShieldCheck, X, MailOpen, User as UserIcon } from "lucide-react";
-import { toast } from "sonner";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+  Check,
+  Clock,
+  Inbox,
+  Send,
+  ShieldCheck,
+  X,
+  MailOpen,
+  User as UserIcon,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   useMyIntroductions,
@@ -68,17 +72,9 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
         ? row.target_name
         : row.bridge_name;
   const otherAvatar =
-    role === "bridge"
-      ? row.requester_avatar
-      : role === "requester"
-        ? row.target_avatar
-        : "";
+    role === "bridge" ? row.requester_avatar : role === "requester" ? row.target_avatar : "";
   const otherId =
-    role === "bridge"
-      ? row.requester_id
-      : role === "requester"
-        ? row.target_id
-        : row.bridge_id;
+    role === "bridge" ? row.requester_id : role === "requester" ? row.target_id : row.bridge_id;
 
   return (
     <div className="rounded-md border border-border bg-background/60 p-3">
@@ -89,12 +85,7 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
           className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-muted"
         >
           {otherAvatar ? (
-            <img
-              src={otherAvatar}
-              alt=""
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
+            <img src={otherAvatar} alt="" className="h-full w-full object-cover" loading="lazy" />
           ) : (
             <UserIcon className="mx-auto h-5 w-5 translate-y-2.5 text-muted-foreground" />
           )}

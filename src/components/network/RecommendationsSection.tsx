@@ -279,9 +279,7 @@ function WriteRecommendationDialog({
           <DialogTitle>
             {t("network.recommendations.dialogTitle", { name: recipientName })}
           </DialogTitle>
-          <DialogDescription>
-            {t("network.recommendations.dialogDescription")}
-          </DialogDescription>
+          <DialogDescription>{t("network.recommendations.dialogDescription")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <FloatingInput

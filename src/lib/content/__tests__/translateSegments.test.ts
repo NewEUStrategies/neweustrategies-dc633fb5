@@ -15,7 +15,13 @@ const baseInput = {
 describe("buildSegments", () => {
   it("zbiera metadane i odkłada tłumaczenia w te same miejsca", () => {
     const seg = buildSegments(baseInput);
-    expect(seg.texts).toEqual(["Tytuł analizy", "Zajawka", "Punkt pierwszy", "Punkt trzeci", "Opis SEO"]);
+    expect(seg.texts).toEqual([
+      "Tytuł analizy",
+      "Zajawka",
+      "Punkt pierwszy",
+      "Punkt trzeci",
+      "Opis SEO",
+    ]);
     const out = seg.apply(["Title", "Excerpt", "Point one", "Point three", "SEO desc"]);
     expect(out.title_en).toBe("Title");
     expect(out.excerpt_en).toBe("Excerpt");
@@ -29,10 +35,20 @@ describe("buildSegments", () => {
       { id: "b1", type: "paragraph", data: { html: "<p>Akapit <strong>ważny</strong></p>" } },
       { id: "b2", type: "heading", data: { level: 2, text: "Nagłówek", anchor: "kotwica" } },
       { id: "b3", type: "list", data: { ordered: false, items: ["Jeden", "Dwa"] } },
-      { id: "b4", type: "image", data: { url: "https://x/img.jpg", alt: "Opis obrazka", caption: "Podpis" } },
+      {
+        id: "b4",
+        type: "image",
+        data: { url: "https://x/img.jpg", alt: "Opis obrazka", caption: "Podpis" },
+      },
       { id: "b5", type: "chart", data: { config: { series: [1, 2, 3] } } },
     ];
-    const seg = buildSegments({ ...baseInput, excerpt_pl: null, takeaways_pl: [], seo_description_pl: null, blocks_pl: blocks });
+    const seg = buildSegments({
+      ...baseInput,
+      excerpt_pl: null,
+      takeaways_pl: [],
+      seo_description_pl: null,
+      blocks_pl: blocks,
+    });
     expect(seg.texts).toEqual([
       "Tytuł analizy",
       "<p>Akapit <strong>ważny</strong></p>",
@@ -74,7 +90,13 @@ describe("buildSegments", () => {
         },
       },
     ];
-    const seg = buildSegments({ ...baseInput, excerpt_pl: null, takeaways_pl: [], seo_description_pl: null, blocks_pl: blocks });
+    const seg = buildSegments({
+      ...baseInput,
+      excerpt_pl: null,
+      takeaways_pl: [],
+      seo_description_pl: null,
+      blocks_pl: blocks,
+    });
     expect(seg.texts).toEqual(["Tytuł analizy", "Lewa", "Prawa"]);
   });
 

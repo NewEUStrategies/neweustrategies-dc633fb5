@@ -143,12 +143,7 @@ export function ChatBell({ panelWidth = 340 }: ChatBellProps) {
           <h2 className="flex items-center gap-2 text-base font-bold tracking-tight">
             {t("chat.messages")}
             {unread > 0 && (
-              <UnreadBadge
-                count={unread}
-                size="lg"
-                className="static"
-                labelKey="chat.unread"
-              />
+              <UnreadBadge count={unread} size="lg" className="static" labelKey="chat.unread" />
             )}
           </h2>
           <button

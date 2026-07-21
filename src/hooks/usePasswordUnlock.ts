@@ -64,7 +64,6 @@ export function usePasswordUnlock(
     [entityType, entityId, storageKey, runUnlock],
   );
 
-
   const clear = useCallback(() => {
     setBody(null);
     if (storageKey && typeof window !== "undefined") {

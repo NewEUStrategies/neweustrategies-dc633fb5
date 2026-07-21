@@ -24,14 +24,14 @@ z użytkownikami.
 
 ## Tabela zbiorcza
 
-| Moduł            | Funkcjonalność | UX                              | UI      | **Łącznie** |
-| ---------------- | -------------- | ------------------------------- | ------- | ----------- |
+| Moduł            | Funkcjonalność | UX                                 | UI      | **Łącznie** |
+| ---------------- | -------------- | ---------------------------------- | ------- | ----------- |
 | Wpisy            | **9,0**        | 6,8 (czytelnik 6,5 / redakcja 7,0) | 7,0     | **7,6**     |
 | Strony (builder) | **8,5**        | 7,0 (publiczny 7,5 / edytor 6,5)   | 7,0     | **7,5**     |
-| Wyszukiwarka     | **8,5**        | **8,0**                         | 7,5     | **8,0**     |
-| Czat             | **8,5**        | **8,0**                         | **8,0** | **8,2**     |
-| Profile          | **8,5**        | 6,5                             | 7,0     | **7,3**     |
-| **Średnia**      | **8,6**        | **7,3**                         | **7,3** | **7,7**     |
+| Wyszukiwarka     | **8,5**        | **8,0**                            | 7,5     | **8,0**     |
+| Czat             | **8,5**        | **8,0**                            | **8,0** | **8,2**     |
+| Profile          | **8,5**        | 6,5                                | 7,0     | **7,3**     |
+| **Średnia**      | **8,6**        | **7,3**                            | **7,3** | **7,7**     |
 
 Progresja względem 11.07: UX/UI ogółem ~5,9 → ~7,3. Wzrost jest zasłużony (naprawy + przebudowy czatu
 i wyszukiwarki), ale nierównomierny — moduły „społecznościowe najnowszej generacji" (czat, szukajka) są dziś
@@ -97,18 +97,18 @@ komponentów to rozpoznawalny shadcn — poprawny, nie wyróżniający.
 
 ## 1.4 Porównanie z konkurencją (0–10)
 
-| Kryterium                                | **NES** | WordPress + wtyczki | Ghost | Medium/Substack | Serwisy think-tanków (ECFR/RUSI) |
-| ---------------------------------------- | ------- | ------------------- | ----- | --------------- | -------------------------------- |
-| Edytor treści (pisanie)                  | 8       | 9                   | 8     | 7               | 5                                |
-| Workflow redakcyjny (review, planowanie) | **9**   | 7                   | 6     | 4               | 6                                |
-| Rewizje i współpraca                     | 7       | 7                   | 5     | 5               | 5                                |
-| Paywall / monetyzacja treści             | **9**   | 6                   | 8     | 7               | 5                                |
-| Doświadczenie czytania                   | 6,5     | 6                   | 8     | **9**           | 7                                |
-| Formaty okołoartykułowe (TTS, live, stories, takeaways) | **9** | 6      | 4     | 3               | 6                                |
-| SEO techniczne                           | **9**   | 8                   | 7     | 6               | 6                                |
-| Dwujęzyczność treści                     | **9**   | 7                   | 4     | 2               | 6                                |
-| Personalizacja / rekomendacje            | 8       | 4                   | 4     | 8               | 3                                |
-| **Średnia**                              | **8,3** | 6,7                 | 6,0   | 5,7             | 5,4                              |
+| Kryterium                                               | **NES** | WordPress + wtyczki | Ghost | Medium/Substack | Serwisy think-tanków (ECFR/RUSI) |
+| ------------------------------------------------------- | ------- | ------------------- | ----- | --------------- | -------------------------------- |
+| Edytor treści (pisanie)                                 | 8       | 9                   | 8     | 7               | 5                                |
+| Workflow redakcyjny (review, planowanie)                | **9**   | 7                   | 6     | 4               | 6                                |
+| Rewizje i współpraca                                    | 7       | 7                   | 5     | 5               | 5                                |
+| Paywall / monetyzacja treści                            | **9**   | 6                   | 8     | 7               | 5                                |
+| Doświadczenie czytania                                  | 6,5     | 6                   | 8     | **9**           | 7                                |
+| Formaty okołoartykułowe (TTS, live, stories, takeaways) | **9**   | 6                   | 4     | 3               | 6                                |
+| SEO techniczne                                          | **9**   | 8                   | 7     | 6               | 6                                |
+| Dwujęzyczność treści                                    | **9**   | 7                   | 4     | 2               | 6                                |
+| Personalizacja / rekomendacje                           | 8       | 4                   | 4     | 8               | 3                                |
+| **Średnia**                                             | **8,3** | 6,7                 | 6,0   | 5,7             | 5,4                              |
 
 **Werdykt:** funkcjonalnie NES bije każdego z tych konkurentów z osobna (nikt nie ma naraz workflow + paywalla
 kolumnowego + dwujęzyczności + TTS + live + stories). Przegrywa dokładnie tam, gdzie konkurencja jest najprostsza:
@@ -167,19 +167,19 @@ gotowych sekcji z podglądem (wzorce są, ale skromne).
 
 ## 2.4 Porównanie z konkurencją (0–10)
 
-| Kryterium                              | **NES Builder** | Elementor | Webflow | WordPress FSE | Framer |
-| -------------------------------------- | --------------- | --------- | ------- | ------------- | ------ |
-| Zakres widgetów/bloków                 | 8               | **9**     | 8       | 7             | 7      |
+| Kryterium                               | **NES Builder** | Elementor | Webflow | WordPress FSE | Framer |
+| --------------------------------------- | --------------- | --------- | ------- | ------------- | ------ |
+| Zakres widgetów/bloków                  | 8               | **9**     | 8       | 7             | 7      |
 | Swoboda projektowa (klasy, breakpointy) | 6               | 7         | **10**  | 6             | 9      |
 | Responsywność (kontrola per breakpoint) | 8               | 8         | **9**   | 6             | **9**  |
-| Wydajność publikowanych stron          | **9**           | 4         | 8       | 7             | 8      |
-| A/B testy + kontrola dostępu sekcji    | **9**           | 5         | 4       | 2             | 5      |
-| Widgety danych / digital features      | **9**           | 4         | 5       | 3             | 5      |
-| Szablony i wzorce startowe             | 6               | **9**     | 8       | 7             | 8      |
-| Dwujęzyczność stron                    | **9**           | 6         | 7       | 5             | 7      |
-| Krzywa uczenia / onboarding            | 6               | 7         | 5       | 6             | 6      |
-| Ekosystem / marketplace                | 2               | **10**    | 8       | 9             | 6      |
-| **Średnia**                            | **7,2**         | 6,9       | 7,2     | 5,8           | 7,0    |
+| Wydajność publikowanych stron           | **9**           | 4         | 8       | 7             | 8      |
+| A/B testy + kontrola dostępu sekcji     | **9**           | 5         | 4       | 2             | 5      |
+| Widgety danych / digital features       | **9**           | 4         | 5       | 3             | 5      |
+| Szablony i wzorce startowe              | 6               | **9**     | 8       | 7             | 8      |
+| Dwujęzyczność stron                     | **9**           | 6         | 7       | 5             | 7      |
+| Krzywa uczenia / onboarding             | 6               | 7         | 5       | 6             | 6      |
+| Ekosystem / marketplace                 | 2               | **10**    | 8       | 9             | 6      |
+| **Średnia**                             | **7,2**         | 6,9       | 7,2     | 5,8           | 7,0    |
 
 **Werdykt:** NES gra w jednej lidze z Elementorem i Webflow, ale inną strategią: przegrywa swobodę projektową
 i ekosystem, wygrywa wydajność publikacji, eksperymenty/dostęp per sekcja i widgety danych. Dla platformy
@@ -245,19 +245,19 @@ gęstość panelu faset na mobile.
 
 ## 3.4 Porównanie z konkurencją (0–10)
 
-| Kryterium                               | **NES** | Algolia/Typesense (SaaS) | Politico Pro / BGOV | Typowy WordPress | Serwisy think-tanków |
-| ---------------------------------------- | ------- | ------------------------ | ------------------- | ---------------- | -------------------- |
-| Trafność (wagi, język polski)            | 8       | **9**                    | 8                   | 3                | 4                    |
-| Literówki / fleksja                      | 7       | **9**                    | 7                   | 2                | 3                    |
-| Fasety / filtry                          | 8       | **9**                    | **9**               | 3                | 5                    |
-| Autosugestie                             | 8       | **9**                    | 8                   | 2                | 4                    |
-| Składnia zaawansowana                    | **8**   | 7                        | **9**               | 2                | 3                    |
-| Wyszukiwanie osób / organizacji          | **8**   | n/d                      | 8                   | 1                | 6                    |
-| Ratowanie zera wyników                   | **8**   | 8                        | 7                   | 1                | 2                    |
-| Zapisane wyszukiwania / alerty           | 5       | n/d                      | **10**              | 1                | 2                    |
-| Analityka wyszukiwań                     | 7       | **9**                    | 8                   | 1                | 2                    |
-| Semantyka / AI                           | 2       | 8                        | **8**               | 1                | 1                    |
-| **Średnia**                              | **6,9** | 8,5                      | 8,2                 | 1,8              | 3,2                  |
+| Kryterium                       | **NES** | Algolia/Typesense (SaaS) | Politico Pro / BGOV | Typowy WordPress | Serwisy think-tanków |
+| ------------------------------- | ------- | ------------------------ | ------------------- | ---------------- | -------------------- |
+| Trafność (wagi, język polski)   | 8       | **9**                    | 8                   | 3                | 4                    |
+| Literówki / fleksja             | 7       | **9**                    | 7                   | 2                | 3                    |
+| Fasety / filtry                 | 8       | **9**                    | **9**               | 3                | 5                    |
+| Autosugestie                    | 8       | **9**                    | 8                   | 2                | 4                    |
+| Składnia zaawansowana           | **8**   | 7                        | **9**               | 2                | 3                    |
+| Wyszukiwanie osób / organizacji | **8**   | n/d                      | 8                   | 1                | 6                    |
+| Ratowanie zera wyników          | **8**   | 8                        | 7                   | 1                | 2                    |
+| Zapisane wyszukiwania / alerty  | 5       | n/d                      | **10**              | 1                | 2                    |
+| Analityka wyszukiwań            | 7       | **9**                    | 8                   | 1                | 2                    |
+| Semantyka / AI                  | 2       | 8                        | **8**               | 1                | 1                    |
+| **Średnia**                     | **6,9** | 8,5                      | 8,2                 | 1,8              | 3,2                  |
 
 **Werdykt:** na tle CMS-ów i całej ligi think-tankowej (polskiej i większości zachodniej) wyszukiwarka NES jest
 **bezapelacyjnie lepsza** — to poziom, który zwykle osiąga się dopiero wpinając Algolię. Do ligi „policy
@@ -328,21 +328,21 @@ ticki, motywy i tapety na żywo, awatary z presence. Emoji picker lazy (nie obci
 
 ## 4.4 Porównanie z konkurencją (0–10)
 
-| Kryterium                                  | **NES** | WhatsApp | Messenger | LinkedIn Messaging | Slack |
-| ------------------------------------------ | ------- | -------- | --------- | ------------------ | ----- |
-| Podstawy (edycja, cofanie, reply, reakcje)  | **9**   | 9        | 9         | 6                  | 9     |
-| Potwierdzenia + wzajemność prywatności      | **9**   | 9        | 8         | 7                  | 6     |
-| Grupy                                      | 8       | 9        | 9         | 4                  | **10** |
-| Załączniki / media / galeria               | 8       | 9        | 9         | 6                  | 9     |
-| Głosówki                                   | 8       | **9**    | 9         | 5                  | 7     |
-| Wiadomości znikające                       | **9**   | 9        | 8         | 1                  | 4     |
-| Personalizacja (motywy, tapety, pseudonimy) | 8       | 6        | **9**     | 1                  | 4     |
-| Wyszukiwanie w treści rozmów               | 1       | 9        | 8         | 6                  | **10** |
-| Szyfrowanie E2E                            | 1       | **10**   | 7         | 3                  | 3     |
-| Połączenia audio/wideo                     | 0       | **9**    | 9         | 5                  | 8     |
-| Prywatność/kontrola (blokady, kto pisze)    | **9**   | 8        | 7         | 6                  | 5     |
-| Moderacja platformy (admin, tenant)         | **8**   | n/d      | n/d       | n/d                | 9     |
-| **Średnia**                                | **6,5** | 8,7      | 8,3       | 4,5                | 7,0   |
+| Kryterium                                   | **NES** | WhatsApp | Messenger | LinkedIn Messaging | Slack  |
+| ------------------------------------------- | ------- | -------- | --------- | ------------------ | ------ |
+| Podstawy (edycja, cofanie, reply, reakcje)  | **9**   | 9        | 9         | 6                  | 9      |
+| Potwierdzenia + wzajemność prywatności      | **9**   | 9        | 8         | 7                  | 6      |
+| Grupy                                       | 8       | 9        | 9         | 4                  | **10** |
+| Załączniki / media / galeria                | 8       | 9        | 9         | 6                  | 9      |
+| Głosówki                                    | 8       | **9**    | 9         | 5                  | 7      |
+| Wiadomości znikające                        | **9**   | 9        | 8         | 1                  | 4      |
+| Personalizacja (motywy, tapety, pseudonimy) | 8       | 6        | **9**     | 1                  | 4      |
+| Wyszukiwanie w treści rozmów                | 1       | 9        | 8         | 6                  | **10** |
+| Szyfrowanie E2E                             | 1       | **10**   | 7         | 3                  | 3      |
+| Połączenia audio/wideo                      | 0       | **9**    | 9         | 5                  | 8      |
+| Prywatność/kontrola (blokady, kto pisze)    | **9**   | 8        | 7         | 6                  | 5      |
+| Moderacja platformy (admin, tenant)         | **8**   | n/d      | n/d       | n/d                | 9      |
+| **Średnia**                                 | **6,5** | 8,7      | 8,3       | 4,5                | 7,0    |
 
 **Werdykt:** porównanie z WhatsApp jest celowo bezlitosne (to komunikatory-produkty z tysiącami inżynierów) —
 i mimo to NES wypada godnie, a **LinkedIn Messaging, faktycznego konkurenta w kategorii „czat wewnątrz platformy
@@ -355,7 +355,7 @@ porównywalnego — w swojej rzeczywistej kategorii ten czat jest bezkonkurencyj
    infrastruktura FTS w platformie jest) — luka nr 1 w codziennym użyciu.
 2. **Podgląd linków (OG unfurl)** po stronie serwera z cache — duży zysk odczuwalnej jakości za mały koszt.
 3. Zakomunikować wprost w polityce prywatności model szyfrowania (TLS + RLS, bez E2E) — odbiorcy „policy"
-  o to zapytają.
+   o to zapytają.
 
 ---
 
@@ -409,18 +409,18 @@ Karty CV, odznaki, siatka ekspertów — czysto i spójnie; hub eksperta z konfi
 
 ## 5.4 Porównanie z konkurencją (0–10)
 
-| Kryterium                                  | **NES** | LinkedIn | ResearchGate | Strony ekspertów TT (ECFR/Brookings) | X   |
-| ------------------------------------------ | ------- | -------- | ------------ | ------------------------------------ | --- |
-| Tożsamość / CV                             | 8       | **10**   | 7            | 4                                    | 2   |
-| Sieć kontaktów (zaproszenia, sugestie, intro) | 8    | **10**   | 6            | 0                                    | 5   |
-| Endorsements / rekomendacje               | 8       | **9**    | 5            | 0                                    | 0   |
-| Profil eksperta + dorobek (publikacje, media) | **9** | 6        | **9**        | 8                                    | 3   |
-| Odznaki / weryfikacja                      | **8**   | 7        | 5            | 5                                    | 6   |
-| Prywatność (tryby, RODO, granty kolumnowe) | **9**   | 7        | 6            | 5                                    | 5   |
-| Analityka profilu („kto oglądał")           | 7       | **9**    | 8            | 0                                    | 7   |
-| Personalizacja treści z profilu            | 8       | **9**    | 7            | 2                                    | 8   |
-| Onboarding / kompletność profilu           | 5       | **9**    | 6            | n/d                                  | 6   |
-| **Średnia**                                | **7,8** | 8,4      | 6,6          | 3,0                                  | 4,7 |
+| Kryterium                                     | **NES** | LinkedIn | ResearchGate | Strony ekspertów TT (ECFR/Brookings) | X   |
+| --------------------------------------------- | ------- | -------- | ------------ | ------------------------------------ | --- |
+| Tożsamość / CV                                | 8       | **10**   | 7            | 4                                    | 2   |
+| Sieć kontaktów (zaproszenia, sugestie, intro) | 8       | **10**   | 6            | 0                                    | 5   |
+| Endorsements / rekomendacje                   | 8       | **9**    | 5            | 0                                    | 0   |
+| Profil eksperta + dorobek (publikacje, media) | **9**   | 6        | **9**        | 8                                    | 3   |
+| Odznaki / weryfikacja                         | **8**   | 7        | 5            | 5                                    | 6   |
+| Prywatność (tryby, RODO, granty kolumnowe)    | **9**   | 7        | 6            | 5                                    | 5   |
+| Analityka profilu („kto oglądał")             | 7       | **9**    | 8            | 0                                    | 7   |
+| Personalizacja treści z profilu               | 8       | **9**    | 7            | 2                                    | 8   |
+| Onboarding / kompletność profilu              | 5       | **9**    | 6            | n/d                                  | 6   |
+| **Średnia**                                   | **7,8** | 8,4      | 6,6          | 3,0                                  | 4,7 |
 
 **Werdykt:** NES zbudował coś, czego nie ma nikt w jego lidze: **stronę eksperta klasy ECFR/Brookings
 połączoną z siecią kontaktów klasy LinkedIn i prywatnością lepszą od obu**. Do LinkedIna brakuje przede
@@ -440,13 +440,13 @@ wszystkim mechaniki napędzania kompletności profilu i domknięcia IA — nie f
 
 ## Ranking modułów (łączna ocena)
 
-| #   | Moduł        | Ocena   | Jedno zdanie                                                                          |
-| --- | ------------ | ------- | ------------------------------------------------------------------------------------- |
+| #   | Moduł        | Ocena   | Jedno zdanie                                                                                                               |
+| --- | ------------ | ------- | -------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Czat         | **8,2** | W swojej realnej kategorii (czat platformy profesjonalnej) bezkonkurencyjny; luki: wyszukiwanie w treści, E2E, połączenia. |
-| 2   | Wyszukiwarka | **8,0** | Klasa „wpiętej Algolii" bez Algolii; brakuje alertów i semantyki, nie jakości.        |
-| 3   | Wpisy        | **7,6** | Najszerszy funkcjonalnie silnik w stawce; czytanie wciąż przeładowane, pisanie zaczyna się od 12 zakładek. |
-| 4   | Strony       | **7,5** | Liga Elementor/Webflow innym kosztem: mniej swobody projektowej, więcej wydajności i danych. |
-| 5   | Profile      | **7,3** | Najbogatszy zestaw funkcji, najbardziej rozmyta architektura informacji.               |
+| 2   | Wyszukiwarka | **8,0** | Klasa „wpiętej Algolii" bez Algolii; brakuje alertów i semantyki, nie jakości.                                             |
+| 3   | Wpisy        | **7,6** | Najszerszy funkcjonalnie silnik w stawce; czytanie wciąż przeładowane, pisanie zaczyna się od 12 zakładek.                 |
+| 4   | Strony       | **7,5** | Liga Elementor/Webflow innym kosztem: mniej swobody projektowej, więcej wydajności i danych.                               |
+| 5   | Profile      | **7,3** | Najbogatszy zestaw funkcji, najbardziej rozmyta architektura informacji.                                                   |
 
 ## Trzy obserwacje strategiczne
 
@@ -465,15 +465,15 @@ wszystkim mechaniki napędzania kompletności profilu i domknięcia IA — nie f
 
 ## Priorytety (koszt → efekt)
 
-| Priorytet | Zadanie                                                       | Moduł        | Szacunkowy koszt |
-| --------- | ------------------------------------------------------------- | ------------ | ---------------- |
-| P0        | Wyszukiwanie w treści rozmów                                  | Czat         | niski (FTS jest) |
-| P0        | Alerty do zapisanych wyszukiwań (notyfikacje/digest już są)   | Wyszukiwarka | niski            |
-| P0        | Tryb czytania: 1 TOC, 1 progres, limit stref reklam           | Wpisy        | niski (decyzja redakcyjna) |
-| P1        | Konsolidacja edycji tożsamości + wskaźnik kompletności        | Profile      | średni           |
-| P1        | Inline editing na kanwie buildera                             | Strony       | średni           |
-| P1        | Multi-select faset; podgląd linków w czacie                   | Szukajka/Czat | średni          |
-| P2        | Warstwa semantyczna wyszukiwania (pgvector); diff rewizji; CV→PDF | różne     | wyższy           |
+| Priorytet | Zadanie                                                           | Moduł         | Szacunkowy koszt           |
+| --------- | ----------------------------------------------------------------- | ------------- | -------------------------- |
+| P0        | Wyszukiwanie w treści rozmów                                      | Czat          | niski (FTS jest)           |
+| P0        | Alerty do zapisanych wyszukiwań (notyfikacje/digest już są)       | Wyszukiwarka  | niski                      |
+| P0        | Tryb czytania: 1 TOC, 1 progres, limit stref reklam               | Wpisy         | niski (decyzja redakcyjna) |
+| P1        | Konsolidacja edycji tożsamości + wskaźnik kompletności            | Profile       | średni                     |
+| P1        | Inline editing na kanwie buildera                                 | Strony        | średni                     |
+| P1        | Multi-select faset; podgląd linków w czacie                       | Szukajka/Czat | średni                     |
+| P2        | Warstwa semantyczna wyszukiwania (pgvector); diff rewizji; CV→PDF | różne         | wyższy                     |
 
 **Realistyczny pułap po P0–P1: ~8,3/10 łącznie** — bez budowania nowych funkcji, wyłącznie przez domknięcie
 doświadczenia wokół już istniejącego silnika.

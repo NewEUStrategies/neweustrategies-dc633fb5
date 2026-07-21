@@ -29,11 +29,7 @@ export type IntroductionRow = Fns["my_introduction_requests"]["Returns"][number]
 export type IntroductionRole = "requester" | "bridge" | "target" | "all";
 
 /** Status wiersza introduction_requests. */
-export type IntroductionStatus =
-  | "pending"
-  | "accepted"
-  | "declined"
-  | "withdrawn";
+export type IntroductionStatus = "pending" | "accepted" | "declined" | "withdrawn";
 
 export const INTRO_MESSAGE_MIN = 20;
 export const INTRO_MESSAGE_MAX = 600;
@@ -110,11 +106,7 @@ export interface RespondIntroductionInput {
 }
 
 /** Odpowiedź na prośbę (bridge: accept/decline, requester: withdraw). */
-export function useRespondIntroduction(): UseMutationResult<
-  void,
-  Error,
-  RespondIntroductionInput
-> {
+export function useRespondIntroduction(): UseMutationResult<void, Error, RespondIntroductionInput> {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
