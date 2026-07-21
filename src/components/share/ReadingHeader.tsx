@@ -24,6 +24,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hooks/useBookmarks";
+import { useSiteSetting } from "@/lib/useSiteSetting";
+import { useTheme } from "@/components/ThemeProvider";
+
+type ReadingHeaderThemeLogo = {
+  logo?: {
+    main?: string;
+    main_dark?: string;
+    mobile?: string;
+    mobile_dark?: string;
+  };
+};
+
 
 interface Props {
   title: string;
