@@ -518,6 +518,14 @@ function AdminCompaniesPage() {
           </table>
         </div>
       </div>
+
+      <CompanyDetailsDrawer
+        companyId={drawerId}
+        open={drawerId !== null}
+        onOpenChange={(v) => {
+          if (!v) setDrawerId(null);
+        }}
+      />
     </div>
   );
 }
