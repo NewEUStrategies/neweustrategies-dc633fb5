@@ -9748,7 +9748,10 @@ export type Database = {
           webhook_secret: string
         }[]
       }
-      crm_import_leads: { Args: { p_rows: Json; p_source?: string }; Returns: Json }
+      crm_import_leads: {
+        Args: { p_rows: Json; p_source?: string }
+        Returns: Json
+      }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_score_touch_user: {
         Args: { p_tenant: string; p_user: string }
