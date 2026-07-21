@@ -139,7 +139,7 @@ describe("useThemeDesignDrafts - save orchestration", () => {
 
 describe("useThemeDesignDrafts - tenant isolation", () => {
   it("drops unsaved drafts and invalidates reads when the tenant changes", async () => {
-    const { result, invalidateSpy } = setup();
+    const { result, rerender, invalidateSpy } = setup();
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     // Unsaved local edit in workspace A.
@@ -149,7 +149,7 @@ describe("useThemeDesignDrafts - tenant isolation", () => {
     // Switch to workspace B.
     invalidateSpy.mockClear();
     h.tenant.current = "tenant-B";
-    act(() => result.rerender());
+    act(() => rerender());
 
     // The in-progress edit must not survive the switch: the draft re-hydrates
     // from the (tenant-scoped) server data instead of keeping "40px".
