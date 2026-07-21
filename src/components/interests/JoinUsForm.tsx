@@ -1124,7 +1124,7 @@ export function JoinUsForm({
         style={{ fontSize: buttonSize ? `${buttonSize}px` : undefined }}
         data-edit-target="buttonSize"
       >
-        <UserPlus className="w-4 h-4 text-current" aria-hidden />
+        <UserPlus className="w-4 h-4 text-brand-foreground" aria-hidden />
         {btnLabel}
       </SubscribeButton>
 
