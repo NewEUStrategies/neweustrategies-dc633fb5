@@ -83,6 +83,7 @@ function ProfileInline() {
   const [previewAsGuest, setPreviewAsGuest] = useState(false);
   const [tab, setTab] = useState<TabKey>("about");
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
+  const companyTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   // Propaguj tryb podglądu gościa do layoutu /profile (ukrywa sidebar) i
   // sprzątaj przy odmontowaniu, żeby powrót na /profile/* nie zostawiał
@@ -195,6 +196,7 @@ function ProfileInline() {
             {data.current_company ? (
               editable ? (
                 <button
+                  ref={companyTriggerRef}
                   type="button"
                   onClick={() => setCompanyPickerOpen(true)}
                   className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground align-middle transition-colors hover:text-primary"
@@ -211,6 +213,7 @@ function ProfileInline() {
               )
             ) : editable ? (
               <button
+                ref={companyTriggerRef}
                 type="button"
                 onClick={() => setCompanyPickerOpen(true)}
                 className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-muted-foreground italic align-middle transition-colors hover:text-foreground"
@@ -706,6 +709,7 @@ function ProfileInline() {
         onOpenChange={setCompanyPickerOpen}
         currentCompanyId={data.current_company_id}
         currentCompanyName={data.current_company}
+        returnFocusRef={companyTriggerRef}
       />
     </TooltipProvider>
   );

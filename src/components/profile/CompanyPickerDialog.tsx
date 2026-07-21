@@ -43,6 +43,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   currentCompanyId?: string | null;
   currentCompanyName?: string | null;
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
 };
 
 const EMPTY_FORM = {
@@ -63,6 +64,7 @@ export function CompanyPickerDialog({
   onOpenChange,
   currentCompanyId,
   currentCompanyName,
+  returnFocusRef,
 }: Props) {
   const { t } = useTranslation();
   const { user, tenantId } = useAuth();
@@ -116,6 +118,15 @@ export function CompanyPickerDialog({
     }
   };
 
+  // Zamknięcie dialogu + oddanie focusu do triggera w sekcji firmy (a11y:
+  // klawiaturowy użytkownik nie ląduje na <body> po zapisie).
+  const closeAndRestoreFocus = () => {
+    onOpenChange(false);
+    window.setTimeout(() => {
+      returnFocusRef?.current?.focus();
+    }, 80);
+  };
+
   const linkCompany = async (companyId: string | null) => {
     if (saving) return;
     setSaving(true);
@@ -134,7 +145,12 @@ export function CompanyPickerDialog({
         if (error) throw error;
       }
       invalidateProfile();
-      onOpenChange(false);
+      toast.success(
+        companyId
+          ? t("company.toast.linked", { defaultValue: "Firma przypisana" })
+          : t("company.toast.detached", { defaultValue: "Firma odłączona" }),
+      );
+      closeAndRestoreFocus();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(
@@ -187,7 +203,7 @@ export function CompanyPickerDialog({
       void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
       invalidateProfile();
       toast.success(t("company.toast.created", { defaultValue: "Firma dodana" }));
-      onOpenChange(false);
+      closeAndRestoreFocus();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(t("company.errors.createFailed", { defaultValue: "Nie udało się dodać firmy" }) + ` (${msg})`);
