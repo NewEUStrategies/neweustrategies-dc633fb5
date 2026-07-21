@@ -198,6 +198,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     groupEnd,
     reactions,
     myUserId,
+    reactorProfiles,
     repliedMessage,
     repliedAuthorName,
     editable,
