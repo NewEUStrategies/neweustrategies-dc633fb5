@@ -3,13 +3,14 @@
 // wyszukiwarką, gęstą tabelą i wielo-zaznaczeniem. Klik w wiersz otwiera
 // `/admin/companies/:id`. Zabezpieczone przez `requireStaff` w server-fn
 // oraz `_authenticated` layout w AdminShell.
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 
 import { listCrmCompanies } from "@/lib/crm-companies.functions";
+import { CompanyDetailsDrawer } from "@/components/admin/crm/CompanyDetailsDrawer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
