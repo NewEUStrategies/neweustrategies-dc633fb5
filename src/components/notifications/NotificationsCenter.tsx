@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "@tanstack/react-router";
-import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type InfiniteData, type QueryKey } from "@tanstack/react-query";
 import { toast } from "sonner";
 // Nazwane importy + DynamicIcon zamiast namespace-importu lucide-react:
 // namespace-import - nawet z chunka trasy - materializuje pełny rejestr
@@ -29,12 +29,13 @@ import {
 } from "@/components/ui/select";
 import {
   useMarkAllNotificationsRead,
-  useNotifications,
+  useNotificationsInfinite,
   useNotificationPreferences,
   useNotificationPreferencesRealtime,
   useNotificationsRealtime,
   useUpdateNotificationPreferences,
   DEFAULT_NOTIFICATION_PREFERENCES,
+  NOTIFICATIONS_PAGE_SIZE,
   type NotificationKind,
   type NotificationRow,
   type NotificationPreferences,
@@ -72,8 +73,8 @@ const KIND_OPTIONS: KindFilter[] = [
   "system",
 ];
 
-/** Rows fetched per page; "load more" grows the window by this amount. */
-const NOTIFICATIONS_PAGE_SIZE = 50;
+// Rozmiar strony pochodzi z warstwy danych - Bell i Center współdzielą cache
+// tylko wtedy, gdy używają tego samego `pageSize` (patrz useNotifications.ts).
 
 function pickTitle(n: NotificationRow, lang: Lang): string {
   return (lang === "en" && n.title_en) || n.title_pl;
@@ -147,7 +148,8 @@ function listKeyIsOnlyUnread(key: readonly unknown[]): boolean {
   );
 }
 
-type NotificationListSnapshot = Array<[QueryKey, NotificationRow[] | undefined]>;
+type NotificationInfiniteData = InfiniteData<NotificationRow[], number>;
+type NotificationListSnapshot = Array<[QueryKey, NotificationInfiniteData | undefined]>;
 
 export type NotificationsCenterMode = "full" | "inbox" | "preferences" | "consents";
 
@@ -158,13 +160,8 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   const [tab, setTab] = useState<TabValue>(initialTab);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
-  const [limit, setLimit] = useState(NOTIFICATIONS_PAGE_SIZE);
-
-  // Switching tab/kind starts a fresh window - never carry an inflated limit
-  // (grown by "load more") into a different filter.
-  useEffect(() => {
-    setLimit(NOTIFICATIONS_PAGE_SIZE);
-  }, [tab, kindFilter]);
+  // Paginacja jest teraz w warstwie danych - `useNotificationsInfinite`
+  // trzyma strony w cache i sam resetuje je przy zmianie queryKey (tab/kind).
 
   useNotificationsRealtime();
   useNotificationPreferencesRealtime();
@@ -175,8 +172,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   const updatePrefs = useUpdateNotificationPreferences();
   const prefs: NotificationPreferences = prefsQ.data ?? DEFAULT_NOTIFICATION_PREFERENCES;
 
-  const listQ = useNotifications({
-    limit,
+  const listQ = useNotificationsInfinite({
     onlyUnread: tab === "unread",
     kind: kindFilter === "all" ? null : kindFilter,
   });
@@ -186,18 +182,25 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   // list fetches (so a stale response cannot clobber the patch), snapshot every
   // cached notifications list, apply the updater per list, and hand back the
   // snapshot for rollback on error.
+  // Optymistyczne łatanie działa na `InfiniteData<NotificationRow[]>`:
+  // walkujemy strony i patchujemy każdą - jeden mapper zachowuje układ stron
+  // (żeby paginacja nie posypała się po mark-read/delete).
   const patchNotificationLists = async (
     patch: (rows: NotificationRow[], key: QueryKey) => NotificationRow[],
   ): Promise<{ previous: NotificationListSnapshot }> => {
     await qc.cancelQueries(NOTIFICATION_LIST_FILTERS);
-    const previous = qc.getQueriesData<NotificationRow[]>(NOTIFICATION_LIST_FILTERS);
-    for (const [key, rows] of previous) {
-      if (rows) qc.setQueryData(key, patch(rows, key));
+    const previous = qc.getQueriesData<NotificationInfiniteData>(NOTIFICATION_LIST_FILTERS);
+    for (const [key, cached] of previous) {
+      if (!cached) continue;
+      qc.setQueryData<NotificationInfiniteData>(key, {
+        ...cached,
+        pages: cached.pages.map((rows) => patch(rows, key)),
+      });
     }
     return { previous };
   };
   const rollbackNotificationLists = (ctx: { previous: NotificationListSnapshot } | undefined) => {
-    for (const [key, rows] of ctx?.previous ?? []) qc.setQueryData(key, rows);
+    for (const [key, cached] of ctx?.previous ?? []) qc.setQueryData(key, cached);
   };
   // Re-sync with the server whatever happened - the "notifications" prefix
   // also covers the unread-count query, so it stays consistent too.
@@ -261,9 +264,13 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
     onSettled: invalidateNotifications,
   });
 
-  const items = listQ.data ?? [];
-  // The raw fetch (pre client-side search) hit the ceiling -> more may exist.
-  const canLoadMore = items.length >= limit;
+  // Spłaszczamy strony do jednej tablicy - komponent renderuje ciągłą listę,
+  // a `fetchNextPage()` domawia kolejne strony pod tym samym queryKey.
+  const items: NotificationRow[] = useMemo(
+    () => listQ.data?.pages.flat() ?? [],
+    [listQ.data],
+  );
+  const canLoadMore = !!listQ.hasNextPage;
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -656,12 +663,16 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={listQ.isFetching}
-                      onClick={() => setLimit((n) => n + NOTIFICATIONS_PAGE_SIZE)}
+                      disabled={listQ.isFetchingNextPage}
+                      onClick={() => void listQ.fetchNextPage()}
+                      aria-label={t("notifications.loadMore", { defaultValue: "Załaduj więcej" })}
                     >
-                      {listQ.isFetching
+                      {listQ.isFetchingNextPage
                         ? t("common.loading", { defaultValue: "Ładowanie..." })
-                        : t("notifications.loadMore", { defaultValue: "Załaduj więcej" })}
+                        : t("notifications.loadMore", {
+                            defaultValue: "Załaduj więcej",
+                            count: NOTIFICATIONS_PAGE_SIZE,
+                          })}
                     </Button>
                   </div>
                 )}

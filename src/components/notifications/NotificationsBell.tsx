@@ -30,7 +30,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  useNotifications,
+  useNotificationsInfinite,
   useNotificationsRealtime,
   useNotificationPreferences,
   useNotificationPreferencesRealtime,
@@ -115,7 +115,9 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
   // Always call hooks in the same order - even when unauth we render nothing.
   useNotificationsRealtime();
   useNotificationPreferencesRealtime();
-  const listQ = useNotifications({ limit: 20 });
+  // Współdzielony cache z NotificationsCenter (identyczny queryKey przy pustym
+  // filtrze) - jedno zapytanie zasila dzwonek i skrzynkę po zalogowaniu.
+  const listQ = useNotificationsInfinite({});
   const countQ = useUnreadCount();
   const prefsQ = useNotificationPreferences();
   const markAll = useMarkAllNotificationsRead();
@@ -124,7 +126,9 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
 
   if (!user) return null;
 
-  const items = listQ.data ?? [];
+  // Dzwonek pokazuje tylko pierwszą stronę - "Zobacz wszystkie" kieruje do
+  // /messages?view=notifications, gdzie Center dokleja kolejne strony.
+  const items: NotificationRow[] = listQ.data?.pages[0] ?? [];
   const unread = countQ.data ?? 0;
   const groupByConversation = prefsQ.data?.group_by_conversation ?? true;
   const groups = groupNotifications(items, { groupByConversation });
