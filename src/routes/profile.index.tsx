@@ -66,6 +66,7 @@ import { ProfileViewsCard } from "@/components/network/ProfileViewsCard";
 import { IntroductionsCard } from "@/components/network/IntroductionsCard";
 
 import { promptDialog } from "@/lib/appDialogs";
+import { CompanyPickerDialog } from "@/components/profile/CompanyPickerDialog";
 export const Route = createFileRoute("/profile/")({
   component: ProfileInline,
 });
