@@ -144,10 +144,11 @@ export function ChatWindow(props: ChatWindowProps) {
   const isGroup = !!view && isGroupView(view);
   const display = view
     ? conversationDisplay(view, peersQ.data, t("chat.group.circle"), conversationNicknames)
-    : { isGroup: false, name: "...", avatarUrl: null, peerId: null };
+    : { isGroup: false, name: "...", avatarUrl: null, peerId: null, slug: null };
   const peerId = display.peerId;
   const peerName = display.name;
   const peerAvatar = display.avatarUrl;
+  const peerSlug = display.slug;
 
   // Reactor lookup: powers avatars + tooltip names on reaction chips.
   // Combines peer profiles with a synthesized "self" entry pulled from the
@@ -1059,161 +1060,167 @@ export function ChatWindow(props: ChatWindowProps) {
   if (variant === "page") {
     return (
       <TooltipProvider delayDuration={200}>
-      <div
-        className={cn("flex h-full min-h-0 flex-col", themeClass(theme), className)}
-        data-active-conversation={conversationId}
-      >
-        <div className="flex items-center gap-1.5 border-b border-border/60 bg-card/80 px-2.5 py-2 backdrop-blur supports-[backdrop-filter]:bg-card/70 sm:gap-2.5 sm:px-4 sm:py-3">
-          {onBack && (
-            <button
-              type="button"
-              onClick={onBack}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors md:hidden"
-              aria-label={t("chat.messages")}
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden />
-            </button>
-          )}
-          {isGroup ? (
-            <button
-              type="button"
-              onClick={() => setGroupInfoOpen(true)}
-              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[6px] text-left transition-colors hover:bg-muted/40"
-              aria-haspopup="dialog"
-              aria-label={t("chat.group.info")}
-              title={t("chat.group.info")}
-            >
-              <ChatAvatar name={peerName} avatarUrl={peerAvatar} size="sm" />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
-                  <span className="truncate">{peerName}</span>
-                  {muted && (
-                    <BellOff
-                      className="h-3 w-3 shrink-0 text-muted-foreground"
-                      aria-label={t("chat.menu.mutedBadge")}
-                    />
-                  )}
-                  {pinned && (
-                    <Pin
-                      className="h-3 w-3 shrink-0 text-muted-foreground"
-                      aria-label={t("chat.menu.pinnedBadge")}
-                    />
-                  )}
+        <div
+          className={cn("flex h-full min-h-0 flex-col", themeClass(theme), className)}
+          data-active-conversation={conversationId}
+        >
+          <div className="flex items-center gap-1.5 border-b border-border/60 bg-card/80 px-2.5 py-2 backdrop-blur supports-[backdrop-filter]:bg-card/70 sm:gap-2.5 sm:px-4 sm:py-3">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors md:hidden"
+                aria-label={t("chat.messages")}
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+              </button>
+            )}
+            {isGroup ? (
+              <button
+                type="button"
+                onClick={() => setGroupInfoOpen(true)}
+                className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[6px] text-left transition-colors hover:bg-muted/40"
+                aria-haspopup="dialog"
+                aria-label={t("chat.group.info")}
+                title={t("chat.group.info")}
+              >
+                <ChatAvatar
+                  name={peerName}
+                  avatarUrl={peerAvatar}
+                  size="sm"
+                  to={peerSlug ? `/author/${peerSlug}` : undefined}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
+                    <span className="truncate">{peerName}</span>
+                    {muted && (
+                      <BellOff
+                        className="h-3 w-3 shrink-0 text-muted-foreground"
+                        aria-label={t("chat.menu.mutedBadge")}
+                      />
+                    )}
+                    {pinned && (
+                      <Pin
+                        className="h-3 w-3 shrink-0 text-muted-foreground"
+                        aria-label={t("chat.menu.pinnedBadge")}
+                      />
+                    )}
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground">{headerSubtitle}</span>
                 </span>
-                <span className="block text-[11px] text-muted-foreground">{headerSubtitle}</span>
-              </span>
-            </button>
-          ) : (
-            <>
-              <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 truncate text-sm font-semibold">
-                  <span className="truncate">{peerName}</span>
-                  {muted && (
-                    <BellOff
-                      className="h-3 w-3 shrink-0 text-muted-foreground"
-                      aria-label={t("chat.menu.mutedBadge")}
-                    />
-                  )}
-                  {pinned && (
-                    <Pin
-                      className="h-3 w-3 shrink-0 text-muted-foreground"
-                      aria-label={t("chat.menu.pinnedBadge")}
-                    />
-                  )}
+              </button>
+            ) : (
+              <>
+                <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 truncate text-sm font-semibold">
+                    <span className="truncate">{peerName}</span>
+                    {muted && (
+                      <BellOff
+                        className="h-3 w-3 shrink-0 text-muted-foreground"
+                        aria-label={t("chat.menu.mutedBadge")}
+                      />
+                    )}
+                    {pinned && (
+                      <Pin
+                        className="h-3 w-3 shrink-0 text-muted-foreground"
+                        aria-label={t("chat.menu.pinnedBadge")}
+                      />
+                    )}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{headerSubtitle}</div>
                 </div>
-                <div className="text-[11px] text-muted-foreground">{headerSubtitle}</div>
-              </div>
-            </>
-          )}
-          {searchToggle}
-          {mediaToggle}
-          {conversationMenu}
+              </>
+            )}
+            {searchToggle}
+            {mediaToggle}
+            {conversationMenu}
+          </div>
+          {body}
         </div>
-        {body}
-      </div>
       </TooltipProvider>
     );
   }
 
   return (
     <TooltipProvider delayDuration={200}>
-    <section
-      className={cn(
-        "pointer-events-auto flex w-[420px] max-w-[calc(100vw-16px)] flex-col overflow-hidden sm:w-[460px] lg:w-[500px]",
-        "h-[600px] max-h-[min(85vh,640px)] rounded-t-[6px] border border-b-0 border-border/60 bg-background shadow-2xl",
-        "motion-safe:animate-in motion-safe:slide-in-from-bottom-4 motion-safe:fade-in-0 motion-safe:duration-200",
-        themeClass(theme),
-        className,
-      )}
-      role="dialog"
-      aria-label={`${t("chat.title")}: ${peerName}`}
-      data-active-conversation={conversationId}
-      onKeyDown={(e) => {
-        // Messenger behavior: Escape closes the dock window. The composer
-        // stops propagation when Escape means "cancel editing", and Radix
-        // portals (emoji picker, delete dialog) live outside this subtree.
-        if (e.key === "Escape" && onClose) {
-          e.stopPropagation();
-          onClose();
-        }
-      }}
-    >
-      <header className="flex items-center gap-1.5 border-b border-border/60 bg-background px-3 py-2 shadow-sm">
-        <ChatAvatar
-          name={peerName}
-          avatarUrl={peerAvatar}
-          online={!isGroup && peerOnline}
-          size="md"
-        />
-        <div className="min-w-0 flex-1 pl-0.5">
-          <div className="flex items-center gap-1 truncate text-[14px] font-semibold leading-tight">
-            <span className="truncate">{peerName}</span>
-            {muted && (
-              <BellOff
-                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                aria-label={t("chat.menu.mutedBadge")}
-              />
-            )}
+      <section
+        className={cn(
+          "pointer-events-auto flex w-[420px] max-w-[calc(100vw-16px)] flex-col overflow-hidden sm:w-[460px] lg:w-[500px]",
+          "h-[600px] max-h-[min(85vh,640px)] rounded-t-[6px] border border-b-0 border-border/60 bg-background shadow-2xl",
+          "motion-safe:animate-in motion-safe:slide-in-from-bottom-4 motion-safe:fade-in-0 motion-safe:duration-200",
+          themeClass(theme),
+          className,
+        )}
+        role="dialog"
+        aria-label={`${t("chat.title")}: ${peerName}`}
+        data-active-conversation={conversationId}
+        onKeyDown={(e) => {
+          // Messenger behavior: Escape closes the dock window. The composer
+          // stops propagation when Escape means "cancel editing", and Radix
+          // portals (emoji picker, delete dialog) live outside this subtree.
+          if (e.key === "Escape" && onClose) {
+            e.stopPropagation();
+            onClose();
+          }
+        }}
+      >
+        <header className="flex items-center gap-1.5 border-b border-border/60 bg-background px-3 py-2 shadow-sm">
+          <ChatAvatar
+            name={peerName}
+            avatarUrl={peerAvatar}
+            online={!isGroup && peerOnline}
+            size="md"
+            to={peerSlug ? `/author/${peerSlug}` : undefined}
+          />
+          <div className="min-w-0 flex-1 pl-0.5">
+            <div className="flex items-center gap-1 truncate text-[14px] font-semibold leading-tight">
+              <span className="truncate">{peerName}</span>
+              {muted && (
+                <BellOff
+                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                  aria-label={t("chat.menu.mutedBadge")}
+                />
+              )}
+            </div>
+            <div className="text-[11px] leading-tight text-muted-foreground">{headerSubtitle}</div>
           </div>
-          <div className="text-[11px] leading-tight text-muted-foreground">{headerSubtitle}</div>
-        </div>
-        {searchToggle}
-        {mediaToggle}
-        {conversationMenu}
-        {onMinimize && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={onMinimize}
-                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                aria-label={t("chat.minimize")}
-              >
-                <Minus className="h-4 w-4" aria-hidden />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("chat.minimize")}</TooltipContent>
-          </Tooltip>
-        )}
-        {onClose && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                aria-label={t("chat.close")}
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("chat.close")}</TooltipContent>
-          </Tooltip>
-        )}
-      </header>
-      {body}
-    </section>
+          {searchToggle}
+          {mediaToggle}
+          {conversationMenu}
+          {onMinimize && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onMinimize}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  aria-label={t("chat.minimize")}
+                >
+                  <Minus className="h-4 w-4" aria-hidden />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("chat.minimize")}</TooltipContent>
+            </Tooltip>
+          )}
+          {onClose && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  aria-label={t("chat.close")}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("chat.close")}</TooltipContent>
+            </Tooltip>
+          )}
+        </header>
+        {body}
+      </section>
     </TooltipProvider>
   );
 }

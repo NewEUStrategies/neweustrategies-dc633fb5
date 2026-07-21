@@ -10240,6 +10240,7 @@ export type Database = {
           display_name: string
           id: string
           job_title: string
+          slug: string
           specialization: string
         }[]
       }

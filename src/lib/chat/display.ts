@@ -14,6 +14,8 @@ export interface ConversationDisplay {
   avatarUrl: string | null;
   /** Direct threads only: the peer's id (presence dot, block action). */
   peerId: string | null;
+  /** Direct threads only: public profile slug for deep-linking to /author/$slug. */
+  slug: string | null;
 }
 
 export function isGroupView(view: ConversationView): boolean {
@@ -33,6 +35,7 @@ export function conversationDisplay(
       name: view.conversation.title?.trim() || fallbackGroupName,
       avatarUrl: null,
       peerId: null,
+      slug: null,
     };
   }
   const peerId = view.peers[0]?.user_id ?? null;
@@ -43,6 +46,7 @@ export function conversationDisplay(
     name: nickname ?? profile?.display_name ?? "...",
     avatarUrl: profile?.avatar_url ?? null,
     peerId,
+    slug: profile?.slug ?? null,
   };
 }
 

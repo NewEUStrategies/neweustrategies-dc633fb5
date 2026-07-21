@@ -3,6 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useFaceAwarePosition } from "@/hooks/useFaceAwarePosition";
 import { PresenceDot } from "./PresenceDot";
+import { Link } from "@tanstack/react-router";
 
 export interface ChatAvatarProps {
   name: string;
@@ -10,6 +11,8 @@ export interface ChatAvatarProps {
   online?: boolean;
   size?: "xs" | "sm" | "md" | "lg";
   className?: string;
+  /** Optional TanStack route target. When provided the avatar is wrapped in a clickable link. */
+  to?: string;
 }
 
 const SIZES: Record<NonNullable<ChatAvatarProps["size"]>, string> = {
@@ -25,15 +28,18 @@ export function ChatAvatar({
   online = false,
   size = "md",
   className,
+  to,
 }: ChatAvatarProps) {
   const initial = (name || "?").trim().slice(0, 1).toUpperCase();
   // Face-aware crop: detects the face when the browser supports FaceDetector,
   // otherwise falls back to portrait-friendly upper-center (50% 30%).
   const objectPosition = useFaceAwarePosition(avatarUrl);
-  return (
+  const avatar = (
     <span className={cn("relative inline-block shrink-0", className)}>
       {/* Product spec: user profile pictures use a 6px corner radius. */}
-      <Avatar className={cn(SIZES[size], "rounded-[6px]")}>
+      <Avatar
+        className={cn(SIZES[size], "rounded-[6px]", to && "transition-opacity hover:opacity-80")}
+      >
         {avatarUrl ? (
           <AvatarImage
             src={avatarUrl}
@@ -47,5 +53,10 @@ export function ChatAvatar({
       <PresenceDot online={online} className="absolute -bottom-0.5 -right-0.5" />
     </span>
   );
+  if (!to) return avatar;
+  return (
+    <Link to={to} className="inline-block" aria-label={`${name} profile`}>
+      {avatar}
+    </Link>
+  );
 }
-
