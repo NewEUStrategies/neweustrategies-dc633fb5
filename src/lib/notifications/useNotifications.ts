@@ -120,33 +120,86 @@ const listKey = (uid: string | undefined, filter: NotificationsFilter) =>
 const countKey = (uid: string | undefined) =>
   ["notifications", "unread-count", uid ?? "anon"] as const;
 
+/** Rozmiar strony dla paginacji powiadomień - dzwonek pokazuje pierwszy
+ *  fragment, centrum dokleja kolejne przez `fetchNextPage()`. Wspólny rozmiar
+ *  ma znaczenie: dzwonek i centrum korzystają z tego samego cache'u
+ *  React Query, gdy `filter` jest identyczny (patrz `normalizeFilter`), więc
+ *  po zalogowaniu leci jeden request zamiast dwóch (bell + center).
+ */
+export const NOTIFICATIONS_PAGE_SIZE = 25;
+
 export interface NotificationsFilter {
   onlyUnread?: boolean;
   kind?: NotificationKind | null;
-  limit?: number;
+  /** Nadpisanie rozmiaru strony wyłącznie w testach. Produkcyjnie używaj
+   *  domyślnego `NOTIFICATIONS_PAGE_SIZE`, żeby zachować dedup cache. */
+  pageSize?: number;
 }
 
-export function useNotifications(
+/** Zamień filtr na deterministyczny klucz cache'u - `undefined` traktujemy
+ *  tak samo jak wartości domyślne, żeby `{}` i `{ onlyUnread: false }` trafiły
+ *  do jednej kolejki. */
+function normalizeFilter(filter: NotificationsFilter) {
+  return {
+    onlyUnread: !!filter.onlyUnread,
+    kind: filter.kind ?? null,
+    pageSize: filter.pageSize ?? NOTIFICATIONS_PAGE_SIZE,
+  } as const;
+}
+
+const listKey = (uid: string | undefined, filter: NotificationsFilter) =>
+  ["notifications", uid ?? "anon", normalizeFilter(filter)] as const;
+
+/** Paginowany fetch przez PostgREST `.range()` - jeden slot cache na
+ *  (użytkownik, filtr, pageSize). Bell/Center konsumują ten sam query. */
+export function useNotificationsInfinite(
   filter: NotificationsFilter = {},
-): UseQueryResult<NotificationRow[]> {
-  const { user } = useAuth();
-  return useQuery({
+): UseInfiniteQueryResult<InfiniteData<NotificationRow[], number>, Error> {
+  const { user, loading: authLoading } = useAuth();
+  const norm = normalizeFilter(filter);
+  return useInfiniteQuery({
     queryKey: listKey(user?.id, filter),
-    enabled: !!user,
-    queryFn: async (): Promise<NotificationRow[]> => {
+    // Nie odpalaj zapytania zanim AuthProvider zamknie start-up handshake -
+    // inaczej wystrzeli anonimowe fetch, które i tak od razu podmienimy po
+    // odzyskaniu sesji z lokalnego cache'u (dublowanie requestów po logu).
+    enabled: !!user && !authLoading,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (lastPage.length < norm.pageSize) return undefined;
+      return allPages.length; // kolejny indeks strony (0, 1, 2, ...)
+    },
+    queryFn: async ({ pageParam }): Promise<NotificationRow[]> => {
+      const from = pageParam * norm.pageSize;
+      const to = from + norm.pageSize - 1;
       let q = supabase
         .from("notifications")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(filter.limit ?? 50);
-      if (filter.onlyUnread) q = q.is("read_at", null);
-      if (filter.kind) q = q.eq("kind", filter.kind);
+        .range(from, to);
+      if (norm.onlyUnread) q = q.is("read_at", null);
+      if (norm.kind) q = q.eq("kind", norm.kind);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
     },
     staleTime: 15_000,
   });
+}
+
+/** Odczyt jednorazowy pierwszej strony - kompatybilny z konsumentami, które
+ *  nie potrzebują paginacji (podgląd w dropdownach itp.). Współdzieli cache
+ *  z `useNotificationsInfinite`, więc nie wywołuje dodatkowego requestu. */
+export function useNotifications(
+  filter: NotificationsFilter = {},
+): UseQueryResult<NotificationRow[]> {
+  const infinite = useNotificationsInfinite(filter);
+  // Rzutowanie w jedną strukturę `UseQueryResult`-owatą - to ten sam obiekt
+  // React Query z pochodnym `data` (spłaszczone strony).
+  const flat = infinite.data?.pages.flat() ?? undefined;
+  return {
+    ...infinite,
+    data: flat,
+  } as unknown as UseQueryResult<NotificationRow[]>;
 }
 
 export function useUnreadCount(): UseQueryResult<number> {
