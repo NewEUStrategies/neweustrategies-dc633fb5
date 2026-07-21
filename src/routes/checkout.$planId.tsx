@@ -30,6 +30,7 @@ function CheckoutPage() {
   const { session } = useAuth();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const checkout = useServerFn(createCheckoutOrder);
 
   const plan = useQuery({
@@ -43,8 +44,6 @@ function CheckoutPage() {
     enabled: !!session,
   });
 
-  // Ustawienia checkoutu (kupony / VAT / NIP) - tylko copy pod przyciskiem;
-  // realne parametry sesji Stripe składa serwer w createCheckoutOrder.
   const { data: checkoutSettings } = useCheckoutSettings();
 
   useEffect(() => {
@@ -54,6 +53,8 @@ function CheckoutPage() {
   }, [plan.isSuccess, plan.data, t]);
 
   const hasBilling = !!billing.data?.address_line1 && !!billing.data?.city;
+  const originalCents = plan.data?.price_cents ?? 0;
+  const finalCents = Math.max(originalCents - (coupon?.discountCents ?? 0), 0);
 
   const submit = async () => {
     if (!plan.data || !hasBilling) return;
@@ -65,17 +66,25 @@ function CheckoutPage() {
           plan_id: plan.data.id,
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",
+          ...(coupon ? { coupon_code: coupon.code } : {}),
         },
       });
       if (!res.ok) {
-        toast.error(t("checkout.stripeNotConfigured"));
+        if (res.mode === "coupon") {
+          toast.error(
+            t("coupon.applyFailed", {
+              defaultValue: "Nie udało się zastosować kuponu",
+            }),
+          );
+        } else {
+          toast.error(t("checkout.stripeNotConfigured"));
+        }
         setBusy(false);
         return;
       }
       if (res.mode === "stripe") {
         window.location.href = res.url;
       } else {
-        // Mock mode - go to internal success page
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
       }
     } catch {
