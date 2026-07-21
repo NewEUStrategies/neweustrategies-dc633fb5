@@ -815,6 +815,23 @@ export function ChatWindow(props: ChatWindowProps) {
           })}
 
           <div className="my-1 h-px bg-border/60" aria-hidden />
+          {peerId && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false);
+                setBlockDialogOpen(true);
+              }}
+              className={cn(
+                menuItemClass,
+                peerBlocked ? "text-destructive hover:text-destructive" : "",
+              )}
+            >
+              <Ban className="h-3.5 w-3.5" aria-hidden />
+              {peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
