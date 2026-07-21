@@ -886,47 +886,6 @@ export type Database = {
           },
         ]
       }
-      checkout_settings: {
-        Row: {
-          allow_promotion_codes: boolean
-          automatic_tax: boolean
-          billing_address_collection: string
-          invoice_creation: boolean
-          tax_id_collection: boolean
-          tenant_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          allow_promotion_codes?: boolean
-          automatic_tax?: boolean
-          billing_address_collection?: string
-          invoice_creation?: boolean
-          tax_id_collection?: boolean
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          allow_promotion_codes?: boolean
-          automatic_tax?: boolean
-          billing_address_collection?: string
-          invoice_creation?: boolean
-          tax_id_collection?: boolean
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "checkout_settings_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       client_errors: {
         Row: {
           created_at: string
@@ -1246,7 +1205,6 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id: string
-          metering_policy: string
           mode: Database["public"]["Enums"]["access_mode"]
           one_time_currency: string | null
           one_time_price_cents: number | null
@@ -1264,7 +1222,6 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id?: string
-          metering_policy?: string
           mode?: Database["public"]["Enums"]["access_mode"]
           one_time_currency?: string | null
           one_time_price_cents?: number | null
@@ -1282,7 +1239,6 @@ export type Database = {
           entity_id?: string
           entity_type?: Database["public"]["Enums"]["access_entity_type"]
           id?: string
-          metering_policy?: string
           mode?: Database["public"]["Enums"]["access_mode"]
           one_time_currency?: string | null
           one_time_price_cents?: number | null
@@ -3849,91 +3805,6 @@ export type Database = {
           },
         ]
       }
-      metered_views: {
-        Row: {
-          created_at: string
-          entity_id: string
-          entity_type: Database["public"]["Enums"]["access_entity_type"]
-          id: string
-          period_month: string
-          tenant_id: string
-          user_id: string | null
-          visitor_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          entity_id: string
-          entity_type: Database["public"]["Enums"]["access_entity_type"]
-          id?: string
-          period_month?: string
-          tenant_id: string
-          user_id?: string | null
-          visitor_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          entity_id?: string
-          entity_type?: Database["public"]["Enums"]["access_entity_type"]
-          id?: string
-          period_month?: string
-          tenant_id?: string
-          user_id?: string | null
-          visitor_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "metered_views_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      metering_settings: {
-        Row: {
-          anon_monthly_limit: number
-          enabled: boolean
-          member_monthly_limit: number
-          meter_members: boolean
-          meter_paid: boolean
-          show_counter: boolean
-          tenant_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          anon_monthly_limit?: number
-          enabled?: boolean
-          member_monthly_limit?: number
-          meter_members?: boolean
-          meter_paid?: boolean
-          show_counter?: boolean
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          anon_monthly_limit?: number
-          enabled?: boolean
-          member_monthly_limit?: number
-          meter_members?: boolean
-          meter_paid?: boolean
-          show_counter?: boolean
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "metering_settings_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       mobile_drawer_configs: {
         Row: {
           created_at: string
@@ -4660,9 +4531,7 @@ export type Database = {
           claimed_at: string | null
           created_at: string
           id: string
-          invited_by: string | null
           invited_email: string
-          last_invited_at: string | null
           org_id: string
           role: string
           tenant_id: string
@@ -4672,9 +4541,7 @@ export type Database = {
           claimed_at?: string | null
           created_at?: string
           id?: string
-          invited_by?: string | null
           invited_email: string
-          last_invited_at?: string | null
           org_id: string
           role?: string
           tenant_id: string
@@ -4684,9 +4551,7 @@ export type Database = {
           claimed_at?: string | null
           created_at?: string
           id?: string
-          invited_by?: string | null
           invited_email?: string
-          last_invited_at?: string | null
           org_id?: string
           role?: string
           tenant_id?: string
@@ -9082,7 +8947,6 @@ export type Database = {
           entity_id: string | null
           entity_type: Database["public"]["Enums"]["access_entity_type"] | null
           id: string | null
-          metering_policy: string | null
           mode: Database["public"]["Enums"]["access_mode"] | null
           one_time_currency: string | null
           one_time_price_cents: number | null
@@ -9097,7 +8961,6 @@ export type Database = {
           entity_id?: string | null
           entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
           id?: string | null
-          metering_policy?: string | null
           mode?: Database["public"]["Enums"]["access_mode"] | null
           one_time_currency?: string | null
           one_time_price_cents?: number | null
@@ -9112,7 +8975,6 @@ export type Database = {
           entity_id?: string | null
           entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
           id?: string | null
-          metering_policy?: string | null
           mode?: Database["public"]["Enums"]["access_mode"] | null
           one_time_currency?: string | null
           one_time_price_cents?: number | null
@@ -9635,26 +9497,6 @@ export type Database = {
       connections_allowed_from: {
         Args: { _requester: string; _target: string }
         Returns: boolean
-      }
-      consume_metered_view: {
-        Args: {
-          _entity_id: string
-          _entity_type: Database["public"]["Enums"]["access_entity_type"]
-          _visitor_id?: string
-        }
-        Returns: {
-          blocks_data: Json
-          builder_data: Json
-          consumed: boolean
-          content_en: string
-          content_pl: string
-          granted: boolean
-          monthly_limit: number
-          remaining: number
-          requires_registration: boolean
-          show_counter: boolean
-          used: number
-        }[]
       }
       content_access_has_password: {
         Args: {
@@ -10253,17 +10095,6 @@ export type Database = {
         Returns: undefined
       }
       member_conversation_ids: { Args: never; Returns: string[] }
-      metering_state: {
-        Args: { _visitor_id?: string }
-        Returns: {
-          enabled: boolean
-          monthly_limit: number
-          remaining: number
-          requires_registration: boolean
-          show_counter: boolean
-          used: number
-        }[]
-      }
       my_connection_requests: {
         Args: { p_direction?: string; p_limit?: number; p_offset?: number }
         Returns: {
@@ -10434,15 +10265,6 @@ export type Database = {
       org_add_seat: {
         Args: { p_email: string; p_org: string; p_role?: string }
         Returns: string
-      }
-      org_touch_seat_invite: {
-        Args: { p_seat: string }
-        Returns: {
-          invited_email: string
-          last_invited_at: string
-          org_name: string
-          seat_id: string
-        }[]
       }
       page_breadcrumbs: {
         Args: { _page_id: string }
