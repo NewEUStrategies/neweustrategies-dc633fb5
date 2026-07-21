@@ -24,6 +24,8 @@ export interface MessageListProps {
   /** Chronological (oldest -> newest). */
   messages: ChatMessage[];
   reactions: ReadonlyMap<string, ReactionRow[]>;
+  /** Display name + avatar lookup for reactors (self + peers). */
+  reactorProfiles?: ReadonlyMap<string, { display_name: string; avatar_url: string | null }>;
   peerName: string;
   peerAvatarUrl: string | null;
   /** Group thread ("krąg"): label inbound bubbles with the sender's name. */
@@ -133,6 +135,7 @@ export function MessageList(props: MessageListProps) {
     myUserId,
     messages,
     reactions,
+    reactorProfiles,
     peerName,
     peerAvatarUrl,
     isGroup = false,
@@ -443,6 +446,7 @@ export function MessageList(props: MessageListProps) {
                   groupStart={groupStart}
                   groupEnd={groupEnd}
                   reactions={reactions.get(message.id) ?? NO_REACTIONS}
+                  reactorProfiles={reactorProfiles}
                   myUserId={myUserId}
                   repliedMessage={replied}
                   repliedAuthorName={

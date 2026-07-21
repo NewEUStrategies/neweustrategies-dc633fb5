@@ -32,6 +32,11 @@ import type { ChatMessage, ReactionRow } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 import { AttachmentAudio, AttachmentFile, AttachmentImage } from "./AttachmentContent";
 
+export interface ReactorProfile {
+  display_name: string;
+  avatar_url: string | null;
+}
+
 export interface MessageBubbleProps {
   message: ChatMessage;
   mine: boolean;
@@ -40,6 +45,8 @@ export interface MessageBubbleProps {
   groupEnd: boolean;
   reactions: ReadonlyArray<ReactionRow>;
   myUserId: string;
+  /** Optional lookup for avatar + display name shown on reaction chips. */
+  reactorProfiles?: ReadonlyMap<string, ReactorProfile>;
   repliedMessage?: ChatMessage;
   repliedAuthorName?: string;
   /** Own text message within the 5-minute edit window. */
@@ -73,17 +80,43 @@ function bubbleRadius(mine: boolean, groupStart: boolean, groupEnd: boolean): st
   return cn(base, !groupStart && "rounded-tl-[3px]", !groupEnd && "rounded-bl-[3px]");
 }
 
+function ReactorAvatar({ profile, name }: { profile: ReactorProfile | undefined; name: string }) {
+  const initial = (profile?.display_name ?? name).trim().charAt(0).toUpperCase() || "?";
+  if (profile?.avatar_url) {
+    return (
+      <img
+        src={profile.avatar_url}
+        alt=""
+        aria-hidden
+        className="h-3.5 w-3.5 rounded-[3px] object-cover ring-1 ring-background"
+        loading="lazy"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-muted text-[8px] font-semibold text-muted-foreground ring-1 ring-background"
+    >
+      {initial}
+    </span>
+  );
+}
+
 function ReactionChips({
   reactions,
   myUserId,
   onReact,
   mine,
+  reactorProfiles,
 }: {
   reactions: ReadonlyArray<ReactionRow>;
   myUserId: string;
   onReact: (emoji: string, current: string | null) => void;
   mine: boolean;
+  reactorProfiles?: ReadonlyMap<string, ReactorProfile>;
 }) {
+  const { t } = useTranslation();
   if (reactions.length === 0) return null;
   const grouped = new Map<string, ReactionRow[]>();
   for (const r of reactions) {
@@ -92,27 +125,63 @@ function ReactionChips({
     else grouped.set(r.emoji, [r]);
   }
   const myReaction = reactions.find((r) => r.user_id === myUserId)?.emoji ?? null;
+  const nameFor = (userId: string): string => {
+    if (userId === myUserId) return t("chat.reactions.you");
+    return reactorProfiles?.get(userId)?.display_name ?? "";
+  };
   return (
     <div
       className={cn(
-        "-mt-2 flex flex-wrap gap-0.5 px-1 relative z-[1]",
+        "-mt-2 flex flex-wrap gap-1 px-1 relative z-[1]",
         mine ? "justify-end" : "justify-start",
       )}
     >
       {[...grouped.entries()].map(([emoji, rows]) => {
         const isMine = rows.some((r) => r.user_id === myUserId);
+        const names = rows.map((r) => nameFor(r.user_id)).filter(Boolean);
+        const tooltip = [
+          t("chat.reactions.reactorsTitle", { emoji }),
+          names.length > 0 ? names.join(", ") : "",
+          isMine ? t("chat.reactions.removeHint") : t("chat.reactions.addHint"),
+        ]
+          .filter(Boolean)
+          .join(" \u2022 ");
+        const shownRows = rows.slice(0, 3);
         return (
           <button
             key={emoji}
+            data-emoji={emoji}
             type="button"
             onClick={() => onReact(emoji, myReaction)}
+            aria-pressed={isMine}
+            aria-label={tooltip}
+            title={tooltip}
             className={cn(
-              "chat-reaction-pop inline-flex items-center gap-0.5 rounded-[6px] border bg-background px-1.5 py-0.5 text-[11px] shadow-sm transition-colors",
-              isMine ? "border-primary/50" : "border-border/60 hover:border-border",
+              "chat-reaction-pop group/rx inline-flex items-center gap-1 rounded-full border bg-background/95 px-1.5 py-0.5 text-[11px] shadow-sm transition-all",
+              "hover:bg-muted motion-safe:hover:-translate-y-[1px] motion-safe:active:scale-95",
+              "dark:bg-background/70 backdrop-blur",
+              isMine
+                ? "border-[var(--chat-user-to,theme(colors.primary.DEFAULT))]/60 text-foreground"
+                : "border-border/60 hover:border-border",
             )}
           >
-            <span aria-hidden>{emoji}</span>
-            {rows.length > 1 && <span className="text-[10px] font-medium">{rows.length}</span>}
+            <span aria-hidden className="text-[13px] leading-none">
+              {emoji}
+            </span>
+            {shownRows.length > 0 && (
+              <span className="flex -space-x-1" aria-hidden>
+                {shownRows.map((r) => (
+                  <ReactorAvatar
+                    key={r.id}
+                    profile={reactorProfiles?.get(r.user_id)}
+                    name={nameFor(r.user_id)}
+                  />
+                ))}
+              </span>
+            )}
+            <span className="text-[10px] font-medium tabular-nums text-muted-foreground group-hover/rx:text-foreground">
+              {rows.length}
+            </span>
           </button>
         );
       })}
@@ -129,6 +198,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
     groupEnd,
     reactions,
     myUserId,
+    reactorProfiles,
     repliedMessage,
     repliedAuthorName,
     editable,
@@ -182,7 +252,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
           className="w-auto rounded-full border-border/60 bg-popover p-1 shadow-xl"
         >
           <div className="flex items-center gap-0.5">
-            {QUICK_REACTIONS.map((emoji) => (
+            {QUICK_REACTIONS.map((emoji, i) => (
               <button
                 key={emoji}
                 type="button"
@@ -190,12 +260,14 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
                   onReact(message, emoji, myReaction);
                   setReactOpen(false);
                 }}
+                style={{ animationDelay: `${i * 22}ms` }}
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none",
-                  "motion-safe:transition-transform motion-safe:hover:scale-125",
-                  myReaction === emoji && "bg-muted",
+                  "chat-reaction-pop flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none",
+                  "motion-safe:transition-transform motion-safe:hover:scale-125 motion-safe:active:scale-95",
+                  myReaction === emoji && "bg-muted ring-1 ring-primary/40",
                 )}
                 aria-label={emoji}
+                aria-pressed={myReaction === emoji}
               >
                 {emoji}
               </button>
@@ -523,6 +595,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
           myUserId={myUserId}
           onReact={(emoji, current) => onReact(message, emoji, current)}
           mine={mine}
+          reactorProfiles={reactorProfiles}
         />
         {message.failed && (
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-destructive">

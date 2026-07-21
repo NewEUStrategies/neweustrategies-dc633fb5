@@ -149,6 +149,36 @@ export function ChatWindow(props: ChatWindowProps) {
   const peerName = display.name;
   const peerAvatar = display.avatarUrl;
 
+  // Reactor lookup: powers avatars + tooltip names on reaction chips.
+  // Combines peer profiles with a synthesized "self" entry pulled from the
+  // Supabase auth session (avatar_url + display name fall back gracefully).
+  const reactorProfiles = useMemo<
+    ReadonlyMap<string, { display_name: string; avatar_url: string | null }>
+  >(() => {
+    const map = new Map<string, { display_name: string; avatar_url: string | null }>();
+    if (peersQ.data) {
+      for (const [id, p] of peersQ.data) {
+        map.set(id, {
+          display_name: p.display_name ?? "",
+          avatar_url: p.avatar_url ?? null,
+        });
+      }
+    }
+    if (user) {
+      const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const displayName =
+        (typeof meta.display_name === "string" && meta.display_name) ||
+        (typeof meta.full_name === "string" && meta.full_name) ||
+        (typeof meta.name === "string" && meta.name) ||
+        user.email ||
+        t("chat.you");
+      const avatarUrl =
+        typeof meta.avatar_url === "string" && meta.avatar_url ? meta.avatar_url : null;
+      map.set(user.id, { display_name: displayName, avatar_url: avatarUrl });
+    }
+    return map;
+  }, [peersQ.data, user, t]);
+
   // Shared per-conversation personalization (Messenger semantics): the theme
   // recolors every --chat-user-* token below this root, the wallpaper styles
   // the thread scroller, the quick emoji powers the composer's one-tap send.
@@ -868,6 +898,7 @@ export function ChatWindow(props: ChatWindowProps) {
         myUserId={user.id}
         messages={messages}
         reactions={reactionsQ.data ?? EMPTY_REACTIONS_MAP}
+        reactorProfiles={reactorProfiles}
         peerName={peerName}
         peerAvatarUrl={peerAvatar}
         isGroup={isGroup}
