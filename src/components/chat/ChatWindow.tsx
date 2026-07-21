@@ -1168,5 +1168,6 @@ export function ChatWindow(props: ChatWindowProps) {
       </header>
       {body}
     </section>
+    </TooltipProvider>
   );
 }
