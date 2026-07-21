@@ -2,7 +2,8 @@
 // widoczny tylko gdy w playerze siedzi jakiś track. Płynnie pojawia się gdy
 // user uruchomi odsłuch, przetrwa zmiany stron.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Loader2, Download, Play, Pause, X, Share2 } from "@/lib/lucide-shim";
+import { Loader2, Download, X, Share2 } from "@/lib/lucide-shim";
+import { MorphPlayPause } from "@/components/audio/MorphPlayPause";
 import { Rewind, FastForward } from "lucide-react";
 import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player";
 import { formatPlaybackRate, nextPlaybackRate } from "@/lib/audio/playbackRate";
