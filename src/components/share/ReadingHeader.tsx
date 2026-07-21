@@ -258,7 +258,9 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             radius={6}
             fontSize={11}
           />
+          </div>
         </div>
+
 
         {/* Mobile-only icon cluster replacing the search widget.
             Zawiera lupę i hamburger, które przez zdarzenia okna otwierają ten
