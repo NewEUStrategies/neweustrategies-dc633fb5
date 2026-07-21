@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "@tanstack/react-router";
-import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type InfiniteData, type QueryKey } from "@tanstack/react-query";
 import { toast } from "sonner";
 // Nazwane importy + DynamicIcon zamiast namespace-importu lucide-react:
 // namespace-import - nawet z chunka trasy - materializuje pełny rejestr
@@ -29,12 +29,13 @@ import {
 } from "@/components/ui/select";
 import {
   useMarkAllNotificationsRead,
-  useNotifications,
+  useNotificationsInfinite,
   useNotificationPreferences,
   useNotificationPreferencesRealtime,
   useNotificationsRealtime,
   useUpdateNotificationPreferences,
   DEFAULT_NOTIFICATION_PREFERENCES,
+  NOTIFICATIONS_PAGE_SIZE,
   type NotificationKind,
   type NotificationRow,
   type NotificationPreferences,
