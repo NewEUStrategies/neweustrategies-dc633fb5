@@ -1067,8 +1067,8 @@ export function ChatWindow(props: ChatWindowProps) {
   return (
     <section
       className={cn(
-        "pointer-events-auto flex w-[320px] max-w-[calc(100vw-16px)] flex-col overflow-hidden",
-        "h-[430px] max-h-[min(70vh,430px)] rounded-t-[6px] border border-b-0 border-border/60 bg-background shadow-2xl",
+        "pointer-events-auto flex w-[420px] max-w-[calc(100vw-16px)] flex-col overflow-hidden sm:w-[460px] lg:w-[500px]",
+        "h-[600px] max-h-[min(85vh,640px)] rounded-t-[6px] border border-b-0 border-border/60 bg-background shadow-2xl",
         "motion-safe:animate-in motion-safe:slide-in-from-bottom-4 motion-safe:fade-in-0 motion-safe:duration-200",
         themeClass(theme),
         className,
@@ -1086,24 +1086,24 @@ export function ChatWindow(props: ChatWindowProps) {
         }
       }}
     >
-      <header className="flex items-center gap-2 border-b border-border/60 bg-background px-2 py-1.5 shadow-sm">
+      <header className="flex items-center gap-1.5 border-b border-border/60 bg-background px-3 py-2 shadow-sm">
         <ChatAvatar
           name={peerName}
           avatarUrl={peerAvatar}
           online={!isGroup && peerOnline}
-          size="sm"
+          size="md"
         />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1 truncate text-[13px] font-semibold leading-tight">
+        <div className="min-w-0 flex-1 pl-0.5">
+          <div className="flex items-center gap-1 truncate text-[14px] font-semibold leading-tight">
             <span className="truncate">{peerName}</span>
             {muted && (
               <BellOff
-                className="h-3 w-3 shrink-0 text-muted-foreground"
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
                 aria-label={t("chat.menu.mutedBadge")}
               />
             )}
           </div>
-          <div className="text-[10px] leading-tight text-muted-foreground">{headerSubtitle}</div>
+          <div className="text-[11px] leading-tight text-muted-foreground">{headerSubtitle}</div>
         </div>
         {searchToggle}
         {blockToggle}
