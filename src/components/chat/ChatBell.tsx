@@ -5,8 +5,9 @@
 import "@/lib/i18n-chat";
 import { useMemo, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { MessagesSquare, Search, SquarePen, X } from "lucide-react";
+import { MessagesSquare, Search, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AppLink } from "@/components/atoms/AppLink";
 import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { useAuth } from "@/hooks/useAuth";
