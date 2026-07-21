@@ -266,14 +266,7 @@ export function SidebarListenCard({
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
-            <>
-              <span key={`play-${playing}`} className="lpt-icon lpt-play">
-                <Play className="h-4 w-4 translate-x-[1px]" aria-hidden strokeWidth={2.5} />
-              </span>
-              <span key={`pause-${playing}`} className="lpt-icon lpt-pause">
-                <Pause className="h-4 w-4" aria-hidden />
-              </span>
-            </>
+            <MorphPlayPause playing={playing} />
           )}
         </button>
 
