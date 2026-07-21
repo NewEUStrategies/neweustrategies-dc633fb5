@@ -178,7 +178,8 @@ export function useGlobalWidgets() {
 
   const save = useCallback(
     async (name: string, widget: WidgetNode): Promise<string | null> => {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: s } = await supabase.auth.getSession();
+      const u = { user: s.session?.user ?? null };
       const payload = widgetToGlobalData(widget);
       const { data, error } = await supabase
         .from("builder_global_widgets")

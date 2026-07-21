@@ -168,8 +168,8 @@ export function SidebarBuilderPane() {
 
   const createMutation = useMutation({
     mutationFn: async (name: string) => {
-      const { data: u } = await supabase.auth.getUser();
-      const uid = u.user?.id;
+      const { data: s } = await supabase.auth.getSession();
+      const uid = s.session?.user?.id;
       if (!uid) throw new Error("not_authenticated");
       const { data: profile, error: pErr } = await supabase
         .from("profiles")

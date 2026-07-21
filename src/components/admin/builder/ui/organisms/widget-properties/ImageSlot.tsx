@@ -97,9 +97,9 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
     }
     setUploading(true);
     try {
-      const { data: userData, error: authErr } = await supabase.auth.getUser();
+      const { data: sess, error: authErr } = await supabase.auth.getSession();
       if (authErr) throw authErr;
-      const uid = userData.user?.id;
+      const uid = sess.session?.user?.id;
       if (!uid) throw new Error(t("builder.imageSlot.noUser"));
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const path = `${tenantId}/${uid}/widgets/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;

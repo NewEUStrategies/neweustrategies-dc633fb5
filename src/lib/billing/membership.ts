@@ -8,6 +8,7 @@
 // wyświetlenia i miękkiego zarządzania.
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { currentUserIdFromSession } from "@/lib/auth/currentUser";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface MembershipGrantRow {
@@ -22,8 +23,7 @@ export interface MembershipGrantRow {
 }
 
 export async function fetchMyGrants(): Promise<MembershipGrantRow[]> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
+  const uid = await currentUserIdFromSession();
   if (!uid) return [];
   const { data, error } = await supabase
     .from("membership_grants")
@@ -53,8 +53,7 @@ export interface MyDonationRow {
 }
 
 export async function fetchMyDonations(): Promise<MyDonationRow[]> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
+  const uid = await currentUserIdFromSession();
   if (!uid) return [];
   const { data, error } = await supabase
     .from("donations")
@@ -88,8 +87,8 @@ export interface MyOrganization {
 }
 
 export async function fetchMyOrganization(): Promise<MyOrganization | null> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user?.id) return null;
+  const uid = await currentUserIdFromSession();
+  if (!uid) return null;
   const { data, error } = await supabase.rpc("my_organization");
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
@@ -181,8 +180,8 @@ export interface EventParticipation {
 }
 
 export async function fetchMyEventParticipation(): Promise<EventParticipation[]> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user?.id) return [];
+  const uid = await currentUserIdFromSession();
+  if (!uid) return [];
   const { data, error } = await supabase.rpc("my_event_participation");
   if (error) throw error;
   return (data ?? []) as EventParticipation[];
@@ -206,8 +205,8 @@ export interface ResourceDownloadHistory {
 }
 
 export async function fetchMyResourceDownloads(): Promise<ResourceDownloadHistory[]> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user?.id) return [];
+  const uid = await currentUserIdFromSession();
+  if (!uid) return [];
   const { data, error } = await supabase.rpc("my_resource_downloads");
   if (error) throw error;
   return (data ?? []) as ResourceDownloadHistory[];

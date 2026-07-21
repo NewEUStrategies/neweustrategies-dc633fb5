@@ -3,6 +3,7 @@
 // Nadania i miejsca rozstrzyga potem current_membership_tier() — członkostwo
 // to pakiet praw, nie tylko subskrypcja płatna.
 import { supabase } from "@/integrations/supabase/client";
+import { currentUserIdFromSession } from "@/lib/auth/currentUser";
 import type { Database } from "@/integrations/supabase/types";
 
 // ------- Nadania warstwy (membership_grants) --------
@@ -100,10 +101,10 @@ export async function fetchOrganizationById(id: string): Promise<OrganizationRow
 }
 
 export async function createOrganization(input: OrgInput): Promise<OrganizationRow> {
-  const { data: auth } = await supabase.auth.getUser();
+  const uid = await currentUserIdFromSession();
   const { data, error } = await supabase
     .from("member_organizations")
-    .insert({ ...input, created_by: auth.user?.id ?? null })
+    .insert({ ...input, created_by: uid })
     .select()
     .single();
   if (error) throw error;
