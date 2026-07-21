@@ -20,6 +20,22 @@ type AnyQuery = {
 const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
   (ctx.supabase as { from: (t: string) => AnyQuery }).from(name);
 
+// Wrapper do zapisów - zwraca `from()` z klienta Supabase bez zawężania
+// typu do AnyQuery (który nie eksponuje `insert`/`update`).
+const write = (
+  ctx: { supabase: unknown },
+  name: string,
+): {
+  insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
+} =>
+  (
+    ctx.supabase as {
+      from: (t: string) => {
+        insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
+      };
+    }
+  ).from(name);
+
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
 const ListInput = z.object({
