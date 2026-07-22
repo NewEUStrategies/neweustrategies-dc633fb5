@@ -112,16 +112,6 @@ export function ProfileSyncCard({ leadId, lang }: { leadId: string; lang: "pl" |
       </div>
     );
   }
-  if (!data || data.matched === false) {
-    return (
-      <div className="p-3 text-[11px] text-muted-foreground">
-        {t(
-          "Brak dopasowanego profilu w systemie (po e-mailu).",
-          "No matching in-system profile (by email).",
-        )}
-      </div>
-    );
-  }
 
   const p = data.profile;
   const name =
@@ -130,7 +120,7 @@ export function ProfileSyncCard({ leadId, lang }: { leadId: string; lang: "pl" |
     t("Bez nazwy", "No name");
 
   return (
-    <div className="space-y-3 p-3">
+    <div className="space-y-3">
       {/* Header: avatar + name + link */}
       <div className="flex items-center gap-3">
         {p.avatar_url ? (
