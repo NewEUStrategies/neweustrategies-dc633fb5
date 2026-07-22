@@ -309,7 +309,15 @@ function AdminCompanyDetailPage() {
 
       {/* Hero */}
       <header className="flex flex-wrap items-center gap-3 rounded-md border bg-card p-4">
-        <CompanyLogo name={c.name} domain={c.domain} size={56} />
+        <EditableCompanyLogo
+          company={c}
+          size={56}
+          onChange={async (nextUrl) => {
+            await updateFn({ data: { id: c.id, logo_url: nextUrl } });
+            await qc.invalidateQueries({ queryKey: ["admin", "crm-company", id] });
+            await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+          }}
+        />
         <div className="min-w-0">
           <h1 className="text-xl font-semibold leading-tight">{c.name}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
