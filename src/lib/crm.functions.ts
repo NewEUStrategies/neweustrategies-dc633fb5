@@ -159,7 +159,25 @@ export const getCrmLead = createServerFn({ method: "POST" })
       ),
     ]);
 
-    return { json: j({ lead, messages, subscriptions: subs, consents, notes }) };
+    // Zaczytaj avatar_url z profiles po e-mailu (email lub contact_email),
+    // żeby w widoku szczegółów pokazać zdjęcie profilowe użytkownika.
+    let profile_avatar_url: string | null = null;
+    try {
+      const email = L.email?.toLowerCase() ?? "";
+      if (email) {
+        const { data: prof } = (await tbl(context, "profiles")
+          .select("avatar_url, email, contact_email")
+          .or(`email.ilike.${email},contact_email.ilike.${email}`)
+          .eq("tenant_id", L.tenant_id)
+          .limit(1)
+          .maybeSingle()) as { data: { avatar_url: string | null } | null };
+        profile_avatar_url = prof?.avatar_url ?? null;
+      }
+    } catch {
+      profile_avatar_url = null;
+    }
+
+    return { json: j({ lead, messages, subscriptions: subs, consents, notes, profile_avatar_url }) };
   });
 
 const UpdateInput = z.object({
