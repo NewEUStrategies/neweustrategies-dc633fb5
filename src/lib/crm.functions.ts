@@ -142,8 +142,19 @@ const UpdateInput = z.object({
   follow_up_at: z.string().datetime().nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
   company: z.string().max(200).nullable().optional(),
+  company_id: z.string().uuid().nullable().optional(),
   first_name: z.string().max(100).nullable().optional(),
   last_name: z.string().max(100).nullable().optional(),
+  position: z.string().max(200).nullable().optional(),
+  country: z.string().max(120).nullable().optional(),
+  linkedin_url: z
+    .string()
+    .max(400)
+    .nullable()
+    .optional()
+    .refine((v) => v == null || v === "" || /^https?:\/\//i.test(v), {
+      message: "linkedin_url must start with http(s)://",
+    }),
 });
 
 export const updateCrmLead = createServerFn({ method: "POST" })
@@ -156,6 +167,109 @@ export const updateCrmLead = createServerFn({ method: "POST" })
     }>);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
+  });
+
+// Profile sync: dopasowuje lead → profil po e-mailu (email/contact_email),
+// zwraca podstawowe dane profilu + doświadczenie, umiejętności, wynik Big5,
+// aktualne CV, nagrody i wykształcenie. RLS personality/experiences/skills
+// jest owner-only, więc staff (po requireStaff) używa admina.
+const ProfileSyncInput = z.object({ lead_id: z.string().uuid() });
+export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => ProfileSyncInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: lead } = (await tbl(context, "crm_leads")
+      .select("email, tenant_id")
+      .eq("id", data.lead_id)
+      .maybeSingle()) as { data: { email: string; tenant_id: string } | null };
+    if (!lead?.email) return { json: j(null) };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (s: string) => AdminChain;
+      };
+    };
+    type AdminChain = {
+      eq: (c: string, v: unknown) => AdminChain;
+      or: (f: string) => AdminChain;
+      order: (c: string, o: { ascending: boolean }) => AdminChain;
+      limit: (n: number) => Promise<{ data: unknown }>;
+      maybeSingle: () => Promise<{ data: unknown }>;
+      then: <R>(fn: (r: { data: unknown }) => R) => Promise<R>;
+    };
+
+    const emailLc = lead.email.toLowerCase().replace(/[%_,()"\\]/g, "");
+    const profileRes = (await admin
+      .from("profiles")
+      .select(
+        "id, tenant_id, display_name, first_name, last_name, avatar_url, cover_url, job_title, current_company, current_company_id, location, phone, slug, bio_pl, bio_en, linkedin_url, twitter_url, website_url, discoverable, verified_at, contact_email, email",
+      )
+      .or(`email.ilike.${emailLc},contact_email.ilike.${emailLc}`)
+      .eq("tenant_id", lead.tenant_id)
+      .limit(1)) as { data: Array<Record<string, unknown>> | null };
+    const profile = profileRes.data?.[0] ?? null;
+    if (!profile) return { json: j({ matched: false }) };
+
+    const userId = profile.id as string;
+    const tenantId = profile.tenant_id as string;
+
+    const [expRes, skillsRes, personalityRes, cvRes, awardsRes, eduRes] = await Promise.all([
+      admin
+        .from("profile_experiences")
+        .select(
+          "id, role_title, company, location, start_date, end_date, is_current, description, logo_url",
+        )
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
+        .order("sort_order", { ascending: true })
+        .limit(50),
+      admin
+        .from("profile_skills")
+        .select("id, name, level, endorsements_count")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
+        .order("sort_order", { ascending: true })
+        .limit(100),
+      admin
+        .from("personality_results")
+        .select(
+          "openness, conscientiousness, extraversion, agreeableness, neuroticism, taken_at",
+        )
+        .eq("user_id", userId)
+        .maybeSingle(),
+      admin
+        .from("profile_cv_files")
+        .select("id, file_url, file_name, mime_type, size_bytes, version, uploaded_at")
+        .eq("user_id", userId)
+        .eq("is_current", true)
+        .maybeSingle(),
+      admin
+        .from("profile_awards")
+        .select("id, title, issuer, issued_on, description")
+        .eq("user_id", userId)
+        .order("issued_on", { ascending: false })
+        .limit(20),
+      admin
+        .from("profile_education")
+        .select("id, school, degree, field, start_date, end_date, description")
+        .eq("user_id", userId)
+        .order("start_date", { ascending: false })
+        .limit(20),
+    ]);
+
+    return {
+      json: j({
+        matched: true,
+        profile,
+        experiences: (expRes as { data: unknown }).data ?? [],
+        skills: (skillsRes as { data: unknown }).data ?? [],
+        personality: (personalityRes as { data: unknown }).data ?? null,
+        cv: (cvRes as { data: unknown }).data ?? null,
+        awards: (awardsRes as { data: unknown }).data ?? [],
+        education: (eduRes as { data: unknown }).data ?? [],
+      }),
+    };
   });
 
 const NoteInput = z.object({
