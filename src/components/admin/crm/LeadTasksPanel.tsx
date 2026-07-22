@@ -143,7 +143,7 @@ export function LeadTasksPanel({
     [tasks],
   );
 
-  const canSave = title.trim().length > 0 && due.length > 0 && !createMut.isPending;
+  const canSave = title.trim().length > 0 && !!due && !createMut.isPending;
 
   return (
     <div className="space-y-4">
