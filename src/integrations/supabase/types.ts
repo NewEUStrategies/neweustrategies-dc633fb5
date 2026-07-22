@@ -10439,6 +10439,10 @@ export type Database = {
         Args: { _avatar_url: string; _user_id: string }
         Returns: undefined
       }
+      apply_pricing_catalog_v3: {
+        Args: { p_tenant: string }
+        Returns: undefined
+      }
       ask_qa_question: {
         Args: { p_anonymous?: boolean; p_body: string; p_session_id: string }
         Returns: string
@@ -11661,6 +11665,29 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      pricing_catalog_v3_rows: {
+        Args: never
+        Returns: {
+          audience_key: string
+          badge_en: string
+          badge_pl: string
+          benefits: Json
+          cta_mode: string
+          desc_en: string
+          desc_pl: string
+          features: Json
+          highlight: boolean
+          is_default: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          per_seat: boolean
+          price_note_en: string
+          price_note_pl: string
+          rank: number
+          sort_order: number
+        }[]
+      }
       process_mentions: {
         Args: {
           p_actor_id: string
@@ -11977,6 +12004,11 @@ export type Database = {
       seed_pricing_audiences: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_defaults: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_faq: { Args: { p_tenant: string }; Returns: undefined }
+      seed_pricing_plans_v3: { Args: { p_tenant: string }; Returns: undefined }
+      seed_retention_defaults: {
+        Args: { p_tenant: string }
+        Returns: undefined
+      }
       semantic_search_posts: {
         Args: { _embedding: number[]; _limit?: number }
         Returns: {
