@@ -336,7 +336,7 @@ const EN = {
     archived: "Archived",
   } as Record<Stage, string>,
   detail: {
-    title: "Lead card",
+    title: "Contact card",
     overview: "Profile",
     tasks: "Tasks",
     consents: "Consents",
