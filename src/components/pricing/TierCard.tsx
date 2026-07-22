@@ -120,7 +120,7 @@ function PriceBlock({
       <div className="pt-4">
         {fromPrefix}
         <span className="text-4xl font-bold tracking-tight">
-          {formatMoney(monthlyEq ?? plan.price_cents, plan.currency, lang)}
+          {fmt(monthlyEq ?? plan.price_cents, plan.currency, lang)}
         </span>
         <span className="ml-1 text-sm text-muted-foreground">
           {t("pricing.perMonth")}
@@ -128,7 +128,7 @@ function PriceBlock({
         </span>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {t("pricing.billedYearly", {
-            amount: formatMoney(plan.price_cents, plan.currency, lang),
+            amount: fmt(plan.price_cents, plan.currency, lang),
           })}
           {savings !== null && (
             <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">
@@ -145,8 +145,9 @@ function PriceBlock({
     <div className="pt-4">
       {fromPrefix}
       <span className="text-4xl font-bold tracking-tight">
-        {formatMoney(plan.price_cents, plan.currency, lang)}
+        {fmt(plan.price_cents, plan.currency, lang)}
       </span>
+
       <span className="ml-1 text-sm text-muted-foreground">
         {intervalSuffix(plan.interval, t)}
         {perSeatSuffix}
