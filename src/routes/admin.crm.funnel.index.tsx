@@ -230,7 +230,9 @@ function initialsOf(name: string, email: string): string {
   return (first + second).toUpperCase();
 }
 
-function StatusPill({ status, L }: { status: FunnelRow["status"]; L: (typeof T)["pl"] }) {
+type Copy = (typeof T)["pl"] | (typeof T)["en"];
+
+function StatusPill({ status, L }: { status: FunnelRow["status"]; L: Copy }) {
   const tone: Record<FunnelRow["status"], string> = {
     subscribed: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
     pending: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
