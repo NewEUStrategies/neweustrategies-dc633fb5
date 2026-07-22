@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
 import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { trackSearch } from "@/lib/analytics/track";
+
 
 type Mode = "standalone" | "dropdown" | "fullscreen";
 type Result = { id: string; slug: string; title: string; excerpt: string | null };
@@ -80,7 +82,9 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       );
       setActive(0);
       setLoading(false);
+      trackSearch(q.trim(), { results: (data ?? []).length, source: "overlay", mode, lang });
     }, 220);
+
     return () => {
       cancelled = true;
       clearTimeout(handle);

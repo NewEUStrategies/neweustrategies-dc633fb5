@@ -266,6 +266,60 @@ export type Database = {
           },
         ]
       }
+      analytics_events: {
+        Row: {
+          anon_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          event_name: string
+          event_type: string
+          id: number
+          lang: string | null
+          meta: Json
+          path: string | null
+          referrer: string | null
+          session_id: string | null
+          tenant_id: string
+          ua: string | null
+          user_id: string | null
+        }
+        Insert: {
+          anon_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_name: string
+          event_type: string
+          id?: number
+          lang?: string | null
+          meta?: Json
+          path?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          tenant_id?: string
+          ua?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          anon_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_name?: string
+          event_type?: string
+          id?: number
+          lang?: string | null
+          meta?: Json
+          path?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          tenant_id?: string
+          ua?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       archive_layout_settings: {
         Row: {
           archive_type: string
@@ -9908,6 +9962,18 @@ export type Database = {
       }
     }
     Views: {
+      analytics_events_daily: {
+        Row: {
+          day: string | null
+          event_name: string | null
+          event_type: string | null
+          hits: number | null
+          tenant_id: string | null
+          unique_sessions: number | null
+          unique_users: number | null
+        }
+        Relationships: []
+      }
       author_profiles_public: {
         Row: {
           avatar_url: string | null
