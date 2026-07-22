@@ -131,6 +131,7 @@ import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments
 import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
+import { Route as AdminCrmRouteImport } from './routes/admin.crm'
 import { Route as AdminCouponsRouteImport } from './routes/admin.coupons'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminContactRouteImport } from './routes/admin.contact'
@@ -832,6 +833,11 @@ const AdminCropSizesRoute = AdminCropSizesRouteImport.update({
   path: '/crop-sizes',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCrmRoute = AdminCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCouponsRoute = AdminCouponsRouteImport.update({
   id: '/coupons',
   path: '/coupons',
@@ -925,9 +931,9 @@ const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
 const AdminCrmIndexRoute = AdminCrmIndexRouteImport.update({
-  id: '/crm/',
-  path: '/crm/',
-  getParentRoute: () => AdminRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminCrmRoute,
 } as any)
 const AdminCouponsIndexRoute = AdminCouponsIndexRouteImport.update({
   id: '/',
@@ -1153,9 +1159,9 @@ const AdminNewsletterCampaignsRoute =
     getParentRoute: () => AdminNewsletterRoute,
   } as any)
 const AdminCrmIdRoute = AdminCrmIdRouteImport.update({
-  id: '/crm/$id',
-  path: '/crm/$id',
-  getParentRoute: () => AdminRoute,
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AdminCrmRoute,
 } as any)
 const AdminCouponsRedemptionsRoute = AdminCouponsRedemptionsRouteImport.update({
   id: '/redemptions',
@@ -1349,6 +1355,7 @@ export interface FileRoutesByFullPath {
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/coupons': typeof AdminCouponsRouteWithChildren
+  '/admin/crm': typeof AdminCrmRouteWithChildren
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/donations': typeof AdminDonationsRoute
@@ -1769,6 +1776,7 @@ export interface FileRoutesById {
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/coupons': typeof AdminCouponsRouteWithChildren
+  '/admin/crm': typeof AdminCrmRouteWithChildren
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/donations': typeof AdminDonationsRoute
@@ -1985,6 +1993,7 @@ export interface FileRouteTypes {
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/coupons'
+    | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/donations'
@@ -2404,6 +2413,7 @@ export interface FileRouteTypes {
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/coupons'
+    | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/donations'
@@ -3504,6 +3514,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCropSizesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/crm': {
+      id: '/admin/crm'
+      path: '/crm'
+      fullPath: '/admin/crm'
+      preLoaderRoute: typeof AdminCrmRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/coupons': {
       id: '/admin/coupons'
       path: '/coupons'
@@ -3632,10 +3649,10 @@ declare module '@tanstack/react-router' {
     }
     '/admin/crm/': {
       id: '/admin/crm/'
-      path: '/crm'
+      path: '/'
       fullPath: '/admin/crm/'
       preLoaderRoute: typeof AdminCrmIndexRouteImport
-      parentRoute: typeof AdminRoute
+      parentRoute: typeof AdminCrmRoute
     }
     '/admin/coupons/': {
       id: '/admin/coupons/'
@@ -3947,10 +3964,10 @@ declare module '@tanstack/react-router' {
     }
     '/admin/crm/$id': {
       id: '/admin/crm/$id'
-      path: '/crm/$id'
+      path: '/$id'
       fullPath: '/admin/crm/$id'
       preLoaderRoute: typeof AdminCrmIdRouteImport
-      parentRoute: typeof AdminRoute
+      parentRoute: typeof AdminCrmRoute
     }
     '/admin/coupons/redemptions': {
       id: '/admin/coupons/redemptions'
@@ -4221,6 +4238,20 @@ const AdminCouponsRouteWithChildren = AdminCouponsRoute._addFileChildren(
   AdminCouponsRouteChildren,
 )
 
+interface AdminCrmRouteChildren {
+  AdminCrmIdRoute: typeof AdminCrmIdRoute
+  AdminCrmIndexRoute: typeof AdminCrmIndexRoute
+}
+
+const AdminCrmRouteChildren: AdminCrmRouteChildren = {
+  AdminCrmIdRoute: AdminCrmIdRoute,
+  AdminCrmIndexRoute: AdminCrmIndexRoute,
+}
+
+const AdminCrmRouteWithChildren = AdminCrmRoute._addFileChildren(
+  AdminCrmRouteChildren,
+)
+
 interface AdminNewsletterCampaignsRouteChildren {
   AdminNewsletterCampaignsIdRoute: typeof AdminNewsletterCampaignsIdRoute
   AdminNewsletterCampaignsIndexRoute: typeof AdminNewsletterCampaignsIndexRoute
@@ -4386,6 +4417,7 @@ interface AdminRouteChildren {
   AdminContactRoute: typeof AdminContactRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
   AdminCouponsRoute: typeof AdminCouponsRouteWithChildren
+  AdminCrmRoute: typeof AdminCrmRouteWithChildren
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
   AdminDonationsRoute: typeof AdminDonationsRoute
@@ -4433,9 +4465,7 @@ interface AdminRouteChildren {
   AdminWebStoriesRoute: typeof AdminWebStoriesRoute
   AdminWorkflowsRoute: typeof AdminWorkflowsRoute
   AdminIndexRoute: typeof AdminIndexRoute
-  AdminCrmIdRoute: typeof AdminCrmIdRoute
   AdminSuperMobileDrawerRoute: typeof AdminSuperMobileDrawerRoute
-  AdminCrmIndexRoute: typeof AdminCrmIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -4452,6 +4482,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminContactRoute: AdminContactRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
   AdminCouponsRoute: AdminCouponsRouteWithChildren,
+  AdminCrmRoute: AdminCrmRouteWithChildren,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
   AdminDonationsRoute: AdminDonationsRoute,
@@ -4499,9 +4530,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminWebStoriesRoute: AdminWebStoriesRoute,
   AdminWorkflowsRoute: AdminWorkflowsRoute,
   AdminIndexRoute: AdminIndexRoute,
-  AdminCrmIdRoute: AdminCrmIdRoute,
   AdminSuperMobileDrawerRoute: AdminSuperMobileDrawerRoute,
-  AdminCrmIndexRoute: AdminCrmIndexRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
