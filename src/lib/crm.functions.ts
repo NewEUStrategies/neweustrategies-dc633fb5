@@ -31,6 +31,20 @@ const ListInput = z.object({
   limit: z.number().int().min(1).max(500).default(200),
   sort: z.enum(["activity", "score"]).default("activity"),
   band: z.enum(["hot", "warm", "cool", "cold"]).optional(),
+  // Rozszerzone filtry: wybór właściciela (multi), tagi (multi, overlaps),
+  // przedział score (0-100), kraj (dokładne dopasowanie po dwuznakowym kodzie
+  // lub nazwie), zakres last_activity_at oraz created_at (ISO). Zostawiamy
+  // pola opcjonalne, żeby nie łamać istniejących wywołań i saved_views.
+  owner_ids: z.array(z.string().uuid()).max(50).optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  score_min: z.number().int().min(0).max(100).optional(),
+  score_max: z.number().int().min(0).max(100).optional(),
+  country: z.string().trim().max(120).optional(),
+  newsletter_status: z.string().trim().max(40).optional(),
+  activity_from: z.string().datetime().optional(),
+  activity_to: z.string().datetime().optional(),
+  created_from: z.string().datetime().optional(),
+  created_to: z.string().datetime().optional(),
 });
 
 type AnyQuery = {
@@ -38,8 +52,12 @@ type AnyQuery = {
   order: (c: string, o: { ascending: boolean }) => AnyQuery;
   limit: (n: number) => AnyQuery;
   eq: (c: string, v: unknown) => AnyQuery;
+  in: (c: string, v: unknown[]) => AnyQuery;
   or: (f: string) => AnyQuery;
   ilike: (c: string, v: string) => AnyQuery;
+  gte: (c: string, v: unknown) => AnyQuery;
+  lte: (c: string, v: unknown) => AnyQuery;
+  overlaps: (c: string, v: unknown[]) => AnyQuery;
   maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
   insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
   update: (v: unknown) => AnyQuery;
@@ -62,6 +80,16 @@ export const listCrmLeads = createServerFn({ method: "POST" })
       .limit(data.limit);
     if (data.stage) q = q.eq("stage", data.stage);
     if (data.band) q = q.eq("score_band", data.band);
+    if (data.owner_ids && data.owner_ids.length > 0) q = q.in("owner_id", data.owner_ids);
+    if (data.tags && data.tags.length > 0) q = q.overlaps("tags", data.tags);
+    if (typeof data.score_min === "number") q = q.gte("score", data.score_min);
+    if (typeof data.score_max === "number") q = q.lte("score", data.score_max);
+    if (data.country) q = q.eq("country", data.country);
+    if (data.newsletter_status) q = q.eq("newsletter_status", data.newsletter_status);
+    if (data.activity_from) q = q.gte("last_activity_at", data.activity_from);
+    if (data.activity_to) q = q.lte("last_activity_at", data.activity_to);
+    if (data.created_from) q = q.gte("created_at", data.created_from);
+    if (data.created_to) q = q.lte("created_at", data.created_to);
     if (data.search) {
       // Strip LIKE wildcards and PostgREST .or() metacharacters so the search
       // term can't inject extra filter conditions (RLS still scopes rows, but
@@ -987,3 +1015,164 @@ export const recomputeAllLeadScores = createServerFn({ method: "POST" })
       };
     },
   );
+
+// ============ Bulk operations & staff picker ============
+
+const BulkUpdateInput = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(500),
+  stage: STAGE_ENUM.optional(),
+  owner_id: z.string().uuid().nullable().optional(),
+  add_tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  remove_tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  marketing_consent: z.boolean().optional(),
+});
+
+// Zbiorcza edycja leadów. RLS + tenant scoping robi Postgres (policies na
+// crm_leads); tutaj tylko przygotowujemy patch pól poza tagami i - jeśli są -
+// operujemy na tagach per rekord (add_tags/remove_tags). Wartości poza
+// tagami idą jednym UPDATE ... IN (...) dla wydajności.
+export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => BulkUpdateInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const {
+      ids,
+      add_tags: addTags,
+      remove_tags: removeTags,
+      owner_id: ownerId,
+      ...rest
+    } = data;
+
+    const flatPatch: Record<string, unknown> = { ...rest };
+    if (typeof ownerId !== "undefined") flatPatch.owner_id = ownerId;
+    let touched = 0;
+
+    if (Object.keys(flatPatch).length > 0) {
+      const res = await (
+        tbl(context, "crm_leads").update(flatPatch).in("id", ids) as unknown as Promise<{
+          error: { message: string } | null;
+        }>
+      );
+      if (res.error) throw new Error(res.error.message);
+      touched = ids.length;
+    }
+
+    if ((addTags?.length ?? 0) > 0 || (removeTags?.length ?? 0) > 0) {
+      // Tagi to text[] — potrzebujemy per-rekord read-modify-write (Postgrest
+      // nie udostępnia array_append/remove w PATCH bulk). Robimy w porcjach.
+      const { data: rows } = (await tbl(context, "crm_leads")
+        .select("id, tags")
+        .in("id", ids)) as unknown as {
+        data: Array<{ id: string; tags: string[] | null }> | null;
+      };
+      const supa = context.supabase as unknown as {
+        from: (t: string) => {
+          update: (v: unknown) => {
+            eq: (c: string, v: string) => Promise<{ error: { message: string } | null }>;
+          };
+        };
+      };
+      for (const row of rows ?? []) {
+        const current = new Set((row.tags ?? []).map((t) => t.trim()).filter(Boolean));
+        for (const t of addTags ?? []) current.add(t);
+        for (const t of removeTags ?? []) current.delete(t);
+        const next = Array.from(current);
+        const res = await supa
+          .from("crm_leads")
+          .update({ tags: next.length > 0 ? next : null })
+          .eq("id", row.id);
+        if (res.error) throw new Error(res.error.message);
+      }
+      touched = Math.max(touched, (rows ?? []).length);
+    }
+
+    try {
+      await tbl(context, "audit_log").insert({
+        actor_id: (context as { userId: string }).userId,
+        action: "crm.lead.bulk_update",
+        entity_type: "crm_lead",
+        entity_id: null,
+        metadata: {
+          count: touched,
+          fields: Object.keys(flatPatch),
+          add_tags: addTags ?? [],
+          remove_tags: removeTags ?? [],
+        },
+      } as unknown as never);
+    } catch {
+      /* audyt best-effort */
+    }
+    return { ok: true, updated: touched };
+  });
+
+const BulkDeleteInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(200) });
+
+export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => BulkDeleteInput.parse(d))
+  .handler(async ({ data, context }) => {
+    // Delete zarezerwowane dla adminów - staff bez roli admin/super_admin
+    // dostaje odmowę. RLS może i tak zablokować, ale sprawdzamy jawnie.
+    const rpc = (
+      context.supabase as unknown as {
+        rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown }>;
+      }
+    ).rpc;
+    const userId = (context as { userId: string }).userId;
+    const [{ data: isAdmin }, { data: isSuper }] = await Promise.all([
+      rpc("has_role", { _user_id: userId, _role: "admin" }),
+      rpc("has_role", { _user_id: userId, _role: "super_admin" }),
+    ]);
+    if (!isAdmin && !isSuper) throw new Error("forbidden");
+
+    const res = await (tbl(context, "crm_leads")
+      .delete()
+      .in("id", data.ids) as unknown as Promise<{ error: { message: string } | null }>);
+    if (res.error) throw new Error(res.error.message);
+    try {
+      await tbl(context, "audit_log").insert({
+        actor_id: userId,
+        action: "crm.lead.bulk_delete",
+        entity_type: "crm_lead",
+        entity_id: null,
+        metadata: { count: data.ids.length, ids: data.ids },
+      } as unknown as never);
+    } catch {
+      /* audyt best-effort */
+    }
+    return { ok: true, deleted: data.ids.length };
+  });
+
+// Lista staffu do pickera "właściciela" - profile użytkowników z rolami
+// admin/super_admin/editor/moderator w bieżącym tenancie. Używamy admina
+// (RLS user_roles jest owner-only). Zwracamy minimalny zestaw pól.
+export const listStaffUsers = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .handler(async ({ context }) => {
+    const claims = (context as { claims: { tenant_id?: string } }).claims;
+    const tenantId = claims?.tenant_id ?? null;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (s: string) => {
+          in: (c: string, v: unknown[]) => Promise<{ data: unknown }>;
+          eq: (c: string, v: unknown) => {
+            in: (c: string, v: unknown[]) => Promise<{ data: unknown }>;
+          };
+        };
+      };
+    };
+    const staffRoles = ["admin", "super_admin", "editor", "moderator"];
+    const rolesRes = (await admin
+      .from("user_roles")
+      .select("user_id, role")
+      .in("role", staffRoles)) as { data: Array<{ user_id: string; role: string }> | null };
+    const userIds = Array.from(new Set((rolesRes.data ?? []).map((r) => r.user_id)));
+    if (userIds.length === 0) return { json: j([]) };
+    const cols = "id, first_name, last_name, display_name, avatar_url, tenant_id";
+    const profRes = tenantId
+      ? await admin.from("profiles").select(cols).eq("tenant_id", tenantId).in("id", userIds)
+      : await admin.from("profiles").select(cols).in("id", userIds);
+    const rows = (profRes.data as Array<Record<string, unknown>>) ?? [];
+    return { json: j(rows) };
+  });

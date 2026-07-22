@@ -19,8 +19,28 @@ import {
   pushLeadToMerydian,
   getCrmLeadTimeline,
   exportCrmLeadTimelineCsv,
+  bulkUpdateCrmLeads,
+  bulkDeleteCrmLeads,
 } from "@/lib/crm.functions";
 import { dispatchIntegrationDeliveries } from "@/lib/integrations/dispatch.functions";
+import { BulkActionBar } from "@/components/molecules/BulkActionBar";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
 import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";

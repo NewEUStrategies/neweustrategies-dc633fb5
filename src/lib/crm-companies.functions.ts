@@ -14,6 +14,10 @@ type AnyQuery = {
   in: (c: string, v: unknown[]) => AnyQuery;
   or: (f: string) => AnyQuery;
   ilike: (c: string, v: string) => AnyQuery;
+  gte: (c: string, v: unknown) => AnyQuery;
+  lte: (c: string, v: unknown) => AnyQuery;
+  update: (v: unknown) => AnyQuery;
+  delete: () => AnyQuery;
   maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
   then: <R>(fn: (r: { data: unknown; error: { message: string } | null }) => R) => Promise<R>;
 };
@@ -41,6 +45,10 @@ const j = (v: unknown): string => JSON.stringify(v ?? null);
 const ListInput = z.object({
   search: z.string().trim().max(200).optional(),
   limit: z.number().int().min(1).max(500).default(100),
+  country: z.string().trim().max(120).optional(),
+  branch: z.string().trim().max(200).optional(),
+  updated_from: z.string().datetime().optional(),
+  updated_to: z.string().datetime().optional(),
 });
 
 export const listCrmCompanies = createServerFn({ method: "POST" })
@@ -53,6 +61,10 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
       )
       .order("updated_at", { ascending: false })
       .limit(data.limit);
+    if (data.country) q = q.eq("country", data.country);
+    if (data.branch) q = q.eq("branch", data.branch);
+    if (data.updated_from) q = q.gte("updated_at", data.updated_from);
+    if (data.updated_to) q = q.lte("updated_at", data.updated_to);
     if (data.search) {
       const s = `%${data.search.toLowerCase().replace(/[%_,()"\\]/g, "")}%`;
       q = q.or(`name.ilike.${s},domain.ilike.${s},city.ilike.${s},country.ilike.${s}`);
@@ -379,4 +391,74 @@ export const getCrmCompanyActivity = createServerFn({ method: "POST" })
     }
     events.sort((x, y) => (x.created_at < y.created_at ? 1 : -1));
     return { json: j(events.slice(0, 100)) };
+  });
+
+// ============ Bulk operations ============
+
+const BulkUpdateInput = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(500),
+  country: z.string().trim().max(120).nullable().optional(),
+  branch: z.string().trim().max(200).nullable().optional(),
+});
+
+export const bulkUpdateCrmCompanies = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => BulkUpdateInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { ids, ...patch } = data;
+    if (Object.keys(patch).length === 0) return { ok: true, updated: 0 };
+    const res = await (
+      tbl(context, "crm_companies").update(patch).in("id", ids) as unknown as Promise<{
+        error: { message: string } | null;
+      }>
+    );
+    if (res.error) throw new Error(res.error.message);
+    try {
+      await write(context, "audit_log").insert({
+        actor_id: (context as { userId: string }).userId,
+        action: "crm.company.bulk_update",
+        entity_type: "crm_company",
+        entity_id: null,
+        metadata: { count: ids.length, fields: Object.keys(patch) },
+      } as unknown as never);
+    } catch {
+      /* audyt best-effort */
+    }
+    return { ok: true, updated: ids.length };
+  });
+
+const BulkDeleteInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(200) });
+
+export const bulkDeleteCrmCompanies = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => BulkDeleteInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const rpc = (
+      context.supabase as unknown as {
+        rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown }>;
+      }
+    ).rpc;
+    const userId = (context as { userId: string }).userId;
+    const [{ data: isAdmin }, { data: isSuper }] = await Promise.all([
+      rpc("has_role", { _user_id: userId, _role: "admin" }),
+      rpc("has_role", { _user_id: userId, _role: "super_admin" }),
+    ]);
+    if (!isAdmin && !isSuper) throw new Error("forbidden");
+
+    const res = await (tbl(context, "crm_companies")
+      .delete()
+      .in("id", data.ids) as unknown as Promise<{ error: { message: string } | null }>);
+    if (res.error) throw new Error(res.error.message);
+    try {
+      await write(context, "audit_log").insert({
+        actor_id: userId,
+        action: "crm.company.bulk_delete",
+        entity_type: "crm_company",
+        entity_id: null,
+        metadata: { count: data.ids.length, ids: data.ids },
+      } as unknown as never);
+    } catch {
+      /* audyt best-effort */
+    }
+    return { ok: true, deleted: data.ids.length };
   });
