@@ -431,20 +431,6 @@ function AdminCrmPage() {
           <p className="text-[12px] text-muted-foreground">{L.subtitle}</p>
         </div>
       </header>
-      <div className="flex items-center gap-1 border-b border-border/60">
-        <span
-          aria-current="page"
-          className="rounded-t-[6px] border-b-2 border-brand px-3 py-2 text-[13px] font-semibold text-foreground"
-        >
-          {lang === "pl" ? "Kontakty" : "Contacts"}
-        </span>
-        <Link
-          to="/admin/crm/funnel"
-          className="rounded-t-[6px] px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground"
-        >
-          {lang === "pl" ? "Lejek marketingowy" : "Marketing funnel"}
-        </Link>
-      </div>
       <Tabs defaultValue="leads">
         <TabsList>
           <TabsTrigger value="leads">

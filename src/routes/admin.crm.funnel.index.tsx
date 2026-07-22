@@ -337,21 +337,6 @@ function FunnelPage() {
         </div>
       </header>
 
-      {/* Tabs: Contacts / Funnel */}
-      <div className="flex items-center gap-1 border-b border-border/60">
-        <Link
-          to="/admin/crm"
-          className="rounded-t-[6px] px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground"
-        >
-          {L.tabs.contacts}
-        </Link>
-        <span
-          aria-current="page"
-          className="rounded-t-[6px] border-b-2 border-brand px-3 py-2 text-[13px] font-semibold text-foreground"
-        >
-          {L.tabs.funnel}
-        </span>
-      </div>
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
