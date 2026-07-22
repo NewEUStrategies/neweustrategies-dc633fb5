@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
   settings: { enabled: true, monthly_limit: 0, link_ttl_days: 0 } as GiftSettings,
   state: null as GiftArticleState | null,
   stateLoading: false,
+  stateError: false,
+  refetch: vi.fn(),
   mutate: vi.fn(),
   mutationData: null as GiftLinkResult | null,
 }));
@@ -43,7 +45,12 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/lib/gifting/hooks", () => ({
   useGiftSettings: () => ({ data: h.settings }),
-  useGiftArticleState: () => ({ data: h.state, isLoading: h.stateLoading }),
+  useGiftArticleState: () => ({
+    data: h.state,
+    isLoading: h.stateLoading,
+    isError: h.stateError,
+    refetch: h.refetch,
+  }),
   useCreateGiftLink: () => ({
     mutation: {
       data: h.mutationData,
@@ -94,7 +101,8 @@ beforeEach(() => {
   h.settings = { enabled: true, monthly_limit: 0, link_ttl_days: 0 };
   h.state = null;
   h.stateLoading = false;
-  h.mutationData = null;
+  h.stateError = false;
+  h.refetch.mockClear();
   h.mutate.mockClear();
 });
 
@@ -153,6 +161,18 @@ describe("GiftArticleButton", () => {
     // 7 kanalow platformy: mail, facebook, linkedin, whatsapp, telegram, x, reddit.
     expect(screen.getAllByTestId("brand-icon")).toHaveLength(7);
     expect(screen.getByText(/gifting.anyoneCanRead/)).toBeInTheDocument();
+  });
+
+  it("blad odczytu stanu: komunikat + ponowienie (bez wiecznego 'preparing')", () => {
+    h.session = { user: { id: "u1" } };
+    h.stateError = true;
+    renderButton();
+    openPopover();
+    expect(screen.getByText("gifting.errors.unknown")).toBeInTheDocument();
+    expect(screen.queryByText("gifting.preparing")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "common.retry" }));
+    expect(h.refetch).toHaveBeenCalledTimes(1);
+    expect(h.mutate).not.toHaveBeenCalled();
   });
 
   it("limit miesieczny: licznik pozostalych i komunikat o wyczerpaniu", () => {

@@ -117,6 +117,9 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
       ? t("gifting.remainingNote", { count: state.remaining ?? 0 })
       : t("gifting.unlimitedNote");
 
+  // Blad odczytu stanu (siec/RPC): bez tego popover utknalby w "loading" -
+  // resolveGiftPhase widzi brak stanu, a zapytanie juz nie jest w locie.
+  const stateFailed = stateQuery.isError;
   const preparing = phase === "ready" && !giftUrl && !mutation.isError;
 
   return (
@@ -208,7 +211,22 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
           </div>
         )}
 
-        {(phase === "loading" || preparing) && (
+        {stateFailed && (
+          <div className="border-t border-border/60 px-4 py-3.5" role="alert">
+            <p className="text-[12px] leading-snug text-destructive mb-2">
+              {t("gifting.errors.unknown")}
+            </p>
+            <button
+              type="button"
+              onClick={() => void stateQuery.refetch()}
+              className="inline-flex items-center justify-center h-8 px-3 rounded-[5px] border border-border bg-background text-[12px] font-semibold hover:bg-muted transition"
+            >
+              {t("common.retry")}
+            </button>
+          </div>
+        )}
+
+        {((phase === "loading" && !stateFailed) || preparing) && (
           <div className="border-t border-border/60 px-4 py-3.5" aria-busy="true">
             <p className="text-[12px] text-muted-foreground animate-pulse">
               {t("gifting.preparing")}
