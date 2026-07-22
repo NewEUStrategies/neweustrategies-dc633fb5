@@ -52,6 +52,9 @@ import {
 } from "@/lib/access/gating";
 import { meteringApplies, useMeteredAccess, useMeteringSettings } from "@/lib/access/metering";
 import { MeterBanner } from "@/components/molecules/MeterBanner";
+import { useGiftCodeFromUrl, useGiftRedemption } from "@/lib/gifting/hooks";
+import { GiftArticleButton } from "@/components/gifting/GiftArticleButton";
+import { GiftBanner } from "@/components/gifting/GiftBanner";
 import { useAuth } from "@/hooks/useAuth";
 import { getRequestUrl } from "@/lib/seo/request";
 import {
@@ -553,7 +556,24 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const meterAttempt =
     meterEligible && (!!authSession || (meterSettings?.anon_monthly_limit ?? 0) > 0);
   const metered = useMeteredAccess(isPost ? "post" : "page", it.id, meterAttempt);
-  const body = pickBody(pickBody(pickBody(ssrBody, unlocked), pwdUnlock.body), metered.body);
+  // Gift Articles: wazny kod z URL (?gift=...) odblokowuje WPIS kazdemu
+  // odbiorcy - takze anonimowemu - przez SECURITY DEFINER redeem_gift_link.
+  // Realizacja startuje po hydracji (zwykly useQuery), wiec crawlery nie
+  // zawyzaja licznika odslon linku.
+  const giftCode = useGiftCodeFromUrl();
+  const gifted = useGiftRedemption(
+    isPost ? it.id : null,
+    giftCode,
+    isPost && nonPasswordGate && !!giftCode,
+  );
+  // Body sprzed prezentu decyduje o banerze: baner podarunkowy pokazujemy
+  // tylko wtedy, gdy to WLASNIE kod (a nie wlasne uprawnienie czytelnika)
+  // otworzyl tresc.
+  const bodyBeforeGift = pickBody(
+    pickBody(pickBody(ssrBody, unlocked), pwdUnlock.body),
+    metered.body,
+  );
+  const body = pickBody(bodyBeforeGift, gifted.body);
 
   const rawDoc = parseBuilderDoc(body.builder_data);
   const rawHtml =
@@ -716,8 +736,21 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
   };
 
+  // Baner odbiorcy prezentu - wylacznie gdy kod byl potrzebny (bez niego
+  // trafialby tu paywall) i rozstrzygniety: wazny = "artykul podarowany",
+  // niewazny = delikatna informacja nad paywallem.
+  const giftMattered = isPost && !!giftCode && shouldShowPaywall(accessRule?.mode, bodyBeforeGift);
+  const giftBannerVariant: "gifted" | "invalid" | null = !giftMattered
+    ? null
+    : gifted.valid === true
+      ? "gifted"
+      : gifted.valid === false
+        ? "invalid"
+        : null;
+
   const contentBlock = (
     <div ref={articleRef} className="article-body">
+      {giftBannerVariant && <GiftBanner variant={giftBannerVariant} />}
       {accessRule && showPaywall ? (
         <Paywall
           rule={accessRule}
@@ -786,6 +819,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     const format: PostFormat = (overrides?.format ?? post.post_format ?? "standard") as PostFormat;
     const layoutId = pickLayoutId(globalLayoutSettings, format, overrides?.layout);
     const merged = mergeOverrides(globalLayoutSettings, overrides);
+    // Gift Articles ("Udostepnij pelny artykul") - w wierszu quick-view nad
+    // trescia lub, gdy pasek jest wylaczony, jako samodzielny wiersz akcji.
+    // Wpisy na haslo sa wykluczone z podarowywania (sekret autora).
+    const giftButton =
+      accessRule?.mode !== "password" ? (
+        <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
+      ) : null;
     return (
       <div className="flex flex-col bg-background text-foreground" data-page-template="post">
         <PostContentStyle />
@@ -829,14 +869,17 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             }
             content={
               <>
-                {merged.quick_view_info && (
+                {merged.quick_view_info ? (
                   <QuickViewInfoBar
                     lang={lang}
                     readMinutes={readMinutes}
                     publishedAt={it.published_at}
                     updatedAt={it.updated_at}
                     primaryCategory={postCategories[0]}
+                    trailing={giftButton}
                   />
+                ) : (
+                  giftButton && <div className="no-print flex justify-end mb-4">{giftButton}</div>
                 )}
                 {contentBlock}
                 {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
