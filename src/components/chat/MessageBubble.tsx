@@ -214,7 +214,7 @@ function ReactionChips({
                       key={r.id}
                       className="flex items-center gap-2 px-2.5 py-1 text-[11px] text-foreground"
                     >
-                      <ReactorAvatar profile={profile} name={display} />
+                      <ReactorAvatar profile={profile} name={display} size="sm" />
                       <span className="min-w-0 truncate">{display}</span>
                     </li>
                   );
