@@ -4,11 +4,12 @@
 //  - prawy sidebar: powiązania (Kontakty, Leady, Domena).
 // Widoczne dla staff (`requireStaff` w server-fn); RLS zawęża po tenancie.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ArrowLeft,
   Building2,
