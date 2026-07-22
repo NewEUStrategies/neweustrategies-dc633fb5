@@ -3178,41 +3178,6 @@ export type Database = {
           },
         ]
       }
-      gift_article_settings: {
-        Row: {
-          enabled: boolean
-          link_ttl_days: number
-          monthly_limit: number
-          tenant_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          enabled?: boolean
-          link_ttl_days?: number
-          monthly_limit?: number
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          enabled?: boolean
-          link_ttl_days?: number
-          monthly_limit?: number
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "gift_article_settings_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       glossary_terms: {
         Row: {
           created_at: string
@@ -6298,63 +6263,6 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      post_gift_links: {
-        Row: {
-          code: string
-          created_at: string
-          created_by: string
-          expires_at: string | null
-          id: string
-          last_redeemed_at: string | null
-          period_month: string
-          post_id: string
-          redemption_count: number
-          revoked_at: string | null
-          tenant_id: string
-        }
-        Insert: {
-          code?: string
-          created_at?: string
-          created_by: string
-          expires_at?: string | null
-          id?: string
-          last_redeemed_at?: string | null
-          period_month?: string
-          post_id: string
-          redemption_count?: number
-          revoked_at?: string | null
-          tenant_id: string
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          created_by?: string
-          expires_at?: string | null
-          id?: string
-          last_redeemed_at?: string | null
-          period_month?: string
-          post_id?: string
-          redemption_count?: number
-          revoked_at?: string | null
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "post_gift_links_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "post_gift_links_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -10150,7 +10058,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      can_gift_articles: { Args: never; Returns: boolean }
       can_publish_content: { Args: { _user_id?: string }; Returns: boolean }
       change_user_role: {
         Args: {
@@ -10352,16 +10259,6 @@ export type Database = {
         }[]
       }
       create_event_group: { Args: { p_event_id: string }; Returns: string }
-      create_gift_link: {
-        Args: { _post_id: string }
-        Returns: {
-          code: string
-          expires_at: string
-          monthly_limit: number
-          remaining: number
-          used: number
-        }[]
-      }
       create_group_conversation: {
         Args: { p_member_ids: string[]; p_title: string }
         Returns: string
@@ -10871,20 +10768,6 @@ export type Database = {
         }[]
       }
       get_tracker_stats: { Args: never; Returns: Json }
-      gift_article_state: {
-        Args: { _post_id: string }
-        Returns: {
-          can_gift: boolean
-          enabled: boolean
-          existing_code: string
-          expires_at: string
-          monthly_limit: number
-          remaining: number
-          requires_auth: boolean
-          requires_subscription: boolean
-          used: number
-        }[]
-      }
       guess_gender_from_name: {
         Args: { _name: string }
         Returns: Database["public"]["Enums"]["name_gender"]
@@ -11344,16 +11227,6 @@ export type Database = {
       }
       record_profile_view: { Args: { p_profile: string }; Returns: undefined }
       record_redirect_hit: { Args: { _id: string }; Returns: undefined }
-      redeem_gift_link: {
-        Args: { _code: string; _post_id: string }
-        Returns: {
-          blocks_data: Json
-          builder_data: Json
-          content_en: string
-          content_pl: string
-          valid: boolean
-        }[]
-      }
       record_seo_404: {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
