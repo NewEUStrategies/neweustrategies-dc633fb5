@@ -258,31 +258,10 @@ function PricingPage() {
         </div>
       )}
 
-      {showToggle && (
-        <div className="mb-8 flex justify-center">
-          <div
-            role="group"
-            aria-label={t("pricing.title")}
-            className="inline-flex rounded-full border border-border bg-muted/40 p-1"
-          >
-            {(["month", "year"] as const).map((iv) => (
-              <button
-                key={iv}
-                type="button"
-                aria-pressed={interval === iv}
-                onClick={() => setInterval(iv)}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                  interval === iv
-                    ? "bg-background text-foreground shadow"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {iv === "month" ? t("pricing.intervalMonthly") : t("pricing.intervalYearly")}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Przełącznik Miesięcznie/Rocznie renderuje AudienceSwitcher powyżej -
+          duplikat usunięty. */}
+
+
 
       {isLoading ? (
         <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
