@@ -1176,6 +1176,18 @@ export const pl = {
       meteringShowCounter: "Pokazuj licznik „X z N” nad artykułem",
       meteringSaved: "Zapisano ustawienia meteringu",
       meteringSaveError: "Nie udało się zapisać ustawień meteringu.",
+      meteringImpactTitle: "Podgląd wpływu na bieżący miesiąc",
+      meteringImpactDisabled:
+        "Metering wyłączony - wszystkie treści z paywallem będą wymagać subskrypcji od razu, bez darmowego limitu.",
+      meteringImpactError: "Nie udało się policzyć podglądu wpływu.",
+      meteringImpactEmpty:
+        "W tym miesiącu nie ma jeszcze żadnych odblokowań na licznik - podgląd pojawi się po pierwszych odsłonach.",
+      meteringImpactBlocked: "Kont zablokowanych",
+      meteringImpactWarning: "Kont blisko limitu",
+      meteringImpactSafe: "Kont w limicie",
+      meteringImpactAvg: "Średnie użycie",
+      meteringImpactSummary:
+        "{{members}} zalogowanych i {{anon}} gości ({{views}} odsłon), maks. użycie {{max}} - z limitem {{limit}}/mies.",
       overridesTitle: "Wyjątki per wpis / strona",
       overridesSubtitle:
         "Reguły z polityką inną niż „dziedzicz”. To ta sama reguła, którą widzisz w edytorze wpisu i strony - zmiana tutaj jest natychmiast zsynchronizowana.",
