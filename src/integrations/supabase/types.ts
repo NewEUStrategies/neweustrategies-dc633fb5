@@ -11218,6 +11218,15 @@ export type Database = {
         }[]
       }
       get_tracker_stats: { Args: never; Returns: Json }
+      get_user_monthly_metering_count: {
+        Args: { _user_id: string }
+        Returns: {
+          monthly_limit: number
+          period_month: string
+          remaining: number
+          used: number
+        }[]
+      }
       gift_article_state: {
         Args: { _post_id: string }
         Returns: {
