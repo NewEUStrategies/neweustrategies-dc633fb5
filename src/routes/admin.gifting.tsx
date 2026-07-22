@@ -458,7 +458,7 @@ function AuditPanel({ dateLocale }: { dateLocale: string }) {
     queryFn: () => listEvents({ data: { limit: 200, offset: 0, event_type: filter } }),
   });
 
-  const rows = (data?.rows ?? []) as Array<{
+  const rows = (data?.rows ?? []) as unknown as Array<{
     id: string;
     event_type: "created" | "redeemed" | "revoked" | "expired";
     post_title: string;
