@@ -17,6 +17,8 @@ import {
   DONATION_MAX_CENTS,
   DONATION_MIN_CENTS,
   DONATION_PRESETS_CENTS,
+  DONATION_PRESETS_CENTS_EUR,
+  type DonationCurrency,
 } from "@/lib/billing/donations.schema";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -49,10 +51,10 @@ export const Route = createFileRoute("/support")({
   },
 });
 
-function formatZl(cents: number, lang: "pl" | "en"): string {
+function formatAmount(cents: number, lang: "pl" | "en", currency: DonationCurrency): string {
   return new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB", {
     style: "currency",
-    currency: "PLN",
+    currency,
     maximumFractionDigits: 0,
   }).format(cents / 100);
 }
@@ -62,16 +64,18 @@ function SupportPage() {
   ensureSupportI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  const currency: DonationCurrency = lang === "en" ? "EUR" : "PLN";
+  const presets = lang === "en" ? DONATION_PRESETS_CENTS_EUR : DONATION_PRESETS_CENTS;
   const { status } = Route.useSearch();
   const donate = useServerFn(createDonationCheckout);
 
-  const [selectedCents, setSelectedCents] = useState<number>(DONATION_PRESETS_CENTS[1]);
-  const [customZl, setCustomZl] = useState("");
+  const [selectedCents, setSelectedCents] = useState<number>(presets[1]);
+  const [customAmount, setCustomAmount] = useState("");
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
 
-  const effectiveCents = customZl.trim()
-    ? Math.round(Number(customZl.replace(",", ".")) * 100)
+  const effectiveCents = customAmount.trim()
+    ? Math.round(Number(customAmount.replace(",", ".")) * 100)
     : selectedCents;
   const amountValid =
     Number.isFinite(effectiveCents) &&
@@ -88,6 +92,7 @@ function SupportPage() {
       const result = await donate({
         data: {
           amount_cents: effectiveCents,
+          currency,
           message: message.trim() || undefined,
           lang,
         },
@@ -149,8 +154,8 @@ function SupportPage() {
           <fieldset>
             <legend className="text-sm font-medium">{t("support.presetsLabel")}</legend>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {DONATION_PRESETS_CENTS.map((cents) => {
-                const active = !customZl.trim() && selectedCents === cents;
+              {presets.map((cents) => {
+                const active = !customAmount.trim() && selectedCents === cents;
                 return (
                   <Button
                     key={cents}
@@ -159,10 +164,10 @@ function SupportPage() {
                     aria-pressed={active}
                     onClick={() => {
                       setSelectedCents(cents);
-                      setCustomZl("");
+                      setCustomAmount("");
                     }}
                   >
-                    {formatZl(cents, lang)}
+                    {formatAmount(cents, lang, currency)}
                   </Button>
                 );
               })}
@@ -171,21 +176,22 @@ function SupportPage() {
 
           <div>
             <Label htmlFor="donation-custom" className="text-sm font-medium">
-              {t("support.customLabel")}
+              {t("support.customLabel", { currency })}
             </Label>
             <Input
               id="donation-custom"
               inputMode="decimal"
               className="mt-1"
               placeholder={t("support.customPlaceholder")}
-              value={customZl}
-              onChange={(e) => setCustomZl(e.target.value)}
-              aria-invalid={customZl.trim() !== "" && !amountValid}
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              aria-invalid={customAmount.trim() !== "" && !amountValid}
             />
-            {customZl.trim() !== "" && !amountValid && (
+            {customAmount.trim() !== "" && !amountValid && (
               <p className="mt-1 text-xs text-destructive">{t("support.amountError")}</p>
             )}
           </div>
+
 
           <div>
             <Label htmlFor="donation-message" className="text-sm font-medium">
@@ -205,7 +211,7 @@ function SupportPage() {
           <Button className="w-full" size="lg" disabled={pending || !amountValid} onClick={submit}>
             {pending
               ? t("support.submitting")
-              : `${t("support.submit")} - ${amountValid ? formatZl(effectiveCents, lang) : "…"}`}
+              : `${t("support.submit")} - ${amountValid ? formatAmount(effectiveCents, lang, currency) : "…"}`}
           </Button>
           <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />

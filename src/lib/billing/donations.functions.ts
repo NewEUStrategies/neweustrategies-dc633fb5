@@ -94,7 +94,7 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       params.set("mode", "payment");
       params.set("success_url", `${origin}/support?status=success`);
       params.set("cancel_url", `${origin}/support?status=cancelled`);
-      params.set("line_items[0][price_data][currency]", "pln");
+      params.set("line_items[0][price_data][currency]", data.currency.toLowerCase());
       params.set("line_items[0][price_data][unit_amount]", String(data.amount_cents));
       params.set("line_items[0][price_data][product_data][name]", label);
       params.set("line_items[0][quantity]", "1");
@@ -134,7 +134,7 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.from("donations").insert({
       tenant_id: hostTenantId,
       amount_cents: data.amount_cents,
-      currency: "PLN",
+      currency: data.currency,
       message,
       user_id: donorUserId,
       provider: "mock",
