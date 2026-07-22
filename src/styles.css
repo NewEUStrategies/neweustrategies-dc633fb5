@@ -5645,5 +5645,20 @@ textarea.input {
   &:hover .lc-track { animation-play-state: paused; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lc-track { animation: none; transform: none; }
+    .lc-track { animation: none; transform: none; }
 }
+
+/* iOS Safari auto-zoomuje na focus w input/select/textarea, jeśli
+   font-size < 16px. Wymuszamy minimum 16px tylko na wąskich ekranach
+   dotykowych - desktopowe layouty (0.8125rem placeholders, floating
+   labels) pozostają bez zmian. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea,
+  .input-group input,
+  .input-group textarea {
+    font-size: 16px !important;
+  }
+}
+
