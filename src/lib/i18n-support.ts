@@ -41,7 +41,7 @@ export const supportEn = {
   support: {
     title: "Support independent analysis",
     intro:
-      "New European Strategies is funded by subscriptions and citizen patronage. A donation funds analytical work - the EU legislative tracker, reports and debates - and grants no entitlements: it is support, not a purchase.",
+      "New European Strategies is funded by subscriptions and citizen patronage. A donation funds analytical work - European policy analysis, reports, interviews and public debates - and grants no entitlements: it is support, not a purchase.",
     presetsLabel: "Choose an amount",
     customLabel: "Custom amount (EUR)",
     customPlaceholder: "e.g. 75",
@@ -62,7 +62,7 @@ export const supportEn = {
     another: "Make another donation",
     whyTitle: "Where the money goes",
     whyItems: [
-      "The EU legislative tracker - monitoring files and member state positions",
+      "Analysis of European policy and EU decision-making processes",
       "Reports and analyses kept outside the paywall where possible",
       "Debates, briefings and community Q&A sessions",
     ],
