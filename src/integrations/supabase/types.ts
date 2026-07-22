@@ -8312,6 +8312,45 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_views: {
+        Row: {
+          config: Json
+          created_at: string
+          entity: string
+          id: string
+          is_shared: boolean
+          name: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          entity: string
+          id?: string
+          is_shared?: boolean
+          name: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          entity?: string
+          id?: string
+          is_shared?: boolean
+          name?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       search_query_log: {
         Row: {
           created_at: string
