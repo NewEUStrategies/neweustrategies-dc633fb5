@@ -288,7 +288,7 @@ function TierCardCta({
               tier_id: tier.id,
               plan_id: plan.id,
               interval,
-              amount_cents: plan.amount_cents,
+              amount_cents: plan.price_cents,
               currency: plan.currency,
             })
           }
