@@ -13,17 +13,7 @@ import { tierName, useCurrentTier } from "@/lib/billing/tiers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { RetentionDialog } from "@/components/billing/RetentionDialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile/subscription")({
@@ -35,6 +25,7 @@ function SubscriptionPage() {
   const { session } = useAuth();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [retentionOpen, setRetentionOpen] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["my-subscription"],
@@ -149,27 +140,24 @@ function SubscriptionPage() {
                 <Link to="/pricing">{t("profile.subscription.change")}</Link>
               </Button>
               {!data.canceled_at && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={busy}>
-                      {t("profile.subscription.cancel")}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>{t("profile.subscription.cancel")}</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {t("profile.subscription.cancelConfirm")}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>{t("profile.subscription.keep")}</AlertDialogCancel>
-                      <AlertDialogAction onClick={onCancel}>
-                        {t("profile.subscription.cancel")}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <>
+                  {/* Przepływ retencyjny zamiast prostego potwierdzenia:
+                      ankieta powodu + kontrofertka rabatowa (panel admina),
+                      dopiero na końcu faktyczne anulowanie (onCancel). */}
+                  <Button
+                    variant="destructive"
+                    disabled={busy}
+                    onClick={() => setRetentionOpen(true)}
+                  >
+                    {t("profile.subscription.cancel")}
+                  </Button>
+                  <RetentionDialog
+                    open={retentionOpen}
+                    onOpenChange={setRetentionOpen}
+                    subscriptionId={data.id}
+                    onConfirmCancel={onCancel}
+                  />
+                </>
               )}
             </div>
           </>
