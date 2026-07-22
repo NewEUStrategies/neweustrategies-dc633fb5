@@ -4,6 +4,8 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { BillingInterval } from "@/lib/pricing/selectors";
+import { trackCta } from "@/lib/analytics/track";
+
 
 export function IntervalToggle({
   value,
