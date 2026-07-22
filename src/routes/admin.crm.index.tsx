@@ -81,6 +81,8 @@ import {
 } from "lucide-react";
 import { BUILTIN_LEAD_VIEWS } from "@/lib/crm/leadViews";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
 
 interface CrmSearch {
   /** Deep-link z notyfikacji/powiązań: /admin/crm?lead=<id>&task=<id>. */
