@@ -4,7 +4,7 @@
 // źródłem danych są subskrybenci newslettera. Dla każdej pozycji pokazujemy,
 // czy dana osoba jest już zarejestrowana w systemie i/lub istnieje jako
 // Kontakt CRM. Widok respektuje RLS (security_invoker + staff-only).
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -100,8 +100,8 @@ const T = {
     title: "Lejek marketingowy",
     subtitle:
       "Subskrybenci newslettera z oznaczeniem zarejestrowanych użytkowników i Kontaktów CRM.",
-    tabs: { contacts: "Kontakty", funnel: "Lejek marketingowy" },
     search: "Szukaj po e-mailu lub imieniu...",
+
     audience: {
       all: "Wszyscy",
       registered: "Tylko zarejestrowani",
@@ -162,7 +162,7 @@ const T = {
     title: "Marketing funnel",
     subtitle:
       "Newsletter subscribers, flagged when they are registered users or existing CRM Contacts.",
-    tabs: { contacts: "Contacts", funnel: "Marketing funnel" },
+    
     search: "Search by email or name...",
     audience: {
       all: "Everyone",
@@ -337,21 +337,6 @@ function FunnelPage() {
         </div>
       </header>
 
-      {/* Tabs: Contacts / Funnel */}
-      <div className="flex items-center gap-1 border-b border-border/60">
-        <Link
-          to="/admin/crm"
-          className="rounded-t-[6px] px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground"
-        >
-          {L.tabs.contacts}
-        </Link>
-        <span
-          aria-current="page"
-          className="rounded-t-[6px] border-b-2 border-brand px-3 py-2 text-[13px] font-semibold text-foreground"
-        >
-          {L.tabs.funnel}
-        </span>
-      </div>
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
