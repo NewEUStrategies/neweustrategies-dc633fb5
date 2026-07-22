@@ -92,6 +92,7 @@ function SupportPage() {
       const result = await donate({
         data: {
           amount_cents: effectiveCents,
+          currency,
           message: message.trim() || undefined,
           lang,
         },
