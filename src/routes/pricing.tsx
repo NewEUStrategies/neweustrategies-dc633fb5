@@ -244,6 +244,18 @@ function PricingPage() {
         </li>
       </ul>
 
+      {audiences.length > 1 && activeKey && (
+        <div className="mb-8">
+          <AudienceSwitcher
+            audiences={audiences}
+            value={activeKey}
+            onChange={setAudience}
+            lang={lang}
+            label={t("pricing.segmentsAria")}
+          />
+        </div>
+      )}
+
 
       {showToggle && (
         <div className="mb-8 flex justify-center">
