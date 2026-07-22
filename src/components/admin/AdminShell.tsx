@@ -53,6 +53,7 @@ import {
   Briefcase,
   ShieldCheck,
   Workflow,
+  Gift,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
