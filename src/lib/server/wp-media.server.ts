@@ -135,13 +135,25 @@ export async function mirrorWpMedia(opts: MirrorOptions): Promise<MirrorResult> 
   }
   const admin = await loadAdmin();
 
+  const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
   for (const url of urls) {
     try {
       if (!opts.includeExternal && !/\/wp-content\/uploads\//i.test(url)) {
         // Skip external CDNs unless explicitly opted-in.
         continue;
       }
-      const res = await fetch(url, { method: "GET" });
+      // SSRF guard: block internal/metadata targets before issuing fetch,
+      // matching the sibling wordpress-import.functions.ts pattern.
+      try {
+        await assertPublicHttpUrl(url);
+      } catch (guardErr) {
+        failed.push({
+          url,
+          reason: guardErr instanceof Error ? guardErr.message : "Blocked by egress guard",
+        });
+        continue;
+      }
+      const res = await fetch(url, { method: "GET", redirect: "manual" });
       if (!res.ok) {
         failed.push({ url, reason: `HTTP ${res.status}` });
         continue;
