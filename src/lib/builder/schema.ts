@@ -80,6 +80,7 @@ export const WIDGET_TYPES = [
   "accordion",
   "tabs",
   "timeline",
+  "logo-cloud",
   "testimonial",
   "team-member",
   "pricing",
