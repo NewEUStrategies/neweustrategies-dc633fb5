@@ -308,7 +308,7 @@ function AdminShellInner({
           to: "/admin/crm/funnel",
           icon: Mail,
           label: t("admin.nav.crmFunnel", {
-            defaultValue: lang === "pl" ? "Lejek marketingowy" : "Marketing funnel",
+            defaultValue: lang === "pl" ? "CRM - Lejek marketingowy" : "CRM - Marketing funnel",
           }),
         },
         {
