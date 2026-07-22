@@ -9,7 +9,7 @@ export const supportPl = {
   support: {
     title: "Wesprzyj niezależną analizę",
     intro:
-      "New European Strategies utrzymuje się z subskrypcji i mecenatu obywatelskiego. Darowizna finansuje pracę analityczną - tracker legislacyjny UE, raporty i debaty - i nie nadaje żadnych uprawnień: to wsparcie, nie zakup.",
+      "New European Strategies utrzymuje się z subskrypcji i mecenatu obywatelskiego. Darowizna finansuje pracę analityczną - analizy polityki europejskiej, raporty, wywiady i debaty publiczne - i nie nadaje żadnych uprawnień: to wsparcie, nie zakup.",
     presetsLabel: "Wybierz kwotę",
     customLabel: "Inna kwota (zł)",
     customPlaceholder: "np. 75",
@@ -30,7 +30,7 @@ export const supportPl = {
     another: "Przekaż kolejną darowiznę",
     whyTitle: "Na co idą środki",
     whyItems: [
-      "inną naszą aktywność",
+      "Analizy polityki europejskiej i procesów decyzyjnych UE",
       "Raporty i analizy dostępne bez paywalla tam, gdzie to możliwe",
       "Debaty, briefingi i sesje Q&A ze społecznością",
     ],
