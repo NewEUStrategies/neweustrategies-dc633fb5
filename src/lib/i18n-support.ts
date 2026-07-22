@@ -50,7 +50,7 @@ export const supportEn = {
     submit: "Donate",
     submitting: "Redirecting to payment...",
     secureNote: "Payments are processed by Stripe. We never store card details.",
-    amountError: "The amount must be between 5 PLN and 50,000 PLN.",
+    amountError: "The amount must be between 5 EUR and 50,000 EUR.",
     rateLimited: "Too many attempts. Please try again in a few minutes.",
     genericError: "Could not start the payment. Please try again.",
     successTitle: "Thank you for your support!",
