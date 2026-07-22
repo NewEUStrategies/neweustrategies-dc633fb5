@@ -981,6 +981,88 @@ export function renderSimpleWidget(
         </div>
       );
     }
+    case "logo-cloud": {
+      const heading = getStr(c, `heading_${lang}`) || getStr(c, "heading_pl");
+      const logosRaw = Array.isArray(c.logos)
+        ? (c.logos as Array<Record<string, unknown>>)
+        : [];
+      const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
+      const logos = logosRaw
+        .map((l) => ({
+          src: safeImageUrl(strOf(l.src)),
+          href: safeUrl(strOf(l.href)),
+          alt: strOf(l.alt) || strOf(l.label),
+          label: strOf(l.label),
+        }))
+        .filter((l) => l.src || l.label);
+      const rawSpeed = typeof c.speedSeconds === "number" ? c.speedSeconds : 40;
+      const speed = Math.max(8, Math.min(180, rawSpeed));
+      const pauseOnHover = c.pauseOnHover !== false;
+      const fadeEdges = c.fadeEdges !== false;
+      const grayscale = c.grayscale !== false;
+      if (logos.length === 0) {
+        return (
+          <div className="w-full rounded-[6px] border border-dashed border-border bg-muted/20 py-6 text-center text-xs text-muted-foreground">
+            {lang === "pl" ? "Dodaj logo w panelu właściwości." : "Add logos in the properties panel."}
+          </div>
+        );
+      }
+      const doubled = [...logos, ...logos];
+      const fadeCls = fadeEdges
+        ? "before:pointer-events-none before:absolute before:inset-y-0 before:start-0 before:z-[2] before:w-20 before:bg-[linear-gradient(to_right,var(--background),transparent)] after:pointer-events-none after:absolute after:inset-y-0 after:end-0 after:z-[2] after:w-20 after:bg-[linear-gradient(to_left,var(--background),transparent)]"
+        : "";
+      return (
+        <div className="w-full">
+          {heading && (
+            <h3 className="mb-4 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              {heading}
+            </h3>
+          )}
+          <div
+            className={`relative overflow-hidden ${fadeCls} ${pauseOnHover ? "lc-pause-hover" : ""}`}
+            style={{ ["--marquee-duration" as string]: `${speed}s` }}
+            aria-label={lang === "pl" ? "Karuzela logo" : "Logo cloud"}
+          >
+            <div className="lc-track items-center">
+              {doubled.map((l, i) => {
+                const inner = l.src ? (
+                  <img
+                    src={l.src}
+                    alt={l.alt}
+                    loading="lazy"
+                    decoding="async"
+                    className={`w-20 md:w-28 h-12 object-contain rounded-[6px] ${grayscale ? "grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-[filter,opacity] duration-300" : ""}`}
+                  />
+                ) : (
+                  <span className="px-3 py-2 text-xs font-medium text-muted-foreground">
+                    {l.label}
+                  </span>
+                );
+                return (
+                  <div
+                    key={`${i}-${l.src || l.label}`}
+                    className="px-4 md:px-8 w-40 md:w-64 h-12 flex shrink-0 justify-center items-center"
+                    aria-hidden={i >= logos.length}
+                  >
+                    {l.href ? (
+                      <AppLink
+                        href={l.href}
+                        className="inline-flex items-center justify-center rounded-[6px]"
+                        aria-label={l.alt || l.label}
+                      >
+                        {inner}
+                      </AppLink>
+                    ) : (
+                      inner
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
     case "testimonial": {
       const quote = getStr(c, `quote_${lang}`) || getStr(c, "quote_pl");
       const author = getStr(c, "author");
