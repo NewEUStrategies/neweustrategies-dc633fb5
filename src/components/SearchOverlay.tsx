@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
 import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-import { trackSearch, trackCta } from "@/lib/analytics/track";
+import { trackSearch } from "@/lib/analytics/track";
 
 
 type Mode = "standalone" | "dropdown" | "fullscreen";
