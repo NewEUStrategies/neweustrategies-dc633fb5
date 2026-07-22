@@ -37,6 +37,7 @@ import {
   updateCrmCompany,
   createCrmContactForCompany,
   getCrmCompanyActivity,
+  addCrmCompanyNote,
 } from "@/lib/crm-companies.functions";
 import {
   Sheet,
