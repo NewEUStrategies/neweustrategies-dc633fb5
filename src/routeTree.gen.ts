@@ -135,6 +135,7 @@ import { Route as AdminCrmRouteImport } from './routes/admin.crm'
 import { Route as AdminCouponsRouteImport } from './routes/admin.coupons'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminContactRouteImport } from './routes/admin.contact'
+import { Route as AdminCompaniesRouteImport } from './routes/admin.companies'
 import { Route as AdminCommunityRouteImport } from './routes/admin.community'
 import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
@@ -851,6 +852,11 @@ const AdminContactRoute = AdminContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCompaniesRoute = AdminCompaniesRouteImport.update({
+  id: '/companies',
+  path: '/companies',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCommunityRoute = AdminCommunityRouteImport.update({
   id: '/community',
   path: '/community',
@@ -929,9 +935,9 @@ const AdminCouponsIndexRoute = AdminCouponsIndexRouteImport.update({
   getParentRoute: () => AdminCouponsRoute,
 } as any)
 const AdminCompaniesIndexRoute = AdminCompaniesIndexRouteImport.update({
-  id: '/companies/',
-  path: '/companies/',
-  getParentRoute: () => AdminRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminCompaniesRoute,
 } as any)
 const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
   id: '/',
@@ -1167,9 +1173,9 @@ const AdminCouponsAnalyticsRoute = AdminCouponsAnalyticsRouteImport.update({
   getParentRoute: () => AdminCouponsRoute,
 } as any)
 const AdminCompaniesIdRoute = AdminCompaniesIdRouteImport.update({
-  id: '/companies/$id',
-  path: '/companies/$id',
-  getParentRoute: () => AdminRoute,
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AdminCompaniesRoute,
 } as any)
 const AdminCommunityQaRoute = AdminCommunityQaRouteImport.update({
   id: '/qa',
@@ -1339,6 +1345,7 @@ export interface FileRoutesByFullPath {
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
   '/admin/community': typeof AdminCommunityRouteWithChildren
+  '/admin/companies': typeof AdminCompaniesRouteWithChildren
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/coupons': typeof AdminCouponsRouteWithChildren
@@ -1758,6 +1765,7 @@ export interface FileRoutesById {
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
   '/admin/community': typeof AdminCommunityRouteWithChildren
+  '/admin/companies': typeof AdminCompaniesRouteWithChildren
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/coupons': typeof AdminCouponsRouteWithChildren
@@ -1973,6 +1981,7 @@ export interface FileRouteTypes {
     | '/admin/category-colors'
     | '/admin/comments'
     | '/admin/community'
+    | '/admin/companies'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/coupons'
@@ -2391,6 +2400,7 @@ export interface FileRouteTypes {
     | '/admin/category-colors'
     | '/admin/comments'
     | '/admin/community'
+    | '/admin/companies'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/coupons'
@@ -3522,6 +3532,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminContactRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/companies': {
+      id: '/admin/companies'
+      path: '/companies'
+      fullPath: '/admin/companies'
+      preLoaderRoute: typeof AdminCompaniesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/community': {
       id: '/admin/community'
       path: '/community'
@@ -3629,10 +3646,10 @@ declare module '@tanstack/react-router' {
     }
     '/admin/companies/': {
       id: '/admin/companies/'
-      path: '/companies'
+      path: '/'
       fullPath: '/admin/companies/'
       preLoaderRoute: typeof AdminCompaniesIndexRouteImport
-      parentRoute: typeof AdminRoute
+      parentRoute: typeof AdminCompaniesRoute
     }
     '/admin/community/': {
       id: '/admin/community/'
@@ -3958,10 +3975,10 @@ declare module '@tanstack/react-router' {
     }
     '/admin/companies/$id': {
       id: '/admin/companies/$id'
-      path: '/companies/$id'
+      path: '/$id'
       fullPath: '/admin/companies/$id'
       preLoaderRoute: typeof AdminCompaniesIdRouteImport
-      parentRoute: typeof AdminRoute
+      parentRoute: typeof AdminCompaniesRoute
     }
     '/admin/community/qa': {
       id: '/admin/community/qa'
@@ -4172,6 +4189,20 @@ const AdminCommunityRouteWithChildren = AdminCommunityRoute._addFileChildren(
   AdminCommunityRouteChildren,
 )
 
+interface AdminCompaniesRouteChildren {
+  AdminCompaniesIdRoute: typeof AdminCompaniesIdRoute
+  AdminCompaniesIndexRoute: typeof AdminCompaniesIndexRoute
+}
+
+const AdminCompaniesRouteChildren: AdminCompaniesRouteChildren = {
+  AdminCompaniesIdRoute: AdminCompaniesIdRoute,
+  AdminCompaniesIndexRoute: AdminCompaniesIndexRoute,
+}
+
+const AdminCompaniesRouteWithChildren = AdminCompaniesRoute._addFileChildren(
+  AdminCompaniesRouteChildren,
+)
+
 interface AdminCouponsRouteChildren {
   AdminCouponsAnalyticsRoute: typeof AdminCouponsAnalyticsRoute
   AdminCouponsCampaignsRoute: typeof AdminCouponsCampaignsRoute
@@ -4363,6 +4394,7 @@ interface AdminRouteChildren {
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
   AdminCommentsRoute: typeof AdminCommentsRoute
   AdminCommunityRoute: typeof AdminCommunityRouteWithChildren
+  AdminCompaniesRoute: typeof AdminCompaniesRouteWithChildren
   AdminContactRoute: typeof AdminContactRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
   AdminCouponsRoute: typeof AdminCouponsRouteWithChildren
@@ -4414,9 +4446,7 @@ interface AdminRouteChildren {
   AdminWebStoriesRoute: typeof AdminWebStoriesRoute
   AdminWorkflowsRoute: typeof AdminWorkflowsRoute
   AdminIndexRoute: typeof AdminIndexRoute
-  AdminCompaniesIdRoute: typeof AdminCompaniesIdRoute
   AdminSuperMobileDrawerRoute: typeof AdminSuperMobileDrawerRoute
-  AdminCompaniesIndexRoute: typeof AdminCompaniesIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -4429,6 +4459,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
   AdminCommentsRoute: AdminCommentsRoute,
   AdminCommunityRoute: AdminCommunityRouteWithChildren,
+  AdminCompaniesRoute: AdminCompaniesRouteWithChildren,
   AdminContactRoute: AdminContactRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
   AdminCouponsRoute: AdminCouponsRouteWithChildren,
@@ -4480,9 +4511,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminWebStoriesRoute: AdminWebStoriesRoute,
   AdminWorkflowsRoute: AdminWorkflowsRoute,
   AdminIndexRoute: AdminIndexRoute,
-  AdminCompaniesIdRoute: AdminCompaniesIdRoute,
   AdminSuperMobileDrawerRoute: AdminSuperMobileDrawerRoute,
-  AdminCompaniesIndexRoute: AdminCompaniesIndexRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)

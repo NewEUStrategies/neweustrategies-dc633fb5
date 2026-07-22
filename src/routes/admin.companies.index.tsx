@@ -1,7 +1,7 @@
-// Admin: lista firm CRM (`crm_companies`) w stylu HubSpot z pełnym zestawem:
+// Admin: indeks listy firm CRM (`crm_companies`) w stylu HubSpot z pełnym zestawem:
 // zakładki zapisanych widoków (`saved_views`), menedżer kolumn, chip-filtry,
-// sortowanie kolumn, eksport CSV. Klik w wiersz otwiera drawer podsumowania;
-// klik w nazwę firmy przenosi do pełnego widoku `/admin/companies/:id`.
+// sortowanie kolumn i eksport CSV. Klik w wiersz przenosi do pełnego widoku
+// `/admin/companies/:id` renderowanego przez nadrzędny layout.
 // RLS scope'uje po tenancie (server functions używają `requireStaff`).
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
