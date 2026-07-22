@@ -300,7 +300,16 @@ function AdminShellInner({
         {
           to: "/admin/crm",
           icon: Users,
-          label: t("admin.nav.crm", { defaultValue: lang === "pl" ? "CRM" : "CRM" }),
+          label: t("admin.nav.crm", {
+            defaultValue: lang === "pl" ? "Kontakty CRM" : "CRM Contacts",
+          }),
+        },
+        {
+          to: "/admin/crm/funnel",
+          icon: Mail,
+          label: t("admin.nav.crmFunnel", {
+            defaultValue: lang === "pl" ? "Lejek marketingowy" : "Marketing funnel",
+          }),
         },
         {
           to: "/admin/companies",

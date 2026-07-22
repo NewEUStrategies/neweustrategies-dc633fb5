@@ -1,113 +1,74 @@
-
 ## Cel
 
-W `/admin/crm` (osoby/leady) i `/admin/companies` (firmy) dodać:
-1. **Zaznaczanie wierszy** (checkboxy + zaznacz wszystko + licznik zaznaczonych).
-2. **Edycję zbiorczą** – akcje na wielu rekordach naraz.
-3. **Edycję inline** pojedynczego wiersza bez wchodzenia w kartę (etap, właściciel, tagi).
-4. **Rozszerzone filtry** (dodatkowe kolumny + kombinacje) spójne z HubSpot‑style layoutem.
+Rozdzielić obecny CRM na dwie odrębne domeny:
 
-Wszystko z i18n (PL/EN), 6px rounding, kompaktowe kontrolki, poszanowanie `tenant_id` i RLS (super_admin cross‑tenant przez istniejący scope toggle).
+1. **Kontakty** — osoby powiązane z organizacją (zarejestrowani użytkownicy, subskrybenci płatni, uczestnicy wydarzeń, paneliści, eksperci, kontakty dodane ręcznie).
+2. **Lejek marketingowy / Subskrybenci newslettera** — baza subskrybentów (`newsletter_subscribers`) prezentowana w tym samym stylu co Kontakty, z oznaczeniem czy dana osoba jest już Kontaktem/zarejestrowanym użytkownikiem, czy jeszcze nie.
 
-## Zakres UI
+## Zakres zmian
 
-### Tabela leadów (`admin.crm.index.tsx`)
-- Nowa kolumna `checkbox` (shadcn `Checkbox`) na początku, header = „zaznacz wszystkie widoczne".
-- Sticky pasek akcji nad tabelą pojawiający się, gdy `selected.size > 0`:
-  - **Etap** (Select: new/contacted/qualified/proposal/won/lost/archived)
-  - **Właściciel** (Select z listy staffu tenanta + „usuń")
-  - **Tagi** (dodaj / usuń – input z popoverem)
-  - **Newsletter opt‑in** (subskrybuj/wypisz – tylko UI, mapuje na `marketing_consent`)
-  - **Eksport CSV zaznaczonych**
-  - **Usuń** (z Confirm dialog – tylko super_admin/admin)
-  - Przycisk „Wyczyść zaznaczenie".
-- **Inline edit** w kolumnie `Etap` – kliknięcie chipa `StageBadge` otwiera mały Popover ze Select; stopPropagation dla nawigacji do karty.
-- **Inline edit** w nowej kolumnie `Właściciel` (avatar staff + Select w Popoverze).
-- **Inline tagi** – chipy w kolumnie „Tagi" z „+", Popover z listą i input.
-
-### Tabela firm (`admin.companies.index.tsx`)
-- Analogiczny checkbox + pasek akcji: **Właściciel**, **Kraj**, **Status/etap** (jeśli w schemacie), **Tagi**, **Eksport CSV**, **Usuń**.
-- Inline edit właściciela i tagów w wierszu.
-
-### Filtry (oba widoki)
-- Rozszerzenie panelu filtrów o:
-  - Zakres dat `last_activity_at` (Od–Do) – `DatePickerField`
-  - Zakres dat `created_at`
-  - Właściciel (multi‑select)
-  - Tag(i) – multi‑select
-  - Score range slider (0–100) dla leadów
-  - Kraj (dla firm i leadów)
-  - Newsletter status (subscribed/unsubscribed/pending) – tylko leady
-- Persist w URL search params przez `zodValidator` + `fallback()` (spójne z resztą admin CRM); saved views już to obsługują – dołączamy nowe pola do `saved_views` schema.
-
-## Zakres backend (server functions)
-
-W `src/lib/crm.functions.ts` dodać:
-
-```ts
-export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
-  .inputValidator(z.object({
-    ids: z.array(z.string().uuid()).min(1).max(500),
-    patch: z.object({
-      stage: STAGE_ENUM.optional(),
-      owner_id: z.string().uuid().nullable().optional(),
-      add_tags: z.array(z.string().max(40)).max(20).optional(),
-      remove_tags: z.array(z.string().max(40)).max(20).optional(),
-      marketing_consent: z.boolean().optional(),
-    }),
-  }).parse)
-  .handler(async ({ data, context }) => { /* update WHERE id IN (...) AND tenant_id */ });
-
-export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
-  .inputValidator(...)
-  .handler(async ({ data, context }) => {
-    // wymaga has_role(admin) – dodatkowe sprawdzenie
-  });
-
-export const listStaffUsers = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
-  .handler(async ({ context }) => { /* profile z user_roles staff/admin per tenant */ });
+### Nawigacja (Sidebar admina)
+```text
+CRM
+├── Kontakty            → /admin/crm            (dotychczasowy widok, przemianowany)
+├── Firmy               → /admin/companies      (bez zmian)
+└── Lejek marketingowy  → /admin/crm/funnel     (NOWE — subskrybenci newslettera)
 ```
 
-Analogiczne dla firm w `src/lib/crm/companies.functions.ts`:
-- `bulkUpdateCrmCompanies`
-- `bulkDeleteCrmCompanies`
+### Kontakty (`/admin/crm`)
+- Etykiety UI już przemianowane na "Kontakty" (poprzedni turn).
+- Auto-populacja poszerzona: obecny `crm_backfill_all_leads` (profile) uzupełniamy o:
+  - płatnych subskrybentów (`user_subscriptions` aktywne),
+  - uczestników wydarzeń (`event_rsvps` → dopasowanie po email/user_id),
+  - panelistów/prelegentów (`event_speakers`, `podcast_episode_people`),
+  - ekspertów (`author_profiles` / `expert_expertise_areas`).
+- Dodajemy pole `source_type` (enum: `registered`, `paid_subscriber`, `event_participant`, `speaker`, `expert`, `manual`, `contact_form`) do `crm_leads`, żeby filtrować i pokazywać badge źródła. Trigger `profile_sync_crm_lead` aktualizuje `source_type` na podstawie relacji.
 
-Filtry: rozszerzyć `ListInput` w `listCrmLeads` o `owner_ids?`, `tags?`, `score_min?`, `score_max?`, `country?`, `date_from?`, `date_to?`, `created_from?`, `created_to?`. Filtruje przez PostgREST na widoku `crm_leads` (RLS scopes).
+### Lejek marketingowy (`/admin/crm/funnel`)
+- Nowa strona listowa w stylu `/admin/crm` (te same karty statystyk, filtry, bulk actions, sticky header).
+- Źródło danych: tabela `newsletter_subscribers` (już istnieje, 23 kolumny).
+- Kolumny widoku:
+  - Avatar (face-aware, jeśli email pasuje do `profiles.avatar_url`),
+  - Email + imię/nazwisko (jeśli znane),
+  - Status subskrypcji (confirmed / pending / unsubscribed),
+  - **Badge "Kontakt"** — jeśli email istnieje w `crm_leads` w tym samym tenant,
+  - **Badge "Zarejestrowany"** — jeśli email istnieje w `profiles`,
+  - Data zapisu, źródło (`source`), tagi.
+- Bulk actions: eksport CSV, unsubscribe, tag, "Konwertuj do Kontaktu" (tworzy wpis w `crm_leads` z `source_type=manual`).
+- Karta szczegółów (drawer + `/admin/crm/funnel/$id`): historia kampanii (`newsletter_campaign_recipients`, `newsletter_campaign_events`), zgody (`user_consents`), preferencje.
+- Filtry: status, źródło, tag, "tylko zarejestrowani", "tylko niezarejestrowani", "tylko Kontakty", zakres dat zapisu.
 
-**Wydajność query builderów** – reasign builder ze zmiennym select stringiem: użyć `.select(sel("*"))` z helperem `const sel = (s: string): string => s` i `.returns<LeadRow[]>()` żeby nie mnożyć typów supabase‑js.
+### Baza / migracje
+1. `ALTER TABLE crm_leads ADD COLUMN source_type text` + CHECK constraint na wartości enum.
+2. Backfill `source_type` na podstawie istniejących relacji.
+3. Rozszerzenie funkcji `crm_backfill_all_leads()` / triggerów, żeby importowała nowe źródła (subskrybenci płatni, event_rsvps, speakers, experts).
+4. Widok `crm_funnel_view` łączący `newsletter_subscribers` z `profiles` i `crm_leads` (flagi `is_registered`, `is_contact`, `contact_id`, `avatar_url`). Widok respektuje RLS przez `security_invoker`.
+5. Server fn `listFunnelSubscribers`, `getFunnelSubscriber`, `convertSubscriberToContact`, `bulkTagSubscribers`, `bulkUnsubscribe`.
 
-## Zakres schema (migracja)
+### Kod frontend
+- `src/routes/admin.crm.tsx` — layout CRM z zakładkami: Kontakty, Lejek (subskrybenci).
+- `src/routes/admin.crm.funnel.index.tsx` — lista (analogiczna struktura do `admin.crm.index.tsx`, ~90% kodu reużyte przez wspólne komponenty).
+- `src/routes/admin.crm.funnel.$id.tsx` — karta subskrybenta.
+- `src/components/admin/crm/SubscriberBadges.tsx` — badge "Zarejestrowany" / "Kontakt".
+- `src/lib/crm-funnel.functions.ts` — server functions.
+- i18n (PL/EN) w istniejących słownikach.
 
-Aktualne `crm_leads` mają wystarczające kolumny. Nowe:
-- Indeksy pomocnicze (jeśli brak): `crm_leads(owner_id)`, `crm_leads(tenant_id, last_activity_at DESC)`, GIN na `tags`.
-- Rozszerzenie schematu `saved_views.filter_schema` – bez zmiany DDL (JSONB).
+### Bezpieczeństwo / RLS
+- `newsletter_subscribers` ma już 3 polityki; dodajemy widok/funkcje z `SECURITY DEFINER` tylko dla adminów tenanta (`has_role(auth.uid(),'admin')` + `tenant_id = current_tenant()`).
+- Bulk operacje sprawdzają `tenant_id` po stronie serwera; brak `any`/`as any`.
 
-Uprawnienia bulk delete: policy update/delete już scoped przez tenant + staff. Sprawdzenie roli admin dla delete robimy w handlerze przez `has_role`.
+### Testy
+- Vitest: `crm-funnel.functions.test.ts` (badge flags, konwersja do kontaktu, filtry).
+- RLS smoke test w `supabase--read_query` po migracji.
 
-## Zakres realizacji (kroki)
+## Kolejność wdrożenia
+1. Migracja: `source_type`, widok `crm_funnel_view`, rozszerzony backfill.
+2. Server functions (`crm-funnel.functions.ts`).
+3. Layout CRM z zakładkami + strona lejka + karta subskrybenta.
+4. Rozbudowa auto-populacji Kontaktów (subskrybenci płatni, wydarzenia, eksperci).
+5. Testy + weryfikacja UI (Playwright screenshot listy lejka i karty).
 
-1. **Migracja** – indeksy na `crm_leads` i `crm_companies` (owner_id, tenant+activity, GIN(tags)).
-2. **Server fns** – `bulkUpdateCrmLeads`, `bulkDeleteCrmLeads`, `listStaffUsers` + analogiczne dla firm. Rozszerzenie `ListInput`.
-3. **UI leadów** – checkbox column, sticky action bar, inline edit stage/owner/tags, rozszerzone filtry, integracja z `saved_views`.
-4. **UI firm** – to samo.
-5. **i18n** – nowe klucze w `PL/EN` (już w plikach obu route’ów jako lokalne mapki L).
-6. **Testy** – Vitest jednostkowe dla `bulkUpdateCrmLeads` (add/remove tags, owner reset) + smoke test route’u (RTL) na renderowaniu paska akcji po zaznaczeniu.
-
-## Techniczne detale
-
-- Zaznaczenie: `useState<Set<string>>` + `useMemo` widocznych ID; „zaznacz wszystko" toggluje na aktualnej stronie.
-- Sticky bar: `sticky top-[56px] z-20 bg-background/95 backdrop-blur border rounded-md px-3 py-2 flex flex-wrap gap-2 items-center`, animacja `data-[state=open]`.
-- Inline popovery: shadcn `Popover` + `Command` (staff picker); stopPropagation na wszystkich klikach żeby nie odpalać nawigacji do karty.
-- Bulk mutate: `useMutation` → `queryClient.invalidateQueries(["crm-leads"])`, toast z liczbą zaktualizowanych rekordów.
-- Optymistyczna aktualizacja przy inline edit (setQueryData).
-- Autoryzacja delete: w handlerze `has_role(userId, 'admin')` przez `context.supabase.rpc(...)`; UI ukrywa przycisk gdy `useAuth().isAdmin === false`.
-- Brak `any`/`as any`; typy `LeadRow`/`CompanyRow` już istnieją.
-- Atomic Design: nowy `BulkActionBar` w `src/components/molecules/BulkActionBar.tsx` (reużywalny między CRM osób i firm).
-
-## Poza zakresem (osobne PR)
-
-- Zmiana modelu tagów na słownikowy (obecnie `text[]`).
-- Historia zmian bulk (audit log) – już logujemy update per rekord; bulk zostanie zaagregowany w kolejnym kroku, jeśli będzie potrzeba.
+## Poza zakresem (świadomie)
+- Zmiana etykiet w publicznej części strony ("Zapisz się do newslettera" itd.).
+- Segmentacja/automatyzacja kampanii — pozostawiona pod istniejący `newsletter_campaigns`.
+- Migracja historycznych leadów spoza tenanta zalogowanego użytkownika.
