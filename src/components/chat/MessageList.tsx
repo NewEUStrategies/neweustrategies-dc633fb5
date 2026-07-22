@@ -532,9 +532,27 @@ export function MessageList(props: MessageListProps) {
                       />
                       <div className="min-w-0 flex-1">{bubble}</div>
                     </div>
+                  ) : !mine ? (
+                    // Direct thread: peer avatar anchors the LAST bubble of
+                    // their group; earlier rows keep a spacer so the whole
+                    // group stays left-aligned (mirror of the mine branch).
+                    <div className="flex items-end gap-1.5">
+                      {groupEnd ? (
+                        <ChatAvatar
+                          name={peerName}
+                          avatarUrl={peerAvatarUrl}
+                          size="xs"
+                          className="mb-0.5"
+                        />
+                      ) : (
+                        <span className="w-5 shrink-0" aria-hidden />
+                      )}
+                      <div className="min-w-0 flex-1">{bubble}</div>
+                    </div>
                   ) : (
                     bubble
                   )}
+
                 </div>
               );
             })}
