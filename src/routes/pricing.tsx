@@ -225,6 +225,18 @@ function PricingPage() {
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-12 md:py-16 xl:max-w-[88rem] 2xl:max-w-[96rem]">
+      <div className="mb-6">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => router.history.back()}
+          className="h-9 gap-1.5 rounded-[6px] px-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          {t("common.back")}
+        </Button>
+      </div>
       <header className="text-center mb-8">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight">{t("pricing.title")}</h1>
         <p className="mt-4 text-lg text-muted-foreground">{t("pricing.subtitle")}</p>
