@@ -535,3 +535,45 @@ posty/strony.
   język na wywołanie (nie per odbiorca), a dalej korzysta z tej samej pętli
   porcji + dzierżawy + idempotencji per odbiorca co tryb HTML. Testy:
   `src/lib/newsletter/__tests__/emailDoc.test.ts`, `renderEmailHtml.test.ts`.
+
+## 9. Gift Articles - podarowane wpisy (wzór NYT "Share full article")
+
+Subskrybent z aktywną PŁATNĄ subskrypcją (lub warstwą `premium_content` -
+site licence, grant, miejsce w organizacji) generuje dla WPISU unikalny link
+podarunkowy; każdy odbiorca linku - także anonimowy - czyta pełną treść bez
+paywalla. Goście i konta bez płatnej subskrypcji widzą przycisk, ale zamiast
+generatora dostają CTA logowania / planów (lejek konwersji). Wpisy w trybie
+`password` są wykluczone (sekret autora, nie uprawnienie płatne).
+
+- **Model danych** (migracja `20260722120000_gift_articles.sql`):
+  `gift_article_settings` (singleton per tenant, publiczny odczyt; brak
+  wiersza = włączone, bez limitu i bez wygasania; `monthly_limit` 0 = bez
+  limitu, `link_ttl_days` 0 = bezterminowo) oraz `post_gift_links`
+  (tenant_id, post_id, created_by, unikalny `code` base64url z
+  `gen_random_bytes`, `period_month` do limitu, `redemption_count`).
+  Jeden ŻYWY link per (wpis, darczyńca) - częściowy indeks unikalny;
+  wygasłe linki są rotowane (stary `revoked_at`, nowy kod), historia
+  i licznik odsłon zostają.
+- **Ścieżka body = wyłącznie SECURITY DEFINER** (jak `get_entity_content`
+  i `consume_metered_view`): `create_gift_link` (auth + `can_gift_articles()`
+  + published/tenant/limit; idempotentne per wpis/darczyńca, advisory lock
+  na wyścig), `redeem_gift_link(_post_id,_code)` (kod związany z TYM wpisem;
+  `valid=false` bez body dla kodu obcego/wygasłego/cofniętego; odsłona
+  darczyńcy nie bije licznika), `gift_article_state` (czysty odczyt dla
+  popovera). RLS: darczyńca czyta własne linki, staff tenantu wszystkie;
+  zapisy tylko przez funkcje.
+- **Klient**: `src/lib/gifting/model.ts` (czysta domena: `buildGiftUrl`,
+  `parseGiftCode`, macierz faz `resolveGiftPhase`, mapowanie błędów RPC) +
+  `src/lib/gifting/hooks.ts` (react-query; realizacja kodu startuje PO
+  hydracji zwykłym `useQuery`, więc crawlery nie zawyżają statystyk).
+  Parametr URL: `?gift=<code>`.
+- **UI**: `src/components/gifting/GiftArticleButton.tsx` (popover z Copy
+  Link + kanałami zgodnymi z panelem czytania: mail/facebook/linkedin/
+  whatsapp/telegram/x/reddit) osadzony w `QuickViewInfoBar` przez generyczny
+  slot `trailing` (lub samodzielny wiersz, gdy pasek wyłączony);
+  `GiftBanner` u odbiorcy ("artykuł podarowany" / kod nieważny) renderowany
+  tylko, gdy to KOD odblokował treść (body sprzed prezentu decyduje).
+  W `$.tsx` body podarunkowe wpina się w ten sam łańcuch `pickBody` co
+  unlock/metering. i18n: `src/lib/i18n-gifting.ts` (PL/EN, `en: typeof pl`
+  wymusza parytet kluczy). Testy: `src/lib/gifting/__tests__/model.test.ts`,
+  `src/components/gifting/__tests__/*`.

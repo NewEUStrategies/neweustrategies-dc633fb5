@@ -1,11 +1,10 @@
 import { Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { ReactNode } from "react";
 import { formatDate } from "@/lib/i18n/format";
 
 type Category =
-  | { slug: string; name_pl?: string | null; name_en?: string | null }
-  | null
-  | undefined;
+  { slug: string; name_pl?: string | null; name_en?: string | null } | null | undefined;
 
 interface Props {
   lang: "pl" | "en";
@@ -13,6 +12,8 @@ interface Props {
   publishedAt?: string | null;
   updatedAt?: string | null;
   primaryCategory?: Category;
+  /** Akcje wyrownane do prawej (np. przycisk "Udostepnij pelny artykul"). */
+  trailing?: ReactNode;
 }
 
 /**
@@ -26,6 +27,7 @@ export function QuickViewInfoBar({
   publishedAt,
   updatedAt,
   primaryCategory,
+  trailing,
 }: Props) {
   const { t } = useTranslation();
   const catLabel = primaryCategory
@@ -40,7 +42,7 @@ export function QuickViewInfoBar({
     ? formatDate(displayDate, lang, { year: "numeric", month: "short", day: "numeric" })
     : null;
 
-  if (!catLabel && !readMinutes && !dateText) return null;
+  if (!catLabel && !readMinutes && !dateText && !trailing) return null;
 
   return (
     <div
@@ -69,6 +71,7 @@ export function QuickViewInfoBar({
           <time dateTime={displayDate ?? undefined}>{dateText}</time>
         </span>
       )}
+      {trailing && <span className="ml-auto inline-flex items-center">{trailing}</span>}
     </div>
   );
 }
