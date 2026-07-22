@@ -5626,3 +5626,24 @@ textarea.input {
     color: #555;
   }
 }
+
+/* Logo cloud (marquee) - płynne przewijanie logo klientów/partnerów.
+   Track duplikuje treść dwukrotnie, animacja przesuwa o dokładnie -50%,
+   więc pętla jest bezszwowa niezależnie od liczby elementów. Prędkość
+   sterowana zmienną --marquee-duration; pauza na hover przez klasę. */
+@keyframes lc-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@utility lc-track {
+  display: flex;
+  width: max-content;
+  animation: lc-marquee var(--marquee-duration, 40s) linear infinite;
+  will-change: transform;
+}
+@utility lc-pause-hover {
+  &:hover .lc-track { animation-play-state: paused; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lc-track { animation: none; transform: none; }
+}

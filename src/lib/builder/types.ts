@@ -399,6 +399,7 @@ export type WidgetType =
   | "accordion"
   | "tabs"
   | "timeline"
+  | "logo-cloud"
   | "testimonial"
   | "team-member"
   | "pricing"

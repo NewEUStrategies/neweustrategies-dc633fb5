@@ -54,6 +54,7 @@ import {
   FlaskConical,
   Layers,
   Target as TargetIcon,
+  
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -902,6 +903,27 @@ export const WIDGETS: WidgetDef[] = [
           actorInitials: "",
           actorHref: "",
         },
+      ] as unknown as Json,
+    }),
+  },
+  {
+    type: "logo-cloud",
+    label: "Karuzela logo (marquee)",
+    category: "blocks",
+    icon: GalleryHorizontal,
+    defaults: () => ({
+      heading_pl: "",
+      heading_en: "",
+      speedSeconds: 40,
+      pauseOnHover: true,
+      fadeEdges: true,
+      grayscale: true,
+      logos: [
+        { label: "Brand 1", src: "", href: "", alt: "" },
+        { label: "Brand 2", src: "", href: "", alt: "" },
+        { label: "Brand 3", src: "", href: "", alt: "" },
+        { label: "Brand 4", src: "", href: "", alt: "" },
+        { label: "Brand 5", src: "", href: "", alt: "" },
       ] as unknown as Json,
     }),
   },
