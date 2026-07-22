@@ -104,7 +104,7 @@ export const listGiftLinksAdmin = createServerFn({ method: "POST" })
       _limit: data.limit,
       _offset: data.offset,
       _status: data.status,
-      _post_id: data.post_id ?? null,
+      _post_id: data.post_id ?? undefined,
     });
     if (error) throw new Error(error.message);
     const list = (rows ?? []) as Array<{ total_count: number }>;
