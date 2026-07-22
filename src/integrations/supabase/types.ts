@@ -493,6 +493,13 @@ export type Database = {
             foreignKeyName: "author_profiles_counterpart_user_id_fkey"
             columns: ["counterpart_user_id"]
             isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "author_profiles_counterpart_user_id_fkey"
+            columns: ["counterpart_user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -760,6 +767,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "crm_companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupons_assigned_lead_id_fkey"
+            columns: ["assigned_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "b2b_coupons_assigned_lead_id_fkey"
@@ -2038,6 +2052,13 @@ export type Database = {
             foreignKeyName: "crm_lead_notes_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "crm_lead_notes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
             referencedRelation: "crm_leads"
             referencedColumns: ["id"]
           },
@@ -2076,6 +2097,7 @@ export type Database = {
           score_breakdown: Json
           score_updated_at: string | null
           source_count: number
+          source_type: string
           stage: Database["public"]["Enums"]["crm_stage"]
           tags: string[]
           tenant_id: string
@@ -2106,6 +2128,7 @@ export type Database = {
           score_breakdown?: Json
           score_updated_at?: string | null
           source_count?: number
+          source_type?: string
           stage?: Database["public"]["Enums"]["crm_stage"]
           tags?: string[]
           tenant_id?: string
@@ -2136,6 +2159,7 @@ export type Database = {
           score_breakdown?: Json
           score_updated_at?: string | null
           source_count?: number
+          source_type?: string
           stage?: Database["public"]["Enums"]["crm_stage"]
           tags?: string[]
           tenant_id?: string
@@ -2245,6 +2269,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "crm_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["contact_id"]
+          },
           {
             foreignKeyName: "crm_tasks_lead_id_fkey"
             columns: ["lead_id"]
@@ -4498,6 +4529,13 @@ export type Database = {
             foreignKeyName: "newsletter_campaign_events_subscriber_id_fkey"
             columns: ["subscriber_id"]
             isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_events_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
             referencedRelation: "newsletter_subscribers"
             referencedColumns: ["id"]
           },
@@ -4553,6 +4591,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_recipients_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
             referencedColumns: ["id"]
           },
           {
@@ -5565,6 +5610,13 @@ export type Database = {
             foreignKeyName: "podcast_episode_people_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "podcast_episode_people_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -5628,6 +5680,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "podcast_settings_updated_by_fkey"
@@ -5805,6 +5864,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "podcasts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "podcasts_author_id_fkey"
             columns: ["author_id"]
@@ -9519,6 +9585,13 @@ export type Database = {
             foreignKeyName: "author_profiles_counterpart_user_id_fkey"
             columns: ["counterpart_user_id"]
             isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "author_profiles_counterpart_user_id_fkey"
+            columns: ["counterpart_user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -9590,6 +9663,36 @@ export type Database = {
           teaser_pl?: string | null
           tenant_id?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      crm_funnel_view: {
+        Row: {
+          avatar_url: string | null
+          confirmed_at: string | null
+          consents: Json | null
+          contact_id: string | null
+          contact_score: number | null
+          contact_stage: Database["public"]["Enums"]["crm_stage"] | null
+          created_at: string | null
+          display_name: string | null
+          email: string | null
+          email_norm: string | null
+          first_name: string | null
+          id: string | null
+          is_contact: boolean | null
+          is_registered: boolean | null
+          language: string | null
+          last_name: string | null
+          profile_id: string | null
+          source: string | null
+          source_form_id: string | null
+          source_form_name: string | null
+          status: string | null
+          tenant_id: string | null
+          unsubscribed_at: string | null
+          updated_at: string | null
+          user_id: string | null
         }
         Relationships: []
       }
