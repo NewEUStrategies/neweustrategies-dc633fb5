@@ -16,7 +16,7 @@ import {
   upsertSavedView,
   deleteSavedView,
 } from "@/lib/crm-saved-views.functions";
-import { CompanyDetailsDrawer } from "@/components/admin/crm/CompanyDetailsDrawer";
+
 import { CompanyViewTabs, type SavedViewRow } from "@/components/admin/crm/CompanyViewTabs";
 import { CompanyColumnManager } from "@/components/admin/crm/CompanyColumnManager";
 import { CompanyFilterChips } from "@/components/admin/crm/CompanyFilterChips";
@@ -160,19 +160,10 @@ function AdminCompaniesPage() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language?.startsWith("en") ? "en" : "pl";
   const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const { company: drawerId, view: urlView } = Route.useSearch();
+  const { view: urlView } = Route.useSearch();
   const navigate = Route.useNavigate();
   const qc = useQueryClient();
 
-  const setDrawerId = (id: string | null) => {
-    void navigate({
-      search: (prev: { company?: string; view?: string }) => ({
-        ...prev,
-        company: id ?? undefined,
-      }),
-      replace: false,
-    });
-  };
 
   const listFn = useServerFn(listCrmCompanies);
   const listSavedFn = useServerFn(listSavedViews);
@@ -551,7 +542,9 @@ function AdminCompaniesPage() {
                       key={c.id}
                       className="group cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/40 data-[selected=true]:bg-primary/5"
                       data-selected={checked || undefined}
-                      onClick={() => setDrawerId(c.id)}
+                      onClick={() =>
+                        void navigate({ to: "/admin/companies/$id", params: { id: c.id } })
+                      }
                     >
                       <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
@@ -601,17 +594,10 @@ function AdminCompaniesPage() {
           </table>
         </div>
       </div>
-
-      <CompanyDetailsDrawer
-        companyId={drawerId ?? null}
-        open={Boolean(drawerId)}
-        onOpenChange={(v) => {
-          if (!v) setDrawerId(null);
-        }}
-      />
     </div>
   );
 }
+
 
 function Cell({
   row,
