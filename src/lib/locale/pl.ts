@@ -8,6 +8,7 @@ export const pl = {
     confirm: "Potwierdź",
     save: "Zapisz",
     close: "Zamknij",
+    back: "Wróć",
     menu: "Menu",
     search: "Szukaj",
     openMenu: "Otwórz menu",

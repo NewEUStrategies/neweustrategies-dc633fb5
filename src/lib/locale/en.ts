@@ -8,6 +8,7 @@ export const en = {
     confirm: "Confirm",
     save: "Save",
     close: "Close",
+    back: "Back",
     menu: "Menu",
     search: "Search",
     openMenu: "Open menu",
