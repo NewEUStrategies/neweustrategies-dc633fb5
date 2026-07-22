@@ -2,6 +2,7 @@
 export { AccordionEditor } from "./AccordionEditor";
 export { TabsEditor } from "./TabsEditor";
 export { TimelineEditor } from "./TimelineEditor";
+export { LogoCloudEditor } from "./LogoCloudEditor";
 export { PricingEditor } from "./PricingEditor";
 export { RatedListEditor } from "./RatedListEditor";
 export { ImageEditor } from "./ImageEditor";
