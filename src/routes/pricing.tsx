@@ -374,7 +374,10 @@ function PricingPage() {
             </section>
           )}
 
+          <PricingComparisonMatrix tiers={cardTiers} lang={lang} />
+
           <ComparisonTable tiers={cardTiers} lang={lang} />
+
 
           <PricingFaq
             key={`faq-${activeKey ?? "all"}`}
