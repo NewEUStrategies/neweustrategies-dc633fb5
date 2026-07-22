@@ -227,9 +227,9 @@ export function TierCard({
       className={cn(
         "relative flex flex-col rounded-[6px] transition-shadow",
         tier.highlight
-          ? "border-primary ring-2 ring-primary/40 shadow-[0_10px_40px_-12px_color-mix(in_oklab,var(--primary)_35%,transparent)]"
+          ? "border-brand ring-2 ring-brand/40 shadow-[0_10px_40px_-12px_color-mix(in_oklab,var(--brand)_35%,transparent)]"
           : "border-border/60",
-        isCurrentTier && !tier.highlight && "border-primary bg-primary/5",
+        isCurrentTier && !tier.highlight && "border-brand bg-brand/5",
       )}
     >
       <CardHeader className="pb-3">
@@ -237,13 +237,13 @@ export function TierCard({
           <h3
             className={cn(
               "text-lg font-semibold tracking-tight",
-              tier.highlight ? "text-primary" : "text-foreground",
+              tier.highlight ? "text-brand" : "text-foreground",
             )}
           >
             {tierName(tier, lang)}
           </h3>
           {tier.highlight ? (
-            <span className="inline-flex h-5 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 px-2 text-[10px] font-semibold uppercase tracking-wide leading-none text-primary">
+            <span className="inline-flex h-5 shrink-0 items-center justify-center rounded-[6px] bg-brand/10 px-2 text-[10px] font-semibold uppercase tracking-wide leading-none text-brand">
               {badge || t("pricing.popular")}
             </span>
           ) : isCurrentTier ? (
