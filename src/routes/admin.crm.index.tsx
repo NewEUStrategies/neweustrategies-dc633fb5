@@ -325,7 +325,7 @@ const EN = {
   sortActivity: "Sort: activity",
   sortScore: "Sort: lead score",
   bandAll: "All bands",
-  empty: "No leads for the selected filters.",
+  empty: "No contacts for the selected filters.",
   stage: {
     new: "New",
     contacted: "Contacted",
