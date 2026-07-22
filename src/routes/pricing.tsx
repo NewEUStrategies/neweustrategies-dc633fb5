@@ -249,7 +249,7 @@ function PricingPage() {
           <AudienceSwitcher
             audiences={audiences}
             value={activeKey}
-            onChange={setAudienceKey}
+            onChange={setAudience}
             lang={lang}
             label={t("pricing.segmentsAria")}
           />
