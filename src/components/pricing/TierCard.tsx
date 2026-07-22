@@ -231,7 +231,17 @@ function TierCardCta({
     if (tier.contact_url) {
       return (
         <Button asChild className={ctaClass} variant={variant}>
-          <a href={tier.contact_url}>
+          <a
+            href={tier.contact_url}
+            onClick={() =>
+              trackCta("pricing_contact_click", {
+                tier_key: tier.key,
+                tier_id: tier.id,
+                interval,
+                target: "external",
+              })
+            }
+          >
             <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("pricing.contactCta")}
           </a>
@@ -242,7 +252,15 @@ function TierCardCta({
       <Button
         className={ctaClass}
         variant={variant}
-        onClick={() => onContact(tier)}
+        onClick={() => {
+          trackCta("pricing_contact_click", {
+            tier_key: tier.key,
+            tier_id: tier.id,
+            interval,
+            target: "dialog",
+          });
+          onContact(tier);
+        }}
       >
         <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
         {t("pricing.contactCta")}
@@ -261,12 +279,26 @@ function TierCardCta({
     }
     return (
       <Button asChild className={ctaClass} variant={variant}>
-        <Link to="/checkout/$planId" params={{ planId: plan.id }}>
+        <Link
+          to="/checkout/$planId"
+          params={{ planId: plan.id }}
+          onClick={() =>
+            trackCta("pricing_checkout_click", {
+              tier_key: tier.key,
+              tier_id: tier.id,
+              plan_id: plan.id,
+              interval,
+              amount_cents: plan.amount_cents,
+              currency: plan.currency,
+            })
+          }
+        >
           {t("pricing.choose")}
         </Link>
       </Button>
     );
   }
+
 
   // Warstwa bez planu w sprzedaży samoobsługowej.
   if (tier.key === "supporter") {
