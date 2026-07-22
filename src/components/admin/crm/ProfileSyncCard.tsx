@@ -97,8 +97,18 @@ export function ProfileSyncCard({ leadId, lang }: { leadId: string; lang: "pl" |
 
   if (q.isLoading) {
     return (
-      <div className="p-3 text-[11px] text-muted-foreground">
+      <div className="text-[11px] text-muted-foreground">
         {t("Wczytywanie profilu…", "Loading profile…")}
+      </div>
+    );
+  }
+  if (!data || data.matched === false) {
+    return (
+      <div className="text-[11px] text-muted-foreground">
+        {t(
+          "Brak dopasowanego profilu w systemie (po e-mailu).",
+          "No matching in-system profile (by email).",
+        )}
       </div>
     );
   }
