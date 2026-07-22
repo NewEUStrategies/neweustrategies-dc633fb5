@@ -45,7 +45,7 @@ type Cv = {
   version: number;
   uploaded_at: string;
 };
-type Award = { id: string; title: string; issuer: string | null; issued_on: string | null };
+type AwardRow = { id: string; title: string; issuer: string | null; issued_on: string | null };
 type Education = {
   id: string;
   school: string;
@@ -77,7 +77,7 @@ type Sync =
       skills: Skill[];
       personality: Big5 | null;
       cv: Cv | null;
-      awards: Award[];
+      awards: AwardRow[];
       education: Education[];
     };
 
