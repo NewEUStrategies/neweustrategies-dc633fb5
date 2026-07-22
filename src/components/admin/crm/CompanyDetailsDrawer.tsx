@@ -1284,11 +1284,11 @@ function AddContactDialog({
           </Button>
           <Button
             size="sm"
-            onClick={() => create.mutate()}
+            onClick={submit}
             disabled={!canSubmit}
             className="gap-1.5"
           >
-            <UserPlus className="h-3 w-3" aria-hidden />
+            <UserPlus className={`h-3 w-3 ${create.isPending ? "animate-pulse" : ""}`} aria-hidden />
             {create.isPending ? t("Zapis…", "Saving…") : t("Dodaj kontakt", "Add contact")}
           </Button>
         </DialogFooter>
