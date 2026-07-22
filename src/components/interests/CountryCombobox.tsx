@@ -160,10 +160,27 @@ export function CountryCombobox({
   const activeId = open && filtered[highlight] ? `${listId}-opt-${highlight}` : undefined;
 
   const inputBase =
-    "h-10 px-3 rounded border border-border bg-background font-sans leading-none w-full";
+    "h-10 pl-9 pr-3 rounded border border-border bg-background font-sans leading-none w-full";
+
+  const codeFor = (name: string): string | undefined => {
+    const c = countries.getAlpha2Code(name, lang) || countries.getAlpha2Code(name, "en");
+    return c ? c.toLowerCase() : undefined;
+  };
+  const selectedCode = codeFor(value.trim());
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
+      {selectedCode ? (
+        <img
+          src={`https://flagcdn.com/w40/${selectedCode}.png`}
+          srcSet={`https://flagcdn.com/w80/${selectedCode}.png 2x`}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-4 w-5 object-cover rounded-[6px] border border-border/60"
+          loading="lazy"
+          decoding="async"
+        />
+      ) : null}
       <input
         ref={inputRef}
         type="text"
@@ -191,7 +208,7 @@ export function CountryCombobox({
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        className={inputBase}
+        className={cn(inputBase, !selectedCode && "pl-3")}
         style={style}
         data-edit-target="placeholderSize"
       />
@@ -208,6 +225,7 @@ export function CountryCombobox({
           >
             {filtered.map((countryName, i) => {
               const active = i === highlight;
+              const code = codeFor(countryName);
               return (
                 <li
                   key={countryName}
@@ -220,11 +238,24 @@ export function CountryCombobox({
                   }}
                   onMouseEnter={() => setHighlight(i)}
                   className={cn(
-                    "px-3 py-1.5 cursor-pointer",
+                    "px-3 py-1.5 cursor-pointer flex items-center gap-2",
                     active ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
                   )}
                 >
-                  {countryName}
+                  {code ? (
+                    <img
+                      src={`https://flagcdn.com/w40/${code}.png`}
+                      srcSet={`https://flagcdn.com/w80/${code}.png 2x`}
+                      alt=""
+                      aria-hidden
+                      className="h-4 w-5 object-cover rounded-[6px] border border-border/60 shrink-0"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <span className="h-4 w-5 rounded-[6px] bg-muted shrink-0" aria-hidden />
+                  )}
+                  <span className="truncate">{countryName}</span>
                 </li>
               );
             })}
