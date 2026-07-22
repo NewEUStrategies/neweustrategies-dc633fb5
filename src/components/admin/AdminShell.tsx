@@ -53,6 +53,7 @@ import {
   Briefcase,
   ShieldCheck,
   Workflow,
+  Gift,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -240,6 +241,13 @@ function AdminShellInner({
           }),
         },
         { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
+        {
+          to: "/admin/gifting",
+          icon: Gift,
+          label: t("admin.nav.gifting", {
+            defaultValue: lang === "pl" ? "Podaruj artykuł" : "Gift articles",
+          }),
+        },
         {
           to: "/admin/coupons",
           icon: Megaphone,

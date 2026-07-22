@@ -126,6 +126,7 @@ import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
 import { Route as AdminGlossaryRouteImport } from './routes/admin.glossary'
+import { Route as AdminGiftingRouteImport } from './routes/admin.gifting'
 import { Route as AdminExpertLayoutsRouteImport } from './routes/admin.expert-layouts'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
 import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
@@ -809,6 +810,11 @@ const AdminGlossaryRoute = AdminGlossaryRouteImport.update({
   path: '/glossary',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminGiftingRoute = AdminGiftingRouteImport.update({
+  id: '/gifting',
+  path: '/gifting',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminExpertLayoutsRoute = AdminExpertLayoutsRouteImport.update({
   id: '/expert-layouts',
   path: '/expert-layouts',
@@ -1367,6 +1373,7 @@ export interface FileRoutesByFullPath {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
+  '/admin/gifting': typeof AdminGiftingRoute
   '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
@@ -1577,6 +1584,7 @@ export interface FileRoutesByTo {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
+  '/admin/gifting': typeof AdminGiftingRoute
   '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
@@ -1790,6 +1798,7 @@ export interface FileRoutesById {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
+  '/admin/gifting': typeof AdminGiftingRoute
   '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
@@ -2008,6 +2017,7 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
+    | '/admin/gifting'
     | '/admin/glossary'
     | '/admin/greetings'
     | '/admin/icons'
@@ -2218,6 +2228,7 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
+    | '/admin/gifting'
     | '/admin/glossary'
     | '/admin/greetings'
     | '/admin/icons'
@@ -2430,6 +2441,7 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
+    | '/admin/gifting'
     | '/admin/glossary'
     | '/admin/greetings'
     | '/admin/icons'
@@ -3491,6 +3503,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGlossaryRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/gifting': {
+      id: '/admin/gifting'
+      path: '/gifting'
+      fullPath: '/admin/gifting'
+      preLoaderRoute: typeof AdminGiftingRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/expert-layouts': {
       id: '/admin/expert-layouts'
       path: '/expert-layouts'
@@ -4444,6 +4463,7 @@ interface AdminRouteChildren {
   AdminDonationsRoute: typeof AdminDonationsRoute
   AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminExpertLayoutsRoute: typeof AdminExpertLayoutsRoute
+  AdminGiftingRoute: typeof AdminGiftingRoute
   AdminGlossaryRoute: typeof AdminGlossaryRoute
   AdminGreetingsRoute: typeof AdminGreetingsRoute
   AdminIconsRoute: typeof AdminIconsRoute
@@ -4509,6 +4529,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminDonationsRoute: AdminDonationsRoute,
   AdminExperimentsRoute: AdminExperimentsRoute,
   AdminExpertLayoutsRoute: AdminExpertLayoutsRoute,
+  AdminGiftingRoute: AdminGiftingRoute,
   AdminGlossaryRoute: AdminGlossaryRoute,
   AdminGreetingsRoute: AdminGreetingsRoute,
   AdminIconsRoute: AdminIconsRoute,

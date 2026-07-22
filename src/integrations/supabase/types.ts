@@ -3213,6 +3213,64 @@ export type Database = {
           },
         ]
       }
+      gift_events: {
+        Row: {
+          actor_id: string | null
+          code: string | null
+          created_at: string
+          event_type: string
+          id: string
+          link_id: string | null
+          metadata: Json
+          post_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          code?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          link_id?: string | null
+          metadata?: Json
+          post_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          code?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          link_id?: string | null
+          metadata?: Json
+          post_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_events_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "post_gift_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_events_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       glossary_terms: {
         Row: {
           created_at: string
@@ -10593,6 +10651,19 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_gift_stats_admin: {
+        Args: never
+        Returns: {
+          active_links: number
+          created_this_month: number
+          expired_links: number
+          redeemed_this_month: number
+          revoked_links: number
+          total_created: number
+          total_redeemed: number
+          unique_gifters: number
+        }[]
+      }
       get_linked_items: {
         Args: { p_item_id: string; p_item_type: string }
         Returns: {
@@ -10962,6 +11033,52 @@ export type Database = {
       linked_item_label: {
         Args: { p_id: string; p_type: string }
         Returns: string
+      }
+      list_gift_events_admin: {
+        Args: {
+          _event_type?: string
+          _limit?: number
+          _link_id?: string
+          _offset?: number
+        }
+        Returns: {
+          actor_email: string
+          actor_id: string
+          actor_name: string
+          code: string
+          created_at: string
+          event_type: string
+          id: string
+          link_id: string
+          metadata: Json
+          post_id: string
+          post_title: string
+          total_count: number
+        }[]
+      }
+      list_gift_links_admin: {
+        Args: {
+          _limit?: number
+          _offset?: number
+          _post_id?: string
+          _status?: string
+        }
+        Returns: {
+          code: string
+          created_at: string
+          created_by: string
+          creator_email: string
+          creator_name: string
+          expires_at: string
+          id: string
+          last_redeemed_at: string
+          post_id: string
+          post_slug: string
+          post_title: string
+          redemption_count: number
+          revoked_at: string
+          total_count: number
+        }[]
       }
       list_qa_questions: {
         Args: { p_session_id: string }
@@ -11415,6 +11532,7 @@ export type Database = {
         Args: { p_action: string; p_id: string }
         Returns: undefined
       }
+      revoke_gift_link_admin: { Args: { _link_id: string }; Returns: boolean }
       rsvp_event: {
         Args: { p_event_id: string; p_status: string }
         Returns: Json
