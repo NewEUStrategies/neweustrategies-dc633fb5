@@ -88,7 +88,7 @@ interface CrmSearch {
   task?: string;
 }
 
-export const Route = createFileRoute("/admin/crm")({
+export const Route = createFileRoute("/admin/crm/")({
   validateSearch: (search: Record<string, unknown>): CrmSearch => ({
     lead: typeof search.lead === "string" && search.lead.length > 0 ? search.lead : undefined,
     task: typeof search.task === "string" && search.task.length > 0 ? search.task : undefined,
