@@ -684,6 +684,17 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                 <td className="p-2 hidden md:table-cell text-[11px] text-muted-foreground">
                   {new Date(l.last_activity_at).toLocaleString()}
                 </td>
+                <td className="p-2 text-right" onClick={(e) => e.stopPropagation()}>
+                  <Link
+                    to="/admin/crm/$id"
+                    params={{ id: l.id }}
+                    className="inline-grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label={lang === "pl" ? "Pełny widok" : "Full view"}
+                    title={lang === "pl" ? "Pełny widok" : "Full view"}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>
