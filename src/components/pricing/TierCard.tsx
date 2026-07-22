@@ -225,35 +225,46 @@ export function TierCard({
   return (
     <Card
       className={cn(
-        "relative flex flex-col transition-shadow",
-        tier.highlight && "border-primary shadow-lg ring-2 ring-primary/20",
+        "relative flex flex-col rounded-[6px] transition-shadow",
+        tier.highlight
+          ? "border-primary ring-2 ring-primary/40 shadow-[0_10px_40px_-12px_color-mix(in_oklab,var(--primary)_35%,transparent)]"
+          : "border-border/60",
         isCurrentTier && !tier.highlight && "border-primary bg-primary/5",
       )}
     >
-      {(badge || tier.highlight) && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-          <Badge variant="default">{badge || t("pricing.popular")}</Badge>
-        </div>
-      )}
-      <CardHeader>
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-xl font-bold">{tierName(tier, lang)}</h3>
-          {isCurrentTier && (
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3
+            className={cn(
+              "text-lg font-semibold tracking-tight",
+              tier.highlight ? "text-primary" : "text-foreground",
+            )}
+          >
+            {tierName(tier, lang)}
+          </h3>
+          {tier.highlight ? (
+            <span className="inline-flex h-5 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 px-2 text-[10px] font-semibold uppercase tracking-wide leading-none text-primary">
+              {badge || t("pricing.popular")}
+            </span>
+          ) : isCurrentTier ? (
             <span className="inline-flex h-5 shrink-0 items-center justify-center rounded-[6px] bg-primary px-2 text-[10px] font-medium leading-none text-primary-foreground">
               {t("pricing.tiers.current")}
             </span>
-          )}
+          ) : badge ? (
+            <span className="inline-flex h-5 shrink-0 items-center justify-center rounded-[6px] bg-muted px-2 text-[10px] font-medium uppercase tracking-wide leading-none text-muted-foreground">
+              {badge}
+            </span>
+          ) : null}
         </div>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+        {description && (
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
+        )}
         <PriceBlock tier={tier} plans={plans} interval={interval} lang={lang} />
         {plan && plan.trial_days > 0 && (
-          <p className="text-xs text-primary">{t("pricing.trial", { days: plan.trial_days })}</p>
+          <p className="mt-1 text-xs text-primary">{t("pricing.trial", { days: plan.trial_days })}</p>
         )}
       </CardHeader>
-      <CardContent className="flex-1">
-        <TierBenefitList benefits={benefits} lang={lang} />
-      </CardContent>
-      <CardFooter>
+      <CardFooter className="pb-4 pt-0">
         <TierCardCta
           tier={tier}
           plans={plans}
@@ -264,6 +275,9 @@ export function TierCard({
           onContact={onContact}
         />
       </CardFooter>
+      <CardContent className="flex-1 border-t border-border/50 pt-5">
+        <TierBenefitList benefits={benefits} lang={lang} />
+      </CardContent>
     </Card>
   );
 }
