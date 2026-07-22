@@ -205,7 +205,7 @@ function SupportPage() {
           <Button className="w-full" size="lg" disabled={pending || !amountValid} onClick={submit}>
             {pending
               ? t("support.submitting")
-              : `${t("support.submit")} — ${amountValid ? formatZl(effectiveCents, lang) : "…"}`}
+              : `${t("support.submit")} - ${amountValid ? formatZl(effectiveCents, lang) : "…"}`}
           </Button>
           <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
