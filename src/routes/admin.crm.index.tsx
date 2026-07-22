@@ -216,7 +216,7 @@ const PL = {
   sortActivity: "Sortuj: aktywność",
   sortScore: "Sortuj: lead score",
   bandAll: "Wszystkie pasma",
-  empty: "Brak leadów dla wybranych filtrów.",
+  empty: "Brak kontaktów dla wybranych filtrów.",
   stage: {
     new: "Nowy",
     contacted: "Skontaktowano",
