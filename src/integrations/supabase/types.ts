@@ -11344,16 +11344,6 @@ export type Database = {
       }
       record_profile_view: { Args: { p_profile: string }; Returns: undefined }
       record_redirect_hit: { Args: { _id: string }; Returns: undefined }
-      redeem_gift_link: {
-        Args: { _code: string; _post_id: string }
-        Returns: {
-          blocks_data: Json
-          builder_data: Json
-          content_en: string
-          content_pl: string
-          valid: boolean
-        }[]
-      }
       record_seo_404: {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
@@ -11377,6 +11367,16 @@ export type Database = {
           _original_cents: number
         }
         Returns: boolean
+      }
+      redeem_gift_link: {
+        Args: { _code: string; _post_id: string }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          content_en: string
+          content_pl: string
+          valid: boolean
+        }[]
       }
       related_posts_signals: {
         Args: { _since_days?: number; _tenant: string }
