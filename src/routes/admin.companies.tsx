@@ -160,19 +160,10 @@ function AdminCompaniesPage() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language?.startsWith("en") ? "en" : "pl";
   const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const { company: drawerId, view: urlView } = Route.useSearch();
+  const { view: urlView } = Route.useSearch();
   const navigate = Route.useNavigate();
   const qc = useQueryClient();
 
-  const setDrawerId = (id: string | null) => {
-    void navigate({
-      search: (prev: { company?: string; view?: string }) => ({
-        ...prev,
-        company: id ?? undefined,
-      }),
-      replace: false,
-    });
-  };
 
   const listFn = useServerFn(listCrmCompanies);
   const listSavedFn = useServerFn(listSavedViews);
