@@ -642,12 +642,13 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
               <th className="text-left p-2">{L.cols.stage}</th>
               <th className="text-left p-2 hidden sm:table-cell">{L.cols.consent}</th>
               <th className="text-left p-2 hidden md:table-cell">{L.cols.activity}</th>
+              <th className="p-2 w-8" aria-label="" />
             </tr>
           </thead>
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                <td colSpan={8} className="p-4 text-center text-muted-foreground">
                   {L.empty}
                 </td>
               </tr>
