@@ -42,6 +42,7 @@ import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
+import { ProfileSyncCard } from "@/components/admin/crm/ProfileSyncCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -238,7 +239,7 @@ function AdminCrmDetailPage() {
   };
   const saveEdit = () => {
     const patch: Record<string, unknown> = {};
-    (["first_name", "last_name", "phone", "company"] as const).forEach((k) => {
+    (["first_name", "last_name", "phone", "company", "position", "country", "linkedin_url"] as const).forEach((k) => {
       if (form[k] !== undefined && form[k] !== (lead ? lead[k] : undefined)) patch[k] = form[k] ?? null;
     });
     if (Object.keys(patch).length === 0) {
@@ -326,8 +327,23 @@ function AdminCrmDetailPage() {
                   <Field label={t("Telefon", "Phone")}>
                     <Input value={form.phone ?? ""} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="h-7 text-[12px]" />
                   </Field>
+                  <Field label={t("Stanowisko", "Position")}>
+                    <Input value={form.position ?? ""} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="h-7 text-[12px]" />
+                  </Field>
                   <Field label={t("Firma", "Company")}>
                     <Input value={form.company ?? ""} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} className="h-7 text-[12px]" />
+                  </Field>
+                  <Field label={t("Kraj", "Country")}>
+                    <Input value={form.country ?? ""} onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))} className="h-7 text-[12px]" />
+                  </Field>
+                  <Field label="LinkedIn URL">
+                    <Input
+                      type="url"
+                      placeholder="https://linkedin.com/in/..."
+                      value={form.linkedin_url ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, linkedin_url: e.target.value }))}
+                      className="h-7 text-[12px]"
+                    />
                   </Field>
                   <div className="flex justify-end gap-1.5 pt-1">
                     <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="h-7 text-[11px]">{t("Anuluj", "Cancel")}</Button>
@@ -572,6 +588,14 @@ function AdminCrmDetailPage() {
               <div className="text-[11px] text-muted-foreground">{t("Brak firmy.", "No company.")}</div>
             )}
           </SidebarCard>
+
+          <SidebarCard
+            title={t("Powiązany profil", "Linked profile")}
+            icon={<User className="h-3.5 w-3.5" />}
+          >
+            <ProfileSyncCard leadId={lead.id} lang={lang} />
+          </SidebarCard>
+
 
           <SidebarCard
             title={t("Zadania", "Tasks")}
