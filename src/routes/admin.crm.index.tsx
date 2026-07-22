@@ -82,6 +82,7 @@ import {
 import { BUILTIN_LEAD_VIEWS } from "@/lib/crm/leadViews";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 
 interface CrmSearch {
