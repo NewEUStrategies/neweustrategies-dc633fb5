@@ -51,10 +51,10 @@ export const Route = createFileRoute("/support")({
   },
 });
 
-function formatZl(cents: number, lang: "pl" | "en"): string {
+function formatAmount(cents: number, lang: "pl" | "en", currency: DonationCurrency): string {
   return new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB", {
     style: "currency",
-    currency: "PLN",
+    currency,
     maximumFractionDigits: 0,
   }).format(cents / 100);
 }
