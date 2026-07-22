@@ -518,6 +518,53 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
 
   const leads = q.data ?? [];
 
+  // Podciągamy avatar_url z profiles po e-mailu widocznych leadów, żeby w
+  // tabeli CRM (osoby + firmy) od razu było widać zdjęcie profilowe.
+  const leadEmails = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          leads
+            .map((l) => l.email?.toLowerCase().trim())
+            .filter((e): e is string => !!e),
+        ),
+      ),
+    [leads],
+  );
+  const avatarsQ = useQuery({
+    queryKey: ["crm-lead-avatars", leadEmails],
+    enabled: leadEmails.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const map = new Map<string, string>();
+      const chunkSize = 100;
+      for (let i = 0; i < leadEmails.length; i += chunkSize) {
+        const chunk = leadEmails.slice(i, i + chunkSize);
+        const { data } = await supabase
+          .from("profiles")
+          .select("email, contact_email, avatar_url")
+          .or(
+            chunk
+              .map((e) => `email.eq.${e},contact_email.eq.${e}`)
+              .join(","),
+          );
+        for (const row of (data ?? []) as Array<{
+          email: string | null;
+          contact_email: string | null;
+          avatar_url: string | null;
+        }>) {
+          if (!row.avatar_url) continue;
+          const keys = [row.email, row.contact_email]
+            .filter((e): e is string => !!e)
+            .map((e) => e.toLowerCase().trim());
+          for (const k of keys) if (!map.has(k)) map.set(k, row.avatar_url);
+        }
+      }
+      return map;
+    },
+  });
+  const avatarByEmail = avatarsQ.data ?? new Map<string, string>();
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-1 border-b overflow-x-auto scrollbar-thin">
