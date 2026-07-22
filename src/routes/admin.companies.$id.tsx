@@ -29,6 +29,9 @@ import {
   Copy,
   Calendar,
   ChevronRight,
+  Camera,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 
 import {
