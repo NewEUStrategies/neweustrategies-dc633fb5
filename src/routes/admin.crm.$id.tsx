@@ -43,6 +43,7 @@ import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
 import { ProfileSyncCard } from "@/components/admin/crm/ProfileSyncCard";
+import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
