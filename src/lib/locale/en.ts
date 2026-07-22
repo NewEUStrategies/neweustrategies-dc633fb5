@@ -1230,6 +1230,8 @@ export const en = {
       document: "Document",
       selectBlock: "Select a block to see its settings.",
       canvasEdit: "Edit this block's content directly in the canvas.",
+      expand: "Expand panel",
+      collapse: "Collapse panel",
     },
     slash: {
       hint: "Type / to pick a block",

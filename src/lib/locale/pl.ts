@@ -1238,6 +1238,8 @@ export const pl = {
       document: "Dokument",
       selectBlock: "Wybierz blok, aby zobaczyć ustawienia.",
       canvasEdit: "Treść tego bloku edytujesz bezpośrednio w obszarze roboczym.",
+      expand: "Rozwiń panel",
+      collapse: "Zwiń panel",
     },
     slash: {
       hint: "Wpisz / aby wybrać blok",
