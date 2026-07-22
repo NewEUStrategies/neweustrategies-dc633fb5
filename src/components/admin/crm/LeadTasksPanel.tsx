@@ -56,17 +56,12 @@ const TXT = {
   },
 };
 
-/** Data w formacie input[type=datetime-local] (czas lokalny przeglądarki). */
-function toLocalInputValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function defaultDueValue(): string {
+/** Domyślny termin: jutro o 9:00 lokalnie. */
+function defaultDueValue(): Date {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   d.setHours(9, 0, 0, 0);
-  return toLocalInputValue(d);
+  return d;
 }
 
 function formatDue(iso: string, lang: "pl" | "en"): string {
