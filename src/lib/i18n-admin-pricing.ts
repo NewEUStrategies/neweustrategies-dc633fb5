@@ -21,6 +21,10 @@ const adminPricingPl = {
       paywall: "Paywall",
       dashboard: "Dashboard monetyzacji",
     },
+    capabilities: {
+      enforced: "egzekwowana",
+      decorative: "dekoracyjna",
+    },
     audiences: {
       new: "Nowy segment",
       key: "Klucz (slug)",
@@ -180,6 +184,10 @@ const adminPricingEn: typeof adminPricingPl = {
       membership: "Membership",
       paywall: "Paywall",
       dashboard: "Monetization dashboard",
+    },
+    capabilities: {
+      enforced: "enforced",
+      decorative: "decorative",
     },
     audiences: {
       new: "New segment",

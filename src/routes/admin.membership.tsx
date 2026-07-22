@@ -41,6 +41,7 @@ import {
   type TierBenefit,
 } from "@/lib/billing/tiers";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
+import { FeatureEnforcementBadges } from "@/components/admin/pricing/FeatureEnforcementBadges";
 import {
   fetchMembershipGrants,
   grantMembership,
@@ -321,6 +322,8 @@ function AdminMembershipPage() {
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     {tm("fields.featuresHint")}
                   </p>
+                  {/* Które flagi mają realną bramkę, a które są dziś dekoracją. */}
+                  <FeatureEnforcementBadges features={draft.features} />
                 </div>
                 <div className="mt-auto pt-1">
                   <Button
