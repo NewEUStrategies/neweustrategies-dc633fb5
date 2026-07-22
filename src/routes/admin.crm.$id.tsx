@@ -327,8 +327,23 @@ function AdminCrmDetailPage() {
                   <Field label={t("Telefon", "Phone")}>
                     <Input value={form.phone ?? ""} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="h-7 text-[12px]" />
                   </Field>
+                  <Field label={t("Stanowisko", "Position")}>
+                    <Input value={form.position ?? ""} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="h-7 text-[12px]" />
+                  </Field>
                   <Field label={t("Firma", "Company")}>
                     <Input value={form.company ?? ""} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} className="h-7 text-[12px]" />
+                  </Field>
+                  <Field label={t("Kraj", "Country")}>
+                    <Input value={form.country ?? ""} onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))} className="h-7 text-[12px]" />
+                  </Field>
+                  <Field label="LinkedIn URL">
+                    <Input
+                      type="url"
+                      placeholder="https://linkedin.com/in/..."
+                      value={form.linkedin_url ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, linkedin_url: e.target.value }))}
+                      className="h-7 text-[12px]"
+                    />
                   </Field>
                   <div className="flex justify-end gap-1.5 pt-1">
                     <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="h-7 text-[11px]">{t("Anuluj", "Cancel")}</Button>
