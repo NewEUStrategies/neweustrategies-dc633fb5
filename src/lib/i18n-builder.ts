@@ -345,8 +345,7 @@ const pl = {
       html: "Treść HTML ({{lang}})",
     },
     timelineEditor: {
-      title: "Oś czasu (wpisy)",
-      __unused: "",
+      sectionTitle: "Oś czasu (wpisy)",
       addItem: "Dodaj wpis",
       addHeading: "Dodaj datę",
       heading: "Nagłówek daty",
@@ -360,7 +359,7 @@ const pl = {
       initials: "Inicjały (1-2 znaki)",
       iconName: "Nazwa ikony Lucide",
       titleIconName: "Ikona przy tytule (Lucide)",
-      title: "Tytuł ({{lang}})",
+      itemTitle: "Tytuł ({{lang}})",
       desc: "Opis ({{lang}})",
       actorName: "Autor akcji - imię i nazwisko",
       actorAvatar: "Autor akcji - URL awatara",
