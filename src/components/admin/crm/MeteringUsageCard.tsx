@@ -21,9 +21,13 @@ export function MeteringUsageCard({ leadId, lang }: Props) {
   const fn = useServerFn(getCrmLeadMonthlyMetering);
   const q = useQuery({
     queryKey: ["crm-lead-metering", leadId],
-    queryFn: async () => parseJsonEnvelope<Usage>(await fn({ data: { id: leadId } })),
+    queryFn: async () => {
+      const r = (await fn({ data: { id: leadId } })) as { json: string };
+      return JSON.parse(r.json) as Usage;
+    },
     staleTime: 60_000,
   });
+
   const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
   return (
