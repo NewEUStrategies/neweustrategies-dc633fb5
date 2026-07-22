@@ -1,27 +1,29 @@
-// Admin: lista firm CRM (`crm_companies`) w stylu HubSpot.
-// Widok read-only z: statystykami, filtrami (kraj/branża), sortowaniem,
-// wyszukiwarką, gęstą tabelą i wielo-zaznaczeniem. Klik w wiersz otwiera
-// `/admin/companies/:id`. Zabezpieczone przez `requireStaff` w server-fn
-// oraz `_authenticated` layout w AdminShell.
+// Admin: lista firm CRM (`crm_companies`) w stylu HubSpot z pełnym zestawem:
+// zakładki zapisanych widoków (`saved_views`), menedżer kolumn, chip-filtry,
+// sortowanie kolumn, eksport CSV. Klik w wiersz otwiera drawer podsumowania;
+// klik w nazwę firmy przenosi do pełnego widoku `/admin/companies/:id`.
+// RLS scope'uje po tenancie (server functions używają `requireStaff`).
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { listCrmCompanies } from "@/lib/crm-companies.functions";
+import {
+  listSavedViews,
+  upsertSavedView,
+  deleteSavedView,
+} from "@/lib/crm-saved-views.functions";
 import { CompanyDetailsDrawer } from "@/components/admin/crm/CompanyDetailsDrawer";
+import { CompanyViewTabs, type SavedViewRow } from "@/components/admin/crm/CompanyViewTabs";
+import { CompanyColumnManager } from "@/components/admin/crm/CompanyColumnManager";
+import { CompanyFilterChips } from "@/components/admin/crm/CompanyFilterChips";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Building2,
   Search,
@@ -32,10 +34,23 @@ import {
   MapPin,
   ArrowUpDown,
   Download,
-  Filter,
   Phone,
   Plus,
+  ChevronRight,
 } from "lucide-react";
+import {
+  BUILTIN_COMPANY_VIEWS,
+  COMPANY_COLUMNS,
+  DEFAULT_COMPANY_VIEW_CONFIG,
+  applyCompanyFilter,
+  applyCompanySort,
+  parseCompanyViewConfig,
+  rowsToCsv,
+  type CompanyColumnKey,
+  type CompanyFilter,
+  type CompanySort,
+  type CompanyViewConfig,
+} from "@/lib/crm/companyViews";
 
 type CompanyRow = {
   id: string;
@@ -55,9 +70,6 @@ type CompanyRow = {
   last_lead_activity_at: string | null;
 };
 
-type SortKey = "name" | "leads" | "contacts" | "updated" | "country";
-type SortDir = "asc" | "desc";
-
 export const Route = createFileRoute("/admin/companies")({
   head: () => ({
     meta: [
@@ -65,11 +77,16 @@ export const Route = createFileRoute("/admin/companies")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  // Drawer firmy żyje w URL (?company=<id>) - dzięki temu Back/Forward
-  // przeglądarki działa naturalnie, a link można udostępnić.
-  validateSearch: (search: Record<string, unknown>): { company?: string } => {
-    const raw = typeof search.company === "string" ? search.company : undefined;
-    return raw && /^[0-9a-f-]{36}$/i.test(raw) ? { company: raw } : {};
+  validateSearch: (search: Record<string, unknown>): { company?: string; view?: string } => {
+    const company =
+      typeof search.company === "string" && /^[0-9a-f-]{36}$/i.test(search.company)
+        ? search.company
+        : undefined;
+    const view = typeof search.view === "string" && search.view.length < 80 ? search.view : undefined;
+    const out: { company?: string; view?: string } = {};
+    if (company) out.company = company;
+    if (view) out.view = view;
+    return out;
   },
   component: AdminCompaniesPage,
 });
@@ -95,7 +112,7 @@ function initials(name: string) {
 }
 
 function formatRelative(iso: string | null, lang: "pl" | "en"): string {
-  if (!iso) return lang === "pl" ? "-" : "-";
+  if (!iso) return "-";
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
   const day = 86_400_000;
@@ -141,24 +158,42 @@ function LogoCell({ name, domain }: { name: string; domain: string | null }) {
 
 function AdminCompaniesPage() {
   const { i18n } = useTranslation();
-  const lang = i18n.language?.startsWith("en") ? "en" : "pl";
-  const { company: drawerId } = Route.useSearch();
+  const lang: "pl" | "en" = i18n.language?.startsWith("en") ? "en" : "pl";
+  const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const { company: drawerId, view: urlView } = Route.useSearch();
   const navigate = Route.useNavigate();
+  const qc = useQueryClient();
+
   const setDrawerId = (id: string | null) => {
     void navigate({
-      search: (prev: { company?: string }) => ({ ...prev, company: id ?? undefined }),
+      search: (prev: { company?: string; view?: string }) => ({
+        ...prev,
+        company: id ?? undefined,
+      }),
       replace: false,
     });
   };
-  const [search, setSearch] = useState("");
-  const [country, setCountry] = useState<string>("all");
-  const [branch, setBranch] = useState<string>("all");
-  const [sortKey, setSortKey] = useState<SortKey>("updated");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const listFn = useServerFn(listCrmCompanies);
 
-  const query = useQuery({
+  const listFn = useServerFn(listCrmCompanies);
+  const listSavedFn = useServerFn(listSavedViews);
+  const upsertFn = useServerFn(upsertSavedView);
+  const deleteFn = useServerFn(deleteSavedView);
+
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [config, setConfig] = useState<CompanyViewConfig>(DEFAULT_COMPANY_VIEW_CONFIG);
+  const [activeViewId, setActiveViewId] = useState<string>(urlView ?? "builtin:all");
+
+  const setActive = (id: string, cfg: CompanyViewConfig) => {
+    setActiveViewId(id);
+    setConfig(cfg);
+    void navigate({
+      search: (prev: { company?: string; view?: string }) => ({ ...prev, view: id }),
+      replace: true,
+    });
+  };
+
+  const companiesQuery = useQuery({
     queryKey: ["admin", "crm-companies", search],
     queryFn: async () => {
       const res = await listFn({ data: { search: search || undefined, limit: 200 } });
@@ -167,7 +202,91 @@ function AdminCompaniesPage() {
     staleTime: 30_000,
   });
 
-  const rows = useMemo(() => query.data ?? [], [query.data]);
+  const savedQuery = useQuery({
+    queryKey: ["admin", "saved-views", "company"],
+    queryFn: async () => {
+      const res = await listSavedFn({ data: { entity: "company" } });
+      return JSON.parse(res.json) as SavedViewRow[];
+    },
+    staleTime: 60_000,
+  });
+
+  const saved = savedQuery.data ?? [];
+
+  // Podnieś aktywny widok z URL jeśli udostępniony link zawiera zapisany id.
+  useEffect(() => {
+    if (!urlView) return;
+    const builtin = BUILTIN_COMPANY_VIEWS.find((v) => v.id === urlView);
+    if (builtin) {
+      setActiveViewId(builtin.id);
+      setConfig(builtin.config);
+      return;
+    }
+    const s = saved.find((v) => v.id === urlView);
+    if (s) {
+      setActiveViewId(s.id);
+      setConfig(parseCompanyViewConfig(s.config));
+    }
+  }, [urlView, saved]);
+
+  const createView = useMutation({
+    mutationFn: async ({ name, isShared }: { name: string; isShared: boolean }) =>
+      upsertFn({ data: { entity: "company", name, config, is_shared: isShared } }),
+    onSuccess: async (res) => {
+      toast.success(t("Widok zapisany", "View saved"));
+      await qc.invalidateQueries({ queryKey: ["admin", "saved-views", "company"] });
+      if (res.id) setActiveViewId(res.id);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const renameView = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const v = saved.find((s) => s.id === id);
+      if (!v) throw new Error("not_found");
+      return upsertFn({
+        data: {
+          id,
+          entity: "company",
+          name,
+          config: v.config,
+          is_shared: v.is_shared,
+        },
+      });
+    },
+    onSuccess: async () => {
+      toast.success(t("Nazwa zmieniona", "Renamed"));
+      await qc.invalidateQueries({ queryKey: ["admin", "saved-views", "company"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleShared = useMutation({
+    mutationFn: async ({ id, next }: { id: string; next: boolean }) => {
+      const v = saved.find((s) => s.id === id);
+      if (!v) throw new Error("not_found");
+      return upsertFn({
+        data: { id, entity: "company", name: v.name, config: v.config, is_shared: next },
+      });
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["admin", "saved-views", "company"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeView = useMutation({
+    mutationFn: async (id: string) => deleteFn({ data: { id } }),
+    onSuccess: async () => {
+      toast.success(t("Widok usunięty", "View deleted"));
+      await qc.invalidateQueries({ queryKey: ["admin", "saved-views", "company"] });
+      setActiveViewId("builtin:all");
+      setConfig(DEFAULT_COMPANY_VIEW_CONFIG);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rows = useMemo(() => companiesQuery.data ?? [], [companiesQuery.data]);
 
   const countries = useMemo(() => {
     const set = new Set<string>();
@@ -181,28 +300,10 @@ function AdminCompaniesPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
-  const filtered = useMemo(() => {
-    let out = rows;
-    if (country !== "all") out = out.filter((r) => r.country === country);
-    if (branch !== "all") out = out.filter((r) => r.branch === branch);
-    const dir = sortDir === "asc" ? 1 : -1;
-    const sorted = [...out].sort((a, b) => {
-      switch (sortKey) {
-        case "name":
-          return a.name.localeCompare(b.name) * dir;
-        case "leads":
-          return (a.leads_count - b.leads_count) * dir;
-        case "contacts":
-          return (a.contacts_count - b.contacts_count) * dir;
-        case "country":
-          return (a.country ?? "").localeCompare(b.country ?? "") * dir;
-        case "updated":
-        default:
-          return ((new Date(a.updated_at).getTime()) - (new Date(b.updated_at).getTime())) * dir;
-      }
-    });
-    return sorted;
-  }, [rows, country, branch, sortKey, sortDir]);
+  const filtered = useMemo(
+    () => applyCompanySort(applyCompanyFilter(rows, config.filter), config.sort),
+    [rows, config.filter, config.sort],
+  );
 
   const stats = useMemo(() => {
     const withLeads = rows.filter((r) => r.leads_count > 0).length;
@@ -215,12 +316,19 @@ function AdminCompaniesPage() {
     return { total: rows.length, withLeads, totalContacts, totalLeads, newThisMonth };
   }, [rows]);
 
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSortKey(key);
-      setSortDir(key === "name" || key === "country" ? "asc" : "desc");
-    }
+  const setFilter = (f: CompanyFilter) => setConfig((c) => ({ ...c, filter: f }));
+  const setColumns = (cols: CompanyColumnKey[]) =>
+    setConfig((c) => ({ ...c, columns: cols }));
+
+  const toggleSort = (key: CompanySort["key"]) => {
+    setConfig((c) => {
+      if (c.sort.key === key) {
+        return { ...c, sort: { key, dir: c.sort.dir === "asc" ? "desc" : "asc" } };
+      }
+      const dir: "asc" | "desc" =
+        key === "name" || key === "branch" || key === "country" ? "asc" : "desc";
+      return { ...c, sort: { key, dir } };
+    });
   };
 
   const allChecked = filtered.length > 0 && filtered.every((r) => selected.has(r.id));
@@ -233,35 +341,56 @@ function AdminCompaniesPage() {
     });
   };
 
-  const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const exportCsv = () => {
+    const csv = rowsToCsv(filtered, config.columns, lang);
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `companies-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(t(`Wyeksportowano ${filtered.length} firm`, `Exported ${filtered.length} companies`));
+  };
+
+  const visibleCols = COMPANY_COLUMNS.filter((c) => config.columns.includes(c.key));
 
   return (
-    <div className="mx-auto w-full max-w-[92rem] space-y-5 p-4 lg:p-6">
+    <div className="mx-auto w-full max-w-[92rem] space-y-4 p-4 lg:p-6">
       {/* Header */}
       <header className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2.5">
           <div className="grid h-9 w-9 place-items-center rounded-md bg-primary/10 text-primary">
-            <Building2 className="h-4.5 w-4.5" aria-hidden />
+            <Building2 className="h-4 w-4" aria-hidden />
           </div>
           <div>
             <h1 className="text-lg font-semibold leading-tight">{t("Firmy", "Companies")}</h1>
             <p className="text-xs text-muted-foreground">
-              {t("Baza firm CRM z powiązanymi kontaktami i leadami", "CRM company database with linked contacts and leads")}
+              {t(
+                "Baza firm CRM z powiązanymi kontaktami i leadami",
+                "CRM company database with linked contacts and leads",
+              )}
             </p>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Link to="/admin/crm">
-            <Button variant="outline" size="sm" className="gap-1.5">
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-[12px]">
               <Users className="h-3.5 w-3.5" aria-hidden />
               {t("CRM", "CRM")}
             </Button>
           </Link>
-          <Button variant="outline" size="sm" className="gap-1.5" disabled>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportCsv}
+            className="h-8 gap-1.5 text-[12px]"
+            disabled={filtered.length === 0}
+          >
             <Download className="h-3.5 w-3.5" aria-hidden />
-            {t("Eksport", "Export")}
+            {t("Eksport CSV", "Export CSV")}
           </Button>
-          <Button size="sm" className="gap-1.5" disabled>
+          <Button size="sm" className="h-8 gap-1.5 text-[12px]" disabled>
             <Plus className="h-3.5 w-3.5" aria-hidden />
             {t("Nowa firma", "New company")}
           </Button>
@@ -294,16 +423,37 @@ function AdminCompaniesPage() {
           tone="emerald"
         />
         <StatCard
-          label={t("Nowe w tym miesiącu", "New this month")}
+          label={t("Nowe (30 dni)", "New (30d)")}
           value={stats.newThisMonth}
           icon={<Plus className="h-3.5 w-3.5" aria-hidden />}
           tone="violet"
         />
       </section>
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-2">
-        <div className="relative min-w-[220px] flex-1">
+      {/* Saved view tabs */}
+      <CompanyViewTabs
+        lang={lang}
+        activeId={activeViewId}
+        onSelect={setActive}
+        saved={saved}
+        currentConfig={config}
+        onCreate={async (name, isShared) => {
+          await createView.mutateAsync({ name, isShared });
+        }}
+        onRename={async (id, name) => {
+          await renameView.mutateAsync({ id, name });
+        }}
+        onDelete={async (id) => {
+          await removeView.mutateAsync(id);
+        }}
+        onToggleShared={async (id, next) => {
+          await toggleShared.mutateAsync({ id, next });
+        }}
+      />
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
             aria-hidden
@@ -312,52 +462,36 @@ function AdminCompaniesPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("Szukaj firmy, domeny, miasta…", "Search company, domain, city…")}
-            className="h-9 pl-8 text-[13px]"
+            className="h-8 pl-8 text-[12px]"
             aria-label={t("Szukaj firmy", "Search company")}
           />
         </div>
-        <Select value={country} onValueChange={setCountry}>
-          <SelectTrigger className="h-9 w-[160px] text-[13px]">
-            <MapPin className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-            <SelectValue placeholder={t("Kraj", "Country")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("Wszystkie kraje", "All countries")}</SelectItem>
-            {countries.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={branch} onValueChange={setBranch}>
-          <SelectTrigger className="h-9 w-[180px] text-[13px]">
-            <Filter className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-            <SelectValue placeholder={t("Branża", "Industry")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("Wszystkie branże", "All industries")}</SelectItem>
-            {branches.map((b) => (
-              <SelectItem key={b} value={b}>
-                {b}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
-          {selected.size > 0 ? (
-            <span className="rounded bg-primary/10 px-2 py-1 font-medium text-primary">
-              {t(`${selected.size} zaznaczono`, `${selected.size} selected`)}
-            </span>
-          ) : (
-            <span>
-              {t(
-                `${filtered.length} z ${rows.length} firm`,
-                `${filtered.length} of ${rows.length} companies`,
-              )}
-            </span>
-          )}
+        <CompanyFilterChips
+          lang={lang}
+          value={config.filter}
+          onChange={setFilter}
+          countries={countries}
+          branches={branches}
+        />
+        <div className="ml-auto flex items-center gap-2">
+          <CompanyColumnManager lang={lang} active={config.columns} onChange={setColumns} />
         </div>
+      </div>
+
+      {/* Results meta */}
+      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        {selected.size > 0 ? (
+          <span className="rounded bg-primary/10 px-2 py-1 font-medium text-primary">
+            {t(`${selected.size} zaznaczono`, `${selected.size} selected`)}
+          </span>
+        ) : (
+          <span>
+            {t(
+              `${filtered.length} z ${rows.length} firm`,
+              `${filtered.length} of ${rows.length} companies`,
+            )}
+          </span>
+        )}
       </div>
 
       {/* Table */}
@@ -373,56 +507,38 @@ function AdminCompaniesPage() {
                     aria-label={t("Zaznacz wszystkie", "Select all")}
                   />
                 </th>
-                <SortHeader
-                  label={t("Firma", "Company")}
-                  active={sortKey === "name"}
-                  dir={sortDir}
-                  onClick={() => toggleSort("name")}
-                />
-                <SortHeader
-                  label={t("Branża", "Industry")}
-                  active={sortKey === "country"}
-                  dir={sortDir}
-                  onClick={() => toggleSort("country")}
-                  align="left"
-                />
-                <th className="px-3 py-2 text-left font-medium">{t("Lokalizacja", "Location")}</th>
-                <SortHeader
-                  label={t("Kontakty", "Contacts")}
-                  active={sortKey === "contacts"}
-                  dir={sortDir}
-                  onClick={() => toggleSort("contacts")}
-                  align="right"
-                />
-                <SortHeader
-                  label={t("Leady", "Leads")}
-                  active={sortKey === "leads"}
-                  dir={sortDir}
-                  onClick={() => toggleSort("leads")}
-                  align="right"
-                />
-                <SortHeader
-                  label={t("Aktywność", "Last activity")}
-                  active={sortKey === "updated"}
-                  dir={sortDir}
-                  onClick={() => toggleSort("updated")}
-                  align="right"
-                />
+                {visibleCols.map((c) => (
+                  <ColumnHeader
+                    key={c.key}
+                    column={c.key}
+                    label={lang === "pl" ? c.labelPl : c.labelEn}
+                    active={config.sort.key === c.key}
+                    dir={config.sort.dir}
+                    align={c.align}
+                    sortable={c.sortable}
+                    onClick={() =>
+                      c.sortable && toggleSort(c.key as CompanySort["key"])
+                    }
+                  />
+                ))}
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody>
-              {query.isLoading ? (
+              {companiesQuery.isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b last:border-b-0">
-                    <td colSpan={8} className="px-3 py-3">
+                    <td colSpan={visibleCols.length + 2} className="px-3 py-3">
                       <div className="h-9 animate-pulse rounded bg-muted/60" />
                     </td>
                   </tr>
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-sm text-muted-foreground">
+                  <td
+                    colSpan={visibleCols.length + 2}
+                    className="px-6 py-12 text-center text-sm text-muted-foreground"
+                  >
                     <Building2 className="mx-auto mb-2 h-8 w-8 opacity-40" aria-hidden />
                     {t("Brak firm spełniających kryteria.", "No companies match your filters.")}
                   </td>
@@ -430,8 +546,6 @@ function AdminCompaniesPage() {
               ) : (
                 filtered.map((c) => {
                   const checked = selected.has(c.id);
-                  const location = [c.city, c.country].filter(Boolean).join(", ");
-                  const lastActivity = c.last_lead_activity_at ?? c.updated_at;
                   return (
                     <tr
                       key={c.id}
@@ -453,75 +567,31 @@ function AdminCompaniesPage() {
                           aria-label={c.name}
                         />
                       </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-2.5">
-                          <LogoCell name={c.name} domain={c.domain} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate font-medium text-foreground">{c.name}</span>
-                              {c.website && (
-                                <a
-                                  href={c.website}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-muted-foreground opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
-                                  onClick={(e) => e.stopPropagation()}
-                                  aria-label={c.website}
-                                >
-                                  <ExternalLink className="h-3 w-3" aria-hidden />
-                                </a>
-                              )}
-                            </div>
-                            {c.domain && (
-                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Globe className="h-2.5 w-2.5" aria-hidden />
-                                <span className="truncate">{c.domain}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {c.branch ? (
-                          <Badge
-                            variant="secondary"
-                            className="rounded-md bg-secondary/60 px-2 py-0.5 text-[11px] font-normal"
-                          >
-                            {c.branch}
-                          </Badge>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground/60">-</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-muted-foreground">
-                        {location ? (
-                          <span className="inline-flex items-center gap-1 text-[12px]">
-                            <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-                            <span className="truncate">{location}</span>
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground/60">-</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">
-                        <CountPill value={c.contacts_count} tone="sky" />
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">
-                        <CountPill value={c.leads_count} tone="amber" />
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-[12px] text-muted-foreground">
-                        {formatRelative(lastActivity, lang)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                        {c.phone && (
-                          <a
-                            href={`tel:${c.phone}`}
-                            className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
-                            aria-label={c.phone}
-                          >
-                            <Phone className="h-3 w-3" aria-hidden />
-                          </a>
-                        )}
+                      {visibleCols.map((col) => (
+                        <td
+                          key={col.key}
+                          className={`px-3 py-2.5 ${
+                            col.align === "right"
+                              ? "text-right tabular-nums"
+                              : "text-left"
+                          }`}
+                          onClick={col.key === "website" || col.key === "phone" ? (e) => e.stopPropagation() : undefined}
+                        >
+                          <Cell row={c} col={col.key} lang={lang} />
+                        </td>
+                      ))}
+                      <td
+                        className="px-3 py-2.5 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Link
+                          to="/admin/companies/$id"
+                          params={{ id: c.id }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                          aria-label={t("Otwórz firmę", "Open company")}
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                        </Link>
                       </td>
                     </tr>
                   );
@@ -543,36 +613,170 @@ function AdminCompaniesPage() {
   );
 }
 
-function SortHeader({
+function Cell({
+  row,
+  col,
+  lang,
+}: {
+  row: CompanyRow;
+  col: CompanyColumnKey;
+  lang: "pl" | "en";
+}) {
+  switch (col) {
+    case "name":
+      return (
+        <div className="flex items-center gap-2.5">
+          <LogoCell name={row.name} domain={row.domain} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate font-medium text-foreground">{row.name}</span>
+              {row.website && (
+                <a
+                  href={row.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
+                  aria-label={row.website}
+                >
+                  <ExternalLink className="h-3 w-3" aria-hidden />
+                </a>
+              )}
+            </div>
+            {row.domain && (
+              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <Globe className="h-2.5 w-2.5" aria-hidden />
+                <span className="truncate">{row.domain}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    case "domain":
+      return row.domain ? (
+        <span className="truncate text-[12px] text-muted-foreground">{row.domain}</span>
+      ) : (
+        <Dash />
+      );
+    case "branch":
+      return row.branch ? (
+        <Badge
+          variant="secondary"
+          className="rounded-md bg-secondary/60 px-2 py-0.5 text-[11px] font-normal"
+        >
+          {row.branch}
+        </Badge>
+      ) : (
+        <Dash />
+      );
+    case "location": {
+      const location = [row.city, row.country].filter(Boolean).join(", ");
+      return location ? (
+        <span className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
+          <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="truncate">{location}</span>
+        </span>
+      ) : (
+        <Dash />
+      );
+    }
+    case "country":
+      return row.country ? (
+        <span className="text-[12px] text-muted-foreground">{row.country}</span>
+      ) : (
+        <Dash />
+      );
+    case "contacts":
+      return <CountPill value={row.contacts_count} tone="sky" />;
+    case "leads":
+      return <CountPill value={row.leads_count} tone="amber" />;
+    case "phone":
+      return row.phone ? (
+        <a
+          href={`tel:${row.phone}`}
+          className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+        >
+          <Phone className="h-3 w-3" aria-hidden />
+          {row.phone}
+        </a>
+      ) : (
+        <Dash />
+      );
+    case "website":
+      return row.website ? (
+        <a
+          href={row.website}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 truncate text-[12px] text-primary hover:underline"
+        >
+          <span className="truncate">{row.website.replace(/^https?:\/\//, "")}</span>
+          <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+        </a>
+      ) : (
+        <Dash />
+      );
+    case "lastActivity":
+      return (
+        <span className="text-[12px] text-muted-foreground">
+          {formatRelative(row.last_lead_activity_at ?? row.updated_at, lang)}
+        </span>
+      );
+    case "created":
+      return (
+        <span className="text-[12px] text-muted-foreground">
+          {formatRelative(row.created_at, lang)}
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
+function Dash() {
+  return <span className="text-[11px] text-muted-foreground/60">-</span>;
+}
+
+function ColumnHeader({
+  column,
   label,
   active,
   dir,
   onClick,
   align = "left",
+  sortable,
 }: {
+  column: string;
   label: string;
   active: boolean;
-  dir: SortDir;
+  dir: "asc" | "desc";
   onClick: () => void;
   align?: "left" | "right";
+  sortable?: boolean;
 }) {
   return (
-    <th className={`px-3 py-2 ${align === "right" ? "text-right" : "text-left"} font-medium`}>
-      <button
-        type="button"
-        onClick={onClick}
-        className={`inline-flex items-center gap-1 transition-colors hover:text-foreground ${
-          active ? "text-foreground" : ""
-        }`}
-      >
-        {label}
-        <ArrowUpDown
-          className={`h-3 w-3 transition-transform ${
-            active ? "opacity-100" : "opacity-40"
-          } ${active && dir === "asc" ? "rotate-180" : ""}`}
-          aria-hidden
-        />
-      </button>
+    <th
+      className={`px-3 py-2 ${align === "right" ? "text-right" : "text-left"} font-medium`}
+      data-col={column}
+    >
+      {sortable ? (
+        <button
+          type="button"
+          onClick={onClick}
+          className={`inline-flex items-center gap-1 transition-colors hover:text-foreground ${
+            active ? "text-foreground" : ""
+          }`}
+        >
+          {label}
+          <ArrowUpDown
+            className={`h-3 w-3 transition-transform ${
+              active ? "opacity-100" : "opacity-40"
+            } ${active && dir === "asc" ? "rotate-180" : ""}`}
+            aria-hidden
+          />
+        </button>
+      ) : (
+        <span>{label}</span>
+      )}
     </th>
   );
 }
