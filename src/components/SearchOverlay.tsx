@@ -394,7 +394,7 @@ function ResultsList({
 function Footer() {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center justify-between gap-4 px-5 py-2.5 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
+    <div className="hidden sm:flex items-center justify-between gap-4 px-5 py-2.5 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
       <div className="flex items-center gap-3">
         <span className="inline-flex items-center gap-1">
           <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">
@@ -421,3 +421,4 @@ function Footer() {
     </div>
   );
 }
+
