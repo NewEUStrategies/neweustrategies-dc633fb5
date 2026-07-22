@@ -199,12 +199,24 @@ function TierCardCta({
     if (!isAuthenticated) {
       return (
         <Button asChild className={ctaClass} variant={variant}>
-          <Link to="/login">{t("pricing.signupCta")}</Link>
+          <Link
+            to="/login"
+            onClick={() =>
+              trackCta("pricing_signup_click", {
+                tier_key: tier.key,
+                tier_id: tier.id,
+                interval,
+              })
+            }
+          >
+            {t("pricing.signupCta")}
+          </Link>
         </Button>
       );
     }
     return null;
   }
+
 
   // Tryb 'contact': cena moze byc widoczna (np. per miejsce), ale zakup idzie
   // przez rozmowe - checkout pojedynczego miejsca bylby nieuczciwy.
