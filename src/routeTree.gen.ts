@@ -162,6 +162,7 @@ import { Route as ProgramsSlugRssDotxmlRouteImport } from './routes/programs.$sl
 import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$show.rss[.]xml'
 import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
+import { Route as ApiPublicTrackRouteImport } from './routes/api/public/track'
 import { Route as ApiPublicRelatedClickRouteImport } from './routes/api/public/related-click'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
@@ -993,6 +994,11 @@ const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   path: '/api/public/vitals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTrackRoute = ApiPublicTrackRouteImport.update({
+  id: '/api/public/track',
+  path: '/api/public/track',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRelatedClickRoute = ApiPublicRelatedClickRouteImport.update({
   id: '/api/public/related-click',
   path: '/api/public/related-click',
@@ -1522,6 +1528,7 @@ export interface FileRoutesByFullPath {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
+  '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
@@ -1730,6 +1737,7 @@ export interface FileRoutesByTo {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
+  '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
@@ -1949,6 +1957,7 @@ export interface FileRoutesById {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
+  '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
@@ -2169,6 +2178,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/related-click'
+    | '/api/public/track'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/podcasts/$show/rss.xml'
@@ -2377,6 +2387,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/related-click'
+    | '/api/public/track'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/podcasts/$show/rss.xml'
@@ -2595,6 +2606,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/related-click'
+    | '/api/public/track'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/podcasts/$show/rss.xml'
@@ -2687,6 +2699,7 @@ export interface RootRouteChildren {
   ApiPublicPopupEventRoute: typeof ApiPublicPopupEventRoute
   ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
   ApiPublicRelatedClickRoute: typeof ApiPublicRelatedClickRoute
+  ApiPublicTrackRoute: typeof ApiPublicTrackRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
   ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
@@ -3767,6 +3780,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVitalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/track': {
+      id: '/api/public/track'
+      path: '/api/public/track'
+      fullPath: '/api/public/track'
+      preLoaderRoute: typeof ApiPublicTrackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/related-click': {
       id: '/api/public/related-click'
       path: '/api/public/related-click'
@@ -4790,6 +4810,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPopupEventRoute: ApiPublicPopupEventRoute,
   ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
   ApiPublicRelatedClickRoute: ApiPublicRelatedClickRoute,
+  ApiPublicTrackRoute: ApiPublicTrackRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
   ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
