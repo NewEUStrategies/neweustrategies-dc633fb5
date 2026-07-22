@@ -217,6 +217,57 @@ export const updateCrmLead = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Metering: ile bezpłatnych artykułów zużył użytkownik powiązany z leadem
+// w bieżącym miesiącu kalendarzowym. Dopasowanie po e-mailu (email/contact_email)
+// w obrębie tenanta. Widoczne wyłącznie dla staff (requireStaff).
+export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => IdInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: lead } = (await tbl(context, "crm_leads")
+      .select("email, tenant_id")
+      .eq("id", data.id)
+      .maybeSingle()) as { data: { email: string; tenant_id: string } | null };
+    if (!lead?.email) return { json: j(null) };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as { from: (t: string) => AnyQuery };
+    const emailLc = lead.email.toLowerCase().replace(/[%_,()"\\]/g, "");
+    const profRes = (await admin
+      .from("profiles")
+      .select("id")
+      .or(`email.ilike.${emailLc},contact_email.ilike.${emailLc}`)
+      .eq("tenant_id", lead.tenant_id)
+      .limit(1)) as unknown as { data: Array<{ id: string }> | null };
+    const userId = profRes.data?.[0]?.id ?? null;
+    if (!userId) return { json: j(null) };
+
+    const period = new Date();
+    period.setUTCDate(1);
+    period.setUTCHours(0, 0, 0, 0);
+    const periodStr = period.toISOString().slice(0, 10);
+
+    const [msRes, mvRes] = await Promise.all([
+      admin.from("metering_settings").select("member_monthly_limit, enabled").eq("tenant_id", lead.tenant_id).maybeSingle(),
+      admin.from("metered_views").select("id").eq("tenant_id", lead.tenant_id).eq("user_id", userId).eq("period_month", periodStr).limit(1000),
+    ]);
+    const ms = (msRes as unknown as { data: { member_monthly_limit: number | null; enabled: boolean | null } | null }).data;
+    const rows = (mvRes as unknown as { data: unknown[] | null }).data ?? [];
+    const monthly_limit = ms?.member_monthly_limit ?? 5;
+    const used = rows.length;
+    return {
+      json: j({
+        used,
+        monthly_limit,
+        remaining: Math.max(monthly_limit - used, 0),
+        period_month: periodStr,
+        enabled: ms?.enabled ?? true,
+        user_id: userId,
+      }),
+    };
+  });
+
+
 // Profile sync: dopasowuje lead → profil po e-mailu (email/contact_email),
 // zwraca podstawowe dane profilu + doświadczenie, umiejętności, wynik Big5,
 // aktualne CV, nagrody i wykształcenie. RLS personality/experiences/skills

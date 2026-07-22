@@ -27,13 +27,14 @@ export interface MeteringSettings {
 }
 
 export const DEFAULT_METERING_SETTINGS: MeteringSettings = {
-  enabled: false,
-  member_monthly_limit: 3,
+  enabled: true,
+  member_monthly_limit: 5,
   anon_monthly_limit: 0,
   meter_paid: true,
   meter_members: true,
   show_counter: true,
 };
+
 
 /** Stan licznika zwracany przez consume_metered_view / metering_state. */
 export interface MeterState {

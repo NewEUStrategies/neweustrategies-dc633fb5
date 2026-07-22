@@ -37,6 +37,8 @@ import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
 import { ProfileSyncCard } from "@/components/admin/crm/ProfileSyncCard";
 import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
+import { MeteringUsageCard } from "@/components/admin/crm/MeteringUsageCard";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -661,8 +663,10 @@ function AdminCrmDetailPage() {
                   <Stat label={t("Notatki", "Notes")} value={(detail.data?.notes ?? []).length} />
                 </div>
               </section>
+              <MeteringUsageCard leadId={lead.id} lang={lang} />
             </div>
           )}
+
         </main>
 
         {/* Right sidebar */}
