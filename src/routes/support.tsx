@@ -154,8 +154,8 @@ function SupportPage() {
           <fieldset>
             <legend className="text-sm font-medium">{t("support.presetsLabel")}</legend>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {DONATION_PRESETS_CENTS.map((cents) => {
-                const active = !customZl.trim() && selectedCents === cents;
+              {presets.map((cents) => {
+                const active = !customAmount.trim() && selectedCents === cents;
                 return (
                   <Button
                     key={cents}
@@ -164,10 +164,10 @@ function SupportPage() {
                     aria-pressed={active}
                     onClick={() => {
                       setSelectedCents(cents);
-                      setCustomZl("");
+                      setCustomAmount("");
                     }}
                   >
-                    {formatZl(cents, lang)}
+                    {formatAmount(cents, lang, currency)}
                   </Button>
                 );
               })}
@@ -176,21 +176,22 @@ function SupportPage() {
 
           <div>
             <Label htmlFor="donation-custom" className="text-sm font-medium">
-              {t("support.customLabel")}
+              {t("support.customLabel", { currency })}
             </Label>
             <Input
               id="donation-custom"
               inputMode="decimal"
               className="mt-1"
               placeholder={t("support.customPlaceholder")}
-              value={customZl}
-              onChange={(e) => setCustomZl(e.target.value)}
-              aria-invalid={customZl.trim() !== "" && !amountValid}
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              aria-invalid={customAmount.trim() !== "" && !amountValid}
             />
-            {customZl.trim() !== "" && !amountValid && (
+            {customAmount.trim() !== "" && !amountValid && (
               <p className="mt-1 text-xs text-destructive">{t("support.amountError")}</p>
             )}
           </div>
+
 
           <div>
             <Label htmlFor="donation-message" className="text-sm font-medium">
