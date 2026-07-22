@@ -10,9 +10,21 @@ import type { Database, Json } from "@/integrations/supabase/types";
 
 export type MembershipTierRow = Database["public"]["Tables"]["membership_tiers"]["Row"];
 
+/**
+ * Pojedynczy benefit warstwy. Rdzeń to para pl/en; pola opcjonalne rozszerzają
+ * prezentację na /pricing (wzorce prasy cyfrowej):
+ *  - detail_*  jednozdaniowe rozwinięcie pod benefitem (styl NYT),
+ *  - group_*   nagłówek sekcji grupujący kolejne benefity (styl FT).
+ * Format w bazie pozostaje jsonb [{pl,en,...}] - starsi konsumenci ignorują
+ * dodatkowe pola, a serializacja (serializeTierBenefits) nigdy ich nie gubi.
+ */
 export interface TierBenefit {
   pl: string;
   en: string;
+  detail_pl?: string;
+  detail_en?: string;
+  group_pl?: string;
+  group_en?: string;
 }
 
 export interface CurrentTier {
@@ -38,15 +50,61 @@ export const TIER_RANKS = {
 
 export function parseTierBenefits(benefits: Json): TierBenefit[] {
   if (!Array.isArray(benefits)) return [];
+  const str = (rec: Record<string, unknown>, key: string): string =>
+    typeof rec[key] === "string" ? (rec[key] as string) : "";
   return benefits.flatMap((b) => {
     if (b && typeof b === "object" && !Array.isArray(b)) {
       const rec = b as Record<string, unknown>;
-      const pl = typeof rec.pl === "string" ? rec.pl : "";
-      const en = typeof rec.en === "string" ? rec.en : "";
-      if (pl || en) return [{ pl: pl || en, en: en || pl }];
+      const pl = str(rec, "pl");
+      const en = str(rec, "en");
+      if (!pl && !en) return [];
+      const out: TierBenefit = { pl: pl || en, en: en || pl };
+      const detailPl = str(rec, "detail_pl");
+      const detailEn = str(rec, "detail_en");
+      const groupPl = str(rec, "group_pl");
+      const groupEn = str(rec, "group_en");
+      if (detailPl || detailEn) {
+        out.detail_pl = detailPl || detailEn;
+        out.detail_en = detailEn || detailPl;
+      }
+      if (groupPl || groupEn) {
+        out.group_pl = groupPl || groupEn;
+        out.group_en = groupEn || groupPl;
+      }
+      return [out];
     }
     return [];
   });
+}
+
+/**
+ * Serializacja benefitów do jsonb - jedyne miejsce zapisu (panel membership
+ * i panel cennika), żeby żaden edytor nie gubił pól drugiego. Puste wiersze
+ * odpadają, brakująca wersja językowa dziedziczy z drugiej, pola opcjonalne
+ * trafiają do JSON-a tylko gdy niepuste.
+ */
+export function serializeTierBenefits(list: TierBenefit[]): Json {
+  const out: Record<string, string>[] = [];
+  for (const b of list) {
+    const pl = b.pl.trim();
+    const en = b.en.trim();
+    if (!pl && !en) continue;
+    const rec: Record<string, string> = { pl: pl || en, en: en || pl };
+    const detailPl = (b.detail_pl ?? "").trim();
+    const detailEn = (b.detail_en ?? "").trim();
+    if (detailPl || detailEn) {
+      rec.detail_pl = detailPl || detailEn;
+      rec.detail_en = detailEn || detailPl;
+    }
+    const groupPl = (b.group_pl ?? "").trim();
+    const groupEn = (b.group_en ?? "").trim();
+    if (groupPl || groupEn) {
+      rec.group_pl = groupPl || groupEn;
+      rec.group_en = groupEn || groupPl;
+    }
+    out.push(rec);
+  }
+  return out;
 }
 
 export function tierName(
