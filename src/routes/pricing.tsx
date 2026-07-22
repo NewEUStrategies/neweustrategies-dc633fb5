@@ -244,14 +244,95 @@ function PricingPage() {
         </li>
       </ul>
 
-      {audiences.length > 1 && activeKey && (
-        <AudienceSwitcher
-          audiences={audiences}
-          value={activeKey}
-          onChange={setAudience}
-          lang={lang}
-          label={t("pricing.segmentsAria")}
-        />
+      {/* Warstwy członkostwa: co daje każda warstwa, niezależnie od tego,
+          którym planem (miesiąc/rok) się ją kupuje. */}
+      {(tiers.data?.length ?? 0) > 0 && (
+        <section aria-labelledby="tiers-heading" className="mb-12">
+          <h2 id="tiers-heading" className="sr-only">
+            {t("pricing.tiers.heading", {
+              defaultValue: lang === "en" ? "Membership tiers" : "Warstwy członkostwa",
+            })}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {tiers.data!.map((tier) => {
+              const isCurrent = currentTier.data?.key === tier.key;
+              const grantingPlans = (plans.data ?? []).filter((p) => p.tier_key === tier.key);
+              return (
+                <div
+                  key={tier.id}
+                  className={`rounded-lg border p-5 ${
+                    isCurrent ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-lg font-semibold">{tierName(tier, lang)}</h3>
+                    {isCurrent && (
+                      <span
+                        className="bg-primary px-2 h-5 inline-flex items-center justify-center font-medium leading-none text-primary-foreground rounded-[6px] whitespace-nowrap"
+                        style={{ fontSize: '10px' }}
+                      >
+                        {t("pricing.tiers.current", {
+                          defaultValue: lang === "en" ? "Your subscription" : "Twoja subskrypcja",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  {(lang === "en" ? tier.description_en : tier.description_pl) && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {lang === "en" ? tier.description_en : tier.description_pl}
+                    </p>
+                  )}
+                  <ul className="mt-3 space-y-1.5">
+                    {parseTierBenefits(tier.benefits).map((b, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <Check
+                          className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                          aria-hidden="true"
+                        />
+                        <span>{lang === "en" ? b.en : b.pl}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {grantingPlans.length > 0 && (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {t("pricing.tiers.grantedBy", {
+                        defaultValue: lang === "en" ? "Included in:" : "W ramach planów:",
+                      })}{" "}
+                      {grantingPlans.map((p) => planName(p, lang)).join(", ")}
+                    </p>
+                  )}
+                  {!isCurrent && <TierCta tierKey={tier.key} plans={grantingPlans} lang={lang} />}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {showToggle && (
+        <div className="mb-8 flex justify-center">
+          <div
+            role="group"
+            aria-label={t("pricing.title")}
+            className="inline-flex rounded-full border border-border bg-muted/40 p-1"
+          >
+            {(["month", "year"] as const).map((iv) => (
+              <button
+                key={iv}
+                type="button"
+                aria-pressed={interval === iv}
+                onClick={() => setInterval(iv)}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  interval === iv
+                    ? "bg-background text-foreground shadow"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {iv === "month" ? t("pricing.intervalMonthly") : t("pricing.intervalYearly")}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {isLoading ? (

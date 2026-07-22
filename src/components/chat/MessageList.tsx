@@ -522,19 +522,31 @@ export function MessageList(props: MessageListProps) {
                       )}
                       <div className="min-w-0 flex-1">{bubble}</div>
                     </div>
-                  ) : mine && myAvatarUrl && groupEnd ? (
-                    <div className="flex flex-row-reverse items-end gap-1.5">
-                      <ChatAvatar
-                        name={t("chat.you")}
-                        avatarUrl={myAvatarUrl}
-                        size="xs"
-                        className="mb-0.5"
-                      />
+                  ) : mine ? (
+                    // Own messages never show an avatar on the right - the
+                    // sender is implicit. Applies to direct and group threads.
+                    bubble
+                  ) : !mine ? (
+                    // Direct thread: peer avatar anchors the LAST bubble of
+                    // their group; earlier rows keep a spacer so the whole
+                    // group stays left-aligned (mirror of the mine branch).
+                    <div className="flex items-end gap-1.5">
+                      {groupEnd ? (
+                        <ChatAvatar
+                          name={peerName}
+                          avatarUrl={peerAvatarUrl}
+                          size="xs"
+                          className="mb-0.5"
+                        />
+                      ) : (
+                        <span className="w-5 shrink-0" aria-hidden />
+                      )}
                       <div className="min-w-0 flex-1">{bubble}</div>
                     </div>
                   ) : (
                     bubble
                   )}
+
                 </div>
               );
             })}
@@ -544,12 +556,12 @@ export function MessageList(props: MessageListProps) {
             {lastMine?.pending ? (
               <span className="text-[10px] text-muted-foreground">{t("chat.sending")}</span>
             ) : seen ? (
-              <span className="inline-flex items-center gap-1" title={t("chat.seen")}>
-                <span className="sr-only">{t("chat.seen")}</span>
-                <ChatAvatar name={peerName} avatarUrl={peerAvatarUrl} size="xs" />
+              <span className="text-[10px] text-muted-foreground" title={t("chat.seen")}>
+                {t("chat.seen")}
               </span>
             ) : null}
           </div>
+
 
           {peerTyping && (
             <div className="pb-1 pt-0.5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150">

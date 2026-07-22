@@ -18,6 +18,7 @@ import {
   Copy,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -80,15 +81,27 @@ function bubbleRadius(mine: boolean, groupStart: boolean, groupEnd: boolean): st
   return cn(base, !groupStart && "rounded-tl-[3px]", !groupEnd && "rounded-bl-[3px]");
 }
 
-function ReactorAvatar({ profile, name }: { profile: ReactorProfile | undefined; name: string }) {
+function ReactorAvatar({
+  profile,
+  name,
+  size = "xs",
+}: {
+  profile: ReactorProfile | undefined;
+  name: string;
+  size?: "xs" | "sm";
+}) {
   const initial = (profile?.display_name ?? name).trim().charAt(0).toUpperCase() || "?";
+  const dims =
+    size === "sm"
+      ? "h-5 w-5 rounded-[4px] text-[9px]"
+      : "h-3.5 w-3.5 rounded-[3px] text-[8px]";
   if (profile?.avatar_url) {
     return (
       <img
         src={profile.avatar_url}
         alt=""
         aria-hidden
-        className="h-3.5 w-3.5 rounded-[3px] object-cover ring-1 ring-background"
+        className={cn("object-cover ring-1 ring-background", dims)}
         loading="lazy"
       />
     );
@@ -96,12 +109,16 @@ function ReactorAvatar({ profile, name }: { profile: ReactorProfile | undefined;
   return (
     <span
       aria-hidden
-      className="flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-muted text-[8px] font-semibold text-muted-foreground ring-1 ring-background"
+      className={cn(
+        "flex items-center justify-center bg-muted font-semibold text-muted-foreground ring-1 ring-background",
+        dims,
+      )}
     >
       {initial}
     </span>
   );
 }
+
 
 function ReactionChips({
   reactions,
@@ -139,55 +156,75 @@ function ReactionChips({
       {[...grouped.entries()].map(([emoji, rows]) => {
         const isMine = rows.some((r) => r.user_id === myUserId);
         const names = rows.map((r) => nameFor(r.user_id)).filter(Boolean);
-        const tooltip = [
+        const ariaLabel = [
           t("chat.reactions.reactorsTitle", { emoji }),
           names.length > 0 ? names.join(", ") : "",
           isMine ? t("chat.reactions.removeHint") : t("chat.reactions.addHint"),
         ]
           .filter(Boolean)
           .join(" \u2022 ");
-        const shownRows = rows.slice(0, 3);
         return (
-          <button
-            key={emoji}
-            data-emoji={emoji}
-            type="button"
-            onClick={() => onReact(emoji, myReaction)}
-            aria-pressed={isMine}
-            aria-label={tooltip}
-            title={tooltip}
-            className={cn(
-              "chat-reaction-pop group/rx inline-flex items-center gap-1 rounded-full border bg-background/95 px-1.5 py-0.5 text-[11px] shadow-sm transition-all",
-              "hover:bg-muted motion-safe:hover:-translate-y-[1px] motion-safe:active:scale-95",
-              "dark:bg-background/70 backdrop-blur",
-              isMine
-                ? "border-[var(--chat-user-to,theme(colors.primary.DEFAULT))]/60 text-foreground"
-                : "border-border/60 hover:border-border",
-            )}
-          >
-            <span aria-hidden className="text-[13px] leading-none">
-              {emoji}
-            </span>
-            {shownRows.length > 0 && (
-              <span className="flex -space-x-1" aria-hidden>
-                {shownRows.map((r) => (
-                  <ReactorAvatar
-                    key={r.id}
-                    profile={reactorProfiles?.get(r.user_id)}
-                    name={nameFor(r.user_id)}
-                  />
-                ))}
-              </span>
-            )}
-            <span className="text-[10px] font-medium tabular-nums text-muted-foreground group-hover/rx:text-foreground">
-              {rows.length}
-            </span>
-          </button>
+          <Tooltip key={emoji} delayDuration={120}>
+            <TooltipTrigger asChild>
+              <button
+                data-emoji={emoji}
+                type="button"
+                onClick={() => onReact(emoji, myReaction)}
+                aria-pressed={isMine}
+                aria-label={ariaLabel}
+                className={cn(
+                  "chat-reaction-pop group/rx inline-flex items-center gap-1 rounded-full border bg-background/95 px-1.5 py-0.5 shadow-sm transition-all",
+                  "hover:bg-muted motion-safe:hover:-translate-y-[1px] motion-safe:active:scale-95",
+                  "dark:bg-background/70 backdrop-blur",
+                  isMine
+                    ? "border-[var(--chat-user-to,theme(colors.primary.DEFAULT))]/60 text-foreground"
+                    : "border-border/60 hover:border-border",
+                )}
+                style={{ fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif' }}
+              >
+                <span aria-hidden className="text-[12px] leading-none">
+                  {emoji}
+                </span>
+                <span className="text-[9px] font-medium tabular-nums leading-none text-muted-foreground group-hover/rx:text-foreground">
+                  {rows.length}
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              align="center"
+              sideOffset={6}
+              collisionPadding={12}
+              className="z-[100] min-w-[180px] max-w-[240px] overflow-visible rounded-[6px] border-border/70 p-0 shadow-lg"
+              style={{ fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif' }}
+            >
+              <div className="border-b border-border/50 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span aria-hidden className="mr-1 text-[12px] align-middle">{emoji}</span>
+                {t("chat.reactions.reactorsTitle", { emoji: "" }).replace(/[:：]$/, "").trim() || t("chat.reactions.reactorsTitle", { emoji })}
+              </div>
+              <ul className="max-h-[180px] overflow-y-auto py-1">
+                {rows.map((r) => {
+                  const profile = reactorProfiles?.get(r.user_id);
+                  const display = nameFor(r.user_id) || t("chat.reactions.someone", { defaultValue: "..." });
+                  return (
+                    <li
+                      key={r.id}
+                      className="flex items-center gap-2 px-2.5 py-1 text-[11px] text-foreground"
+                    >
+                      <ReactorAvatar profile={profile} name={display} size="sm" />
+                      <span className="min-w-0 truncate">{display}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </TooltipContent>
+          </Tooltip>
         );
       })}
     </div>
   );
 }
+
 
 export const MessageBubble = memo(function MessageBubble(props: MessageBubbleProps) {
   const {
