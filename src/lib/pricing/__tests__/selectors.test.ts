@@ -10,6 +10,7 @@ import {
 } from "@/lib/billing/tiers";
 import type { PricingAudienceRow, PricingFaqItemRow } from "@/lib/pricing/queries";
 import {
+  audienceTrust,
   benefitDetail,
   benefitText,
   faqForAudience,
@@ -22,9 +23,16 @@ import {
   plansByTierKey,
   sanitizeAudienceKey,
   sortTiers,
+  tierCtaMode,
+  tierPriceNote,
   tiersForAudience,
   yearlySavingsPct,
 } from "@/lib/pricing/selectors";
+import {
+  couponSuffixFromBytes,
+  couponValidUntil,
+  retentionCouponCode,
+} from "@/lib/retention/coupon";
 
 let planSeq = 0;
 
@@ -78,6 +86,10 @@ function makeTier(patch: Partial<MembershipTierRow>): MembershipTierRow {
     badge_en: null,
     highlight: false,
     contact_url: null,
+    per_seat: false,
+    price_note_pl: null,
+    price_note_en: null,
+    cta_mode: "auto",
     ...patch,
   };
 }
@@ -91,6 +103,8 @@ function makeAudience(patch: Partial<PricingAudienceRow>): PricingAudienceRow {
     name_en: "For you",
     tagline_pl: null,
     tagline_en: null,
+    trust_pl: null,
+    trust_en: null,
     icon: "user",
     sort_order: 0,
     active: true,
@@ -286,6 +300,44 @@ describe("groupBenefits", () => {
     expect(benefitText(b, "en")).toBe("Po polsku");
     expect(benefitDetail(b, "en")).toBe("Detal");
     expect(benefitDetail({ pl: "X", en: "X" }, "pl")).toBeNull();
+  });
+});
+
+describe("prezentacja v3: cta_mode / price_note / trust", () => {
+  it("tierCtaMode degraduje nieznane wartości do auto", () => {
+    expect(tierCtaMode(makeTier({ cta_mode: "contact" }))).toBe("contact");
+    expect(tierCtaMode(makeTier({ cta_mode: "none" }))).toBe("none");
+    expect(tierCtaMode(makeTier({ cta_mode: "auto" }))).toBe("auto");
+    expect(tierCtaMode(makeTier({ cta_mode: "banana" }))).toBe("auto");
+  });
+
+  it("tierPriceNote i audienceTrust honorują język z fallbackiem", () => {
+    const tier = makeTier({ price_note_pl: "2-20 miejsc", price_note_en: "" });
+    expect(tierPriceNote(tier, "en")).toBe("2-20 miejsc");
+    expect(tierPriceNote(makeTier({}), "pl")).toBeNull();
+    const audience = makeAudience({ trust_pl: "Faktura · Umowa roczna", trust_en: null });
+    expect(audienceTrust(audience, "en")).toBe("Faktura · Umowa roczna");
+    expect(audienceTrust(makeAudience({}), "pl")).toBeNull();
+  });
+});
+
+describe("kupon retencyjny (helpery)", () => {
+  it("retentionCouponCode normalizuje procent i sufiks", () => {
+    expect(retentionCouponCode(30, "ab12cd")).toBe("SAVE30-AB12CD");
+    expect(retentionCouponCode(120, "XYZXYZ")).toBe("SAVE90-XYZXYZ");
+    expect(retentionCouponCode(0.4, "XYZXYZ")).toBe("SAVE1-XYZXYZ");
+  });
+
+  it("couponSuffixFromBytes używa bezpiecznego alfabetu (bez 0/O i 1/I)", () => {
+    const suffix = couponSuffixFromBytes(new Uint8Array([0, 31, 32, 255, 7, 12]), 6);
+    expect(suffix).toHaveLength(6);
+    expect(suffix).not.toMatch(/[01IO]/);
+  });
+
+  it("couponValidUntil dodaje pełne doby w dozwolonym zakresie", () => {
+    const now = new Date("2026-07-22T12:00:00Z");
+    expect(couponValidUntil(now, 14).toISOString()).toBe("2026-08-05T12:00:00.000Z");
+    expect(couponValidUntil(now, 500).toISOString()).toBe("2026-10-20T12:00:00.000Z");
   });
 });
 

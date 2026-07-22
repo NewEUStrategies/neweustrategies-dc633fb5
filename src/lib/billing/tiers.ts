@@ -36,16 +36,25 @@ export interface CurrentTier {
 }
 
 /**
- * Rangi kanoniczne (seed DB): konto bezpłatne=0, wspierający=5, członek=10,
- * ekspercki=20, korporacyjny=30, partner strategiczny=40.
+ * Rangi kanoniczne (seed DB, katalog v3): Essential=0, wspierający=5,
+ * Plus=10 (student/kadra akademicka również 10), Pro=20 (NGO=20), VIP=25
+ * (zespół=25), Enterprise=30, Strategic Partner=40, Partner Generalny=50,
+ * President's Circle=60.
  */
 export const TIER_RANKS = {
   reader: 0,
   supporter: 5,
   member: 10,
+  student: 10,
+  educator: 10,
   pro: 20,
+  ngo: 20,
+  vip: 25,
+  team: 25,
   corporate: 30,
   partner: 40,
+  partner_general: 50,
+  presidents_circle: 60,
 } as const;
 
 export function parseTierBenefits(benefits: Json): TierBenefit[] {

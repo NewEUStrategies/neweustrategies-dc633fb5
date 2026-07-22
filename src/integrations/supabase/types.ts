@@ -4002,6 +4002,7 @@ export type Database = {
           benefits: Json
           contact_url: string | null
           created_at: string
+          cta_mode: string
           description_en: string | null
           description_pl: string | null
           features: Json
@@ -4011,6 +4012,9 @@ export type Database = {
           key: string
           name_en: string
           name_pl: string
+          per_seat: boolean
+          price_note_en: string | null
+          price_note_pl: string | null
           rank: number
           sort_order: number
           tenant_id: string
@@ -4024,6 +4028,7 @@ export type Database = {
           benefits?: Json
           contact_url?: string | null
           created_at?: string
+          cta_mode?: string
           description_en?: string | null
           description_pl?: string | null
           features?: Json
@@ -4033,6 +4038,9 @@ export type Database = {
           key: string
           name_en: string
           name_pl: string
+          per_seat?: boolean
+          price_note_en?: string | null
+          price_note_pl?: string | null
           rank?: number
           sort_order?: number
           tenant_id: string
@@ -4046,6 +4054,7 @@ export type Database = {
           benefits?: Json
           contact_url?: string | null
           created_at?: string
+          cta_mode?: string
           description_en?: string | null
           description_pl?: string | null
           features?: Json
@@ -4055,6 +4064,9 @@ export type Database = {
           key?: string
           name_en?: string
           name_pl?: string
+          per_seat?: boolean
+          price_note_en?: string | null
+          price_note_pl?: string | null
           rank?: number
           sort_order?: number
           tenant_id?: string
@@ -7010,6 +7022,8 @@ export type Database = {
           tagline_en: string | null
           tagline_pl: string | null
           tenant_id: string
+          trust_en: string | null
+          trust_pl: string | null
           updated_at: string
         }
         Insert: {
@@ -7024,6 +7038,8 @@ export type Database = {
           tagline_en?: string | null
           tagline_pl?: string | null
           tenant_id: string
+          trust_en?: string | null
+          trust_pl?: string | null
           updated_at?: string
         }
         Update: {
@@ -7038,6 +7054,8 @@ export type Database = {
           tagline_en?: string | null
           tagline_pl?: string | null
           tenant_id?: string
+          trust_en?: string | null
+          trust_pl?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -8564,6 +8582,142 @@ export type Database = {
             foreignKeyName: "resource_downloads_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retention_feedback: {
+        Row: {
+          comment: string | null
+          coupon_code: string | null
+          created_at: string
+          id: string
+          offer_accepted: boolean
+          offer_shown: boolean
+          reason_id: string | null
+          reason_label: string
+          subscription_id: string | null
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          comment?: string | null
+          coupon_code?: string | null
+          created_at?: string
+          id?: string
+          offer_accepted?: boolean
+          offer_shown?: boolean
+          reason_id?: string | null
+          reason_label: string
+          subscription_id?: string | null
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          comment?: string | null
+          coupon_code?: string | null
+          created_at?: string
+          id?: string
+          offer_accepted?: boolean
+          offer_shown?: boolean
+          reason_id?: string | null
+          reason_label?: string
+          subscription_id?: string | null
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retention_feedback_reason_id_fkey"
+            columns: ["reason_id"]
+            isOneToOne: false
+            referencedRelation: "retention_reasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retention_feedback_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retention_reasons: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          label_en: string
+          label_pl: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label_en: string
+          label_pl: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label_en?: string
+          label_pl?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retention_reasons_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retention_settings: {
+        Row: {
+          coupon_valid_days: number
+          discount_pct: number
+          discount_periods: number
+          enabled: boolean
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          coupon_valid_days?: number
+          discount_pct?: number
+          discount_periods?: number
+          enabled?: boolean
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          coupon_valid_days?: number
+          discount_pct?: number
+          discount_periods?: number
+          enabled?: boolean
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retention_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
