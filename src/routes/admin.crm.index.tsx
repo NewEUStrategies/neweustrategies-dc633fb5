@@ -779,6 +779,13 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         <table className="w-full text-[13px]">
           <thead className="bg-muted/50 text-muted-foreground">
             <tr>
+              <th className="p-2 w-8">
+                <Checkbox
+                  checked={allChecked}
+                  onCheckedChange={toggleAll}
+                  aria-label={lang === "pl" ? "Zaznacz wszystkie" : "Select all"}
+                />
+              </th>
               <th className="text-left p-2">{L.cols.who}</th>
               <th className="text-left p-2">{L.cols.score}</th>
               <th className="text-left p-2 hidden md:table-cell">{L.cols.contact}</th>
@@ -792,7 +799,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={8} className="p-4 text-center text-muted-foreground">
+                <td colSpan={9} className="p-4 text-center text-muted-foreground">
                   {L.empty}
                 </td>
               </tr>
@@ -800,9 +807,17 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             {leads.map((l) => (
               <tr
                 key={l.id}
-                className="border-t hover:bg-muted/40 cursor-pointer"
+                data-selected={selected.has(l.id) || undefined}
+                className="border-t hover:bg-muted/40 cursor-pointer data-[selected=true]:bg-primary/5"
                 onClick={() => void navigate({ to: "/admin/crm/$id", params: { id: l.id } })}
               >
+                <td className="p-2 w-8" onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selected.has(l.id)}
+                    onCheckedChange={(v) => toggleOne(l.id, v === true)}
+                    aria-label={l.email ?? l.id}
+                  />
+                </td>
                 <td className="p-2">
                   <div className="flex items-center gap-2">
                     {(() => {
