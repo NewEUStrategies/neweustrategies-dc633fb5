@@ -1,12 +1,22 @@
 // Dashboard monetyzacji: metered views, użycia kuponów, ustawienia checkoutu,
 // filtry po planie i organizacji. Odczyt via monetization_dashboard (RPC, staff-only).
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { TrendingUp, ShieldCheck, BadgePercent, Users, Ban, LogIn } from "lucide-react";
+import {
+  TrendingUp,
+  ShieldCheck,
+  BadgePercent,
+  Users,
+  Ban,
+  LogIn,
+  HeartHandshake,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { Database } from "@/integrations/supabase/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -237,7 +247,110 @@ function AdminMonetizationPage() {
           </div>
         </CardContent>
       </Card>
+
+      <RetentionSummarySection />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Retencja odchodzących: skrót z retention_feedback (90 dni) - odpowiedzi,
+// przyjęte kontrofertki i najczęstsze powody; konfiguracja w /admin/pricing.
+// ---------------------------------------------------------------------------
+type RetentionFeedbackRow = Database["public"]["Tables"]["retention_feedback"]["Row"];
+
+function RetentionSummarySection() {
+  const { i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
+  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+
+  const feedbackQ = useQuery({
+    queryKey: ["admin", "retention-feedback"],
+    queryFn: async (): Promise<RetentionFeedbackRow[]> => {
+      const { data, error } = await supabase
+        .from("retention_feedback")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const stats = useMemo(() => {
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const recent = (feedbackQ.data ?? []).filter(
+      (row) => new Date(row.created_at).getTime() >= cutoff,
+    );
+    const shown = recent.filter((row) => row.offer_shown);
+    const accepted = recent.filter((row) => row.offer_accepted);
+    const byReason = new Map<string, number>();
+    for (const row of recent) {
+      byReason.set(row.reason_label, (byReason.get(row.reason_label) ?? 0) + 1);
+    }
+    const topReasons = [...byReason.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+    return {
+      total: recent.length,
+      accepted: accepted.length,
+      acceptRate: shown.length > 0 ? Math.round((accepted.length / shown.length) * 100) : null,
+      topReasons,
+    };
+  }, [feedbackQ.data]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            <HeartHandshake className="h-4 w-4" aria-hidden="true" />
+            {L("Retencja odchodzących (90 dni)", "Churn retention (90 days)")}
+          </span>
+          <Button asChild size="sm" variant="outline" className="h-7">
+            <Link to="/admin/pricing">{L("Konfiguruj w Cenniku", "Configure in Pricing")}</Link>
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-md border border-border/60 px-3 py-2">
+            <div className="text-xs text-muted-foreground">
+              {L("Odpowiedzi ankiety", "Survey responses")}
+            </div>
+            <div className="text-xl font-bold">{stats.total}</div>
+          </div>
+          <div className="rounded-md border border-border/60 px-3 py-2">
+            <div className="text-xs text-muted-foreground">
+              {L("Przyjęte kontrofertki", "Accepted counter-offers")}
+            </div>
+            <div className="text-xl font-bold">
+              {stats.accepted}
+              {stats.acceptRate !== null && (
+                <span className="ml-2 text-sm font-medium text-muted-foreground">
+                  ({stats.acceptRate}%)
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="rounded-md border border-border/60 px-3 py-2">
+            <div className="text-xs text-muted-foreground">
+              {L("Najczęstsze powody", "Top reasons")}
+            </div>
+            {stats.topReasons.length === 0 ? (
+              <div className="text-sm text-muted-foreground">-</div>
+            ) : (
+              <ul className="mt-0.5 space-y-0.5 text-sm">
+                {stats.topReasons.map(([label, count]) => (
+                  <li key={label} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{label}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
