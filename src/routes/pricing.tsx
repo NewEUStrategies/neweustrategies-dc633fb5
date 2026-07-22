@@ -12,7 +12,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, ShieldCheck, RefreshCcw, Zap } from "lucide-react";
+import { ArrowRight, ShieldCheck, RefreshCcw, Zap } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { fetchActivePlans, fetchMySubscription } from "@/lib/billing/queries";
