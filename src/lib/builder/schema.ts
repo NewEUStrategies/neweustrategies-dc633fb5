@@ -79,6 +79,7 @@ export const WIDGET_TYPES = [
   // Rich blocks
   "accordion",
   "tabs",
+  "timeline",
   "testimonial",
   "team-member",
   "pricing",
