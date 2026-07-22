@@ -13,7 +13,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, BadgePercent, Crown, Plus, Save, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  BadgePercent,
+  Crown,
+  HeartHandshake,
+  LayoutDashboard,
+  Lock,
+  Megaphone,
+  Plus,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { ensureI18n as ensureAdminPricingI18n } from "@/lib/i18n-admin-pricing";
@@ -47,6 +59,11 @@ import {
   type TierBenefit,
 } from "@/lib/billing/tiers";
 import type { PricingAudienceRow, PricingFaqItemRow } from "@/lib/pricing/queries";
+import type {
+  RetentionFeedbackRow,
+  RetentionReasonRow,
+  RetentionSettingsRow,
+} from "@/lib/retention/queries";
 import { sortTiers } from "@/lib/pricing/selectors";
 import { audienceIcon } from "@/components/pricing/audienceMeta";
 
@@ -69,7 +86,7 @@ type FaqUpdate = Database["public"]["Tables"]["pricing_faq_items"]["Update"];
 
 /** Renumeracja sort_order po przesunięciu - aktualizuje tylko zmienione wiersze. */
 async function persistOrder(
-  table: "pricing_audiences" | "pricing_faq_items",
+  table: "pricing_audiences" | "pricing_faq_items" | "retention_reasons",
   rows: { id: string; sort_order: number }[],
   moved: { fromIndex: number; toIndex: number },
 ): Promise<void> {
@@ -139,6 +156,34 @@ function AdminPricingPage() {
           {ta("title")}
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{ta("subtitle")}</p>
+        {/* Cennik spina moduły monetyzacji - szybkie skoki do powiązanych paneli. */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{ta("related.heading")}</span>
+          <Button asChild size="sm" variant="outline" className="h-7">
+            <Link to="/admin/coupons">
+              <Megaphone className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {ta("related.coupons")}
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline" className="h-7">
+            <Link to="/admin/membership">
+              <Crown className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {ta("related.membership")}
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline" className="h-7">
+            <Link to="/admin/paywall">
+              <Lock className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {ta("related.paywall")}
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline" className="h-7">
+            <Link to="/admin/monetization">
+              <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {ta("related.dashboard")}
+            </Link>
+          </Button>
+        </div>
       </header>
 
       <Tabs defaultValue="audiences">
@@ -146,6 +191,7 @@ function AdminPricingPage() {
           <TabsTrigger value="audiences">{ta("tabs.audiences")}</TabsTrigger>
           <TabsTrigger value="tiers">{ta("tabs.tiers")}</TabsTrigger>
           <TabsTrigger value="faq">{ta("tabs.faq")}</TabsTrigger>
+          <TabsTrigger value="retention">{ta("tabs.retention")}</TabsTrigger>
         </TabsList>
         <TabsContent value="audiences" className="mt-4">
           <AudiencesTab audiences={audiences} tiers={tiers} />
@@ -155,6 +201,9 @@ function AdminPricingPage() {
         </TabsContent>
         <TabsContent value="faq" className="mt-4">
           <FaqTab audiences={audiences} items={faqItems} />
+        </TabsContent>
+        <TabsContent value="retention" className="mt-4">
+          <RetentionTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -169,6 +218,8 @@ interface AudienceDraft {
   name_en: string;
   tagline_pl: string;
   tagline_en: string;
+  trust_pl: string;
+  trust_en: string;
   icon: string;
   active: boolean;
 }
@@ -179,6 +230,8 @@ function draftFromAudience(row: PricingAudienceRow): AudienceDraft {
     name_en: row.name_en,
     tagline_pl: row.tagline_pl ?? "",
     tagline_en: row.tagline_en ?? "",
+    trust_pl: row.trust_pl ?? "",
+    trust_en: row.trust_en ?? "",
     icon: row.icon,
     active: row.active,
   };
@@ -217,6 +270,8 @@ function AudiencesTab({
         name_en: draft.name_en.trim(),
         tagline_pl: draft.tagline_pl.trim() || null,
         tagline_en: draft.tagline_en.trim() || null,
+        trust_pl: draft.trust_pl.trim() || null,
+        trust_en: draft.trust_en.trim() || null,
         icon: draft.icon,
         active: draft.active,
       };
@@ -382,6 +437,25 @@ function AudiencesTab({
                       onChange={(e) => set({ tagline_en: e.target.value })}
                     />
                   </div>
+                  <div>
+                    <Label className="text-xs">{ta("audiences.trustPl")}</Label>
+                    <Input
+                      value={draft.trust_pl}
+                      onChange={(e) => set({ trust_pl: e.target.value })}
+                      placeholder="Faktura · Umowa roczna · Wdrożenie z opiekunem"
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {ta("audiences.trustHint")}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs">{ta("audiences.trustEn")}</Label>
+                    <Input
+                      value={draft.trust_en}
+                      onChange={(e) => set({ trust_en: e.target.value })}
+                      placeholder="Invoice · Annual agreement · Guided onboarding"
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3">
                   <div>
@@ -510,10 +584,15 @@ interface TierMarketingDraft {
   badge_en: string;
   highlight: boolean;
   contact_url: string;
+  cta_mode: string;
+  per_seat: boolean;
+  price_note_pl: string;
+  price_note_en: string;
   benefits: TierBenefit[];
 }
 
 const NO_AUDIENCE = "none";
+const CTA_MODES = ["auto", "contact", "none"] as const;
 
 function draftFromTier(tier: MembershipTierRow): TierMarketingDraft {
   return {
@@ -522,6 +601,12 @@ function draftFromTier(tier: MembershipTierRow): TierMarketingDraft {
     badge_en: tier.badge_en ?? "",
     highlight: tier.highlight,
     contact_url: tier.contact_url ?? "",
+    cta_mode: CTA_MODES.includes(tier.cta_mode as (typeof CTA_MODES)[number])
+      ? tier.cta_mode
+      : "auto",
+    per_seat: tier.per_seat,
+    price_note_pl: tier.price_note_pl ?? "",
+    price_note_en: tier.price_note_en ?? "",
     benefits: parseTierBenefits(tier.benefits),
   };
 }
@@ -549,6 +634,10 @@ function TiersTab({
           badge_en: draft.badge_en.trim() || null,
           highlight: draft.highlight,
           contact_url: draft.contact_url.trim() || null,
+          cta_mode: draft.cta_mode,
+          per_seat: draft.per_seat,
+          price_note_pl: draft.price_note_pl.trim() || null,
+          price_note_en: draft.price_note_en.trim() || null,
           benefits: serializeTierBenefits(draft.benefits),
         })
         .eq("id", id);
@@ -646,6 +735,47 @@ function TiersTab({
                 placeholder="/kontakt lub mailto:..."
               />
               <p className="mt-1 text-[11px] text-muted-foreground">{ta("tiers.contactUrlHint")}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-3">
+            <div>
+              <Label className="text-xs">{ta("tiers.ctaMode")}</Label>
+              <Select value={draft.cta_mode} onValueChange={(v) => set({ cta_mode: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CTA_MODES.map((mode) => (
+                    <SelectItem key={mode} value={mode}>
+                      {ta(`tiers.ctaModes.${mode}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-[11px] text-muted-foreground">{ta("tiers.ctaModeHint")}</p>
+            </div>
+            <div className="flex items-center gap-2 pb-2">
+              <Switch checked={draft.per_seat} onCheckedChange={(v) => set({ per_seat: v })} />
+              <span className="text-xs">{ta("tiers.perSeat")}</span>
+              <span className="text-[11px] text-muted-foreground">{ta("tiers.perSeatHint")}</span>
+            </div>
+            <div className="grid grid-cols-1 gap-1.5">
+              <div>
+                <Label className="text-xs">{ta("tiers.priceNotePl")}</Label>
+                <Input
+                  value={draft.price_note_pl}
+                  onChange={(e) => set({ price_note_pl: e.target.value })}
+                  placeholder="2-20 miejsc"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">{ta("tiers.priceNoteEn")}</Label>
+                <Input
+                  value={draft.price_note_en}
+                  onChange={(e) => set({ price_note_en: e.target.value })}
+                  placeholder="2-20 seats"
+                />
+              </div>
             </div>
           </div>
           <TierBenefitsEditor value={draft.benefits} onChange={(benefits) => set({ benefits })} />
@@ -993,6 +1123,468 @@ function FaqTab({
           );
         })
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Zakładka: retencja odchodzących - ustawienia kontrofertki (procent, liczba
+// płatności, ważność kodu), katalog powodów rezygnacji i przegląd odpowiedzi.
+// Kupony retencyjne lądują w module Kuponów B2B (metadata.source='retention').
+// ---------------------------------------------------------------------------
+interface RetentionSettingsDraft {
+  enabled: boolean;
+  discount_pct: string;
+  discount_periods: string;
+  coupon_valid_days: string;
+}
+
+function settingsDraftFromRow(row: RetentionSettingsRow | null): RetentionSettingsDraft {
+  return {
+    enabled: row?.enabled ?? true,
+    discount_pct: String(row?.discount_pct ?? 30),
+    discount_periods: String(row?.discount_periods ?? 3),
+    coupon_valid_days: String(row?.coupon_valid_days ?? 14),
+  };
+}
+
+function clampInt(value: string, min: number, max: number, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+interface ReasonDraft {
+  label_pl: string;
+  label_en: string;
+  active: boolean;
+}
+
+function reasonDraftFromRow(row: RetentionReasonRow): ReasonDraft {
+  return { label_pl: row.label_pl, label_en: row.label_en, active: row.active };
+}
+
+function RetentionTab() {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
+  const ta = (k: string, opts?: Record<string, unknown>) => t(`adminPricing.${k}`, opts);
+  const qc = useQueryClient();
+
+  const settingsQ = useQuery({
+    queryKey: ["admin", "retention-settings"],
+    queryFn: async (): Promise<RetentionSettingsRow | null> => {
+      const { data, error } = await supabase.from("retention_settings").select("*").maybeSingle();
+      if (error) throw error;
+      return data ?? null;
+    },
+  });
+  const reasonsQ = useQuery({
+    queryKey: ["admin", "retention-reasons"],
+    queryFn: async (): Promise<RetentionReasonRow[]> => {
+      const { data, error } = await supabase
+        .from("retention_reasons")
+        .select("*")
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const feedbackQ = useQuery({
+    queryKey: ["admin", "retention-feedback"],
+    queryFn: async (): Promise<RetentionFeedbackRow[]> => {
+      const { data, error } = await supabase
+        .from("retention_feedback")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const reasons = reasonsQ.data ?? [];
+  const feedback = useMemo(() => feedbackQ.data ?? [], [feedbackQ.data]);
+
+  const [settingsDraft, setSettingsDraft] = useState<RetentionSettingsDraft | null>(null);
+  const draft = settingsDraft ?? settingsDraftFromRow(settingsQ.data ?? null);
+  const setDraft = (patch: Partial<RetentionSettingsDraft>) =>
+    setSettingsDraft({ ...draft, ...patch });
+
+  const [reasonDrafts, setReasonDrafts] = useState<Record<string, ReasonDraft>>({});
+  const [newReasonPl, setNewReasonPl] = useState("");
+  const [newReasonEn, setNewReasonEn] = useState("");
+
+  const invalidateSettings = () => {
+    void qc.invalidateQueries({ queryKey: ["admin", "retention-settings"] });
+    void qc.invalidateQueries({ queryKey: ["retention-settings"] });
+  };
+  const invalidateReasons = () => {
+    void qc.invalidateQueries({ queryKey: ["admin", "retention-reasons"] });
+    void qc.invalidateQueries({ queryKey: ["retention-reasons"] });
+  };
+
+  const tenantId =
+    settingsQ.data?.tenant_id ?? reasons[0]?.tenant_id ?? feedback[0]?.tenant_id ?? null;
+
+  const saveSettings = useMutation({
+    mutationFn: async (input: RetentionSettingsDraft) => {
+      if (!tenantId) throw new Error(ta("toast.noTenant"));
+      const payload = {
+        tenant_id: tenantId,
+        enabled: input.enabled,
+        discount_pct: clampInt(input.discount_pct, 1, 90, 30),
+        discount_periods: clampInt(input.discount_periods, 1, 24, 3),
+        coupon_valid_days: clampInt(input.coupon_valid_days, 1, 90, 14),
+      };
+      const { error } = await supabase
+        .from("retention_settings")
+        .upsert(payload, { onConflict: "tenant_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(ta("toast.retentionSaved"));
+      setSettingsDraft(null);
+      invalidateSettings();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const addReason = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error(ta("toast.noTenant"));
+      const maxSort = reasons.reduce((max, r) => Math.max(max, r.sort_order), 0);
+      const { error } = await supabase.from("retention_reasons").insert({
+        tenant_id: tenantId,
+        label_pl: newReasonPl.trim(),
+        label_en: newReasonEn.trim(),
+        sort_order: maxSort + 10,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(ta("toast.reasonAdded"));
+      setNewReasonPl("");
+      setNewReasonEn("");
+      invalidateReasons();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const saveReason = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: ReasonDraft }) => {
+      const { error } = await supabase
+        .from("retention_reasons")
+        .update({
+          label_pl: value.label_pl.trim(),
+          label_en: value.label_en.trim(),
+          active: value.active,
+        })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(ta("toast.reasonSaved"));
+      invalidateReasons();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteReason = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("retention_reasons").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(ta("toast.reasonDeleted"));
+      invalidateReasons();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const reorderReasons = useMutation({
+    mutationFn: async (moved: { fromIndex: number; toIndex: number }) =>
+      persistOrder(
+        "retention_reasons",
+        reasons.map((r) => ({ id: r.id, sort_order: r.sort_order })),
+        moved,
+      ),
+    onSuccess: () => {
+      toast.success(ta("toast.reordered"));
+      invalidateReasons();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Statystyki z ostatnich 90 dni (na próbce najnowszych 100 odpowiedzi).
+  const stats = useMemo(() => {
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const recent = feedback.filter((row) => new Date(row.created_at).getTime() >= cutoff);
+    const shown = recent.filter((row) => row.offer_shown);
+    const accepted = recent.filter((row) => row.offer_accepted);
+    const byReason = new Map<string, number>();
+    for (const row of recent) {
+      byReason.set(row.reason_label, (byReason.get(row.reason_label) ?? 0) + 1);
+    }
+    const topReasons = [...byReason.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+    return {
+      total: recent.length,
+      accepted: accepted.length,
+      acceptRate: shown.length > 0 ? Math.round((accepted.length / shown.length) * 100) : null,
+      topReasons,
+    };
+  }, [feedback]);
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL");
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <HeartHandshake className="h-4 w-4 text-primary" aria-hidden="true" />
+            {ta("retention.settingsHeading")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <p className="text-xs text-muted-foreground">{ta("retention.settingsHint")}</p>
+          <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-5">
+            <div className="flex items-center gap-2 pb-2">
+              <Switch checked={draft.enabled} onCheckedChange={(v) => setDraft({ enabled: v })} />
+              <span className="text-xs">{ta("retention.enabled")}</span>
+            </div>
+            <div>
+              <Label className="text-xs">{ta("retention.discountPct")}</Label>
+              <Input
+                type="number"
+                min={1}
+                max={90}
+                value={draft.discount_pct}
+                onChange={(e) => setDraft({ discount_pct: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">{ta("retention.discountPeriods")}</Label>
+              <Input
+                type="number"
+                min={1}
+                max={24}
+                value={draft.discount_periods}
+                onChange={(e) => setDraft({ discount_periods: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">{ta("retention.validDays")}</Label>
+              <Input
+                type="number"
+                min={1}
+                max={90}
+                value={draft.coupon_valid_days}
+                onChange={(e) => setDraft({ coupon_valid_days: e.target.value })}
+              />
+            </div>
+            <Button
+              size="sm"
+              disabled={saveSettings.isPending}
+              onClick={() => saveSettings.mutate(draft)}
+            >
+              <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {ta("retention.save")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Card>
+          <CardContent className="pb-4 pt-5">
+            <div className="text-xs text-muted-foreground">{ta("retention.stats.total")}</div>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pb-4 pt-5">
+            <div className="text-xs text-muted-foreground">{ta("retention.stats.accepted")}</div>
+            <div className="text-2xl font-bold">
+              {stats.accepted}
+              {stats.acceptRate !== null && (
+                <span className="ml-2 text-sm font-medium text-muted-foreground">
+                  ({stats.acceptRate}%)
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pb-4 pt-5">
+            <div className="text-xs text-muted-foreground">{ta("retention.stats.topReasons")}</div>
+            {stats.topReasons.length === 0 ? (
+              <div className="text-sm text-muted-foreground">-</div>
+            ) : (
+              <ul className="mt-1 space-y-0.5 text-sm">
+                {stats.topReasons.map(([label, count]) => (
+                  <li key={label} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{label}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">{ta("retention.reasonsHeading")}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <div>
+              <Label className="text-xs">{ta("retention.reasonPl")}</Label>
+              <Input value={newReasonPl} onChange={(e) => setNewReasonPl(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">{ta("retention.reasonEn")}</Label>
+              <Input value={newReasonEn} onChange={(e) => setNewReasonEn(e.target.value)} />
+            </div>
+            <Button
+              size="sm"
+              disabled={addReason.isPending || !newReasonPl.trim() || !newReasonEn.trim()}
+              onClick={() => addReason.mutate()}
+            >
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {ta("retention.addReason")}
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {reasons.map((reason, index) => {
+              const value = reasonDrafts[reason.id] ?? reasonDraftFromRow(reason);
+              const set = (patch: Partial<ReasonDraft>) =>
+                setReasonDrafts((d) => ({ ...d, [reason.id]: { ...value, ...patch } }));
+              return (
+                <div
+                  key={reason.id}
+                  className="grid grid-cols-1 items-center gap-2 rounded-md border border-border/60 p-2 sm:grid-cols-[1fr_1fr_auto_auto]"
+                >
+                  <Input
+                    value={value.label_pl}
+                    onChange={(e) => set({ label_pl: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                  <Input
+                    value={value.label_en}
+                    onChange={(e) => set({ label_en: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                  <label className="flex items-center gap-2 px-1">
+                    <Switch checked={value.active} onCheckedChange={(v) => set({ active: v })} />
+                    <span className="text-xs">{ta("retention.reasonActive")}</span>
+                  </label>
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() =>
+                        reorderReasons.mutate({ fromIndex: index, toIndex: index - 1 })
+                      }
+                      disabled={index === 0 || reorderReasons.isPending}
+                      title={ta("retention.moveUp")}
+                    >
+                      <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() =>
+                        reorderReasons.mutate({ fromIndex: index, toIndex: index + 1 })
+                      }
+                      disabled={index === reasons.length - 1 || reorderReasons.isPending}
+                      title={ta("retention.moveDown")}
+                    >
+                      <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        if (confirm(ta("retention.reasonDeleteConfirm"))) {
+                          deleteReason.mutate(reason.id);
+                        }
+                      }}
+                      disabled={deleteReason.isPending}
+                      title={ta("retention.reasonDelete")}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => saveReason.mutate({ id: reason.id, value })}
+                      disabled={
+                        saveReason.isPending || !value.label_pl.trim() || !value.label_en.trim()
+                      }
+                      title={ta("retention.save")}
+                    >
+                      <Save className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">{ta("retention.feedbackHeading")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {feedback.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{ta("retention.feedbackEmpty")}</p>
+          ) : (
+            <div className="space-y-2">
+              {feedback.slice(0, 25).map((row) => (
+                <div
+                  key={row.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{row.reason_label}</div>
+                    {row.comment && (
+                      <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                        {row.comment}
+                      </div>
+                    )}
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                      {fmtDate(row.created_at)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right text-xs">
+                    {row.offer_accepted ? (
+                      <span className="rounded bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                        {ta("retention.offerAccepted")}
+                        {row.coupon_code ? ` · ${row.coupon_code}` : ""}
+                      </span>
+                    ) : row.offer_shown ? (
+                      <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
+                        {ta("retention.offerDeclined")}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

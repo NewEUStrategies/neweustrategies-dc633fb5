@@ -27,6 +27,7 @@ import {
 } from "@/lib/pricing/queries";
 import {
   audienceTagline,
+  audienceTrust,
   faqForAudience,
   hasBothIntervals,
   maxYearlySavingsPct,
@@ -256,7 +257,6 @@ function PricingPage() {
         </div>
       )}
 
-
       {showToggle && (
         <div className="mb-8 flex justify-center">
           <div
@@ -303,6 +303,14 @@ function PricingPage() {
           {activeAudience && audienceTagline(activeAudience, lang) && (
             <p className="mx-auto mt-6 max-w-2xl text-center text-base text-muted-foreground">
               {audienceTagline(activeAudience, lang)}
+            </p>
+          )}
+
+          {/* Pasek zaufania segmentu (np. "Faktura · Umowa roczna · Wdrożenie
+              z opiekunem" dla firm) - konfigurowany w panelu Cennika. */}
+          {activeAudience && audienceTrust(activeAudience, lang) && (
+            <p className="mx-auto mt-3 max-w-2xl text-center text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              {audienceTrust(activeAudience, lang)}
             </p>
           )}
 

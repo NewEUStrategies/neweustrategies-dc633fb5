@@ -46,6 +46,39 @@ export function tierBadge(
   return value && value.trim() ? value : null;
 }
 
+/**
+ * Tryb CTA karty: 'auto' (checkout/kontakt wg danych), 'contact' (zawsze
+ * rozmowa - np. zakup zespołowy per miejsce), 'none' (bez przycisku -
+ * poziomy "tylko na zaproszenie"). Nieznane wartości degradują do 'auto'.
+ */
+export type TierCtaMode = "auto" | "contact" | "none";
+
+export function tierCtaMode(tier: Pick<MembershipTierRow, "cta_mode">): TierCtaMode {
+  return tier.cta_mode === "contact" || tier.cta_mode === "none" ? tier.cta_mode : "auto";
+}
+
+/** Notka pod ceną (np. "2-20 miejsc", "Preferencyjnie, na fakturę"). */
+export function tierPriceNote(
+  tier: Pick<MembershipTierRow, "price_note_pl" | "price_note_en">,
+  lang: string,
+): string | null {
+  const value =
+    lang === "en"
+      ? tier.price_note_en || tier.price_note_pl
+      : tier.price_note_pl || tier.price_note_en;
+  return value && value.trim() ? value : null;
+}
+
+/** Pasek zaufania segmentu ("Faktura · Umowa roczna · Wdrożenie z opiekunem"). */
+export function audienceTrust(
+  audience: Pick<PricingAudienceRow, "trust_pl" | "trust_en">,
+  lang: string,
+): string | null {
+  const value =
+    lang === "en" ? audience.trust_en || audience.trust_pl : audience.trust_pl || audience.trust_en;
+  return value && value.trim() ? value : null;
+}
+
 /** Rosnąca drabinka wartości: ranga, potem kolejność redakcyjna. */
 export function sortTiers(tiers: MembershipTierRow[]): MembershipTierRow[] {
   return [...tiers].sort(

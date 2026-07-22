@@ -15,6 +15,9 @@ const pricingPl = {
     freeNote: "Bez karty płatniczej - na zawsze",
     onRequest: "Oferta na zapytanie",
     onRequestNote: "Zakres i wycenę dopasujemy do organizacji",
+    invitationOnly: "Tylko na zaproszenie",
+    fromPrefix: "od",
+    perSeat: "za miejsce",
     currentTier: "Twój obecny poziom",
     signupCta: "Załóż bezpłatne konto",
     contactCta: "Porozmawiajmy",
@@ -31,10 +34,9 @@ const pricingPl = {
       body: "Jednorazowa lub cykliczna darowizna wspiera niezależne analizy - bez formalności.",
     },
     crossSell: {
-      toBusiness:
-        "Potrzebujesz licencji dla całej organizacji, zamkniętych briefingów albo partnerstwa strategicznego?",
+      toBusiness: "Ponad 20 miejsc, procurement lub dedykowany analityk?",
       toBusinessCta: "Zobacz ofertę dla firm",
-      toTeam: "Mniejszy zespół? Wspólny dostęp z panelem miejsc uruchomisz samoobsługowo.",
+      toTeam: "Mniejszy zespół? Wspólny dostęp z panelem miejsc uruchomisz od ręki.",
       toTeamCta: "Zobacz plan dla zespołów",
     },
     contactBand: {
@@ -71,6 +73,9 @@ const pricingEn: typeof pricingPl = {
     freeNote: "No card required - free forever",
     onRequest: "Pricing on request",
     onRequestNote: "Scope and pricing tailored to your organisation",
+    invitationOnly: "By invitation only",
+    fromPrefix: "from",
+    perSeat: "per seat",
     currentTier: "Your current level",
     signupCta: "Create a free account",
     contactCta: "Talk to us",
@@ -87,8 +92,7 @@ const pricingEn: typeof pricingPl = {
       body: "A one-off or recurring donation supports independent analysis - no strings attached.",
     },
     crossSell: {
-      toBusiness:
-        "Need an organisation-wide licence, closed-door briefings or a strategic partnership?",
+      toBusiness: "More than 20 seats, procurement or a dedicated analyst?",
       toBusinessCta: "See the business offer",
       toTeam: "Smaller team? Set up shared access with a seat panel in minutes.",
       toTeamCta: "See the team plan",
