@@ -590,6 +590,14 @@ function AdminCrmDetailPage() {
           </SidebarCard>
 
           <SidebarCard
+            title={t("Powiązany profil", "Linked profile")}
+            icon={<User className="h-3.5 w-3.5" />}
+          >
+            <ProfileSyncCard leadId={lead.id} lang={lang} />
+          </SidebarCard>
+
+
+          <SidebarCard
             title={t("Zadania", "Tasks")}
             icon={<Calendar className="h-3.5 w-3.5" />}
           >
