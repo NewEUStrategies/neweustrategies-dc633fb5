@@ -440,6 +440,17 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const [openTaskId, setOpenTaskId] = useState<string | null>(urlSearch.task ?? null);
   const [importOpen, setImportOpen] = useState(false);
   const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string>("all");
+  const applyView = (id: string) => {
+    setActiveViewId(id);
+    const view = BUILTIN_LEAD_VIEWS.find((v) => v.id === id);
+    if (!view) return;
+    const cfg = view.config;
+    setStage(cfg.filter.stage && cfg.filter.stage.length === 1 ? (cfg.filter.stage[0] as Stage) : "all");
+    setBand(cfg.filter.score_band && cfg.filter.score_band.length === 1 ? (cfg.filter.score_band[0] as ScoreBand) : "all");
+    if (cfg.sort.field === "score") setSort("score");
+    else setSort("activity");
+  };
   const { isAdmin } = useAuth();
   const lang: "pl" | "en" = L === PL ? "pl" : "en";
 
