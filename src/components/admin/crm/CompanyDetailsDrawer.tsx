@@ -62,6 +62,7 @@ const Skeleton = ({ className = "" }: { className?: string }) => (
   <div className={`animate-pulse rounded bg-muted/60 ${className}`} />
 );
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
+import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
 import type { ScoreBand } from "@/lib/crm/scoring";
 
 type Company = {
