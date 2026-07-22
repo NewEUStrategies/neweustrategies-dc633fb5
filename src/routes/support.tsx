@@ -17,6 +17,8 @@ import {
   DONATION_MAX_CENTS,
   DONATION_MIN_CENTS,
   DONATION_PRESETS_CENTS,
+  DONATION_PRESETS_CENTS_EUR,
+  type DonationCurrency,
 } from "@/lib/billing/donations.schema";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
