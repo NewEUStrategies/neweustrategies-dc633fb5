@@ -38,6 +38,26 @@ function intervalSuffix(interval: AccessPlan["interval"], t: (key: string) => st
   }
 }
 
+// Wyświetlanie cen w EUR dla wersji anglojęzycznej: EUR = 50% ceny PLN
+// (zgodnie z regułą stosowaną w /support). Konwersja tylko na potrzeby
+// prezentacji - checkout dalej obsługuje faktyczną walutę planu.
+function displayPrice(
+  cents: number,
+  currency: string,
+  lang: string,
+): { cents: number; currency: string } {
+  if (lang === "en" && currency.toUpperCase() === "PLN") {
+    return { cents: Math.round(cents / 2), currency: "EUR" };
+  }
+  return { cents, currency };
+}
+
+function fmt(cents: number, currency: string, lang: string): string {
+  const d = displayPrice(cents, currency, lang);
+  return formatMoney(d.cents, d.currency, lang);
+}
+
+
 function PriceBlock({
   tier,
   plans,
