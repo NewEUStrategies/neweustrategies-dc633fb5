@@ -883,6 +883,129 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         </table>
       </div>
 
+      <BulkActionBar
+        count={selected.size}
+        onClear={() => setSelected(new Set())}
+        lang={lang}
+        itemLabel={{ pl: "leadów zaznaczonych", en: "leads selected" }}
+      >
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]">
+              {lang === "pl" ? "Etap" : "Stage"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-52 p-2" align="start">
+            <div className="grid gap-0.5">
+              {STAGES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => bulkUpdate.mutate({ stage: s })}
+                  className="flex items-center justify-between rounded px-2 py-1.5 text-left text-[12px] hover:bg-muted"
+                >
+                  <span>{L.stage[s]}</span>
+                  <StageBadge stage={s} L={L} />
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]">
+              <TagIcon className="h-3 w-3" aria-hidden />
+              {lang === "pl" ? "Tagi" : "Tags"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-3" align="start">
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+              {lang === "pl"
+                ? "Dodaj / usuń tagi (przecinkami)"
+                : "Add / remove tags (comma separated)"}
+            </label>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget as HTMLFormElement;
+                const addRaw = (form.elements.namedItem("add") as HTMLInputElement).value;
+                const rmRaw = (form.elements.namedItem("remove") as HTMLInputElement).value;
+                const add_tags = addRaw
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                const remove_tags = rmRaw
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                if (add_tags.length === 0 && remove_tags.length === 0) return;
+                bulkUpdate.mutate({ add_tags, remove_tags });
+                form.reset();
+              }}
+              className="space-y-2"
+            >
+              <Input name="add" placeholder={lang === "pl" ? "Dodaj" : "Add"} className="h-8 text-[12px]" />
+              <Input name="remove" placeholder={lang === "pl" ? "Usuń" : "Remove"} className="h-8 text-[12px]" />
+              <Button type="submit" size="sm" className="h-7 w-full text-[11px]">
+                {lang === "pl" ? "Zastosuj" : "Apply"}
+              </Button>
+            </form>
+          </PopoverContent>
+        </Popover>
+
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={() => bulkUpdate.mutate({ marketing_consent: true })}
+        >
+          {lang === "pl" ? "Zgoda: TAK" : "Consent: YES"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={() => bulkUpdate.mutate({ marketing_consent: false })}
+        >
+          {lang === "pl" ? "Zgoda: NIE" : "Consent: NO"}
+        </Button>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 border-destructive/40 text-[11px] text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3 w-3" aria-hidden />
+              {lang === "pl" ? "Usuń" : "Delete"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {lang === "pl" ? "Usunąć zaznaczone leady?" : "Delete selected leads?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {lang === "pl"
+                  ? `Ta operacja jest nieodwracalna. Wybrane rekordy (${selected.size}) zostaną trwale usunięte.`
+                  : `This cannot be undone. The selected records (${selected.size}) will be permanently deleted.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{lang === "pl" ? "Anuluj" : "Cancel"}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => bulkDelete.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {lang === "pl" ? "Usuń" : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </BulkActionBar>
+
       <LeadDrawer leadId={openId} highlightTaskId={openTaskId} onClose={closeDrawer} L={L} />
       <ImportLeadsCsvDialog open={importOpen} onOpenChange={setImportOpen} lang={lang} />
     </div>
