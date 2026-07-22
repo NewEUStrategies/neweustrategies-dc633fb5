@@ -1108,6 +1108,8 @@ function AddContactDialog({
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [position, setPosition] = useState("");
+  const [touched, setTouched] = useState<{ email?: boolean }>({});
+  const [serverErr, setServerErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -1116,23 +1118,45 @@ function AddContactDialog({
       setLastName("");
       setPhone("");
       setPosition("");
+      setTouched({});
+      setServerErr(null);
     }
   }, [open]);
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailTrim = email.trim();
+  const emailError =
+    emailTrim.length === 0
+      ? t("Podaj adres e-mail.", "Email is required.")
+      : !EMAIL_RE.test(emailTrim)
+        ? t("Nieprawidłowy adres e-mail.", "Invalid email address.")
+        : serverErr === "duplicate_email"
+          ? t(
+              "Kontakt z tym e-mailem już istnieje.",
+              "A contact with this email already exists.",
+            )
+          : null;
 
   const create = useMutation({
     mutationFn: async () =>
       createFn({
         data: {
           company_id: companyId,
-          email: email.trim(),
+          email: emailTrim,
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
           phone: phone.trim() || null,
           position: position.trim() || null,
         },
       }),
+    onMutate: () => setServerErr(null),
     onSuccess: async () => {
-      toast.success(t("Dodano kontakt", "Contact added"));
+      toast.success(t("Kontakt dodany", "Contact added"), {
+        description: t(
+          `Powiązano z firmą „${companyName}".`,
+          `Linked to "${companyName}".`,
+        ),
+      });
       onOpenChange(false);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["admin", "crm-company", companyId] }),
@@ -1142,7 +1166,9 @@ function AddContactDialog({
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "error";
+      setServerErr(msg);
       if (msg === "duplicate_email") {
+        setTouched((s) => ({ ...s, email: true }));
         toast.error(
           t(
             "Kontakt z tym e-mailem już istnieje w tenancie.",
@@ -1150,12 +1176,19 @@ function AddContactDialog({
           ),
         );
       } else {
-        toast.error(msg);
+        toast.error(t("Nie udało się dodać kontaktu.", "Could not add contact."), {
+          description: msg,
+        });
       }
     },
   });
 
-  const canSubmit = email.trim().length > 3 && email.includes("@") && !create.isPending;
+  const canSubmit = !emailError && !create.isPending;
+  const submit = () => {
+    setTouched({ email: true });
+    if (!canSubmit) return;
+    create.mutate();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
