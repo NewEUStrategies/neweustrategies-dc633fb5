@@ -130,7 +130,8 @@ function AdminCompanyDetailPage() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language?.startsWith("en") ? "en" : "pl";
   const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const navigate = useNavigate();
+  const navigate = Route.useNavigate();
+  const rootNavigate = useNavigate();
   const qc = useQueryClient();
   const getFn = useServerFn(getCrmCompany);
   const updateFn = useServerFn(updateCrmCompany);
