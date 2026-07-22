@@ -62,6 +62,7 @@ const Skeleton = ({ className = "" }: { className?: string }) => (
   <div className={`animate-pulse rounded bg-muted/60 ${className}`} />
 );
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
+import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
 import type { ScoreBand } from "@/lib/crm/scoring";
 
 type Company = {
@@ -920,27 +921,41 @@ function ActivityFeed({
             <option value="audit">{t("Zmiany", "Changes")}</option>
           </select>
         </div>
-        <div>
+        <div className="min-w-[200px]">
           <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             {t("Od", "From")}
           </Label>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="mt-1 h-8 rounded-md border bg-background px-2 text-[12px]"
-          />
+          <div className="mt-1">
+            <DatePickerField
+              value={from ? new Date(from) : undefined}
+              onChange={(d) =>
+                setFrom(
+                  d
+                    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+                    : "",
+                )
+              }
+              size="sm"
+            />
+          </div>
         </div>
-        <div>
+        <div className="min-w-[200px]">
           <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             {t("Do", "To")}
           </Label>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="mt-1 h-8 rounded-md border bg-background px-2 text-[12px]"
-          />
+          <div className="mt-1">
+            <DatePickerField
+              value={to ? new Date(to) : undefined}
+              onChange={(d) =>
+                setTo(
+                  d
+                    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+                    : "",
+                )
+              }
+              size="sm"
+            />
+          </div>
         </div>
         {(kind !== "all" || from || to) && (
           <Button

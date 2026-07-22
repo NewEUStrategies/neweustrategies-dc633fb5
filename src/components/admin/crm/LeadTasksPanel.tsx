@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import {
   createCrmTask,
@@ -55,17 +56,12 @@ const TXT = {
   },
 };
 
-/** Data w formacie input[type=datetime-local] (czas lokalny przeglądarki). */
-function toLocalInputValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function defaultDueValue(): string {
+/** Domyślny termin: jutro o 9:00 lokalnie. */
+function defaultDueValue(): Date {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   d.setHours(9, 0, 0, 0);
-  return toLocalInputValue(d);
+  return d;
 }
 
 function formatDue(iso: string, lang: "pl" | "en"): string {
@@ -111,7 +107,7 @@ export function LeadTasksPanel({
           lead_id: leadId,
           title: title.trim(),
           note: note.trim() || undefined,
-          due_at: new Date(due).toISOString(),
+          due_at: due.toISOString(),
           idempotency_key: newIdempotencyKey("crm.add_task"),
         },
       }),
@@ -147,7 +143,7 @@ export function LeadTasksPanel({
     [tasks],
   );
 
-  const canSave = title.trim().length > 0 && due.length > 0 && !createMut.isPending;
+  const canSave = title.trim().length > 0 && !!due && !createMut.isPending;
 
   return (
     <div className="space-y-4">
@@ -178,17 +174,18 @@ export function LeadTasksPanel({
           maxLength={2000}
         />
         <div className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-1">
+          <div className="grid gap-1 min-w-[240px]">
             <Label htmlFor="crm-task-due" className="text-[11px] text-muted-foreground">
               {t.due}
             </Label>
-            <Input
-              id="crm-task-due"
-              type="datetime-local"
-              value={due}
-              onChange={(e) => setDue(e.target.value)}
-              className="h-8 text-[13px] w-[210px]"
-            />
+            <div id="crm-task-due">
+              <DatePickerField
+                value={due}
+                onChange={(d) => d && setDue(d)}
+                withTime
+                size="sm"
+              />
+            </div>
           </div>
           <Button type="submit" size="sm" disabled={!canSave}>
             {t.save}
