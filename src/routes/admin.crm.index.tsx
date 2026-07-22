@@ -2,7 +2,7 @@
 // newsletter subscriptions. Shows consent history (form name, version, text),
 // pipeline stages, notes, and Merydian push controls. Super Admins can switch
 // to a cross-tenant view via the scope toggle.
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -431,6 +431,20 @@ function AdminCrmPage() {
           <p className="text-[12px] text-muted-foreground">{L.subtitle}</p>
         </div>
       </header>
+      <div className="flex items-center gap-1 border-b border-border/60">
+        <span
+          aria-current="page"
+          className="rounded-t-[6px] border-b-2 border-brand px-3 py-2 text-[13px] font-semibold text-foreground"
+        >
+          {lang === "pl" ? "Kontakty" : "Contacts"}
+        </span>
+        <Link
+          to="/admin/crm/funnel"
+          className="rounded-t-[6px] px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground"
+        >
+          {lang === "pl" ? "Lejek marketingowy" : "Marketing funnel"}
+        </Link>
+      </div>
       <Tabs defaultValue="leads">
         <TabsList>
           <TabsTrigger value="leads">

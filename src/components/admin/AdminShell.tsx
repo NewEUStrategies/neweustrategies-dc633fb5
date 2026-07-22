@@ -298,6 +298,13 @@ function AdminShellInner({
         { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
         { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },
         {
+          to: "/admin/crm",
+          icon: Users,
+          label: t("admin.nav.crm", {
+            defaultValue: lang === "pl" ? "Kontakty CRM" : "CRM Contacts",
+          }),
+        },
+        {
           to: "/admin/crm/funnel",
           icon: Mail,
           label: t("admin.nav.crmFunnel", {
