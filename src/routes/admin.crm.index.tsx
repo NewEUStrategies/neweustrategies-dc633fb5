@@ -567,7 +567,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const bulkDelete = useMutation({
     mutationFn: async () => bulkDeleteCrmLeads({ data: { ids: Array.from(selected) } }),
     onSuccess: async () => {
-      toast.success(lang === "pl" ? "Usunięto leady" : "Leads deleted");
+      toast.success(lang === "pl" ? "Usunięto kontakty" : "Contacts deleted");
       setSelected(new Set());
       await qc.invalidateQueries({ queryKey: ["crm-leads"] });
     },
