@@ -111,6 +111,7 @@ function PricingPage() {
   const { session } = useAuth();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const router = useRouter();
 
   const audiencesQ = usePricingAudiences();
   const faqQ = usePricingFaq();
