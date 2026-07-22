@@ -533,8 +533,8 @@ function AdminCompaniesPage() {
       </div>
 
       <CompanyDetailsDrawer
-        companyId={drawerId}
-        open={drawerId !== null}
+        companyId={drawerId ?? null}
+        open={Boolean(drawerId)}
         onOpenChange={(v) => {
           if (!v) setDrawerId(null);
         }}
