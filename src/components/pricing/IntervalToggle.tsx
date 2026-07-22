@@ -35,12 +35,13 @@ export function IntervalToggle({
               }
               onChange(interval);
             }}
-
+            className={cn(
               "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
               value === interval
                 ? "bg-background text-foreground shadow"
                 : "text-muted-foreground hover:text-foreground",
             )}
+
           >
             {interval === "month" ? t("pricing.intervalMonthly") : t("pricing.intervalYearly")}
             {interval === "year" && savingsPct !== null && (
