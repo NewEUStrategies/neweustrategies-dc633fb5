@@ -283,7 +283,7 @@ function LinksPanel({ dateLocale }: { dateLocale: string }) {
     { id: "expired", label: t("giftingAdmin.links.filterExpired") },
   ];
 
-  const rows = (data?.rows ?? []) as Array<{
+  const rows = (data?.rows ?? []) as unknown as Array<{
     id: string;
     post_title: string;
     post_slug: string | null;
