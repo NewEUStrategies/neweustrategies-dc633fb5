@@ -4,7 +4,7 @@
 // źródłem danych są subskrybenci newslettera. Dla każdej pozycji pokazujemy,
 // czy dana osoba jest już zarejestrowana w systemie i/lub istnieje jako
 // Kontakt CRM. Widok respektuje RLS (security_invoker + staff-only).
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -100,8 +100,8 @@ const T = {
     title: "Lejek marketingowy",
     subtitle:
       "Subskrybenci newslettera z oznaczeniem zarejestrowanych użytkowników i Kontaktów CRM.",
-    tabs: { contacts: "Kontakty", funnel: "Lejek marketingowy" },
     search: "Szukaj po e-mailu lub imieniu...",
+
     audience: {
       all: "Wszyscy",
       registered: "Tylko zarejestrowani",

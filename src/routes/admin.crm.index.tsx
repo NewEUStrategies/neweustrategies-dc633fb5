@@ -2,7 +2,7 @@
 // newsletter subscriptions. Shows consent history (form name, version, text),
 // pipeline stages, notes, and Merydian push controls. Super Admins can switch
 // to a cross-tenant view via the scope toggle.
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
