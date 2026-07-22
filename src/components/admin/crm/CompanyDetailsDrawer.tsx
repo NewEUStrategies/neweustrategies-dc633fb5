@@ -236,7 +236,7 @@ export function CompanyDetailsDrawer({ companyId, open, onOpenChange }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full max-w-full p-0 sm:max-w-[560px]"
+        className="w-full max-w-full p-0 sm:max-w-[560px] lg:max-w-[720px] xl:max-w-[820px]"
         aria-describedby={undefined}
       >
         <div className="flex h-full flex-col">
