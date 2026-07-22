@@ -82,7 +82,9 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       );
       setActive(0);
       setLoading(false);
+      trackSearch(q.trim(), (data ?? []).length, { source: "overlay", mode, lang });
     }, 220);
+
     return () => {
       cancelled = true;
       clearTimeout(handle);
