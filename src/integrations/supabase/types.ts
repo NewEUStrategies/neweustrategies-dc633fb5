@@ -10157,6 +10157,13 @@ export type Database = {
         Args: { p_member_ids: string[]; p_title: string }
         Returns: string
       }
+      crm_backfill_all_leads: {
+        Args: never
+        Returns: {
+          profiles_synced: number
+          subscribers_synced: number
+        }[]
+      }
       crm_get_merydian_secrets: {
         Args: { _tenant?: string }
         Returns: {
@@ -10222,6 +10229,14 @@ export type Database = {
           _tenant: string
         }
         Returns: string
+      }
+      crm_upsert_lead_from_profile: {
+        Args: { _profile_id: string }
+        Returns: undefined
+      }
+      crm_upsert_lead_from_subscriber: {
+        Args: { _sub_id: string }
+        Returns: undefined
       }
       current_membership_tier: {
         Args: never

@@ -150,6 +150,7 @@ import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
+import { Route as AdminCrmIndexRouteImport } from './routes/admin.crm.index'
 import { Route as AdminCouponsIndexRouteImport } from './routes/admin.coupons.index'
 import { Route as AdminCompaniesIndexRouteImport } from './routes/admin.companies.index'
 import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
@@ -929,6 +930,11 @@ const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminCrmIndexRoute = AdminCrmIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminCrmRoute,
+} as any)
 const AdminCouponsIndexRoute = AdminCouponsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -1505,6 +1511,7 @@ export interface FileRoutesByFullPath {
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
+  '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -1558,7 +1565,6 @@ export interface FileRoutesByTo {
   '/admin/comments': typeof AdminCommentsRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
-  '/admin/crm': typeof AdminCrmRouteWithChildren
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/donations': typeof AdminDonationsRoute
@@ -1710,6 +1716,7 @@ export interface FileRoutesByTo {
   '/admin/community': typeof AdminCommunityIndexRoute
   '/admin/companies': typeof AdminCompaniesIndexRoute
   '/admin/coupons': typeof AdminCouponsIndexRoute
+  '/admin/crm': typeof AdminCrmIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
@@ -1925,6 +1932,7 @@ export interface FileRoutesById {
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
+  '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -2141,6 +2149,7 @@ export interface FileRouteTypes {
     | '/admin/community/'
     | '/admin/companies/'
     | '/admin/coupons/'
+    | '/admin/crm/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -2194,7 +2203,6 @@ export interface FileRouteTypes {
     | '/admin/comments'
     | '/admin/contact'
     | '/admin/content-area'
-    | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/donations'
@@ -2346,6 +2354,7 @@ export interface FileRouteTypes {
     | '/admin/community'
     | '/admin/companies'
     | '/admin/coupons'
+    | '/admin/crm'
     | '/admin/newsletter'
     | '/admin/settings'
     | '/admin/users'
@@ -2560,6 +2569,7 @@ export interface FileRouteTypes {
     | '/admin/community/'
     | '/admin/companies/'
     | '/admin/coupons/'
+    | '/admin/crm/'
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -3637,6 +3647,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterIndexRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/crm/': {
+      id: '/admin/crm/'
+      path: '/'
+      fullPath: '/admin/crm/'
+      preLoaderRoute: typeof AdminCrmIndexRouteImport
+      parentRoute: typeof AdminCrmRoute
+    }
     '/admin/coupons/': {
       id: '/admin/coupons/'
       path: '/'
@@ -4223,10 +4240,12 @@ const AdminCouponsRouteWithChildren = AdminCouponsRoute._addFileChildren(
 
 interface AdminCrmRouteChildren {
   AdminCrmIdRoute: typeof AdminCrmIdRoute
+  AdminCrmIndexRoute: typeof AdminCrmIndexRoute
 }
 
 const AdminCrmRouteChildren: AdminCrmRouteChildren = {
   AdminCrmIdRoute: AdminCrmIdRoute,
+  AdminCrmIndexRoute: AdminCrmIndexRoute,
 }
 
 const AdminCrmRouteWithChildren = AdminCrmRoute._addFileChildren(
