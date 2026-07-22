@@ -18,6 +18,7 @@ import {
   Copy,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -163,42 +164,38 @@ function ReactionChips({
           .filter(Boolean)
           .join(" \u2022 ");
         return (
-          <span key={emoji} className="group/rx relative inline-flex">
-            <button
-              data-emoji={emoji}
-              type="button"
-              onClick={() => onReact(emoji, myReaction)}
-              aria-pressed={isMine}
-              aria-label={ariaLabel}
-              className={cn(
-                "chat-reaction-pop inline-flex items-center gap-1 rounded-full border bg-background/95 px-1.5 py-0.5 shadow-sm transition-all",
-                "hover:bg-muted motion-safe:hover:-translate-y-[1px] motion-safe:active:scale-95",
-                "dark:bg-background/70 backdrop-blur",
-                isMine
-                  ? "border-[var(--chat-user-to,theme(colors.primary.DEFAULT))]/60 text-foreground"
-                  : "border-border/60 hover:border-border",
-              )}
-              style={{ fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif' }}
-            >
-              <span aria-hidden className="text-[12px] leading-none">
-                {emoji}
-              </span>
-              <span className="text-[9px] font-medium tabular-nums leading-none text-muted-foreground group-hover/rx:text-foreground">
-                {rows.length}
-              </span>
-            </button>
-            {/* Hover reveal: kto zareagował (zdjęcie + imię). Pointer-events
-                only on the pill; the panel gets them on hover so users can
-                scroll a long list without it disappearing. */}
-            <div
-              role="tooltip"
-              className={cn(
-                "pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 min-w-[180px] max-w-[240px] -translate-x-1/2",
-                "rounded-[6px] border border-border/70 bg-popover text-popover-foreground shadow-lg backdrop-blur",
-                "opacity-0 translate-y-1 transition-all duration-150",
-                "group-hover/rx:opacity-100 group-hover/rx:translate-y-0 group-hover/rx:pointer-events-auto",
-                "group-focus-within/rx:opacity-100 group-focus-within/rx:translate-y-0 group-focus-within/rx:pointer-events-auto",
-              )}
+          <Tooltip key={emoji} delayDuration={120}>
+            <TooltipTrigger asChild>
+              <button
+                data-emoji={emoji}
+                type="button"
+                onClick={() => onReact(emoji, myReaction)}
+                aria-pressed={isMine}
+                aria-label={ariaLabel}
+                className={cn(
+                  "chat-reaction-pop group/rx inline-flex items-center gap-1 rounded-full border bg-background/95 px-1.5 py-0.5 shadow-sm transition-all",
+                  "hover:bg-muted motion-safe:hover:-translate-y-[1px] motion-safe:active:scale-95",
+                  "dark:bg-background/70 backdrop-blur",
+                  isMine
+                    ? "border-[var(--chat-user-to,theme(colors.primary.DEFAULT))]/60 text-foreground"
+                    : "border-border/60 hover:border-border",
+                )}
+                style={{ fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif' }}
+              >
+                <span aria-hidden className="text-[12px] leading-none">
+                  {emoji}
+                </span>
+                <span className="text-[9px] font-medium tabular-nums leading-none text-muted-foreground group-hover/rx:text-foreground">
+                  {rows.length}
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              align="center"
+              sideOffset={6}
+              collisionPadding={12}
+              className="z-[100] min-w-[180px] max-w-[240px] overflow-visible rounded-[6px] border-border/70 p-0 shadow-lg"
               style={{ fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif' }}
             >
               <div className="border-b border-border/50 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -220,8 +217,8 @@ function ReactionChips({
                   );
                 })}
               </ul>
-            </div>
-          </span>
+            </TooltipContent>
+          </Tooltip>
         );
       })}
     </div>
