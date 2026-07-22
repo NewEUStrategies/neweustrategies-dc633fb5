@@ -542,6 +542,54 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
 
   const leads = q.data ?? [];
 
+  // ---- Zbiorcze operacje na leadach --------------------------------------
+  const bulkUpdate = useMutation({
+    mutationFn: async (patch: {
+      stage?: Stage;
+      owner_id?: string | null;
+      add_tags?: string[];
+      remove_tags?: string[];
+      marketing_consent?: boolean;
+    }) => {
+      const ids = Array.from(selected);
+      return bulkUpdateCrmLeads({ data: { ids, ...patch } });
+    },
+    onSuccess: async () => {
+      toast.success(lang === "pl" ? "Zapisano zmiany" : "Changes saved");
+      setSelected(new Set());
+      await qc.invalidateQueries({ queryKey: ["crm-leads"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bulkDelete = useMutation({
+    mutationFn: async () => bulkDeleteCrmLeads({ data: { ids: Array.from(selected) } }),
+    onSuccess: async () => {
+      toast.success(lang === "pl" ? "Usunięto leady" : "Leads deleted");
+      setSelected(new Set());
+      await qc.invalidateQueries({ queryKey: ["crm-leads"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const allChecked = leads.length > 0 && leads.every((l) => selected.has(l.id));
+  const toggleAll = () => {
+    setSelected((prev) => {
+      if (allChecked) return new Set();
+      const s = new Set(prev);
+      for (const l of leads) s.add(l.id);
+      return s;
+    });
+  };
+  const toggleOne = (id: string, next: boolean) => {
+    setSelected((prev) => {
+      const s = new Set(prev);
+      if (next) s.add(id);
+      else s.delete(id);
+      return s;
+    });
+  };
+
   // Podciągamy avatar_url z profiles po e-mailu widocznych leadów, żeby w
   // tabeli CRM (osoby + firmy) od razu było widać zdjęcie profilowe.
   const leadEmails = useMemo(
