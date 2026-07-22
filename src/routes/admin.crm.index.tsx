@@ -74,6 +74,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Users,
   Download,
@@ -1102,211 +1103,294 @@ function LeadDrawer({
         if (!o) onClose();
       }}
     >
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="text-base flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            {lead
-              ? [lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email
-              : L.detail.title}
-            <PresenceIndicator entityType="crm_lead" entityId={leadId} className="ml-auto" />
-          </SheetTitle>
-          <SheetDescription className="text-[12px]">{lead?.email}</SheetDescription>
-        </SheetHeader>
+      <SheetContent
+        side="right"
+        className="w-full max-w-full p-0 sm:max-w-[560px] lg:max-w-[720px] xl:max-w-[820px]"
+        aria-describedby={undefined}
+      >
+        <div className="flex h-full flex-col">
+          {/* Sticky header */}
+          <SheetHeader className="space-y-3 border-b p-4">
+            {!lead ? (
+              <SheetTitle className="text-sm text-muted-foreground">
+                {L.detail.title}
+              </SheetTitle>
+            ) : (
+              <>
+                <div className="flex items-start gap-3">
+                  {(() => {
+                    const name =
+                      [lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email;
+                    const inits =
+                      ((lead.first_name?.[0] ?? "") + (lead.last_name?.[0] ?? "")) ||
+                      (lead.email?.[0] ?? "?").toUpperCase();
+                    return (
+                      <Avatar className="h-11 w-11 shrink-0 rounded-full border border-border/60">
+                        <AvatarFallback className="text-[12px] font-semibold bg-muted text-muted-foreground">
+                          {inits.toUpperCase().slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                    );
+                  })()}
+                  <div className="min-w-0 flex-1">
+                    <SheetTitle className="truncate text-base font-semibold flex items-center gap-2">
+                      <Users className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="truncate">
+                        {[lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email}
+                      </span>
+                    </SheetTitle>
+                    <SheetDescription className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px]">
+                      <span className="truncate">{lead.email}</span>
+                      <StageBadge stage={lead.stage} L={L} />
+                      <LeadScoreBadge
+                        score={lead.score ?? 0}
+                        band={lead.score_band ?? "cold"}
+                        lang={L === PL ? "pl" : "en"}
+                      />
+                    </SheetDescription>
+                  </div>
+                  <PresenceIndicator
+                    entityType="crm_lead"
+                    entityId={leadId}
+                    className="shrink-0"
+                  />
+                </div>
 
-        {!lead ? (
-          <div className="py-10 text-center text-muted-foreground text-sm">…</div>
-        ) : (
-          <Tabs
-            key={lead.id}
-            defaultValue={highlightTaskId ? "tasks" : "overview"}
-            className="mt-3"
-          >
-            <TabsList className="flex flex-wrap">
-              <TabsTrigger value="overview" className="text-[12px]">
-                {L.detail.overview}
-              </TabsTrigger>
-              <TabsTrigger value="tasks" className="text-[12px]">
-                <AlarmClock className="w-3 h-3 mr-1" />
-                {L.detail.tasks}
-              </TabsTrigger>
-              <TabsTrigger value="timeline" className="text-[12px]">
-                <Clock className="w-3 h-3 mr-1" />
-                {L.detail.timeline}
-              </TabsTrigger>
-              <TabsTrigger value="consents" className="text-[12px]">
-                <ShieldCheck className="w-3 h-3 mr-1" />
-                {L.detail.consents}
-              </TabsTrigger>
-              <TabsTrigger value="history" className="text-[12px]">
-                {L.detail.history}
-              </TabsTrigger>
-              <TabsTrigger value="notes" className="text-[12px]">
-                {L.detail.notes}
-              </TabsTrigger>
-              <TabsTrigger value="integ" className="text-[12px]">
-                {L.detail.integ}
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="tasks" className="pt-3">
-              <LeadTasksPanel
-                leadId={lead.id}
-                lang={L === PL ? "pl" : "en"}
-                highlightTaskId={highlightTaskId}
-              />
-            </TabsContent>
-            <TabsContent value="timeline" className="pt-3">
-              <LeadTimeline leadId={leadId!} L={L} />
-            </TabsContent>
+                {/* Quick stats */}
+                <div className="grid grid-cols-3 gap-2">
+                  <Stat label={L.detail.nlStatus} value={lead.newsletter_status ?? "-"} />
+                  <Stat label={L.detail.marketing} value={lead.marketing_consent ? "✓" : "-"} />
+                  <Stat label={L.detail.sources} value={String(lead.source_count ?? 0)} />
+                </div>
+              </>
+            )}
+          </SheetHeader>
 
-            <TabsContent value="overview" className="space-y-3 pt-3">
-              <OverviewForm
-                lead={lead}
-                L={L}
-                onSave={(p) => updateMut.mutate(p)}
-                saving={updateMut.isPending}
-              />
-              <div className="grid grid-cols-2 gap-2 text-[12px] pt-2 border-t">
-                <Stat label={L.detail.nlStatus} value={lead.newsletter_status ?? "-"} />
-                <Stat label={L.detail.marketing} value={lead.marketing_consent ? "✓" : "-"} />
-                <Stat label={L.detail.sources} value={String(lead.source_count ?? 0)} />
-                <Stat
-                  label={L.detail.lastActivity}
-                  value={new Date(lead.last_activity_at).toLocaleString()}
-                />
+          {!lead ? (
+            <div className="py-10 text-center text-muted-foreground text-sm">…</div>
+          ) : (
+            <Tabs
+              key={lead.id}
+              defaultValue={highlightTaskId ? "tasks" : "overview"}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              {/* Sticky tabs (horizontal scroll, no wrap) */}
+              <div className="border-b bg-background px-4 pt-3">
+                <div className="-mx-4 overflow-x-auto">
+                  <TabsList className="mx-4 inline-flex h-auto w-max flex-nowrap gap-1 rounded-md bg-muted/50 p-1">
+                    <TabsTrigger value="overview" className="text-[12px] whitespace-nowrap">
+                      {L.detail.overview}
+                    </TabsTrigger>
+                    <TabsTrigger value="tasks" className="text-[12px] whitespace-nowrap">
+                      <AlarmClock className="w-3 h-3 mr-1" aria-hidden />
+                      {L.detail.tasks}
+                    </TabsTrigger>
+                    <TabsTrigger value="timeline" className="text-[12px] whitespace-nowrap">
+                      <Clock className="w-3 h-3 mr-1" aria-hidden />
+                      {L.detail.timeline}
+                    </TabsTrigger>
+                    <TabsTrigger value="consents" className="text-[12px] whitespace-nowrap">
+                      <ShieldCheck className="w-3 h-3 mr-1" aria-hidden />
+                      {L.detail.consents}
+                    </TabsTrigger>
+                    <TabsTrigger value="history" className="text-[12px] whitespace-nowrap">
+                      {L.detail.history}
+                    </TabsTrigger>
+                    <TabsTrigger value="notes" className="text-[12px] whitespace-nowrap">
+                      {L.detail.notes}
+                    </TabsTrigger>
+                    <TabsTrigger value="integ" className="text-[12px] whitespace-nowrap">
+                      {L.detail.integ}
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
               </div>
-              <ScoreBreakdownCard
-                leadId={leadId!}
-                score={lead.score ?? 0}
-                band={lead.score_band ?? "cold"}
-                breakdown={lead.score_breakdown}
-                updatedAt={lead.score_updated_at ?? null}
-                lang={L === PL ? "pl" : "en"}
-              />
-              <LinkedItemsCard itemType="crm_lead" itemId={leadId} />
-            </TabsContent>
 
-            <TabsContent value="consents" className="pt-3 space-y-2">
-              {detail.data!.consents.length === 0 && (
-                <p className="text-[12px] text-muted-foreground">{L.detail.consentEmpty}</p>
-              )}
-              {detail.data!.consents.map((c) => (
-                <div key={c.id} className="rounded border p-2 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap text-[12px]">
-                    <Badge variant={c.granted ? "default" : "outline"} className="text-[10px]">
-                      {c.consent_key}
-                    </Badge>
-                    {c.form_name && (
-                      <span className="text-muted-foreground">
-                        {L.detail.consentForm}: <b>{c.form_name}</b>
-                      </span>
-                    )}
-                    {c.version && (
-                      <span className="text-muted-foreground">
-                        {L.detail.consentVersion}: {c.version}
-                      </span>
-                    )}
-                    <span className="ml-auto text-[11px] text-muted-foreground">
-                      {new Date(c.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                  {c.text_excerpt && (
-                    <p className="text-[11px] text-muted-foreground leading-snug">
-                      <span className="font-medium">{L.detail.consentText}:</span> {c.text_excerpt}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </TabsContent>
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="p-4">
+                  <TabsContent value="tasks" className="mt-0">
+                    <LeadTasksPanel
+                      leadId={lead.id}
+                      lang={L === PL ? "pl" : "en"}
+                      highlightTaskId={highlightTaskId}
+                    />
+                  </TabsContent>
+                  <TabsContent value="timeline" className="mt-0">
+                    <LeadTimeline leadId={leadId!} L={L} />
+                  </TabsContent>
 
-            <TabsContent value="history" className="pt-3 space-y-2">
-              {detail.data!.messages.length === 0 && detail.data!.subscriptions.length === 0 && (
-                <p className="text-[12px] text-muted-foreground">{L.detail.historyEmpty}</p>
-              )}
-              {detail.data!.messages.map((m) => (
-                <div key={m.id} className="rounded border p-2 text-[12px]">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Mail className="w-3 h-3" />
-                    <b>{m.form_name ?? m.form_type ?? "contact"}</b>
-                    {m.subject && <span className="text-muted-foreground">- {m.subject}</span>}
-                    <span className="ml-auto text-[11px] text-muted-foreground">
-                      {new Date(m.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="mt-1 whitespace-pre-wrap text-[12px]">{m.message.slice(0, 400)}</p>
-                </div>
-              ))}
-              {detail.data!.subscriptions.map((s) => (
-                <div key={s.id} className="rounded border p-2 text-[12px]">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Mail className="w-3 h-3" />
-                    <b>newsletter</b>
-                    <Badge variant="outline" className="text-[10px]">
-                      {s.status}
-                    </Badge>
-                    {s.source_form_name && (
-                      <span className="text-muted-foreground">- {s.source_form_name}</span>
-                    )}
-                    <span className="ml-auto text-[11px] text-muted-foreground">
-                      {new Date(s.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </TabsContent>
-
-            <TabsContent value="notes" className="pt-3 space-y-2">
-              <div className="space-y-1">
-                <Label className="text-[12px]">{L.detail.noteAdd}</Label>
-                <Textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder={L.detail.notePlaceholder}
-                  rows={2}
-                  className="text-[13px]"
-                />
-                <Button
-                  size="sm"
-                  disabled={!note.trim() || noteMut.isPending}
-                  onClick={() => noteMut.mutate(note.trim())}
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" />
-                  {L.detail.noteSave}
-                </Button>
-              </div>
-              <div className="space-y-1 pt-1">
-                {detail.data!.notes.length === 0 && (
-                  <p className="text-[12px] text-muted-foreground">{L.detail.noteEmpty}</p>
-                )}
-                {detail.data!.notes.map((n) => (
-                  <div key={n.id} className="rounded border p-2 text-[12px] flex gap-2 items-start">
-                    <p className="flex-1 whitespace-pre-wrap">{n.body}</p>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(n.created_at).toLocaleDateString()}
-                      </span>
-                      <button
-                        onClick={() => noteDelMut.mutate(n.id)}
-                        className="text-muted-foreground hover:text-destructive"
-                        aria-label={L.detail.noteDelete}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                  <TabsContent value="overview" className="mt-0 space-y-4">
+                    <OverviewForm
+                      lead={lead}
+                      L={L}
+                      onSave={(p) => updateMut.mutate(p)}
+                      saving={updateMut.isPending}
+                    />
+                    <div className="grid grid-cols-2 gap-2 text-[12px] pt-2 border-t">
+                      <Stat
+                        label={L.detail.lastActivity}
+                        value={new Date(lead.last_activity_at).toLocaleString()}
+                      />
                     </div>
-                  </div>
-                ))}
-              </div>
-            </TabsContent>
+                    <ScoreBreakdownCard
+                      leadId={leadId!}
+                      score={lead.score ?? 0}
+                      band={lead.score_band ?? "cold"}
+                      breakdown={lead.score_breakdown}
+                      updatedAt={lead.score_updated_at ?? null}
+                      lang={L === PL ? "pl" : "en"}
+                    />
+                    <LinkedItemsCard itemType="crm_lead" itemId={leadId} />
+                  </TabsContent>
 
-            <TabsContent value="integ" className="pt-3 space-y-2">
-              <p className="text-[12px] text-muted-foreground">{L.integ.docs}</p>
-              <Button size="sm" onClick={() => pushMut.mutate()} disabled={pushMut.isPending}>
-                <Send className="w-3.5 h-3.5 mr-1" />
-                {L.detail.push}
-              </Button>
-            </TabsContent>
-          </Tabs>
-        )}
+                  <TabsContent value="consents" className="mt-0 space-y-2">
+                    {detail.data!.consents.length === 0 && (
+                      <p className="text-[12px] text-muted-foreground">
+                        {L.detail.consentEmpty}
+                      </p>
+                    )}
+                    {detail.data!.consents.map((c) => (
+                      <div key={c.id} className="rounded border p-2 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap text-[12px]">
+                          <Badge
+                            variant={c.granted ? "default" : "outline"}
+                            className="text-[10px]"
+                          >
+                            {c.consent_key}
+                          </Badge>
+                          {c.form_name && (
+                            <span className="text-muted-foreground">
+                              {L.detail.consentForm}: <b>{c.form_name}</b>
+                            </span>
+                          )}
+                          {c.version && (
+                            <span className="text-muted-foreground">
+                              {L.detail.consentVersion}: {c.version}
+                            </span>
+                          )}
+                          <span className="ml-auto text-[11px] text-muted-foreground">
+                            {new Date(c.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        {c.text_excerpt && (
+                          <p className="text-[11px] text-muted-foreground leading-snug">
+                            <span className="font-medium">{L.detail.consentText}:</span>{" "}
+                            {c.text_excerpt}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </TabsContent>
+
+                  <TabsContent value="history" className="mt-0 space-y-2">
+                    {detail.data!.messages.length === 0 &&
+                      detail.data!.subscriptions.length === 0 && (
+                        <p className="text-[12px] text-muted-foreground">
+                          {L.detail.historyEmpty}
+                        </p>
+                      )}
+                    {detail.data!.messages.map((m) => (
+                      <div key={m.id} className="rounded border p-2 text-[12px]">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Mail className="w-3 h-3" aria-hidden />
+                          <b>{m.form_name ?? m.form_type ?? "contact"}</b>
+                          {m.subject && (
+                            <span className="text-muted-foreground">- {m.subject}</span>
+                          )}
+                          <span className="ml-auto text-[11px] text-muted-foreground">
+                            {new Date(m.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap text-[12px]">
+                          {m.message.slice(0, 400)}
+                        </p>
+                      </div>
+                    ))}
+                    {detail.data!.subscriptions.map((s) => (
+                      <div key={s.id} className="rounded border p-2 text-[12px]">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Mail className="w-3 h-3" aria-hidden />
+                          <b>newsletter</b>
+                          <Badge variant="outline" className="text-[10px]">
+                            {s.status}
+                          </Badge>
+                          {s.source_form_name && (
+                            <span className="text-muted-foreground">
+                              - {s.source_form_name}
+                            </span>
+                          )}
+                          <span className="ml-auto text-[11px] text-muted-foreground">
+                            {new Date(s.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </TabsContent>
+
+                  <TabsContent value="notes" className="mt-0 space-y-2">
+                    <div className="space-y-1">
+                      <Label className="text-[12px]">{L.detail.noteAdd}</Label>
+                      <Textarea
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder={L.detail.notePlaceholder}
+                        rows={2}
+                        className="text-[13px]"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={!note.trim() || noteMut.isPending}
+                        onClick={() => noteMut.mutate(note.trim())}
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" aria-hidden />
+                        {L.detail.noteSave}
+                      </Button>
+                    </div>
+                    <div className="space-y-1 pt-1">
+                      {detail.data!.notes.length === 0 && (
+                        <p className="text-[12px] text-muted-foreground">
+                          {L.detail.noteEmpty}
+                        </p>
+                      )}
+                      {detail.data!.notes.map((n) => (
+                        <div
+                          key={n.id}
+                          className="rounded border p-2 text-[12px] flex gap-2 items-start"
+                        >
+                          <p className="flex-1 whitespace-pre-wrap">{n.body}</p>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(n.created_at).toLocaleDateString()}
+                            </span>
+                            <button
+                              onClick={() => noteDelMut.mutate(n.id)}
+                              className="text-muted-foreground hover:text-destructive"
+                              aria-label={L.detail.noteDelete}
+                            >
+                              <Trash2 className="w-3 h-3" aria-hidden />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="integ" className="mt-0 space-y-2">
+                    <p className="text-[12px] text-muted-foreground">{L.integ.docs}</p>
+                    <Button
+                      size="sm"
+                      onClick={() => pushMut.mutate()}
+                      disabled={pushMut.isPending}
+                    >
+                      <Send className="w-3.5 h-3.5 mr-1" aria-hidden />
+                      {L.detail.push}
+                    </Button>
+                  </TabsContent>
+                </div>
+              </ScrollArea>
+            </Tabs>
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   );
