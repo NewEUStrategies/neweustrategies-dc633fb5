@@ -162,7 +162,7 @@ const T = {
     title: "Marketing funnel",
     subtitle:
       "Newsletter subscribers, flagged when they are registered users or existing CRM Contacts.",
-    tabs: { contacts: "Contacts", funnel: "Marketing funnel" },
+    
     search: "Search by email or name...",
     audience: {
       all: "Everyone",
