@@ -134,7 +134,7 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.from("donations").insert({
       tenant_id: hostTenantId,
       amount_cents: data.amount_cents,
-      currency: "PLN",
+      currency: data.currency,
       message,
       user_id: donorUserId,
       provider: "mock",
