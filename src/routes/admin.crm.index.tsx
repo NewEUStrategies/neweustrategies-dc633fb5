@@ -732,10 +732,31 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                 onClick={() => void navigate({ to: "/admin/crm/$id", params: { id: l.id } })}
               >
                 <td className="p-2">
-                  <div className="font-medium">
-                    {[l.first_name, l.last_name].filter(Boolean).join(" ") || l.email}
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const key = l.email?.toLowerCase().trim() ?? "";
+                      const url = key ? avatarByEmail.get(key) : undefined;
+                      const name =
+                        [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email;
+                      const initials =
+                        (l.first_name?.[0] ?? "") + (l.last_name?.[0] ?? "") ||
+                        (l.email?.[0] ?? "?").toUpperCase();
+                      return (
+                        <Avatar className="h-7 w-7 shrink-0 rounded-full border border-border/60">
+                          {url ? <AvatarImage src={url} alt={name} /> : null}
+                          <AvatarFallback className="text-[10px] font-medium bg-muted text-muted-foreground">
+                            {initials.toUpperCase().slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                      );
+                    })()}
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">
+                        {[l.first_name, l.last_name].filter(Boolean).join(" ") || l.email}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">{l.email}</div>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">{l.email}</div>
                 </td>
                 <td className="p-2">
                   <LeadScoreBadge score={l.score ?? 0} band={l.score_band ?? "cold"} lang={lang} />
