@@ -1167,6 +1167,18 @@ export const en = {
       meteringShowCounter: 'Show the "X of N" counter above articles',
       meteringSaved: "Metering settings saved",
       meteringSaveError: "Could not save metering settings.",
+      meteringImpactTitle: "Impact preview for the current month",
+      meteringImpactDisabled:
+        "Metering is off - any paywalled content will require a subscription immediately, with no free quota.",
+      meteringImpactError: "Could not compute the impact preview.",
+      meteringImpactEmpty:
+        "No metered unlocks yet this month - the preview will show up once readers start opening articles.",
+      meteringImpactBlocked: "Readers blocked",
+      meteringImpactWarning: "Readers near limit",
+      meteringImpactSafe: "Readers under limit",
+      meteringImpactAvg: "Average usage",
+      meteringImpactSummary:
+        "{{members}} signed-in and {{anon}} guests ({{views}} views), max usage {{max}} - with a {{limit}}/mo quota.",
       overridesTitle: "Per post / page exceptions",
       overridesSubtitle:
         'Rules with a policy other than "inherit". This is the same rule you see in the post and page editors - a change here synchronizes instantly.',
