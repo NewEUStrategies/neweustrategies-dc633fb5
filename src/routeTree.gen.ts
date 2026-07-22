@@ -151,6 +151,7 @@ import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
 import { Route as AdminCouponsIndexRouteImport } from './routes/admin.coupons.index'
+import { Route as AdminCompaniesIndexRouteImport } from './routes/admin.companies.index'
 import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
 import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slug.amp'
 import { Route as TagSlugRssDotxmlRouteImport } from './routes/tag.$slug.rss[.]xml'
@@ -933,6 +934,11 @@ const AdminCouponsIndexRoute = AdminCouponsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminCouponsRoute,
 } as any)
+const AdminCompaniesIndexRoute = AdminCompaniesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminCompaniesRoute,
+} as any)
 const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -1497,6 +1503,7 @@ export interface FileRoutesByFullPath {
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
+  '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -1549,7 +1556,6 @@ export interface FileRoutesByTo {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
-  '/admin/companies': typeof AdminCompaniesRouteWithChildren
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRouteWithChildren
@@ -1702,6 +1708,7 @@ export interface FileRoutesByTo {
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community': typeof AdminCommunityIndexRoute
+  '/admin/companies': typeof AdminCompaniesIndexRoute
   '/admin/coupons': typeof AdminCouponsIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
@@ -1916,6 +1923,7 @@ export interface FileRoutesById {
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
+  '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -2131,6 +2139,7 @@ export interface FileRouteTypes {
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
+    | '/admin/companies/'
     | '/admin/coupons/'
     | '/admin/newsletter/'
     | '/admin/settings/'
@@ -2183,7 +2192,6 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
-    | '/admin/companies'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crm'
@@ -2336,6 +2344,7 @@ export interface FileRouteTypes {
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community'
+    | '/admin/companies'
     | '/admin/coupons'
     | '/admin/newsletter'
     | '/admin/settings'
@@ -2549,6 +2558,7 @@ export interface FileRouteTypes {
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
+    | '/admin/companies/'
     | '/admin/coupons/'
     | '/admin/newsletter/'
     | '/admin/settings/'
@@ -3634,6 +3644,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCouponsIndexRouteImport
       parentRoute: typeof AdminCouponsRoute
     }
+    '/admin/companies/': {
+      id: '/admin/companies/'
+      path: '/'
+      fullPath: '/admin/companies/'
+      preLoaderRoute: typeof AdminCompaniesIndexRouteImport
+      parentRoute: typeof AdminCompaniesRoute
+    }
     '/admin/community/': {
       id: '/admin/community/'
       path: '/'
@@ -4174,10 +4191,12 @@ const AdminCommunityRouteWithChildren = AdminCommunityRoute._addFileChildren(
 
 interface AdminCompaniesRouteChildren {
   AdminCompaniesIdRoute: typeof AdminCompaniesIdRoute
+  AdminCompaniesIndexRoute: typeof AdminCompaniesIndexRoute
 }
 
 const AdminCompaniesRouteChildren: AdminCompaniesRouteChildren = {
   AdminCompaniesIdRoute: AdminCompaniesIdRoute,
+  AdminCompaniesIndexRoute: AdminCompaniesIndexRoute,
 }
 
 const AdminCompaniesRouteWithChildren = AdminCompaniesRoute._addFileChildren(
