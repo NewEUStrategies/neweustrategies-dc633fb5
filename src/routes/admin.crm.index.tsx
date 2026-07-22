@@ -302,7 +302,7 @@ const PL = {
 
 const EN = {
   title: "CRM",
-  subtitle: "Leads from contact forms and newsletter",
+  subtitle: "Contacts from contact forms and newsletter",
   search: "Search by email, name, company…",
   scopeTenant: "My tenant",
   scopeAll: "All tenants (super admin)",
