@@ -610,8 +610,6 @@ function AdminShellInner({
                   <div className="space-y-0.5">
                     {group.items.map(({ to, icon: Icon, label }) => {
                       const isCrmContacts = to === "/admin/crm";
-                      const isCrmFunnel = to === "/admin/crm/funnel";
-                      const isCrmCompanies = to === "/admin/crm/companies";
 
                       const active =
                         path === to ||
@@ -634,6 +632,7 @@ function AdminShellInner({
                         <SidebarTooltip key={to} label={label} compact={compact}>
                           <Link
                             to={to}
+                             activeOptions={{ exact: true }}
                             title={compact ? undefined : label}
                             data-sidebar="menu-button"
                             data-active={finalActive ? "true" : "false"}
