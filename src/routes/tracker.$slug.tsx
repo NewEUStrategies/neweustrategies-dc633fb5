@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrentTier, tierHasFeature } from "@/lib/billing/tiers";
 import {
   itemBySlugQueryOptions,
   useItemBySlug,
@@ -163,6 +164,7 @@ function TrackerDetail() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureTrackerI18n();
   const { slug } = Route.useParams();
+  const navigate = Route.useNavigate();
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const { user, tenantId } = useAuth();
@@ -174,6 +176,11 @@ function TrackerDetail() {
   const relatedQ = useRelatedItems(item?.id);
   const myFollows = useMyFollows(user?.id);
   const toggleFollow = useToggleFollowItem();
+  // Monitoring regulacyjny (obserwowanie + alerty) to benefit Pro. Podgląd
+  // dossier jest publiczny; samo śledzenie egzekwuje serwer (RLS na
+  // eu_policy_follows), a tu dajemy miękki upsell zamiast surowego błędu.
+  const currentTier = useCurrentTier();
+  const canMonitor = tierHasFeature(currentTier.data?.features ?? null, "regulatory_monitoring");
 
   if (itemQ.isLoading) {
     return (
@@ -203,6 +210,17 @@ function TrackerDetail() {
   const onToggleFollow = () => {
     if (!user || !tenantId) {
       toast.info(t("tracker.signInToFollow"));
+      return;
+    }
+    // Nie-Pro: nie próbujemy insertu (RLS by odrzucił) - kierujemy na ofertę.
+    // Odobserwować (usunąć istniejącą obserwację) można zawsze.
+    if (!isFollowing && !canMonitor) {
+      toast.info(t("tracker.monitorProOnly"), {
+        action: {
+          label: t("tracker.monitorSeePlans"),
+          onClick: () => void navigate({ to: "/pricing" }),
+        },
+      });
       return;
     }
     toggleFollow.mutate(
@@ -305,7 +323,9 @@ function TrackerDetail() {
           )}
           {isFollowing ? t("tracker.following") : t("tracker.follow")}
         </Button>
-        <span className="text-xs text-muted-foreground">{t("tracker.followHint")}</span>
+        <span className="text-xs text-muted-foreground">
+          {!canMonitor && !isFollowing ? t("tracker.monitorProOnly") : t("tracker.followHint")}
+        </span>
       </div>
 
       {/* Sygnal spolecznosci: kto jeszcze sledzi to dossier (tylko zalogowani,

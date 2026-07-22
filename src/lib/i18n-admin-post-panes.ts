@@ -32,6 +32,10 @@ const pl = {
       teaserPl: "Teaser PL (opcjonalny)",
       teaserEn: "Teaser EN (opcjonalny)",
       teaserHelper: "Gdy nie podasz teasera, system automatycznie pokaże ok. 20% początku treści.",
+      minTier: "Minimalna warstwa",
+      minTierNone: "Dowolna (bez progu warstwy)",
+      minTierHint:
+        "Wymagana warstwa wg rangi (np. Plus vs Pro). Wyższe warstwy zawsze mają dostęp. Puste = klasyczne zachowanie (dowolna płatna warstwa / zalogowany).",
       metering: "Metering (darmowy limit miesięczny)",
       meteringInherit: "Dziedzicz z ustawień globalnych",
       meteringMetered: "Zawsze licz do limitu (metered)",
@@ -335,6 +339,10 @@ const en = {
       teaserEn: "Teaser EN (optional)",
       teaserHelper:
         "If you don't provide a teaser, the system automatically shows about 20% of the content start.",
+      minTier: "Minimum tier",
+      minTierNone: "Any (no tier threshold)",
+      minTierHint:
+        "Required tier by rank (e.g. Plus vs Pro). Higher tiers always have access. Empty = classic behaviour (any paid tier / logged-in).",
       metering: "Metering (free monthly quota)",
       meteringInherit: "Inherit from global settings",
       meteringMetered: "Always count towards the quota (metered)",
