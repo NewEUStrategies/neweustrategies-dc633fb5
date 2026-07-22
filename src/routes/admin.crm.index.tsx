@@ -193,7 +193,7 @@ type LeadDetail = {
 
 const PL = {
   title: "CRM",
-  subtitle: "Leady z formularzy kontaktowych i newslettera",
+  subtitle: "Kontakty z formularzy kontaktowych i newslettera",
   search: "Szukaj po e-mailu, imieniu, firmie…",
   scopeTenant: "Mój tenant",
   scopeAll: "Wszystkie tenanty (super admin)",
@@ -216,7 +216,7 @@ const PL = {
   sortActivity: "Sortuj: aktywność",
   sortScore: "Sortuj: lead score",
   bandAll: "Wszystkie pasma",
-  empty: "Brak leadów dla wybranych filtrów.",
+  empty: "Brak kontaktów dla wybranych filtrów.",
   stage: {
     new: "Nowy",
     contacted: "Skontaktowano",
@@ -227,7 +227,7 @@ const PL = {
     archived: "Archiwum",
   } as Record<Stage, string>,
   detail: {
-    title: "Karta leada",
+    title: "Karta kontaktu",
     overview: "Profil",
     tasks: "Zadania",
     consents: "Zgody",
@@ -302,7 +302,7 @@ const PL = {
 
 const EN = {
   title: "CRM",
-  subtitle: "Leads from contact forms and newsletter",
+  subtitle: "Contacts from contact forms and newsletter",
   search: "Search by email, name, company…",
   scopeTenant: "My tenant",
   scopeAll: "All tenants (super admin)",
@@ -325,7 +325,7 @@ const EN = {
   sortActivity: "Sort: activity",
   sortScore: "Sort: lead score",
   bandAll: "All bands",
-  empty: "No leads for the selected filters.",
+  empty: "No contacts for the selected filters.",
   stage: {
     new: "New",
     contacted: "Contacted",
@@ -336,7 +336,7 @@ const EN = {
     archived: "Archived",
   } as Record<Stage, string>,
   detail: {
-    title: "Lead card",
+    title: "Contact card",
     overview: "Profile",
     tasks: "Tasks",
     consents: "Consents",
@@ -567,7 +567,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const bulkDelete = useMutation({
     mutationFn: async () => bulkDeleteCrmLeads({ data: { ids: Array.from(selected) } }),
     onSuccess: async () => {
-      toast.success(lang === "pl" ? "Usunięto leady" : "Leads deleted");
+      toast.success(lang === "pl" ? "Usunięto kontakty" : "Contacts deleted");
       setSelected(new Set());
       await qc.invalidateQueries({ queryKey: ["crm-leads"] });
     },
@@ -884,7 +884,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         count={selected.size}
         onClear={() => setSelected(new Set())}
         lang={lang}
-        itemLabel={{ pl: "leadów zaznaczonych", en: "leads selected" }}
+        itemLabel={{ pl: "kontaktów zaznaczonych", en: "contacts selected" }}
       >
         <Popover>
           <PopoverTrigger asChild>
@@ -982,7 +982,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {lang === "pl" ? "Usunąć zaznaczone leady?" : "Delete selected leads?"}
+                {lang === "pl" ? "Usunąć zaznaczone kontakty?" : "Delete selected contacts?"}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {lang === "pl"
