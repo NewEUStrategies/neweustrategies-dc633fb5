@@ -7,7 +7,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { fetchMyBillingProfile, fetchPlanById } from "@/lib/billing/queries";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
+import {
+  convertToDisplayCurrency,
+  displayCurrencyForLang,
+  formatDisplayMoney,
+} from "@/lib/billing/displayCurrency";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,8 +63,20 @@ function CheckoutPage() {
   }, [plan.isSuccess, plan.data, t]);
 
   const hasBilling = !!billing.data?.address_line1 && !!billing.data?.city;
-  const originalCents = plan.data?.price_cents ?? 0;
-  const finalCents = Math.max(originalCents - (coupon?.discountCents ?? 0), 0);
+  const displayCurrency = displayCurrencyForLang(i18n.language);
+  const planCurrency = plan.data?.currency ?? "PLN";
+  // Kwoty do wyświetlenia po konwersji (parytet z /pricing i /support).
+  const originalDisplay = convertToDisplayCurrency(
+    plan.data?.price_cents ?? 0,
+    planCurrency,
+    displayCurrency,
+  );
+  const discountDisplay = convertToDisplayCurrency(
+    coupon?.discountCents ?? 0,
+    planCurrency,
+    displayCurrency,
+  );
+  const finalCentsDisplay = Math.max(originalDisplay.cents - discountDisplay.cents, 0);
 
   const submit = async () => {
     if (!plan.data || !hasBilling) return;
@@ -70,9 +88,11 @@ function CheckoutPage() {
           plan_id: plan.data.id,
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",
+          display_currency: displayCurrency,
           ...(coupon ? { coupon_code: coupon.code } : {}),
         },
       });
+
       if (!res.ok) {
         if (res.mode === "coupon") {
           toast.error(t("checkout.applyFailed"));
@@ -193,7 +213,7 @@ function CheckoutPage() {
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>{t("checkout.subtotal")}</span>
                           <span className="line-through">
-                            {formatMoney(originalCents, plan.data.currency, i18n.language)}
+                            {formatDisplayMoney(plan.data.price_cents, planCurrency, i18n.language)}
                           </span>
                         </div>
                       )}
@@ -201,7 +221,7 @@ function CheckoutPage() {
                         <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400">
                           <span>{t("coupon.discount")}</span>
                           <span>
-                            -{formatMoney(coupon.discountCents, plan.data.currency, i18n.language)}
+                            -{formatDisplayMoney(coupon.discountCents, planCurrency, i18n.language)}
                           </span>
                         </div>
                       )}
@@ -209,7 +229,7 @@ function CheckoutPage() {
                       <div className="flex items-center justify-between pt-1">
                         <span className="font-medium">{t("checkout.total")}</span>
                         <span className="text-2xl font-bold">
-                          {formatMoney(finalCents, plan.data.currency, i18n.language)}
+                          {formatMoney(finalCentsDisplay, originalDisplay.currency, i18n.language)}
                         </span>
                       </div>
                     </div>
@@ -225,7 +245,7 @@ function CheckoutPage() {
                         <>
                           <Lock className="mr-2 h-4 w-4" />
                           {t("checkout.payNow", {
-                            amount: formatMoney(finalCents, plan.data.currency, i18n.language),
+                            amount: formatMoney(finalCentsDisplay, originalDisplay.currency, i18n.language),
                           })}
                         </>
                       )}

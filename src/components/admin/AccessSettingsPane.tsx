@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { convertToDisplayCurrency } from "@/lib/billing/displayCurrency";
+
 import type {
   AccessEntityType,
   AccessMode,
@@ -267,8 +269,14 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
                     <span>
                       {p.name_pl || p.name_en} · {(p.price_cents / 100).toFixed(2)} {p.currency} /{" "}
                       {p.interval}
+                      {p.currency?.toUpperCase() === "PLN" && (
+                        <span className="ml-1 text-[11px] text-muted-foreground">
+                          (EN: {(convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents / 100).toFixed(2)} EUR)
+                        </span>
+                      )}
                     </span>
                   </label>
+
                 ))}
               </div>
             )}

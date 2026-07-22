@@ -19,6 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { AccessPlan } from "@/hooks/useContentAccess";
 import { formatMoney } from "@/hooks/useContentAccess";
+import { convertToDisplayCurrency } from "@/lib/billing/displayCurrency";
+
 import {
   DEFAULT_METERING_SETTINGS,
   normalizeMeteringPolicy,
@@ -126,7 +128,15 @@ function PaywallAdmin() {
                       <div className="text-xs text-muted-foreground">{p.name_en}</div>
                     )}
                   </td>
-                  <td className="p-3">{formatMoney(p.price_cents, p.currency)}</td>
+                  <td className="p-3">
+                    {formatMoney(p.price_cents, p.currency)}
+                    {p.currency?.toUpperCase() === "PLN" && (
+                      <div className="text-[11px] text-muted-foreground">
+                        EN: {formatMoney(convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents, "EUR")}
+                      </div>
+                    )}
+                  </td>
+
                   <td className="p-3">{p.interval}</td>
                   <td className="p-3">{p.active ? "✓" : "-"}</td>
                   <td className="p-3 text-right space-x-2">

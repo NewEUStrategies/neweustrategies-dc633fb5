@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/dialog";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import { planName } from "@/lib/billing/types";
+import { convertToDisplayCurrency } from "@/lib/billing/displayCurrency";
+
 import {
   parseTierBenefits,
   serializeTierBenefits,
@@ -353,7 +355,13 @@ function AdminMembershipPage() {
                 <div className="truncate text-sm font-medium">{planName(plan, lang)}</div>
                 <div className="text-xs text-muted-foreground">
                   {(plan.price_cents / 100).toFixed(2)} {plan.currency} / {plan.interval}
+                  {plan.currency.toUpperCase() === "PLN" && (
+                    <span className="ml-2 text-[11px] text-muted-foreground/80">
+                      · EN: {(convertToDisplayCurrency(plan.price_cents, plan.currency, "EUR").cents / 100).toFixed(2)} EUR
+                    </span>
+                  )}
                 </div>
+
               </div>
               <Select
                 value={plan.tier_key ?? "none"}
