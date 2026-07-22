@@ -657,7 +657,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
               <tr
                 key={l.id}
                 className="border-t hover:bg-muted/40 cursor-pointer"
-                onClick={() => setOpenId(l.id)}
+                onClick={() => void navigate({ to: "/admin/crm/$id", params: { id: l.id } })}
               >
                 <td className="p-2">
                   <div className="font-medium">
@@ -686,18 +686,19 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                   {new Date(l.last_activity_at).toLocaleString()}
                 </td>
                 <td className="p-2 text-right" onClick={(e) => e.stopPropagation()}>
-                  <Link
-                    to="/admin/crm/$id"
-                    params={{ id: l.id }}
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(l.id)}
                     className="inline-grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-                    aria-label={lang === "pl" ? "Pełny widok" : "Full view"}
-                    title={lang === "pl" ? "Pełny widok" : "Full view"}
+                    aria-label={lang === "pl" ? "Szybki podgląd" : "Quick preview"}
+                    title={lang === "pl" ? "Szybki podgląd" : "Quick preview"}
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
-                  </Link>
+                  </button>
                 </td>
               </tr>
             ))}
+
           </tbody>
         </table>
       </div>
