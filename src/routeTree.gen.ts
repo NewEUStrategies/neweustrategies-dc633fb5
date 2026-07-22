@@ -101,6 +101,7 @@ import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-po
 import { Route as AdminRedirectsRouteImport } from './routes/admin.redirects'
 import { Route as AdminReadingTimeRouteImport } from './routes/admin.reading-time'
 import { Route as AdminProgramsRouteImport } from './routes/admin.programs'
+import { Route as AdminPricingRouteImport } from './routes/admin.pricing'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
 import { Route as AdminPopupsRouteImport } from './routes/admin.popups'
@@ -683,6 +684,11 @@ const AdminReadingTimeRoute = AdminReadingTimeRouteImport.update({
 const AdminProgramsRoute = AdminProgramsRouteImport.update({
   id: '/programs',
   path: '/programs',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPricingRoute = AdminPricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPostsRoute = AdminPostsRouteImport.update({
@@ -1399,6 +1405,7 @@ export interface FileRoutesByFullPath {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/pricing': typeof AdminPricingRoute
   '/admin/programs': typeof AdminProgramsRoute
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
@@ -1609,6 +1616,7 @@ export interface FileRoutesByTo {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/pricing': typeof AdminPricingRoute
   '/admin/programs': typeof AdminProgramsRoute
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
@@ -1824,6 +1832,7 @@ export interface FileRoutesById {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/pricing': typeof AdminPricingRoute
   '/admin/programs': typeof AdminProgramsRoute
   '/admin/reading-time': typeof AdminReadingTimeRoute
   '/admin/redirects': typeof AdminRedirectsRoute
@@ -2043,6 +2052,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/pricing'
     | '/admin/programs'
     | '/admin/reading-time'
     | '/admin/redirects'
@@ -2253,6 +2263,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/pricing'
     | '/admin/programs'
     | '/admin/reading-time'
     | '/admin/redirects'
@@ -2467,6 +2478,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/pricing'
     | '/admin/programs'
     | '/admin/reading-time'
     | '/admin/redirects'
@@ -3326,6 +3338,13 @@ declare module '@tanstack/react-router' {
       path: '/programs'
       fullPath: '/admin/programs'
       preLoaderRoute: typeof AdminProgramsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/pricing': {
+      id: '/admin/pricing'
+      path: '/pricing'
+      fullPath: '/admin/pricing'
+      preLoaderRoute: typeof AdminPricingRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/posts': {
@@ -4489,6 +4508,7 @@ interface AdminRouteChildren {
   AdminPopupsRoute: typeof AdminPopupsRouteWithChildren
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
+  AdminPricingRoute: typeof AdminPricingRoute
   AdminProgramsRoute: typeof AdminProgramsRoute
   AdminReadingTimeRoute: typeof AdminReadingTimeRoute
   AdminRedirectsRoute: typeof AdminRedirectsRoute
@@ -4555,6 +4575,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPopupsRoute: AdminPopupsRouteWithChildren,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
+  AdminPricingRoute: AdminPricingRoute,
   AdminProgramsRoute: AdminProgramsRoute,
   AdminReadingTimeRoute: AdminReadingTimeRoute,
   AdminRedirectsRoute: AdminRedirectsRoute,

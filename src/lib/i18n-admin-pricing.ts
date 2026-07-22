@@ -1,0 +1,221 @@
+// Zasoby i18n panelu /admin/pricing: segmenty odbiorców cennika, marketing
+// warstw (badge, wyróżnienie, benefity z rozwinięciami i grupami) oraz FAQ.
+// Współdzielony edytor benefitów (TierBenefitsEditor) też czyta ten moduł.
+import i18n from "@/lib/i18n";
+
+const adminPricingPl = {
+  adminPricing: {
+    title: "Cennik i segmenty",
+    subtitle:
+      "Prezentacja oferty na /pricing: segmenty odbiorców, karty warstw i FAQ. Rangi, features i mapowanie planów edytujesz w panelu Członkostwo.",
+    tabs: {
+      audiences: "Segmenty",
+      tiers: "Warstwy i benefity",
+      faq: "FAQ",
+    },
+    audiences: {
+      new: "Nowy segment",
+      key: "Klucz (slug)",
+      keyHint: "2-32 znaki: a-z, 0-9, _ lub -. Musi być unikalny.",
+      namePl: "Nazwa PL",
+      nameEn: "Name EN",
+      taglinePl: "Tagline PL",
+      taglineEn: "Tagline EN",
+      icon: "Ikona",
+      active: "Aktywny",
+      save: "Zapisz",
+      create: "Utwórz",
+      cancel: "Anuluj",
+      moveUp: "Przesuń wyżej",
+      moveDown: "Przesuń niżej",
+      deleteTitle: "Usuń segment",
+      deleteConfirm: 'Usunąć segment "{{key}}"? Operacji nie można cofnąć.',
+      deleteBlocked: "Najpierw odepnij warstwy przypisane do tego segmentu.",
+      tiersCount: "warstwy: {{count}}",
+      empty: "Brak segmentów - dodaj pierwszy.",
+    },
+    icons: {
+      user: "Osoba",
+      users: "Zespół",
+      "building-2": "Firma",
+      "graduation-cap": "Edukacja",
+      landmark: "Instytucja",
+      sparkles: "Inne",
+    },
+    tiers: {
+      unassigned: "Bez segmentu",
+      unassignedHint:
+        "Warstwy bez segmentu strona /pricing pokazuje w pierwszym aktywnym segmencie.",
+      coreHint: "Rangi, features (bramki) i mapowanie planów edytujesz w panelu Członkostwo.",
+      openMembership: "Otwórz Członkostwo",
+      audience: "Segment",
+      none: "Brak (pierwszy segment)",
+      badgePl: "Badge PL",
+      badgeEn: "Badge EN",
+      badgeHint: 'Etykieta nad kartą, np. "Najpopularniejszy".',
+      highlight: "Wyróżnienie",
+      highlightHint: "Kotwica wyboru: obwódka, cień i domyślny wariant przycisku.",
+      contactUrl: "Link kontaktowy (CTA bez planu)",
+      contactUrlHint:
+        "Dla warstw bez planów samoobsługowych. Puste = wbudowany formularz kontaktowy na /pricing.",
+      save: "Zapisz",
+      rankBadge: "ranga",
+    },
+    benefits: {
+      heading: "Benefity (PL/EN)",
+      add: "Dodaj",
+      empty: "Brak benefitów - dodaj pierwszy punkt.",
+      moveUp: "Przesuń wyżej",
+      moveDown: "Przesuń niżej",
+      remove: "Usuń",
+      more: "Rozwinięcie i grupa",
+      detailPl: "Rozwinięcie PL (styl NYT)",
+      detailEn: "Detail EN (NYT style)",
+      groupPl: "Nagłówek grupy PL (styl FT)",
+      groupEn: "Group header EN (FT style)",
+      groupHint:
+        "Nagłówek otwiera sekcję na karcie - grupują się KOLEJNE benefity z tym samym nagłówkiem.",
+    },
+    faq: {
+      newHeading: "Nowe pytanie",
+      audience: "Segment",
+      global: "Globalne (wszystkie segmenty)",
+      questionPl: "Pytanie PL",
+      questionEn: "Question EN",
+      answerPl: "Odpowiedź PL",
+      answerEn: "Answer EN",
+      add: "Dodaj pytanie",
+      active: "Aktywne",
+      save: "Zapisz",
+      moveUp: "Przesuń wyżej",
+      moveDown: "Przesuń niżej",
+      deleteTitle: "Usuń pytanie",
+      deleteConfirm: "Usunąć to pytanie? Operacji nie można cofnąć.",
+      empty: "Brak pytań - dodaj pierwsze powyżej.",
+    },
+    toast: {
+      audienceSaved: "Zapisano segment",
+      audienceCreated: "Utworzono segment",
+      audienceDeleted: "Usunięto segment",
+      tierSaved: "Zapisano warstwę",
+      faqAdded: "Dodano pytanie",
+      faqSaved: "Zapisano pytanie",
+      faqDeleted: "Usunięto pytanie",
+      reordered: "Zmieniono kolejność",
+      noTenant: "Brak tenantu",
+    },
+  },
+};
+
+const adminPricingEn: typeof adminPricingPl = {
+  adminPricing: {
+    title: "Pricing & segments",
+    subtitle:
+      "How the offer is presented on /pricing: audience segments, tier cards and the FAQ. Ranks, features and plan mapping live in the Membership panel.",
+    tabs: {
+      audiences: "Segments",
+      tiers: "Tiers & benefits",
+      faq: "FAQ",
+    },
+    audiences: {
+      new: "New segment",
+      key: "Key (slug)",
+      keyHint: "2-32 chars: a-z, 0-9, _ or -. Must be unique.",
+      namePl: "Nazwa PL",
+      nameEn: "Name EN",
+      taglinePl: "Tagline PL",
+      taglineEn: "Tagline EN",
+      icon: "Icon",
+      active: "Active",
+      save: "Save",
+      create: "Create",
+      cancel: "Cancel",
+      moveUp: "Move up",
+      moveDown: "Move down",
+      deleteTitle: "Delete segment",
+      deleteConfirm: 'Delete segment "{{key}}"? This cannot be undone.',
+      deleteBlocked: "Unassign the tiers attached to this segment first.",
+      tiersCount: "tiers: {{count}}",
+      empty: "No segments yet - add the first one.",
+    },
+    icons: {
+      user: "Person",
+      users: "Team",
+      "building-2": "Business",
+      "graduation-cap": "Education",
+      landmark: "Institution",
+      sparkles: "Other",
+    },
+    tiers: {
+      unassigned: "No segment",
+      unassignedHint: "Tiers without a segment show up in the first active segment on /pricing.",
+      coreHint: "Ranks, feature gates and plan mapping are edited in the Membership panel.",
+      openMembership: "Open Membership",
+      audience: "Segment",
+      none: "None (first segment)",
+      badgePl: "Badge PL",
+      badgeEn: "Badge EN",
+      badgeHint: 'Label above the card, e.g. "Most popular".',
+      highlight: "Highlight",
+      highlightHint: "Choice anchor: ring, shadow and the default button variant.",
+      contactUrl: "Contact link (CTA without a plan)",
+      contactUrlHint:
+        "For tiers without self-serve plans. Empty = built-in contact form on /pricing.",
+      save: "Save",
+      rankBadge: "rank",
+    },
+    benefits: {
+      heading: "Benefits (PL/EN)",
+      add: "Add",
+      empty: "No benefits yet - add the first point.",
+      moveUp: "Move up",
+      moveDown: "Move down",
+      remove: "Remove",
+      more: "Detail & group",
+      detailPl: "Rozwinięcie PL (styl NYT)",
+      detailEn: "Detail EN (NYT style)",
+      groupPl: "Nagłówek grupy PL (styl FT)",
+      groupEn: "Group header EN (FT style)",
+      groupHint:
+        "A header opens a section on the card - CONSECUTIVE benefits with the same header are grouped.",
+    },
+    faq: {
+      newHeading: "New question",
+      audience: "Segment",
+      global: "Global (all segments)",
+      questionPl: "Pytanie PL",
+      questionEn: "Question EN",
+      answerPl: "Odpowiedź PL",
+      answerEn: "Answer EN",
+      add: "Add question",
+      active: "Active",
+      save: "Save",
+      moveUp: "Move up",
+      moveDown: "Move down",
+      deleteTitle: "Delete question",
+      deleteConfirm: "Delete this question? This cannot be undone.",
+      empty: "No questions yet - add the first one above.",
+    },
+    toast: {
+      audienceSaved: "Segment saved",
+      audienceCreated: "Segment created",
+      audienceDeleted: "Segment deleted",
+      tierSaved: "Tier saved",
+      faqAdded: "Question added",
+      faqSaved: "Question saved",
+      faqDeleted: "Question deleted",
+      reordered: "Order updated",
+      noTenant: "No tenant",
+    },
+  },
+};
+
+i18n.addResourceBundle("pl", "translation", adminPricingPl, true, true);
+i18n.addResourceBundle("en", "translation", adminPricingEn, true, true);
+
+/**
+ * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
+ * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
+ * tłumaczeń do chunka trasy - rejestracja dzieje się przy ewaluacji modułu.
+ */
+export function ensureI18n(): void {}

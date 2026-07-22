@@ -7,7 +7,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { BadgeCheck, Crown, Save, Plus, Trash2, ArrowUp, ArrowDown, X } from "lucide-react";
+import { BadgeCheck, Crown, Save, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureI18n as ensureAdminMembershipI18n } from "@/lib/i18n-admin-membership";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,13 @@ import {
 } from "@/components/ui/dialog";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import { planName } from "@/lib/billing/types";
-import { parseTierBenefits, type MembershipTierRow, type TierBenefit } from "@/lib/billing/tiers";
+import {
+  parseTierBenefits,
+  serializeTierBenefits,
+  type MembershipTierRow,
+  type TierBenefit,
+} from "@/lib/billing/tiers";
+import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
 import {
   fetchMembershipGrants,
   grantMembership,
@@ -73,14 +79,6 @@ function draftFromTier(tier: MembershipTierRow): TierDraft {
     active: tier.active,
     is_default: tier.is_default,
   };
-}
-
-function benefitsToJson(list: TierBenefit[]): Json {
-  const out = list
-    .map((b) => ({ pl: b.pl.trim(), en: b.en.trim() }))
-    .filter((b) => b.pl || b.en)
-    .map((b) => ({ pl: b.pl || b.en, en: b.en || b.pl }));
-  return out as unknown as Json;
 }
 
 function AdminMembershipPage() {
@@ -126,7 +124,7 @@ function AdminMembershipPage() {
           description_pl: draft.description_pl.trim() || null,
           description_en: draft.description_en.trim() || null,
           rank: draft.rank,
-          benefits: benefitsToJson(draft.benefits),
+          benefits: serializeTierBenefits(draft.benefits),
           features,
           active: draft.active,
           is_default: draft.is_default,
@@ -289,7 +287,7 @@ function AdminMembershipPage() {
                   </div>
                 </div>
 
-                <BenefitsEditor lang={lang} value={draft.benefits} onChange={setBenefits} />
+                <TierBenefitsEditor value={draft.benefits} onChange={setBenefits} />
 
                 <div className="grid grid-cols-3 items-end gap-2">
                   <div>
@@ -556,111 +554,6 @@ function GrantsSection({
         )}
       </div>
     </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Per-punkt edytor benefitów (para PL/EN, reorder, add/remove).
-// ---------------------------------------------------------------------------
-function BenefitsEditor({
-  lang,
-  value,
-  onChange,
-}: {
-  lang: "pl" | "en";
-  value: TierBenefit[];
-  onChange: (next: TierBenefit[]) => void;
-}) {
-  const { t } = useTranslation();
-  const tm = (k: string) => t(`adminMembership.${k}`);
-
-  const update = (i: number, patch: Partial<TierBenefit>) => {
-    const next = value.map((b, idx) => (idx === i ? { ...b, ...patch } : b));
-    onChange(next);
-  };
-  const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    if (j < 0 || j >= value.length) return;
-    const next = value.slice();
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-  };
-  const add = () => onChange([...value, { pl: "", en: "" }]);
-
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between">
-        <Label className="text-xs">{tm("benefits.heading")}</Label>
-        <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={add}>
-          <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-          {tm("benefits.add")}
-        </Button>
-      </div>
-      {value.length === 0 ? (
-        <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground">
-          {tm("benefits.empty")}
-        </p>
-      ) : (
-        <ol className="space-y-2">
-          {value.map((b, i) => (
-            <li key={i} className="rounded-md border border-border/60 bg-muted/30 p-2">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-muted-foreground">#{i + 1}</span>
-                <div className="flex items-center gap-0.5">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6"
-                    onClick={() => move(i, -1)}
-                    disabled={i === 0}
-                    title={tm("benefits.moveUp")}
-                  >
-                    <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6"
-                    onClick={() => move(i, 1)}
-                    disabled={i === value.length - 1}
-                    title={tm("benefits.moveDown")}
-                  >
-                    <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={() => remove(i)}
-                    title={tm("benefits.remove")}
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-1.5">
-                <Input
-                  placeholder="PL"
-                  value={b.pl}
-                  onChange={(e) => update(i, { pl: e.target.value })}
-                  className="h-8 text-sm"
-                />
-                <Input
-                  placeholder="EN"
-                  value={b.en}
-                  onChange={(e) => update(i, { en: e.target.value })}
-                  className="h-8 text-sm"
-                />
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
   );
 }
 
