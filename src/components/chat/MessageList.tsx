@@ -562,12 +562,12 @@ export function MessageList(props: MessageListProps) {
             {lastMine?.pending ? (
               <span className="text-[10px] text-muted-foreground">{t("chat.sending")}</span>
             ) : seen ? (
-              <span className="inline-flex items-center gap-1" title={t("chat.seen")}>
-                <span className="sr-only">{t("chat.seen")}</span>
-                <ChatAvatar name={peerName} avatarUrl={peerAvatarUrl} size="xs" />
+              <span className="text-[10px] text-muted-foreground" title={t("chat.seen")}>
+                {t("chat.seen")}
               </span>
             ) : null}
           </div>
+
 
           {peerTyping && (
             <div className="pb-1 pt-0.5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150">
