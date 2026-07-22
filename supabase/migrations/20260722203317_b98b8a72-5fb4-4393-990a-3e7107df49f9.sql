@@ -1,0 +1,1 @@
+UPDATE public.membership_tiers SET highlight = true WHERE id IN ('dbb5ecc8-b1b3-4e1b-b195-c574a8c86377','7615379b-ab36-442b-80bb-b8519c9eced7','1c86aa33-46d3-4e49-bb79-95d47bd17761');
