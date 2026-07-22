@@ -225,7 +225,7 @@ export function TimelineEditor({ c, lang, setContent }: Props) {
                 />
               </PropField>
               <PropField
-                label={t("builder.timelineEditor.sectionTitle", { lang: lang.toUpperCase() })}
+                label={t("builder.timelineEditor.itemTitle", { lang: lang.toUpperCase() })}
               >
                 <Input
                   value={strOf(it[`title_${lang}`])}
