@@ -609,22 +609,38 @@ function AdminShellInner({
                   )}
                   <div className="space-y-0.5">
                     {group.items.map(({ to, icon: Icon, label }) => {
+                      const isCrmContacts = to === "/admin/crm";
+                      const isCrmFunnel = to === "/admin/crm/funnel";
+                      const isCrmCompanies = to === "/admin/crm/companies";
+
                       const active =
                         path === to ||
                         (to !== "/admin" &&
                           to !== "/admin/appearance" &&
+                          !isCrmContacts &&
                           path.startsWith(`${to}/`));
+
+                      // Kontakty CRM powinny być podświetlone tylko na /admin/crm
+                      // i szczegółach kontaktu (/admin/crm/$id), ale NIE gdy użytkownik
+                      // znajduje się w lejku lub firmach CRM.
+                      const crmContactsActive =
+                        isCrmContacts &&
+                        (path === "/admin/crm" ||
+                          /^\/admin\/crm\/(?!funnel|companies)[^/]+/.test(path));
+
+                      const finalActive = active || crmContactsActive;
+
                       return (
                         <SidebarTooltip key={to} label={label} compact={compact}>
                           <Link
                             to={to}
                             title={compact ? undefined : label}
                             data-sidebar="menu-button"
-                            data-active={active ? "true" : "false"}
+                            data-active={finalActive ? "true" : "false"}
                             className={`flex items-center py-1 rounded-md text-[13px] leading-tight transition ${
                               compact ? "justify-center px-0" : "gap-1.5 px-2"
                             } ${
-                              active
+                              finalActive
                                 ? "bg-brand text-brand-foreground"
                                 : "text-foreground hover:bg-muted"
                             }`}
