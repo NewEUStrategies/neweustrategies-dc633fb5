@@ -907,6 +907,27 @@ export const WIDGETS: WidgetDef[] = [
     }),
   },
   {
+    type: "logo-cloud",
+    label: "Karuzela logo (marquee)",
+    category: "blocks",
+    icon: GalleryHorizontal,
+    defaults: () => ({
+      heading_pl: "",
+      heading_en: "",
+      speedSeconds: 40,
+      pauseOnHover: true,
+      fadeEdges: true,
+      grayscale: true,
+      logos: [
+        { label: "Brand 1", src: "", href: "", alt: "" },
+        { label: "Brand 2", src: "", href: "", alt: "" },
+        { label: "Brand 3", src: "", href: "", alt: "" },
+        { label: "Brand 4", src: "", href: "", alt: "" },
+        { label: "Brand 5", src: "", href: "", alt: "" },
+      ] as unknown as Json,
+    }),
+  },
+  {
     type: "testimonial",
     label: "Opinia / Cytat",
     category: "blocks",
