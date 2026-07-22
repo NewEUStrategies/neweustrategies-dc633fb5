@@ -517,6 +517,26 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center gap-1 border-b overflow-x-auto scrollbar-thin">
+        {BUILTIN_LEAD_VIEWS.map((v) => {
+          const active = activeViewId === v.id;
+          const Icon = v.id === "hot" ? Flame : v.id === "new_7d" ? Sparkles : v.id === "my_owned" ? UserCog : UsersIcon;
+          return (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => applyView(v.id)}
+              className={`relative flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium whitespace-nowrap transition-colors ${
+                active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" aria-hidden />
+              {lang === "pl" ? v.labelPl : v.labelEn}
+              {active && (<span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />)}
+            </button>
+          );
+        })}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
