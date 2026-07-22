@@ -306,9 +306,13 @@ function AdminCrmDetailPage() {
         <aside className="space-y-3">
           <section className="rounded-md border bg-card">
             <div className="flex items-center gap-3 p-4 pb-3">
-              <div className="grid h-14 w-14 place-items-center rounded-md bg-primary/10 text-[15px] font-semibold text-primary">
-                {initials}
-              </div>
+              <FaceAwareAvatar
+                url={detail.data?.profile_avatar_url ?? null}
+                name={displayName}
+                initials={initials}
+                className="h-14 w-14"
+                fallbackClassName="text-[15px] text-primary bg-primary/10"
+              />
               <div className="min-w-0">
                 <div className="truncate text-[14px] font-semibold leading-tight">{displayName}</div>
                 <div className="truncate text-[11px] text-muted-foreground">{lead.position ?? t("Brak stanowiska", "No position")}</div>
