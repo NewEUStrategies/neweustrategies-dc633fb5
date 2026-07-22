@@ -11820,6 +11820,9 @@ export type Database = {
         }[]
       }
       seed_membership_tiers: { Args: { p_tenant: string }; Returns: undefined }
+      seed_pricing_audiences: { Args: { p_tenant: string }; Returns: undefined }
+      seed_pricing_defaults: { Args: { p_tenant: string }; Returns: undefined }
+      seed_pricing_faq: { Args: { p_tenant: string }; Returns: undefined }
       semantic_search_posts: {
         Args: { _embedding: number[]; _limit?: number }
         Returns: {
