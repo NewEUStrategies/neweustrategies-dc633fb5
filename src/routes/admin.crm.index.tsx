@@ -982,7 +982,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {lang === "pl" ? "Usunąć zaznaczone leady?" : "Delete selected leads?"}
+                {lang === "pl" ? "Usunąć zaznaczone kontakty?" : "Delete selected contacts?"}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {lang === "pl"
