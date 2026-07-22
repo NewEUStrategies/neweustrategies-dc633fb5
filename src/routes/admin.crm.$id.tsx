@@ -239,7 +239,7 @@ function AdminCrmDetailPage() {
   };
   const saveEdit = () => {
     const patch: Record<string, unknown> = {};
-    (["first_name", "last_name", "phone", "company"] as const).forEach((k) => {
+    (["first_name", "last_name", "phone", "company", "position", "country", "linkedin_url"] as const).forEach((k) => {
       if (form[k] !== undefined && form[k] !== (lead ? lead[k] : undefined)) patch[k] = form[k] ?? null;
     });
     if (Object.keys(patch).length === 0) {
