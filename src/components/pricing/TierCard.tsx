@@ -24,6 +24,8 @@ import {
   type BillingInterval,
 } from "@/lib/pricing/selectors";
 import { TierBenefitList } from "./TierBenefitList";
+import { trackCta } from "@/lib/analytics/track";
+
 
 function intervalSuffix(interval: AccessPlan["interval"], t: (key: string) => string): string {
   switch (interval) {
