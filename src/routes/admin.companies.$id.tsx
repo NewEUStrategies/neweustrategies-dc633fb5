@@ -4,11 +4,12 @@
 //  - prawy sidebar: powiązania (Kontakty, Leady, Domena).
 // Widoczne dla staff (`requireStaff` w server-fn); RLS zawęża po tenancie.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ArrowLeft,
   Building2,
@@ -28,6 +29,9 @@ import {
   Copy,
   Calendar,
   ChevronRight,
+  Camera,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 
 import {
@@ -54,6 +58,7 @@ type Company = {
   postal_code: string | null;
   website: string | null;
   phone: string | null;
+  logo_url: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -304,7 +309,15 @@ function AdminCompanyDetailPage() {
 
       {/* Hero */}
       <header className="flex flex-wrap items-center gap-3 rounded-md border bg-card p-4">
-        <CompanyLogo name={c.name} domain={c.domain} size={56} />
+        <EditableCompanyLogo
+          company={c}
+          size={56}
+          onChange={async (nextUrl) => {
+            await updateFn({ data: { id: c.id, logo_url: nextUrl } });
+            await qc.invalidateQueries({ queryKey: ["admin", "crm-company", id] });
+            await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+          }}
+        />
         <div className="min-w-0">
           <h1 className="text-xl font-semibold leading-tight">{c.name}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
@@ -823,11 +836,23 @@ function AdminCompanyDetailPage() {
 
 /* ---------------- Sub-components ---------------- */
 
-function CompanyLogo({ name, domain, size = 40 }: { name: string; domain: string | null; size?: number }) {
+function CompanyLogo({
+  name,
+  domain,
+  logoUrl,
+  size = 40,
+}: {
+  name: string;
+  domain: string | null;
+  logoUrl?: string | null;
+  size?: number;
+}) {
   const [ok, setOk] = useState(true);
-  const src = domain
+  const fallback = domain
     ? `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(domain)}`
     : null;
+  const src = logoUrl ?? fallback;
+  const isCustom = !!logoUrl;
   return (
     <div
       className="grid shrink-0 place-items-center overflow-hidden rounded-md bg-primary/10 text-[13px] font-semibold text-primary"
@@ -838,11 +863,106 @@ function CompanyLogo({ name, domain, size = 40 }: { name: string; domain: string
         <img
           src={src}
           alt=""
-          className="h-2/3 w-2/3 object-contain"
+          className={isCustom ? "h-full w-full object-cover" : "h-2/3 w-2/3 object-contain"}
           onError={() => setOk(false)}
         />
       ) : (
         <span>{name.slice(0, 2).toUpperCase()}</span>
+      )}
+    </div>
+  );
+}
+
+function EditableCompanyLogo({
+  company,
+  onChange,
+  size = 56,
+}: {
+  company: Company;
+  onChange: (nextUrl: string | null) => Promise<void> | void;
+  size?: number;
+}) {
+  const { t } = useTranslation();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const pick = () => inputRef.current?.click();
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error(t("Nieprawidłowy plik", "Invalid file"));
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(t("Max 2 MB", "Max 2 MB"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+      const path = `${company.tenant_id}/crm-companies/${company.id}/logo-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("media")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from("media").getPublicUrl(path);
+      await onChange(data.publicUrl);
+      toast.success(t("Logo zaktualizowane", "Logo updated"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "upload failed");
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const clear = async () => {
+    setBusy(true);
+    try {
+      await onChange(null);
+      toast.success(t("Usunięto logo", "Logo removed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <CompanyLogo name={company.name} domain={company.domain} logoUrl={company.logo_url} size={size} />
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleFile(f);
+        }}
+      />
+      <button
+        type="button"
+        onClick={pick}
+        disabled={busy}
+        aria-label={t("Zmień logo", "Change logo")}
+        title={t("Zmień logo", "Change logo")}
+        className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-md border bg-background text-foreground shadow-sm transition hover:bg-accent disabled:opacity-60"
+      >
+        {busy ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        ) : (
+          <Camera className="h-3.5 w-3.5" aria-hidden />
+        )}
+      </button>
+      {company.logo_url && !busy && (
+        <button
+          type="button"
+          onClick={clear}
+          aria-label={t("Usuń logo", "Remove logo")}
+          title={t("Usuń logo", "Remove logo")}
+          className="absolute -top-1 -right-1 grid h-5 w-5 place-items-center rounded-md border bg-background text-destructive shadow-sm transition hover:bg-destructive/10"
+        >
+          <Trash2 className="h-3 w-3" aria-hidden />
+        </button>
       )}
     </div>
   );
