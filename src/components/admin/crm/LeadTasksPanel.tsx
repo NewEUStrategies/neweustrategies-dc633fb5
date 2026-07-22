@@ -107,7 +107,7 @@ export function LeadTasksPanel({
           lead_id: leadId,
           title: title.trim(),
           note: note.trim() || undefined,
-          due_at: new Date(due).toISOString(),
+          due_at: due.toISOString(),
           idempotency_key: newIdempotencyKey("crm.add_task"),
         },
       }),
