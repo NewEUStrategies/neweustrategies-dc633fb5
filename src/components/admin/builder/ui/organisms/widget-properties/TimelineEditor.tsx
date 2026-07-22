@@ -72,7 +72,7 @@ export function TimelineEditor({ c, lang, setContent }: Props) {
 
   return (
     <ListShell
-      title={t("builder.timelineEditor.title")}
+      title={t("builder.timelineEditor.sectionTitle")}
       items={entries}
       onAdd={addItem}
     >
@@ -225,7 +225,7 @@ export function TimelineEditor({ c, lang, setContent }: Props) {
                 />
               </PropField>
               <PropField
-                label={t("builder.timelineEditor.title", { lang: lang.toUpperCase() })}
+                label={t("builder.timelineEditor.sectionTitle", { lang: lang.toUpperCase() })}
               >
                 <Input
                   value={strOf(it[`title_${lang}`])}
