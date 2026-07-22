@@ -438,12 +438,126 @@ function MeteringSettingsCard() {
               {t("admin.paywall.meteringShowCounter")}
             </label>
           </div>
+          <MeteringImpactPreview proposedLimit={form.member_monthly_limit} enabled={form.enabled} />
           <Button onClick={save} disabled={busy}>
             {t("admin.save")}
           </Button>
         </div>
       )}
     </section>
+  );
+}
+
+// Podgląd wpływu limitu na bieżący miesiąc kalendarzowy. Odpytuje
+// metering_impact_preview (staff-only) z debouncem, żeby nie palić RPC
+// przy każdym uderzeniu klawisza.
+interface ImpactRow {
+  total_members: number;
+  members_blocked: number;
+  members_warning: number;
+  members_safe: number;
+  total_anon: number;
+  anon_blocked: number;
+  avg_used: number;
+  max_used: number;
+  total_views: number;
+}
+
+function MeteringImpactPreview({
+  proposedLimit,
+  enabled,
+}: {
+  proposedLimit: number;
+  enabled: boolean;
+}) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
+  const [debounced, setDebounced] = useState(proposedLimit);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(proposedLimit), 350);
+    return () => window.clearTimeout(id);
+  }, [proposedLimit]);
+
+  const q = useQuery({
+    queryKey: ["metering-impact-preview", debounced] as const,
+    queryFn: async (): Promise<ImpactRow | null> => {
+      const { data, error } = await supabase.rpc("metering_impact_preview", {
+        _proposed_member_limit: Math.max(0, Math.min(1000, Math.round(debounced))),
+      });
+      if (error) throw error;
+      const row = ((data ?? []) as ImpactRow[])[0];
+      return row ?? null;
+    },
+    staleTime: 30_000,
+  });
+
+  const fmt = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-US");
+  const monthLabel = new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+  const row = q.data;
+
+  return (
+    <div className="rounded-md border border-border bg-muted/30 p-4 space-y-3">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <p className="text-sm font-medium">{t("admin.paywall.meteringImpactTitle")}</p>
+        <span className="text-xs text-muted-foreground capitalize">{monthLabel}</span>
+      </div>
+      {!enabled ? (
+        <p className="text-xs text-muted-foreground">{t("admin.paywall.meteringImpactDisabled")}</p>
+      ) : q.isLoading ? (
+        <p className="text-xs text-muted-foreground">…</p>
+      ) : q.isError ? (
+        <p className="text-xs text-destructive">{t("admin.paywall.meteringImpactError")}</p>
+      ) : !row || row.total_members + row.total_anon === 0 ? (
+        <p className="text-xs text-muted-foreground">{t("admin.paywall.meteringImpactEmpty")}</p>
+      ) : (
+        <>
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {t("admin.paywall.meteringImpactBlocked")}
+              </dt>
+              <dd className="font-semibold tabular-nums text-destructive">
+                {fmt.format(row.members_blocked)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {t("admin.paywall.meteringImpactWarning")}
+              </dt>
+              <dd className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+                {fmt.format(row.members_warning)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {t("admin.paywall.meteringImpactSafe")}
+              </dt>
+              <dd className="font-semibold tabular-nums">{fmt.format(row.members_safe)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {t("admin.paywall.meteringImpactAvg")}
+              </dt>
+              <dd className="font-semibold tabular-nums">
+                {fmt.format(Number(row.avg_used) || 0)}
+              </dd>
+            </div>
+          </dl>
+          <p className="text-xs text-muted-foreground">
+            {t("admin.paywall.meteringImpactSummary", {
+              members: fmt.format(row.total_members),
+              anon: fmt.format(row.total_anon),
+              views: fmt.format(row.total_views),
+              max: fmt.format(row.max_used),
+              limit: fmt.format(debounced),
+            })}
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 

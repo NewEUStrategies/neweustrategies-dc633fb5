@@ -11427,6 +11427,20 @@ export type Database = {
         Returns: undefined
       }
       member_conversation_ids: { Args: never; Returns: string[] }
+      metering_impact_preview: {
+        Args: { _proposed_member_limit: number }
+        Returns: {
+          anon_blocked: number
+          avg_used: number
+          max_used: number
+          members_blocked: number
+          members_safe: number
+          members_warning: number
+          total_anon: number
+          total_members: number
+          total_views: number
+        }[]
+      }
       metering_state: {
         Args: { _visitor_id?: string }
         Returns: {
