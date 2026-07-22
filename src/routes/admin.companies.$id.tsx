@@ -54,6 +54,7 @@ type Company = {
   postal_code: string | null;
   website: string | null;
   phone: string | null;
+  logo_url: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
