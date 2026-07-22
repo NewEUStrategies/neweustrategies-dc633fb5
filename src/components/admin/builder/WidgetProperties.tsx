@@ -63,6 +63,7 @@ import {
   AccordionEditor,
   TabsEditor,
   TimelineEditor,
+  LogoCloudEditor,
   PricingEditor,
   RatedListEditor,
   ImageEditor,
