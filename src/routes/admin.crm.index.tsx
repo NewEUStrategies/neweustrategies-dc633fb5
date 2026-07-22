@@ -227,7 +227,7 @@ const PL = {
     archived: "Archiwum",
   } as Record<Stage, string>,
   detail: {
-    title: "Karta leada",
+    title: "Karta kontaktu",
     overview: "Profil",
     tasks: "Zadania",
     consents: "Zgody",
