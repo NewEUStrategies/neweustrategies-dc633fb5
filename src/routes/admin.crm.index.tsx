@@ -193,7 +193,7 @@ type LeadDetail = {
 
 const PL = {
   title: "CRM",
-  subtitle: "Leady z formularzy kontaktowych i newslettera",
+  subtitle: "Kontakty z formularzy kontaktowych i newslettera",
   search: "Szukaj po e-mailu, imieniu, firmie…",
   scopeTenant: "Mój tenant",
   scopeAll: "Wszystkie tenanty (super admin)",
