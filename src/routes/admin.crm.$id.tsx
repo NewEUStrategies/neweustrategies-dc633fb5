@@ -119,6 +119,7 @@ type LeadDetail = {
   subscriptions: SubRow[];
   consents: ConsentRow[];
   notes: NoteRow[];
+  profile_avatar_url?: string | null;
 };
 
 const STAGE_STYLE: Record<Stage, string> = {
