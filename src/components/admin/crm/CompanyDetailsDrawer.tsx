@@ -37,6 +37,7 @@ import {
   updateCrmCompany,
   createCrmContactForCompany,
   getCrmCompanyActivity,
+  addCrmCompanyNote,
 } from "@/lib/crm-companies.functions";
 import {
   Sheet,
@@ -821,7 +822,9 @@ function ActivityFeed({
   lang: "pl" | "en";
 }) {
   const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const qc = useQueryClient();
   const fn = useServerFn(getCrmCompanyActivity);
+  const noteFn = useServerFn(addCrmCompanyNote);
   const q = useQuery({
     queryKey: ["admin", "crm-company-activity", companyId],
     enabled: enabled && !!companyId,
@@ -840,30 +843,145 @@ function ActivityFeed({
     [lang],
   );
 
-  if (q.isLoading) {
-    return (
-      <div className="space-y-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-12" />
-        ))}
-      </div>
-    );
-  }
+  const [note, setNote] = useState("");
+  const [kind, setKind] = useState<"all" | "note" | "lead_created" | "audit">("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const addNote = useMutation({
+    mutationFn: async () => noteFn({ data: { company_id: companyId, body: note.trim() } }),
+    onSuccess: async () => {
+      toast.success(t("Notatka dodana", "Note added"));
+      setNote("");
+      await qc.invalidateQueries({ queryKey: ["admin", "crm-company-activity", companyId] });
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
+  });
+
   const events = q.data ?? [];
-  if (events.length === 0) {
-    return (
-      <EmptyState
-        icon={<Activity className="h-6 w-6" aria-hidden />}
-        text={t("Brak zarejestrowanych zdarzeń.", "No recorded activity.")}
-      />
-    );
-  }
+  const filtered = useMemo(() => {
+    const fromMs = from ? new Date(from).getTime() : null;
+    // "to" oznacza koniec dnia
+    const toMs = to ? new Date(to).getTime() + 24 * 60 * 60 * 1000 - 1 : null;
+    return events.filter((e) => {
+      if (kind !== "all" && e.kind !== kind) return false;
+      const ts = new Date(e.created_at).getTime();
+      if (fromMs !== null && ts < fromMs) return false;
+      if (toMs !== null && ts > toMs) return false;
+      return true;
+    });
+  }, [events, kind, from, to]);
+
+  const canPost = note.trim().length > 0 && !addNote.isPending;
+
   return (
-    <ol className="relative space-y-1.5 border-l border-border/60 pl-3.5">
-      {events.map((e) => (
-        <ActivityRow key={e.id} e={e} lang={lang} fmt={fmt} t={t} />
-      ))}
-    </ol>
+    <div className="space-y-3">
+      {/* Composer */}
+      <div className="rounded-md border bg-card p-2.5">
+        <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {t("Dodaj notatkę", "Add note")}
+        </Label>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder={t("Notatka wewnętrzna…", "Internal note…")}
+          rows={2}
+          maxLength={4000}
+          className="mt-1 w-full resize-y rounded-md border bg-background px-2 py-1.5 text-[13px] outline-none focus:ring-1 focus:ring-primary/40"
+        />
+        <div className="mt-1.5 flex items-center justify-between">
+          <span className="text-[10px] text-muted-foreground">{note.length}/4000</span>
+          <Button
+            size="sm"
+            className="h-7 gap-1.5"
+            onClick={() => addNote.mutate()}
+            disabled={!canPost}
+          >
+            <StickyNote className="h-3 w-3" aria-hidden />
+            {addNote.isPending ? t("Zapis…", "Saving…") : t("Zapisz", "Save")}
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/20 p-2">
+        <div className="flex-1 min-w-[140px]">
+          <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("Typ", "Type")}
+          </Label>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as typeof kind)}
+            className="mt-1 h-8 w-full rounded-md border bg-background px-2 text-[12px]"
+          >
+            <option value="all">{t("Wszystkie", "All")}</option>
+            <option value="note">{t("Notatki", "Notes")}</option>
+            <option value="lead_created">{t("Nowe kontakty", "New contacts")}</option>
+            <option value="audit">{t("Zmiany", "Changes")}</option>
+          </select>
+        </div>
+        <div>
+          <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("Od", "From")}
+          </Label>
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className="mt-1 h-8 rounded-md border bg-background px-2 text-[12px]"
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("Do", "To")}
+          </Label>
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className="mt-1 h-8 rounded-md border bg-background px-2 text-[12px]"
+          />
+        </div>
+        {(kind !== "all" || from || to) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-[11px]"
+            onClick={() => {
+              setKind("all");
+              setFrom("");
+              setTo("");
+            }}
+          >
+            {t("Wyczyść", "Clear")}
+          </Button>
+        )}
+      </div>
+
+      {/* Feed */}
+      {q.isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-12" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={<Activity className="h-6 w-6" aria-hidden />}
+          text={
+            events.length === 0
+              ? t("Brak zarejestrowanych zdarzeń.", "No recorded activity.")
+              : t("Brak wyników dla filtrów.", "No results for current filters.")
+          }
+        />
+      ) : (
+        <ol className="relative space-y-1.5 border-l border-border/60 pl-3.5">
+          {filtered.map((e) => (
+            <ActivityRow key={e.id} e={e} lang={lang} fmt={fmt} t={t} />
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 
@@ -990,6 +1108,8 @@ function AddContactDialog({
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [position, setPosition] = useState("");
+  const [touched, setTouched] = useState<{ email?: boolean }>({});
+  const [serverErr, setServerErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -998,23 +1118,45 @@ function AddContactDialog({
       setLastName("");
       setPhone("");
       setPosition("");
+      setTouched({});
+      setServerErr(null);
     }
   }, [open]);
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailTrim = email.trim();
+  const emailError =
+    emailTrim.length === 0
+      ? t("Podaj adres e-mail.", "Email is required.")
+      : !EMAIL_RE.test(emailTrim)
+        ? t("Nieprawidłowy adres e-mail.", "Invalid email address.")
+        : serverErr === "duplicate_email"
+          ? t(
+              "Kontakt z tym e-mailem już istnieje.",
+              "A contact with this email already exists.",
+            )
+          : null;
 
   const create = useMutation({
     mutationFn: async () =>
       createFn({
         data: {
           company_id: companyId,
-          email: email.trim(),
+          email: emailTrim,
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
           phone: phone.trim() || null,
           position: position.trim() || null,
         },
       }),
+    onMutate: () => setServerErr(null),
     onSuccess: async () => {
-      toast.success(t("Dodano kontakt", "Contact added"));
+      toast.success(t("Kontakt dodany", "Contact added"), {
+        description: t(
+          `Powiązano z firmą „${companyName}".`,
+          `Linked to "${companyName}".`,
+        ),
+      });
       onOpenChange(false);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["admin", "crm-company", companyId] }),
@@ -1024,7 +1166,9 @@ function AddContactDialog({
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "error";
+      setServerErr(msg);
       if (msg === "duplicate_email") {
+        setTouched((s) => ({ ...s, email: true }));
         toast.error(
           t(
             "Kontakt z tym e-mailem już istnieje w tenancie.",
@@ -1032,12 +1176,19 @@ function AddContactDialog({
           ),
         );
       } else {
-        toast.error(msg);
+        toast.error(t("Nie udało się dodać kontaktu.", "Could not add contact."), {
+          description: msg,
+        });
       }
     },
   });
 
-  const canSubmit = email.trim().length > 3 && email.includes("@") && !create.isPending;
+  const canSubmit = !emailError && !create.isPending;
+  const submit = () => {
+    setTouched({ email: true });
+    if (!canSubmit) return;
+    create.mutate();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1062,10 +1213,24 @@ function AddContactDialog({
               type="email"
               autoFocus
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 h-9 text-[13px]"
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (serverErr === "duplicate_email") setServerErr(null);
+              }}
+              onBlur={() => setTouched((s) => ({ ...s, email: true }))}
+              aria-invalid={touched.email && !!emailError}
+              aria-describedby="add-contact-email-err"
+              disabled={create.isPending}
+              className={`mt-1 h-9 text-[13px] ${
+                touched.email && emailError ? "border-destructive focus-visible:ring-destructive/40" : ""
+              }`}
               placeholder="jan.kowalski@example.com"
             />
+            {touched.email && emailError && (
+              <p id="add-contact-email-err" className="mt-1 text-[11px] text-destructive">
+                {emailError}
+              </p>
+            )}
           </div>
           <div>
             <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -1119,11 +1284,11 @@ function AddContactDialog({
           </Button>
           <Button
             size="sm"
-            onClick={() => create.mutate()}
+            onClick={submit}
             disabled={!canSubmit}
             className="gap-1.5"
           >
-            <UserPlus className="h-3 w-3" aria-hidden />
+            <UserPlus className={`h-3 w-3 ${create.isPending ? "animate-pulse" : ""}`} aria-hidden />
             {create.isPending ? t("Zapis…", "Saving…") : t("Dodaj kontakt", "Add contact")}
           </Button>
         </DialogFooter>

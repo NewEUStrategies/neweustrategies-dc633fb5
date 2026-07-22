@@ -244,6 +244,27 @@ export const createCrmContactForCompany = createServerFn({ method: "POST" })
     return { ok: true, id: row?.id ?? null };
   });
 
+// ---- Notatka na poziomie firmy (przez audit_log, brak dedykowanej tabeli) ---
+const NoteInput = z.object({
+  company_id: z.string().uuid(),
+  body: z.string().trim().min(1).max(4000),
+});
+
+export const addCrmCompanyNote = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => NoteInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await write(context, "audit_log").insert({
+      actor_id: (context as { userId: string }).userId,
+      action: "crm.company.note",
+      entity_type: "crm_company",
+      entity_id: data.company_id,
+      metadata: { body: data.body },
+    } as unknown as never);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // ---- Feed aktywności firmy (audit_log + notatki + leady) ----------------
 export const getCrmCompanyActivity = createServerFn({ method: "POST" })
   .middleware([requireStaff])
@@ -316,16 +337,20 @@ export const getCrmCompanyActivity = createServerFn({ method: "POST" })
     for (const a of audit) {
       const entityType = String(a.entity_type ?? "");
       const entityId = (a.entity_id as string | null) ?? null;
+      const action = String(a.action ?? "unknown");
+      const meta = (a.metadata as Record<string, unknown> | null) ?? null;
+      const isCompanyNote = action === "crm.company.note";
       events.push({
         id: `a:${a.id as string}`,
-        kind: "audit",
-        action: String(a.action ?? "unknown"),
+        kind: isCompanyNote ? "note" : "audit",
+        action,
         created_at: String(a.created_at ?? ""),
         actor_id: (a.actor_id as string | null) ?? null,
         lead_id: entityType === "crm_lead" ? entityId : null,
         lead_label:
           entityType === "crm_lead" && entityId ? leadLabel[entityId] ?? null : null,
-        metadata: (a.metadata as Record<string, unknown> | null) ?? null,
+        body: isCompanyNote ? (meta?.body as string | null) ?? null : undefined,
+        metadata: meta,
       });
     }
     for (const n of (notes.data as Array<Record<string, unknown>>) ?? []) {
