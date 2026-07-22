@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
 import { useTranslation } from "react-i18next";
+import { useMembershipTiers, tierName } from "@/lib/billing/tiers";
 import "@/lib/i18n-admin-post-panes";
 
 type Props = { entityType: AccessEntityType; entityId: string | null };
@@ -40,7 +41,15 @@ type PasswordState = {
 };
 
 export function AccessSettingsPane({ entityType, entityId }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
+  // Warstwy do progu rangowego (drabinka Plus/Pro dla treści). Tylko warstwy
+  // sprzedażowe (ranga > 0), posortowane rosnąco - "Konto bezpłatne" nie jest
+  // progiem dostępu.
+  const tiersQ = useMembershipTiers();
+  const rankTiers = (tiersQ.data ?? [])
+    .filter((tier) => tier.rank > 0)
+    .sort((a, b) => a.rank - b.rank);
   const [plans, setPlans] = useState<AccessPlan[]>([]);
   const [rule, setRule] = useState<Partial<ContentAccessRule>>({
     mode: "public",
@@ -70,7 +79,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
           ? supabase
               .from("content_access")
               .select(
-                "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, metering_policy, password_hint_pl, password_hint_en, tenant_id",
+                "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, min_tier_rank, metering_policy, password_hint_pl, password_hint_en, tenant_id",
               )
               .eq("entity_type", entityType)
               .eq("entity_id", entityId)
@@ -112,6 +121,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
       one_time_currency: rule.one_time_currency || "PLN",
       teaser_pl: rule.teaser_pl ?? null,
       teaser_en: rule.teaser_en ?? null,
+      min_tier_rank: rule.min_tier_rank ?? 0,
       metering_policy: normalizeMeteringPolicy(rule.metering_policy),
       password_hint_pl: rule.mode === "password" ? pwd.hintPl || null : null,
       password_hint_en: rule.mode === "password" ? pwd.hintEn || null : null,
@@ -304,6 +314,31 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
             </div>
           </div>
         </>
+      )}
+
+      {(rule.mode === "members" || rule.mode === "paid") && (
+        <div>
+          <Label className="text-xs">{t("adminPostPanes.access.minTier")}</Label>
+          <Select
+            value={String(rule.min_tier_rank ?? 0)}
+            onValueChange={(v) => setRule({ ...rule, min_tier_rank: Number(v) || 0 })}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">{t("adminPostPanes.access.minTierNone")}</SelectItem>
+              {rankTiers.map((tier) => (
+                <SelectItem key={tier.id} value={String(tier.rank)}>
+                  {tierName(tier, lang)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {t("adminPostPanes.access.minTierHint")}
+          </p>
+        </div>
       )}
 
       {(rule.mode === "members" || rule.mode === "paid") && (
