@@ -42,6 +42,7 @@ import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
+import { ProfileSyncCard } from "@/components/admin/crm/ProfileSyncCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
