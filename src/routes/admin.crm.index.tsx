@@ -82,6 +82,7 @@ import {
 import { BUILTIN_LEAD_VIEWS } from "@/lib/crm/leadViews";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 
 interface CrmSearch {
@@ -517,6 +518,53 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
 
   const leads = q.data ?? [];
 
+  // Podciągamy avatar_url z profiles po e-mailu widocznych leadów, żeby w
+  // tabeli CRM (osoby + firmy) od razu było widać zdjęcie profilowe.
+  const leadEmails = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          leads
+            .map((l) => l.email?.toLowerCase().trim())
+            .filter((e): e is string => !!e),
+        ),
+      ),
+    [leads],
+  );
+  const avatarsQ = useQuery({
+    queryKey: ["crm-lead-avatars", leadEmails],
+    enabled: leadEmails.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const map = new Map<string, string>();
+      const chunkSize = 100;
+      for (let i = 0; i < leadEmails.length; i += chunkSize) {
+        const chunk = leadEmails.slice(i, i + chunkSize);
+        const { data } = await supabase
+          .from("profiles")
+          .select("email, contact_email, avatar_url")
+          .or(
+            chunk
+              .map((e) => `email.eq.${e},contact_email.eq.${e}`)
+              .join(","),
+          );
+        for (const row of (data ?? []) as Array<{
+          email: string | null;
+          contact_email: string | null;
+          avatar_url: string | null;
+        }>) {
+          if (!row.avatar_url) continue;
+          const keys = [row.email, row.contact_email]
+            .filter((e): e is string => !!e)
+            .map((e) => e.toLowerCase().trim());
+          for (const k of keys) if (!map.has(k)) map.set(k, row.avatar_url);
+        }
+      }
+      return map;
+    },
+  });
+  const avatarByEmail = avatarsQ.data ?? new Map<string, string>();
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-1 border-b overflow-x-auto scrollbar-thin">
@@ -684,10 +732,31 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                 onClick={() => void navigate({ to: "/admin/crm/$id", params: { id: l.id } })}
               >
                 <td className="p-2">
-                  <div className="font-medium">
-                    {[l.first_name, l.last_name].filter(Boolean).join(" ") || l.email}
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const key = l.email?.toLowerCase().trim() ?? "";
+                      const url = key ? avatarByEmail.get(key) : undefined;
+                      const name =
+                        [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email;
+                      const initials =
+                        (l.first_name?.[0] ?? "") + (l.last_name?.[0] ?? "") ||
+                        (l.email?.[0] ?? "?").toUpperCase();
+                      return (
+                        <Avatar className="h-7 w-7 shrink-0 rounded-full border border-border/60">
+                          {url ? <AvatarImage src={url} alt={name} /> : null}
+                          <AvatarFallback className="text-[10px] font-medium bg-muted text-muted-foreground">
+                            {initials.toUpperCase().slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                      );
+                    })()}
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">
+                        {[l.first_name, l.last_name].filter(Boolean).join(" ") || l.email}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">{l.email}</div>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">{l.email}</div>
                 </td>
                 <td className="p-2">
                   <LeadScoreBadge score={l.score ?? 0} band={l.score_band ?? "cold"} lang={lang} />
