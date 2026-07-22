@@ -464,6 +464,10 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const [importOpen, setImportOpen] = useState(false);
   const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
   const [activeViewId, setActiveViewId] = useState<string>("all");
+  // Zbiorcze zaznaczenie leadów (bulk edit / delete). Zestaw ID trzymamy w
+  // stanie, żeby przetrwał refetch po mutacji (dopóki użytkownik nie wyczyści).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const qc = useQueryClient();
   const applyView = (id: string) => {
     setActiveViewId(id);
     const view = BUILTIN_LEAD_VIEWS.find((v) => v.id === id);
