@@ -884,7 +884,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         count={selected.size}
         onClear={() => setSelected(new Set())}
         lang={lang}
-        itemLabel={{ pl: "leadów zaznaczonych", en: "leads selected" }}
+        itemLabel={{ pl: "kontaktów zaznaczonych", en: "contacts selected" }}
       >
         <Popover>
           <PopoverTrigger asChild>
