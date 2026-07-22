@@ -165,17 +165,18 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 
   return (
     <div
-      className="fixed inset-0 z-[60] bg-background/70 backdrop-blur-xl animate-in fade-in duration-200"
+      className="fixed inset-0 z-[60] bg-background sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="absolute inset-x-0 top-0 flex justify-center px-4 pt-[12vh] pb-8 max-h-screen overflow-y-auto">
+      <div className="absolute inset-x-0 top-0 flex justify-center px-0 pt-0 pb-0 sm:px-4 sm:pt-[12vh] sm:pb-8 max-h-screen h-full sm:h-auto overflow-y-auto">
         <div
           ref={panelRef}
           role="dialog"
           aria-modal="true"
           aria-label={t("searchOverlay.dialogLabel")}
-          className="w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-top-4 duration-300"
+          className="w-full max-w-2xl bg-card sm:border border-border rounded-none sm:rounded-2xl shadow-2xl overflow-hidden animate-in sm:zoom-in-95 slide-in-from-top-4 duration-300 flex flex-col h-full sm:h-auto"
           onClick={(e) => e.stopPropagation()}
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
           <SearchBar
             inputRef={inputRef}
@@ -188,6 +189,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             activeOptionId={showResults ? optionId(active) : undefined}
             expanded={showResults}
           />
+          <div className="flex-1 min-h-0 overflow-y-auto sm:overflow-visible sm:flex-none">
           {showResults || showEmpty ? (
             <>
               <ResultsList
@@ -236,12 +238,14 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               )}
             </div>
           )}
+          </div>
           <Footer />
         </div>
       </div>
     </div>
   );
 }
+
 
 function SearchBar({
   inputRef,
