@@ -104,6 +104,7 @@ import { BUILTIN_LEAD_VIEWS } from "@/lib/crm/leadViews";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
 
 
 interface CrmSearch {
@@ -830,12 +831,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                         (l.first_name?.[0] ?? "") + (l.last_name?.[0] ?? "") ||
                         (l.email?.[0] ?? "?").toUpperCase();
                       return (
-                        <Avatar className="h-7 w-7 shrink-0 rounded-full border border-border/60">
-                          {url ? <AvatarImage src={url} alt={name} /> : null}
-                          <AvatarFallback className="text-[10px] font-medium bg-muted text-muted-foreground">
-                            {initials.toUpperCase().slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <FaceAwareAvatar url={url} name={name} initials={initials} />
                       );
                     })()}
                     <div className="min-w-0">
