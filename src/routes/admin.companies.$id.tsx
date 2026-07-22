@@ -494,7 +494,7 @@ function AdminCompanyDetailPage() {
                 icon={<UserPlus className="h-3.5 w-3.5" aria-hidden />}
                 label={t("Dodaj kontakt", "Add contact")}
                 onClick={() =>
-                  void navigate({ to: "/admin/companies", search: { company: id } })
+                  void rootNavigate({ to: "/admin/companies", search: { company: id } })
                 }
               />
             </div>
@@ -567,7 +567,7 @@ function AdminCompanyDetailPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              navigate({ to: "/admin/crm", search: { lead: l.id } })
+                              rootNavigate({ to: "/admin/crm", search: { lead: l.id } })
                             }
                             className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-muted/60"
                           >
