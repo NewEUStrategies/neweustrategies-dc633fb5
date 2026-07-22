@@ -7,7 +7,12 @@
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "@tanstack/react-router";
-import { useMutation, useQueryClient, type InfiniteData, type QueryKey } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 // Nazwane importy + DynamicIcon zamiast namespace-importu lucide-react:
 // namespace-import - nawet z chunka trasy - materializuje pełny rejestr
@@ -266,10 +271,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
 
   // Spłaszczamy strony do jednej tablicy - komponent renderuje ciągłą listę,
   // a `fetchNextPage()` domawia kolejne strony pod tym samym queryKey.
-  const items: NotificationRow[] = useMemo(
-    () => listQ.data?.pages.flat() ?? [],
-    [listQ.data],
-  );
+  const items: NotificationRow[] = useMemo(() => listQ.data?.pages.flat() ?? [], [listQ.data]);
   const canLoadMore = !!listQ.hasNextPage;
 
   const filteredItems = useMemo(() => {

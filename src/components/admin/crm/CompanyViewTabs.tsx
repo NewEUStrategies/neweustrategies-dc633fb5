@@ -6,11 +6,7 @@ import { useState } from "react";
 import { Plus, MoreHorizontal, Bookmark, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { BUILTIN_COMPANY_VIEWS } from "@/lib/crm/companyViews";
 import type { CompanyViewConfig } from "@/lib/crm/companyViews";

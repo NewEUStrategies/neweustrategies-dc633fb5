@@ -62,11 +62,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   // uprawnień => pusty div) - dzięki temu ChatDock nie jest odmontowywany przy
   // przechodzeniu admin<->public i utrzymuje własną klatkę View Transitions.
   const chatDock = (
-    <div
-      data-chat-dock-slot
-      style={{ viewTransitionName: "chat-dock" }}
-      className="contents"
-    >
+    <div data-chat-dock-slot style={{ viewTransitionName: "chat-dock" }} className="contents">
       {!user || isAdmin || isLogin || !community.chat_enabled ? null : (
         <Suspense fallback={null}>
           <ChatDock />

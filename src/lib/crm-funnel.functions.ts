@@ -223,9 +223,7 @@ export const updateFunnelStatus = createServerFn({ method: "POST" })
     const patch: Record<string, unknown> = { status: data.status };
     if (data.status === "unsubscribed") patch.unsubscribed_at = new Date().toISOString();
     if (data.status === "subscribed") patch.confirmed_at = new Date().toISOString();
-    const { error } = await tbl(context, "newsletter_subscribers")
-      .update(patch)
-      .eq("id", data.id);
+    const { error } = await tbl(context, "newsletter_subscribers").update(patch).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

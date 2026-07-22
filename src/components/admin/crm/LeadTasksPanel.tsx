@@ -179,12 +179,7 @@ export function LeadTasksPanel({
               {t.due}
             </Label>
             <div id="crm-task-due">
-              <DatePickerField
-                value={due}
-                onChange={(d) => d && setDue(d)}
-                withTime
-                size="sm"
-              />
+              <DatePickerField value={due} onChange={(d) => d && setDue(d)} withTime size="sm" />
             </div>
           </div>
           <Button type="submit" size="sm" disabled={!canSave}>

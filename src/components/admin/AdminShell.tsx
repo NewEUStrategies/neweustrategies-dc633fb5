@@ -640,7 +640,7 @@ function AdminShellInner({
                         <SidebarTooltip key={to} label={label} compact={compact}>
                           <Link
                             to={to}
-                             activeOptions={{ exact: true }}
+                            activeOptions={{ exact: true }}
                             title={compact ? undefined : label}
                             data-sidebar="menu-button"
                             data-active={finalActive ? "true" : "false"}

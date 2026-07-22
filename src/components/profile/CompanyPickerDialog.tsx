@@ -93,9 +93,7 @@ export function CompanyPickerDialog({
     queryFn: async (): Promise<CompanyRow[]> => {
       const q = supabase
         .from("crm_companies")
-        .select(
-          "id, name, country, branch, city, address, postal_code, website, phone, domain",
-        )
+        .select("id, name, country, branch, city, address, postal_code, website, phone, domain")
         .order("name", { ascending: true })
         .limit(12);
       const { data, error } = trimmed.length > 0 ? await q.ilike("name", `%${trimmed}%`) : await q;
@@ -176,7 +174,9 @@ export function CompanyPickerDialog({
       return;
     }
     if (!tenantId || !user?.id) {
-      toast.error(t("company.errors.linkFailed", { defaultValue: "Nie udało się przypisać firmy" }));
+      toast.error(
+        t("company.errors.linkFailed", { defaultValue: "Nie udało się przypisać firmy" }),
+      );
       return;
     }
     setSaving(true);
@@ -206,7 +206,10 @@ export function CompanyPickerDialog({
       closeAndRestoreFocus();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(t("company.errors.createFailed", { defaultValue: "Nie udało się dodać firmy" }) + ` (${msg})`);
+      toast.error(
+        t("company.errors.createFailed", { defaultValue: "Nie udało się dodać firmy" }) +
+          ` (${msg})`,
+      );
     } finally {
       setSaving(false);
     }
@@ -225,7 +228,8 @@ export function CompanyPickerDialog({
           <DialogDescription className="text-[12px] text-muted-foreground">
             {mode === "create"
               ? t("company.createDesc", {
-                  defaultValue: "Wymagana jest tylko nazwa. Pozostałe dane możesz uzupełnić później.",
+                  defaultValue:
+                    "Wymagana jest tylko nazwa. Pozostałe dane możesz uzupełnić później.",
                 })
               : t("company.pickDesc", {
                   defaultValue: "Wpisz nazwę firmy - podpowiedzi zaciągają się z CRM.",
@@ -242,7 +246,9 @@ export function CompanyPickerDialog({
                   ref={inputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t("company.searchPh", { defaultValue: "np. New European Strategies" })}
+                  placeholder={t("company.searchPh", {
+                    defaultValue: "np. New European Strategies",
+                  })}
                   className="h-9 pl-8 text-[13px] rounded-md"
                   autoComplete="off"
                 />
@@ -258,7 +264,9 @@ export function CompanyPickerDialog({
                 <div className="px-5 py-6 text-center text-[12px] text-muted-foreground">
                   {trimmed
                     ? t("company.noMatches", { defaultValue: "Brak dopasowań" })
-                    : t("company.startTyping", { defaultValue: "Zacznij pisać, aby zobaczyć firmy" })}
+                    : t("company.startTyping", {
+                        defaultValue: "Zacznij pisać, aby zobaczyć firmy",
+                      })}
                 </div>
               ) : (
                 <ul className="py-1">

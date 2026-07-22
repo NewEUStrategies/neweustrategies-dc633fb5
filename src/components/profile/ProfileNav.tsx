@@ -145,9 +145,7 @@ export function ProfileNav() {
     );
   };
 
-  const financeItems = myOrg.data
-    ? [FINANCE[0], ORGANIZATION_ITEM, ...FINANCE.slice(1)]
-    : FINANCE;
+  const financeItems = myOrg.data ? [FINANCE[0], ORGANIZATION_ITEM, ...FINANCE.slice(1)] : FINANCE;
 
   return (
     <nav className="flex flex-col gap-3" aria-label={t("profile.title")}>

@@ -145,10 +145,10 @@ const T = {
       convert: "Utwórz Kontakty",
       confirmUnsub: "Wypisać zaznaczonych subskrybentów?",
       confirmUnsubDesc:
-        "Zmieni status na \"wypisany\" i zablokuje kolejne wysyłki. Możesz cofnąć ręcznie.",
+        'Zmieni status na "wypisany" i zablokuje kolejne wysyłki. Możesz cofnąć ręcznie.',
       confirmConvert: "Utworzyć Kontakty CRM?",
       confirmConvertDesc:
-        "Zaznaczeni subskrybenci pojawią się w CRM jako Kontakty ze źródłem \"newsletter\". Istniejące Kontakty zostaną zaktualizowane.",
+        'Zaznaczeni subskrybenci pojawią się w CRM jako Kontakty ze źródłem "newsletter". Istniejące Kontakty zostaną zaktualizowane.',
       cancel: "Anuluj",
       confirm: "Potwierdź",
       toastUnsub: "Wypisano subskrybentów",
@@ -207,10 +207,10 @@ const T = {
       convert: "Create Contacts",
       confirmUnsub: "Unsubscribe selected subscribers?",
       confirmUnsubDesc:
-        "Sets status to \"unsubscribed\" and blocks further sends. You can revert manually.",
+        'Sets status to "unsubscribed" and blocks further sends. You can revert manually.',
       confirmConvert: "Create CRM Contacts?",
       confirmConvertDesc:
-        "Selected subscribers will appear in CRM as Contacts with source \"newsletter\". Existing Contacts are updated in place.",
+        'Selected subscribers will appear in CRM as Contacts with source "newsletter". Existing Contacts are updated in place.',
       cancel: "Cancel",
       confirm: "Confirm",
       toastUnsub: "Subscribers unsubscribed",
@@ -367,10 +367,7 @@ function FunnelPage() {
         ].map((s) => {
           const Icon = s.icon;
           return (
-            <div
-              key={s.key}
-              className="rounded-[6px] border border-border/60 bg-card px-3 py-2"
-            >
+            <div key={s.key} className="rounded-[6px] border border-border/60 bg-card px-3 py-2">
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <Icon className="h-3.5 w-3.5" aria-hidden />
                 {L.stats[s.key as keyof typeof L.stats]}
@@ -532,9 +529,7 @@ function FunnelPage() {
                       {r.language}
                     </td>
                     <td className="px-2 py-2 text-[12px] text-muted-foreground">
-                      {new Date(r.created_at).toLocaleDateString(
-                        lang === "pl" ? "pl-PL" : "en-GB",
-                      )}
+                      {new Date(r.created_at).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")}
                     </td>
                     <td className="px-2 py-2 text-right">
                       {r.contact_id ? (

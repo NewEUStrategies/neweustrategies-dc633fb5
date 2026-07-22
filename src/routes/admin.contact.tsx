@@ -325,7 +325,9 @@ function SettingsTab({ L }: { L: typeof PL }) {
     mutationFn: async () => {
       const {
         data: { user },
-      } = await supabase.auth.getSession().then(r => ({ data: { user: r.data.session?.user ?? null } }));
+      } = await supabase.auth
+        .getSession()
+        .then((r) => ({ data: { user: r.data.session?.user ?? null } }));
       if (!user) throw new Error("Not signed in");
       const { data: profile } = await supabase
         .from("profiles")
