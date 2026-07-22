@@ -9,7 +9,7 @@ export const supportPl = {
   support: {
     title: "Wesprzyj niezależną analizę",
     intro:
-      "New European Strategies utrzymuje się z subskrypcji i mecenatu obywatelskiego. Darowizna finansuje pracę analityczną - tracker legislacyjny UE, raporty i debaty - i nie nadaje żadnych uprawnień: to wsparcie, nie zakup.",
+      "New European Strategies utrzymuje się z subskrypcji i mecenatu obywatelskiego. Darowizna finansuje pracę analityczną - analizy polityki europejskiej, raporty, wywiady i debaty publiczne - i nie nadaje żadnych uprawnień: to wsparcie, nie zakup.",
     presetsLabel: "Wybierz kwotę",
     customLabel: "Inna kwota (zł)",
     customPlaceholder: "np. 75",
@@ -30,7 +30,7 @@ export const supportPl = {
     another: "Przekaż kolejną darowiznę",
     whyTitle: "Na co idą środki",
     whyItems: [
-      "inną naszą aktywność",
+      "Analizy polityki europejskiej i procesów decyzyjnych UE",
       "Raporty i analizy dostępne bez paywalla tam, gdzie to możliwe",
       "Debaty, briefingi i sesje Q&A ze społecznością",
     ],
@@ -41,7 +41,7 @@ export const supportEn = {
   support: {
     title: "Support independent analysis",
     intro:
-      "New European Strategies is funded by subscriptions and citizen patronage. A donation funds analytical work - the EU legislative tracker, reports and debates - and grants no entitlements: it is support, not a purchase.",
+      "New European Strategies is funded by subscriptions and citizen patronage. A donation funds analytical work - European policy analysis, reports, interviews and public debates - and grants no entitlements: it is support, not a purchase.",
     presetsLabel: "Choose an amount",
     customLabel: "Custom amount (EUR)",
     customPlaceholder: "e.g. 75",
@@ -62,7 +62,7 @@ export const supportEn = {
     another: "Make another donation",
     whyTitle: "Where the money goes",
     whyItems: [
-      "The EU legislative tracker - monitoring files and member state positions",
+      "Analysis of European policy and EU decision-making processes",
       "Reports and analyses kept outside the paywall where possible",
       "Debates, briefings and community Q&A sessions",
     ],
