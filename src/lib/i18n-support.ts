@@ -30,7 +30,7 @@ export const supportPl = {
     another: "Przekaż kolejną darowiznę",
     whyTitle: "Na co idą środki",
     whyItems: [
-      "Tracker legislacyjny UE - monitoring dossier i stanowisk państw",
+      "inną naszą aktywność",
       "Raporty i analizy dostępne bez paywalla tam, gdzie to możliwe",
       "Debaty, briefingi i sesje Q&A ze społecznością",
     ],
