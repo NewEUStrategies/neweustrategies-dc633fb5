@@ -64,16 +64,18 @@ function SupportPage() {
   ensureSupportI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  const currency: DonationCurrency = lang === "en" ? "EUR" : "PLN";
+  const presets = lang === "en" ? DONATION_PRESETS_CENTS_EUR : DONATION_PRESETS_CENTS;
   const { status } = Route.useSearch();
   const donate = useServerFn(createDonationCheckout);
 
-  const [selectedCents, setSelectedCents] = useState<number>(DONATION_PRESETS_CENTS[1]);
-  const [customZl, setCustomZl] = useState("");
+  const [selectedCents, setSelectedCents] = useState<number>(presets[1]);
+  const [customAmount, setCustomAmount] = useState("");
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
 
-  const effectiveCents = customZl.trim()
-    ? Math.round(Number(customZl.replace(",", ".")) * 100)
+  const effectiveCents = customAmount.trim()
+    ? Math.round(Number(customAmount.replace(",", ".")) * 100)
     : selectedCents;
   const amountValid =
     Number.isFinite(effectiveCents) &&
