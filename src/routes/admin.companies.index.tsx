@@ -10,7 +10,28 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { listCrmCompanies } from "@/lib/crm-companies.functions";
+import {
+  listCrmCompanies,
+  bulkUpdateCrmCompanies,
+  bulkDeleteCrmCompanies,
+} from "@/lib/crm-companies.functions";
+import { BulkActionBar } from "@/components/molecules/BulkActionBar";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   listSavedViews,
   upsertSavedView,
@@ -273,6 +294,33 @@ function AdminCompaniesPage() {
       await qc.invalidateQueries({ queryKey: ["admin", "saved-views", "company"] });
       setActiveViewId("builtin:all");
       setConfig(DEFAULT_COMPANY_VIEW_CONFIG);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // ---- Zbiorcze operacje na firmach -----------------------------------
+  const bulkUpdate = useMutation({
+    mutationFn: async (patch: { country?: string | null; branch?: string | null }) => {
+      const ids = Array.from(selected);
+      return bulkUpdateCrmCompanies({ data: { ids, ...patch } });
+    },
+    onSuccess: async () => {
+      toast.success(t("Zapisano zmiany", "Changes saved"));
+      setSelected(new Set());
+      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bulkDelete = useMutation({
+    mutationFn: async () => {
+      const ids = Array.from(selected);
+      return bulkDeleteCrmCompanies({ data: { ids } });
+    },
+    onSuccess: async () => {
+      toast.success(t("Usunięto firmy", "Companies deleted"));
+      setSelected(new Set());
+      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -594,6 +642,82 @@ function AdminCompaniesPage() {
           </table>
         </div>
       </div>
+
+      <BulkActionBar
+        count={selected.size}
+        onClear={() => setSelected(new Set())}
+        lang={lang}
+        itemLabel={{ pl: "firm zaznaczonych", en: "companies selected" }}
+      >
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]">
+              <MapPin className="h-3 w-3" aria-hidden />
+              {t("Kraj", "Country")}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-3" align="start">
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+              {t("Ustaw kraj dla wybranych firm", "Set country for selected companies")}
+            </label>
+            <div className="flex gap-1.5">
+              <Input
+                placeholder={t("Kod / nazwa", "Code / name")}
+                className="h-8 text-[12px]"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const v = (e.target as HTMLInputElement).value.trim();
+                    if (v) bulkUpdate.mutate({ country: v });
+                  }
+                }}
+                aria-label={t("Kraj", "Country")}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => bulkUpdate.mutate({ country: null })}
+                className="h-8 text-[11px]"
+              >
+                {t("Wyczyść", "Clear")}
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 border-destructive/40 text-[11px] text-destructive hover:bg-destructive/10"
+            >
+              {t("Usuń", "Delete")}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t("Usunąć zaznaczone firmy?", "Delete selected companies?")}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t(
+                  `Ta operacja jest nieodwracalna. Wybrane rekordy (${selected.size}) zostaną trwale usunięte wraz z powiązaniami.`,
+                  `This cannot be undone. The selected records (${selected.size}) will be permanently deleted along with their relations.`,
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("Anuluj", "Cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => bulkDelete.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {t("Usuń", "Delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </BulkActionBar>
     </div>
   );
 }

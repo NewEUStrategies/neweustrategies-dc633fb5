@@ -19,8 +19,28 @@ import {
   pushLeadToMerydian,
   getCrmLeadTimeline,
   exportCrmLeadTimelineCsv,
+  bulkUpdateCrmLeads,
+  bulkDeleteCrmLeads,
 } from "@/lib/crm.functions";
 import { dispatchIntegrationDeliveries } from "@/lib/integrations/dispatch.functions";
+import { BulkActionBar } from "@/components/molecules/BulkActionBar";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
 import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";
@@ -444,6 +464,10 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const [importOpen, setImportOpen] = useState(false);
   const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
   const [activeViewId, setActiveViewId] = useState<string>("all");
+  // Zbiorcze zaznaczenie leadów (bulk edit / delete). Zestaw ID trzymamy w
+  // stanie, żeby przetrwał refetch po mutacji (dopóki użytkownik nie wyczyści).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const qc = useQueryClient();
   const applyView = (id: string) => {
     setActiveViewId(id);
     const view = BUILTIN_LEAD_VIEWS.find((v) => v.id === id);
@@ -517,6 +541,54 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   };
 
   const leads = q.data ?? [];
+
+  // ---- Zbiorcze operacje na leadach --------------------------------------
+  const bulkUpdate = useMutation({
+    mutationFn: async (patch: {
+      stage?: Stage;
+      owner_id?: string | null;
+      add_tags?: string[];
+      remove_tags?: string[];
+      marketing_consent?: boolean;
+    }) => {
+      const ids = Array.from(selected);
+      return bulkUpdateCrmLeads({ data: { ids, ...patch } });
+    },
+    onSuccess: async () => {
+      toast.success(lang === "pl" ? "Zapisano zmiany" : "Changes saved");
+      setSelected(new Set());
+      await qc.invalidateQueries({ queryKey: ["crm-leads"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bulkDelete = useMutation({
+    mutationFn: async () => bulkDeleteCrmLeads({ data: { ids: Array.from(selected) } }),
+    onSuccess: async () => {
+      toast.success(lang === "pl" ? "Usunięto leady" : "Leads deleted");
+      setSelected(new Set());
+      await qc.invalidateQueries({ queryKey: ["crm-leads"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const allChecked = leads.length > 0 && leads.every((l) => selected.has(l.id));
+  const toggleAll = () => {
+    setSelected((prev) => {
+      if (allChecked) return new Set();
+      const s = new Set(prev);
+      for (const l of leads) s.add(l.id);
+      return s;
+    });
+  };
+  const toggleOne = (id: string, next: boolean) => {
+    setSelected((prev) => {
+      const s = new Set(prev);
+      if (next) s.add(id);
+      else s.delete(id);
+      return s;
+    });
+  };
 
   // Podciągamy avatar_url z profiles po e-mailu widocznych leadów, żeby w
   // tabeli CRM (osoby + firmy) od razu było widać zdjęcie profilowe.
@@ -707,6 +779,13 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         <table className="w-full text-[13px]">
           <thead className="bg-muted/50 text-muted-foreground">
             <tr>
+              <th className="p-2 w-8">
+                <Checkbox
+                  checked={allChecked}
+                  onCheckedChange={toggleAll}
+                  aria-label={lang === "pl" ? "Zaznacz wszystkie" : "Select all"}
+                />
+              </th>
               <th className="text-left p-2">{L.cols.who}</th>
               <th className="text-left p-2">{L.cols.score}</th>
               <th className="text-left p-2 hidden md:table-cell">{L.cols.contact}</th>
@@ -720,7 +799,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={8} className="p-4 text-center text-muted-foreground">
+                <td colSpan={9} className="p-4 text-center text-muted-foreground">
                   {L.empty}
                 </td>
               </tr>
@@ -728,9 +807,17 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             {leads.map((l) => (
               <tr
                 key={l.id}
-                className="border-t hover:bg-muted/40 cursor-pointer"
+                data-selected={selected.has(l.id) || undefined}
+                className="border-t hover:bg-muted/40 cursor-pointer data-[selected=true]:bg-primary/5"
                 onClick={() => void navigate({ to: "/admin/crm/$id", params: { id: l.id } })}
               >
+                <td className="p-2 w-8" onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selected.has(l.id)}
+                    onCheckedChange={(v) => toggleOne(l.id, v === true)}
+                    aria-label={l.email ?? l.id}
+                  />
+                </td>
                 <td className="p-2">
                   <div className="flex items-center gap-2">
                     {(() => {
@@ -795,6 +882,129 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
           </tbody>
         </table>
       </div>
+
+      <BulkActionBar
+        count={selected.size}
+        onClear={() => setSelected(new Set())}
+        lang={lang}
+        itemLabel={{ pl: "leadów zaznaczonych", en: "leads selected" }}
+      >
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]">
+              {lang === "pl" ? "Etap" : "Stage"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-52 p-2" align="start">
+            <div className="grid gap-0.5">
+              {STAGES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => bulkUpdate.mutate({ stage: s })}
+                  className="flex items-center justify-between rounded px-2 py-1.5 text-left text-[12px] hover:bg-muted"
+                >
+                  <span>{L.stage[s]}</span>
+                  <StageBadge stage={s} L={L} />
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]">
+              <TagIcon className="h-3 w-3" aria-hidden />
+              {lang === "pl" ? "Tagi" : "Tags"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-3" align="start">
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+              {lang === "pl"
+                ? "Dodaj / usuń tagi (przecinkami)"
+                : "Add / remove tags (comma separated)"}
+            </label>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget as HTMLFormElement;
+                const addRaw = (form.elements.namedItem("add") as HTMLInputElement).value;
+                const rmRaw = (form.elements.namedItem("remove") as HTMLInputElement).value;
+                const add_tags = addRaw
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                const remove_tags = rmRaw
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                if (add_tags.length === 0 && remove_tags.length === 0) return;
+                bulkUpdate.mutate({ add_tags, remove_tags });
+                form.reset();
+              }}
+              className="space-y-2"
+            >
+              <Input name="add" placeholder={lang === "pl" ? "Dodaj" : "Add"} className="h-8 text-[12px]" />
+              <Input name="remove" placeholder={lang === "pl" ? "Usuń" : "Remove"} className="h-8 text-[12px]" />
+              <Button type="submit" size="sm" className="h-7 w-full text-[11px]">
+                {lang === "pl" ? "Zastosuj" : "Apply"}
+              </Button>
+            </form>
+          </PopoverContent>
+        </Popover>
+
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={() => bulkUpdate.mutate({ marketing_consent: true })}
+        >
+          {lang === "pl" ? "Zgoda: TAK" : "Consent: YES"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={() => bulkUpdate.mutate({ marketing_consent: false })}
+        >
+          {lang === "pl" ? "Zgoda: NIE" : "Consent: NO"}
+        </Button>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 border-destructive/40 text-[11px] text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3 w-3" aria-hidden />
+              {lang === "pl" ? "Usuń" : "Delete"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {lang === "pl" ? "Usunąć zaznaczone leady?" : "Delete selected leads?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {lang === "pl"
+                  ? `Ta operacja jest nieodwracalna. Wybrane rekordy (${selected.size}) zostaną trwale usunięte.`
+                  : `This cannot be undone. The selected records (${selected.size}) will be permanently deleted.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{lang === "pl" ? "Anuluj" : "Cancel"}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => bulkDelete.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {lang === "pl" ? "Usuń" : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </BulkActionBar>
 
       <LeadDrawer leadId={openId} highlightTaskId={openTaskId} onClose={closeDrawer} L={L} />
       <ImportLeadsCsvDialog open={importOpen} onOpenChange={setImportOpen} lang={lang} />
