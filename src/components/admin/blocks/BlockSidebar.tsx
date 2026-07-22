@@ -11,9 +11,17 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import type { Block, BlockStyle, BlocksDoc } from "@/lib/blocks/types";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
 import { DocumentOutline } from "./molecules/DocumentOutline";
+import { ChevronLeft, ChevronRight, FileText, Pencil } from "@/lib/lucide-shim";
 import "@/lib/i18n-admin-blocks";
 
 interface Props {
@@ -23,6 +31,8 @@ interface Props {
   onSelect: (id: string) => void;
   onChangeBlock: (next: Block) => void;
   documentPane: React.ReactNode;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function BlockSidebar({
@@ -32,6 +42,8 @@ export function BlockSidebar({
   onSelect,
   onChangeBlock,
   documentPane,
+  collapsed,
+  onToggleCollapse,
 }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<"block" | "document">("document");
@@ -39,32 +51,108 @@ export function BlockSidebar({
   // Auto-switch to "block" when a block is selected
   const effectiveTab = activeBlock ? tab : "document";
 
+  const expandTo = (nextTab: "block" | "document") => {
+    setTab(nextTab);
+    onToggleCollapse?.();
+  };
+
   return (
-    <Tabs
-      value={effectiveTab}
-      onValueChange={(v) => setTab(v as "block" | "document")}
-      className="h-full flex flex-col min-h-0"
-    >
-      <TabsList className="grid grid-cols-2 m-3 mb-0">
-        <TabsTrigger value="block" disabled={!activeBlock}>
-          {t("blocks.sidebar.block")}
-        </TabsTrigger>
-        <TabsTrigger value="document">{t("blocks.sidebar.document")}</TabsTrigger>
-      </TabsList>
+    <TooltipProvider delayDuration={200}>
+      {collapsed ? (
+        <div className="h-full flex flex-col items-center py-2 gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted/60 text-muted-foreground transition-colors"
+                aria-label={t("blocks.sidebar.expand")}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{t("blocks.sidebar.expand")}</TooltipContent>
+          </Tooltip>
 
-      <TabsContent value="block" className="flex-1 overflow-y-auto p-3 space-y-3 mt-0">
-        {activeBlock ? (
-          <BlockSettings block={activeBlock} onChange={onChangeBlock} />
-        ) : (
-          <p className="text-xs text-muted-foreground italic">{t("blocks.sidebar.selectBlock")}</p>
-        )}
-      </TabsContent>
+          <div className="w-6 h-px bg-border" />
 
-      <TabsContent value="document" className="flex-1 overflow-y-auto p-3 space-y-4 mt-0">
-        <DocumentOutline doc={doc} activeId={activeId} onSelect={onSelect} />
-        <div className="pt-2 border-t border-border">{documentPane}</div>
-      </TabsContent>
-    </Tabs>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => expandTo("block")}
+                disabled={!activeBlock}
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
+                  activeBlock
+                    ? "hover:bg-muted/60 text-muted-foreground"
+                    : "text-muted-foreground/30 cursor-not-allowed",
+                )}
+                aria-label={t("blocks.sidebar.block")}
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{t("blocks.sidebar.block")}</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => expandTo("document")}
+                className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted/60 text-muted-foreground transition-colors"
+                aria-label={t("blocks.sidebar.document")}
+              >
+                <FileText className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{t("blocks.sidebar.document")}</TooltipContent>
+          </Tooltip>
+        </div>
+      ) : (
+        <Tabs
+          value={effectiveTab}
+          onValueChange={(v) => setTab(v as "block" | "document")}
+          className="h-full flex flex-col min-h-0"
+        >
+          <div className="flex items-center justify-between m-3 mb-0">
+            <TabsList className="grid grid-cols-2 flex-1">
+              <TabsTrigger value="block" disabled={!activeBlock}>
+                {t("blocks.sidebar.block")}
+              </TabsTrigger>
+              <TabsTrigger value="document">{t("blocks.sidebar.document")}</TabsTrigger>
+            </TabsList>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onToggleCollapse}
+                  className="ml-2 flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted/60 text-muted-foreground transition-colors shrink-0"
+                  aria-label={t("blocks.sidebar.collapse")}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="left">{t("blocks.sidebar.collapse")}</TooltipContent>
+            </Tooltip>
+          </div>
+
+          <TabsContent value="block" className="flex-1 overflow-y-auto p-3 space-y-3 mt-0">
+            {activeBlock ? (
+              <BlockSettings block={activeBlock} onChange={onChangeBlock} />
+            ) : (
+              <p className="text-xs text-muted-foreground italic">{t("blocks.sidebar.selectBlock")}</p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="document" className="flex-1 overflow-y-auto p-3 space-y-4 mt-0">
+            <DocumentOutline doc={doc} activeId={activeId} onSelect={onSelect} />
+            <div className="pt-2 border-t border-border">{documentPane}</div>
+          </TabsContent>
+        </Tabs>
+      )}
+    </TooltipProvider>
   );
 }
 

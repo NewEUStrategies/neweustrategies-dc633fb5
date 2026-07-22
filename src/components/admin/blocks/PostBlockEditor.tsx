@@ -6,13 +6,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { Block, LocalizedBlocks } from "@/lib/blocks/types";
 import { BlockCanvas } from "./BlockCanvas";
 import { BlockSidebar } from "./BlockSidebar";
 import { useLocalizedBlocksHistory } from "./hooks/useLocalizedBlocksHistory";
 import { IconButton } from "./atoms/IconButton";
-import { Undo, Redo } from "@/lib/lucide-shim";
+import { Undo, Redo, PanelLeft } from "@/lib/lucide-shim";
 import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
 import { BLOCK_TOUR_STEPS } from "@/lib/onboarding/tours";
@@ -28,6 +29,7 @@ interface Props {
 export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: Props) {
   const { t } = useTranslation();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Per-language undo/redo with parent-echo protection (dead-undo fix) -
   // see useLocalizedBlocksHistory for the sync contract.
@@ -95,7 +97,12 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
   const tour = useOnboardingTour({ id: "blocks", steps: BLOCK_TOUR_STEPS });
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 min-h-[600px]">
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-4 min-h-[600px]",
+        sidebarCollapsed ? "lg:grid-cols-[1fr_48px]" : "lg:grid-cols-[1fr_320px]",
+      )}
+    >
       <CoachmarkTour controller={tour} />
       <div
         data-tour="blocks-canvas"
@@ -156,7 +163,10 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
 
       <aside
         data-tour="blocks-sidebar"
-        className="bg-card border border-border rounded-lg lg:sticky lg:top-4 self-start max-h-[80vh] lg:max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
+        className={cn(
+          "bg-card border border-border rounded-lg lg:sticky lg:top-4 self-start max-h-[80vh] lg:max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden transition-all duration-300",
+          sidebarCollapsed ? "w-12" : "w-full",
+        )}
       >
         <BlockSidebar
           doc={history.doc}
@@ -165,6 +175,8 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
           onSelect={setActiveId}
           onChangeBlock={updateActive}
           documentPane={documentPane}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
         />
       </aside>
     </div>
