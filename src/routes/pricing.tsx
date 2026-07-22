@@ -148,9 +148,9 @@ function PricingPage() {
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-lg font-semibold">{tierName(tier, lang)}</h3>
                     {isCurrent && (
-                      <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
+                      <span className="bg-primary px-2 h-5 inline-flex items-center justify-center text-[10px] font-medium leading-none text-primary-foreground rounded-[6px]">
                         {t("pricing.tiers.current", {
-                          defaultValue: lang === "en" ? "Your tier" : "Twoja warstwa",
+                          defaultValue: lang === "en" ? "Your subscription" : "Twoja subskrypcja",
                         })}
                       </span>
                     )}
