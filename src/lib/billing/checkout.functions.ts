@@ -25,7 +25,12 @@ const createOrderSchema = z.object({
   // serwerowo (validate_b2b_coupon → atomowe redeem_b2b_coupon), więc klient
   // nigdy nie może obniżyć unit_amount ręcznie.
   coupon_code: z.string().trim().max(64).optional(),
+  // Waluta prezentacji/rozliczenia. Dla EN pobieramy EUR (parytet 1 EUR = 2 PLN,
+  // spójne z cennikiem i /support). Konwersja liczona jest serwerowo, więc
+  // klient nie może zmienić kwoty - jedynie wybrać docelową walutę z listy.
+  display_currency: z.enum(["PLN", "EUR"]).optional(),
 });
+
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -94,6 +99,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     if (amountCents <= 0) throw new Error("zero_amount");
 
+
+
     // Zapamiętujemy oryginalną kwotę do audytu użycia kuponu (redemption row).
     const originalCents = amountCents;
     let couponId: string | null = null;
@@ -130,6 +137,18 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         };
       }
     }
+
+    // Konwersja waluty prezentacji (EN → EUR) PO wyliczeniu kuponu, żeby
+    // walidacja kuponu B2B odbyła się w oryginalnej walucie planu (kupony
+    // są zdefiniowane per waluta). Sam koszyk/Stripe zawsze widzi już
+    // walutę wybraną przez klienta.
+    if (data.display_currency) {
+      const { convertToDisplayCurrency } = await import("@/lib/billing/displayCurrency");
+      const conv = convertToDisplayCurrency(amountCents, currency, data.display_currency);
+      amountCents = conv.cents;
+      currency = conv.currency;
+    }
+
 
     // Fail-closed ZANIM powstanie zamówienie: produkcja bez działającej
     // konfiguracji Stripe (brak klucza LUB brak origin do success_url) odmawia
