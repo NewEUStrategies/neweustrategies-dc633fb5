@@ -3996,11 +3996,16 @@ export type Database = {
       membership_tiers: {
         Row: {
           active: boolean
+          audience_key: string | null
+          badge_en: string | null
+          badge_pl: string | null
           benefits: Json
+          contact_url: string | null
           created_at: string
           description_en: string | null
           description_pl: string | null
           features: Json
+          highlight: boolean
           id: string
           is_default: boolean
           key: string
@@ -4013,11 +4018,16 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          audience_key?: string | null
+          badge_en?: string | null
+          badge_pl?: string | null
           benefits?: Json
+          contact_url?: string | null
           created_at?: string
           description_en?: string | null
           description_pl?: string | null
           features?: Json
+          highlight?: boolean
           id?: string
           is_default?: boolean
           key: string
@@ -4030,11 +4040,16 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          audience_key?: string | null
+          badge_en?: string | null
+          badge_pl?: string | null
           benefits?: Json
+          contact_url?: string | null
           created_at?: string
           description_en?: string | null
           description_pl?: string | null
           features?: Json
+          highlight?: boolean
           id?: string
           is_default?: boolean
           key?: string
@@ -6975,6 +6990,109 @@ export type Database = {
           },
           {
             foreignKeyName: "posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_audiences: {
+        Row: {
+          active: boolean
+          created_at: string
+          icon: string
+          id: string
+          key: string
+          name_en: string
+          name_pl: string
+          sort_order: number
+          tagline_en: string | null
+          tagline_pl: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          icon?: string
+          id?: string
+          key: string
+          name_en: string
+          name_pl: string
+          sort_order?: number
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          icon?: string
+          id?: string
+          key?: string
+          name_en?: string
+          name_pl?: string
+          sort_order?: number
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_audiences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_faq_items: {
+        Row: {
+          active: boolean
+          answer_en: string
+          answer_pl: string
+          audience_key: string | null
+          created_at: string
+          id: string
+          question_en: string
+          question_pl: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          answer_en: string
+          answer_pl: string
+          audience_key?: string | null
+          created_at?: string
+          id?: string
+          question_en: string
+          question_pl: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          answer_en?: string
+          answer_pl?: string
+          audience_key?: string | null
+          created_at?: string
+          id?: string
+          question_en?: string
+          question_pl?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_faq_items_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -11702,6 +11820,9 @@ export type Database = {
         }[]
       }
       seed_membership_tiers: { Args: { p_tenant: string }; Returns: undefined }
+      seed_pricing_audiences: { Args: { p_tenant: string }; Returns: undefined }
+      seed_pricing_defaults: { Args: { p_tenant: string }; Returns: undefined }
+      seed_pricing_faq: { Args: { p_tenant: string }; Returns: undefined }
       semantic_search_posts: {
         Args: { _embedding: number[]; _limit?: number }
         Returns: {
