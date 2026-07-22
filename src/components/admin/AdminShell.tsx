@@ -54,6 +54,7 @@ import {
   ShieldCheck,
   Workflow,
   Gift,
+  BadgePercent,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -260,6 +261,13 @@ function AdminShellInner({
           icon: Crown,
           label: t("admin.nav.membership", {
             defaultValue: lang === "pl" ? "Członkostwo" : "Membership",
+          }),
+        },
+        {
+          to: "/admin/pricing",
+          icon: BadgePercent,
+          label: t("admin.nav.pricing", {
+            defaultValue: lang === "pl" ? "Cennik i segmenty" : "Pricing & segments",
           }),
         },
         {
