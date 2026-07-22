@@ -80,15 +80,27 @@ function bubbleRadius(mine: boolean, groupStart: boolean, groupEnd: boolean): st
   return cn(base, !groupStart && "rounded-tl-[3px]", !groupEnd && "rounded-bl-[3px]");
 }
 
-function ReactorAvatar({ profile, name }: { profile: ReactorProfile | undefined; name: string }) {
+function ReactorAvatar({
+  profile,
+  name,
+  size = "xs",
+}: {
+  profile: ReactorProfile | undefined;
+  name: string;
+  size?: "xs" | "sm";
+}) {
   const initial = (profile?.display_name ?? name).trim().charAt(0).toUpperCase() || "?";
+  const dims =
+    size === "sm"
+      ? "h-5 w-5 rounded-[4px] text-[9px]"
+      : "h-3.5 w-3.5 rounded-[3px] text-[8px]";
   if (profile?.avatar_url) {
     return (
       <img
         src={profile.avatar_url}
         alt=""
         aria-hidden
-        className="h-3.5 w-3.5 rounded-[3px] object-cover ring-1 ring-background"
+        className={cn("object-cover ring-1 ring-background", dims)}
         loading="lazy"
       />
     );
@@ -96,12 +108,16 @@ function ReactorAvatar({ profile, name }: { profile: ReactorProfile | undefined;
   return (
     <span
       aria-hidden
-      className="flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-muted text-[8px] font-semibold text-muted-foreground ring-1 ring-background"
+      className={cn(
+        "flex items-center justify-center bg-muted font-semibold text-muted-foreground ring-1 ring-background",
+        dims,
+      )}
     >
       {initial}
     </span>
   );
 }
+
 
 function ReactionChips({
   reactions,
