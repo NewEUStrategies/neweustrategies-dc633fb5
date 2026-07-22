@@ -43,7 +43,7 @@ export function BlockSidebar({
     <Tabs
       value={effectiveTab}
       onValueChange={(v) => setTab(v as "block" | "document")}
-      className="h-full flex flex-col"
+      className="h-full flex flex-col min-h-0"
     >
       <TabsList className="grid grid-cols-2 m-3 mb-0">
         <TabsTrigger value="block" disabled={!activeBlock}>
