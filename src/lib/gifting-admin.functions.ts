@@ -142,7 +142,7 @@ export const listGiftEventsAdmin = createServerFn({ method: "POST" })
       _limit: data.limit,
       _offset: data.offset,
       _event_type: data.event_type,
-      _link_id: data.link_id ?? null,
+      _link_id: data.link_id ?? undefined,
     });
     if (error) throw new Error(error.message);
     const list = (rows ?? []) as Array<{ total_count: number }>;
