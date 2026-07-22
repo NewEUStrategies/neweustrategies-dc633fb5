@@ -217,6 +217,7 @@ import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appear
 import { Route as AdminAppearanceCategoryArchiveRouteImport } from './routes/admin.appearance.category-archive'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
+import { Route as AdminCrmFunnelIndexRouteImport } from './routes/admin.crm.funnel.index'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
@@ -1277,6 +1278,11 @@ const AdminNewsletterCampaignsIndexRoute =
     path: '/',
     getParentRoute: () => AdminNewsletterCampaignsRoute,
   } as any)
+const AdminCrmFunnelIndexRoute = AdminCrmFunnelIndexRouteImport.update({
+  id: '/funnel/',
+  path: '/funnel/',
+  getParentRoute: () => AdminCrmRoute,
+} as any)
 const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   id: '/api/public/webhooks/stripe',
   path: '/api/public/webhooks/stripe',
@@ -1520,6 +1526,7 @@ export interface FileRoutesByFullPath {
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
+  '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -1725,6 +1732,7 @@ export interface FileRoutesByTo {
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
+  '/admin/crm/funnel': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsIndexRoute
 }
 export interface FileRoutesById {
@@ -1941,6 +1949,7 @@ export interface FileRoutesById {
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
+  '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
 export interface FileRouteTypes {
@@ -2158,6 +2167,7 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
+    | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -2363,6 +2373,7 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
+    | '/admin/crm/funnel'
     | '/admin/newsletter/campaigns'
   id:
     | '__root__'
@@ -2578,6 +2589,7 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
+    | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesById: FileRoutesById
 }
@@ -4116,6 +4128,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterCampaignsIndexRouteImport
       parentRoute: typeof AdminNewsletterCampaignsRoute
     }
+    '/admin/crm/funnel/': {
+      id: '/admin/crm/funnel/'
+      path: '/funnel'
+      fullPath: '/admin/crm/funnel/'
+      preLoaderRoute: typeof AdminCrmFunnelIndexRouteImport
+      parentRoute: typeof AdminCrmRoute
+    }
     '/api/public/webhooks/stripe': {
       id: '/api/public/webhooks/stripe'
       path: '/api/public/webhooks/stripe'
@@ -4241,11 +4260,13 @@ const AdminCouponsRouteWithChildren = AdminCouponsRoute._addFileChildren(
 interface AdminCrmRouteChildren {
   AdminCrmIdRoute: typeof AdminCrmIdRoute
   AdminCrmIndexRoute: typeof AdminCrmIndexRoute
+  AdminCrmFunnelIndexRoute: typeof AdminCrmFunnelIndexRoute
 }
 
 const AdminCrmRouteChildren: AdminCrmRouteChildren = {
   AdminCrmIdRoute: AdminCrmIdRoute,
   AdminCrmIndexRoute: AdminCrmIndexRoute,
+  AdminCrmFunnelIndexRoute: AdminCrmFunnelIndexRoute,
 }
 
 const AdminCrmRouteWithChildren = AdminCrmRoute._addFileChildren(
