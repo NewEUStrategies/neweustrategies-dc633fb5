@@ -16,6 +16,12 @@ export interface ContentAccessRule {
   one_time_currency: string | null;
   teaser_pl: string | null;
   teaser_en: string | null;
+  /**
+   * Minimalna ranga warstwy wymagana do dostępu (0 = brak progu). Gdy > 0,
+   * bramka has_content_access działa drabinkowo (Plus vs Pro), a nie binarnie
+   * przez premium_content. Dotyczy trybów members/paid.
+   */
+  min_tier_rank?: number | null;
   /** Udział w meteringu paywalla: inherit (globalne ustawienia) / metered / exempt. */
   metering_policy?: string | null;
   /** Presence flag only. The hash itself is never selectable client-side (column privilege revoked). */

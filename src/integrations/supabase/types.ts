@@ -1533,6 +1533,7 @@ export type Database = {
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id: string
           metering_policy: string
+          min_tier_rank: number
           mode: Database["public"]["Enums"]["access_mode"]
           one_time_currency: string | null
           one_time_price_cents: number | null
@@ -1551,6 +1552,7 @@ export type Database = {
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id?: string
           metering_policy?: string
+          min_tier_rank?: number
           mode?: Database["public"]["Enums"]["access_mode"]
           one_time_currency?: string | null
           one_time_price_cents?: number | null
@@ -1569,6 +1571,7 @@ export type Database = {
           entity_type?: Database["public"]["Enums"]["access_entity_type"]
           id?: string
           metering_policy?: string
+          min_tier_rank?: number
           mode?: Database["public"]["Enums"]["access_mode"]
           one_time_currency?: string | null
           one_time_price_cents?: number | null
