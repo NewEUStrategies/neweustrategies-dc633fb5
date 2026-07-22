@@ -29,8 +29,13 @@ export function IntervalToggle({
             key={interval}
             type="button"
             aria-pressed={value === interval}
-            onClick={() => onChange(interval)}
-            className={cn(
+            onClick={() => {
+              if (value !== interval) {
+                trackCta("pricing_interval_change", { interval, previous: value });
+              }
+              onChange(interval);
+            }}
+
               "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
               value === interval
                 ? "bg-background text-foreground shadow"
