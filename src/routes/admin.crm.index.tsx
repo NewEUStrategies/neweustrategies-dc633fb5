@@ -620,8 +620,30 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             <Download className="w-3.5 h-3.5 mr-1" />
             {L.export}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const { data, error } = await supabase.rpc("crm_backfill_all_leads");
+              if (error) {
+                toast.error(error.message);
+                return;
+              }
+              const row = Array.isArray(data) ? data[0] : data;
+              toast.success(
+                lang === "pl"
+                  ? `Zsynchronizowano ${row?.profiles_synced ?? 0} użytkowników i ${row?.subscribers_synced ?? 0} subskrybentów`
+                  : `Synced ${row?.profiles_synced ?? 0} users and ${row?.subscribers_synced ?? 0} subscribers`,
+              );
+              void q.refetch();
+            }}
+          >
+            <UsersIcon className="w-3.5 h-3.5 mr-1" />
+            {lang === "pl" ? "Synchronizuj z bazy" : "Sync from DB"}
+          </Button>
         </div>
       </div>
+
 
       <FollowUpsPanel
         lang={lang}
