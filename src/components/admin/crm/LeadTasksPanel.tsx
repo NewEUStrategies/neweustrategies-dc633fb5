@@ -174,17 +174,18 @@ export function LeadTasksPanel({
           maxLength={2000}
         />
         <div className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-1">
+          <div className="grid gap-1 min-w-[240px]">
             <Label htmlFor="crm-task-due" className="text-[11px] text-muted-foreground">
               {t.due}
             </Label>
-            <Input
-              id="crm-task-due"
-              type="datetime-local"
-              value={due}
-              onChange={(e) => setDue(e.target.value)}
-              className="h-8 text-[13px] w-[210px]"
-            />
+            <div id="crm-task-due">
+              <DatePickerField
+                value={due}
+                onChange={(d) => d && setDue(d)}
+                withTime
+                size="sm"
+              />
+            </div>
           </div>
           <Button type="submit" size="sm" disabled={!canSave}>
             {t.save}
