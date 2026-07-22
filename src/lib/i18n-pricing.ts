@@ -136,9 +136,63 @@ const pricingEn: typeof pricingPl = {
     signupCta: "Create a free account",
     contactCta: "Talk to us",
     compareAll: "Compare all features",
+    comparisonMatrix: {
+      title: "Essential vs paid plans - key differences",
+      subtitle:
+        "The Essential account gives you 5 free articles per month and a weekly newsletter. Paid plans unlock the full editorial output, alerts and priority support.",
+      featureColumn: "Feature",
+      rows: [
+        {
+          id: "articles",
+          label: "Free articles per month",
+          values: { reader: "5 / mo.", plus: "Unlimited", pro: "Unlimited", business: "Unlimited", team: "Unlimited", student: "Unlimited", lecturer: "Unlimited" },
+        },
+        {
+          id: "newsletter",
+          label: "Weekly newsletter",
+          values: { reader: "check", plus: "check", pro: "check", business: "check", team: "check", student: "check", lecturer: "check" },
+        },
+        {
+          id: "analyses",
+          label: "Full access to analyses and reports",
+          values: { reader: "dash", plus: "check", pro: "check", business: "check", team: "check", student: "check", lecturer: "check" },
+        },
+        {
+          id: "interviews",
+          label: "Interviews and policy papers",
+          values: { reader: "dash", plus: "check", pro: "check", business: "check", team: "check", student: "check", lecturer: "check" },
+        },
+        {
+          id: "recommendations",
+          label: "Personalised recommendations",
+          values: { reader: "dash", plus: "check", pro: "check", business: "check", team: "check", student: "check", lecturer: "check" },
+        },
+        {
+          id: "tracker",
+          label: "EU Regulatory Tracker",
+          values: { reader: "dash", plus: "dash", pro: "check", business: "check", team: "check", lecturer: "check" },
+        },
+        {
+          id: "alerts",
+          label: "Legislative alerts and dossier tracking",
+          values: { reader: "dash", plus: "dash", pro: "check", business: "check", team: "check", lecturer: "check" },
+        },
+        {
+          id: "invoice",
+          label: "VAT invoice / bank transfer",
+          values: { reader: "dash", plus: "check", pro: "check", business: "check", team: "check" },
+        },
+        {
+          id: "support",
+          label: "Priority support",
+          values: { reader: "dash", plus: "dash", pro: "check", business: "check", team: "check" },
+        },
+      ],
+    },
     passesTitle: "Passes & one-time access",
     passesSubtitle: "No commitment: a single article or short access when a decision matters.",
     morePlansTitle: "More plans",
+
     tiers: {
       heading: "Membership tiers",
       current: "Your subscription",
