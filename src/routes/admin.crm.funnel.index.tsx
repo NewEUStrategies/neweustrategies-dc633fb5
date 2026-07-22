@@ -341,6 +341,7 @@ function FunnelPage() {
       <div className="flex items-center gap-1 border-b border-border/60">
         <Link
           to="/admin/crm"
+          activeOptions={{ exact: true }}
           className="rounded-t-[6px] px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground"
         >
           {L.tabs.contacts}
