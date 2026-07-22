@@ -244,6 +244,27 @@ export const createCrmContactForCompany = createServerFn({ method: "POST" })
     return { ok: true, id: row?.id ?? null };
   });
 
+// ---- Notatka na poziomie firmy (przez audit_log, brak dedykowanej tabeli) ---
+const NoteInput = z.object({
+  company_id: z.string().uuid(),
+  body: z.string().trim().min(1).max(4000),
+});
+
+export const addCrmCompanyNote = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => NoteInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await write(context, "audit_log").insert({
+      actor_id: (context as { userId: string }).userId,
+      action: "crm.company.note",
+      entity_type: "crm_company",
+      entity_id: data.company_id,
+      metadata: { body: data.body },
+    } as unknown as never);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // ---- Feed aktywności firmy (audit_log + notatki + leady) ----------------
 export const getCrmCompanyActivity = createServerFn({ method: "POST" })
   .middleware([requireStaff])
