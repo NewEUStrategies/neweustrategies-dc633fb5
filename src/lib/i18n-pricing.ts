@@ -22,9 +22,60 @@ const pricingPl = {
     signupCta: "Załóż bezpłatne konto",
     contactCta: "Porozmawiajmy",
     compareAll: "Porównaj wszystkie funkcje",
-    passesTitle: "Przepustki i dostęp jednorazowy",
-    passesSubtitle: "Bez zobowiązań: pojedynczy artykuł albo krótki dostęp na czas ważnej decyzji.",
-    morePlansTitle: "Pozostałe plany",
+    comparisonMatrix: {
+      title: "Essential a plany płatne - najważniejsze różnice",
+      subtitle:
+        "Konto Essential daje 5 bezpłatnych artykułów miesięcznie i cotygodniowy newsletter. Plany płatne odblokowują pełną redakcję, alerty i wsparcie.",
+      featureColumn: "Funkcja",
+      rows: [
+        {
+          id: "articles",
+          label: "Bezpłatne artykuły miesięcznie",
+          values: { reader: "5 / mies.", plus: "Bez limitu", pro: "Bez limitu", business: "Bez limitu", team: "Bez limitu", student: "Bez limitu", lecturer: "Bez limitu" },
+        },
+        {
+          id: "newsletter",
+          label: "Newsletter cotygodniowy",
+          values: { reader: "check", plus: "check", pro: "check", business: "check", team: "check", student: "check", lecturer: "check" },
+        },
+        {
+          id: "analyses",
+          label: "Pełny dostęp do analiz i raportów",
+          values: { reader: "dash", plus: "check", pro: "check", business: "check", team: "check", student: "check", lecturer: "check" },
+        },
+        {
+          id: "interviews",
+          label: "Wywiady i policy papers",
+          values: { reader: "dash", plus: "check", pro: "check", business: "check", team: "check", student: "check", lecturer: "check" },
+        },
+        {
+          id: "recommendations",
+          label: "Rekomendacje spersonalizowane",
+          values: { reader: "dash", plus: "check", pro: "check", business: "check", team: "check", student: "check", lecturer: "check" },
+        },
+        {
+          id: "tracker",
+          label: "Regulatory Tracker UE",
+          values: { reader: "dash", plus: "dash", pro: "check", business: "check", team: "check", lecturer: "check" },
+        },
+        {
+          id: "alerts",
+          label: "Alerty legislacyjne i śledzenie dossier",
+          values: { reader: "dash", plus: "dash", pro: "check", business: "check", team: "check", lecturer: "check" },
+        },
+        {
+          id: "invoice",
+          label: "Faktura VAT / płatność przelewem",
+          values: { reader: "dash", plus: "check", pro: "check", business: "check", team: "check" },
+        },
+        {
+          id: "support",
+          label: "Wsparcie priorytetowe",
+          values: { reader: "dash", plus: "dash", pro: "check", business: "check", team: "check" },
+        },
+      ],
+    },
+
     tiers: {
       heading: "Poziomy członkostwa",
       current: "Twoja subskrypcja",
