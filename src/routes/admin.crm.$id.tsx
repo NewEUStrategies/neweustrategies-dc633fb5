@@ -661,8 +661,10 @@ function AdminCrmDetailPage() {
                   <Stat label={t("Notatki", "Notes")} value={(detail.data?.notes ?? []).length} />
                 </div>
               </section>
+              <MeteringUsageCard leadId={lead.id} lang={lang} />
             </div>
           )}
+
         </main>
 
         {/* Right sidebar */}
