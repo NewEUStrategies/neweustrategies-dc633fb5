@@ -70,7 +70,7 @@ type CompanyRow = {
   last_lead_activity_at: string | null;
 };
 
-export const Route = createFileRoute("/admin/companies")({
+export const Route = createFileRoute("/admin/companies/")({
   head: () => ({
     meta: [
       { title: "Firmy CRM | Admin" },
