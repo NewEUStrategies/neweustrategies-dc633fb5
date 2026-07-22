@@ -45,6 +45,8 @@ import { IntervalToggle } from "@/components/pricing/IntervalToggle";
 import { TierCard } from "@/components/pricing/TierCard";
 import { SupporterStrip } from "@/components/pricing/SupporterStrip";
 import { ComparisonTable } from "@/components/pricing/ComparisonTable";
+import { PricingComparisonMatrix } from "@/components/pricing/PricingComparisonMatrix";
+
 import { PricingFaq } from "@/components/pricing/PricingFaq";
 import { ContactSalesDialog } from "@/components/pricing/ContactSalesDialog";
 import { PlanCard } from "@/components/billing/PlanCard";
@@ -372,7 +374,10 @@ function PricingPage() {
             </section>
           )}
 
+          <PricingComparisonMatrix tiers={cardTiers} lang={lang} />
+
           <ComparisonTable tiers={cardTiers} lang={lang} />
+
 
           <PricingFaq
             key={`faq-${activeKey ?? "all"}`}
