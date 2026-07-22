@@ -551,64 +551,10 @@ function AdminCompaniesPage() {
                       key={c.id}
                       className="group cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/40 data-[selected=true]:bg-primary/5"
                       data-selected={checked || undefined}
-                      onClick={() => setDrawerId(c.id)}
+                      onClick={() =>
+                        void navigate({ to: "/admin/companies/$id", params: { id: c.id } })
+                      }
                     >
-                      <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(v) => {
-                            setSelected((prev) => {
-                              const s = new Set(prev);
-                              if (v) s.add(c.id);
-                              else s.delete(c.id);
-                              return s;
-                            });
-                          }}
-                          aria-label={c.name}
-                        />
-                      </td>
-                      {visibleCols.map((col) => (
-                        <td
-                          key={col.key}
-                          className={`px-3 py-2.5 ${
-                            col.align === "right"
-                              ? "text-right tabular-nums"
-                              : "text-left"
-                          }`}
-                          onClick={col.key === "website" || col.key === "phone" ? (e) => e.stopPropagation() : undefined}
-                        >
-                          <Cell row={c} col={col.key} lang={lang} />
-                        </td>
-                      ))}
-                      <td
-                        className="px-3 py-2.5 text-right"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Link
-                          to="/admin/companies/$id"
-                          params={{ id: c.id }}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
-                          aria-label={t("Otwórz firmę", "Open company")}
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <CompanyDetailsDrawer
-        companyId={drawerId ?? null}
-        open={Boolean(drawerId)}
-        onOpenChange={(v) => {
-          if (!v) setDrawerId(null);
-        }}
-      />
     </div>
   );
 }
