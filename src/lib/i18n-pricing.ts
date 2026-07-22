@@ -75,6 +75,11 @@ const pricingPl = {
         },
       ],
     },
+    passesTitle: "Przepustki i dostęp jednorazowy",
+    passesSubtitle: "Bez zobowiązań: pojedynczy artykuł albo krótki dostęp na czas ważnej decyzji.",
+    morePlansTitle: "Pozostałe plany",
+
+
 
     tiers: {
       heading: "Poziomy członkostwa",
