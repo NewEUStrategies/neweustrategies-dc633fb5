@@ -1,7 +1,7 @@
 // Gift Articles - warstwa danych (react-query + Supabase RPC).
 //
 // Egzekwowanie jest WYLACZNIE serwerowe (SECURITY DEFINER: create_gift_link /
-// redeem_gift_link - patrz migracja 20260722120000): klient nigdy nie widzi
+// redeem_gift_link - patrz migracja 20260722112736): klient nigdy nie widzi
 // body inaczej niz przez wazny kod, a generowanie linku wymaga aktywnej
 // platnej subskrypcji. Ten modul dostarcza:
 //   * odczyt ustawien (gift_article_settings, publiczne; brak wiersza =

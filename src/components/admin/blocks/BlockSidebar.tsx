@@ -11,12 +11,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Block, BlockStyle, BlocksDoc } from "@/lib/blocks/types";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
@@ -142,7 +137,9 @@ export function BlockSidebar({
             {activeBlock ? (
               <BlockSettings block={activeBlock} onChange={onChangeBlock} />
             ) : (
-              <p className="text-xs text-muted-foreground italic">{t("blocks.sidebar.selectBlock")}</p>
+              <p className="text-xs text-muted-foreground italic">
+                {t("blocks.sidebar.selectBlock")}
+              </p>
             )}
           </TabsContent>
 

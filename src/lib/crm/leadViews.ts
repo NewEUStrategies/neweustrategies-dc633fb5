@@ -7,7 +7,9 @@ import type { ScoreBand } from "@/lib/crm/scoring";
 /* ---------- Filtry ---------- */
 
 export const LeadFilterSchema = z.object({
-  stage: z.enum(["any", "new", "contacted", "qualified", "proposal", "won", "lost", "archived"]).default("any"),
+  stage: z
+    .enum(["any", "new", "contacted", "qualified", "proposal", "won", "lost", "archived"])
+    .default("any"),
   band: z.enum(["any", "hot", "warm", "cool", "cold"]).default("any"),
   source: z.enum(["any", "form", "newsletter", "import"]).default("any"),
   country: z.string().nullable().default(null),
@@ -72,21 +74,56 @@ export interface LeadColumnDef {
 }
 
 export const LEAD_COLUMNS: readonly LeadColumnDef[] = [
-  { key: "name", labelPl: "Osoba", labelEn: "Contact", sortable: true, required: true, minWidth: 240 },
+  {
+    key: "name",
+    labelPl: "Osoba",
+    labelEn: "Contact",
+    sortable: true,
+    required: true,
+    minWidth: 240,
+  },
   { key: "email", labelPl: "E-mail", labelEn: "Email", minWidth: 200 },
   { key: "phone", labelPl: "Telefon", labelEn: "Phone", minWidth: 140 },
   { key: "position", labelPl: "Stanowisko", labelEn: "Position", minWidth: 160 },
   { key: "company", labelPl: "Firma", labelEn: "Company", sortable: true, minWidth: 180 },
   { key: "country", labelPl: "Kraj", labelEn: "Country", sortable: true, minWidth: 120 },
   { key: "stage", labelPl: "Etap", labelEn: "Stage", sortable: true, minWidth: 120 },
-  { key: "score", labelPl: "Score", labelEn: "Score", align: "right", sortable: true, minWidth: 96 },
+  {
+    key: "score",
+    labelPl: "Score",
+    labelEn: "Score",
+    align: "right",
+    sortable: true,
+    minWidth: 96,
+  },
   { key: "band", labelPl: "Poziom", labelEn: "Band", minWidth: 100 },
   { key: "source", labelPl: "Źródło", labelEn: "Source", minWidth: 120 },
   { key: "tags", labelPl: "Tagi", labelEn: "Tags", minWidth: 160 },
   { key: "consent", labelPl: "Zgoda", labelEn: "Consent", minWidth: 100 },
-  { key: "lastActivity", labelPl: "Aktywność", labelEn: "Last activity", align: "right", sortable: true, minWidth: 140 },
-  { key: "created", labelPl: "Utworzono", labelEn: "Created", align: "right", sortable: true, minWidth: 140 },
-  { key: "followUp", labelPl: "Follow-up", labelEn: "Follow-up", align: "right", sortable: true, minWidth: 140 },
+  {
+    key: "lastActivity",
+    labelPl: "Aktywność",
+    labelEn: "Last activity",
+    align: "right",
+    sortable: true,
+    minWidth: 140,
+  },
+  {
+    key: "created",
+    labelPl: "Utworzono",
+    labelEn: "Created",
+    align: "right",
+    sortable: true,
+    minWidth: 140,
+  },
+  {
+    key: "followUp",
+    labelPl: "Follow-up",
+    labelEn: "Follow-up",
+    align: "right",
+    sortable: true,
+    minWidth: 140,
+  },
 ] as const;
 
 export const LEAD_COLUMN_BY_KEY = Object.fromEntries(
@@ -96,7 +133,16 @@ export const LEAD_COLUMN_BY_KEY = Object.fromEntries(
 /* ---------- Sortowanie ---------- */
 
 export const LeadSortSchema = z.object({
-  key: z.enum(["name", "company", "country", "stage", "score", "lastActivity", "created", "followUp"]),
+  key: z.enum([
+    "name",
+    "company",
+    "country",
+    "stage",
+    "score",
+    "lastActivity",
+    "created",
+    "followUp",
+  ]),
   dir: z.enum(["asc", "desc"]),
 });
 export type LeadSort = z.infer<typeof LeadSortSchema>;
@@ -124,7 +170,10 @@ const LeadColumnKeySchema = z.enum([
 ]);
 
 export const LeadViewConfigSchema = z.object({
-  columns: z.array(LeadColumnKeySchema).min(1).default(["name", "email", "company", "stage", "score", "lastActivity"]),
+  columns: z
+    .array(LeadColumnKeySchema)
+    .min(1)
+    .default(["name", "email", "company", "stage", "score", "lastActivity"]),
   filter: LeadFilterSchema.default(DEFAULT_LEAD_FILTER),
   sort: LeadSortSchema.default(DEFAULT_LEAD_SORT),
 });
@@ -289,7 +338,9 @@ export function applyLeadSort<T extends LeadRowShape>(rows: T[], sort: LeadSort)
       }
       case "lastActivity":
       default:
-        return (new Date(a.last_activity_at).getTime() - new Date(b.last_activity_at).getTime()) * dir;
+        return (
+          (new Date(a.last_activity_at).getTime() - new Date(b.last_activity_at).getTime()) * dir
+        );
     }
   });
   return out;
@@ -315,21 +366,36 @@ export function leadRowsToCsv<T extends LeadRowShape>(
         switch (k) {
           case "name":
             return escape([r.first_name, r.last_name].filter(Boolean).join(" ") || r.email);
-          case "email": return escape(r.email);
-          case "phone": return escape(r.phone);
-          case "position": return escape(r.position ?? null);
-          case "company": return escape(r.company);
-          case "country": return escape(r.country ?? null);
-          case "stage": return escape(r.stage);
-          case "score": return escape(r.score ?? 0);
-          case "band": return escape(r.score_band);
-          case "source": return escape(inferSource(r));
-          case "tags": return escape((r.tags ?? []).join(" | "));
-          case "consent": return escape(r.marketing_consent ? "yes" : "no");
-          case "lastActivity": return escape(r.last_activity_at);
-          case "created": return escape(r.created_at);
-          case "followUp": return escape(r.follow_up_at);
-          default: return "";
+          case "email":
+            return escape(r.email);
+          case "phone":
+            return escape(r.phone);
+          case "position":
+            return escape(r.position ?? null);
+          case "company":
+            return escape(r.company);
+          case "country":
+            return escape(r.country ?? null);
+          case "stage":
+            return escape(r.stage);
+          case "score":
+            return escape(r.score ?? 0);
+          case "band":
+            return escape(r.score_band);
+          case "source":
+            return escape(inferSource(r));
+          case "tags":
+            return escape((r.tags ?? []).join(" | "));
+          case "consent":
+            return escape(r.marketing_consent ? "yes" : "no");
+          case "lastActivity":
+            return escape(r.last_activity_at);
+          case "created":
+            return escape(r.created_at);
+          case "followUp":
+            return escape(r.follow_up_at);
+          default:
+            return "";
         }
       })
       .join(","),

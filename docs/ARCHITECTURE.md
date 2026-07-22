@@ -556,12 +556,12 @@ generatora dostają CTA logowania / planów (lejek konwersji). Wpisy w trybie
   i licznik odsłon zostają.
 - **Ścieżka body = wyłącznie SECURITY DEFINER** (jak `get_entity_content`
   i `consume_metered_view`): `create_gift_link` (auth + `can_gift_articles()`
-  + published/tenant/limit; idempotentne per wpis/darczyńca, advisory lock
-  na wyścig), `redeem_gift_link(_post_id,_code)` (kod związany z TYM wpisem;
-  `valid=false` bez body dla kodu obcego/wygasłego/cofniętego; odsłona
-  darczyńcy nie bije licznika), `gift_article_state` (czysty odczyt dla
-  popovera). RLS: darczyńca czyta własne linki, staff tenantu wszystkie;
-  zapisy tylko przez funkcje.
+  - published/tenant/limit; idempotentne per wpis/darczyńca, advisory lock
+    na wyścig), `redeem_gift_link(_post_id,_code)` (kod związany z TYM wpisem;
+    `valid=false` bez body dla kodu obcego/wygasłego/cofniętego; odsłona
+    darczyńcy nie bije licznika), `gift_article_state` (czysty odczyt dla
+    popovera). RLS: darczyńca czyta własne linki, staff tenantu wszystkie;
+    zapisy tylko przez funkcje.
 - **Klient**: `src/lib/gifting/model.ts` (czysta domena: `buildGiftUrl`,
   `parseGiftCode`, macierz faz `resolveGiftPhase`, mapowanie błędów RPC) +
   `src/lib/gifting/hooks.ts` (react-query; realizacja kodu startuje PO

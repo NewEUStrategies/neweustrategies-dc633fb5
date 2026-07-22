@@ -61,17 +61,52 @@ export interface CompanyColumnDef {
 }
 
 export const COMPANY_COLUMNS: readonly CompanyColumnDef[] = [
-  { key: "name", labelPl: "Firma", labelEn: "Company", sortable: true, required: true, minWidth: 260 },
+  {
+    key: "name",
+    labelPl: "Firma",
+    labelEn: "Company",
+    sortable: true,
+    required: true,
+    minWidth: 260,
+  },
   { key: "domain", labelPl: "Domena", labelEn: "Domain", minWidth: 140 },
   { key: "branch", labelPl: "Branża", labelEn: "Industry", sortable: true, minWidth: 140 },
   { key: "location", labelPl: "Lokalizacja", labelEn: "Location", minWidth: 160 },
   { key: "country", labelPl: "Kraj", labelEn: "Country", sortable: true, minWidth: 120 },
-  { key: "contacts", labelPl: "Kontakty", labelEn: "Contacts", align: "right", sortable: true, minWidth: 96 },
-  { key: "leads", labelPl: "Leady", labelEn: "Leads", align: "right", sortable: true, minWidth: 96 },
+  {
+    key: "contacts",
+    labelPl: "Kontakty",
+    labelEn: "Contacts",
+    align: "right",
+    sortable: true,
+    minWidth: 96,
+  },
+  {
+    key: "leads",
+    labelPl: "Leady",
+    labelEn: "Leads",
+    align: "right",
+    sortable: true,
+    minWidth: 96,
+  },
   { key: "phone", labelPl: "Telefon", labelEn: "Phone", minWidth: 140 },
   { key: "website", labelPl: "WWW", labelEn: "Website", minWidth: 160 },
-  { key: "lastActivity", labelPl: "Aktywność", labelEn: "Last activity", align: "right", sortable: true, minWidth: 140 },
-  { key: "created", labelPl: "Utworzono", labelEn: "Created", align: "right", sortable: true, minWidth: 140 },
+  {
+    key: "lastActivity",
+    labelPl: "Aktywność",
+    labelEn: "Last activity",
+    align: "right",
+    sortable: true,
+    minWidth: 140,
+  },
+  {
+    key: "created",
+    labelPl: "Utworzono",
+    labelEn: "Created",
+    align: "right",
+    sortable: true,
+    minWidth: 140,
+  },
 ] as const;
 
 export const COMPANY_COLUMN_BY_KEY = Object.fromEntries(
@@ -105,7 +140,10 @@ const CompanyColumnKeySchema = z.enum([
 ]);
 
 export const CompanyViewConfigSchema = z.object({
-  columns: z.array(CompanyColumnKeySchema).min(1).default(["name", "branch", "location", "contacts", "leads", "lastActivity"]),
+  columns: z
+    .array(CompanyColumnKeySchema)
+    .min(1)
+    .default(["name", "branch", "location", "contacts", "leads", "lastActivity"]),
   filter: CompanyFilterSchema.default(DEFAULT_COMPANY_FILTER),
   sort: CompanySortSchema.default(DEFAULT_COMPANY_SORT),
 });
@@ -188,14 +226,22 @@ export interface CompanyRowShape {
 
 const RANGE_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
 
-export function applyCompanyFilter<T extends CompanyRowShape>(rows: T[], filter: CompanyFilter): T[] {
+export function applyCompanyFilter<T extends CompanyRowShape>(
+  rows: T[],
+  filter: CompanyFilter,
+): T[] {
   const now = Date.now();
   return rows.filter((r) => {
     if (filter.country && r.country !== filter.country) return false;
     if (filter.branch && r.branch !== filter.branch) return false;
     if (filter.hasLeads === "with" && r.leads_count <= 0) return false;
     if (filter.hasLeads === "without" && r.leads_count > 0) return false;
-    if (typeof filter.minLeads === "number" && filter.minLeads > 0 && r.leads_count < filter.minLeads) return false;
+    if (
+      typeof filter.minLeads === "number" &&
+      filter.minLeads > 0 &&
+      r.leads_count < filter.minLeads
+    )
+      return false;
     if (filter.createdRange !== "any") {
       const d = RANGE_DAYS[filter.createdRange];
       if (d && now - new Date(r.created_at).getTime() > d * 86_400_000) return false;
@@ -255,18 +301,30 @@ export function rowsToCsv<T extends CompanyRowShape>(
     columns
       .map((k) => {
         switch (k) {
-          case "name": return escape(r.name);
-          case "domain": return escape(r.domain);
-          case "branch": return escape(r.branch);
-          case "location": return escape([r.city, r.country].filter(Boolean).join(", "));
-          case "country": return escape(r.country);
-          case "contacts": return escape(r.contacts_count);
-          case "leads": return escape(r.leads_count);
-          case "phone": return escape((r as unknown as { phone: string | null }).phone ?? null);
-          case "website": return escape((r as unknown as { website: string | null }).website ?? null);
-          case "lastActivity": return escape(r.last_lead_activity_at ?? r.updated_at);
-          case "created": return escape(r.created_at);
-          default: return "";
+          case "name":
+            return escape(r.name);
+          case "domain":
+            return escape(r.domain);
+          case "branch":
+            return escape(r.branch);
+          case "location":
+            return escape([r.city, r.country].filter(Boolean).join(", "));
+          case "country":
+            return escape(r.country);
+          case "contacts":
+            return escape(r.contacts_count);
+          case "leads":
+            return escape(r.leads_count);
+          case "phone":
+            return escape((r as unknown as { phone: string | null }).phone ?? null);
+          case "website":
+            return escape((r as unknown as { website: string | null }).website ?? null);
+          case "lastActivity":
+            return escape(r.last_lead_activity_at ?? r.updated_at);
+          case "created":
+            return escape(r.created_at);
+          default:
+            return "";
         }
       })
       .join(","),

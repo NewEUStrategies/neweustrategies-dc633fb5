@@ -13,7 +13,10 @@ const ListInput = z.object({ entity: ENTITY });
 interface SupaClient {
   from: (t: string) => {
     select: (s: string) => {
-      eq: (c: string, v: string) => {
+      eq: (
+        c: string,
+        v: string,
+      ) => {
         order: (
           c: string,
           o: { ascending: boolean },

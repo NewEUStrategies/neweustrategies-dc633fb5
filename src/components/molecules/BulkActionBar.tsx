@@ -16,13 +16,7 @@ export type BulkActionBarProps = {
   itemLabel?: { pl: string; en: string };
 };
 
-export function BulkActionBar({
-  count,
-  onClear,
-  lang,
-  children,
-  itemLabel,
-}: BulkActionBarProps) {
+export function BulkActionBar({ count, onClear, lang, children, itemLabel }: BulkActionBarProps) {
   if (count <= 0) return null;
   const label = itemLabel
     ? lang === "pl"

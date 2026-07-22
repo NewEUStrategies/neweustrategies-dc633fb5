@@ -8,7 +8,9 @@ const read = (p: string) => readFileSync(join(root, p), "utf8");
 const MIGRATION = "supabase/migrations/20260712140000_crm_secrets_vault_and_cv_bucket.sql";
 const CRM_FNS = "src/lib/crm.functions.ts";
 const PROFILE = "src/components/profile/sections/ProfileExtraSections.tsx";
-const ADMIN = "src/routes/admin.crm.tsx";
+// Po restrukturyzacji CRM (layout admin.crm.tsx = tylko <Outlet/>) UI zarządzania
+// sekretami integracji Merydian przeniesiono na trasę-indeks listy kontaktów.
+const ADMIN = "src/routes/admin.crm.index.tsx";
 
 describe("T1 migration — Vault + private cv bucket", () => {
   const sql = read(MIGRATION);

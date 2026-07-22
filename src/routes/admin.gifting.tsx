@@ -104,7 +104,10 @@ function StatsPanel({ dateLocale: _l }: { dateLocale: string }) {
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {isLoading
         ? Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-20 rounded-[6px] border border-border bg-muted/30 animate-pulse" />
+            <div
+              key={i}
+              className="h-20 rounded-[6px] border border-border bg-muted/30 animate-pulse"
+            />
           ))
         : cells.map((c) => (
             <div key={c.label} className="rounded-[6px] border border-border bg-card p-3">
@@ -137,13 +140,15 @@ function SettingsPanel() {
     link_ttl_days: number;
   } | null>(null);
 
-  const effective = draft ?? (data
-    ? {
-        enabled: data.enabled,
-        monthly_limit: data.monthly_limit,
-        link_ttl_days: data.link_ttl_days,
-      }
-    : null);
+  const effective =
+    draft ??
+    (data
+      ? {
+          enabled: data.enabled,
+          monthly_limit: data.monthly_limit,
+          link_ttl_days: data.link_ttl_days,
+        }
+      : null);
 
   const save = useMutation({
     mutationFn: (payload: NonNullable<typeof draft>) => updateSettings({ data: payload }),
@@ -159,10 +164,8 @@ function SettingsPanel() {
     return <p className="text-sm text-muted-foreground">{t("giftingAdmin.common.loading")}</p>;
   }
 
-  const set = <K extends keyof NonNullable<typeof draft>>(
-    k: K,
-    v: NonNullable<typeof draft>[K],
-  ) => setDraft({ ...effective, [k]: v });
+  const set = <K extends keyof NonNullable<typeof draft>>(k: K, v: NonNullable<typeof draft>[K]) =>
+    setDraft({ ...effective, [k]: v });
 
   const updatedAt = data?.updated_at
     ? new Intl.DateTimeFormat(i18n.language === "en" ? "en-GB" : "pl-PL", {
@@ -199,7 +202,9 @@ function SettingsPanel() {
           min={0}
           max={1000}
           value={effective.monthly_limit}
-          onChange={(e) => set("monthly_limit", Math.max(0, Math.min(1000, Number(e.target.value))))}
+          onChange={(e) =>
+            set("monthly_limit", Math.max(0, Math.min(1000, Number(e.target.value))))
+          }
           className="h-10 w-40 rounded-[6px] border border-border bg-background px-3 text-sm"
         />
         <p className="text-xs text-muted-foreground mt-1">
@@ -533,7 +538,10 @@ function AuditPanel({ dateLocale }: { dateLocale: string }) {
                     {fmt(e.created_at)}
                   </td>
                   <td className="px-3 py-2">
-                    <EventPill type={e.event_type} label={t(`giftingAdmin.audit.type.${e.event_type}`)} />
+                    <EventPill
+                      type={e.event_type}
+                      label={t(`giftingAdmin.audit.type.${e.event_type}`)}
+                    />
                   </td>
                   <td className="px-3 py-2 text-foreground">
                     <span className="line-clamp-1">{e.post_title || "-"}</span>

@@ -37,7 +37,9 @@ export function ImageSlot({
     setError(null);
     setUploading(true);
     try {
-      const { data: userData } = await supabase.auth.getSession().then(r => ({ data: { user: r.data.session?.user ?? null } }));
+      const { data: userData } = await supabase.auth
+        .getSession()
+        .then((r) => ({ data: { user: r.data.session?.user ?? null } }));
       const uid = userData.user?.id ?? "anon";
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const path = `${tenantId}/${uid}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;

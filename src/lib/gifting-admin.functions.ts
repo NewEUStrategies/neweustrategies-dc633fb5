@@ -69,9 +69,7 @@ export const updateGiftAdminSettings = createServerFn({ method: "POST" })
 export const getGiftAdminStats = createServerFn({ method: "GET" })
   .middleware([requireStaff])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .rpc("get_gift_stats_admin")
-      .maybeSingle();
+    const { data, error } = await context.supabase.rpc("get_gift_stats_admin").maybeSingle();
     if (error) throw new Error(error.message);
     return (
       data ?? {

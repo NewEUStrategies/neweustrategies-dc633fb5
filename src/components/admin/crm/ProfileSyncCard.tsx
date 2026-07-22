@@ -185,9 +185,7 @@ export function ProfileSyncCard({ leadId, lang }: { leadId: string; lang: "pl" |
       )}
 
       {/* Big5 */}
-      {data.personality && (
-        <Big5Panel personality={data.personality} lang={lang} />
-      )}
+      {data.personality && <Big5Panel personality={data.personality} lang={lang} />}
 
       {/* Experiences */}
       {data.experiences.length > 0 && (
@@ -282,14 +280,25 @@ function Big5Panel({ personality, lang }: { personality: Big5; lang: "pl" | "en"
         label: t("Sumienność", "Conscientiousness"),
         v: personality.conscientiousness,
       },
-      { key: "extraversion", label: t("Ekstrawersja", "Extraversion"), v: personality.extraversion },
-      { key: "agreeableness", label: t("Ugodowość", "Agreeableness"), v: personality.agreeableness },
+      {
+        key: "extraversion",
+        label: t("Ekstrawersja", "Extraversion"),
+        v: personality.extraversion,
+      },
+      {
+        key: "agreeableness",
+        label: t("Ugodowość", "Agreeableness"),
+        v: personality.agreeableness,
+      },
       { key: "neuroticism", label: t("Neurotyczność", "Neuroticism"), v: personality.neuroticism },
     ],
     [personality, lang],
   );
   return (
-    <Section title={t("Big5 (osobowość)", "Big5 personality")} icon={<Sparkles className="h-3.5 w-3.5" />}>
+    <Section
+      title={t("Big5 (osobowość)", "Big5 personality")}
+      icon={<Sparkles className="h-3.5 w-3.5" />}
+    >
       <ul className="space-y-1">
         {traits.map((tr) => (
           <li key={tr.key} className="text-[11px]">

@@ -111,10 +111,7 @@ export const Route = createFileRoute("/admin/companies/$id")({
     return tab ? { tab } : {};
   },
   head: () => ({
-    meta: [
-      { title: "Firma | CRM | Admin" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Firma | CRM | Admin" }, { name: "robots", content: "noindex" }],
   }),
   errorComponent: ({ error }) => (
     <div className="mx-auto max-w-3xl p-6 text-sm text-destructive" role="alert">
@@ -122,9 +119,7 @@ export const Route = createFileRoute("/admin/companies/$id")({
     </div>
   ),
   notFoundComponent: () => (
-    <div className="mx-auto max-w-3xl p-6 text-sm text-muted-foreground">
-      Nie znaleziono firmy.
-    </div>
+    <div className="mx-auto max-w-3xl p-6 text-sm text-muted-foreground">Nie znaleziono firmy.</div>
   ),
   component: AdminCompanyDetailPage,
 });
@@ -284,7 +279,12 @@ function AdminCompanyDetailPage() {
         <span className="truncate text-foreground">{c.name}</span>
         <div className="ml-auto flex items-center gap-2">
           {!editing ? (
-            <Button size="sm" variant="outline" onClick={startEdit} className="h-8 gap-1.5 text-[12px]">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={startEdit}
+              className="h-8 gap-1.5 text-[12px]"
+            >
               <Pencil className="h-3.5 w-3.5" aria-hidden />
               {t("Edytuj", "Edit")}
             </Button>
@@ -384,49 +384,37 @@ function AdminCompanyDetailPage() {
                   <Field label={t("Domena", "Domain")}>
                     <Input
                       value={form.domain ?? ""}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, domain: e.target.value || null }))
-                      }
+                      onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value || null }))}
                     />
                   </Field>
                   <Field label={t("WWW", "Website")}>
                     <Input
                       value={form.website ?? ""}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, website: e.target.value || null }))
-                      }
+                      onChange={(e) => setForm((f) => ({ ...f, website: e.target.value || null }))}
                     />
                   </Field>
                   <Field label={t("Branża", "Industry")}>
                     <Input
                       value={form.branch ?? ""}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, branch: e.target.value || null }))
-                      }
+                      onChange={(e) => setForm((f) => ({ ...f, branch: e.target.value || null }))}
                     />
                   </Field>
                   <Field label={t("Kraj", "Country")}>
                     <Input
                       value={form.country ?? ""}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, country: e.target.value || null }))
-                      }
+                      onChange={(e) => setForm((f) => ({ ...f, country: e.target.value || null }))}
                     />
                   </Field>
                   <Field label={t("Miasto", "City")}>
                     <Input
                       value={form.city ?? ""}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, city: e.target.value || null }))
-                      }
+                      onChange={(e) => setForm((f) => ({ ...f, city: e.target.value || null }))}
                     />
                   </Field>
                   <Field label={t("Adres", "Address")}>
                     <Input
                       value={form.address ?? ""}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, address: e.target.value || null }))
-                      }
+                      onChange={(e) => setForm((f) => ({ ...f, address: e.target.value || null }))}
                     />
                   </Field>
                   <Field label={t("Kod pocztowy", "Postal code")}>
@@ -440,9 +428,7 @@ function AdminCompanyDetailPage() {
                   <Field label={t("Telefon", "Phone")}>
                     <Input
                       value={form.phone ?? ""}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, phone: e.target.value || null }))
-                      }
+                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value || null }))}
                     />
                   </Field>
                 </div>
@@ -478,10 +464,7 @@ function AdminCompanyDetailPage() {
                     label={t("Telefon", "Phone")}
                     value={
                       c.phone ? (
-                        <a
-                          href={`tel:${c.phone}`}
-                          className="text-primary hover:underline"
-                        >
+                        <a href={`tel:${c.phone}`} className="text-primary hover:underline">
                           {c.phone}
                         </a>
                       ) : null
@@ -573,8 +556,7 @@ function AdminCompanyDetailPage() {
                 ) : (
                   <ul className="divide-y">
                     {leads.slice(0, 8).map((l) => {
-                      const name =
-                        [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email;
+                      const name = [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email;
                       return (
                         <li key={l.id}>
                           <button
@@ -617,9 +599,7 @@ function AdminCompanyDetailPage() {
           {tab === "activity" && (
             <div className="space-y-3">
               <section className="rounded-md border bg-card p-3">
-                <h3 className="mb-2 text-[12px] font-medium">
-                  {t("Dodaj notatkę", "Add note")}
-                </h3>
+                <h3 className="mb-2 text-[12px] font-medium">{t("Dodaj notatkę", "Add note")}</h3>
                 <Textarea
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
@@ -640,9 +620,7 @@ function AdminCompanyDetailPage() {
                 </div>
               </section>
               <section className="rounded-md border bg-card p-3">
-                <h3 className="mb-2 text-[12px] font-medium">
-                  {t("Historia", "History")}
-                </h3>
+                <h3 className="mb-2 text-[12px] font-medium">{t("Historia", "History")}</h3>
                 {activityQuery.isLoading ? (
                   <div className="text-[12px] text-muted-foreground">
                     {t("Ładowanie…", "Loading…")}
@@ -693,9 +671,7 @@ function AdminCompanyDetailPage() {
                 )}
               </section>
               <section className="rounded-md border bg-card p-4">
-                <h3 className="mb-3 text-[12px] font-medium">
-                  {t("Score band", "Score band")}
-                </h3>
+                <h3 className="mb-3 text-[12px] font-medium">{t("Score band", "Score band")}</h3>
                 {bandAgg.size === 0 ? (
                   <p className="text-[12px] text-muted-foreground">
                     {t("Brak danych.", "No data.")}
@@ -748,11 +724,7 @@ function AdminCompanyDetailPage() {
                     <li key={p.id} className="flex items-center gap-2 px-2.5 py-2">
                       <div className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded bg-muted text-[10px] font-medium">
                         {p.avatar_url ? (
-                          <img
-                            src={p.avatar_url}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
+                          <img src={p.avatar_url} alt="" className="h-full w-full object-cover" />
                         ) : (
                           name.slice(0, 2).toUpperCase()
                         )}
@@ -791,8 +763,7 @@ function AdminCompanyDetailPage() {
             ) : (
               <ul className="divide-y">
                 {leads.slice(0, 6).map((l) => {
-                  const name =
-                    [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email;
+                  const name = [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email;
                   return (
                     <li key={l.id} className="flex items-center gap-2 px-2.5 py-2">
                       <div className="min-w-0 flex-1">
@@ -928,7 +899,12 @@ function EditableCompanyLogo({
 
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <CompanyLogo name={company.name} domain={company.domain} logoUrl={company.logo_url} size={size} />
+      <CompanyLogo
+        name={company.name}
+        domain={company.domain}
+        logoUrl={company.logo_url}
+        size={size}
+      />
       <input
         ref={inputRef}
         type="file"
@@ -1009,9 +985,7 @@ function TabBtn({
     >
       {icon}
       {label}
-      {active && (
-        <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
-      )}
+      {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
     </button>
   );
 }
@@ -1048,9 +1022,7 @@ function PropRow({
   const empty = value === null || value === undefined || value === "";
   return (
     <div className="group grid grid-cols-[100px_1fr_auto] items-start gap-2">
-      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground pt-0.5">
-        {label}
-      </dt>
+      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground pt-0.5">{label}</dt>
       <dd className="text-[12px]">
         {empty ? <span className="text-muted-foreground/60">-</span> : value}
       </dd>

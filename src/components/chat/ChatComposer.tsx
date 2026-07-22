@@ -11,7 +11,6 @@ import {
   Pencil,
   SendHorizontal,
   Smile,
-  
   Trash2,
   X,
   Image as ImageIcon,

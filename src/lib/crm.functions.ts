@@ -177,7 +177,9 @@ export const getCrmLead = createServerFn({ method: "POST" })
       profile_avatar_url = null;
     }
 
-    return { json: j({ lead, messages, subscriptions: subs, consents, notes, profile_avatar_url }) };
+    return {
+      json: j({ lead, messages, subscriptions: subs, consents, notes, profile_avatar_url }),
+    };
   });
 
 const UpdateInput = z.object({
@@ -279,9 +281,7 @@ export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
         .limit(100),
       admin
         .from("personality_results")
-        .select(
-          "openness, conscientiousness, extraversion, agreeableness, neuroticism, taken_at",
-        )
+        .select("openness, conscientiousness, extraversion, agreeableness, neuroticism, taken_at")
         .eq("user_id", userId)
         .maybeSingle(),
       admin
@@ -1053,24 +1053,18 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((d) => BulkUpdateInput.parse(d))
   .handler(async ({ data, context }) => {
-    const {
-      ids,
-      add_tags: addTags,
-      remove_tags: removeTags,
-      owner_id: ownerId,
-      ...rest
-    } = data;
+    const { ids, add_tags: addTags, remove_tags: removeTags, owner_id: ownerId, ...rest } = data;
 
     const flatPatch: Record<string, unknown> = { ...rest };
     if (typeof ownerId !== "undefined") flatPatch.owner_id = ownerId;
     let touched = 0;
 
     if (Object.keys(flatPatch).length > 0) {
-      const res = await (
-        tbl(context, "crm_leads").update(flatPatch).in("id", ids) as unknown as Promise<{
-          error: { message: string } | null;
-        }>
-      );
+      const res = await (tbl(context, "crm_leads")
+        .update(flatPatch)
+        .in("id", ids) as unknown as Promise<{
+        error: { message: string } | null;
+      }>);
       if (res.error) throw new Error(res.error.message);
       touched = ids.length;
     }
@@ -1143,9 +1137,9 @@ export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
     ]);
     if (!isAdmin && !isSuper) throw new Error("forbidden");
 
-    const res = await (tbl(context, "crm_leads")
-      .delete()
-      .in("id", data.ids) as unknown as Promise<{ error: { message: string } | null }>);
+    const res = await (tbl(context, "crm_leads").delete().in("id", data.ids) as unknown as Promise<{
+      error: { message: string } | null;
+    }>);
     if (res.error) throw new Error(res.error.message);
     try {
       await tbl(context, "audit_log").insert({
@@ -1174,7 +1168,10 @@ export const listStaffUsers = createServerFn({ method: "GET" })
       from: (t: string) => {
         select: (s: string) => {
           in: (c: string, v: unknown[]) => Promise<{ data: unknown }>;
-          eq: (c: string, v: unknown) => {
+          eq: (
+            c: string,
+            v: unknown,
+          ) => {
             in: (c: string, v: unknown[]) => Promise<{ data: unknown }>;
           };
         };

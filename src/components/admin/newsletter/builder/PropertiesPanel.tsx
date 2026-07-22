@@ -90,7 +90,9 @@ function ImageUrlField({
     }
     setUploading(true);
     try {
-      const { data: userData } = await supabase.auth.getSession().then(r => ({ data: { user: r.data.session?.user ?? null } }));
+      const { data: userData } = await supabase.auth
+        .getSession()
+        .then((r) => ({ data: { user: r.data.session?.user ?? null } }));
       const uid = userData.user?.id ?? "anon";
       const ext = (file.name.split(".").pop() ?? "png").toLowerCase().replace(/[^a-z0-9]/g, "");
       const path = `${tenantId}/${uid}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;

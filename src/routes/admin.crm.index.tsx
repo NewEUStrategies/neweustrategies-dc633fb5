@@ -11,12 +11,9 @@ import {
   listCrmLeads,
   getCrmLead,
   updateCrmLead,
-  addCrmNote,
-  deleteCrmNote,
   exportCrmLeadsCsv,
   getCrmIntegrations,
   upsertCrmIntegrations,
-  pushLeadToMerydian,
   getCrmLeadTimeline,
   exportCrmLeadTimelineCsv,
   bulkUpdateCrmLeads,
@@ -25,11 +22,7 @@ import {
 import { dispatchIntegrationDeliveries } from "@/lib/integrations/dispatch.functions";
 import { BulkActionBar } from "@/components/molecules/BulkActionBar";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +34,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { newIdempotencyKey } from "@/lib/http/idempotency";
+import { useLeadNoteMutations, useMerydianPush } from "@/lib/crm/leadMutations";
 import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
 import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";
 import { PresenceIndicator } from "@/components/molecules/PresenceIndicator";
@@ -105,7 +98,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
-
 
 interface CrmSearch {
   /** Deep-link z notyfikacji/powiązań: /admin/crm?lead=<id>&task=<id>. */
@@ -611,11 +603,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const leadEmails = useMemo(
     () =>
       Array.from(
-        new Set(
-          leads
-            .map((l) => l.email?.toLowerCase().trim())
-            .filter((e): e is string => !!e),
-        ),
+        new Set(leads.map((l) => l.email?.toLowerCase().trim()).filter((e): e is string => !!e)),
       ),
     [leads],
   );
@@ -631,11 +619,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         const { data } = await supabase
           .from("profiles")
           .select("email, contact_email, avatar_url")
-          .or(
-            chunk
-              .map((e) => `email.eq.${e},contact_email.eq.${e}`)
-              .join(","),
-          );
+          .or(chunk.map((e) => `email.eq.${e},contact_email.eq.${e}`).join(","));
         for (const row of (data ?? []) as Array<{
           email: string | null;
           contact_email: string | null;
@@ -658,7 +642,14 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
       <div className="flex items-center gap-1 border-b overflow-x-auto scrollbar-thin">
         {BUILTIN_LEAD_VIEWS.map((v) => {
           const active = activeViewId === v.id;
-          const Icon = v.id === "hot" ? Flame : v.id === "new_7d" ? Sparkles : v.id === "my_owned" ? UserCog : UsersIcon;
+          const Icon =
+            v.id === "hot"
+              ? Flame
+              : v.id === "new_7d"
+                ? Sparkles
+                : v.id === "my_owned"
+                  ? UserCog
+                  : UsersIcon;
           return (
             <button
               key={v.id}
@@ -670,7 +661,9 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             >
               <Icon className="h-3.5 w-3.5" aria-hidden />
               {lang === "pl" ? v.labelPl : v.labelEn}
-              {active && (<span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />)}
+              {active && (
+                <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
+              )}
             </button>
           );
         })}
@@ -782,7 +775,6 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         </div>
       </div>
 
-
       <FollowUpsPanel
         lang={lang}
         onOpenLead={(leadId, taskId) => {
@@ -839,14 +831,11 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                     {(() => {
                       const key = l.email?.toLowerCase().trim() ?? "";
                       const url = key ? avatarByEmail.get(key) : undefined;
-                      const name =
-                        [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email;
+                      const name = [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email;
                       const initials =
                         (l.first_name?.[0] ?? "") + (l.last_name?.[0] ?? "") ||
                         (l.email?.[0] ?? "?").toUpperCase();
-                      return (
-                        <FaceAwareAvatar url={url} name={name} initials={initials} />
-                      );
+                      return <FaceAwareAvatar url={url} name={name} initials={initials} />;
                     })()}
                     <div className="min-w-0">
                       <div className="font-medium truncate">
@@ -889,7 +878,6 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                 </td>
               </tr>
             ))}
-
           </tbody>
         </table>
       </div>
@@ -956,8 +944,16 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
               }}
               className="space-y-2"
             >
-              <Input name="add" placeholder={lang === "pl" ? "Dodaj" : "Add"} className="h-8 text-[12px]" />
-              <Input name="remove" placeholder={lang === "pl" ? "Usuń" : "Remove"} className="h-8 text-[12px]" />
+              <Input
+                name="add"
+                placeholder={lang === "pl" ? "Dodaj" : "Add"}
+                className="h-8 text-[12px]"
+              />
+              <Input
+                name="remove"
+                placeholder={lang === "pl" ? "Usuń" : "Remove"}
+                className="h-8 text-[12px]"
+              />
               <Button type="submit" size="sm" className="h-7 w-full text-[11px]">
                 {lang === "pl" ? "Zastosuj" : "Apply"}
               </Button>
@@ -1074,36 +1070,15 @@ function LeadDrawer({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const noteMut = useMutation({
-    // Klucz idempotencji per akcja: retry HTTP / replay nie zdubluje notatki
-    // (command_idempotency w DB zwróci zapamiętany wynik zamiast insertu).
-    mutationFn: async (body: string) =>
-      addCrmNote({
-        data: { lead_id: leadId!, body, idempotency_key: newIdempotencyKey("crm.add_note") },
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["crm-lead", leadId] });
-      setNote("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const noteDelMut = useMutation({
-    mutationFn: async (id: string) => deleteCrmNote({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["crm-lead", leadId] }),
-  });
-
-  const pushMut = useMutation({
-    mutationFn: async () => pushLeadToMerydian({ data: { lead_id: leadId! } }),
-    onSuccess: (r: unknown) => {
-      const x = r as { ok: boolean; error?: string; via?: string };
-      if (x.ok) toast.success(`Merydian: ${x.via}`);
-      else toast.error(`Merydian: ${x.error}`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const [note, setNote] = useState("");
+  // Wspólna warstwa logiki mutacji (współdzielona z pełną kartą /admin/crm/$id):
+  // notatki (dodaj z idempotencją / usuń) + push Merydian. Drawer zachowuje
+  // swoje zachowanie - dodanie notatki tu NIE toastuje, tylko czyści pole.
+  const { addNote: noteMut, deleteNote: noteDelMut } = useLeadNoteMutations(leadId ?? "", {
+    onAdded: () => setNote(""),
+  });
+  const pushMut = useMerydianPush(leadId ?? "");
+
   const lead = detail.data?.lead;
 
   return (
@@ -1122,9 +1097,7 @@ function LeadDrawer({
           {/* Sticky header */}
           <SheetHeader className="space-y-3 border-b p-4">
             {!lead ? (
-              <SheetTitle className="text-sm text-muted-foreground">
-                {L.detail.title}
-              </SheetTitle>
+              <SheetTitle className="text-sm text-muted-foreground">{L.detail.title}</SheetTitle>
             ) : (
               <>
                 <div className="flex items-start gap-3">
@@ -1132,7 +1105,7 @@ function LeadDrawer({
                     const name =
                       [lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email;
                     const inits =
-                      ((lead.first_name?.[0] ?? "") + (lead.last_name?.[0] ?? "")) ||
+                      (lead.first_name?.[0] ?? "") + (lead.last_name?.[0] ?? "") ||
                       (lead.email?.[0] ?? "?").toUpperCase();
                     return (
                       <Avatar className="h-11 w-11 shrink-0 rounded-full border border-border/60">
@@ -1159,11 +1132,7 @@ function LeadDrawer({
                       />
                     </SheetDescription>
                   </div>
-                  <PresenceIndicator
-                    entityType="crm_lead"
-                    entityId={leadId}
-                    className="shrink-0"
-                  />
+                  <PresenceIndicator entityType="crm_lead" entityId={leadId} className="shrink-0" />
                 </div>
 
                 {/* Quick stats */}
@@ -1255,9 +1224,7 @@ function LeadDrawer({
 
                   <TabsContent value="consents" className="mt-0 space-y-2">
                     {detail.data!.consents.length === 0 && (
-                      <p className="text-[12px] text-muted-foreground">
-                        {L.detail.consentEmpty}
-                      </p>
+                      <p className="text-[12px] text-muted-foreground">{L.detail.consentEmpty}</p>
                     )}
                     {detail.data!.consents.map((c) => (
                       <div key={c.id} className="rounded border p-2 space-y-1">
@@ -1295,9 +1262,7 @@ function LeadDrawer({
                   <TabsContent value="history" className="mt-0 space-y-2">
                     {detail.data!.messages.length === 0 &&
                       detail.data!.subscriptions.length === 0 && (
-                        <p className="text-[12px] text-muted-foreground">
-                          {L.detail.historyEmpty}
-                        </p>
+                        <p className="text-[12px] text-muted-foreground">{L.detail.historyEmpty}</p>
                       )}
                     {detail.data!.messages.map((m) => (
                       <div key={m.id} className="rounded border p-2 text-[12px]">
@@ -1325,9 +1290,7 @@ function LeadDrawer({
                             {s.status}
                           </Badge>
                           {s.source_form_name && (
-                            <span className="text-muted-foreground">
-                              - {s.source_form_name}
-                            </span>
+                            <span className="text-muted-foreground">- {s.source_form_name}</span>
                           )}
                           <span className="ml-auto text-[11px] text-muted-foreground">
                             {new Date(s.created_at).toLocaleString()}
@@ -1358,9 +1321,7 @@ function LeadDrawer({
                     </div>
                     <div className="space-y-1 pt-1">
                       {detail.data!.notes.length === 0 && (
-                        <p className="text-[12px] text-muted-foreground">
-                          {L.detail.noteEmpty}
-                        </p>
+                        <p className="text-[12px] text-muted-foreground">{L.detail.noteEmpty}</p>
                       )}
                       {detail.data!.notes.map((n) => (
                         <div
@@ -1387,11 +1348,7 @@ function LeadDrawer({
 
                   <TabsContent value="integ" className="mt-0 space-y-2">
                     <p className="text-[12px] text-muted-foreground">{L.integ.docs}</p>
-                    <Button
-                      size="sm"
-                      onClick={() => pushMut.mutate()}
-                      disabled={pushMut.isPending}
-                    >
+                    <Button size="sm" onClick={() => pushMut.mutate()} disabled={pushMut.isPending}>
                       <Send className="w-3.5 h-3.5 mr-1" aria-hidden />
                       {L.detail.push}
                     </Button>

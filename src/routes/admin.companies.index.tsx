@@ -16,11 +16,7 @@ import {
   bulkDeleteCrmCompanies,
 } from "@/lib/crm-companies.functions";
 import { BulkActionBar } from "@/components/molecules/BulkActionBar";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,12 +28,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  listSavedViews,
-  upsertSavedView,
-  deleteSavedView,
-} from "@/lib/crm-saved-views.functions";
+import { listSavedViews, upsertSavedView, deleteSavedView } from "@/lib/crm-saved-views.functions";
 
+import { NewCompanyDialog } from "@/components/admin/crm/NewCompanyDialog";
 import { CompanyViewTabs, type SavedViewRow } from "@/components/admin/crm/CompanyViewTabs";
 import { CompanyColumnManager } from "@/components/admin/crm/CompanyColumnManager";
 import { CompanyFilterChips } from "@/components/admin/crm/CompanyFilterChips";
@@ -93,17 +86,15 @@ type CompanyRow = {
 
 export const Route = createFileRoute("/admin/companies/")({
   head: () => ({
-    meta: [
-      { title: "Firmy CRM | Admin" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Firmy CRM | Admin" }, { name: "robots", content: "noindex" }],
   }),
   validateSearch: (search: Record<string, unknown>): { company?: string; view?: string } => {
     const company =
       typeof search.company === "string" && /^[0-9a-f-]{36}$/i.test(search.company)
         ? search.company
         : undefined;
-    const view = typeof search.view === "string" && search.view.length < 80 ? search.view : undefined;
+    const view =
+      typeof search.view === "string" && search.view.length < 80 ? search.view : undefined;
     const out: { company?: string; view?: string } = {};
     if (company) out.company = company;
     if (view) out.view = view;
@@ -159,7 +150,11 @@ function LogoCell({ name, domain }: { name: string; domain: string | null }) {
   return (
     <div
       className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md text-[11px] font-semibold ring-1"
-      style={{ background: accent.background, color: accent.color, boxShadow: `0 0 0 1px ${accent.ring}` }}
+      style={{
+        background: accent.background,
+        color: accent.color,
+        boxShadow: `0 0 0 1px ${accent.ring}`,
+      }}
       aria-hidden
     >
       {src && imgOk ? (
@@ -184,7 +179,6 @@ function AdminCompaniesPage() {
   const { view: urlView } = Route.useSearch();
   const navigate = Route.useNavigate();
   const qc = useQueryClient();
-
 
   const listFn = useServerFn(listCrmCompanies);
   const listSavedFn = useServerFn(listSavedViews);
@@ -356,8 +350,7 @@ function AdminCompaniesPage() {
   }, [rows]);
 
   const setFilter = (f: CompanyFilter) => setConfig((c) => ({ ...c, filter: f }));
-  const setColumns = (cols: CompanyColumnKey[]) =>
-    setConfig((c) => ({ ...c, columns: cols }));
+  const setColumns = (cols: CompanyColumnKey[]) => setConfig((c) => ({ ...c, columns: cols }));
 
   const toggleSort = (key: CompanySort["key"]) => {
     setConfig((c) => {
@@ -389,7 +382,9 @@ function AdminCompaniesPage() {
     a.download = `companies-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(t(`Wyeksportowano ${filtered.length} firm`, `Exported ${filtered.length} companies`));
+    toast.success(
+      t(`Wyeksportowano ${filtered.length} firm`, `Exported ${filtered.length} companies`),
+    );
   };
 
   const visibleCols = COMPANY_COLUMNS.filter((c) => config.columns.includes(c.key));
@@ -429,10 +424,10 @@ function AdminCompaniesPage() {
             <Download className="h-3.5 w-3.5" aria-hidden />
             {t("Eksport CSV", "Export CSV")}
           </Button>
-          <Button size="sm" className="h-8 gap-1.5 text-[12px]" disabled>
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            {t("Nowa firma", "New company")}
-          </Button>
+          <NewCompanyDialog
+            lang={lang}
+            onCreated={(id) => void navigate({ to: "/admin/companies/$id", params: { id } })}
+          />
         </div>
       </header>
 
@@ -555,9 +550,7 @@ function AdminCompaniesPage() {
                     dir={config.sort.dir}
                     align={c.align}
                     sortable={c.sortable}
-                    onClick={() =>
-                      c.sortable && toggleSort(c.key as CompanySort["key"])
-                    }
+                    onClick={() => c.sortable && toggleSort(c.key as CompanySort["key"])}
                   />
                 ))}
                 <th className="w-8" />
@@ -612,19 +605,18 @@ function AdminCompaniesPage() {
                         <td
                           key={col.key}
                           className={`px-3 py-2.5 ${
-                            col.align === "right"
-                              ? "text-right tabular-nums"
-                              : "text-left"
+                            col.align === "right" ? "text-right tabular-nums" : "text-left"
                           }`}
-                          onClick={col.key === "website" || col.key === "phone" ? (e) => e.stopPropagation() : undefined}
+                          onClick={
+                            col.key === "website" || col.key === "phone"
+                              ? (e) => e.stopPropagation()
+                              : undefined
+                          }
                         >
                           <Cell row={c} col={col.key} lang={lang} />
                         </td>
                       ))}
-                      <td
-                        className="px-3 py-2.5 text-right"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                      <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                         <Link
                           to="/admin/companies/$id"
                           params={{ id: c.id }}
@@ -722,16 +714,7 @@ function AdminCompaniesPage() {
   );
 }
 
-
-function Cell({
-  row,
-  col,
-  lang,
-}: {
-  row: CompanyRow;
-  col: CompanyColumnKey;
-  lang: "pl" | "en";
-}) {
+function Cell({ row, col, lang }: { row: CompanyRow; col: CompanyColumnKey; lang: "pl" | "en" }) {
   switch (col) {
     case "name":
       return (

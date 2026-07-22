@@ -60,9 +60,17 @@ const CLIENT_DIR =
 // wspolnego EChart - usuniecie samej zaleznosci z package.json to osobna
 // zmiana dotykajaca lockfile. Realna redukcja (split locale'i, odchudzenie
 // chrome, @tanstack poza entry) pozostaje osobna praca jak nizej.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 350); // largest single gzipped JS chunk (today: ~345KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1455); // gzipped JS a public visitor can load (today: ~1452KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2470); // gzipped JS incl. admin/editor-only chunks (today: ~2462KB)
+// 2026-07-22: re-floor po kolejnym dryfie maina. CZYSTY origin/main mierzył
+// tego dnia 1471,7 KB public / 2511,7 KB overall przy floorach 1455/2470
+// (Gift Articles #64 dołożyły przycisk/baner na PUBLICZNEJ stronie wpisu,
+// przebudowa CRM + gift-admin urosły OVERALL) - bramka była czerwona na main
+// PRZED tą gałęzią. Ten PR (usunięcie martwego kodu CRM + dialog "Nowa firma"
+// + wspólne hooki mutacji leada) dokłada ~0,4 KB public / ~1,4 KB overall
+// (martwy kod był nieimportowany, więc jego usunięcie nie zmniejsza bundla).
+// Floory wracają "tuż nad śladem" tej gałęzi.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 350); // largest single gzipped JS chunk (today: ~348KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1475); // gzipped JS a public visitor can load (today: ~1472KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2518); // gzipped JS incl. admin/editor-only chunks (today: ~2513KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

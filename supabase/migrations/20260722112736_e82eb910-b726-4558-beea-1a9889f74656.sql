@@ -376,3 +376,29 @@ END $$;
 
 REVOKE ALL ON FUNCTION public.redeem_gift_link(uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.redeem_gift_link(uuid, text) TO anon, authenticated, service_role;
+-- -----------------------------------------------------------------------------
+-- Dokumentacja funkcji (pg_description). Skonsolidowana z migracji-duplikatu
+-- 20260722120000_gift_articles.sql, ktora ponownie tworzyla te same obiekty
+-- wylacznie po to, by dodac ponizsze komentarze. Duplikat usunieto - ta
+-- migracja jest jedynym, kanonicznym zrodlem obiektow Gift Articles (poprawnie
+-- poprzedza 20260722113410, ktora dokłada trigger audytu na post_gift_links).
+-- -----------------------------------------------------------------------------
+COMMENT ON FUNCTION public.can_gift_articles() IS
+  'true, gdy biezacy uzytkownik (auth.uid()) ma aktywna platna subskrypcje '
+  'w tenancie hosta lub warstwe z features.premium_content - warunek '
+  'generowania linkow podarunkowych. Anonim zawsze false.';
+
+COMMENT ON FUNCTION public.gift_article_state(uuid) IS
+  'Stan gifting dla UI popovera: enabled/can_gift/limity + istniejacy kod '
+  'linku dla wpisu. Czysty odczyt - nic nie tworzy i nie konsumuje limitu.';
+
+COMMENT ON FUNCTION public.create_gift_link(uuid) IS
+  'Get-or-create linku podarunkowego dla wpisu. Wymaga auth + platnej '
+  'subskrypcji (can_gift_articles). Idempotentne per (wpis, darczynca); '
+  'wygasle linki rotuje. Bledy: gift_auth_required / gift_disabled / '
+  'gift_subscription_required / gift_post_not_found / gift_limit_reached.';
+
+COMMENT ON FUNCTION public.redeem_gift_link(uuid, text) IS
+  'Odblokowanie tresci wpisu waznym kodem podarunkowym (dla kazdego, takze '
+  'anon). Zwraca valid=false bez body dla kodu nieznanego / cudzego wpisu / '
+  'wygaslego / cofnietego. Zwieksza redemption_count (poza darczynca).';
