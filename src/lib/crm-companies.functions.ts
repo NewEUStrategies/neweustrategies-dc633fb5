@@ -78,8 +78,9 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
     const ids = list.map((r) => r.id);
 
     // Aggregacja leadów i profili po stronie serwera (jednorazowe pobrania).
-    let leadsAgg: Record<string, { total: number; lastActivity: string | null }> = {};
-    let contactsAgg: Record<string, number> = {};
+    // const: mapy są mutowane indeksowo (agg[key] = ...), nigdy nie reassignowane.
+    const leadsAgg: Record<string, { total: number; lastActivity: string | null }> = {};
+    const contactsAgg: Record<string, number> = {};
     if (ids.length > 0) {
       const { data: leadRows } = (await tbl(context, "crm_leads")
         .select("company_id, last_activity_at")
@@ -116,7 +117,6 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
     }));
     return { json: j(enriched) };
   });
-
 
 const IdInput = z.object({ id: z.string().uuid() });
 
@@ -198,6 +198,90 @@ export const updateCrmCompany = createServerFn({ method: "POST" })
       /* noop - audyt nie może blokować sukcesu mutacji */
     }
     return { ok: true };
+  });
+
+// ---- Tworzenie firmy ----------------------------------------------------
+// `crm_companies.tenant_id` jest NOT NULL bez defaultu, a polityka INSERT
+// wymaga `tenant_id = current_tenant_id() AND created_by = auth.uid()`, więc
+// oba pola rozwiązujemy SERWEROWO (tenant z profilu staffu, autor z sesji) -
+// klient nie ustawia tenanta. Puste stringi z formularza normalizujemy do NULL.
+const CreateCompanyInput = z.object({
+  name: z.string().trim().min(1).max(200),
+  domain: z.string().trim().max(200).optional(),
+  country: z.string().trim().max(120).optional(),
+  branch: z.string().trim().max(200).optional(),
+  city: z.string().trim().max(120).optional(),
+  address: z.string().trim().max(300).optional(),
+  postal_code: z.string().trim().max(20).optional(),
+  website: z.string().trim().max(300).optional(),
+  phone: z.string().trim().max(60).optional(),
+});
+
+const nullIfEmpty = (v: string | undefined): string | null => {
+  const s = (v ?? "").trim();
+  return s.length > 0 ? s : null;
+};
+
+export const createCrmCompany = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => CreateCompanyInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const userId = (context as { userId: string }).userId;
+    // Tenant z profilu bieżącego staffu (requireStaff nie przekazuje go dalej).
+    const { data: profile, error: profileError } = await tbl(context, "profiles")
+      .select("tenant_id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profileError) throw new Error(profileError.message);
+    const tenantId = (profile as { tenant_id?: string } | null)?.tenant_id;
+    if (!tenantId) throw new Error("tenant_unresolved");
+
+    const supa = context.supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: unknown) => {
+          select: (s: string) => {
+            single: () => Promise<{
+              data: { id: string } | null;
+              error: { message: string; code?: string } | null;
+            }>;
+          };
+        };
+      };
+    };
+    const { data: row, error } = await supa
+      .from("crm_companies")
+      .insert({
+        tenant_id: tenantId,
+        created_by: userId,
+        name: data.name,
+        domain: nullIfEmpty(data.domain),
+        country: nullIfEmpty(data.country),
+        branch: nullIfEmpty(data.branch),
+        city: nullIfEmpty(data.city),
+        address: nullIfEmpty(data.address),
+        postal_code: nullIfEmpty(data.postal_code),
+        website: nullIfEmpty(data.website),
+        phone: nullIfEmpty(data.phone),
+      })
+      .select("id")
+      .single();
+    if (error) {
+      // Unikat (tenant_id, name_norm) - firma o tej nazwie już istnieje.
+      if (error.code === "23505") throw new Error("duplicate_name");
+      throw new Error(error.message);
+    }
+    try {
+      await write(context, "audit_log").insert({
+        actor_id: userId,
+        action: "crm.company.create",
+        entity_type: "crm_company",
+        entity_id: row?.id ?? null,
+        metadata: { name: data.name },
+      } as unknown as never);
+    } catch {
+      /* noop - audyt nie może blokować sukcesu mutacji */
+    }
+    return { ok: true, id: row?.id ?? null };
   });
 
 // ---- Dodawanie kontaktu (lead) powiązanego z firmą ----------------------
@@ -360,9 +444,8 @@ export const getCrmCompanyActivity = createServerFn({ method: "POST" })
         created_at: String(a.created_at ?? ""),
         actor_id: (a.actor_id as string | null) ?? null,
         lead_id: entityType === "crm_lead" ? entityId : null,
-        lead_label:
-          entityType === "crm_lead" && entityId ? leadLabel[entityId] ?? null : null,
-        body: isCompanyNote ? (meta?.body as string | null) ?? null : undefined,
+        lead_label: entityType === "crm_lead" && entityId ? (leadLabel[entityId] ?? null) : null,
+        body: isCompanyNote ? ((meta?.body as string | null) ?? null) : undefined,
         metadata: meta,
       });
     }
@@ -375,7 +458,7 @@ export const getCrmCompanyActivity = createServerFn({ method: "POST" })
         created_at: String(n.created_at ?? ""),
         actor_id: (n.author_id as string | null) ?? null,
         lead_id: leadId,
-        lead_label: leadId ? leadLabel[leadId] ?? null : null,
+        lead_label: leadId ? (leadLabel[leadId] ?? null) : null,
         body: (n.body as string | null) ?? null,
       });
     }
@@ -408,11 +491,11 @@ export const bulkUpdateCrmCompanies = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { ids, ...patch } = data;
     if (Object.keys(patch).length === 0) return { ok: true, updated: 0 };
-    const res = await (
-      tbl(context, "crm_companies").update(patch).in("id", ids) as unknown as Promise<{
-        error: { message: string } | null;
-      }>
-    );
+    const res = await (tbl(context, "crm_companies")
+      .update(patch)
+      .in("id", ids) as unknown as Promise<{
+      error: { message: string } | null;
+    }>);
     if (res.error) throw new Error(res.error.message);
     try {
       await write(context, "audit_log").insert({

@@ -30,15 +30,8 @@ import {
   Tag,
 } from "lucide-react";
 
-import {
-  getCrmLead,
-  updateCrmLead,
-  addCrmNote,
-  deleteCrmNote,
-  getCrmLeadTimeline,
-  pushLeadToMerydian,
-} from "@/lib/crm.functions";
-import { newIdempotencyKey } from "@/lib/http/idempotency";
+import { getCrmLead, updateCrmLead, getCrmLeadTimeline } from "@/lib/crm.functions";
+import { useLeadNoteMutations, useMerydianPush } from "@/lib/crm/leadMutations";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
@@ -135,7 +128,9 @@ const STAGE_STYLE: Record<Stage, string> = {
 const STAGES: Stage[] = ["new", "contacted", "qualified", "proposal", "won", "lost", "archived"];
 
 export const Route = createFileRoute("/admin/crm/$id")({
-  head: () => ({ meta: [{ title: "CRM: kontakt | Admin" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({
+    meta: [{ title: "CRM: kontakt | Admin" }, { name: "robots", content: "noindex" }],
+  }),
   component: AdminCrmDetailPage,
 });
 
@@ -179,33 +174,16 @@ function AdminCrmDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const noteMut = useMutation({
-    mutationFn: async (body: string) =>
-      addCrmNote({
-        data: { lead_id: id, body, idempotency_key: newIdempotencyKey("crm.add_note") },
-      }),
-    onSuccess: () => {
+  // Wspólna warstwa logiki mutacji (współdzielona z drawerem quick-view na
+  // liście CRM): notatki (idempotencja + inwalidacja) + push Merydian. Karta
+  // zachowuje swoje zachowanie - dodanie notatki toastuje i czyści szkic.
+  const { addNote: noteMut, deleteNote: noteDelMut } = useLeadNoteMutations(id, {
+    onAdded: () => {
       toast.success(t("Notatka dodana", "Note added"));
       setNoteDraft("");
-      qc.invalidateQueries({ queryKey: ["crm-lead", id] });
     },
-    onError: (e: Error) => toast.error(e.message),
   });
-
-  const noteDelMut = useMutation({
-    mutationFn: async (nid: string) => deleteCrmNote({ data: { id: nid } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["crm-lead", id] }),
-  });
-
-  const pushMut = useMutation({
-    mutationFn: async () => pushLeadToMerydian({ data: { lead_id: id } }),
-    onSuccess: (r: unknown) => {
-      const x = r as { ok: boolean; error?: string; via?: string };
-      if (x.ok) toast.success(`Merydian: ${x.via}`);
-      else toast.error(`Merydian: ${x.error}`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const pushMut = useMerydianPush(id);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Lead>>({});
@@ -241,8 +219,19 @@ function AdminCrmDetailPage() {
   };
   const saveEdit = () => {
     const patch: Record<string, unknown> = {};
-    (["first_name", "last_name", "phone", "company", "position", "country", "linkedin_url"] as const).forEach((k) => {
-      if (form[k] !== undefined && form[k] !== (lead ? lead[k] : undefined)) patch[k] = form[k] ?? null;
+    (
+      [
+        "first_name",
+        "last_name",
+        "phone",
+        "company",
+        "position",
+        "country",
+        "linkedin_url",
+      ] as const
+    ).forEach((k) => {
+      if (form[k] !== undefined && form[k] !== (lead ? lead[k] : undefined))
+        patch[k] = form[k] ?? null;
     });
     if (Object.keys(patch).length === 0) {
       setEditing(false);
@@ -294,7 +283,9 @@ function AdminCrmDetailPage() {
         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-[13px] font-medium">{displayName}</span>
         <div className="ml-auto flex items-center gap-2">
-          <span className={`inline-flex h-6 items-center rounded px-2 text-[11px] font-medium ${STAGE_STYLE[lead.stage]}`}>
+          <span
+            className={`inline-flex h-6 items-center rounded px-2 text-[11px] font-medium ${STAGE_STYLE[lead.stage]}`}
+          >
             {lead.stage}
           </span>
           <LeadScoreBadge score={lead.score ?? 0} band={lead.score_band ?? "cold"} lang={lang} />
@@ -315,8 +306,12 @@ function AdminCrmDetailPage() {
                 fallbackClassName="text-[15px] text-primary bg-primary/10"
               />
               <div className="min-w-0">
-                <div className="truncate text-[14px] font-semibold leading-tight">{displayName}</div>
-                <div className="truncate text-[11px] text-muted-foreground">{lead.position ?? t("Brak stanowiska", "No position")}</div>
+                <div className="truncate text-[14px] font-semibold leading-tight">
+                  {displayName}
+                </div>
+                <div className="truncate text-[11px] text-muted-foreground">
+                  {lead.position ?? t("Brak stanowiska", "No position")}
+                </div>
               </div>
             </div>
             <div className="border-t px-4 py-3 space-y-2 text-[12px]">
@@ -324,23 +319,47 @@ function AdminCrmDetailPage() {
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-1.5">
                     <Field label={t("Imię", "First")}>
-                      <Input value={form.first_name ?? ""} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} className="h-7 text-[12px]" />
+                      <Input
+                        value={form.first_name ?? ""}
+                        onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
+                        className="h-7 text-[12px]"
+                      />
                     </Field>
                     <Field label={t("Nazwisko", "Last")}>
-                      <Input value={form.last_name ?? ""} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} className="h-7 text-[12px]" />
+                      <Input
+                        value={form.last_name ?? ""}
+                        onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
+                        className="h-7 text-[12px]"
+                      />
                     </Field>
                   </div>
                   <Field label={t("Telefon", "Phone")}>
-                    <Input value={form.phone ?? ""} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="h-7 text-[12px]" />
+                    <Input
+                      value={form.phone ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                      className="h-7 text-[12px]"
+                    />
                   </Field>
                   <Field label={t("Stanowisko", "Position")}>
-                    <Input value={form.position ?? ""} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="h-7 text-[12px]" />
+                    <Input
+                      value={form.position ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))}
+                      className="h-7 text-[12px]"
+                    />
                   </Field>
                   <Field label={t("Firma", "Company")}>
-                    <Input value={form.company ?? ""} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} className="h-7 text-[12px]" />
+                    <Input
+                      value={form.company ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
+                      className="h-7 text-[12px]"
+                    />
                   </Field>
                   <Field label={t("Kraj", "Country")}>
-                    <Input value={form.country ?? ""} onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))} className="h-7 text-[12px]" />
+                    <Input
+                      value={form.country ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+                      className="h-7 text-[12px]"
+                    />
                   </Field>
                   <Field label="LinkedIn URL">
                     <Input
@@ -352,26 +371,62 @@ function AdminCrmDetailPage() {
                     />
                   </Field>
                   <div className="flex justify-end gap-1.5 pt-1">
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="h-7 text-[11px]">{t("Anuluj", "Cancel")}</Button>
-                    <Button size="sm" onClick={saveEdit} disabled={updateMut.isPending} className="h-7 gap-1 text-[11px]">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setEditing(false)}
+                      className="h-7 text-[11px]"
+                    >
+                      {t("Anuluj", "Cancel")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={saveEdit}
+                      disabled={updateMut.isPending}
+                      className="h-7 gap-1 text-[11px]"
+                    >
                       <Save className="h-3 w-3" /> {t("Zapisz", "Save")}
                     </Button>
                   </div>
                 </div>
               ) : (
                 <>
-                  <InfoRow icon={<Mail className="h-3.5 w-3.5" />} value={lead.email} onCopy={() => copyToClipboard(lead.email, "Email")} />
-                  <InfoRow icon={<Phone className="h-3.5 w-3.5" />} value={lead.phone ?? "-"} onCopy={lead.phone ? () => copyToClipboard(lead.phone!, "Phone") : undefined} />
-                  <InfoRow icon={<Briefcase className="h-3.5 w-3.5" />} value={lead.position ?? "-"} />
-                  <InfoRow icon={<Building2 className="h-3.5 w-3.5" />} value={lead.company ?? "-"} />
+                  <InfoRow
+                    icon={<Mail className="h-3.5 w-3.5" />}
+                    value={lead.email}
+                    onCopy={() => copyToClipboard(lead.email, "Email")}
+                  />
+                  <InfoRow
+                    icon={<Phone className="h-3.5 w-3.5" />}
+                    value={lead.phone ?? "-"}
+                    onCopy={lead.phone ? () => copyToClipboard(lead.phone!, "Phone") : undefined}
+                  />
+                  <InfoRow
+                    icon={<Briefcase className="h-3.5 w-3.5" />}
+                    value={lead.position ?? "-"}
+                  />
+                  <InfoRow
+                    icon={<Building2 className="h-3.5 w-3.5" />}
+                    value={lead.company ?? "-"}
+                  />
                   <InfoRow icon={<MapPin className="h-3.5 w-3.5" />} value={lead.country ?? "-"} />
                   {lead.linkedin_url && (
-                    <a href={lead.linkedin_url} target="_blank" rel="noreferrer noopener" className="flex items-center gap-2 text-primary hover:underline">
+                    <a
+                      href={lead.linkedin_url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="flex items-center gap-2 text-primary hover:underline"
+                    >
                       <Linkedin className="h-3.5 w-3.5" /> LinkedIn
                     </a>
                   )}
                   <div className="flex justify-end pt-1">
-                    <Button size="sm" variant="outline" onClick={startEdit} className="h-7 gap-1 text-[11px]">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={startEdit}
+                      className="h-7 gap-1 text-[11px]"
+                    >
                       <Pencil className="h-3 w-3" /> {t("Edytuj", "Edit")}
                     </Button>
                   </div>
@@ -379,11 +434,22 @@ function AdminCrmDetailPage() {
               )}
             </div>
             <div className="border-t px-4 py-3 space-y-2">
-              <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t("Etap", "Stage")}</Label>
-              <Select value={lead.stage} onValueChange={(v) => updateMut.mutate({ stage: v as Stage })}>
-                <SelectTrigger className="h-8 text-[12px]"><SelectValue /></SelectTrigger>
+              <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {t("Etap", "Stage")}
+              </Label>
+              <Select
+                value={lead.stage}
+                onValueChange={(v) => updateMut.mutate({ stage: v as Stage })}
+              >
+                <SelectTrigger className="h-8 text-[12px]">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {STAGES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                  {STAGES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -393,10 +459,16 @@ function AdminCrmDetailPage() {
               </Label>
               <div className="flex flex-wrap gap-1">
                 {(lead.tags ?? []).length === 0 ? (
-                  <span className="text-[11px] text-muted-foreground">{t("Brak tagów", "No tags")}</span>
-                ) : (lead.tags ?? []).map((tg) => (
-                  <Badge key={tg} variant="secondary" className="text-[10px]">{tg}</Badge>
-                ))}
+                  <span className="text-[11px] text-muted-foreground">
+                    {t("Brak tagów", "No tags")}
+                  </span>
+                ) : (
+                  (lead.tags ?? []).map((tg) => (
+                    <Badge key={tg} variant="secondary" className="text-[10px]">
+                      {tg}
+                    </Badge>
+                  ))
+                )}
               </div>
             </div>
             <div className="border-t px-4 py-3 space-y-1 text-[11px] text-muted-foreground">
@@ -406,7 +478,8 @@ function AdminCrmDetailPage() {
               </div>
               <div className="flex items-center gap-1.5">
                 <Activity className="h-3 w-3" />
-                {t("Aktywność:", "Activity:")} {new Date(lead.last_activity_at).toLocaleDateString()}
+                {t("Aktywność:", "Activity:")}{" "}
+                {new Date(lead.last_activity_at).toLocaleDateString()}
               </div>
               {lead.marketing_consent && (
                 <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
@@ -439,7 +512,9 @@ function AdminCrmDetailPage() {
                 >
                   <Icon className="h-3.5 w-3.5" />
                   {it.label}
-                  {active && (<span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />)}
+                  {active && (
+                    <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
+                  )}
                 </button>
               );
             })}
@@ -473,9 +548,13 @@ function AdminCrmDetailPage() {
 
               {/* Recent notes */}
               <section className="rounded-md border bg-card p-3 space-y-2">
-                <div className="text-[12px] font-medium">{t("Ostatnie notatki", "Recent notes")}</div>
+                <div className="text-[12px] font-medium">
+                  {t("Ostatnie notatki", "Recent notes")}
+                </div>
                 {(detail.data?.notes ?? []).length === 0 ? (
-                  <div className="text-[11px] text-muted-foreground">{t("Brak notatek.", "No notes yet.")}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {t("Brak notatek.", "No notes yet.")}
+                  </div>
                 ) : (
                   <ul className="space-y-2">
                     {(detail.data?.notes ?? []).slice(0, 5).map((n) => (
@@ -499,9 +578,13 @@ function AdminCrmDetailPage() {
 
               {/* Latest messages */}
               <section className="rounded-md border bg-card p-3 space-y-2">
-                <div className="text-[12px] font-medium">{t("Wiadomości z formularzy", "Form messages")}</div>
+                <div className="text-[12px] font-medium">
+                  {t("Wiadomości z formularzy", "Form messages")}
+                </div>
                 {(detail.data?.messages ?? []).length === 0 ? (
-                  <div className="text-[11px] text-muted-foreground">{t("Brak wiadomości.", "No messages.")}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {t("Brak wiadomości.", "No messages.")}
+                  </div>
                 ) : (
                   <ul className="space-y-2">
                     {(detail.data?.messages ?? []).slice(0, 6).map((m) => (
@@ -511,7 +594,9 @@ function AdminCrmDetailPage() {
                           <span>{new Date(m.created_at).toLocaleString()}</span>
                         </div>
                         {m.subject && <div className="mt-1 font-medium">{m.subject}</div>}
-                        <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-muted-foreground">{m.message}</p>
+                        <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-muted-foreground">
+                          {m.message}
+                        </p>
                       </li>
                     ))}
                   </ul>
@@ -524,7 +609,9 @@ function AdminCrmDetailPage() {
             <section className="rounded-md border bg-card p-3">
               <div className="mb-2 text-[12px] font-medium">{t("Oś czasu", "Timeline")}</div>
               {activity.length === 0 ? (
-                <div className="text-[11px] text-muted-foreground">{t("Brak zdarzeń.", "No events yet.")}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {t("Brak zdarzeń.", "No events yet.")}
+                </div>
               ) : (
                 <ol className="space-y-2">
                   {activity.map((e, i) => (
@@ -533,9 +620,15 @@ function AdminCrmDetailPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[12px] font-medium">{e.title ?? e.kind}</span>
-                          <span className="text-[10px] text-muted-foreground">{new Date(e.at).toLocaleString()}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(e.at).toLocaleString()}
+                          </span>
                         </div>
-                        {e.body && <p className="mt-0.5 whitespace-pre-wrap text-[11px] text-muted-foreground">{e.body}</p>}
+                        {e.body && (
+                          <p className="mt-0.5 whitespace-pre-wrap text-[11px] text-muted-foreground">
+                            {e.body}
+                          </p>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -557,8 +650,14 @@ function AdminCrmDetailPage() {
               <section className="rounded-md border bg-card p-3">
                 <div className="mb-2 text-[12px] font-medium">{t("Statystyki", "Stats")}</div>
                 <div className="grid grid-cols-3 gap-3 text-center">
-                  <Stat label={t("Wiadomości", "Messages")} value={(detail.data?.messages ?? []).length} />
-                  <Stat label={t("Subskrypcje", "Subs")} value={(detail.data?.subscriptions ?? []).length} />
+                  <Stat
+                    label={t("Wiadomości", "Messages")}
+                    value={(detail.data?.messages ?? []).length}
+                  />
+                  <Stat
+                    label={t("Subskrypcje", "Subs")}
+                    value={(detail.data?.subscriptions ?? []).length}
+                  />
                   <Stat label={t("Notatki", "Notes")} value={(detail.data?.notes ?? []).length} />
                 </div>
               </section>
@@ -569,10 +668,7 @@ function AdminCrmDetailPage() {
         {/* Right sidebar */}
         <aside className="space-y-3">
           {/* Related company */}
-          <SidebarCard
-            title={t("Firma", "Company")}
-            icon={<Building2 className="h-3.5 w-3.5" />}
-          >
+          <SidebarCard title={t("Firma", "Company")} icon={<Building2 className="h-3.5 w-3.5" />}>
             {lead.company_id ? (
               <Link
                 to="/admin/companies/$id"
@@ -581,17 +677,23 @@ function AdminCrmDetailPage() {
               >
                 <div className="min-w-0">
                   <div className="truncate text-[12px] font-medium">{lead.company ?? "—"}</div>
-                  <div className="text-[10px] text-muted-foreground">{t("Otwórz kartę firmy", "Open company")}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {t("Otwórz kartę firmy", "Open company")}
+                  </div>
                 </div>
                 <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
               </Link>
             ) : lead.company ? (
               <div className="rounded border p-2 text-[12px]">
                 <div className="font-medium">{lead.company}</div>
-                <div className="mt-1 text-[10px] text-muted-foreground">{t("Nie powiązano z CRM firm", "Not linked to CRM company")}</div>
+                <div className="mt-1 text-[10px] text-muted-foreground">
+                  {t("Nie powiązano z CRM firm", "Not linked to CRM company")}
+                </div>
               </div>
             ) : (
-              <div className="text-[11px] text-muted-foreground">{t("Brak firmy.", "No company.")}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {t("Brak firmy.", "No company.")}
+              </div>
             )}
           </SidebarCard>
 
@@ -602,11 +704,7 @@ function AdminCrmDetailPage() {
             <ProfileSyncCard leadId={lead.id} lang={lang} />
           </SidebarCard>
 
-
-          <SidebarCard
-            title={t("Zadania", "Tasks")}
-            icon={<Calendar className="h-3.5 w-3.5" />}
-          >
+          <SidebarCard title={t("Zadania", "Tasks")} icon={<Calendar className="h-3.5 w-3.5" />}>
             <LeadTasksPanel leadId={lead.id} lang={lang} highlightTaskId={null} />
           </SidebarCard>
 
@@ -634,7 +732,9 @@ function AdminCrmDetailPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <Label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</Label>
+      <Label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </Label>
       {children}
     </div>
   );
