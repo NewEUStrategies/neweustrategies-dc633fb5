@@ -16,7 +16,7 @@ import {
   upsertSavedView,
   deleteSavedView,
 } from "@/lib/crm-saved-views.functions";
-import { CompanyDetailsDrawer } from "@/components/admin/crm/CompanyDetailsDrawer";
+
 import { CompanyViewTabs, type SavedViewRow } from "@/components/admin/crm/CompanyViewTabs";
 import { CompanyColumnManager } from "@/components/admin/crm/CompanyColumnManager";
 import { CompanyFilterChips } from "@/components/admin/crm/CompanyFilterChips";
