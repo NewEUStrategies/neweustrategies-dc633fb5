@@ -346,6 +346,7 @@ const pl = {
     },
     timelineEditor: {
       title: "Oś czasu (wpisy)",
+      __unused: "",
       addItem: "Dodaj wpis",
       addHeading: "Dodaj datę",
       heading: "Nagłówek daty",
