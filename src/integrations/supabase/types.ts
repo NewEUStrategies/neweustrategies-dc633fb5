@@ -1845,6 +1845,7 @@ export type Database = {
           created_by: string | null
           domain: string | null
           id: string
+          logo_url: string | null
           name: string
           name_norm: string | null
           phone: string | null
@@ -1863,6 +1864,7 @@ export type Database = {
           created_by?: string | null
           domain?: string | null
           id?: string
+          logo_url?: string | null
           name: string
           name_norm?: string | null
           phone?: string | null
@@ -1881,6 +1883,7 @@ export type Database = {
           created_by?: string | null
           domain?: string | null
           id?: string
+          logo_url?: string | null
           name?: string
           name_norm?: string | null
           phone?: string | null
