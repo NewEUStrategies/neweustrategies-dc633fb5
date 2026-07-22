@@ -522,16 +522,10 @@ export function MessageList(props: MessageListProps) {
                       )}
                       <div className="min-w-0 flex-1">{bubble}</div>
                     </div>
-                  ) : mine && myAvatarUrl && groupEnd ? (
-                    <div className="flex flex-row-reverse items-end gap-1.5">
-                      <ChatAvatar
-                        name={t("chat.you")}
-                        avatarUrl={myAvatarUrl}
-                        size="xs"
-                        className="mb-0.5"
-                      />
-                      <div className="min-w-0 flex-1">{bubble}</div>
-                    </div>
+                  ) : mine ? (
+                    // Own messages never show an avatar on the right - the
+                    // sender is implicit. Applies to direct and group threads.
+                    bubble
                   ) : !mine ? (
                     // Direct thread: peer avatar anchors the LAST bubble of
                     // their group; earlier rows keep a spacer so the whole
