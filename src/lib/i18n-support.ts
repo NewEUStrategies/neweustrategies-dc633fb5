@@ -43,7 +43,7 @@ export const supportEn = {
     intro:
       "New European Strategies is funded by subscriptions and citizen patronage. A donation funds analytical work - the EU legislative tracker, reports and debates - and grants no entitlements: it is support, not a purchase.",
     presetsLabel: "Choose an amount",
-    customLabel: "Custom amount (PLN)",
+    customLabel: "Custom amount (EUR)",
     customPlaceholder: "e.g. 75",
     messageLabel: "Message to the editors (optional)",
     messagePlaceholder: "What should we analyse more often?",
