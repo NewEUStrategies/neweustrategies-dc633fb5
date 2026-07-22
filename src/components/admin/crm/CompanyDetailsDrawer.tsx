@@ -1213,10 +1213,24 @@ function AddContactDialog({
               type="email"
               autoFocus
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 h-9 text-[13px]"
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (serverErr === "duplicate_email") setServerErr(null);
+              }}
+              onBlur={() => setTouched((s) => ({ ...s, email: true }))}
+              aria-invalid={touched.email && !!emailError}
+              aria-describedby="add-contact-email-err"
+              disabled={create.isPending}
+              className={`mt-1 h-9 text-[13px] ${
+                touched.email && emailError ? "border-destructive focus-visible:ring-destructive/40" : ""
+              }`}
               placeholder="jan.kowalski@example.com"
             />
+            {touched.email && emailError && (
+              <p id="add-contact-email-err" className="mt-1 text-[11px] text-destructive">
+                {emailError}
+              </p>
+            )}
           </div>
           <div>
             <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
