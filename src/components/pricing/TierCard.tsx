@@ -16,6 +16,8 @@ import {
   monthlyEquivalentCents,
   pickPlanForInterval,
   tierBadge,
+  tierCtaMode,
+  tierPriceNote,
   yearlySavingsPct,
   type BillingInterval,
 } from "@/lib/pricing/selectors";
@@ -48,25 +50,47 @@ function PriceBlock({
   lang: string;
 }) {
   const { t } = useTranslation();
+  const note = tierPriceNote(tier, lang);
+  const noteLine = note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>;
 
   if (tier.is_default) {
     return (
       <div className="pt-4">
         <span className="text-4xl font-bold tracking-tight">{t("pricing.free")}</span>
-        <p className="mt-1 text-xs text-muted-foreground">{t("pricing.freeNote")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{note ?? t("pricing.freeNote")}</p>
       </div>
     );
   }
 
   const plan = pickPlanForInterval(plans, interval);
   if (!plan) {
+    // Poziomy "tylko na zaproszenie" (cta_mode='none') nie maja ceny ani
+    // zapytania ofertowego - wartosc lezy w niedostepnosci.
+    if (tierCtaMode(tier) === "none") {
+      return (
+        <div className="pt-4">
+          <span className="text-2xl font-semibold tracking-tight">
+            {t("pricing.invitationOnly")}
+          </span>
+          {noteLine}
+        </div>
+      );
+    }
     return (
       <div className="pt-4">
         <span className="text-2xl font-semibold tracking-tight">{t("pricing.onRequest")}</span>
-        <p className="mt-1 text-xs text-muted-foreground">{t("pricing.onRequestNote")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{note ?? t("pricing.onRequestNote")}</p>
       </div>
     );
   }
+
+  // Ceny per miejsce (plan zespolowy): "od X / mies. za miejsce".
+  const fromPrefix = tier.per_seat && (
+    <span className="mr-1 text-base font-medium text-muted-foreground">
+      {t("pricing.fromPrefix")}
+    </span>
+  );
+  const perSeatSuffix = tier.per_seat ? ` ${t("pricing.perSeat")}` : "";
 
   if (plan.interval === "year") {
     const monthlyEq = monthlyEquivalentCents(plan);
@@ -74,10 +98,14 @@ function PriceBlock({
     const savings = yearlySavingsPct(pair.month, pair.year);
     return (
       <div className="pt-4">
+        {fromPrefix}
         <span className="text-4xl font-bold tracking-tight">
           {formatMoney(monthlyEq ?? plan.price_cents, plan.currency, lang)}
         </span>
-        <span className="ml-1 text-sm text-muted-foreground">{t("pricing.perMonth")}</span>
+        <span className="ml-1 text-sm text-muted-foreground">
+          {t("pricing.perMonth")}
+          {perSeatSuffix}
+        </span>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {t("pricing.billedYearly", {
             amount: formatMoney(plan.price_cents, plan.currency, lang),
@@ -88,16 +116,22 @@ function PriceBlock({
             </span>
           )}
         </p>
+        {noteLine}
       </div>
     );
   }
 
   return (
     <div className="pt-4">
+      {fromPrefix}
       <span className="text-4xl font-bold tracking-tight">
         {formatMoney(plan.price_cents, plan.currency, lang)}
       </span>
-      <span className="ml-1 text-sm text-muted-foreground">{intervalSuffix(plan.interval, t)}</span>
+      <span className="ml-1 text-sm text-muted-foreground">
+        {intervalSuffix(plan.interval, t)}
+        {perSeatSuffix}
+      </span>
+      {noteLine}
     </div>
   );
 }
@@ -120,6 +154,10 @@ function TierCardCta({
   onContact: (tier: MembershipTierRow) => void;
 }) {
   const { t } = useTranslation();
+  const mode = tierCtaMode(tier);
+
+  // "Tylko na zaproszenie" - swiadomie bez jakiegokolwiek przycisku.
+  if (mode === "none") return null;
 
   if (tier.is_default) {
     if (isCurrentTier) {
@@ -137,6 +175,38 @@ function TierCardCta({
       );
     }
     return null;
+  }
+
+  // Tryb 'contact': cena moze byc widoczna (np. per miejsce), ale zakup idzie
+  // przez rozmowe - checkout pojedynczego miejsca bylby nieuczciwy.
+  if (mode === "contact") {
+    if (isCurrentTier) {
+      return (
+        <Button className="w-full" disabled variant="outline">
+          {t("pricing.currentTier")}
+        </Button>
+      );
+    }
+    if (tier.contact_url) {
+      return (
+        <Button asChild className="w-full" variant={tier.highlight ? "default" : "outline"}>
+          <a href={tier.contact_url}>
+            <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+            {t("pricing.contactCta")}
+          </a>
+        </Button>
+      );
+    }
+    return (
+      <Button
+        className="w-full"
+        variant={tier.highlight ? "default" : "outline"}
+        onClick={() => onContact(tier)}
+      >
+        <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+        {t("pricing.contactCta")}
+      </Button>
+    );
   }
 
   const plan = pickPlanForInterval(plans, interval);
@@ -261,7 +331,9 @@ export function TierCard({
         )}
         <PriceBlock tier={tier} plans={plans} interval={interval} lang={lang} />
         {plan && plan.trial_days > 0 && (
-          <p className="mt-1 text-xs text-primary">{t("pricing.trial", { days: plan.trial_days })}</p>
+          <p className="mt-1 text-xs text-primary">
+            {t("pricing.trial", { days: plan.trial_days })}
+          </p>
         )}
       </CardHeader>
       <CardFooter className="pb-4 pt-0">
