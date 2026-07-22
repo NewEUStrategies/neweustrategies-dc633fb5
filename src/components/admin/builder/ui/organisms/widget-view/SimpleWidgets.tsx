@@ -875,6 +875,112 @@ export function renderSimpleWidget(
         </div>
       );
     }
+    case "timeline": {
+      const entries = Array.isArray(c.entries)
+        ? (c.entries as Array<Record<string, unknown>>)
+        : [];
+      const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
+      const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
+      return (
+        <div className="w-full">
+          {entries.map((entry, idx) => {
+            const kind = strOf(entry.type) || "item";
+            if (kind === "heading") {
+              const date = strOf(entry[`date_${lang}`]) || strOf(entry.date_pl);
+              if (!date) return null;
+              return (
+                <div key={idx} className="ps-2 my-2 first:mt-0">
+                  <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {date}
+                  </h3>
+                </div>
+              );
+            }
+            const title = strOf(entry[`title_${lang}`]) || strOf(entry.title_pl);
+            const desc = strOf(entry[`desc_${lang}`]) || strOf(entry.desc_pl);
+            const iconType = strOf(entry.iconType) || "avatar";
+            const avatar = safeImageUrl(strOf(entry.avatar));
+            const initials = (strOf(entry.initials) || "?").slice(0, 2).toUpperCase();
+            const iconName = strOf(entry.iconName) || "FileText";
+            const IconCmp = Icons[iconName] || Icons.FileText;
+            const titleIconName = strOf(entry.titleIconName);
+            const TitleIcon = titleIconName ? Icons[titleIconName] : undefined;
+            const actorName = strOf(entry.actorName);
+            const actorAvatar = safeImageUrl(strOf(entry.actorAvatar));
+            const actorInitials = (strOf(entry.actorInitials) || "?").slice(0, 2).toUpperCase();
+            const actorHref = safeUrl(strOf(entry.actorHref));
+            const isLast = idx === entries.length - 1;
+            return (
+              <div key={idx} className="flex gap-x-3">
+                <div
+                  className={`relative ${isLast ? "" : "after:absolute after:top-7 after:bottom-0 after:start-3.5 after:-translate-x-[0.5px] after:border-s after:border-border"}`}
+                >
+                  <div className="relative z-10 size-7 flex justify-center items-center">
+                    {iconType === "avatar" && avatar ? (
+                      <img
+                        src={avatar}
+                        alt=""
+                        className="shrink-0 size-7 rounded-[6px] object-cover border border-border"
+                      />
+                    ) : iconType === "lucide" && IconCmp ? (
+                      <span className="flex shrink-0 justify-center items-center size-7 bg-muted border border-border text-foreground rounded-[6px]">
+                        <IconCmp className="size-4" />
+                      </span>
+                    ) : (
+                      <span className="flex shrink-0 justify-center items-center size-7 bg-muted border border-border text-[11px] font-semibold uppercase text-foreground rounded-[6px]">
+                        {initials}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="grow pt-0.5 pb-8">
+                  {title && (
+                    <h3 className="flex gap-x-1.5 font-medium text-sm text-foreground">
+                      {TitleIcon && <TitleIcon className="shrink-0 size-4 mt-0.5" />}
+                      <span>{title}</span>
+                    </h3>
+                  )}
+                  {desc && (
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{desc}</p>
+                  )}
+                  {actorName &&
+                    (() => {
+                      const inner = (
+                        <>
+                          {actorAvatar ? (
+                            <img
+                              src={actorAvatar}
+                              alt=""
+                              className="shrink-0 size-4 rounded-[6px] object-cover border border-border"
+                            />
+                          ) : (
+                            <span className="flex shrink-0 justify-center items-center size-4 bg-muted border border-border text-[9px] font-semibold uppercase text-foreground rounded-[6px]">
+                              {actorInitials}
+                            </span>
+                          )}
+                          <span>{actorName}</span>
+                        </>
+                      );
+                      return actorHref ? (
+                        <AppLink
+                          href={actorHref}
+                          className="mt-1 -ms-1 p-1 inline-flex items-center gap-x-2 text-[11px] rounded-[6px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                        >
+                          {inner}
+                        </AppLink>
+                      ) : (
+                        <span className="mt-1 -ms-1 p-1 inline-flex items-center gap-x-2 text-[11px] rounded-[6px] text-muted-foreground">
+                          {inner}
+                        </span>
+                      );
+                    })()}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
     case "testimonial": {
       const quote = getStr(c, `quote_${lang}`) || getStr(c, "quote_pl");
       const author = getStr(c, "author");

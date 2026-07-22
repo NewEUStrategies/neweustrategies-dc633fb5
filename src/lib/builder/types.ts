@@ -398,6 +398,7 @@ export type WidgetType =
   // Rich blocks
   | "accordion"
   | "tabs"
+  | "timeline"
   | "testimonial"
   | "team-member"
   | "pricing"

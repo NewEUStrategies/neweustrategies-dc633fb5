@@ -1,6 +1,7 @@
 // Barrel for widget-properties content editors.
 export { AccordionEditor } from "./AccordionEditor";
 export { TabsEditor } from "./TabsEditor";
+export { TimelineEditor } from "./TimelineEditor";
 export { PricingEditor } from "./PricingEditor";
 export { RatedListEditor } from "./RatedListEditor";
 export { ImageEditor } from "./ImageEditor";

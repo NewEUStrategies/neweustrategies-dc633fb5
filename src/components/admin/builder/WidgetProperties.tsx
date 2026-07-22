@@ -62,6 +62,7 @@ import {
 import {
   AccordionEditor,
   TabsEditor,
+  TimelineEditor,
   PricingEditor,
   RatedListEditor,
   ImageEditor,
@@ -1118,6 +1119,8 @@ function ContentFields({
       return <AccordionEditor c={c} lang={lang} setContent={setContent} />;
     case "tabs":
       return <TabsEditor c={c} lang={lang} setContent={setContent} />;
+    case "timeline":
+      return <TimelineEditor c={c} lang={lang} setContent={setContent} />;
     case "pricing":
       return <PricingEditor c={c} lang={lang} setContent={setContent} />;
     case "image":
