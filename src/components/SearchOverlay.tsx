@@ -165,17 +165,18 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 
   return (
     <div
-      className="fixed inset-0 z-[60] bg-background/70 backdrop-blur-xl animate-in fade-in duration-200"
+      className="fixed inset-0 z-[60] bg-background sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="absolute inset-x-0 top-0 flex justify-center px-4 pt-[12vh] pb-8 max-h-screen overflow-y-auto">
+      <div className="absolute inset-x-0 top-0 flex justify-center px-0 pt-0 pb-0 sm:px-4 sm:pt-[12vh] sm:pb-8 max-h-screen h-full sm:h-auto overflow-y-auto">
         <div
           ref={panelRef}
           role="dialog"
           aria-modal="true"
           aria-label={t("searchOverlay.dialogLabel")}
-          className="w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-top-4 duration-300"
+          className="w-full max-w-2xl bg-card sm:border border-border rounded-none sm:rounded-2xl shadow-2xl overflow-hidden animate-in sm:zoom-in-95 slide-in-from-top-4 duration-300 flex flex-col h-full sm:h-auto"
           onClick={(e) => e.stopPropagation()}
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
           <SearchBar
             inputRef={inputRef}
@@ -188,6 +189,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             activeOptionId={showResults ? optionId(active) : undefined}
             expanded={showResults}
           />
+          <div className="flex-1 min-h-0 overflow-y-auto sm:overflow-visible sm:flex-none">
           {showResults || showEmpty ? (
             <>
               <ResultsList
@@ -236,12 +238,14 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               )}
             </div>
           )}
+          </div>
           <Footer />
         </div>
       </div>
     </div>
   );
 }
+
 
 function SearchBar({
   inputRef,
@@ -269,9 +273,10 @@ function SearchBar({
   const { t } = useTranslation();
   return (
     <div
-      className={`flex items-center gap-3 border-b border-border ${compact ? "px-3 py-2.5" : "px-5 py-4"}`}
+      className={`flex items-center gap-2 sm:gap-3 border-b border-border ${compact ? "px-3 py-2.5" : "px-4 py-3 sm:px-5 sm:py-4"}`}
     >
-      <Search className={`text-muted-foreground shrink-0 ${compact ? "w-4 h-4" : "w-5 h-5"}`} />
+      <Search className={`text-muted-foreground shrink-0 ${compact ? "w-4 h-4" : "w-4 h-4 sm:w-5 sm:h-5"}`} />
+
       <input
         ref={inputRef}
         value={q}
@@ -389,7 +394,7 @@ function ResultsList({
 function Footer() {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center justify-between gap-4 px-5 py-2.5 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
+    <div className="hidden sm:flex items-center justify-between gap-4 px-5 py-2.5 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
       <div className="flex items-center gap-3">
         <span className="inline-flex items-center gap-1">
           <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">
@@ -416,3 +421,4 @@ function Footer() {
     </div>
   );
 }
+
