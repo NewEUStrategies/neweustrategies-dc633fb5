@@ -169,6 +169,7 @@ const UpdateInput = z.object({
   postal_code: z.string().trim().max(20).nullable().optional(),
   website: z.string().trim().max(300).nullable().optional(),
   phone: z.string().trim().max(60).nullable().optional(),
+  logo_url: z.string().trim().url().max(1000).nullable().optional(),
 });
 
 export const updateCrmCompany = createServerFn({ method: "POST" })
