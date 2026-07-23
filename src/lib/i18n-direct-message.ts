@@ -6,11 +6,15 @@ import i18n from "./i18n";
 export const directMessagePl = {
   directMessage: {
     button: "Napisz wiadomość",
+    opening: "Otwieram rozmowę…",
     ariaLabel: "Napisz wiadomość do {{name}}",
+    ariaBusy: "Otwieranie rozmowy z {{name}}",
     tooltipEnabled: "Rozpocznij bezpośrednią rozmowę",
     tooltipLocked: "Wymaga wyższego planu subskrypcji",
+    tooltipBusy: "Otwieram rozmowę…",
     signInRequired: "Zaloguj się, aby napisać do tej osoby.",
     startError: "Nie udało się otworzyć rozmowy. Spróbuj ponownie.",
+
     upgrade: {
       title: "Odblokuj bezpośrednie wiadomości",
       description:
@@ -28,11 +32,15 @@ export const directMessagePl = {
 export const directMessageEn = {
   directMessage: {
     button: "Direct Message",
+    opening: "Opening chat…",
     ariaLabel: "Send a message to {{name}}",
+    ariaBusy: "Opening chat with {{name}}",
     tooltipEnabled: "Start a direct conversation",
     tooltipLocked: "Requires a higher subscription plan",
+    tooltipBusy: "Opening chat…",
     signInRequired: "Sign in to message this person.",
     startError: "Could not open the conversation. Please try again.",
+
     upgrade: {
       title: "Unlock direct messages",
       description:
