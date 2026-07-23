@@ -3,12 +3,14 @@
 // Records a `click` event (best-effort) then 302s to the target. The target is
 // validated as an absolute http/https URL before redirecting (no open redirect);
 // anything else falls back to the site origin. Always redirects (fail-safe).
+// `s` is the SIGNED tracking token (HMAC per campaign+subscriber), verified
+// server-side - NOT the unsubscribe token.
 import { createFileRoute } from "@tanstack/react-router";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
-import { isSafeHttpUrl, isValidTrackingToken } from "@/lib/newsletter/tracking";
+import { isSafeHttpUrl } from "@/lib/newsletter/tracking";
+import { verifyTrackingToken } from "@/lib/newsletter/trackingToken.server";
 import { recordCampaignEvent } from "@/lib/newsletter/trackingEvents.server";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const limiter = createRateLimiter({ capacity: 60, refillPerSec: 1 });
 
 export const Route = createFileRoute("/api/public/nl-click")({
@@ -23,8 +25,9 @@ export const Route = createFileRoute("/api/public/nl-click")({
           if (limiter.check(clientIpFromHeaders(request.headers), Date.now())) {
             const c = url.searchParams.get("c");
             const s = url.searchParams.get("s");
-            if (c && UUID_RE.test(c) && isValidTrackingToken(s) && isSafeHttpUrl(target)) {
-              await recordCampaignEvent(c, s, "click", target);
+            const subscriberId = c ? verifyTrackingToken(c, s) : null;
+            if (c && subscriberId && isSafeHttpUrl(target)) {
+              await recordCampaignEvent(c, subscriberId, "click", target);
             }
           }
         } catch {
