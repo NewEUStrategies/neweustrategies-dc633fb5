@@ -312,7 +312,7 @@ export const SUGGEST_BUCKET_ORDER: readonly SuggestBucket[] = [
 
 export function suggestBucketOf(kind: AutosuggestItem["kind"]): SuggestBucket {
   if (kind === "post") return "titles";
-  if (kind === "author" || kind === "organization") return "peopleOrg";
+  if (kind === "author" || kind === "organization" || kind === "company") return "peopleOrg";
   if (kind === "format" || kind === "pub_type" || kind === "access" || kind === "lang") {
     return "contentTypes";
   }
@@ -361,6 +361,13 @@ export function suggestionHref(it: AutosuggestItem): string {
   if (kind === "topic" && it.slug) return `/tag/${it.slug}`;
   if (kind === "series" && it.slug) return `/series/${it.slug}`;
   if (kind === "project" && it.slug) return `/programs/${it.slug}`;
+  if (kind === "company") {
+    // Firmy (member_organizations) nie mają jeszcze publicznej strony -
+    // przenosimy do /search z frazą = nazwa firmy, żeby użytkownik zobaczył
+    // powiązane treści (autorstwo, wzmianki, wydarzenia).
+    const phrase = it.label_pl || it.label_en || it.slug || "";
+    return phrase ? `/search?q=${encodeURIComponent(phrase)}` : "/search";
+  }
   const patch: Record<string, string> = {};
   if (kind === "author") {
     if (it.id) patch.author = it.id;
