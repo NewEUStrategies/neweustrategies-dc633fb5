@@ -123,9 +123,11 @@ function cheapest(plans: AccessPlan[]): AccessPlan | null {
   return [...plans].sort((a, b) => a.price_cents - b.price_cents)[0];
 }
 
-/** Plany cykliczne (miesiąc/rok) - budują karty warstw. */
+/** Plany cykliczne (miesiąc/kwartał/rok) - budują karty warstw. */
 export function recurringPlans(plans: AccessPlan[]): AccessPlan[] {
-  return plans.filter((p) => p.interval === "month" || p.interval === "year");
+  return plans.filter(
+    (p) => p.interval === "month" || p.interval === "quarter" || p.interval === "year",
+  );
 }
 
 /** Przepustki: dostęp jednorazowy / dzienny / tygodniowy. */
@@ -150,9 +152,10 @@ export function pickPlanForInterval(
   return cheapest(recurring);
 }
 
-/** Równowartość miesięczna (framing ceny rocznej jak u Netflixa/Apple). */
+/** Równowartość miesięczna (framing ceny rocznej/kwartalnej jak u Netflixa/Apple). */
 export function monthlyEquivalentCents(plan: AccessPlan): number | null {
   if (plan.interval === "month") return plan.price_cents;
+  if (plan.interval === "quarter") return Math.round(plan.price_cents / 3);
   if (plan.interval === "year") return Math.round(plan.price_cents / 12);
   return null;
 }

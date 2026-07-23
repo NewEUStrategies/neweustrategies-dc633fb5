@@ -1,7 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
-import { cancelSubscription, resumeSubscription } from "./checkout.functions";
+import {
+  cancelSubscription,
+  changeSubscriptionPlan,
+  resumeSubscription,
+} from "./checkout.functions";
 import type {
   AccessPlan,
+  BillingDocument,
   BillingProfile,
   BillingProfileInput,
   PaymentOrder,
@@ -140,6 +145,33 @@ export async function fetchMySubscription(): Promise<UserSubscriptionRow | null>
     canceled_at: (row.canceled_at as string | null) ?? null,
     plan: planRow ? rowToPlan(planRow) : null,
   };
+}
+
+/**
+ * Dokumenty rozliczeniowe bieżącego użytkownika (faktury z checkoutu i KAŻDEGO
+ * odnowienia, paragony) - rejestr zasila webhook Stripe, RLS zawęża do
+ * właściciela. Podgląd/PDF to trwałe linki Stripe.
+ */
+export async function fetchMyBillingDocuments(): Promise<BillingDocument[]> {
+  const { data: auth } = await supabase.auth.getSession();
+  const uid = auth.session?.user?.id;
+  if (!uid) return [];
+  const { data, error } = await supabase
+    .from("billing_documents")
+    .select("*")
+    .eq("user_id", uid)
+    .order("issued_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []) as BillingDocument[];
+}
+
+/** Upgrade/downgrade planu (Stripe-first, prorata od razu) - patrz server fn. */
+export async function changeMySubscriptionPlan(
+  subscriptionId: string,
+  newPlanId: string,
+): Promise<void> {
+  await changeSubscriptionPlan({ data: { subscriptionId, newPlanId } });
 }
 
 export async function cancelMySubscription(subscriptionId: string): Promise<void> {

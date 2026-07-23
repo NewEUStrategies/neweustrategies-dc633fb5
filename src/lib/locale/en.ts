@@ -1149,6 +1149,7 @@ export const en = {
       currency: "Currency",
       interval: "Interval",
       intervalMonth: "Monthly",
+      intervalQuarter: "Quarterly",
       intervalYear: "Yearly",
       intervalOnce: "One-time",
       active: "Active",

@@ -50,6 +50,10 @@ export const DOMAIN_EVENT_TYPES = [
   "org_seat.changed.v1",
   "donation.recorded.v1",
   "donation.refunded.v1",
+  // Rejestr dokumentów rozliczeniowych (migracja 20260723151000): faktury z
+  // checkoutu i odnowień oraz paragony; updated = zmiana statusu (refund).
+  "billing_document.issued.v1",
+  "billing_document.updated.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -90,6 +94,7 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "organization",
   "org_seat",
   "donation",
+  "billing_document",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

@@ -151,7 +151,16 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
 
   "donation.recorded.v1": () => donationKeys(),
   "donation.refunded.v1": () => donationKeys(),
+
+  // Rejestr dokumentów rozliczeniowych: webhook wystawia dokument (aktor =
+  // właściciel), profil odświeża listę i historię zamówień bez F5.
+  "billing_document.issued.v1": () => billingDocumentKeys(),
+  "billing_document.updated.v1": () => billingDocumentKeys(),
 };
+
+function billingDocumentKeys(): QueryKey[] {
+  return [billingKeys.myBillingDocumentsAll(), billingKeys.myOrdersAll()];
+}
 
 // Subskrypcja zmienia: warstwę i paywall właściciela, jego profilowe widoki
 // (subskrypcja/zamówienia), listę subskrypcji w /admin/users, pulpit

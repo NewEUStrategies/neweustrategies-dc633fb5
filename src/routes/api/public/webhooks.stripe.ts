@@ -58,6 +58,52 @@ function str(o: Record<string, unknown>, k: string): string | null {
   return typeof v === "string" ? v : null;
 }
 
+function num(o: Record<string, unknown>, k: string): number | null {
+  const v = o[k];
+  return typeof v === "number" ? v : null;
+}
+
+type SupabaseAdminClient = Awaited<
+  typeof import("@/integrations/supabase/client.server")
+>["supabaseAdmin"];
+
+interface BillingDocumentUpsert {
+  tenant_id: string;
+  user_id: string;
+  subscription_id?: string;
+  order_id?: string;
+  kind: "invoice" | "receipt";
+  status: "paid" | "open" | "void" | "refunded";
+  provider_document_id: string;
+  number?: string | null;
+  amount_cents?: number;
+  currency?: string;
+  hosted_url?: string | null;
+  pdf_url?: string | null;
+  issued_at?: string;
+}
+
+// Rejestr dokumentów rozliczeniowych: idempotentnie po (provider, dokument).
+// Best-effort - dokument nigdy nie może wywrócić księgowania płatności;
+// klucze pominięte w payloadzie nie nadpisują wartości z drugiej ścieżki
+// (checkout.session.completed i invoice.payment_succeeded piszą ten sam
+// wiersz, każda dokleja swoje powiązanie: order_id / subscription_id).
+async function upsertBillingDocument(
+  supabaseAdmin: SupabaseAdminClient,
+  doc: BillingDocumentUpsert,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("billing_documents")
+    .upsert({ provider: "stripe", ...doc }, { onConflict: "provider,provider_document_id" });
+  if (error) {
+    console.warn(
+      "[stripe-webhook] billing document upsert failed",
+      doc.provider_document_id,
+      error,
+    );
+  }
+}
+
 async function handle(request: Request): Promise<Response> {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) {
@@ -189,15 +235,51 @@ async function handle(request: Request): Promise<Response> {
         // faktury dla subskrypcji zawsze, dla trybu payment - gdy włączono
         // invoice_creation. Best-effort: brak linku nie blokuje księgowania,
         // "Pobierz fakturę" w /profile/orders po prostu się nie pokaże.
+        // Metadane trafiają też do rejestru billing_documents (podgląd + PDF
+        // w profilu); sesje bez faktury dostają paragon płatności (receipt).
         const invoiceId = str(session, "invoice");
         const stripeSecret = process.env.STRIPE_SECRET_KEY;
         if (invoiceId && stripeSecret) {
-          const { fetchStripeInvoiceUrl } = await import("@/lib/billing/stripe.server");
-          const invoiceRes = await fetchStripeInvoiceUrl(invoiceId, stripeSecret);
-          if (invoiceRes.ok && invoiceRes.url) {
-            updates.invoice_url = invoiceRes.url;
-          } else if (!invoiceRes.ok) {
-            console.warn("[stripe-webhook] invoice url fetch failed", invoiceId, invoiceRes.error);
+          const { fetchStripeInvoice } = await import("@/lib/billing/stripe.server");
+          const invoiceRes = await fetchStripeInvoice(invoiceId, stripeSecret);
+          if (invoiceRes.ok) {
+            const inv = invoiceRes.invoice;
+            const url = inv.hostedUrl ?? inv.pdfUrl;
+            if (url) updates.invoice_url = url;
+            await upsertBillingDocument(supabaseAdmin, {
+              tenant_id: order.tenant_id,
+              user_id: order.user_id,
+              order_id: order.id,
+              kind: "invoice",
+              status: inv.status === "void" ? "void" : "paid",
+              provider_document_id: invoiceId,
+              number: inv.number,
+              amount_cents: inv.amountPaidCents ?? amountTotal ?? order.amount_cents,
+              currency: inv.currency ?? (currency ?? order.currency).toUpperCase(),
+              hosted_url: inv.hostedUrl,
+              pdf_url: inv.pdfUrl,
+              issued_at: inv.createdAt ?? new Date().toISOString(),
+            });
+          } else {
+            console.warn("[stripe-webhook] invoice fetch failed", invoiceId, invoiceRes.error);
+          }
+        } else if (paymentIntent && stripeSecret) {
+          const { fetchStripeReceiptUrl } = await import("@/lib/billing/stripe.server");
+          const receiptRes = await fetchStripeReceiptUrl(paymentIntent, stripeSecret);
+          if (receiptRes.ok && receiptRes.receiptUrl) {
+            await upsertBillingDocument(supabaseAdmin, {
+              tenant_id: order.tenant_id,
+              user_id: order.user_id,
+              order_id: order.id,
+              kind: "receipt",
+              status: "paid",
+              provider_document_id: paymentIntent,
+              amount_cents: amountTotal ?? order.amount_cents,
+              currency: (currency ?? order.currency).toUpperCase(),
+              hosted_url: receiptRes.receiptUrl,
+            });
+          } else if (!receiptRes.ok) {
+            console.warn("[stripe-webhook] receipt fetch failed", paymentIntent, receiptRes.error);
           }
         }
 
@@ -211,6 +293,7 @@ async function handle(request: Request): Promise<Response> {
 
       case "invoice.payment_succeeded": {
         const invoice = event.data.object;
+        const invoiceId = str(invoice, "id");
         const subscriptionId = str(invoice, "subscription");
         const periodEnd =
           typeof invoice.period_end === "number"
@@ -225,6 +308,67 @@ async function handle(request: Request): Promise<Response> {
             .update({ status: "active", current_period_end: periodEnd.toISOString() })
             .eq("external_ref", subscriptionId)
             .neq("status", "canceled");
+        }
+
+        // Rejestr dokumentów: payload faktury niesie komplet metadanych, więc
+        // KAŻDE odnowienie zostawia dokument widoczny w profilu (dotąd ślad
+        // zostawiał tylko pierwszy checkout). Właściciela wskazuje subskrypcja
+        // (external_ref) albo - dla faktur jednorazowych - zamówienie po
+        // payment_intent.
+        if (invoiceId) {
+          let target: {
+            tenant_id: string;
+            user_id: string;
+            subscription_id?: string;
+            order_id?: string;
+          } | null = null;
+          if (subscriptionId) {
+            const { data: subRow } = await supabaseAdmin
+              .from("user_subscriptions")
+              .select("id, user_id, tenant_id")
+              .eq("external_ref", subscriptionId)
+              .maybeSingle();
+            if (subRow) {
+              target = {
+                tenant_id: subRow.tenant_id,
+                user_id: subRow.user_id,
+                subscription_id: subRow.id,
+              };
+            }
+          } else {
+            const paymentIntent = str(invoice, "payment_intent");
+            if (paymentIntent) {
+              const { data: orderRow } = await supabaseAdmin
+                .from("payment_orders")
+                .select("id, user_id, tenant_id")
+                .eq("provider_intent_id", paymentIntent)
+                .maybeSingle();
+              if (orderRow) {
+                target = {
+                  tenant_id: orderRow.tenant_id,
+                  user_id: orderRow.user_id,
+                  order_id: orderRow.id,
+                };
+              }
+            }
+          }
+          if (target) {
+            const created = num(invoice, "created");
+            await upsertBillingDocument(supabaseAdmin, {
+              ...target,
+              kind: "invoice",
+              status: "paid",
+              provider_document_id: invoiceId,
+              number: str(invoice, "number"),
+              amount_cents: num(invoice, "amount_paid") ?? 0,
+              currency: (str(invoice, "currency") ?? "PLN").toUpperCase(),
+              hosted_url: str(invoice, "hosted_invoice_url"),
+              pdf_url: str(invoice, "invoice_pdf"),
+              issued_at: created
+                ? new Date(created * 1000).toISOString()
+                : new Date().toISOString(),
+            });
+          }
         }
         break;
       }
@@ -312,6 +456,18 @@ async function handle(request: Request): Promise<Response> {
           .from("payment_orders")
           .update({ status: "refunded" })
           .eq("id", order.id);
+
+        // Rejestr dokumentów: dokumenty tego zamówienia i paragon płatności
+        // dostają status refunded (podgląd w profilu pokazuje prawdę).
+        await supabaseAdmin
+          .from("billing_documents")
+          .update({ status: "refunded" })
+          .eq("order_id", order.id);
+        await supabaseAdmin
+          .from("billing_documents")
+          .update({ status: "refunded" })
+          .eq("provider", "stripe")
+          .eq("provider_document_id", paymentIntent);
 
         // A one-time PURCHASE grants a user_purchases row; everything else
         // (recurring subscription OR one-time lifetime-plan) grants a

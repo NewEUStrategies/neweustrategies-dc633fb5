@@ -26,6 +26,9 @@ export const billingKeys = {
   /** Historia zamówień bieżącego użytkownika. */
   myOrders: (uid: string | undefined) => ["my-orders", uid ?? "anon"] as const,
   myOrdersAll: () => ["my-orders"] as const,
+  /** Dokumenty rozliczeniowe bieżącego użytkownika (faktury/paragony). */
+  myBillingDocuments: (uid: string | undefined) => ["my-billing-documents", uid ?? "anon"] as const,
+  myBillingDocumentsAll: () => ["my-billing-documents"] as const,
   /** Nadania warstwy poza planem (membership_grants) bieżącego użytkownika. */
   myGrants: (uid: string | undefined) => ["my-grants", uid ?? "anon"] as const,
   myGrantsAll: () => ["my-grants"] as const,

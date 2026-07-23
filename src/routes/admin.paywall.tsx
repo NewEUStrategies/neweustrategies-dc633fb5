@@ -225,6 +225,7 @@ function PaywallAdmin() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="month">{t("admin.paywall.intervalMonth")}</SelectItem>
+                  <SelectItem value="quarter">{t("admin.paywall.intervalQuarter")}</SelectItem>
                   <SelectItem value="year">{t("admin.paywall.intervalYear")}</SelectItem>
                   <SelectItem value="one_time">{t("admin.paywall.intervalOnce")}</SelectItem>
                 </SelectContent>

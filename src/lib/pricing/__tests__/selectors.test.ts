@@ -248,6 +248,9 @@ describe("wybór planu i matematyka oszczędności", () => {
   it("monthlyEquivalentCents zaokrągla cenę roczną do miesiąca", () => {
     expect(monthlyEquivalentCents(makePlan({ interval: "year", price_cents: 49900 }))).toBe(4158);
     expect(monthlyEquivalentCents(makePlan({ interval: "month", price_cents: 4900 }))).toBe(4900);
+    expect(monthlyEquivalentCents(makePlan({ interval: "quarter", price_cents: 14900 }))).toBe(
+      4967,
+    );
     expect(monthlyEquivalentCents(makePlan({ interval: "one_time" }))).toBeNull();
   });
 

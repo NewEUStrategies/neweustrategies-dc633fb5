@@ -433,6 +433,20 @@ Katalog cennika i cykl życia uprawnień emitują zdarzenia jak każdy inny modu
   TIER_CAPABILITIES vs seed `pricing_catalog_v3_rows`, segmenty cross-sell),
   plus istniejący `domainEventCatalog.test.ts` wymusza katalog i regułę
   inwalidacji dla każdego nowego emitera.
+- **Cykl rozliczeniowy i zmiany subskrypcji** (migracje `20260723150000/151000`):
+  enum `plan_interval` zna kwartał (Stripe: `interval=month, interval_count=3`
+  przez `stripeRecurringFor`; matematyka okresów w `periodEndFor` z klamrą
+  końca miesiąca). Samoobsługowy upgrade/downgrade robi server fn
+  `changeSubscriptionPlan` - Stripe-first (`proration_behavior=always_invoice`,
+  `payment_behavior=error_if_incomplete`: nieudana dopłata NIE zmienia planu),
+  cena wyrażana w walucie subskrypcji (parytet PLN/EUR), a zdarzenie
+  `subscription.updated.v1` z `plan_changed` odświeża warstwę/paywall.
+- **Rejestr dokumentów rozliczeniowych** `billing_documents` (RLS: właściciel +
+  staff tenanta; zapis tylko webhook): faktury z checkoutu i KAŻDEGO odnowienia
+  (`invoice.payment_succeeded` niesie komplet metadanych), paragony płatności
+  bez faktury (`charge.receipt_url`), refund oznacza dokumenty. Podgląd/PDF to
+  trwałe linki Stripe; profil (/profile/orders) renderuje rejestr, a
+  `billing_document.issued/updated.v1` odświeża go na żywo.
 
 pgTAP: `supabase/tests/cohesion_layer_test.sql`; TS:
 `src/lib/realtime/__tests__/*`, `src/lib/http/__tests__/idempotency.test.ts`,

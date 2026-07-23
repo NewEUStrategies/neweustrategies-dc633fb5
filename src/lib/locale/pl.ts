@@ -1158,6 +1158,7 @@ export const pl = {
       currency: "Waluta",
       interval: "Interwał",
       intervalMonth: "Miesięcznie",
+      intervalQuarter: "Kwartalnie",
       intervalYear: "Rocznie",
       intervalOnce: "Jednorazowo",
       active: "Aktywny",

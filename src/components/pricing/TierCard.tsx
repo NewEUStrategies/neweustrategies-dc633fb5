@@ -33,6 +33,8 @@ function intervalSuffix(interval: AccessPlan["interval"], t: (key: string) => st
       return t("pricing.perWeek");
     case "month":
       return t("pricing.perMonth");
+    case "quarter":
+      return t("pricing.perQuarter");
     case "year":
       return t("pricing.perYear");
     case "one_time":

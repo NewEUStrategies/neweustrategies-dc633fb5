@@ -14,6 +14,7 @@ import { tierName, useCurrentTier } from "@/lib/billing/tiers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ChangePlanCard } from "@/components/billing/ChangePlanCard";
 import { RetentionDialog } from "@/components/billing/RetentionDialog";
 import { toast } from "sonner";
 
@@ -74,97 +75,105 @@ function SubscriptionPage() {
   const canResume = !!data?.canceled_at && data.status === "active" && periodStillRunning;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between gap-2">
-          <span>{t("profile.subscription.title")}</span>
-          <TierChip />
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!data?.plan ? (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{t("profile.subscription.none")}</p>
-            <Button asChild>
-              <Link to="/pricing">{t("profile.overview.seePlans")}</Link>
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs uppercase text-muted-foreground">
-                  {t("profile.subscription.plan")}
-                </div>
-                <div className="text-lg font-semibold">{planName(data.plan, i18n.language)}</div>
-                <div className="text-sm text-muted-foreground">
-                  {formatMoney(data.plan.price_cents, data.plan.currency, i18n.language)}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs uppercase text-muted-foreground">
-                  {t("profile.subscription.status")}
-                </div>
-                <Badge>{t(`profile.status.${data.status}`)}</Badge>
-              </div>
-              <div>
-                <div className="text-xs uppercase text-muted-foreground">
-                  {t("profile.subscription.startedAt")}
-                </div>
-                <div>{fmtDate(data.started_at)}</div>
-              </div>
-              <div>
-                <div className="text-xs uppercase text-muted-foreground">
-                  {data.canceled_at
-                    ? t("profile.subscription.cancelsAt")
-                    : t("profile.subscription.renewsAt")}
-                </div>
-                <div>{fmtDate(data.current_period_end)}</div>
-              </div>
-            </div>
-
-            {canResume && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-border/60 bg-muted/30 px-3 py-2.5">
-                <p className="text-sm text-muted-foreground">
-                  {t("profile.subscription.accessUntil", {
-                    date: fmtDate(data.current_period_end),
-                  })}
-                </p>
-                <Button size="sm" disabled={busy} onClick={onResume}>
-                  {t("profile.subscription.resume")}
-                </Button>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-4">
-              <Button asChild variant="outline">
-                <Link to="/pricing">{t("profile.subscription.change")}</Link>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span>{t("profile.subscription.title")}</span>
+            <TierChip />
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!data?.plan ? (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">{t("profile.subscription.none")}</p>
+              <Button asChild>
+                <Link to="/pricing">{t("profile.overview.seePlans")}</Link>
               </Button>
-              {!data.canceled_at && (
-                <>
-                  {/* Przepływ retencyjny zamiast prostego potwierdzenia:
+            </div>
+          ) : (
+            <>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs uppercase text-muted-foreground">
+                    {t("profile.subscription.plan")}
+                  </div>
+                  <div className="text-lg font-semibold">{planName(data.plan, i18n.language)}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {formatMoney(data.plan.price_cents, data.plan.currency, i18n.language)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-muted-foreground">
+                    {t("profile.subscription.status")}
+                  </div>
+                  <Badge>{t(`profile.status.${data.status}`)}</Badge>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-muted-foreground">
+                    {t("profile.subscription.startedAt")}
+                  </div>
+                  <div>{fmtDate(data.started_at)}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-muted-foreground">
+                    {data.canceled_at
+                      ? t("profile.subscription.cancelsAt")
+                      : t("profile.subscription.renewsAt")}
+                  </div>
+                  <div>{fmtDate(data.current_period_end)}</div>
+                </div>
+              </div>
+
+              {canResume && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-border/60 bg-muted/30 px-3 py-2.5">
+                  <p className="text-sm text-muted-foreground">
+                    {t("profile.subscription.accessUntil", {
+                      date: fmtDate(data.current_period_end),
+                    })}
+                  </p>
+                  <Button size="sm" disabled={busy} onClick={onResume}>
+                    {t("profile.subscription.resume")}
+                  </Button>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-4">
+                <Button asChild variant="outline">
+                  <Link to="/pricing">{t("profile.subscription.change")}</Link>
+                </Button>
+                {!data.canceled_at && (
+                  <>
+                    {/* Przepływ retencyjny zamiast prostego potwierdzenia:
                       ankieta powodu + kontrofertka rabatowa (panel admina),
                       dopiero na końcu faktyczne anulowanie (onCancel). */}
-                  <Button
-                    variant="destructive"
-                    disabled={busy}
-                    onClick={() => setRetentionOpen(true)}
-                  >
-                    {t("profile.subscription.cancel")}
-                  </Button>
-                  <RetentionDialog
-                    open={retentionOpen}
-                    onOpenChange={setRetentionOpen}
-                    subscriptionId={data.id}
-                    onConfirmCancel={onCancel}
-                  />
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+                    <Button
+                      variant="destructive"
+                      disabled={busy}
+                      onClick={() => setRetentionOpen(true)}
+                    >
+                      {t("profile.subscription.cancel")}
+                    </Button>
+                    <RetentionDialog
+                      open={retentionOpen}
+                      onOpenChange={setRetentionOpen}
+                      subscriptionId={data.id}
+                      onConfirmCancel={onCancel}
+                    />
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Samoobsługowy upgrade/downgrade: tylko aktywna subskrypcja z
+          trwającym okresem (po wygaśnięciu potrzebny nowy checkout). */}
+      {data && data.status === "active" && periodStillRunning && (
+        <ChangePlanCard subscription={data} />
+      )}
+    </div>
   );
 }
 
