@@ -9,8 +9,6 @@
 // wskazują konkretny widok.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ShieldAlert } from "lucide-react";
-import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AccountIdentityPanel } from "@/components/profile/identity/AccountIdentityPanel";
