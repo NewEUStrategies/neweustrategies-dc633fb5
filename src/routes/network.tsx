@@ -283,6 +283,13 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                 }
                 highlighted={highlightId === c.connection_id}
               >
+                <DirectMessageButton
+                  userId={c.user_id}
+                  displayName={c.display_name}
+                  displayAvatar={c.avatar_url}
+                  compact
+                  iconOnly
+                />
                 <ConnectButton
                   userId={c.user_id}
                   displayName={c.display_name}
