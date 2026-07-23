@@ -10,12 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { type AccessPlan } from "@/lib/billing/types";
-import { formatApproxDisplayMoney, formatDisplayMoney } from "@/lib/billing/displayCurrency";
+import { formatDisplayMoney } from "@/lib/billing/displayCurrency";
 
 import { parseTierBenefits, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 import {
   intervalPair,
-  monthlyEquivalentCents,
   pickPlanForInterval,
   tierBadge,
   tierCtaMode,
