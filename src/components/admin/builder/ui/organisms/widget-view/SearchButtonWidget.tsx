@@ -102,6 +102,9 @@ export function SearchButtonWidget({
   // Ostatnie wyszukiwania (localStorage) - pokazywane po fokusie przy pustym
   // polu, odświeżane przy każdym otwarciu popovera.
   const [recent, setRecent] = useState<string[]>([]);
+  // Avatary autorów dociągane batch-em z profiles_public - pokazywane
+  // w wierszach osób/organizacji jak w /messages i na kartach eksperta.
+  const [authorAvatars, setAuthorAvatars] = useState<Record<string, string | null>>({});
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const reqIdRef = useRef(0);
@@ -185,6 +188,37 @@ export function SearchButtonWidget({
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, liveResults]);
+
+  // Batch-fetch avatarów dla autorów w bieżącym zestawie podpowiedzi.
+  // Cache w stanie unika ponownych zapytań przy dopisywaniu do frazy.
+  useEffect(() => {
+    const ids = Array.from(
+      new Set(
+        items
+          .filter((it) => it.kind === "author" && it.id && !(it.id in authorAvatars))
+          .map((it) => it.id as string),
+      ),
+    );
+    if (ids.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("profiles_public")
+        .select("id, avatar_url")
+        .in("id", ids);
+      if (cancelled) return;
+      const next: Record<string, string | null> = {};
+      for (const id of ids) next[id] = null;
+      for (const row of (data ?? []) as { id: string; avatar_url: string | null }[]) {
+        next[row.id] = row.avatar_url ?? null;
+      }
+      setAuthorAvatars((prev) => ({ ...prev, ...next }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
   // Dyktowanie frazy: transkrypcja płynie do pola (live results reagują same
   // przez debounce wyżej); przy wyłączonych live results finał odpala search.
@@ -446,7 +480,7 @@ export function SearchButtonWidget({
                       setTab(k);
                       setActive(-1);
                     }}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium leading-none transition-all ${
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium leading-none transition-all ${
                       isActive
                         ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
                         : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
@@ -454,7 +488,7 @@ export function SearchButtonWidget({
                   >
                     {tabLabel}
                     <span
-                      className={`inline-flex min-w-[16px] items-center justify-center rounded px-1 text-[9px] font-semibold tabular-nums ${
+                      className={`inline-flex min-w-[14px] items-center justify-center rounded px-1 text-[8px] font-semibold tabular-nums ${
                         isActive
                           ? "bg-[color-mix(in_oklab,var(--brand)_16%,transparent)] text-[var(--brand-ink)]"
                           : "bg-muted/60 text-muted-foreground/80"
@@ -473,8 +507,8 @@ export function SearchButtonWidget({
             {showRecent && (
               <div className="px-3 pt-3 pb-2">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    <LucideIcons.Clock className="w-3 h-3" aria-hidden />
+                  <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    <LucideIcons.Clock className="w-2.5 h-2.5" aria-hidden />
                     {t("recent")}
                   </span>
                   <button
@@ -484,7 +518,7 @@ export function SearchButtonWidget({
                       clearRecentSearches();
                       setRecent([]);
                     }}
-                    className="text-[10px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
+                    className="text-[9px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
                   >
                     {t("recent_clear")}
                   </button>
@@ -501,10 +535,10 @@ export function SearchButtonWidget({
                         setFocused(false);
                         navigateToHref(`/search?q=${encodeURIComponent(term)}`);
                       }}
-                      className="group inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2.5 py-1.5 text-[12px] leading-none text-foreground transition-all hover:border-[var(--brand)] hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)] hover:text-[var(--brand-ink)]"
+                      className="group inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2 py-1 text-[10px] leading-none text-foreground transition-all hover:border-[var(--brand)] hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)] hover:text-[var(--brand-ink)]"
                     >
                       <LucideIcons.Clock
-                        className="w-3 h-3 shrink-0 text-muted-foreground/70 group-hover:text-[var(--brand)]"
+                        className="w-2.5 h-2.5 shrink-0 text-muted-foreground/70 group-hover:text-[var(--brand)]"
                         aria-hidden
                       />
                       <span className="max-w-[180px] truncate">{term}</span>
@@ -578,10 +612,10 @@ export function SearchButtonWidget({
                             style={{ color: "var(--brand)" }}
                           />
                         </span>
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                           {bucketLabel(bucket)}
                         </span>
-                        <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-muted-foreground">
+                        <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 text-[8px] font-semibold tabular-nums text-muted-foreground">
                           {entries.length}
                         </span>
                       </div>
@@ -604,7 +638,7 @@ export function SearchButtonWidget({
                                 tabIndex={-1}
                                 onClick={goToResult}
                                 onMouseEnter={() => setActive(i)}
-                                className={`group relative mx-1.5 flex items-center gap-2.5 rounded-md px-2 py-2 text-[13px] leading-[1.4] transition-all ${
+                                className={`group relative mx-1.5 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] leading-[1.4] transition-all ${
                                   isActive
                                     ? "bg-[color-mix(in_oklab,var(--brand)_8%,transparent)] text-foreground"
                                     : "text-foreground hover:bg-muted/60"
@@ -618,37 +652,47 @@ export function SearchButtonWidget({
                                   }`}
                                   style={{ backgroundColor: "var(--brand)" }}
                                 />
-                                <span
-                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-all ${
-                                    isActive
-                                      ? "border-transparent"
-                                      : "border-border/60 bg-background/60 group-hover:border-border"
-                                  }`}
-                                  style={
-                                    isActive
-                                      ? {
-                                          backgroundColor:
-                                            "color-mix(in oklab, var(--brand) 14%, transparent)",
-                                        }
-                                      : undefined
-                                  }
-                                >
-                                  <Icon
-                                    className="h-3.5 w-3.5"
+                                {it.kind === "author" && it.id && authorAvatars[it.id] ? (
+                                  <img
+                                    src={authorAvatars[it.id] as string}
+                                    alt=""
                                     aria-hidden
-                                    style={{
-                                      color: isActive
-                                        ? "var(--brand)"
-                                        : "var(--muted-foreground)",
-                                    }}
+                                    loading="lazy"
+                                    className="h-7 w-7 shrink-0 rounded-md border border-border/60 object-cover"
                                   />
-                                </span>
+                                ) : (
+                                  <span
+                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-all ${
+                                      isActive
+                                        ? "border-transparent"
+                                        : "border-border/60 bg-background/60 group-hover:border-border"
+                                    }`}
+                                    style={
+                                      isActive
+                                        ? {
+                                            backgroundColor:
+                                              "color-mix(in oklab, var(--brand) 14%, transparent)",
+                                          }
+                                        : undefined
+                                    }
+                                  >
+                                    <Icon
+                                      className="h-3.5 w-3.5"
+                                      aria-hidden
+                                      style={{
+                                        color: isActive
+                                          ? "var(--brand)"
+                                          : "var(--muted-foreground)",
+                                      }}
+                                    />
+                                  </span>
+                                )}
                                 <span className="min-w-0 flex-1 truncate">
                                   {itemLabel(it)}
                                 </span>
                                 {kindLabel && (
                                   <span
-                                    className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide sm:inline-flex ${
+                                    className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-wide sm:inline-flex ${
                                       isActive
                                         ? "text-[var(--brand-ink)]"
                                         : "text-muted-foreground"
@@ -690,7 +734,7 @@ export function SearchButtonWidget({
                   addRecentSearch(q);
                   setFocused(false);
                 }}
-                className="group flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 text-[12px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
+                className="group flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-[10px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
                 style={{ color: "var(--brand)" }}
               >
                 <span className="inline-flex items-center gap-1.5">
@@ -710,7 +754,7 @@ export function SearchButtonWidget({
           {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2">
               <div className="flex flex-wrap items-center gap-1">
-                <span className="mr-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                <span className="mr-1 text-[8px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                   {t("operators")}
                 </span>
                 {[
@@ -738,30 +782,30 @@ export function SearchButtonWidget({
                         el.setSelectionRange(pos, pos);
                       });
                     }}
-                    className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[9px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                    className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[8px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
                   >
                     {op}
                   </button>
                 ))}
               </div>
-              <div className="hidden items-center gap-2 text-[9px] text-muted-foreground md:flex">
+              <div className="hidden items-center gap-2 text-[8px] text-muted-foreground md:flex">
                 <span className="inline-flex items-center gap-1">
-                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">
+                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
                     ↑
                   </kbd>
-                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">
+                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
                     ↓
                   </kbd>
                   {t("kbd_navigate")}
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">
+                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
                     ↵
                   </kbd>
                   {t("kbd_select")}
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">
+                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
                     esc
                   </kbd>
                   {t("kbd_close")}
@@ -773,7 +817,7 @@ export function SearchButtonWidget({
                   if (hasQuery) addRecentSearch(q);
                   setFocused(false);
                 }}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold hover:underline"
+                className="inline-flex items-center gap-1 text-[9px] font-semibold hover:underline"
                 style={{ color: "var(--brand)" }}
               >
                 <LucideIcons.SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />

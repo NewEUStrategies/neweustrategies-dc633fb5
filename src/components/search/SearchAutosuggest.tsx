@@ -27,6 +27,7 @@ import {
   type SuggestBucket,
 } from "@/lib/search/facetModel";
 import { SuggestGroupHeader, SuggestRow, SuggestListShell } from "./SuggestListView";
+import { useAuthorAvatars } from "@/lib/search/useAuthorAvatars";
 
 interface Props {
   items: AutosuggestItem[];
@@ -72,6 +73,7 @@ export function SearchAutosuggest({
   advHref,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("all");
+  const authorAvatars = useAuthorAvatars(items);
 
   const grouped = useMemo(() => {
     const g = new Map<SuggestBucket, BucketedItem[]>();
@@ -136,7 +138,7 @@ export function SearchAutosuggest({
                   e.preventDefault();
                   setTab(k);
                 }}
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium leading-none transition-all ${
+                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium leading-none transition-all ${
                   isActive
                     ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
                     : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
@@ -144,7 +146,7 @@ export function SearchAutosuggest({
               >
                 {tLabel}
                 <span
-                  className={`inline-flex min-w-[16px] items-center justify-center rounded px-1 text-[9px] font-semibold tabular-nums ${
+                  className={`inline-flex min-w-[14px] items-center justify-center rounded px-1 text-[8px] font-semibold tabular-nums ${
                     isActive
                       ? "bg-[color-mix(in_oklab,var(--brand)_16%,transparent)] text-[var(--brand-ink)]"
                       : "bg-muted/60 text-muted-foreground/80"
@@ -189,6 +191,7 @@ export function SearchAutosuggest({
                           label={label(it)}
                           meta={kindLabel(it.kind)}
                           icon={Icon}
+                          avatarUrl={it.kind === "author" && it.id ? authorAvatars[it.id] ?? null : null}
                           active={i === activeIndex}
                           onMouseDown={(e) => {
                             e.preventDefault();
@@ -212,16 +215,16 @@ export function SearchAutosuggest({
               e.preventDefault();
               onSubmitPhrase(trimmed);
             }}
-            className="group flex w-full items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 text-[12px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
+            className="group flex w-full items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-[10px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
             style={{ color: "var(--brand)" }}
           >
             <span className="inline-flex items-center gap-1.5">
-              <SearchIcon className="h-3.5 w-3.5" aria-hidden />
+              <SearchIcon className="h-3 w-3" aria-hidden />
               {t("view_all", "Zobacz wszystkie wyniki dla")}
               <span className="font-bold">„{trimmed}"</span>
             </span>
             <ArrowRight
-              className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+              className="h-3 w-3 shrink-0 transition-transform group-hover:translate-x-0.5"
               aria-hidden
             />
           </button>
@@ -232,7 +235,7 @@ export function SearchAutosuggest({
       {showChrome && (
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2">
           <div className="flex flex-wrap items-center gap-1">
-            <span className="mr-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="mr-1 text-[8px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               {t("operators", "Operatory")}
             </span>
             {OPERATORS.map(({ op, ins, caret }) => (
@@ -254,30 +257,30 @@ export function SearchAutosuggest({
                     el.setSelectionRange(pos, pos);
                   });
                 }}
-                className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[9px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[8px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
               >
                 {op}
               </button>
             ))}
           </div>
-          <div className="hidden items-center gap-2 text-[9px] text-muted-foreground md:flex">
+          <div className="hidden items-center gap-2 text-[8px] text-muted-foreground md:flex">
             <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">↑</kbd>
-              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">↓</kbd>
+              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↑</kbd>
+              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↓</kbd>
               {t("kbd_navigate", "nawiguj")}
             </span>
             <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">↵</kbd>
+              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↵</kbd>
               {t("kbd_select", "wybierz")}
             </span>
             <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">esc</kbd>
+              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">esc</kbd>
               {t("kbd_close", "zamknij")}
             </span>
           </div>
           <AppLink
             href={resolvedAdvHref}
-            className="inline-flex items-center gap-1 text-[10px] font-semibold hover:underline"
+            className="inline-flex items-center gap-1 text-[9px] font-semibold hover:underline"
             style={{ color: "var(--brand)" }}
           >
             <SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
@@ -309,14 +312,14 @@ export function RecentSearchesList({
   return (
     <SuggestListShell className="w-full">
       <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          <Clock className="h-3 w-3" aria-hidden />
+        <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <Clock className="h-2.5 w-2.5" aria-hidden />
           {t("recent", "Ostatnie wyszukiwania")}
         </span>
         <button
           type="button"
           onClick={onClear}
-          className="text-[10px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
+          className="text-[9px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
         >
           {t("recent_clear", "Wyczyść historię")}
         </button>
