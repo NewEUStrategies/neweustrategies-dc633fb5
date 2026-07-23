@@ -144,11 +144,11 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
         <button
           type="button"
           className={[
-            "relative inline-flex h-10 w-10 items-center justify-center shrink-0",
-            "rounded-[10px] border border-border/70 bg-card text-foreground",
-            "shadow-sm transition-all duration-200",
-            "hover:bg-muted hover:border-border hover:shadow-md hover:-translate-y-px",
-            "active:translate-y-0 active:shadow-sm",
+            "relative inline-flex h-10 w-10 items-center justify-center shrink-0 overflow-visible",
+            "rounded-[10px] border border-transparent bg-transparent text-foreground",
+            "transition-all duration-200",
+            "hover:bg-muted/60 hover:border-border/60 hover:-translate-y-px",
+            "active:translate-y-0",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             "disabled:opacity-50 disabled:pointer-events-none",
             unread > 0 && "text-foreground",
@@ -167,6 +167,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
           <UnreadBadge
             count={unread}
             variant="alert"
+            size="sm"
             className="absolute -top-1 -right-1"
           />
         </button>
