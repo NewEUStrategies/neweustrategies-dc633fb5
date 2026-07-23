@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("@/lib/webVitals", () => ({ initWebVitals: vi.fn() }));
+// initWebVitals zwraca teraz funkcje teardown (rozlaczenie obserwerow przy
+// cofnieciu zgody); mock musi ja zwracac, bo initObservability wola ja w cleanupie.
+vi.mock("@/lib/webVitals", () => ({ initWebVitals: vi.fn(() => () => {}) }));
 import { initWebVitals } from "@/lib/webVitals";
 import { initObservability } from "./index";
 
