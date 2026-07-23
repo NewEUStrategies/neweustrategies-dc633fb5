@@ -235,7 +235,7 @@ export function SearchAutosuggest({
       {showChrome && (
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2">
           <div className="flex flex-wrap items-center gap-1">
-            <span className="mr-1 text-[8px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="mr-1 !text-[7px] !leading-[9px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
               {t("operators", "Operatory")}
             </span>
             {OPERATORS.map(({ op, ins, caret }) => (
@@ -257,7 +257,7 @@ export function SearchAutosuggest({
                     el.setSelectionRange(pos, pos);
                   });
                 }}
-                className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[8px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                className="inline-flex items-center rounded-[6px] border border-border/60 bg-background px-1 py-px font-mono !text-[7px] !leading-[10px] font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
               >
                 {op}
               </button>

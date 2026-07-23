@@ -124,7 +124,7 @@ export function SuggestRow({
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {meta && (
         <span
-          className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide sm:inline-flex ${
+          className={`hidden shrink-0 rounded-[6px] px-1 py-px !text-[6px] !leading-[9px] font-semibold uppercase !tracking-[0.02em] sm:inline-flex ${
             active ? "text-[var(--brand-ink)]" : "text-muted-foreground"
           }`}
           style={{
