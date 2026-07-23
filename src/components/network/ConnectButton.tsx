@@ -191,7 +191,7 @@ export function ConnectButton({
           variant="outline"
           size={size}
           disabled={busy}
-          className={cn("gap-1.5 text-muted-foreground", iconOnlyClass, className)}
+          className={cn("gap-1.5 text-muted-foreground", iconOnlyClass, iconHoverClass, className)}
           title={iconOnly ? t("network.pendingOut") : t("network.pendingOutHint")}
           aria-label={`${t("network.withdraw")}: ${displayName}`}
           onClick={() => setConfirm("withdraw")}
