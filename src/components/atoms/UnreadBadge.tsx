@@ -6,10 +6,13 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 export type UnreadBadgeSize = "sm" | "md" | "lg";
+export type UnreadBadgeVariant = "primary" | "alert";
 
 interface UnreadBadgeProps {
   count: number;
   size?: UnreadBadgeSize;
+  /** primary = neutralne (panele), alert = czerwona pigułka dla headera. */
+  variant?: UnreadBadgeVariant;
   pulse?: boolean;
   className?: string;
   /** Optional override for the aria label; defaults to i18n "notifications.unread" / "chat.unread". */
@@ -23,9 +26,18 @@ const SIZE_CLASSES: Record<UnreadBadgeSize, string> = {
   lg: "h-5 min-w-[20px] px-1.5 text-[11px]",
 };
 
+const VARIANT_CLASSES: Record<UnreadBadgeVariant, string> = {
+  primary: "bg-primary text-primary-foreground ring-2 ring-background shadow-md",
+  // Czerwona pigułka w headerze - czytelna w light i dark, biały kontur odcina
+  // ją od ikony pod spodem.
+  alert:
+    "bg-[hsl(0_84%_55%)] text-white ring-2 ring-background shadow-[0_2px_6px_-1px_hsl(0_84%_55%/0.5)]",
+};
+
 export function UnreadBadge({
   count,
   size = "md",
+  variant = "primary",
   pulse = false,
   className,
   labelKey = "notifications.unread",
@@ -39,10 +51,9 @@ export function UnreadBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center rounded-full",
-        "bg-primary text-primary-foreground font-bold leading-none",
-        "ring-2 ring-background shadow-md",
+        "inline-flex items-center justify-center rounded-full font-bold leading-none",
         "motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200",
+        VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         pulse && "motion-safe:animate-pulse",
         className,
@@ -54,3 +65,4 @@ export function UnreadBadge({
     </span>
   );
 }
+
