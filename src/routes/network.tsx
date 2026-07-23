@@ -471,6 +471,13 @@ function SuggestionsTab() {
                 .join(" · ") || undefined
             }
           >
+            <DirectMessageButton
+              userId={s.user_id}
+              displayName={s.display_name}
+              displayAvatar={s.avatar_url}
+              compact
+              iconOnly
+            />
             <ConnectButton userId={s.user_id} displayName={s.display_name} compact />
           </PersonRow>
         ))}
