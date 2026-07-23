@@ -132,9 +132,34 @@ const adminMembershipEn = {
     newTier: "New tier",
     rankBadge: "rank",
     defaultBadge: "default",
+    inactiveBadge: "inactive",
     deleteTitle: "Delete tier",
     deleteDefaultDisabled: "Cannot delete default tier",
     deleteConfirm: 'Delete tier "{{key}}"? This cannot be undone.',
+    kpi: {
+      tiers: "Tiers (active / total)",
+      default: "Default tier",
+      mappedPlans: "Plans with tier",
+      activeGrants: "Active grants",
+    },
+    tabs: {
+      tiers: "Tiers",
+      mapping: "Plan mapping",
+      grants: "Grants",
+      orgs: "Organisations",
+    },
+    sections: {
+      tiersTitle: "Tier catalogue",
+      tiersDesc: "Name, description, benefits and capability gates for each tier. Ordered by rank.",
+    },
+    groups: {
+      naming: "Naming and description",
+      status: "Rank and status",
+      benefits: "Benefits (per item)",
+      capabilities: "Gates and limits (capabilities)",
+      grantForm: "New grant",
+    },
+
     fields: {
       namePl: "Nazwa PL",
       nameEn: "Name EN",
