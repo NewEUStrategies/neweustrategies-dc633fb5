@@ -285,8 +285,8 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
         </div>
       ) : (
         <>
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {connections.map((c) => (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {paged.map((c) => (
               <PersonRow
                 key={c.user_id}
                 userId={c.user_id}
@@ -326,20 +326,51 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
               </PersonRow>
             ))}
           </ul>
-          {connectionsQ.hasNextPage && (
-            <div className="flex justify-center">
+          {(totalPages > 1 || connectionsQ.hasNextPage) && (
+            <nav
+              aria-label={t("network.pagination", { defaultValue: "Paginacja" })}
+              className="flex items-center justify-center gap-2 pt-2"
+            >
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                disabled={connectionsQ.isFetchingNextPage}
-                onClick={() => void connectionsQ.fetchNextPage()}
+                size="icon"
+                className="h-8 w-8"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label={t("network.prevPage", { defaultValue: "Poprzednia strona" })}
               >
-                {connectionsQ.isFetchingNextPage ? t("network.loadingMore") : t("network.showMore")}
+                <ChevronLeft className="h-4 w-4" aria-hidden />
               </Button>
-            </div>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {currentPage} / {totalPages}
+                {connectionsQ.hasNextPage ? "+" : ""}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={
+                  currentPage >= totalPages &&
+                  !connectionsQ.hasNextPage &&
+                  !connectionsQ.isFetchingNextPage
+                }
+                onClick={() => {
+                  if (currentPage < totalPages) {
+                    setPage((p) => p + 1);
+                  } else if (connectionsQ.hasNextPage) {
+                    void connectionsQ.fetchNextPage().then(() => setPage((p) => p + 1));
+                  }
+                }}
+                aria-label={t("network.nextPage", { defaultValue: "Następna strona" })}
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Button>
+            </nav>
           )}
         </>
+
       )}
     </div>
   );
