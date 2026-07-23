@@ -281,12 +281,16 @@ export function ConnectButton({
             variant="outline"
             size={size}
             disabled={busy}
-            className={cn("gap-1.5", className)}
+            className={cn("gap-1.5", iconOnlyClass, className)}
             aria-label={`${t("network.connected")}: ${displayName}`}
+            title={iconOnly ? t("network.connected") : undefined}
           >
             <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            <span className={cn(compact && "hidden sm:inline")}>{t("network.connected")}</span>
+            {!iconOnly && (
+              <span className={cn(compact && "hidden sm:inline")}>{t("network.connected")}</span>
+            )}
           </Button>
+
         </PopoverTrigger>
         <PopoverContent align="end" className="w-56 p-1.5">
           <button
