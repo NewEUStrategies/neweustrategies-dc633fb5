@@ -4,17 +4,31 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useAdminInmails, useResolveInmail, type InMailRow } from "@/lib/chat/useInmails";
 import { ensureI18n as ensureInmailI18n } from "@/lib/i18n-inmail";
 
 export const Route = createFileRoute("/admin/inmails")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Zapytania do ekspertów - Admin" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({
+    meta: [
+      { title: "Zapytania do ekspertów - Admin" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
   component: AdminInmails,
 });
 
@@ -56,7 +70,9 @@ function AdminInmails() {
           <SelectContent>
             <SelectItem value="all">{t("inmail.admin.filterAll")}</SelectItem>
             {STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>{t(`inmail.status.${s}`)}</SelectItem>
+              <SelectItem key={s} value={s}>
+                {t(`inmail.status.${s}`)}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -89,12 +105,19 @@ function AdminInmails() {
                 <TableCell className="text-right">
                   {row.status === "pending" && (
                     <div className="flex justify-end gap-1.5">
-                      <Button size="sm" variant="outline" className="rounded-[6px]"
-                        onClick={() => act(row, "decline")}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-[6px]"
+                        onClick={() => act(row, "decline")}
+                      >
                         {t("inmail.actions.decline")}
                       </Button>
-                      <Button size="sm" className="rounded-[6px]"
-                        onClick={() => act(row, "approve")}>
+                      <Button
+                        size="sm"
+                        className="rounded-[6px]"
+                        onClick={() => act(row, "approve")}
+                      >
                         {t("inmail.actions.approve")}
                       </Button>
                     </div>

@@ -4,11 +4,18 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { useMyInmails, useResolveInmail, type InMailBox, type InMailRow } from "@/lib/chat/useInmails";
+import {
+  useMyInmails,
+  useResolveInmail,
+  type InMailBox,
+  type InMailRow,
+} from "@/lib/chat/useInmails";
 import { ensureI18n as ensureInmailI18n } from "@/lib/i18n-inmail";
 
 export const Route = createFileRoute("/profile/inmails")({
-  head: () => ({ meta: [{ title: "Zapytania do ekspertów" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({
+    meta: [{ title: "Zapytania do ekspertów" }, { name: "robots", content: "noindex, nofollow" }],
+  }),
   component: ProfileInmails,
 });
 
@@ -20,7 +27,11 @@ function InmailList({ box }: { box: InMailBox }) {
   async function act(row: InMailRow, action: "approve" | "decline" | "answered" | "cancel") {
     try {
       await resolve.mutateAsync({ inmailId: row.id, action });
-      toast.success(t(`inmail.status.${action === "cancel" ? "cancelled" : action === "approve" ? "approved" : action}`));
+      toast.success(
+        t(
+          `inmail.status.${action === "cancel" ? "cancelled" : action === "approve" ? "approved" : action}`,
+        ),
+      );
     } catch {
       toast.error(t("inmail.error.generic"));
     }
@@ -28,7 +39,11 @@ function InmailList({ box }: { box: InMailBox }) {
 
   const rows = q.data ?? [];
   if (rows.length === 0) {
-    return <p className="rounded-[6px] border border-dashed border-border p-6 text-center text-xs text-muted-foreground">{t("inmail.box.empty")}</p>;
+    return (
+      <p className="rounded-[6px] border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+        {t("inmail.box.empty")}
+      </p>
+    );
   }
   return (
     <ul className="flex flex-col gap-2">
@@ -44,12 +59,22 @@ function InmailList({ box }: { box: InMailBox }) {
           {row.status === "pending" && (
             <div className="mt-2 flex flex-wrap justify-end gap-1.5">
               {box === "sent" ? (
-                <Button size="sm" variant="outline" className="rounded-[6px]" onClick={() => act(row, "cancel")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-[6px]"
+                  onClick={() => act(row, "cancel")}
+                >
                   {t("inmail.actions.cancel")}
                 </Button>
               ) : (
                 <>
-                  <Button size="sm" variant="outline" className="rounded-[6px]" onClick={() => act(row, "decline")}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-[6px]"
+                    onClick={() => act(row, "decline")}
+                  >
                     {t("inmail.actions.decline")}
                   </Button>
                   <Button size="sm" className="rounded-[6px]" onClick={() => act(row, "approve")}>

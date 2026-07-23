@@ -242,7 +242,9 @@ export function useStartConversation() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (input: string | { peerId: string; peerName?: string | null; peerAvatar?: string | null }): Promise<string> => {
+    mutationFn: async (
+      input: string | { peerId: string; peerName?: string | null; peerAvatar?: string | null },
+    ): Promise<string> => {
       const peerId = typeof input === "string" ? input : input.peerId;
       const { data, error } = await supabase.rpc("get_or_create_direct_conversation", {
         p_peer_id: peerId,
@@ -254,8 +256,8 @@ export function useStartConversation() {
           const { openInMailDialog } = await import("./inmailDialogBus");
           openInMailDialog({
             recipientId: peerId,
-            recipientName: typeof input === "string" ? null : input.peerName ?? null,
-            recipientAvatar: typeof input === "string" ? null : input.peerAvatar ?? null,
+            recipientName: typeof input === "string" ? null : (input.peerName ?? null),
+            recipientAvatar: typeof input === "string" ? null : (input.peerAvatar ?? null),
           });
         }
         throw error;

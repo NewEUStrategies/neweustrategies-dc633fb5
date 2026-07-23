@@ -39,9 +39,12 @@ export const inmailPl = {
     sentToast: "Zapytanie wysłane. Poinformujemy Cię o odpowiedzi.",
     error: {
       rateLimit: "Wysłałeś już maksymalną liczbę zapytań w krótkim czasie.",
-      monthlyQuota: "Wyczerpałeś miesięczną pulę zapytań do ekspertów. Plus: 2/mies., Pro: 5/mies. Zwiększ plan, aby napisać do kolejnych ekspertów lub VIP-ów.",
-      notExpert: "Ten użytkownik nie wymaga zapytania - napisz do niego bezpośrednio z listy kontaktów.",
-      tierDisabled: "Twoja warstwa nie umożliwia wysyłania zapytań do ekspertów. Zaktualizuj plan (Plus - 2/mies., Pro - 5/mies., VIP - bezpośrednio).",
+      monthlyQuota:
+        "Wyczerpałeś miesięczną pulę zapytań do ekspertów. Plus: 2/mies., Pro: 5/mies. Zwiększ plan, aby napisać do kolejnych ekspertów lub VIP-ów.",
+      notExpert:
+        "Ten użytkownik nie wymaga zapytania - napisz do niego bezpośrednio z listy kontaktów.",
+      tierDisabled:
+        "Twoja warstwa nie umożliwia wysyłania zapytań do ekspertów. Zaktualizuj plan (Plus - 2/mies., Pro - 5/mies., VIP - bezpośrednio).",
       generic: "Nie udało się wysłać. Spróbuj ponownie.",
     },
     status: {
@@ -123,9 +126,11 @@ export const inmailEn = {
     sentToast: "Expert Request sent. You will be notified about the reply.",
     error: {
       rateLimit: "You have sent too many requests in a short period.",
-      monthlyQuota: "You have used your monthly Expert Request quota. Plus: 2/mo, Pro: 5/mo. Upgrade to reach more experts or VIPs.",
+      monthlyQuota:
+        "You have used your monthly Expert Request quota. Plus: 2/mo, Pro: 5/mo. Upgrade to reach more experts or VIPs.",
       notExpert: "This user does not require an Expert Request - send a normal DM instead.",
-      tierDisabled: "Your tier does not include Expert Requests. Upgrade your plan (Plus - 2/mo, Pro - 5/mo, VIP - direct).",
+      tierDisabled:
+        "Your tier does not include Expert Requests. Upgrade your plan (Plus - 2/mo, Pro - 5/mo, VIP - direct).",
       generic: "Could not send. Please try again.",
     },
     status: {
