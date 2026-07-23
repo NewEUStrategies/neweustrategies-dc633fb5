@@ -888,19 +888,19 @@ export function SearchButtonWidget({
                selectors intentionally lock compact metadata and operators. */
             .builder-search-widget .search-kind-label {
               font-family: "Red Hat Display", system-ui, sans-serif !important;
-              font-size: 6px !important;
+              font-size: 9px !important;
               line-height: 9px !important;
               letter-spacing: 0 !important;
             }
             .builder-search-widget .search-operators-heading {
               font-family: "Red Hat Display", system-ui, sans-serif !important;
-              font-size: 6px !important;
+              font-size: 9px !important;
               line-height: 9px !important;
               letter-spacing: 0.04em !important;
             }
             .builder-search-widget .search-operator-button {
               font-family: "Red Hat Display", system-ui, sans-serif !important;
-              font-size: 6px !important;
+              font-size: 9px !important;
               line-height: 9px !important;
               letter-spacing: 0 !important;
               min-height: 12px !important;
