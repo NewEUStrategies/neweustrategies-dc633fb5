@@ -4,7 +4,7 @@
 // bezpłatna), wsparcie fundacji albo rozmowa z zespołem (oferty offline).
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { HandHeart, MessageCircle } from "lucide-react";
+import { Check, HandHeart, MessageCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
