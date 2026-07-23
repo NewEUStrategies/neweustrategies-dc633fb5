@@ -18,6 +18,10 @@ const EXPECTED_ENFORCED = [
   "pro_briefings",
   "recordings",
   "qa_priority",
+  "chat_enabled",
+  "chat_direct_gated",
+  "chat_inmail_quota_2",
+  "chat_inmail_quota_5",
 ].sort();
 
 describe("rejestr capabilities", () => {
