@@ -312,14 +312,14 @@ export function RecentSearchesList({
   return (
     <SuggestListShell className="w-full">
       <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          <Clock className="h-3 w-3" aria-hidden />
+        <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <Clock className="h-2.5 w-2.5" aria-hidden />
           {t("recent", "Ostatnie wyszukiwania")}
         </span>
         <button
           type="button"
           onClick={onClear}
-          className="text-[10px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
+          className="text-[9px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
         >
           {t("recent_clear", "Wyczyść historię")}
         </button>
