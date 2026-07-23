@@ -38,7 +38,9 @@ import {
   Brush,
   Heading1,
   Palette,
+  Clock,
 } from "@/lib/lucide-shim";
+import { SiteSettingsHistoryDialog } from "@/components/admin/SiteSettingsHistoryDialog";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 import { ThemeDesignPane } from "@/components/admin/theme-design";
 import { ThemeFontSizesPane } from "@/components/admin/ThemeFontSizesPane";
