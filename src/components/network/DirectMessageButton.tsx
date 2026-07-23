@@ -23,6 +23,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentTier, tierHasFeature } from "@/lib/billing/tiers";
 import { useStartConversation } from "@/lib/chat/useConversations";
@@ -30,6 +36,7 @@ import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-direct-message";
+
 
 export interface DirectMessageButtonProps {
   userId: string;
