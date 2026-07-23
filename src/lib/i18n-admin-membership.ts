@@ -83,6 +83,11 @@ const adminMembershipPl = {
     },
     grants: {
       heading: "Nadania warstwy (poza planem)",
+      newHeading: "Nowe nadanie",
+      activeHeading: "Aktywne nadania",
+      activeHint: "Konta, które mają nadaną warstwę poza subskrypcją planu.",
+      revokedHeading: "Cofnięte nadania",
+      revokedHint: "Historia cofniętych nadań (tylko do odczytu).",
       hint: "Nadaj warstwę bezpośrednio po e-mailu konta (sprzedaż fakturowa, członkostwo eksperckie/partnerskie, komplementarne). Pozostaw „miesiące” puste dla nadania bezterminowego.",
       tier: "Warstwa",
       tierSelect: "wybierz",
@@ -98,6 +103,7 @@ const adminMembershipPl = {
       sourceImport: "import",
       sourceManual: "ręczne",
     },
+
     benefits: {
       heading: "Benefity (per punkt)",
       add: "Dodaj",
