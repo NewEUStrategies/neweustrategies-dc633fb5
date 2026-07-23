@@ -206,13 +206,13 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           </ul>
         </div>
       ) : showEmpty ? (
-        <div role="status" className="px-4 py-8 text-center text-[12px] text-muted-foreground">
+        <div role="status" className="px-4 py-8 text-center text-[10px] text-muted-foreground">
           {t("searchOverlay.noResults")}
         </div>
       ) : recent.length > 0 ? (
         <div className="py-1">
           <div className="flex items-center justify-between px-3 pt-2 pb-1">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <Clock className="h-3 w-3" aria-hidden />
               {t("search.recent", { defaultValue: "Ostatnie wyszukiwania" }) as string}
             </span>
@@ -222,7 +222,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
                 clearRecentSearches();
                 setRecent([]);
               }}
-              className="text-[10px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
+              className="text-[9px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
             >
               {t("search.recent_clear", { defaultValue: "Wyczyść" }) as string}
             </button>
@@ -246,7 +246,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-md bg-muted/50">
             <Search className="h-4 w-4 text-muted-foreground" />
           </div>
-          <p className="text-[12px] text-muted-foreground">{t("searchOverlay.startTyping")}</p>
+          <p className="text-[10px] text-muted-foreground">{t("searchOverlay.startTyping")}</p>
         </div>
       )}
 
@@ -254,7 +254,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
         <AppLink
           href={`/search?q=${encodeURIComponent(trimmed)}`}
           onClick={() => selectAndClose(q)}
-          className="group flex w-full items-center justify-between gap-2 border-t border-border/60 px-3 py-2 text-[12px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
+          className="group flex w-full items-center justify-between gap-2 border-t border-border/60 px-3 py-2 text-[10px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
           style={{ color: "var(--brand)" }}
         >
           <span className="inline-flex items-center gap-1.5">
@@ -274,7 +274,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const footer = (
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-1.5">
       <div className="flex flex-wrap items-center gap-1">
-        <span className="mr-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <span className="mr-1 text-[8px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           {t("search.widget.operators", { defaultValue: "Operatory" }) as string}
         </span>
         {OPERATORS.map(({ op, ins, caret }) => (
@@ -285,31 +285,31 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               e.preventDefault();
               insertOperator(ins, caret);
             }}
-            className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[9px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+            className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[8px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
           >
             {op}
           </button>
         ))}
       </div>
-      <div className="hidden items-center gap-2 text-[9px] text-muted-foreground md:flex">
+      <div className="hidden items-center gap-2 text-[8px] text-muted-foreground md:flex">
         <span className="inline-flex items-center gap-1">
-          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">↑</kbd>
-          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">↓</kbd>
+          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↑</kbd>
+          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↓</kbd>
           {t("search.widget.kbd_navigate", { defaultValue: "nawiguj" }) as string}
         </span>
         <span className="inline-flex items-center gap-1">
-          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">↵</kbd>
+          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↵</kbd>
           {t("search.widget.kbd_select", { defaultValue: "wybierz" }) as string}
         </span>
         <span className="inline-flex items-center gap-1">
-          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">esc</kbd>
+          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">esc</kbd>
           {t("search.widget.kbd_close", { defaultValue: "zamknij" }) as string}
         </span>
       </div>
       <AppLink
         href={hasQuery ? `/search?q=${encodeURIComponent(trimmed)}&adv=1` : "/search?adv=1"}
         onClick={() => selectAndClose(q)}
-        className="inline-flex items-center gap-1 text-[10px] font-semibold hover:underline"
+        className="inline-flex items-center gap-1 text-[9px] font-semibold hover:underline"
         style={{ color: "var(--brand)" }}
       >
         <SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
