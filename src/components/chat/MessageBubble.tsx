@@ -92,9 +92,7 @@ function ReactorAvatar({
 }) {
   const initial = (profile?.display_name ?? name).trim().charAt(0).toUpperCase() || "?";
   const dims =
-    size === "sm"
-      ? "h-5 w-5 rounded-[4px] text-[9px]"
-      : "h-3.5 w-3.5 rounded-[3px] text-[8px]";
+    size === "sm" ? "h-5 w-5 rounded-[4px] text-[9px]" : "h-3.5 w-3.5 rounded-[3px] text-[8px]";
   if (profile?.avatar_url) {
     return (
       <img
@@ -118,7 +116,6 @@ function ReactorAvatar({
     </span>
   );
 }
-
 
 function ReactionChips({
   reactions,
@@ -180,7 +177,9 @@ function ReactionChips({
                     ? "border-[var(--chat-user-to,theme(colors.primary.DEFAULT))]/60 text-foreground"
                     : "border-border/60 hover:border-border",
                 )}
-                style={{ fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif' }}
+                style={{
+                  fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif',
+                }}
               >
                 <span aria-hidden className="text-[12px] leading-none">
                   {emoji}
@@ -196,16 +195,23 @@ function ReactionChips({
               sideOffset={6}
               collisionPadding={12}
               className="z-[100] min-w-[180px] max-w-[240px] overflow-visible rounded-[6px] border-border/70 p-0 shadow-lg"
-              style={{ fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif' }}
+              style={{
+                fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif',
+              }}
             >
               <div className="border-b border-border/50 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <span aria-hidden className="mr-1 text-[12px] align-middle">{emoji}</span>
-                {t("chat.reactions.reactorsTitle", { emoji: "" }).replace(/[:：]$/, "").trim() || t("chat.reactions.reactorsTitle", { emoji })}
+                <span aria-hidden className="mr-1 text-[12px] align-middle">
+                  {emoji}
+                </span>
+                {t("chat.reactions.reactorsTitle", { emoji: "" })
+                  .replace(/[:：]$/, "")
+                  .trim() || t("chat.reactions.reactorsTitle", { emoji })}
               </div>
               <ul className="max-h-[180px] overflow-y-auto py-1">
                 {rows.map((r) => {
                   const profile = reactorProfiles?.get(r.user_id);
-                  const display = nameFor(r.user_id) || t("chat.reactions.someone", { defaultValue: "..." });
+                  const display =
+                    nameFor(r.user_id) || t("chat.reactions.someone", { defaultValue: "..." });
                   return (
                     <li
                       key={r.id}
@@ -224,7 +230,6 @@ function ReactionChips({
     </div>
   );
 }
-
 
 export const MessageBubble = memo(function MessageBubble(props: MessageBubbleProps) {
   const {

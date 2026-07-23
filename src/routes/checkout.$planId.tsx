@@ -245,7 +245,11 @@ function CheckoutPage() {
                         <>
                           <Lock className="mr-2 h-4 w-4" />
                           {t("checkout.payNow", {
-                            amount: formatMoney(finalCentsDisplay, originalDisplay.currency, i18n.language),
+                            amount: formatMoney(
+                              finalCentsDisplay,
+                              originalDisplay.currency,
+                              i18n.language,
+                            ),
                           })}
                         </>
                       )}

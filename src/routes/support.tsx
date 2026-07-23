@@ -143,7 +143,12 @@ function SupportPage() {
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-12">
-      <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 rounded-md px-3 text-xs font-medium">
+      <Button
+        asChild
+        variant="outline"
+        size="sm"
+        className="h-8 gap-1.5 rounded-md px-3 text-xs font-medium"
+      >
         <Link to="/pricing">
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
           {t("support.backToPricing")}
@@ -198,7 +203,6 @@ function SupportPage() {
               <p className="mt-1 text-xs text-destructive">{t("support.amountError")}</p>
             )}
           </div>
-
 
           <div>
             <Label htmlFor="donation-message" className="text-sm font-medium">

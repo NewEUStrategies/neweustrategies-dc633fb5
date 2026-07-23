@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ShieldCheck, RefreshCcw, Zap } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans, fetchMySubscription } from "@/lib/billing/queries";
 import { fetchMembershipTiers, useCurrentTier, useMembershipTiers } from "@/lib/billing/tiers";
 import type { MembershipTierRow } from "@/lib/billing/tiers";
@@ -33,6 +34,7 @@ import {
   maxYearlySavingsPct,
   passPlans,
   plansByTierKey,
+  planTierBenefits,
   recurringPlans,
   sanitizeAudienceKey,
   sortTiers,
@@ -72,10 +74,10 @@ export const Route = createFileRoute("/pricing")({
       qc.ensureQueryData(pricingAudiencesQueryOptions()).catch(() => null),
       qc.ensureQueryData(pricingFaqQueryOptions()).catch(() => null),
       qc
-        .ensureQueryData({ queryKey: ["membership-tiers"], queryFn: fetchMembershipTiers })
+        .ensureQueryData({ queryKey: billingKeys.membershipTiers(), queryFn: fetchMembershipTiers })
         .catch(() => null),
       qc
-        .ensureQueryData({ queryKey: ["plans-active"], queryFn: fetchActivePlans })
+        .ensureQueryData({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans })
         .catch(() => null),
     ]);
     return { seo };
@@ -113,14 +115,13 @@ function PricingPage() {
   const { session } = useAuth();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  
 
   const audiencesQ = usePricingAudiences();
   const faqQ = usePricingFaq();
   const tiersQ = useMembershipTiers();
-  const plansQ = useQuery({ queryKey: ["plans-active"], queryFn: fetchActivePlans });
+  const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
   const mySub = useQuery({
-    queryKey: ["my-subscription"],
+    queryKey: billingKeys.mySubscription(session?.user?.id),
     queryFn: fetchMySubscription,
     enabled: !!session,
   });
@@ -352,7 +353,12 @@ function PricingPage() {
               </h2>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {orphanPlans.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} isCurrent={currentPlanId === plan.id} />
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    isCurrent={currentPlanId === plan.id}
+                    fallbackBenefits={planTierBenefits(plan, tiersAll, lang)}
+                  />
                 ))}
               </div>
             </section>
@@ -368,7 +374,12 @@ function PricingPage() {
               </p>
               <div className="mt-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {passes.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} isCurrent={currentPlanId === plan.id} />
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    isCurrent={currentPlanId === plan.id}
+                    fallbackBenefits={planTierBenefits(plan, tiersAll, lang)}
+                  />
                 ))}
               </div>
             </section>

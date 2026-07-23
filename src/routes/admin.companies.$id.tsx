@@ -7,9 +7,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { tierName, useMembershipTiers } from "@/lib/billing/tiers";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { billingKeys } from "@/lib/billing/keys";
 import {
   ArrowLeft,
   Building2,
@@ -32,6 +34,7 @@ import {
   Camera,
   Trash2,
   Loader2,
+  Landmark,
 } from "lucide-react";
 
 import {
@@ -160,6 +163,23 @@ function AdminCompanyDetailPage() {
     enabled: tab === "activity" || tab === "overview",
     staleTime: 20_000,
   });
+
+  // Członkostwo B2B: organizacje członkowskie połączone z tą kartoteką
+  // (mostek member_organizations.crm_company_id utrzymywany triggerem DB).
+  const memberOrgsQ = useQuery({
+    queryKey: billingKeys.admin.crmCompanyMemberOrgs(id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("member_organizations")
+        .select("id, name, tier_key, status, seats_limit, expires_at")
+        .eq("crm_company_id", id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 30_000,
+  });
+  const tiersQ = useMembershipTiers();
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Company>>({});
@@ -705,6 +725,47 @@ function AdminCompanyDetailPage() {
 
         {/* RIGHT sidebar */}
         <aside className="lg:col-span-3 space-y-3">
+          <SidebarCard
+            title={t("Członkostwo B2B", "B2B membership")}
+            count={(memberOrgsQ.data ?? []).length}
+            icon={<Landmark className="h-3.5 w-3.5" aria-hidden />}
+          >
+            {(memberOrgsQ.data ?? []).length === 0 ? (
+              <Empty
+                label={t(
+                  "Firma nie ma organizacji członkowskiej.",
+                  "This company has no membership organisation.",
+                )}
+              />
+            ) : (
+              <ul className="divide-y">
+                {(memberOrgsQ.data ?? []).map((org) => {
+                  const tier = (tiersQ.data ?? []).find((row) => row.key === org.tier_key) ?? null;
+                  return (
+                    <li key={org.id} className="flex items-center gap-2 px-2.5 py-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[12px] font-medium">{org.name}</div>
+                        <div className="truncate text-[10px] text-muted-foreground">
+                          {tier ? tierName(tier, lang) : org.tier_key}
+                          {" · "}
+                          {t("miejsca", "seats")}: {org.seats_limit}
+                          {org.status !== "active" && ` · ${org.status}`}
+                        </div>
+                      </div>
+                      <Link
+                        to="/admin/organizations/$id"
+                        params={{ id: org.id }}
+                        className="text-[10px] text-primary hover:underline"
+                      >
+                        {t("Panel", "Panel")}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </SidebarCard>
+
           <SidebarCard
             title={t("Kontakty", "Contacts")}
             count={profiles.length}

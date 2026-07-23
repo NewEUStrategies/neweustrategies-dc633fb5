@@ -81,12 +81,27 @@ vi.mock("@/lib/billing/grant.server", () => ({
 const invoiceMock = vi.hoisted(() => ({
   fn: vi.fn(async (_invoiceId: string, _secret: string) => ({
     ok: true as boolean,
-    url: "https://stripe.example/inv_1.pdf" as string | null,
+    invoice: {
+      hostedUrl: "https://stripe.example/inv_1.pdf" as string | null,
+      pdfUrl: "https://stripe.example/inv_1_download.pdf" as string | null,
+      number: "F/2026/07/001" as string | null,
+      status: "paid" as string | null,
+      amountPaidCents: 4900 as number | null,
+      currency: "PLN" as string | null,
+      createdAt: "2026-07-01T00:00:00.000Z" as string | null,
+    },
+    error: undefined as string | undefined,
+  })),
+  receipt: vi.fn(async (_paymentIntentId: string, _secret: string) => ({
+    ok: true as boolean,
+    receiptUrl: "https://stripe.example/receipt_1" as string | null,
     error: undefined as string | undefined,
   })),
 }));
 vi.mock("@/lib/billing/stripe.server", () => ({
-  fetchStripeInvoiceUrl: (invoiceId: string, secret: string) => invoiceMock.fn(invoiceId, secret),
+  fetchStripeInvoice: (invoiceId: string, secret: string) => invoiceMock.fn(invoiceId, secret),
+  fetchStripeReceiptUrl: (paymentIntentId: string, secret: string) =>
+    invoiceMock.receipt(paymentIntentId, secret),
 }));
 
 import { __handleForTests as handle } from "./webhooks.stripe";
@@ -259,7 +274,15 @@ describe("stripe webhook handler", () => {
   it("checkout.session.completed dokleja invoice_url z API Stripe, gdy sesja niesie fakturę", async () => {
     process.env.STRIPE_SECRET_KEY = "sk_test_1";
     h.state.result = {
-      data: { id: "ord_inv", user_id: "u1", kind: "subscription", entity_type: null },
+      data: {
+        id: "ord_inv",
+        user_id: "u1",
+        tenant_id: "ten_1",
+        kind: "subscription",
+        entity_type: null,
+        amount_cents: 4900,
+        currency: "PLN",
+      },
       error: null,
     };
     const payload = JSON.stringify({
@@ -284,11 +307,40 @@ describe("stripe webhook handler", () => {
     expect((update?.args[0] as { invoice_url?: string }).invoice_url).toBe(
       "https://stripe.example/inv_1.pdf",
     );
+    // Rejestr dokumentów: faktura ląduje w billing_documents (idempotentnie).
+    const docUpsert = h.state.calls.find(
+      (c) => c.method === "upsert" && (c.args[0] as { kind?: string })?.kind === "invoice",
+    );
+    expect(docUpsert).toBeTruthy();
+    const doc = docUpsert?.args[0] as {
+      provider_document_id?: string;
+      user_id?: string;
+      tenant_id?: string;
+      number?: string | null;
+      order_id?: string;
+    };
+    expect(doc.provider_document_id).toBe("in_123");
+    expect(doc.user_id).toBe("u1");
+    expect(doc.tenant_id).toBe("ten_1");
+    expect(doc.number).toBe("F/2026/07/001");
+    expect(doc.order_id).toBe("ord_inv");
   });
 
   it("nieudane pobranie faktury nie blokuje ksiegowania (best-effort, bez invoice_url)", async () => {
     process.env.STRIPE_SECRET_KEY = "sk_test_1";
-    invoiceMock.fn.mockResolvedValueOnce({ ok: false, url: null, error: "boom" });
+    invoiceMock.fn.mockResolvedValueOnce({
+      ok: false,
+      invoice: {
+        hostedUrl: null,
+        pdfUrl: null,
+        number: null,
+        status: null,
+        amountPaidCents: null,
+        currency: null,
+        createdAt: null,
+      },
+      error: "boom",
+    });
     h.state.result = {
       data: { id: "ord_inv2", user_id: "u1", kind: "subscription", entity_type: null },
       error: null,
@@ -498,6 +550,54 @@ describe("stripe webhook handler", () => {
     expect(update.status).toBe("active");
     expect(update.current_period_end).toBe(new Date(periodEnd * 1000).toISOString());
     expect(call("eq")?.args).toEqual(["external_ref", "sub_123"]);
+  });
+
+  it("invoice.payment_succeeded zapisuje dokument odnowienia w billing_documents", async () => {
+    // Właściciela wskazuje subskrypcja po external_ref (lookup maybeSingle).
+    h.state.result = { data: { id: "subrow_1", user_id: "u1", tenant_id: "ten_1" }, error: null };
+    const payload = JSON.stringify({
+      id: "evt_inv_doc",
+      type: "invoice.payment_succeeded",
+      data: {
+        object: {
+          id: "in_renewal_1",
+          subscription: "sub_123",
+          period_end: 1893456000,
+          number: "F/2026/08/042",
+          amount_paid: 5900,
+          currency: "pln",
+          hosted_invoice_url: "https://stripe.example/in_renewal_1",
+          invoice_pdf: "https://stripe.example/in_renewal_1.pdf",
+          created: 1785456000,
+        },
+      },
+    });
+    const res = await handle(req(payload));
+    expect(res.status).toBe(200);
+    const docUpsert = h.state.calls.find(
+      (c) => c.method === "upsert" && (c.args[0] as { kind?: string })?.kind === "invoice",
+    );
+    expect(docUpsert).toBeTruthy();
+    const doc = docUpsert?.args[0] as {
+      provider_document_id?: string;
+      subscription_id?: string;
+      user_id?: string;
+      tenant_id?: string;
+      number?: string | null;
+      amount_cents?: number;
+      currency?: string;
+      pdf_url?: string | null;
+    };
+    expect(doc.provider_document_id).toBe("in_renewal_1");
+    expect(doc.subscription_id).toBe("subrow_1");
+    expect(doc.user_id).toBe("u1");
+    expect(doc.tenant_id).toBe("ten_1");
+    expect(doc.number).toBe("F/2026/08/042");
+    expect(doc.amount_cents).toBe(5900);
+    expect(doc.currency).toBe("PLN");
+    expect(doc.pdf_url).toBe("https://stripe.example/in_renewal_1.pdf");
+    // Dedup idempotentny po dokumencie operatora.
+    expect(docUpsert?.args[1]).toEqual({ onConflict: "provider,provider_document_id" });
   });
 
   it("customer.subscription.deleted cancels the subscription", async () => {

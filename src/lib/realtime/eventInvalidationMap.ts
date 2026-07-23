@@ -4,6 +4,7 @@
 // czyta regułę stąd. Test jednostkowy pilnuje, żeby każdy typ zdarzenia
 // z katalogu miał regułę.
 import type { QueryKey } from "@tanstack/react-query";
+import { billingKeys } from "@/lib/billing/keys";
 import { chatKeys } from "@/lib/chat/keys";
 import { pendingCounterKeys } from "@/lib/counters/keys";
 import { linkedItemsKeys } from "@/lib/links/keys";
@@ -97,7 +98,100 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     ["tracker", "item"],
     ["tracker", "updates"],
   ],
+
+  // Monetyzacja - katalog cennika: edycja w panelu odświeża publiczny
+  // /pricing i panele we WSZYSTKICH kartach staffu (nie tylko tej, która
+  // zapisała). Zmiana warstwy dotyka też rozstrzygniętej warstwy użytkowników
+  // (rank/features/nazwa) i podsumowań członkostwa przy leadach CRM.
+  "membership_tier.changed.v1": () => [
+    billingKeys.membershipTiers(),
+    billingKeys.admin.membershipTiers(),
+    billingKeys.currentTierAll(),
+    billingKeys.crmLeadMembershipAll(),
+  ],
+  "access_plan.changed.v1": () => [
+    billingKeys.plansActive(),
+    billingKeys.admin.plans(),
+    billingKeys.admin.monetization(),
+    billingKeys.mySubscriptionAll(),
+  ],
+  "pricing_audience.changed.v1": () => [
+    billingKeys.pricingAudiences(),
+    billingKeys.admin.pricingAudiences(),
+  ],
+  "pricing_faq.changed.v1": () => [billingKeys.pricingFaq(), billingKeys.admin.pricingFaq()],
+
+  // Monetyzacja - cykl życia uprawnień. Aktorem jest właściciel, więc jego
+  // otwarta karta odblokowuje treści w czasie rzeczywistym po webhooku
+  // Stripe; staff widzi te same zdarzenia w listach użytkowników, pulpicie
+  // monetyzacji i podsumowaniu członkostwa leada CRM.
+  "subscription.started.v1": () => subscriptionKeys(),
+  "subscription.status_changed.v1": () => subscriptionKeys(),
+  "subscription.updated.v1": () => subscriptionKeys(),
+
+  "membership_grant.granted.v1": () => membershipGrantKeys(),
+  "membership_grant.revoked.v1": () => membershipGrantKeys(),
+
+  "organization.updated.v1": () => [
+    billingKeys.myOrganizationAll(),
+    billingKeys.currentTierAll(),
+    billingKeys.admin.memberOrgs(),
+    billingKeys.admin.memberOrgAll(),
+    billingKeys.admin.crmCompanyMemberOrgsAll(),
+    billingKeys.crmLeadMembershipAll(),
+  ],
+  "org_seat.changed.v1": () => [
+    billingKeys.orgSeatsAll(),
+    billingKeys.myOrganizationAll(),
+    billingKeys.currentTierAll(),
+    billingKeys.admin.memberOrgAll(),
+    billingKeys.admin.orgSeatsAll(),
+    billingKeys.crmLeadMembershipAll(),
+  ],
+
+  "donation.recorded.v1": () => donationKeys(),
+  "donation.refunded.v1": () => donationKeys(),
+
+  // Rejestr dokumentów rozliczeniowych: webhook wystawia dokument (aktor =
+  // właściciel), profil odświeża listę i historię zamówień bez F5.
+  "billing_document.issued.v1": () => billingDocumentKeys(),
+  "billing_document.updated.v1": () => billingDocumentKeys(),
 };
+
+function billingDocumentKeys(): QueryKey[] {
+  return [billingKeys.myBillingDocumentsAll(), billingKeys.myOrdersAll()];
+}
+
+// Subskrypcja zmienia: warstwę i paywall właściciela, jego profilowe widoki
+// (subskrypcja/zamówienia), listę subskrypcji w /admin/users, pulpit
+// monetyzacji i podsumowanie członkostwa przy leadzie CRM.
+function subscriptionKeys(): QueryKey[] {
+  return [
+    billingKeys.mySubscriptionAll(),
+    billingKeys.currentTierAll(),
+    billingKeys.myOrdersAll(),
+    ["public", "resolved"],
+    ["unlocked-body"],
+    billingKeys.admin.allUserSubscriptions(),
+    billingKeys.admin.monetization(),
+    billingKeys.crmLeadMembershipAll(),
+  ];
+}
+
+function membershipGrantKeys(): QueryKey[] {
+  return [
+    billingKeys.myGrantsAll(),
+    billingKeys.currentTierAll(),
+    billingKeys.admin.membershipGrants(),
+    billingKeys.crmLeadMembershipAll(),
+  ];
+}
+
+// Darowizna nadaje status wspierającego przez osobne zdarzenie
+// membership_grant.* - tu tylko rejestry darowizn (profil + panel).
+function donationKeys(): QueryKey[] {
+  return [billingKeys.myDonationsAll(), billingKeys.admin.donations()];
+}
 
 const eventKeysList: QueryKey[] = [
   ["public-events"],

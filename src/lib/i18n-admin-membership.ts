@@ -22,8 +22,9 @@ const adminMembershipPl = {
       active: "Aktywna",
       default: "Domyślna",
       featuresJson: "features (JSON)",
+      featuresKnown: "Flagi z rejestru capabilities (kliknij, aby przełączyć)",
       featuresHint:
-        "Flagi: qa_priority (pytania warstwy na górze /qa), pro_briefings (wstęp na wydarzenia kind=briefing dla członków).",
+        "Zielone flagi mają realną bramkę w systemie, szare są dziś deklaracją marketingową (najedź, aby zobaczyć punkt egzekwowania). Surowy JSON obsługuje flagi niestandardowe.",
     },
     save: "Zapisz",
     toast: {
@@ -105,8 +106,9 @@ const adminMembershipEn = {
       active: "Active",
       default: "Default",
       featuresJson: "features (JSON)",
+      featuresKnown: "Flags from the capabilities registry (click to toggle)",
       featuresHint:
-        "Flags: qa_priority (tier's questions ranked first on /qa), pro_briefings (grants entry to members-only kind=briefing events).",
+        "Green flags are enforced by a real gate in the system; grey ones are marketing-only today (hover to see the enforcement point). The raw JSON accepts custom flags.",
     },
     save: "Save",
     toast: {

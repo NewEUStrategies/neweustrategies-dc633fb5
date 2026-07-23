@@ -859,6 +859,88 @@ export type Database = {
           },
         ]
       }
+      billing_documents: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          hosted_url: string | null
+          id: string
+          issued_at: string
+          kind: string
+          number: string | null
+          order_id: string | null
+          pdf_url: string | null
+          provider: string
+          provider_document_id: string
+          status: string
+          subscription_id: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          hosted_url?: string | null
+          id?: string
+          issued_at?: string
+          kind?: string
+          number?: string | null
+          order_id?: string | null
+          pdf_url?: string | null
+          provider?: string
+          provider_document_id: string
+          status?: string
+          subscription_id?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          hosted_url?: string | null
+          id?: string
+          issued_at?: string
+          kind?: string
+          number?: string | null
+          order_id?: string | null
+          pdf_url?: string | null
+          provider?: string
+          provider_document_id?: string
+          status?: string
+          subscription_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_documents_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "payment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_documents_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_profiles: {
         Row: {
           address_line1: string | null
@@ -3814,6 +3896,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          crm_company_id: string | null
           description: string | null
           expires_at: string | null
           id: string
@@ -3843,6 +3926,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by?: string | null
+          crm_company_id?: string | null
           description?: string | null
           expires_at?: string | null
           id?: string
@@ -3872,6 +3956,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by?: string | null
+          crm_company_id?: string | null
           description?: string | null
           expires_at?: string | null
           id?: string
@@ -3893,6 +3978,13 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "member_organizations_crm_company_id_fkey"
+            columns: ["crm_company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "member_organizations_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -12286,7 +12378,7 @@ export type Database = {
         | "failed"
         | "refunded"
         | "canceled"
-      plan_interval: "month" | "year" | "one_time"
+      plan_interval: "month" | "quarter" | "year" | "one_time"
       post_status:
         | "draft"
         | "published"

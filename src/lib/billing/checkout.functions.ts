@@ -1,7 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { stripeRecurringInterval, type StripeRecurringInterval } from "@/lib/billing/entitlement";
+import {
+  periodEndFor,
+  stripeRecurringFor,
+  type StripeRecurringParams,
+} from "@/lib/billing/entitlement";
 import {
   checkoutSessionExtraParams,
   normalizeCheckoutSettings,
@@ -31,7 +35,6 @@ const createOrderSchema = z.object({
   display_currency: z.enum(["PLN", "EUR"]).optional(),
 });
 
-
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => createOrderSchema.parse(input))
@@ -43,9 +46,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let currency = "PLN";
     let label = "";
     // Billing cadence for a subscription Checkout Session. Resolved from the
-    // plan below (default monthly) so a yearly/weekly plan is billed on its real
-    // interval rather than always monthly.
-    let recurringInterval: StripeRecurringInterval = "month";
+    // plan below (default monthly) so a yearly/quarterly/weekly plan is billed
+    // on its real interval rather than always monthly.
+    let recurring: StripeRecurringParams = { interval: "month", intervalCount: 1 };
     let trialDays = 0;
 
     // One-time PLAN purchase: kind=one_time with a plan_id and no entity. The
@@ -65,7 +68,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       amountCents = Number(plan.price_cents);
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
-      recurringInterval = stripeRecurringInterval(String(plan.interval));
+      recurring = stripeRecurringFor(String(plan.interval));
       trialDays = data.kind === "subscription" ? Math.max(0, Number(plan.trial_days ?? 0)) : 0;
     } else {
       if (!data.entity_type || !data.entity_id) throw new Error("entity_required");
@@ -98,8 +101,6 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     }
 
     if (amountCents <= 0) throw new Error("zero_amount");
-
-
 
     // Zapamiętujemy oryginalną kwotę do audytu użycia kuponu (redemption row).
     const originalCents = amountCents;
@@ -148,7 +149,6 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       amountCents = conv.cents;
       currency = conv.currency;
     }
-
 
     // Fail-closed ZANIM powstanie zamówienie: produkcja bez działającej
     // konfiguracji Stripe (brak klucza LUB brak origin do success_url) odmawia
@@ -246,7 +246,14 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         params.set("line_items[0][price_data][unit_amount]", String(amountCents));
         params.set("line_items[0][price_data][product_data][name]", label || "Order");
         if (data.kind === "subscription") {
-          params.set("line_items[0][price_data][recurring][interval]", recurringInterval);
+          params.set("line_items[0][price_data][recurring][interval]", recurring.interval);
+          if (recurring.intervalCount > 1) {
+            // Kwartał = month x 3 (kanoniczna kadencja kwartalna Stripe).
+            params.set(
+              "line_items[0][price_data][recurring][interval_count]",
+              String(recurring.intervalCount),
+            );
+          }
           if (trialDays > 0) {
             // Stripe caps trial_period_days at 730; we clamp defensively so a
             // misconfigured plan can't blow up the whole checkout call.
@@ -389,6 +396,138 @@ export const cancelSubscription = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!updated?.length) return { ok: true as const, alreadyCanceled: true as const };
     return { ok: true as const, alreadyCanceled: false as const };
+  });
+
+const changePlanSchema = z.object({
+  subscriptionId: z.string().uuid(),
+  newPlanId: z.string().uuid(),
+});
+
+// Samoobsługowy upgrade/downgrade planu (zmiana ceny pozycji subskrypcji
+// Stripe z proratą rozliczaną od razu). Kolejność jak przy cancel/resume:
+// najpierw Stripe (payment_behavior=error_if_incomplete - nieudana dopłata
+// NIE zmienia planu), potem DB. Zmiana planu czyści zaplanowane anulowanie
+// (klient zostaje). Waluta subskrypcji Stripe jest niezmienialna, więc cena
+// nowego planu jest konwertowana do waluty subskrypcji (parytet prezentacji
+// PLN/EUR - ta sama reguła co przy checkout'cie z display_currency).
+export const changeSubscriptionPlan = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => changePlanSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: sub, error: loadError } = await supabaseAdmin
+      .from("user_subscriptions")
+      .select("id, tenant_id, plan_id, status, external_ref, canceled_at, current_period_end")
+      .eq("id", data.subscriptionId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (loadError) throw new Error(loadError.message);
+    if (!sub) throw new Error("subscription_not_found");
+    if (sub.status !== "active") throw new Error("subscription_not_active");
+    if (sub.current_period_end && new Date(sub.current_period_end).getTime() < Date.now()) {
+      // Okres opłacony wygasł - zmiana planu wymaga nowego checkoutu.
+      throw new Error("subscription_period_ended");
+    }
+    if (sub.plan_id === data.newPlanId) throw new Error("same_plan");
+
+    const { data: newPlan, error: planErr } = await supabaseAdmin
+      .from("access_plans")
+      .select("id, tenant_id, active, price_cents, currency, interval, name_pl, name_en")
+      .eq("id", data.newPlanId)
+      .maybeSingle();
+    if (planErr) throw new Error(planErr.message);
+    if (!newPlan || !newPlan.active) throw new Error("plan_not_found");
+    if (newPlan.tenant_id !== sub.tenant_id) throw new Error("plan_not_found");
+    const interval = String(newPlan.interval);
+    if (interval !== "month" && interval !== "quarter" && interval !== "year") {
+      // Przepustki/plany jednorazowe nie są celem zmiany subskrypcji.
+      throw new Error("plan_not_recurring");
+    }
+
+    const stripeSecret = process.env.STRIPE_SECRET_KEY;
+    let stripePeriodEnd: string | null = null;
+
+    if (stripeSecret && sub.external_ref && sub.external_ref.startsWith("sub_")) {
+      const {
+        fetchStripeSubscriptionItem,
+        changeStripeSubscriptionPrice,
+        updateStripeProductName,
+      } = await import("@/lib/billing/stripe.server");
+
+      const itemRes = await fetchStripeSubscriptionItem(sub.external_ref, stripeSecret);
+      if (!itemRes.ok) {
+        console.error("[billing] stripe item fetch failed", sub.external_ref, itemRes.error);
+        throw new Error("stripe_plan_change_failed");
+      }
+
+      // Waluty subskrypcji nie da się zmienić - cenę nowego planu wyrażamy
+      // w walucie subskrypcji (konwersja parytetowa PLN<->EUR jak w cenniku).
+      let unitAmount = Number(newPlan.price_cents);
+      let currency = String(newPlan.currency).toUpperCase();
+      const subCurrency = itemRes.item.currency.toUpperCase();
+      if (subCurrency && subCurrency !== currency) {
+        if (subCurrency !== "PLN" && subCurrency !== "EUR") {
+          throw new Error("currency_mismatch");
+        }
+        const { convertToDisplayCurrency } = await import("@/lib/billing/displayCurrency");
+        const converted = convertToDisplayCurrency(unitAmount, currency, subCurrency);
+        if (converted.currency.toUpperCase() !== subCurrency) {
+          throw new Error("currency_mismatch");
+        }
+        unitAmount = converted.cents;
+        currency = converted.currency.toUpperCase();
+      }
+
+      const recurring = stripeRecurringFor(interval);
+      const changeRes = await changeStripeSubscriptionPrice(
+        sub.external_ref,
+        {
+          itemId: itemRes.item.itemId,
+          productId: itemRes.item.productId,
+          currency,
+          unitAmountCents: unitAmount,
+          interval: recurring.interval,
+          intervalCount: recurring.intervalCount,
+        },
+        stripeSecret,
+      );
+      if (!changeRes.ok) {
+        console.error("[billing] stripe plan change failed", sub.external_ref, changeRes.error);
+        throw new Error("stripe_plan_change_failed");
+      }
+      stripePeriodEnd = changeRes.currentPeriodEnd;
+
+      // Best-effort: etykieta produktu na fakturach podąża za nowym planem.
+      const label = String(newPlan.name_pl || newPlan.name_en || "");
+      if (label) void updateStripeProductName(itemRes.item.productId, label, stripeSecret);
+    } else if (stripeSecret) {
+      // Subskrypcja bez identyfikatora Stripe (np. dożywotnia z zakupu
+      // one-time) nie ma czego przełączać po stronie operatora.
+      throw new Error("subscription_not_switchable");
+    } else if (!mockCheckoutAllowed()) {
+      console.error("[checkout] billing unconfigured: refusing mock plan change in production");
+      throw new Error("billing_unconfigured");
+    }
+
+    const { data: updated, error: updateErr } = await supabaseAdmin
+      .from("user_subscriptions")
+      .update({
+        plan_id: newPlan.id,
+        canceled_at: null,
+        // Stripe jest źródłem prawdy o kotwicy okresu; mock liczy od teraz.
+        current_period_end:
+          stripePeriodEnd ??
+          (stripeSecret
+            ? (sub.current_period_end ?? undefined)
+            : periodEndFor(interval, new Date()).toISOString()),
+      })
+      .eq("id", sub.id)
+      .select("id")
+      .maybeSingle();
+    if (updateErr) throw new Error(updateErr.message);
+    if (!updated) throw new Error("subscription_not_found");
+    return { ok: true as const };
   });
 
 // Wznowienie subskrypcji anulowanej "na koniec okresu": dopóki opłacony okres

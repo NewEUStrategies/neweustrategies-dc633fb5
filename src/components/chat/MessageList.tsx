@@ -546,7 +546,6 @@ export function MessageList(props: MessageListProps) {
                   ) : (
                     bubble
                   )}
-
                 </div>
               );
             })}
@@ -561,7 +560,6 @@ export function MessageList(props: MessageListProps) {
               </span>
             ) : null}
           </div>
-
 
           {peerTyping && (
             <div className="pb-1 pt-0.5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150">

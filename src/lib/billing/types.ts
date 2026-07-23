@@ -1,9 +1,10 @@
 // Domain types for billing/checkout module. Strict - no any.
 
-// Must match the DB enum `plan_interval` ("month" | "year" | "one_time"); day/week
-// are legacy-tolerant extras. The value stored for a one-time plan is "one_time"
-// (not "once"), so comparisons/labels must use that spelling.
-type PlanInterval = "day" | "week" | "month" | "year" | "one_time";
+// Must match the DB enum `plan_interval` ("month" | "quarter" | "year" |
+// "one_time"); day/week are legacy-tolerant extras. The value stored for a
+// one-time plan is "one_time" (not "once"), so comparisons/labels must use
+// that spelling.
+type PlanInterval = "day" | "week" | "month" | "quarter" | "year" | "one_time";
 
 export interface AccessPlan {
   id: string;
@@ -83,6 +84,30 @@ export interface PaymentOrder {
   receipt_email: string | null;
   metadata: Record<string, unknown>;
   paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BillingDocumentKind = "invoice" | "receipt" | "credit_note";
+export type BillingDocumentStatus = "paid" | "open" | "void" | "refunded";
+
+/** Rejestr dokumentów rozliczeniowych (faktury/paragony Stripe, też odnowienia). */
+export interface BillingDocument {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  subscription_id: string | null;
+  order_id: string | null;
+  kind: BillingDocumentKind;
+  status: BillingDocumentStatus;
+  provider: string;
+  provider_document_id: string;
+  number: string | null;
+  amount_cents: number;
+  currency: string;
+  hosted_url: string | null;
+  pdf_url: string | null;
+  issued_at: string;
   created_at: string;
   updated_at: string;
 }

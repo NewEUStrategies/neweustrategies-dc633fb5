@@ -5,7 +5,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { Gauge } from "lucide-react";
 import { getCrmLeadMonthlyMetering } from "@/lib/crm.functions";
 
-
 type Props = { leadId: string; lang: "pl" | "en" };
 
 type Usage = {

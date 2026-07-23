@@ -248,10 +248,24 @@ export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
     const periodStr = period.toISOString().slice(0, 10);
 
     const [msRes, mvRes] = await Promise.all([
-      admin.from("metering_settings").select("member_monthly_limit, enabled").eq("tenant_id", lead.tenant_id).maybeSingle(),
-      admin.from("metered_views").select("id").eq("tenant_id", lead.tenant_id).eq("user_id", userId).eq("period_month", periodStr).limit(1000),
+      admin
+        .from("metering_settings")
+        .select("member_monthly_limit, enabled")
+        .eq("tenant_id", lead.tenant_id)
+        .maybeSingle(),
+      admin
+        .from("metered_views")
+        .select("id")
+        .eq("tenant_id", lead.tenant_id)
+        .eq("user_id", userId)
+        .eq("period_month", periodStr)
+        .limit(1000),
     ]);
-    const ms = (msRes as unknown as { data: { member_monthly_limit: number | null; enabled: boolean | null } | null }).data;
+    const ms = (
+      msRes as unknown as {
+        data: { member_monthly_limit: number | null; enabled: boolean | null } | null;
+      }
+    ).data;
     const rows = (mvRes as unknown as { data: unknown[] | null }).data ?? [];
     const monthly_limit = ms?.member_monthly_limit ?? 5;
     const used = rows.length;
@@ -267,6 +281,115 @@ export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
     };
   });
 
+// Członkostwo leada: dopasowanie lead → profil po e-mailu (email/contact_email)
+// w obrębie tenanta, potem te same źródła co RPC current_membership_tier
+// (aktywne subskrypcje płatne, nadania poza planem, miejsca w organizacjach),
+// rozstrzygnięte czystą funkcją resolveLeadMembership (lib/crm/membershipSummary).
+// Sprzedaż widzi przy leadzie realny status członkowski - jedno źródło prawdy
+// z /pricing i profilem, bez osobnej kolumny do desynchronizacji.
+export const getCrmLeadMembership = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .inputValidator((d) => IdInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: lead } = (await tbl(context, "crm_leads")
+      .select("email, tenant_id")
+      .eq("id", data.id)
+      .maybeSingle()) as { data: { email: string; tenant_id: string } | null };
+    if (!lead?.email) return { json: j(null) };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as { from: (t: string) => AnyQuery };
+    const emailLc = lead.email.toLowerCase().replace(/[%_,()"\\]/g, "");
+    const profRes = (await admin
+      .from("profiles")
+      .select("id")
+      .or(`email.ilike.${emailLc},contact_email.ilike.${emailLc}`)
+      .eq("tenant_id", lead.tenant_id)
+      .limit(1)) as unknown as { data: Array<{ id: string }> | null };
+    const userId = profRes.data?.[0]?.id ?? null;
+    if (!userId) return { json: j(null) };
+
+    const { resolveLeadMembership } = await import("@/lib/crm/membershipSummary");
+    type Rows<T> = { data: T[] | null };
+    const [tiersRes, subsRes, grantsRes, seatsRes] = await Promise.all([
+      admin
+        .from("membership_tiers")
+        .select("key, rank, name_pl, name_en, is_default")
+        .eq("tenant_id", lead.tenant_id)
+        .eq("active", true) as unknown as Promise<
+        Rows<{ key: string; rank: number; name_pl: string; name_en: string; is_default: boolean }>
+      >,
+      admin
+        .from("user_subscriptions")
+        .select(
+          "id, status, started_at, current_period_end, canceled_at, plan:access_plans(id, name_pl, name_en, interval, tier_key)",
+        )
+        .eq("tenant_id", lead.tenant_id)
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .order("started_at", { ascending: false })
+        .limit(20) as unknown as Promise<
+        Rows<{
+          id: string;
+          status: string;
+          started_at: string;
+          current_period_end: string | null;
+          canceled_at: string | null;
+          plan: {
+            id: string;
+            name_pl: string;
+            name_en: string;
+            interval: string;
+            tier_key: string | null;
+          } | null;
+        }>
+      >,
+      admin
+        .from("membership_grants")
+        .select("tier_key, source, starts_at, expires_at, revoked_at")
+        .eq("tenant_id", lead.tenant_id)
+        .eq("user_id", userId)
+        .limit(50) as unknown as Promise<
+        Rows<{
+          tier_key: string;
+          source: string;
+          starts_at: string;
+          expires_at: string | null;
+          revoked_at: string | null;
+        }>
+      >,
+      admin
+        .from("organization_seats")
+        .select(
+          "claimed_at, org:member_organizations(id, name, tier_key, status, starts_at, expires_at)",
+        )
+        .eq("tenant_id", lead.tenant_id)
+        .eq("user_id", userId)
+        .limit(20) as unknown as Promise<
+        Rows<{
+          claimed_at: string | null;
+          org: {
+            id: string;
+            name: string;
+            tier_key: string;
+            status: string;
+            starts_at: string;
+            expires_at: string | null;
+          } | null;
+        }>
+      >,
+    ]);
+
+    const summary = resolveLeadMembership({
+      now: new Date(),
+      userId,
+      tiers: tiersRes.data ?? [],
+      subscriptions: subsRes.data ?? [],
+      grants: grantsRes.data ?? [],
+      orgSeats: seatsRes.data ?? [],
+    });
+    return { json: j(summary) };
+  });
 
 // Profile sync: dopasowuje lead → profil po e-mailu (email/contact_email),
 // zwraca podstawowe dane profilu + doświadczenie, umiejętności, wynik Big5,

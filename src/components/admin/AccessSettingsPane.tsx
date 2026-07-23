@@ -281,12 +281,15 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
                       {p.interval}
                       {p.currency?.toUpperCase() === "PLN" && (
                         <span className="ml-1 text-[11px] text-muted-foreground">
-                          (EN: {(convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents / 100).toFixed(2)} EUR)
+                          (EN:{" "}
+                          {(
+                            convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents / 100
+                          ).toFixed(2)}{" "}
+                          EUR)
                         </span>
                       )}
                     </span>
                   </label>
-
                 ))}
               </div>
             )}

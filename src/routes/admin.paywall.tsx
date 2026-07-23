@@ -132,7 +132,11 @@ function PaywallAdmin() {
                     {formatMoney(p.price_cents, p.currency)}
                     {p.currency?.toUpperCase() === "PLN" && (
                       <div className="text-[11px] text-muted-foreground">
-                        EN: {formatMoney(convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents, "EUR")}
+                        EN:{" "}
+                        {formatMoney(
+                          convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents,
+                          "EUR",
+                        )}
                       </div>
                     )}
                   </td>
@@ -221,6 +225,7 @@ function PaywallAdmin() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="month">{t("admin.paywall.intervalMonth")}</SelectItem>
+                  <SelectItem value="quarter">{t("admin.paywall.intervalQuarter")}</SelectItem>
                   <SelectItem value="year">{t("admin.paywall.intervalYear")}</SelectItem>
                   <SelectItem value="one_time">{t("admin.paywall.intervalOnce")}</SelectItem>
                 </SelectContent>

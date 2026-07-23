@@ -399,6 +399,55 @@ etykiety rozwiązane w bazie) przez `useLinkedItems` / `LinkedItemsCard`.
   `gcal`/`confluence` spadają do generycznej koperty. Braki konfiguracyjne
   (`tenant_id` przy INSERT z panelu) domyka migracja `20260721110000`.
 
+### 5.6 Monetyzacja na szynie (migracja `20260723120000`)
+
+Katalog cennika i cykl życia uprawnień emitują zdarzenia jak każdy inny moduł:
+
+- **Katalog** (`membership_tiers`, `access_plans`, `pricing_audiences`,
+  `pricing_faq_items`): `<agregat>.changed.v1` z `op` w payloadzie - edycja w
+  panelu odświeża publiczny `/pricing` i panele w innych kartach staffu.
+- **Cykl życia** (`user_subscriptions`, `membership_grants`,
+  `member_organizations`, `organization_seats`, `donations`):
+  `subscription.started/status_changed/updated.v1`,
+  `membership_grant.granted/revoked.v1`, `organization.updated.v1`,
+  `org_seat.changed.v1`, `donation.recorded/refunded.v1`. **Aktorem jest
+  właściciel wiersza** (nowy parametr `p_actor_id` w `emit_domain_event`;
+  domyślnie `auth.uid()`), bo zapisy robi service_role (webhook Stripe) -
+  dzięki polityce `domain_events_actor_select` kupujący dostaje inwalidację
+  cache (warstwa, paywall, profil) w czasie rzeczywistym, a workflowy i router
+  integracji mogą reagować na sprzedaż/anulowania.
+- **Klucze zapytań monetyzacji żyją w JEDNEJ fabryce**
+  `src/lib/billing/keys.ts` (`billingKeys`) - te same stałe konsumują hooki,
+  mutacje paneli i mapa inwalidacji; klucze per-user niosą uid (doktryna
+  `chatKeys`).
+- **Spójność mostka plan->warstwa:** `access_plans.tier_key` waliduje trigger
+  (nieznany klucz = wyjątek `23503`), zmiana `membership_tiers.key` kaskaduje
+  na plany, a usunięcie warstwy odpina plany (`tier_key = NULL`) - plan
+  pozostaje widoczny w sekcji planów osieroconych na `/pricing`.
+- **CRM widzi członkostwo:** server fn `getCrmLeadMembership` (dopasowanie
+  lead->profil po e-mailu w tenancie) + czysty resolver
+  `src/lib/crm/membershipSummary.ts` (lustro `current_membership_tier`,
+  testowane jednostkowo) zasilają kartę `LeadMembershipCard` przy leadzie;
+  zdarzenia subskrypcji/nadań/organizacji odświeżają ją na żywo.
+- **Strażnicy dryfu:** `tierCatalogParity.test.ts` (TIER_RANKS i
+  TIER_CAPABILITIES vs seed `pricing_catalog_v3_rows`, segmenty cross-sell),
+  plus istniejący `domainEventCatalog.test.ts` wymusza katalog i regułę
+  inwalidacji dla każdego nowego emitera.
+- **Cykl rozliczeniowy i zmiany subskrypcji** (migracje `20260723150000/151000`):
+  enum `plan_interval` zna kwartał (Stripe: `interval=month, interval_count=3`
+  przez `stripeRecurringFor`; matematyka okresów w `periodEndFor` z klamrą
+  końca miesiąca). Samoobsługowy upgrade/downgrade robi server fn
+  `changeSubscriptionPlan` - Stripe-first (`proration_behavior=always_invoice`,
+  `payment_behavior=error_if_incomplete`: nieudana dopłata NIE zmienia planu),
+  cena wyrażana w walucie subskrypcji (parytet PLN/EUR), a zdarzenie
+  `subscription.updated.v1` z `plan_changed` odświeża warstwę/paywall.
+- **Rejestr dokumentów rozliczeniowych** `billing_documents` (RLS: właściciel +
+  staff tenanta; zapis tylko webhook): faktury z checkoutu i KAŻDEGO odnowienia
+  (`invoice.payment_succeeded` niesie komplet metadanych), paragony płatności
+  bez faktury (`charge.receipt_url`), refund oznacza dokumenty. Podgląd/PDF to
+  trwałe linki Stripe; profil (/profile/orders) renderuje rejestr, a
+  `billing_document.issued/updated.v1` odświeża go na żywo.
+
 pgTAP: `supabase/tests/cohesion_layer_test.sql`; TS:
 `src/lib/realtime/__tests__/*`, `src/lib/http/__tests__/idempotency.test.ts`,
 `src/lib/__tests__/i18nCohesion.test.ts`.

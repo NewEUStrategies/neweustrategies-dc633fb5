@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
+import { billingKeys } from "@/lib/billing/keys";
 import { finalizeCheckout } from "@/lib/billing/checkout.functions";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 export const Route = createFileRoute("/checkout/success")({
@@ -48,11 +49,26 @@ function SuccessPage() {
     }
   }, []);
 
-  // In mock mode (no Stripe) there is no webhook, so finalise the order here and
-  // then drop cached access/content so the just-purchased content unlocks.
+  // In mock mode (no Stripe) there is no webhook, so finalise the order here.
+  // In BOTH modes drop every entitlement-bearing cache: tier badge/gating
+  // (current-tier), subscription + orders on the profile, and resolved
+  // content bodies - the buyer must see the purchase everywhere without a
+  // reload. The Stripe webhook additionally emits subscription.* domain
+  // events (actor = buyer), so a slow webhook still live-unlocks this tab
+  // the moment it lands; this eager pass covers the fast path.
   useEffect(() => {
-    if (!mock || !order) return;
     let cancelled = false;
+    const invalidateEntitlements = () => {
+      void queryClient.invalidateQueries({ queryKey: ["public", "resolved"] });
+      void queryClient.invalidateQueries({ queryKey: ["unlocked-body"] });
+      void queryClient.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
+      void queryClient.invalidateQueries({ queryKey: billingKeys.myOrdersAll() });
+      void queryClient.invalidateQueries({ queryKey: billingKeys.currentTierAll() });
+    };
+    if (!mock || !order) {
+      invalidateEntitlements();
+      return;
+    }
     void (async () => {
       try {
         await finalize({ data: { order_id: order } });
@@ -60,9 +76,7 @@ function SuccessPage() {
         /* surfaced on the orders page; success UI stays optimistic */
       }
       if (cancelled) return;
-      void queryClient.invalidateQueries({ queryKey: ["public", "resolved"] });
-      void queryClient.invalidateQueries({ queryKey: ["unlocked-body"] });
-      void queryClient.invalidateQueries({ queryKey: ["my-subscription"] });
+      invalidateEntitlements();
     })();
     return () => {
       cancelled = true;

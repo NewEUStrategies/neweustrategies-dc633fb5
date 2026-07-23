@@ -20,6 +20,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { billingKeys } from "@/lib/billing/keys";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,7 +67,7 @@ function AdminOrganizationDetailPage() {
   const navigate = useNavigate();
 
   const orgQ = useQuery({
-    queryKey: ["admin", "member-org", id] as const,
+    queryKey: billingKeys.admin.memberOrg(id),
     queryFn: () => fetchOrganizationById(id),
   });
 
@@ -96,6 +97,7 @@ function AdminOrganizationDetailPage() {
         created_at: _c,
         updated_at: _u,
         created_by: _b,
+        crm_company_id: _cc,
         ...patch
       } = draft;
       void _id;
@@ -103,12 +105,13 @@ function AdminOrganizationDetailPage() {
       void _c;
       void _u;
       void _b;
+      void _cc;
       await updateOrganization(id, patch);
     },
     onSuccess: () => {
       toast.success(L("Zapisano", "Saved"));
-      void qc.invalidateQueries({ queryKey: ["admin", "member-org", id] });
-      void qc.invalidateQueries({ queryKey: ["admin", "member-orgs"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(id) });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrgs() });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -117,7 +120,7 @@ function AdminOrganizationDetailPage() {
     mutationFn: () => deleteOrganization(id),
     onSuccess: () => {
       toast.success(L("Usunięto organizację", "Organization deleted"));
-      void qc.invalidateQueries({ queryKey: ["admin", "member-orgs"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrgs() });
       void navigate({ to: "/admin/organizations" });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -421,6 +424,33 @@ function GeneralPane({
               />
             </Field>
           </div>
+        </Card>
+
+        {/* Mostek do kartoteki sprzedażowej: link utrzymuje trigger DB
+            (upsert firmy CRM po nazwie), więc karta jest tylko podglądem. */}
+        <Card title={L("Firma w CRM", "CRM company")}>
+          {draft.crm_company_id ? (
+            <div className="space-y-2 text-sm">
+              <p className="text-xs text-muted-foreground">
+                {L(
+                  "Organizacja jest połączona z kartoteką sprzedażową - leady, notatki i kupony B2B widzą wspólną firmę.",
+                  "This organisation is linked to its sales record - leads, notes and B2B coupons share one company.",
+                )}
+              </p>
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <Link to="/admin/companies/$id" params={{ id: draft.crm_company_id }}>
+                  {L("Otwórz kartę firmy", "Open the company record")}
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {L(
+                "Link do kartoteki CRM powstanie automatycznie przy najbliższym zapisie organizacji.",
+                "The CRM record link is created automatically on the next save of this organisation.",
+              )}
+            </p>
+          )}
         </Card>
       </aside>
     </div>
@@ -736,7 +766,7 @@ function PreviewTile({
 function SeatsPane({ lang, orgId, seatsLimit }: { lang: Lang; orgId: string; seatsLimit: number }) {
   const L = tr(lang);
   const qc = useQueryClient();
-  const seatsKey = ["admin", "org-seats", orgId] as const;
+  const seatsKey = billingKeys.admin.orgSeats(orgId);
 
   const seatsQ = useQuery({ queryKey: seatsKey, queryFn: () => fetchAdminOrgSeats(orgId) });
   const seats = seatsQ.data ?? [];

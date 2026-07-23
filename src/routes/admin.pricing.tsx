@@ -29,6 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { ensureI18n as ensureAdminPricingI18n } from "@/lib/i18n-admin-pricing";
+import { billingKeys } from "@/lib/billing/keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -111,7 +112,7 @@ function AdminPricingPage() {
   const ta = (k: string, opts?: Record<string, unknown>) => t(`adminPricing.${k}`, opts);
 
   const audiencesQ = useQuery({
-    queryKey: ["admin", "pricing-audiences"],
+    queryKey: billingKeys.admin.pricingAudiences(),
     queryFn: async (): Promise<PricingAudienceRow[]> => {
       const { data, error } = await supabase
         .from("pricing_audiences")
@@ -122,7 +123,7 @@ function AdminPricingPage() {
     },
   });
   const tiersQ = useQuery({
-    queryKey: ["admin", "membership-tiers"],
+    queryKey: billingKeys.admin.membershipTiers(),
     queryFn: async (): Promise<MembershipTierRow[]> => {
       const { data, error } = await supabase
         .from("membership_tiers")
@@ -133,7 +134,7 @@ function AdminPricingPage() {
     },
   });
   const faqQ = useQuery({
-    queryKey: ["admin", "pricing-faq"],
+    queryKey: billingKeys.admin.pricingFaq(),
     queryFn: async (): Promise<PricingFaqItemRow[]> => {
       const { data, error } = await supabase
         .from("pricing_faq_items")
@@ -250,8 +251,8 @@ function AudiencesTab({
   const [drafts, setDrafts] = useState<Record<string, AudienceDraft>>({});
 
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["admin", "pricing-audiences"] });
-    void qc.invalidateQueries({ queryKey: ["pricing-audiences"] });
+    void qc.invalidateQueries({ queryKey: billingKeys.admin.pricingAudiences() });
+    void qc.invalidateQueries({ queryKey: billingKeys.pricingAudiences() });
   };
 
   const tiersPerAudience = useMemo(() => {
@@ -645,8 +646,8 @@ function TiersTab({
     },
     onSuccess: () => {
       toast.success(ta("toast.tierSaved"));
-      void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
-      void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipTiers() });
+      void qc.invalidateQueries({ queryKey: billingKeys.membershipTiers() });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -894,8 +895,8 @@ function FaqTab({
   const [newDraft, setNewDraft] = useState<FaqDraft>(EMPTY_FAQ_DRAFT);
 
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["admin", "pricing-faq"] });
-    void qc.invalidateQueries({ queryKey: ["pricing-faq"] });
+    void qc.invalidateQueries({ queryKey: billingKeys.admin.pricingFaq() });
+    void qc.invalidateQueries({ queryKey: billingKeys.pricingFaq() });
   };
 
   const addFaq = useMutation({

@@ -21,6 +21,7 @@ import {
   monthlyEquivalentCents,
   pickPlanForInterval,
   plansByTierKey,
+  planTierBenefits,
   sanitizeAudienceKey,
   sortTiers,
   tierCtaMode,
@@ -247,6 +248,9 @@ describe("wybór planu i matematyka oszczędności", () => {
   it("monthlyEquivalentCents zaokrągla cenę roczną do miesiąca", () => {
     expect(monthlyEquivalentCents(makePlan({ interval: "year", price_cents: 49900 }))).toBe(4158);
     expect(monthlyEquivalentCents(makePlan({ interval: "month", price_cents: 4900 }))).toBe(4900);
+    expect(monthlyEquivalentCents(makePlan({ interval: "quarter", price_cents: 14900 }))).toBe(
+      4967,
+    );
     expect(monthlyEquivalentCents(makePlan({ interval: "one_time" }))).toBeNull();
   });
 
@@ -350,5 +354,29 @@ describe("faqForAudience", () => {
     ];
     expect(faqForAudience(items, "academic").map((i) => i.sort_order)).toEqual([10, 20]);
     expect(faqForAudience(items, null).map((i) => i.sort_order)).toEqual([10]);
+  });
+});
+
+describe("planTierBenefits (fallback karty planu do benefitów warstwy)", () => {
+  const tiers = [
+    makeTier({
+      key: "member",
+      rank: 10,
+      benefits: [
+        { pl: "Pełne archiwum", en: "Full archive" },
+        { pl: "Nagrania", en: "Recordings" },
+      ] as unknown as MembershipTierRow["benefits"],
+    }),
+  ];
+
+  it("plan z tier_key bez własnych features dostaje benefity warstwy w języku strony", () => {
+    const plan = makePlan({ tier_key: "member", features_pl: [], features_en: [] });
+    expect(planTierBenefits(plan, tiers, "pl")).toEqual(["Pełne archiwum", "Nagrania"]);
+    expect(planTierBenefits(plan, tiers, "en")).toEqual(["Full archive", "Recordings"]);
+  });
+
+  it("plan bez warstwy albo z nieznanym kluczem zwraca [] (uczciwa pustka)", () => {
+    expect(planTierBenefits(makePlan({ tier_key: null }), tiers, "pl")).toEqual([]);
+    expect(planTierBenefits(makePlan({ tier_key: "ghost" }), tiers, "pl")).toEqual([]);
   });
 });

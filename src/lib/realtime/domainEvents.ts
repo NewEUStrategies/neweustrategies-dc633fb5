@@ -32,6 +32,28 @@ export const DOMAIN_EVENT_TYPES = [
   "event.published.v1",
   "event.cancelled.v1",
   "policy.updated.v1",
+  // Monetyzacja (migracja 20260723120000): katalog cennika (warstwy/plany/
+  // segmenty/FAQ - zdarzenie "changed" z op w payloadzie) oraz cykl życia
+  // uprawnień (subskrypcje/nadania/organizacje/miejsca/darowizny). Aktorem
+  // zdarzeń cyklu życia jest właściciel wiersza, więc kupujący dostaje
+  // inwalidację cache w czasie rzeczywistym, gdy webhook Stripe nada dostęp.
+  "membership_tier.changed.v1",
+  "access_plan.changed.v1",
+  "pricing_audience.changed.v1",
+  "pricing_faq.changed.v1",
+  "subscription.started.v1",
+  "subscription.status_changed.v1",
+  "subscription.updated.v1",
+  "membership_grant.granted.v1",
+  "membership_grant.revoked.v1",
+  "organization.updated.v1",
+  "org_seat.changed.v1",
+  "donation.recorded.v1",
+  "donation.refunded.v1",
+  // Rejestr dokumentów rozliczeniowych (migracja 20260723151000): faktury z
+  // checkoutu i odnowień oraz paragony; updated = zmiana statusu (refund).
+  "billing_document.issued.v1",
+  "billing_document.updated.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -63,6 +85,16 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "newsletter_subscriber",
   "event",
   "policy",
+  "membership_tier",
+  "access_plan",
+  "pricing_audience",
+  "pricing_faq",
+  "subscription",
+  "membership_grant",
+  "organization",
+  "org_seat",
+  "donation",
+  "billing_document",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

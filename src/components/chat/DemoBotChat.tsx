@@ -146,14 +146,15 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
 
   // Powitanie datowane na wczoraj: od pierwszego otwarcia widać separatory
   // dni ("Wczoraj" nad powitaniem, "Dzisiaj" nad pierwszą nową wiadomością).
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    demoMessage(
-      "demo-welcome",
-      BOT_USER_ID,
-      t("chat.demoBot.welcome"),
-      new Date(Date.now() - 26 * 3600 * 1000).toISOString(),
-    ),
-  ]);
+  // Wczoraj liczone KALENDARZOWO (setDate-1), nie "minus 26h" - stała
+  // godzinowa po północy wpadała w przedwczoraj i etykieta "Wczoraj" znikała.
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return [
+      demoMessage("demo-welcome", BOT_USER_ID, t("chat.demoBot.welcome"), yesterday.toISOString()),
+    ];
+  });
   const [reactions, setReactions] = useState<ReadonlyMap<string, ReactionRow[]>>(new Map());
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [botTyping, setBotTyping] = useState(false);

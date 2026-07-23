@@ -876,9 +876,7 @@ export function renderSimpleWidget(
       );
     }
     case "timeline": {
-      const entries = Array.isArray(c.entries)
-        ? (c.entries as Array<Record<string, unknown>>)
-        : [];
+      const entries = Array.isArray(c.entries) ? (c.entries as Array<Record<string, unknown>>) : [];
       const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
       const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
       return (
@@ -983,9 +981,7 @@ export function renderSimpleWidget(
     }
     case "logo-cloud": {
       const heading = getStr(c, `heading_${lang}`) || getStr(c, "heading_pl");
-      const logosRaw = Array.isArray(c.logos)
-        ? (c.logos as Array<Record<string, unknown>>)
-        : [];
+      const logosRaw = Array.isArray(c.logos) ? (c.logos as Array<Record<string, unknown>>) : [];
       const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
       const logos = logosRaw
         .map((l) => ({
@@ -1003,7 +999,9 @@ export function renderSimpleWidget(
       if (logos.length === 0) {
         return (
           <div className="w-full rounded-[6px] border border-dashed border-border bg-muted/20 py-6 text-center text-xs text-muted-foreground">
-            {lang === "pl" ? "Dodaj logo w panelu właściwości." : "Add logos in the properties panel."}
+            {lang === "pl"
+              ? "Dodaj logo w panelu właściwości."
+              : "Add logos in the properties panel."}
           </div>
         );
       }

@@ -4,6 +4,7 @@
 // jedno źródło prawdy, zero rozjazdów cache.
 import { queryOptions, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { billingKeys } from "@/lib/billing/keys";
 import type { Database } from "@/integrations/supabase/types";
 
 export type PricingAudienceRow = Database["public"]["Tables"]["pricing_audiences"]["Row"];
@@ -14,7 +15,7 @@ export type PricingFaqItemRow = Database["public"]["Tables"]["pricing_faq_items"
 // wyglądać identycznie niezależnie od roli oglądającego.
 export function pricingAudiencesQueryOptions() {
   return queryOptions({
-    queryKey: ["pricing-audiences"],
+    queryKey: billingKeys.pricingAudiences(),
     staleTime: 60_000,
     queryFn: async (): Promise<PricingAudienceRow[]> => {
       const { data, error } = await supabase
@@ -30,7 +31,7 @@ export function pricingAudiencesQueryOptions() {
 
 export function pricingFaqQueryOptions() {
   return queryOptions({
-    queryKey: ["pricing-faq"],
+    queryKey: billingKeys.pricingFaq(),
     staleTime: 60_000,
     queryFn: async (): Promise<PricingFaqItemRow[]> => {
       const { data, error } = await supabase

@@ -6,6 +6,7 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { billingKeys } from "@/lib/billing/keys";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 export type MembershipTierRow = Database["public"]["Tables"]["membership_tiers"]["Row"];
@@ -40,6 +41,10 @@ export interface CurrentTier {
  * Plus=10 (student/kadra akademicka również 10), Pro=20 (NGO=20), VIP=25
  * (zespół=25), Enterprise=30, Strategic Partner=40, Partner Generalny=50,
  * President's Circle=60.
+ *
+ * Parzystość z seedem pricing_catalog_v3_rows() wymusza test
+ * tierCatalogParity.test.ts - edycja seedu bez aktualizacji tej mapy
+ * (i odwrotnie) obleje CI zamiast cicho dryfować.
  */
 export const TIER_RANKS = {
   reader: 0,
@@ -140,7 +145,7 @@ export async function fetchMembershipTiers(): Promise<MembershipTierRow[]> {
 }
 
 export function useMembershipTiers(): UseQueryResult<MembershipTierRow[]> {
-  return useQuery({ queryKey: ["membership-tiers"], queryFn: fetchMembershipTiers });
+  return useQuery({ queryKey: billingKeys.membershipTiers(), queryFn: fetchMembershipTiers });
 }
 
 export async function fetchCurrentTier(): Promise<CurrentTier | null> {
@@ -154,7 +159,7 @@ export function useCurrentTier(): UseQueryResult<CurrentTier | null> {
   const { user } = useAuth();
   return useQuery({
     // Klucz zawiera uid, żeby zmiana konta nie serwowała cudzej warstwy z cache.
-    queryKey: ["current-tier", user?.id ?? "anon"],
+    queryKey: billingKeys.currentTier(user?.id),
     queryFn: fetchCurrentTier,
     staleTime: 60_000,
   });

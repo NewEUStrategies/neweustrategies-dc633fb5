@@ -34,12 +34,29 @@ describe("parseWorkflowSteps", () => {
         action: "notify_followers",
         params: { kind: "content", href: "{post_href}", icon: "newspaper" },
       },
+      // Szablony retencyjne (migracja 20260723140000): anulowanie -> zadanie CRM.
+      {
+        action: "create_crm_task",
+        params: {
+          title: "Retencja: klient zaplanował anulowanie subskrypcji",
+          due_days: "2",
+          user_from: "user_id",
+        },
+      },
     ]);
     expect(steps).toEqual([
       { action: "create_crm_lead", params: { newsletter: true } },
       {
         action: "notify_followers",
         params: { kind: "content", href: "{post_href}", icon: "newspaper" },
+      },
+      {
+        action: "create_crm_task",
+        params: {
+          title: "Retencja: klient zaplanował anulowanie subskrypcji",
+          due_days: "2",
+          user_from: "user_id",
+        },
       },
     ]);
   });
