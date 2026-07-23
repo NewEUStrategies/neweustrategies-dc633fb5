@@ -65,6 +65,7 @@ import { Route as ProfileOrganizationRouteImport } from './routes/profile.organi
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
+import { Route as ProfileInmailsRouteImport } from './routes/profile.inmails'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
 import { Route as ProfileEditRouteImport } from './routes/profile.edit'
 import { Route as ProfileBookmarksRouteImport } from './routes/profile.bookmarks'
@@ -123,6 +124,7 @@ import { Route as AdminLinkMonitorRouteImport } from './routes/admin.link-monito
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as AdminKeyTakeawaysRouteImport } from './routes/admin.key-takeaways'
 import { Route as AdminIntegrationsRouteImport } from './routes/admin.integrations'
+import { Route as AdminInmailsRouteImport } from './routes/admin.inmails'
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
@@ -507,6 +509,11 @@ const ProfileInterestsRoute = ProfileInterestsRouteImport.update({
   path: '/interests',
   getParentRoute: () => ProfileRoute,
 } as any)
+const ProfileInmailsRoute = ProfileInmailsRouteImport.update({
+  id: '/inmails',
+  path: '/inmails',
+  getParentRoute: () => ProfileRoute,
+} as any)
 const ProfileFollowsRoute = ProfileFollowsRouteImport.update({
   id: '/follows',
   path: '/follows',
@@ -795,6 +802,11 @@ const AdminKeyTakeawaysRoute = AdminKeyTakeawaysRouteImport.update({
 const AdminIntegrationsRoute = AdminIntegrationsRouteImport.update({
   id: '/integrations',
   path: '/integrations',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminInmailsRoute = AdminInmailsRouteImport.update({
+  id: '/inmails',
+  path: '/inmails',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminImportWordpressRoute = AdminImportWordpressRouteImport.update({
@@ -1390,6 +1402,7 @@ export interface FileRoutesByFullPath {
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
+  '/admin/inmails': typeof AdminInmailsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/library': typeof AdminLibraryRoute
@@ -1448,6 +1461,7 @@ export interface FileRoutesByFullPath {
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/edit': typeof ProfileEditRoute
   '/profile/follows': typeof ProfileFollowsRoute
+  '/profile/inmails': typeof ProfileInmailsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -1603,6 +1617,7 @@ export interface FileRoutesByTo {
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
+  '/admin/inmails': typeof AdminInmailsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/library': typeof AdminLibraryRoute
@@ -1658,6 +1673,7 @@ export interface FileRoutesByTo {
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/edit': typeof ProfileEditRoute
   '/profile/follows': typeof ProfileFollowsRoute
+  '/profile/inmails': typeof ProfileInmailsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -1819,6 +1835,7 @@ export interface FileRoutesById {
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
+  '/admin/inmails': typeof AdminInmailsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/library': typeof AdminLibraryRoute
@@ -1877,6 +1894,7 @@ export interface FileRoutesById {
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/edit': typeof ProfileEditRoute
   '/profile/follows': typeof ProfileFollowsRoute
+  '/profile/inmails': typeof ProfileInmailsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -2040,6 +2058,7 @@ export interface FileRouteTypes {
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
+    | '/admin/inmails'
     | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/library'
@@ -2098,6 +2117,7 @@ export interface FileRouteTypes {
     | '/profile/bookmarks'
     | '/profile/edit'
     | '/profile/follows'
+    | '/profile/inmails'
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
@@ -2253,6 +2273,7 @@ export interface FileRouteTypes {
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
+    | '/admin/inmails'
     | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/library'
@@ -2308,6 +2329,7 @@ export interface FileRouteTypes {
     | '/profile/bookmarks'
     | '/profile/edit'
     | '/profile/follows'
+    | '/profile/inmails'
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
@@ -2468,6 +2490,7 @@ export interface FileRouteTypes {
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
+    | '/admin/inmails'
     | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/library'
@@ -2526,6 +2549,7 @@ export interface FileRouteTypes {
     | '/profile/bookmarks'
     | '/profile/edit'
     | '/profile/follows'
+    | '/profile/inmails'
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
@@ -3101,6 +3125,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileInterestsRouteImport
       parentRoute: typeof ProfileRoute
     }
+    '/profile/inmails': {
+      id: '/profile/inmails'
+      path: '/inmails'
+      fullPath: '/profile/inmails'
+      preLoaderRoute: typeof ProfileInmailsRouteImport
+      parentRoute: typeof ProfileRoute
+    }
     '/profile/follows': {
       id: '/profile/follows'
       path: '/follows'
@@ -3505,6 +3536,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations'
       fullPath: '/admin/integrations'
       preLoaderRoute: typeof AdminIntegrationsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/inmails': {
+      id: '/admin/inmails'
+      path: '/inmails'
+      fullPath: '/admin/inmails'
+      preLoaderRoute: typeof AdminInmailsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/import-wordpress': {
@@ -4507,6 +4545,7 @@ interface AdminRouteChildren {
   AdminGreetingsRoute: typeof AdminGreetingsRoute
   AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
+  AdminInmailsRoute: typeof AdminInmailsRoute
   AdminIntegrationsRoute: typeof AdminIntegrationsRoute
   AdminKeyTakeawaysRoute: typeof AdminKeyTakeawaysRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
@@ -4574,6 +4613,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminGreetingsRoute: AdminGreetingsRoute,
   AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
+  AdminInmailsRoute: AdminInmailsRoute,
   AdminIntegrationsRoute: AdminIntegrationsRoute,
   AdminKeyTakeawaysRoute: AdminKeyTakeawaysRoute,
   AdminLibraryRoute: AdminLibraryRoute,
@@ -4636,6 +4676,7 @@ interface ProfileRouteChildren {
   ProfileBookmarksRoute: typeof ProfileBookmarksRoute
   ProfileEditRoute: typeof ProfileEditRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
+  ProfileInmailsRoute: typeof ProfileInmailsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
   ProfileMembershipRoute: typeof ProfileMembershipRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
@@ -4655,6 +4696,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileBookmarksRoute: ProfileBookmarksRoute,
   ProfileEditRoute: ProfileEditRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
+  ProfileInmailsRoute: ProfileInmailsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
   ProfileMembershipRoute: ProfileMembershipRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,

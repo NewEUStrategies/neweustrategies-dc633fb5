@@ -35,7 +35,8 @@ type NavKey =
   | "subscription"
   | "orders"
   | "security"
-  | "privacy";
+  | "privacy"
+  | "inmails";
 
 type NavItem = {
   to: string;
@@ -61,6 +62,7 @@ const CONTENT: NavItem[] = [
   // Świadomie linkują POZA profil (sieć kontaktów i centrum wiadomości).
   { to: "/network", key: "network", icon: Users },
   { to: "/messages", search: { view: "notifications" }, key: "notifications", icon: Bell },
+  { to: "/profile/inmails", key: "inmails", icon: Bell },
 ];
 
 const FINANCE: NavItem[] = [

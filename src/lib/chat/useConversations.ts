@@ -229,16 +229,37 @@ export function usePeopleSearch(query: string, limit = 20): UseQueryResult<Perso
   });
 }
 
-/** Open (or create) the direct conversation with a peer. */
+/**
+ * Open (or create) the direct conversation with a peer.
+ *
+ * Serwer bramkuje kontakt (sieć + tier + status ekspert):
+ *  - `chat: expert requires inmail` -> otwieramy globalny InMailDialog
+ *    (bus w `inmailDialogBus`) zamiast toastu; UI od razu wie, że użytkownik
+ *    z tierem Plus musi wysłać sformalizowany inMail do eksperta.
+ *  - inne błędy propagujemy do callera (toast / komunikat kontekstowy).
+ */
 export function useStartConversation() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (peerId: string): Promise<string> => {
+    mutationFn: async (input: string | { peerId: string; peerName?: string | null; peerAvatar?: string | null }): Promise<string> => {
+      const peerId = typeof input === "string" ? input : input.peerId;
       const { data, error } = await supabase.rpc("get_or_create_direct_conversation", {
         p_peer_id: peerId,
       });
-      if (error) throw error;
+      if (error) {
+        // Serwer sygnalizuje bramkę ekspertów: otwórz dialog inMail
+        // z prefillem odbiorcy zamiast pokazywać nagi błąd.
+        if ((error.message ?? "").includes("chat: expert requires inmail")) {
+          const { openInMailDialog } = await import("./inmailDialogBus");
+          openInMailDialog({
+            recipientId: peerId,
+            recipientName: typeof input === "string" ? null : input.peerName ?? null,
+            recipientAvatar: typeof input === "string" ? null : input.peerAvatar ?? null,
+          });
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

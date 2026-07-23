@@ -10,7 +10,7 @@
 // kontrakt weryfikowany code-review, a nie zgadywankę po grepie.
 
 /** Gdzie flaga jest egzekwowana (do grupowania i ikon w panelu). */
-export type CapabilityGate = "content" | "events" | "qa" | "tracker" | "none";
+export type CapabilityGate = "content" | "events" | "qa" | "tracker" | "chat" | "none";
 
 export interface CapabilityMeta {
   /** Klucz we `features` (membership_tiers.features). */
@@ -70,6 +70,24 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
     gate: "qa",
     where_pl: "Priorytet i kolejność pytań w /qa (list_qa_questions).",
     where_en: "Priority and ordering of questions in /qa (list_qa_questions).",
+  },
+  {
+    key: "chat_enabled",
+    enforced: true,
+    gate: "chat",
+    where_pl:
+      "Bramka rozpoczęcia rozmowy DM (get_or_create_direct_conversation) - Plus i wyżej.",
+    where_en:
+      "Gate for starting a DM (get_or_create_direct_conversation) - Plus and above.",
+  },
+  {
+    key: "chat_experts_direct",
+    enforced: true,
+    gate: "chat",
+    where_pl:
+      "Bezpośrednia rozmowa z ekspertem (Pro i wyżej). Bez flagi Plus wysyła inMail.",
+    where_en:
+      "Direct DM with an expert (Pro and above). Without the flag, Plus sends an inMail.",
   },
   {
     key: "events_members",
