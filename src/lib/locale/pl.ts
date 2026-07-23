@@ -134,6 +134,9 @@ export const pl = {
     dismiss: "Zamknij reklamę",
   },
   admin: {
+    unsavedChangesTitle: "Niezapisane zmiany",
+    leave: "Opuść bez zapisania",
+    stay: "Zostań",
     nav: {
       dashboard: "Kokpit",
       posts: "Wpisy",

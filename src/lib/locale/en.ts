@@ -131,6 +131,9 @@ export const en = {
     dismiss: "Close ad",
   },
   admin: {
+    unsavedChangesTitle: "Unsaved changes",
+    leave: "Leave without saving",
+    stay: "Stay",
     nav: {
       dashboard: "Dashboard",
       posts: "Posts",
