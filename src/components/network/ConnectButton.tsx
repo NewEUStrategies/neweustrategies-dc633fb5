@@ -54,6 +54,8 @@ export interface ConnectButtonProps {
   state?: ConnectionState;
   /** Zwarta wersja na karty list (ikona + krótka etykieta). */
   compact?: boolean;
+  /** Wariant „tylko ikona" (h-8 w-8) - do gęstych pasków akcji na profilu. */
+  iconOnly?: boolean;
   className?: string;
 }
 
@@ -62,6 +64,7 @@ export function ConnectButton({
   displayName,
   state,
   compact,
+  iconOnly,
   className,
 }: ConnectButtonProps) {
   const { t } = useTranslation();
