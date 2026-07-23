@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Upload, X } from "@/lib/lucide-shim";
-import { useRequiredTenant } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-panes-misc";
 
@@ -31,10 +31,14 @@ export function ImageSlot({
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const tenantId = useRequiredTenant();
+  const { tenantId } = useAuth();
 
   const handleFile = async (file: File) => {
     setError(null);
+    if (!tenantId) {
+      setError(t("adminPanesMisc.imageSlot.uploadError"));
+      return;
+    }
     setUploading(true);
     try {
       const { data: userData } = await supabase.auth
