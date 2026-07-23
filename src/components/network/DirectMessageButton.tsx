@@ -86,7 +86,7 @@ export function DirectMessageButton({
     );
   };
 
-  const handleClick = (e: React.MouseEvent): void => {
+  const handleClick = (e: MouseEvent): void => {
     // W listach osoby często siedzą pod <Link>/<AppLink> - nie chcemy, żeby
     // klik w przycisk otwierał profil.
     e.preventDefault();
