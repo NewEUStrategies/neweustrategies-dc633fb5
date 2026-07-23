@@ -261,6 +261,7 @@ function SearchPage() {
   // ---- Autosuggest -------------------------------------------------------
   const [sugOpen, setSugOpen] = useState(false);
   const [sugIndex, setSugIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   // Debounce jak w widgecie nagłówka: RPC podpowiedzi strzela po pauzie w
   // pisaniu, nie na każde naciśnięcie klawisza.
   const suggestQ = useDebouncedValue(draft.trim(), 200);
