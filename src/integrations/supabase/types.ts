@@ -3896,6 +3896,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          crm_company_id: string | null
           description: string | null
           expires_at: string | null
           id: string
@@ -3925,6 +3926,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by?: string | null
+          crm_company_id?: string | null
           description?: string | null
           expires_at?: string | null
           id?: string
@@ -3954,6 +3956,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by?: string | null
+          crm_company_id?: string | null
           description?: string | null
           expires_at?: string | null
           id?: string
@@ -3975,6 +3978,13 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "member_organizations_crm_company_id_fkey"
+            columns: ["crm_company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "member_organizations_tenant_id_fkey"
             columns: ["tenant_id"]
