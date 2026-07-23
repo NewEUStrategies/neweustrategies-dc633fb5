@@ -141,17 +141,26 @@ export function ConnectButton({
             variant={iconOnly ? "outline" : "default"}
             size={size}
             disabled={busy}
-            className={cn("gap-1.5", iconOnlyClass, iconHoverClass, className)}
+            className={cn(
+              "group gap-1.5",
+              iconOnlyClass,
+              iconHoverClass,
+              className,
+            )}
             aria-label={`${t("network.connect")}: ${displayName}`}
             title={iconOnly ? t("network.connect") : undefined}
           >
-            <UserPlus className="h-3.5 w-3.5" aria-hidden />
+            <UserPlus
+              className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover:rotate-90"
+              aria-hidden
+            />
             {!iconOnly && (
               <span className={cn(compact && "hidden sm:inline")}>
                 {compact ? t("network.connectShort") : t("network.connect")}
               </span>
             )}
           </Button>
+
 
         </PopoverTrigger>
         <PopoverContent align="end" className="w-80 space-y-2 p-3">
