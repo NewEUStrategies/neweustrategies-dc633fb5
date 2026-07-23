@@ -11,7 +11,7 @@
 import { useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Check, Loader2, Lock, MessageSquare } from "lucide-react";
+import { Check, Loader2, Lock, MessageCircleMore } from "lucide-react";
 
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -112,7 +112,7 @@ export function DirectMessageButton({
     : locked
       ? t("directMessage.tooltipLocked")
       : t("directMessage.tooltipEnabled");
-  const Icon = isBusy ? Loader2 : locked ? Lock : MessageSquare;
+  const Icon = isBusy ? Loader2 : locked ? Lock : MessageCircleMore;
 
   return (
     <>
@@ -157,7 +157,7 @@ export function DirectMessageButton({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MessageSquare
+              <MessageCircleMore
                 className="h-5 w-5"
                 aria-hidden
                 style={{ color: "var(--brand)" }}
