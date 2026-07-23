@@ -38,9 +38,10 @@ export const inmailPl = {
     sending: "Wysyłam…",
     sentToast: "InMail wysłany. Poinformujemy Cię o odpowiedzi.",
     error: {
-      rateLimit: "Wysłałeś już maksymalną liczbę zapytań do tego eksperta w ciągu ostatnich 24 h.",
-      notExpert: "Ten użytkownik nie jest ekspertem - napisz do niego bezpośrednio z listy kontaktów.",
-      tierDisabled: "Twoja warstwa nie umożliwia wysyłania wiadomości. Zaktualizuj plan, aby pisać w ekosystemie.",
+      rateLimit: "Wysłałeś już maksymalną liczbę zapytań w krótkim czasie.",
+      monthlyQuota: "Wyczerpałeś miesięczną pulę inMaili. Plus: 2/mies., Pro: 5/mies. Zwiększ plan, aby napisać do kolejnych ekspertów lub VIP-ów.",
+      notExpert: "Ten użytkownik nie wymaga inMail - napisz do niego bezpośrednio z listy kontaktów.",
+      tierDisabled: "Twoja warstwa nie umożliwia wysyłania inMaili. Zaktualizuj plan (Plus - 2/mies., Pro - 5/mies., VIP - bezpośrednio).",
       generic: "Nie udało się wysłać. Spróbuj ponownie.",
     },
     status: {
