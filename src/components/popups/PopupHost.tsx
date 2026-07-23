@@ -209,7 +209,10 @@ export function PopupHost() {
         style={panelStyle}
         onClick={(e) => e.stopPropagation()}
       >
-        {s.showCloseButton && (
+        {/* Przycisk zamkniecia jest wymuszany, gdy klikniecie tla NIE zamyka
+            popupu - inaczej na urzadzeniu dotykowym (bez klawisza Escape) popup
+            bylby niemozliwy do zamkniecia (pulapka a11y/UX). */}
+        {(s.showCloseButton || !s.closeOnOverlay) && (
           <button
             type="button"
             data-popup-close="true"

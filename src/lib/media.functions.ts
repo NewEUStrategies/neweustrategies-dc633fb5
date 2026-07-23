@@ -14,7 +14,10 @@ const ALLOWED_MIME = new Set([
   "image/png",
   "image/webp",
   "image/gif",
-  "image/svg+xml",
+  // image/svg+xml celowo NIE jest dozwolony: bucket `media` jest publiczny i
+  // serwuje bajty bezposrednio, a SVG moze wykonac osadzony <script> (stored
+  // XSS). Upload idzie browser->storage z pominieciem sanityzacji, wiec jedyna
+  // pewna obrona jest zablokowanie typu przy rejestracji.
   "image/avif",
   // Animowany PNG (tła widgetów buildera).
   "image/apng",
@@ -404,6 +407,15 @@ function normalizeFolderPath(input: string): string {
   return p;
 }
 
+// Escapuje znaki specjalne LIKE (\ % _) w literalnym prefiksie i dopina wildcard.
+// Bez tego folder o nazwie zawierajacej % lub _ dopasowywalby szerszy zbior
+// (LIKE-injection); przy deleteMediaFolder(recursive) groziloby to kasowaniem
+// lub przenoszeniem cudzych mediow w obrebie tenanta. Domyslny escape LIKE w
+// PostgreSQL to backslash, a PostgREST przekazuje wartosc jako parametr.
+function likePrefix(prefix: string): string {
+  return prefix.replace(/[\\%_]/g, (ch) => `\\${ch}`) + "%";
+}
+
 async function requireTenantId(
   supabase: NonNullable<Parameters<typeof recordAudit>[0]>,
   userId: string,
@@ -658,7 +670,7 @@ export const renameMediaFolder = createServerFn({ method: "POST" })
       .from("media_folders")
       .select("id, path")
       .eq("tenant_id", tenantId)
-      .like("path", `${oldP}%`);
+      .like("path", likePrefix(oldP));
     if (fErr) throw new Error(fErr.message);
     for (const f of folders ?? []) {
       const np = newP + f.path.slice(oldP.length);
@@ -673,7 +685,7 @@ export const renameMediaFolder = createServerFn({ method: "POST" })
       .from("media")
       .select("id, folder_path")
       .eq("tenant_id", tenantId)
-      .like("folder_path", `${oldP}%`);
+      .like("folder_path", likePrefix(oldP));
     if (mErr) throw new Error(mErr.message);
     for (const it of items ?? []) {
       const np = newP + it.folder_path.slice(oldP.length);
@@ -707,7 +719,7 @@ export const deleteMediaFolder = createServerFn({ method: "POST" })
       .from("media")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
-      .like("folder_path", `${path}%`);
+      .like("folder_path", likePrefix(path));
     if (!data.recursive && (fileCount ?? 0) > 0) {
       throw new Error("Folder is not empty");
     }
@@ -716,7 +728,7 @@ export const deleteMediaFolder = createServerFn({ method: "POST" })
         .from("media")
         .select("id, storage_path")
         .eq("tenant_id", tenantId)
-        .like("folder_path", `${path}%`);
+        .like("folder_path", likePrefix(path));
       const paths = (rows ?? []).map((r) => r.storage_path).filter(Boolean) as string[];
       if (paths.length) {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -735,7 +747,7 @@ export const deleteMediaFolder = createServerFn({ method: "POST" })
       .from("media_folders")
       .delete()
       .eq("tenant_id", tenantId)
-      .like("path", `${path}%`);
+      .like("path", likePrefix(path));
     if (error) throw new Error(error.message);
     await recordAudit(supabase, {
       tenantId,

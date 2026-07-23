@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { X, ChevronLeft, ChevronRight, Pause, Play } from "@/lib/lucide-shim";
 import type { StoryPage } from "@/lib/web-stories/types";
-import { pageCaption, pageCtaLabel, pageTitle } from "@/lib/web-stories/types";
+import { pageCaption, pageCtaLabel, pageTitle, safeStoryHref } from "@/lib/web-stories/types";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface Props {
@@ -96,6 +96,9 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
   const title = pageTitle(cur, lang);
   const caption = pageCaption(cur, lang);
   const ctaLabel = pageCtaLabel(cur, lang);
+  // Obrona w glab: sanityzuj href CTA takze przy renderze (na wypadek strony
+  // nieprzepuszczonej przez StoryPageSchema). Blokuje javascript:/data:.
+  const ctaHref = safeStoryHref(cur.cta_href);
   const posClass =
     cur.text_position === "top"
       ? "top-16 bottom-auto"
@@ -195,11 +198,11 @@ export function StoryViewer({ pages, lang, onClose, startIndex = 0 }: Props) {
         {caption && (
           <p className="text-sm md:text-base text-white/90 max-w-xl drop-shadow">{caption}</p>
         )}
-        {ctaLabel && cur.cta_href && (
+        {ctaLabel && ctaHref && (
           <a
-            href={cur.cta_href}
+            href={ctaHref}
             className="mt-2 inline-flex px-4 py-2 rounded-full bg-white text-black text-sm font-medium hover:bg-white/90"
-            target={cur.cta_href.startsWith("http") ? "_blank" : undefined}
+            target={ctaHref.startsWith("http") ? "_blank" : undefined}
             rel="noopener noreferrer"
           >
             {ctaLabel}

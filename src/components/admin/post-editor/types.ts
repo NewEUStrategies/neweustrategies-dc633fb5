@@ -12,6 +12,10 @@ export type EditorType = "blocks" | "richtext" | "markdown" | "builder";
 export interface PostForm {
   id: string;
   slug: string;
+  // Baza optimistic-locka: updated_at wiersza w chwili załadowania/ostatniego
+  // zapisu (kolumna z select("*")). Zapis przekazuje ją serwerowi, by odrzucić
+  // ciche nadpisanie, gdy ktoś inny zapisał w międzyczasie.
+  updated_at?: string | null;
   status: PostWorkflowStatus;
   editor: EditorType;
   title_pl: string;

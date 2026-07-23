@@ -947,6 +947,8 @@ export const en = {
     confirmDelete: "Delete this item?",
     unsavedChanges: "You have unsaved changes - leave the editor anyway?",
     slugTaken: 'Slug was already taken - saved as "{{slug}}"',
+    editConflict:
+      "Someone else saved in the meantime. Refresh to load the latest version - your unsaved edits stay in the editor.",
     bulkResult: {
       none: "Nothing was changed - no permission or the items no longer exist",
       partial:

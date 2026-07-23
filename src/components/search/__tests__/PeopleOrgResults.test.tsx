@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import type { PeopleOrgItem } from "@/lib/queries/archives";
 import { PeopleOrgResults, PeopleOrgStrip } from "../PeopleOrgResults";
 
@@ -31,7 +32,7 @@ describe("PeopleOrgResults", () => {
   });
 
   it("dzieli wyniki na sekcje Osoby i Organizacje", () => {
-    render(
+    renderWithQueryClient(
       <PeopleOrgResults
         items={[
           item({}),
@@ -53,7 +54,7 @@ describe("PeopleOrgResults", () => {
   });
 
   it("osoba linkuje do huba autora, organizacja filtruje /search po termie", () => {
-    const { container } = render(
+    const { container } = renderWithQueryClient(
       <PeopleOrgResults
         items={[item({}), item({ kind: "organization", id: "o1", label_pl: "NATO" })]}
         lang="pl"
@@ -65,12 +66,12 @@ describe("PeopleOrgResults", () => {
   });
 
   it("znacznik weryfikacji ma etykietę dostępności", () => {
-    render(<PeopleOrgResults items={[item({ verified: true })]} lang="pl" />);
+    renderWithQueryClient(<PeopleOrgResults items={[item({ verified: true })]} lang="pl" />);
     expect(screen.getByLabelText("search.people.verified")).toBeTruthy();
   });
 
   it("wyświetla logo organizacji, gdy jest dostępne", () => {
-    const { container } = render(
+    const { container } = renderWithQueryClient(
       <PeopleOrgResults
         items={[
           item({
@@ -89,7 +90,7 @@ describe("PeopleOrgResults", () => {
   });
 
   it("pusta lista nie renderuje niczego", () => {
-    const { container } = render(<PeopleOrgResults items={[]} lang="pl" />);
+    const { container } = renderWithQueryClient(<PeopleOrgResults items={[]} lang="pl" />);
     expect(container.innerHTML).toBe("");
   });
 });
@@ -101,14 +102,14 @@ describe("PeopleOrgStrip", () => {
 
   it("renderuje pigułki i przycisk przejścia do pełnej sekcji", () => {
     const onSeeAll = vi.fn();
-    render(<PeopleOrgStrip items={[item({})]} lang="pl" onSeeAll={onSeeAll} />);
+    renderWithQueryClient(<PeopleOrgStrip items={[item({})]} lang="pl" onSeeAll={onSeeAll} />);
     expect(screen.getByText("Jan Kowalski")).toBeTruthy();
     fireEvent.click(screen.getByRole("button"));
     expect(onSeeAll).toHaveBeenCalled();
   });
 
   it("wyświetla miniaturkę logo organizacji w pigułce", () => {
-    const { container } = render(
+    const { container } = renderWithQueryClient(
       <PeopleOrgStrip
         items={[
           item({

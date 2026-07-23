@@ -9,6 +9,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { updatePost, deletePost } from "@/lib/content.functions";
+import { isEditConflict } from "@/lib/content/saveConflict";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
@@ -48,9 +49,16 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
+  // Baza optimistic-locka: updated_at ostatnio załadowanego/zapisanego wiersza.
+  // Aktualizowana z odpowiedzi serwera po każdym zapisie, by kolejny zapis nie
+  // zgłaszał fałszywego konfliktu.
+  const baseUpdatedAtRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (post) history.reset(post);
+    if (post) {
+      history.reset(post);
+      baseUpdatedAtRef.current = post.updated_at ?? null;
+    }
   }, [post, history.reset]);
   useEffect(() => {
     if (data.postCats) setSelectedCats(data.postCats.map((c) => c.category_id));
@@ -128,8 +136,20 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
           tags: selectedTags,
           programs: selectedPrograms,
           regions: selectedRegions,
+          // Optimistic-lock: updated_at, który klient ostatnio widział.
+          baseUpdatedAt: baseUpdatedAtRef.current ?? undefined,
         },
+      }).catch((err: unknown) => {
+        // Konflikt = ktoś inny zapisał w międzyczasie; pokaż czytelny komunikat
+        // (i18n PL/EN) i przerwij zapis - autosave/flush odrzuci, treść zostaje.
+        if (isEditConflict(err)) {
+          toast.error(t("admin.editConflict"), { id: "edit-conflict" });
+        }
+        throw err;
       });
+      // Przesuń bazę optimistic-locka na updated_at faktycznie zapisany, by
+      // kolejny zapis nie zgłaszał fałszywego konfliktu.
+      baseUpdatedAtRef.current = result?.updatedAt ?? baseUpdatedAtRef.current;
       // Serwer mógł znormalizować slug (uniqueSlug dopisuje sufiks przy
       // kolizji). Nawigujemy WYŁĄCZNIE na slug faktycznie zapisany -
       // przejście na slug wpisany w formularzu załadowałoby CUDZY wpis,

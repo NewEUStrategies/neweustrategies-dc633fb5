@@ -43,23 +43,51 @@ export const Route = createFileRoute("/api/public/ad-event")({
           const path = redactUrl(typeof body.path === "string" ? body.path.slice(0, 512) : null);
 
           // Attribute to the browsed host's tenant (service-role client sends no
-          // x-tenant-host). Best-effort: on failure the row lands under the
-          // column default (public_tenant_id -> default tenant) rather than drop.
+          // x-tenant-host). Bez rozwiazanego tenanta nie da sie bezpiecznie
+          // przypisac zdarzenia - odrzucamy (zamiast wpadac do tenanta domyslnego).
           let tenantId: string | null = null;
           try {
             tenantId = await resolveTenantIdForHost(await currentTenantHost());
           } catch {
-            // keep tenantId null -> column default applies
+            tenantId = null;
+          }
+          if (!tenantId) return noContent();
+
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+          // Weryfikacja wlasnosci: slot musi ISTNIEC i nalezec do tenanta hosta.
+          // Bez tego dowolny klient POST-owalby falszywe impresje/kliki dla
+          // dowolnego UUID slotu (zatruwanie metryk, takze cross-tenant).
+          const { data: slot } = await supabaseAdmin
+            .from("ad_slots")
+            .select("id")
+            .eq("id", slotId)
+            .eq("tenant_id", tenantId)
+            .maybeSingle();
+          if (!slot) return noContent();
+
+          // Placement (opcjonalny) musi wskazywac TEN slot w tym tenancie; w
+          // przeciwnym razie zapisujemy zdarzenie bez placementu zamiast ufac
+          // wartosci klienta.
+          let verifiedPlacementId: string | null = null;
+          if (placementId) {
+            const { data: placement } = await supabaseAdmin
+              .from("ad_placements")
+              .select("id")
+              .eq("id", placementId)
+              .eq("slot_id", slotId)
+              .eq("tenant_id", tenantId)
+              .maybeSingle();
+            if (placement) verifiedPlacementId = placementId;
           }
 
           // `ad_events` is not yet in the generated Supabase types (cast).
-          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           await supabaseAdmin.from("ad_events" as never).insert({
             slot_id: slotId,
-            placement_id: placementId,
+            placement_id: verifiedPlacementId,
             kind,
             path,
-            ...(tenantId ? { tenant_id: tenantId } : {}),
+            tenant_id: tenantId,
           } as never);
         } catch {
           // Ingest is best-effort - never error the beacon.

@@ -96,7 +96,9 @@ describe("SearchButtonWidget", () => {
     expect(hrefs).toContain("/post/wpis");
     expect(hrefs).toContain("/search?type=t1");
     expect(hrefs).toContain("/search?org=o1");
-    expect(hrefs).toContain("/search?author=a1");
+    // Autor ma slug ("jan"), wiec podpowiedz linkuje do profilu /author/<slug>
+    // (organizacja bez publicznej strony nadal filtruje /search?org=<id>).
+    expect(hrefs).toContain("/author/jan");
 
     // Hover podświetla opcję (aria-selected), klik wyniku zapisuje frazę
     // w ostatnich wyszukiwaniach i zamyka popover.

@@ -90,7 +90,9 @@ describe("suggestionHref", () => {
   });
 
   it("autor bez sluga wraca do /search po id", () => {
-    expect(suggestionHref(it0({ kind: "author", id: "a-1" }))).toBe("/search?author=a-1");
+    // it0 domyslnie nadaje slug "s"; tu testujemy fallback dla autora BEZ sluga,
+    // wiec jawnie go zerujemy - inaczej autor ze slugiem trafia do /author/<slug>.
+    expect(suggestionHref(it0({ kind: "author", id: "a-1", slug: "" }))).toBe("/search?author=a-1");
   });
 
   it("term taksonomii bez publicznej strony filtruje /search po ID", () => {
@@ -100,12 +102,8 @@ describe("suggestionHref", () => {
   });
 
   it("kategoria/tag/seria/program prowadzą do publicznego archiwum po slug", () => {
-    expect(suggestionHref(it0({ kind: "category", id: "c-1", slug: "geo" }))).toBe(
-      "/category/geo",
-    );
-    expect(suggestionHref(it0({ kind: "topic", id: "t-1", slug: "energia" }))).toBe(
-      "/tag/energia",
-    );
+    expect(suggestionHref(it0({ kind: "category", id: "c-1", slug: "geo" }))).toBe("/category/geo");
+    expect(suggestionHref(it0({ kind: "topic", id: "t-1", slug: "energia" }))).toBe("/tag/energia");
     expect(suggestionHref(it0({ kind: "series", id: "s-1", slug: "raporty" }))).toBe(
       "/series/raporty",
     );
@@ -113,7 +111,6 @@ describe("suggestionHref", () => {
       "/programs/eu-green",
     );
   });
-
 
   it("wymiary wyliczane (format/rok) filtrują po slugu", () => {
     expect(suggestionHref(it0({ kind: "format", slug: "video" }))).toBe("/search?format=video");

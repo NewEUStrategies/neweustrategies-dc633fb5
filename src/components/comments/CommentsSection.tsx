@@ -256,7 +256,9 @@ export function CommentsSection({ postId, lang }: Props) {
               onReply={(body, parentId) => create.mutate({ body, parentId })}
               onGuestReply={(input) => guestCreate.mutate(input)}
               onDelete={(id) => remove.mutate(id)}
-              onEdit={(id, body) => edit.mutate({ id, body })}
+              onEdit={async (id, body) => {
+                await edit.mutateAsync({ id, body });
+              }}
               submittingReply={create.isPending || guestCreate.isPending}
             />
           ))
@@ -466,7 +468,7 @@ function CommentNode({
   onReply: (body: string, parentId: string) => void;
   onGuestReply: (input: GuestCommentInput) => void;
   onDelete: (id: string) => void;
-  onEdit: (id: string, body: string) => void;
+  onEdit: (id: string, body: string) => void | Promise<void>;
   submittingReply: boolean;
 }) {
   const [replying, setReplying] = useState(false);
@@ -551,10 +553,11 @@ function CommentItem({
   onReplyToggle?: () => void;
   replyOpen: boolean;
   onDelete: (id: string) => void;
-  onEdit?: (id: string, body: string) => void;
+  onEdit?: (id: string, body: string) => void | Promise<void>;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const isOwn = currentUserId && c.user_id === currentUserId;
   const isPending = c.status === "pending";
   const isDeleted = c.status === "deleted";
@@ -615,12 +618,20 @@ function CommentItem({
           <div className="mt-2">
             <CommentComposer
               lang={lang}
-              submitting={false}
+              submitting={saving}
               initialValue={c.body ?? ""}
               submitLabel={t("comments.saveEdit", { defaultValue: "Zapisz zmiany" })}
-              onSubmit={(body) => {
-                onEdit?.(c.id, body);
-                setEditing(false);
+              onSubmit={async (body) => {
+                // Blokada podwojnego wyslania: przycisk jest wylaczony przez
+                // `submitting`, a edytor zamyka sie dopiero po sukcesie mutacji.
+                if (saving) return;
+                setSaving(true);
+                try {
+                  await onEdit?.(c.id, body);
+                  setEditing(false);
+                } finally {
+                  setSaving(false);
+                }
               }}
               onCancel={() => setEditing(false)}
             />

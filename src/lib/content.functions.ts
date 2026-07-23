@@ -15,6 +15,7 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit, type AuditAction } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import { POST_STATUSES, evaluateTransition, isFirstPublish } from "./content/workflow";
+import { editConflictError } from "./content/saveConflict";
 import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
 import {
   REVISION_KEEP_LIMIT,
@@ -465,6 +466,9 @@ export const updatePost = createServerFn({ method: "POST" })
         tags: z.array(UUID).max(50).optional(),
         programs: z.array(UUID).max(50).optional(),
         regions: z.array(UUID).max(50).optional(),
+        // Optimistic-lock: updated_at, który klient ostatnio widział. Gdy
+        // podany, serwer odrzuci zapis, jeśli wiersz zmienił się w międzyczasie.
+        baseUpdatedAt: z.string().optional(),
       })
       .parse(i),
   )
@@ -487,6 +491,15 @@ export const updatePost = createServerFn({ method: "POST" })
         .maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Post not found or access denied");
+
+      // Optimistic-lock: odrzuć zapis, jeśli wiersz zmienił się od czasu, gdy
+      // klient go załadował. `existing` czytane przez service_role tuż przed
+      // UPDATE (poniżej dokładamy atomowy guard .eq("updated_at") na wypadek
+      // wyścigu). updated_at bumpuje trigger posts_set_updated na każdym UPDATE.
+      if (data.baseUpdatedAt && existing.updated_at && existing.updated_at !== data.baseUpdatedAt) {
+        throw editConflictError("post");
+      }
+      let savedUpdatedAt: string | null = existing.updated_at ?? null;
 
       const updates: PostUpdateRow = { ...data.fields } as PostUpdateRow;
       if (typeof updates.slug === "string") {
@@ -539,15 +552,26 @@ export const updatePost = createServerFn({ method: "POST" })
         // with error=null when the policy filters the target out (e.g. an
         // author "saving" someone else's post). Without this check the client
         // would show "Saved" while nothing was written - silent data loss.
-        const { data: updated, error } = await supabase
-          .from("posts")
-          .update(updates)
-          .eq("id", data.id)
-          .select("id");
+        let q = supabase.from("posts").update(updates).eq("id", data.id);
+        // Atomowy guard optimistic-lock: dopasuj tylko wiersz o tym updated_at.
+        if (data.baseUpdatedAt) q = q.eq("updated_at", data.baseUpdatedAt);
+        const { data: updated, error } = await q.select("id, updated_at");
         if (error) throw new Error(error.message);
         if (!updated?.length) {
+          // 0 wierszy: albo konflikt optimistic-lock (wiersz nadal widoczny pod
+          // RLS), albo odmowa RLS (wiersz niewidoczny). Rozróżniamy dodatkowym
+          // odczytem pod klientem użytkownika.
+          if (data.baseUpdatedAt) {
+            const { data: still } = await supabase
+              .from("posts")
+              .select("id")
+              .eq("id", data.id)
+              .maybeSingle();
+            if (still) throw editConflictError("post");
+          }
           throw new Error("Save rejected - you do not have permission to edit this post");
         }
+        savedUpdatedAt = updated[0].updated_at ?? savedUpdatedAt;
       }
 
       // A published post whose slug or parent changed leaves its old permalink
@@ -579,11 +603,12 @@ export const updatePost = createServerFn({ method: "POST" })
           .from("posts")
           .update({ updated_at: new Date().toISOString() })
           .eq("id", data.id)
-          .select("id");
+          .select("id, updated_at");
         if (touchErr) throw new Error(touchErr.message);
         if (!touched?.length) {
           throw new Error("Save rejected - you do not have permission to edit this post");
         }
+        savedUpdatedAt = touched[0].updated_at ?? savedUpdatedAt;
       }
 
       if (data.categories) {
@@ -641,7 +666,9 @@ export const updatePost = createServerFn({ method: "POST" })
       // (kolizja), a edytor musi nawigować na slug faktycznie zapisany,
       // nie na ten wpisany w formularzu - inaczej ładuje CUDZY wpis o tym
       // slugu i edycja wygląda na "podmienioną".
-      return { ok: true as const, slug: updates.slug ?? existing.slug };
+      // updatedAt wraca do klienta, by przesunął bazę optimistic-locka na
+      // następny zapis (bez tego kolejny zapis fałszywie zgłaszałby konflikt).
+      return { ok: true as const, slug: updates.slug ?? existing.slug, updatedAt: savedUpdatedAt };
     });
   });
 
@@ -990,7 +1017,11 @@ export const createPage = createServerFn({ method: "POST" })
 
 export const updatePage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID, fields: PageCore.partial() }).parse(i))
+  .inputValidator((i: unknown) =>
+    z
+      .object({ id: UUID, fields: PageCore.partial(), baseUpdatedAt: z.string().optional() })
+      .parse(i),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("page.update", userId, 120, async () => {
@@ -1008,6 +1039,13 @@ export const updatePage = createServerFn({ method: "POST" })
         .maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Page not found or access denied");
+
+      // Optimistic-lock (jak w updatePost): odrzuć zapis, jeśli strona zmieniła
+      // się od czasu załadowania. updated_at bumpuje trigger pages_set_updated_at.
+      if (data.baseUpdatedAt && existing.updated_at && existing.updated_at !== data.baseUpdatedAt) {
+        throw editConflictError("page");
+      }
+      let savedUpdatedAt: string | null = existing.updated_at ?? null;
 
       const updates: PageUpdateRow = { ...data.fields } as PageUpdateRow;
       if (typeof updates.slug === "string") {
@@ -1069,15 +1107,23 @@ export const updatePage = createServerFn({ method: "POST" })
       if (Object.keys(updates).length) {
         // Same silent-RLS-rejection guard as updatePost: 0 updated rows with
         // error=null means the policy filtered the page out - surface it.
-        const { data: updated, error } = await supabase
-          .from("pages")
-          .update(updates)
-          .eq("id", data.id)
-          .select("id");
+        let q = supabase.from("pages").update(updates).eq("id", data.id);
+        if (data.baseUpdatedAt) q = q.eq("updated_at", data.baseUpdatedAt);
+        const { data: updated, error } = await q.select("id, updated_at");
         if (error) throw new Error(error.message);
         if (!updated?.length) {
+          // Rozróżnij konflikt optimistic-lock (wiersz widoczny) od odmowy RLS.
+          if (data.baseUpdatedAt) {
+            const { data: still } = await supabase
+              .from("pages")
+              .select("id")
+              .eq("id", data.id)
+              .maybeSingle();
+            if (still) throw editConflictError("page");
+          }
           throw new Error("Save rejected - you do not have permission to edit this page");
         }
+        savedUpdatedAt = updated[0].updated_at ?? savedUpdatedAt;
       }
 
       if (willMove && oldPath) {
@@ -1098,7 +1144,7 @@ export const updatePage = createServerFn({ method: "POST" })
       // Kanoniczny slug wraca do klienta: uniqueSlug mógł dopisać sufiks
       // (kolizja), a edytor musi nawigować na slug faktycznie zapisany,
       // nie na ten wpisany w formularzu.
-      return { ok: true as const, slug: updates.slug ?? existing.slug };
+      return { ok: true as const, slug: updates.slug ?? existing.slug, updatedAt: savedUpdatedAt };
     });
   });
 

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { updatePage, deletePage } from "@/lib/content.functions";
+import { isEditConflict } from "@/lib/content/saveConflict";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
@@ -71,6 +72,9 @@ type EditorType = "richtext" | "markdown" | "builder";
 interface PageForm {
   id: string;
   slug: string;
+  // Baza optimistic-locka: updated_at z chwili załadowania/ostatniego zapisu
+  // (get_page_for_edit zwraca pg.*). Chroni przed cichym nadpisaniem.
+  updated_at?: string | null;
   status: PageStatus;
   editor: EditorType;
   title_pl: string;
@@ -149,6 +153,8 @@ function EditPage() {
   // the "unsaved changes" guard honest across saves (unlike `history.canUndo`
   // which stays true forever after the first edit).
   const savedFormRef = useRef<PageForm | null>(null);
+  // Baza optimistic-locka: updated_at ostatnio załadowanego/zapisanego wiersza.
+  const baseUpdatedAtRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (page) {
@@ -158,6 +164,7 @@ function EditPage() {
         page.editor === "builder" ? page : { ...page, editor: "builder" };
       history.reset(normalized);
       savedFormRef.current = normalized;
+      baseUpdatedAtRef.current = normalized.updated_at ?? null;
     }
   }, [page, history.reset]);
 
@@ -214,8 +221,19 @@ function EditPage() {
             seo_og_image_url: snapshot.seo_og_image_url,
             og_image_generated_url: snapshot.og_image_generated_url,
           },
+          // Optimistic-lock: updated_at, który klient ostatnio widział.
+          baseUpdatedAt: baseUpdatedAtRef.current ?? undefined,
         },
+      }).catch((err: unknown) => {
+        // Konflikt = ktoś inny zapisał w międzyczasie; czytelny komunikat (PL/EN)
+        // i przerwanie zapisu - autosave/flush odrzuci, treść zostaje w edytorze.
+        if (isEditConflict(err)) {
+          toast.error(t("admin.editConflict"), { id: "edit-conflict" });
+        }
+        throw err;
       });
+      // Przesuń bazę optimistic-locka na updated_at faktycznie zapisany.
+      baseUpdatedAtRef.current = result?.updatedAt ?? baseUpdatedAtRef.current;
       // The server returns the canonical slug (uniqueSlug may have suffixed it
       // on collision). Navigate only to the persisted slug so the address bar
       // and the loaded record always match what is really in the database.
@@ -252,10 +270,12 @@ function EditPage() {
     [id, update$, qc, navigate, routeSlug, tenantId, setForm, t],
   );
 
-  // Autozapis wyłączony na życzenie użytkownika - zmiany zapisują się
-  // wyłącznie po kliknięciu „Zapisz". `flush()` pozostaje wywoływane w
-  // handlerze `save`, aby ręczny zapis nadal działał.
-  const autosave = useAutosave({ value: form, enabled: false, save: saveFn });
+  // Autozapis włączony (jak dla wpisów): chroni przed utratą pracy przy awarii
+  // lub zamknięciu karty. Bezpieczny dzięki optimistic-lockowi w updatePage
+  // (baseUpdatedAt) - równoległa edycja nie nadpisze cicho cudzych zmian, a
+  // konflikt jest sygnalizowany. saveFn celowo unika ciężkich inwalidacji przy
+  // każdym debounce (patrz wyżej), więc nie powoduje "auto-refresh" edytora.
+  const autosave = useAutosave({ value: form, enabled: !!form, save: saveFn });
   const isDirty = form !== null && form !== savedFormRef.current;
   useUnsavedChangesGuard(isDirty || autosave.status === "saving");
 

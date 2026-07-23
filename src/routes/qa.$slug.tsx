@@ -31,6 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { getPublicTenantId } from "@/lib/community/tenant";
+import { cn } from "@/lib/utils";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -248,13 +249,32 @@ function QaDetail() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => user && voteM.mutate(q.id)}
-                    disabled={!user || voteM.isPending}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:border-primary/60 disabled:opacity-50"
-                    aria-label={t("community.qa.votes", { count: q.votes })}
-                    title={t("community.qa.votes", { count: q.votes })}
+                    onClick={() => user && !q.my_vote && voteM.mutate(q.id)}
+                    disabled={!user || voteM.isPending || q.my_vote}
+                    aria-pressed={q.my_vote}
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors disabled:opacity-60",
+                      q.my_vote
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border hover:border-primary/60",
+                    )}
+                    aria-label={
+                      q.my_vote
+                        ? `${t("community.qa.voted")} - ${t("community.qa.votes", { count: q.votes })}`
+                        : t("community.qa.votes", { count: q.votes })
+                    }
+                    title={
+                      !user
+                        ? t("community.qa.signInHint")
+                        : q.my_vote
+                          ? t("community.qa.voted")
+                          : t("community.qa.votes", { count: q.votes })
+                    }
                   >
-                    <ThumbsUp className="h-3.5 w-3.5" aria-hidden="true" />
+                    <ThumbsUp
+                      className={cn("h-3.5 w-3.5", q.my_vote && "fill-current")}
+                      aria-hidden="true"
+                    />
                     <span className="tabular-nums">{q.votes}</span>
                   </button>
                 </div>

@@ -37,73 +37,58 @@ export interface JobsTickResult {
   semanticIndex: { scanned: number; embedded: number; skipped?: string } | { error: string };
 }
 
+// Globalny budżet czasu jednego ticku. Joby biegną sekwencyjnie; gdy budżet się
+// wyczerpie, KOLEJNE grupy są pomijane (zwracają { error: "skipped_time_budget" })
+// zamiast ryzykować przekroczenie timeoutu workera i zabicie ticku w połowie.
+// Wszystkie joby są idempotentne/watermarkowe, więc pominięte wracają w następnym
+// ticku. Uzupełnia to re-claim dostaw integracji utkniętych w 'delivering'.
+const JOBS_TICK_DEADLINE_MS = 25_000;
+
+/** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
+ *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
+async function runJobStep<T>(
+  overBudget: () => boolean,
+  fn: () => Promise<T>,
+): Promise<T | { error: string }> {
+  if (overBudget()) return { error: "skipped_time_budget" };
+  try {
+    return await fn();
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
-  let newsletter: JobsTickResult["newsletter"];
-  try {
-    newsletter = await tickNewsletterCampaigns(admin, {});
-  } catch (err) {
-    newsletter = { error: err instanceof Error ? err.message : String(err) };
-  }
-  let push: JobsTickResult["push"];
-  try {
-    push = await processPushJobs(100);
-  } catch (err) {
-    push = { error: err instanceof Error ? err.message : String(err) };
-  }
-  let digestDaily: JobsTickResult["digestDaily"];
-  try {
-    digestDaily = await processDigests("daily", 50);
-  } catch (err) {
-    digestDaily = { error: err instanceof Error ? err.message : String(err) };
-  }
-  let digestWeekly: JobsTickResult["digestWeekly"];
-  try {
-    digestWeekly = await processDigests("weekly", 50);
-  } catch (err) {
-    digestWeekly = { error: err instanceof Error ? err.message : String(err) };
-  }
-  let eventReminders: JobsTickResult["eventReminders"];
-  try {
-    eventReminders = await runEventReminders();
-  } catch (err) {
-    eventReminders = { error: err instanceof Error ? err.message : String(err) };
-  }
-  let crmTaskReminders: JobsTickResult["crmTaskReminders"];
-  try {
-    // Follow-upy CRM: skaner watermarkowy (run_crm_task_reminders) enqueue'uje
-    // notyfikacje kind 'crm_task' + emituje crm_task.due.v1 na szynę.
-    crmTaskReminders = await runCrmTaskReminders();
-  } catch (err) {
-    crmTaskReminders = { error: err instanceof Error ? err.message : String(err) };
-  }
-  let linkCheck: JobsTickResult["linkCheck"];
-  try {
-    // Rotacyjny skan linków wychodzących (B7): 3 wpisy per tick, wpisy
-    // najdawniej sprawdzone najpierw, re-skan po 7 dniach.
+  const startedAt = Date.now();
+  const overBudget = () => Date.now() - startedAt > JOBS_TICK_DEADLINE_MS;
+
+  // Kolejność: tanie joby (DB-only) najpierw, kosztowne sieciowe (link-check,
+  // integracje, embeddingi) na końcu - to one są pomijane pierwsze przy
+  // wyczerpaniu budżetu, a nie krytyczne wysyłki/przypomnienia.
+  const newsletter = await runJobStep(overBudget, () => tickNewsletterCampaigns(admin, {}));
+  const push = await runJobStep(overBudget, () => processPushJobs(100));
+  const digestDaily = await runJobStep(overBudget, () => processDigests("daily", 50));
+  const digestWeekly = await runJobStep(overBudget, () => processDigests("weekly", 50));
+  // Follow-upy CRM: skaner watermarkowy (run_crm_task_reminders) enqueue'uje
+  // notyfikacje kind 'crm_task' + emituje crm_task.due.v1 na szynę.
+  const eventReminders = await runJobStep(overBudget, () => runEventReminders());
+  const crmTaskReminders = await runJobStep(overBudget, () => runCrmTaskReminders());
+  // Rotacyjny skan linków wychodzących (B7): 3 wpisy per tick.
+  const linkCheck = await runJobStep(overBudget, async () => {
     const { runLinkCheckBatch } = await import("@/lib/server/linkCheck.server");
-    linkCheck = await runLinkCheckBatch(admin, 3);
-  } catch (err) {
-    linkCheck = { error: err instanceof Error ? err.message : String(err) };
-  }
-  let integrations: JobsTickResult["integrations"];
-  try {
-    // Dren outboxu integracji (D2): dostawy webhooków płyną cronem, nie
-    // tylko przy wejściu staffu do panelu.
+    return runLinkCheckBatch(admin, 3);
+  });
+  // Dren outboxu integracji (D2): dostawy webhooków płyną cronem.
+  const integrations = await runJobStep(overBudget, async () => {
     const { runIntegrationDispatch } = await import("@/lib/integrations/dispatch.functions");
-    integrations = await runIntegrationDispatch(20);
-  } catch (err) {
-    integrations = { error: err instanceof Error ? err.message : String(err) };
-  }
-  let semanticIndex: JobsTickResult["semanticIndex"];
-  try {
-    // Warstwa semantyczna wyszukiwarki: dogania embeddingi tytuł+zajawka
-    // dla opublikowanych wpisów (24 per tick; pomija się, gdy bramka AI
-    // nie wspiera embeddingów - patrz embeddings.server.ts).
+    return runIntegrationDispatch(20);
+  });
+  // Warstwa semantyczna wyszukiwarki: embeddingi tytuł+zajawka (24 per tick).
+  const semanticIndex = await runJobStep(overBudget, async () => {
     const { runSemanticIndexBatch } = await import("@/lib/server/embeddings.server");
-    semanticIndex = await runSemanticIndexBatch(admin, 24);
-  } catch (err) {
-    semanticIndex = { error: err instanceof Error ? err.message : String(err) };
-  }
+    return runSemanticIndexBatch(admin, 24);
+  });
+
   return {
     newsletter,
     push,
