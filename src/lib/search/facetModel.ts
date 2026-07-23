@@ -361,6 +361,13 @@ export function suggestionHref(it: AutosuggestItem): string {
   if (kind === "topic" && it.slug) return `/tag/${it.slug}`;
   if (kind === "series" && it.slug) return `/series/${it.slug}`;
   if (kind === "project" && it.slug) return `/programs/${it.slug}`;
+  if (kind === "company") {
+    // Firmy (member_organizations) nie mają jeszcze publicznej strony -
+    // przenosimy do /search z frazą = nazwa firmy, żeby użytkownik zobaczył
+    // powiązane treści (autorstwo, wzmianki, wydarzenia).
+    const phrase = it.label_pl || it.label_en || it.slug || "";
+    return phrase ? `/search?q=${encodeURIComponent(phrase)}` : "/search";
+  }
   const patch: Record<string, string> = {};
   if (kind === "author") {
     if (it.id) patch.author = it.id;
