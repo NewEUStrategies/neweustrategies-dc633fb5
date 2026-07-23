@@ -31,13 +31,29 @@ const pricingPl = {
       yes: "Tak",
       no: "Nie",
       yourPlan: "Twój plan",
-      perMonth: "{{n}}/mies.",
-      expertRequestDirect: "Bezpośrednio",
-      note: "Limit 5 analiz miesięcznie w planie darmowym dotyczy wyłącznie treści za paywallem; materiały publikowane bez paywalla są dostępne bez ograniczeń.",
+      note: "Artykuły i analizy są dostępne bez limitu w każdej subskrypcji. Limit 5 miesięcznie w planie Essential dotyczy wyłącznie pogłębionych materiałów analitycznych za paywallem.",
       rows: [
         {
           id: "articles",
           label: "Artykuły i analizy",
+          values: {
+            reader: "check",
+            member: "check",
+            pro: "check",
+            vip: "check",
+            student: "check",
+            educator: "check",
+            ngo: "check",
+            corporate: "check",
+            partner: "check",
+            partner_general: "check",
+            presidents_circle: "check",
+            team: "check",
+          },
+        },
+        {
+          id: "deepAnalytical",
+          label: "Pogłębione materiały analityczne",
           values: {
             reader: "5 / mies.",
             member: "check",
@@ -93,11 +109,11 @@ const pricingPl = {
           label: "Newsletter / przegląd geopolityczny",
           values: {
             reader: "Podstawowy",
-            member: "Digest członkowski",
+            member: "Biuletyn członkowski",
             pro: "check",
             vip: "check",
-            student: "Digest członkowski",
-            educator: "Digest członkowski",
+            student: "Biuletyn członkowski",
+            educator: "Biuletyn członkowski",
             ngo: "check",
             corporate: "check",
             partner: "check",
@@ -193,7 +209,7 @@ const pricingPl = {
         },
         {
           id: "learningPath",
-          label: "Cykl „Learning Path” (kuratorowane listy lektur)",
+          label: "Cykl „Learning Path” (wybrane listy lektur)",
           values: {
             reader: "check",
             member: "check",
@@ -248,7 +264,7 @@ const pricingPl = {
         },
         {
           id: "networkIntros",
-          label: "Kuratorowane wprowadzenia do sieci",
+          label: "Wybrane wprowadzenia do sieci",
           values: { vip: "check" },
         },
         {
@@ -477,13 +493,29 @@ const pricingEn: typeof pricingPl = {
       yes: "Yes",
       no: "No",
       yourPlan: "Your plan",
-      perMonth: "{{n}}/mo",
-      expertRequestDirect: "Direct",
-      note: "The 5-analyses-per-month limit on the free plan applies only to paywalled content; items published without a paywall are available without limits.",
+      note: "Articles and analyses are available without limits on every subscription. The 5-per-month cap on the Essential plan applies only to in-depth analytical materials behind the paywall.",
       rows: [
         {
           id: "articles",
           label: "Articles and analyses",
+          values: {
+            reader: "check",
+            member: "check",
+            pro: "check",
+            vip: "check",
+            student: "check",
+            educator: "check",
+            ngo: "check",
+            corporate: "check",
+            partner: "check",
+            partner_general: "check",
+            presidents_circle: "check",
+            team: "check",
+          },
+        },
+        {
+          id: "deepAnalytical",
+          label: "In-depth analytical materials",
           values: {
             reader: "5 / mo.",
             member: "check",
@@ -539,11 +571,11 @@ const pricingEn: typeof pricingPl = {
           label: "Newsletter / geopolitical review",
           values: {
             reader: "Basic",
-            member: "Member digest",
+            member: "Member briefing",
             pro: "check",
             vip: "check",
-            student: "Member digest",
-            educator: "Member digest",
+            student: "Member briefing",
+            educator: "Member briefing",
             ngo: "check",
             corporate: "check",
             partner: "check",
