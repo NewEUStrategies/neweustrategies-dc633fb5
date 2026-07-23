@@ -883,8 +883,8 @@ export function SearchButtonWidget({
                selectors intentionally lock compact metadata and operators. */
             .builder-search-widget .search-kind-label {
               font-family: "Red Hat Display", system-ui, sans-serif !important;
-              font-size: 7px !important;
-              line-height: 10px !important;
+              font-size: 6px !important;
+              line-height: 9px !important;
               letter-spacing: 0 !important;
             }
             .builder-search-widget .search-operators-heading {
