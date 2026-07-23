@@ -10,9 +10,35 @@ const adminMembershipPl = {
     newTier: "Nowa warstwa",
     rankBadge: "ranga",
     defaultBadge: "domyślna",
+    inactiveBadge: "nieaktywna",
     deleteTitle: "Usuń warstwę",
     deleteDefaultDisabled: "Nie można usunąć warstwy domyślnej",
     deleteConfirm: 'Usunąć warstwę "{{key}}"? Operacji nie można cofnąć.',
+    kpi: {
+      tiers: "Warstwy (aktywne / wszystkie)",
+      default: "Domyślna warstwa",
+      mappedPlans: "Plany z warstwą",
+      activeGrants: "Aktywne nadania",
+    },
+    tabs: {
+      tiers: "Warstwy",
+      mapping: "Mapowanie planów",
+      grants: "Nadania",
+      orgs: "Organizacje",
+    },
+    sections: {
+      tiersTitle: "Katalog warstw",
+      tiersDesc:
+        "Nazwa, opis, benefity i bramki (capabilities) każdej warstwy. Kolejność wg rangi.",
+    },
+    groups: {
+      naming: "Nazewnictwo i opis",
+      status: "Ranga i status",
+      benefits: "Benefity (per punkt)",
+      capabilities: "Bramki i limity (capabilities)",
+      grantForm: "Nowe nadanie",
+    },
+
     fields: {
       namePl: "Nazwa PL",
       nameEn: "Name EN",
@@ -57,6 +83,11 @@ const adminMembershipPl = {
     },
     grants: {
       heading: "Nadania warstwy (poza planem)",
+      newHeading: "Nowe nadanie",
+      activeHeading: "Aktywne nadania",
+      activeHint: "Konta, które mają nadaną warstwę poza subskrypcją planu.",
+      revokedHeading: "Cofnięte nadania",
+      revokedHint: "Historia cofniętych nadań (tylko do odczytu).",
       hint: "Nadaj warstwę bezpośrednio po e-mailu konta (sprzedaż fakturowa, członkostwo eksperckie/partnerskie, komplementarne). Pozostaw „miesiące” puste dla nadania bezterminowego.",
       tier: "Warstwa",
       tierSelect: "wybierz",
@@ -72,6 +103,7 @@ const adminMembershipPl = {
       sourceImport: "import",
       sourceManual: "ręczne",
     },
+
     benefits: {
       heading: "Benefity (per punkt)",
       add: "Dodaj",
@@ -100,9 +132,34 @@ const adminMembershipEn = {
     newTier: "New tier",
     rankBadge: "rank",
     defaultBadge: "default",
+    inactiveBadge: "inactive",
     deleteTitle: "Delete tier",
     deleteDefaultDisabled: "Cannot delete default tier",
     deleteConfirm: 'Delete tier "{{key}}"? This cannot be undone.',
+    kpi: {
+      tiers: "Tiers (active / total)",
+      default: "Default tier",
+      mappedPlans: "Plans with tier",
+      activeGrants: "Active grants",
+    },
+    tabs: {
+      tiers: "Tiers",
+      mapping: "Plan mapping",
+      grants: "Grants",
+      orgs: "Organisations",
+    },
+    sections: {
+      tiersTitle: "Tier catalogue",
+      tiersDesc: "Name, description, benefits and capability gates for each tier. Ordered by rank.",
+    },
+    groups: {
+      naming: "Naming and description",
+      status: "Rank and status",
+      benefits: "Benefits (per item)",
+      capabilities: "Gates and limits (capabilities)",
+      grantForm: "New grant",
+    },
+
     fields: {
       namePl: "Nazwa PL",
       nameEn: "Name EN",
@@ -147,6 +204,11 @@ const adminMembershipEn = {
     },
     grants: {
       heading: "Membership grants (off-plan)",
+      newHeading: "New grant",
+      activeHeading: "Active grants",
+      activeHint: "Accounts that have a tier granted outside a plan subscription.",
+      revokedHeading: "Revoked grants",
+      revokedHint: "History of revoked grants (read-only).",
       hint: "Grant a tier directly by account email (invoice sales, expert/partner membership, complimentary). Leave “months” empty for an open-ended grant.",
       tier: "Tier",
       tierSelect: "select",
