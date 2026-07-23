@@ -73,6 +73,7 @@ export function SearchAutosuggest({
   advHref,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("all");
+  const authorAvatars = useAuthorAvatars(items);
 
   const grouped = useMemo(() => {
     const g = new Map<SuggestBucket, BucketedItem[]>();
