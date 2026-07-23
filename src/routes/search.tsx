@@ -34,7 +34,7 @@ import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { SearchSnippet } from "@/components/search/SearchSnippet";
 import { SearchFacetPanel } from "@/components/search/SearchFacetPanel";
 import { ActiveFilterChips } from "@/components/search/ActiveFilterChips";
-import { SearchAutosuggest } from "@/components/search/SearchAutosuggest";
+import { SearchAutosuggest, RecentSearchesList } from "@/components/search/SearchAutosuggest";
 import { SavedSearchesPanel } from "@/components/search/SavedSearchesPanel";
 import { AdvancedSearchPanel } from "@/components/search/AdvancedSearchPanel";
 import { SearchSectionTabs } from "@/components/search/SearchSectionTabs";
@@ -261,6 +261,7 @@ function SearchPage() {
   // ---- Autosuggest -------------------------------------------------------
   const [sugOpen, setSugOpen] = useState(false);
   const [sugIndex, setSugIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   // Debounce jak w widgecie nagłówka: RPC podpowiedzi strzela po pauzie w
   // pisaniu, nie na każde naciśnięcie klawisza.
   const suggestQ = useDebouncedValue(draft.trim(), 200);
@@ -681,6 +682,7 @@ function SearchPage() {
         <form onSubmit={submit} className="search-page-form relative z-40 mb-2" role="search">
           <div className="input-group" style={{ height: "40px" }}>
             <input
+              ref={searchInputRef}
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
@@ -746,6 +748,10 @@ function SearchPage() {
               activeIndex={sugIndex}
               lang={lang}
               onPick={(it) => void pickSuggestion(it)}
+              query={draft}
+              inputRef={searchInputRef}
+              onSetQuery={(next) => setDraft(next)}
+              onSubmitPhrase={(phrase) => submitPhrase(phrase)}
             />
           )}
           <style
@@ -807,39 +813,18 @@ function SearchPage() {
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{t("search.min_chars")}</p>
             {recent.length > 0 && (
-              <div>
-                <div className="mb-2 flex items-baseline gap-3">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                    {t("search.recent")}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearRecentSearches();
-                      setRecent([]);
-                    }}
-                    className="text-[11px] text-muted-foreground transition hover:text-foreground hover:underline"
-                  >
-                    {t("search.recent_clear")}
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {recent.map((term) => (
-                    <button
-                      key={term}
-                      type="button"
-                      onClick={() => {
-                        setDraft(term);
-                        submitPhrase(term);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-foreground transition hover:bg-muted"
-                    >
-                      <Clock className="h-3 w-3 text-muted-foreground" aria-hidden />
-                      {term}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <RecentSearchesList
+                items={recent}
+                lang={lang}
+                onPick={(term) => {
+                  setDraft(term);
+                  submitPhrase(term);
+                }}
+                onClear={() => {
+                  clearRecentSearches();
+                  setRecent([]);
+                }}
+              />
             )}
             {(popular.data?.length ?? 0) > 0 && (
               <div>
