@@ -14,6 +14,7 @@ import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { ConnectButton } from "@/components/network/ConnectButton";
+import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useOnlineUsers } from "@/lib/chat/presence";
