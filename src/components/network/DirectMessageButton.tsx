@@ -11,7 +11,8 @@
 import { useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Check, Lock, MessageSquare } from "lucide-react";
+import { Check, Loader2, Lock, MessageSquare } from "lucide-react";
+
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
