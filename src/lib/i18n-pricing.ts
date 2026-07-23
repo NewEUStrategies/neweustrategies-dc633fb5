@@ -599,6 +599,7 @@ const pricingEn: typeof pricingPl = {
           id: "audioVideo",
           label: "„Depesza Dyplomaty” podcast, interviews and audio-video",
           values: {
+            reader: "check",
             member: "check",
             pro: "check",
             vip: "check",
@@ -612,6 +613,7 @@ const pricingEn: typeof pricingPl = {
           id: "analysisWeek",
           label: "„Analysis of the Week” panel (maps, charts)",
           values: {
+            reader: "check",
             member: "check",
             pro: "check",
             vip: "check",
@@ -625,6 +627,7 @@ const pricingEn: typeof pricingPl = {
           id: "learningPath",
           label: "„Learning Path” (curated reading lists)",
           values: {
+            reader: "check",
             member: "check",
             pro: "check",
             vip: "check",
@@ -638,6 +641,7 @@ const pricingEn: typeof pricingPl = {
           id: "citations",
           label: "Citation tools (Chicago, APA, BibTeX)",
           values: {
+            reader: "check",
             member: "check",
             pro: "check",
             vip: "check",
@@ -649,16 +653,10 @@ const pricingEn: typeof pricingPl = {
         },
         { id: "qa", label: "Priority questions in expert Q&A sessions", feature: "qa_priority" },
         {
-          id: "gras",
-          label: "Regulatory monitoring with alerts (GRAS)",
-          feature: "regulatory_monitoring",
-        },
-        {
           id: "proBriefings",
           label: "Closed-door Pro briefings (scenarios, foresight)",
           feature: "pro_briefings",
         },
-        { id: "workingGroups", label: "A closed expert working group", feature: "working_groups" },
         {
           id: "foresightNote",
           label: "Quarterly foresight note with recommendations",
