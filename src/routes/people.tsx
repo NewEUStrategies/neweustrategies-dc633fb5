@@ -12,7 +12,6 @@ import {
   Eye,
   EyeOff,
   MapPin,
-  MessageCircle,
   Search,
   Trophy,
   Users,
