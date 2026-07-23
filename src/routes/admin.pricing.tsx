@@ -702,7 +702,7 @@ function TiersTab({
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${rankTone.iconBg}`}
                 aria-hidden="true"
               >
-                <Crown className={`h-4.5 w-4.5 ${rankTone.iconFg}`} />
+                <Crown className={`h-[18px] w-[18px] ${rankTone.iconFg}`} />
               </span>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
@@ -901,7 +901,7 @@ function TiersTab({
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
                 aria-hidden="true"
               >
-                <Icon className="h-4.5 w-4.5" />
+                <Icon className="h-[18px] w-[18px]" />
               </span>
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-sm font-semibold text-foreground">
@@ -926,7 +926,7 @@ function TiersTab({
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
               aria-hidden="true"
             >
-              <Layers className="h-4.5 w-4.5" />
+              <Layers className="h-[18px] w-[18px]" />
             </span>
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-sm font-semibold text-foreground">
@@ -974,7 +974,7 @@ function PricingKpi({
   return (
     <div className={`flex items-center gap-3 rounded-md border border-border/60 bg-card px-3 py-2.5 ring-1 ${t.ring}`}>
       <span className={`flex h-9 w-9 items-center justify-center rounded-md ${t.icon}`} aria-hidden="true">
-        <Icon className="h-4.5 w-4.5" />
+        <Icon className="h-[18px] w-[18px]" />
       </span>
       <div className="min-w-0">
         <div className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
@@ -993,7 +993,7 @@ function FieldGroup({
   icon: typeof Layers;
   title: string;
   accent: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="rounded-md border border-border/60 bg-card/60 p-3">
