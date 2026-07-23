@@ -12,7 +12,6 @@ import {
   Eye,
   EyeOff,
   MapPin,
-  MessageCircle,
   Search,
   Trophy,
   Users,
@@ -31,10 +30,11 @@ import { Switch } from "@/components/ui/switch";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { ConnectButton } from "@/components/network/ConnectButton";
+import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { useAuth } from "@/hooks/useAuth";
-import { openChatWindow } from "@/lib/chat/chatDockBus";
+
 import { useOnlineUsers } from "@/lib/chat/presence";
-import { useStartConversation } from "@/lib/chat/useConversations";
+
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useUserCounter } from "@/lib/counters/usePendingCounters";
@@ -167,7 +167,8 @@ function PersonCard({
   connection?: ConnectionState;
 }) {
   const { t } = useTranslation();
-  const start = useStartConversation();
+
+
 
   const details = (
     <>
@@ -231,21 +232,12 @@ function PersonCard({
             compact
           />
         )}
-        <button
-          type="button"
-          disabled={start.isPending}
-          onClick={() =>
-            start.mutate(person.id, {
-              onSuccess: (conversationId) => openChatWindow({ conversationId }),
-              onError: () => toast.error(t("chat.startError")),
-            })
-          }
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-          aria-label={`${t("people.message")}: ${person.display_name}`}
-        >
-          <MessageCircle className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden sm:inline">{t("people.message")}</span>
-        </button>
+        <DirectMessageButton
+          userId={person.id}
+          displayName={person.display_name}
+          displayAvatar={person.avatar_url}
+          compact
+        />
       </div>
     </li>
   );

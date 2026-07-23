@@ -14,6 +14,7 @@ import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { ConnectButton } from "@/components/network/ConnectButton";
+import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useOnlineUsers } from "@/lib/chat/presence";
@@ -282,6 +283,13 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                 }
                 highlighted={highlightId === c.connection_id}
               >
+                <DirectMessageButton
+                  userId={c.user_id}
+                  displayName={c.display_name}
+                  displayAvatar={c.avatar_url}
+                  compact
+                  iconOnly
+                />
                 <ConnectButton
                   userId={c.user_id}
                   displayName={c.display_name}
@@ -463,6 +471,13 @@ function SuggestionsTab() {
                 .join(" · ") || undefined
             }
           >
+            <DirectMessageButton
+              userId={s.user_id}
+              displayName={s.display_name}
+              displayAvatar={s.avatar_url}
+              compact
+              iconOnly
+            />
             <ConnectButton userId={s.user_id} displayName={s.display_name} compact />
           </PersonRow>
         ))}
