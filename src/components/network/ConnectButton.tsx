@@ -285,7 +285,24 @@ export function ConnectButton({
               setConnectedOpen(false);
               startChat.mutate(userId, {
                 onSuccess: (conversationId) => openChatWindow({ conversationId }),
-                onError: () => toast.error(t("network.startError")),
+                onError: (err) => {
+                  const msg = err instanceof Error ? err.message : "";
+                  // InMailDialog otwiera się z busa (useStartConversation) -
+                  // toast byłby duplikatem tej samej informacji.
+                  if (msg.includes("chat: expert requires inmail")) return;
+                  if (msg.includes("chat: tier disabled")) {
+                    toast.error(t("inmail.chatGate.tierDisabledToast"), {
+                      action: {
+                        label: t("inmail.chatGate.openPricing"),
+                        onClick: () => {
+                          window.location.href = "/pricing";
+                        },
+                      },
+                    });
+                    return;
+                  }
+                  toast.error(t("network.startError"));
+                },
               });
             }}
           >

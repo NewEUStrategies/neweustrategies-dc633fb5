@@ -80,6 +80,7 @@ const pl = {
       orders: "Historia płatności",
       security: "Bezpieczeństwo",
       privacy: "Prywatność",
+      inmails: "InMaile",
     },
     navGroups: {
       identity: "Tożsamość",
@@ -573,6 +574,7 @@ const en: typeof pl = {
       orders: "Payment history",
       security: "Security",
       privacy: "Privacy",
+      inmails: "InMails",
     },
     navGroups: {
       identity: "Identity",

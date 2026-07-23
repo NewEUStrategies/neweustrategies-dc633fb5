@@ -66,6 +66,19 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
                       onSuccess: (conversationId) => onOpened(conversationId),
                       onError: (err) => {
                         const msg = err instanceof Error ? err.message : "";
+                        // InMailDialog otwiera się z busa - nie duplikujemy toastem.
+                        if (msg.includes("chat: expert requires inmail")) return;
+                        if (msg.includes("chat: tier disabled")) {
+                          toast.error(t("inmail.chatGate.tierDisabledToast"), {
+                            action: {
+                              label: t("inmail.chatGate.openPricing"),
+                              onClick: () => {
+                                window.location.href = "/pricing";
+                              },
+                            },
+                          });
+                          return;
+                        }
                         toast.error(
                           msg.includes("not in your network")
                             ? t("chat.notInNetwork", {
