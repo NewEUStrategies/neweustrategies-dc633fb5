@@ -135,6 +135,25 @@ export function formatMoney(amountCents: number, currency: string, locale: strin
   }
 }
 
+/**
+ * Kwota bez części ułamkowej - do kotwicy „równowartości miesięcznej" planu
+ * rocznego (np. „49 zł" zamiast przypadkowo wyglądającego „49,17 zł"). Używać
+ * WYŁĄCZNIE dla wartości przybliżonych (oznaczonych „≈"); realne kwoty
+ * (faktury, cena roczna) idą przez formatMoney z groszami.
+ */
+export function formatMoneyWhole(amountCents: number, currency: string, locale: string): string {
+  try {
+    return new Intl.NumberFormat(locale === "pl" ? "pl-PL" : "en-GB", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amountCents / 100);
+  } catch {
+    return `${Math.round(amountCents / 100)} ${currency}`;
+  }
+}
+
 export function planName(plan: Pick<AccessPlan, "name_pl" | "name_en">, lang: string): string {
   return lang === "en" ? plan.name_en || plan.name_pl : plan.name_pl || plan.name_en;
 }
