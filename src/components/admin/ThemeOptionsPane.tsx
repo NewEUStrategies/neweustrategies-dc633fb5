@@ -322,6 +322,7 @@ export function ThemeOptionsPane() {
   const [logoTab, setLogoTab] = useState<
     "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"
   >("default");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("themeOptions.loading")}</p>;
 
