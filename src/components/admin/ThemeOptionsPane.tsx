@@ -1336,6 +1336,17 @@ export function ThemeOptionsPane() {
           </>
         )}
       </section>
+      <SiteSettingsHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        settingsKey="theme_options"
+        currentValue={draft}
+        onRestore={async (value) => {
+          const restored = value as ThemeOptions;
+          setDraft(restored);
+          await save.mutateAsync(restored);
+        }}
+      />
     </ThemeOptionsBody>
   );
 }
