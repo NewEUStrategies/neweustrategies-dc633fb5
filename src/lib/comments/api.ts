@@ -204,6 +204,23 @@ export async function moderateComment(id: string, status: CommentStatus): Promis
   if (error) throw error;
 }
 
+/**
+ * Zbiorcza moderacja: ustawia jeden status na wielu komentarzach naraz. Ta sama
+ * bramka RLS co moderateComment (staff swojego tenanta), jedno zapytanie `.in()`
+ * zamiast N round-tripów rekord po rekordzie. Deduplikuje id i pomija pusty
+ * zestaw. Zwraca liczbę objętych id (do komunikatu „zaktualizowano N").
+ */
+export async function bulkModerateComments(
+  ids: readonly string[],
+  status: CommentStatus,
+): Promise<number> {
+  const unique = Array.from(new Set(ids));
+  if (unique.length === 0) return 0;
+  const { error } = await supabase.from("comments").update({ status }).in("id", unique);
+  if (error) throw error;
+  return unique.length;
+}
+
 export interface AdminCommentRow extends CommentRow {
   author: CommentAuthor | null;
   post: { id: string; slug: string; title_pl: string | null; title_en: string | null } | null;
