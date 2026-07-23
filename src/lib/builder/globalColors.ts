@@ -880,9 +880,11 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(.mode-switcher-dark){color:var(--gc-switcher-dark-icon, currentColor);background:var(--gc-switcher-dark-bg, transparent);}
     :where(button.btn-primary, .btn-primary, button.bg-primary, .bg-primary){background:var(--gc-btn-bg, var(--primary));color:var(--gc-btn-text, var(--primary-foreground));font-family:var(--gc-btn-text-font, inherit);font-size:var(--gc-btn-text-size, inherit);font-weight:var(--gc-btn-text-weight, inherit);font-style:var(--gc-btn-text-style, inherit);text-decoration:var(--gc-btn-text-decoration, inherit);}
     :where(button.btn-primary:hover, .btn-primary:hover, button.bg-primary:hover, .bg-primary:hover){background:var(--gc-btn-hover-bg, var(--gc-btn-bg, var(--primary)));color:var(--gc-btn-hover-text, var(--gc-btn-text, var(--primary-foreground)));}
-    :where(main svg, article svg, .content svg, .card svg, [class*="card"] svg, [data-card] svg){color:var(--gc-icon, var(--gc-highlight, currentColor));}
-    :where(main a:hover svg, article a:hover svg, .content a:hover svg, main button:hover svg, article button:hover svg, .card a:hover svg, [class*="card"] a:hover svg){color:var(--gc-icon-hover, var(--gc-icon, var(--gc-highlight, currentColor)));}
-    :where([data-active="true"] svg, [aria-current="page"] svg, .active > svg, a.active svg, button.active svg, [data-state="active"] svg, [data-state="on"] svg){color:var(--gc-icon-active, var(--gc-icon-hover, var(--gc-icon, currentColor)));}
+    @layer utilities {
+      :where(main svg, article svg, .content svg, .card svg, [class*="card"] svg, [data-card] svg){color:var(--gc-icon, var(--gc-highlight, currentColor));}
+      :where(main a:hover svg, article a:hover svg, .content a:hover svg, main button:hover svg, article button:hover svg, .card a:hover svg, [class*="card"] a:hover svg){color:var(--gc-icon-hover, var(--gc-icon, var(--gc-highlight, currentColor)));}
+      :where([data-active="true"] svg, [aria-current="page"] svg, .active > svg, a.active svg, button.active svg, [data-state="active"] svg, [data-state="on"] svg){color:var(--gc-icon-active, var(--gc-icon-hover, var(--gc-icon, currentColor)));}
+    }
     /* Header link styling is wrapped in @layer utilities so Tailwind utility
        classes used inside widgets (text-xs, font-bold, tracking-wider, ...)
        still win on the public site. Without the layer wrapper these unlayered

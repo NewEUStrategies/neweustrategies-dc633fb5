@@ -92,7 +92,7 @@ export function PricingComparisonMatrix({
     if (value === "check") {
       return (
         <Check
-          className="mx-auto h-4 w-4 text-brand"
+          className="mx-auto h-4 w-4 text-brand-ink"
           aria-label={t("pricing.comparisonMatrix.yes")}
         />
       );
@@ -139,15 +139,15 @@ export function PricingComparisonMatrix({
                     className={cn(
                       "p-3 text-center text-sm font-semibold",
                       isCurrent
-                        ? "bg-brand/5 text-brand"
+                        ? "bg-brand/5 text-brand-ink"
                         : tier.highlight
-                          ? "text-brand"
+                          ? "text-brand-ink"
                           : "text-foreground",
                     )}
                   >
                     {tierName(tier, lang)}
                     {isCurrent && (
-                      <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-brand">
+                      <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-brand-ink">
                         {t("pricing.comparisonMatrix.yourPlan")}
                       </span>
                     )}
