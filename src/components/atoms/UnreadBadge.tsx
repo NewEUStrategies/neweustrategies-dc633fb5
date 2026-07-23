@@ -51,7 +51,7 @@ export function UnreadBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center rounded-[4px] font-bold leading-none",
+        "inline-flex items-center justify-center rounded-[5px] font-bold leading-none",
         "motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200",
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
