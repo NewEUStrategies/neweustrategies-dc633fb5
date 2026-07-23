@@ -57,6 +57,7 @@ import { SiteChrome } from "../components/SiteChrome";
 import { GlobalAudioPlayerProvider, useGlobalAudioPlayer } from "../lib/audio/global-player";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 import { AppDialogHost } from "../components/AppDialogHost";
+import { InMailDialogHost } from "../components/chat/InMailDialogHost";
 
 // Nakładki (popupy, paleta komend, pasek audio) nie są potrzebne do pierwszego
 // malowania ŻADNEJ strony - React.lazy trzyma je poza bundlem wejściowym
