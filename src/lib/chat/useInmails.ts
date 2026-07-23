@@ -60,7 +60,6 @@ export function useMyInmails(box: InMailBox): UseQueryResult<InMailRow[]> {
       const { data, error } = await supabase.rpc("list_my_inmails", { p_box: box });
       if (error) throw error;
       return (data ?? []) as InMailRow[];
-    },
   });
 }
 
