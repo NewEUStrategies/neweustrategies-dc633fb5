@@ -507,8 +507,8 @@ export function SearchButtonWidget({
             {showRecent && (
               <div className="px-3 pt-3 pb-2">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    <LucideIcons.Clock className="w-3 h-3" aria-hidden />
+                  <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    <LucideIcons.Clock className="w-2.5 h-2.5" aria-hidden />
                     {t("recent")}
                   </span>
                   <button
@@ -518,7 +518,7 @@ export function SearchButtonWidget({
                       clearRecentSearches();
                       setRecent([]);
                     }}
-                    className="text-[10px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
+                    className="text-[9px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
                   >
                     {t("recent_clear")}
                   </button>
@@ -535,10 +535,10 @@ export function SearchButtonWidget({
                         setFocused(false);
                         navigateToHref(`/search?q=${encodeURIComponent(term)}`);
                       }}
-                      className="group inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2.5 py-1.5 text-[12px] leading-none text-foreground transition-all hover:border-[var(--brand)] hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)] hover:text-[var(--brand-ink)]"
+                      className="group inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2 py-1 text-[10px] leading-none text-foreground transition-all hover:border-[var(--brand)] hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)] hover:text-[var(--brand-ink)]"
                     >
                       <LucideIcons.Clock
-                        className="w-3 h-3 shrink-0 text-muted-foreground/70 group-hover:text-[var(--brand)]"
+                        className="w-2.5 h-2.5 shrink-0 text-muted-foreground/70 group-hover:text-[var(--brand)]"
                         aria-hidden
                       />
                       <span className="max-w-[180px] truncate">{term}</span>
