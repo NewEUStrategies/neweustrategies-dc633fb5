@@ -138,9 +138,10 @@ export function ConnectButton({
         <PopoverTrigger asChild>
           <Button
             type="button"
+            variant={iconOnly ? "outline" : "default"}
             size={size}
             disabled={busy}
-            className={cn("gap-1.5", iconOnlyClass, className)}
+            className={cn("gap-1.5", iconOnlyClass, iconHoverClass, className)}
             aria-label={`${t("network.connect")}: ${displayName}`}
             title={iconOnly ? t("network.connect") : undefined}
           >
