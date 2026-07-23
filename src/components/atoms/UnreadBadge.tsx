@@ -50,6 +50,7 @@ export function UnreadBadge({
 
   return (
     <span
+      data-unread-badge=""
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-[5px] font-display font-bold leading-none tabular-nums whitespace-nowrap",
         "isolate z-[100] overflow-visible pointer-events-none select-none",
@@ -59,6 +60,7 @@ export function UnreadBadge({
         pulse && "motion-safe:animate-pulse",
         className,
       )}
+      style={{ fontSize: `${SIZE_FONT_PX[size]}px` }}
       aria-label={t(labelKey, { count, defaultValue: `${count} nieprzeczytanych` })}
       aria-live="polite"
     >
