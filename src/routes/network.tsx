@@ -7,7 +7,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, MapPin, Search, UserPlus, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight, MapPin, Search, UserPlus, Users, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -210,8 +210,13 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
   const online = useOnlineUsers();
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 24;
   useEffect(() => {
-    const handle = setTimeout(() => setQuery(input), 250);
+    const handle = setTimeout(() => {
+      setQuery(input);
+      setPage(1);
+    }, 250);
     return () => clearTimeout(handle);
   }, [input]);
 
@@ -225,6 +230,23 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
       ),
     [connectionsQ.data],
   );
+
+  const totalPages = Math.max(1, Math.ceil(connections.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const paged = connections.slice(pageStart, pageStart + PAGE_SIZE);
+
+  // Prefetch dalszych stron gdy zbliżamy się do końca aktualnie załadowanych.
+  useEffect(() => {
+    if (
+      connectionsQ.hasNextPage &&
+      !connectionsQ.isFetchingNextPage &&
+      pageStart + PAGE_SIZE >= connections.length
+    ) {
+      void connectionsQ.fetchNextPage();
+    }
+  }, [pageStart, connections.length, connectionsQ]);
+
 
   return (
     <div className="space-y-3">
@@ -263,8 +285,8 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
         </div>
       ) : (
         <>
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {connections.map((c) => (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {paged.map((c) => (
               <PersonRow
                 key={c.user_id}
                 userId={c.user_id}
@@ -304,20 +326,51 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
               </PersonRow>
             ))}
           </ul>
-          {connectionsQ.hasNextPage && (
-            <div className="flex justify-center">
+          {(totalPages > 1 || connectionsQ.hasNextPage) && (
+            <nav
+              aria-label={t("network.pagination", { defaultValue: "Paginacja" })}
+              className="flex items-center justify-center gap-2 pt-2"
+            >
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                disabled={connectionsQ.isFetchingNextPage}
-                onClick={() => void connectionsQ.fetchNextPage()}
+                size="icon"
+                className="h-8 w-8"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label={t("network.prevPage", { defaultValue: "Poprzednia strona" })}
               >
-                {connectionsQ.isFetchingNextPage ? t("network.loadingMore") : t("network.showMore")}
+                <ChevronLeft className="h-4 w-4" aria-hidden />
               </Button>
-            </div>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {currentPage} / {totalPages}
+                {connectionsQ.hasNextPage ? "+" : ""}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={
+                  currentPage >= totalPages &&
+                  !connectionsQ.hasNextPage &&
+                  !connectionsQ.isFetchingNextPage
+                }
+                onClick={() => {
+                  if (currentPage < totalPages) {
+                    setPage((p) => p + 1);
+                  } else if (connectionsQ.hasNextPage) {
+                    void connectionsQ.fetchNextPage().then(() => setPage((p) => p + 1));
+                  }
+                }}
+                aria-label={t("network.nextPage", { defaultValue: "Następna strona" })}
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Button>
+            </nav>
           )}
         </>
+
       )}
     </div>
   );
@@ -446,7 +499,7 @@ function SuggestionsTab() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">{t("network.suggestionsHint")}</p>
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((s: ConnectionSuggestionRow) => (
           <PersonRow
             key={s.user_id}
@@ -529,7 +582,15 @@ function NetworkInner() {
   );
 
   return (
-    <div className="container mx-auto max-w-5xl px-3 py-5 sm:px-4 sm:py-6">
+    <div className="container mx-auto max-w-7xl px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mb-3">
+        <Button asChild variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground">
+          <Link to="/profile">
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+            {t("network.backToProfile", { defaultValue: "Wróć do mojego profilu" })}
+          </Link>
+        </Button>
+      </div>
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">
@@ -545,6 +606,7 @@ function NetworkInner() {
           </Link>
         </Button>
       </header>
+
 
       <Tabs
         value={active}
