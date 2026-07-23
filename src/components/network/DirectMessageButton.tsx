@@ -87,11 +87,15 @@ export function DirectMessageButton({
     );
   };
 
+  const isBusy = startChat.isPending;
+
   const handleClick = (e: MouseEvent): void => {
     // W listach osoby często siedzą pod <Link>/<AppLink> - nie chcemy, żeby
     // klik w przycisk otwierał profil.
     e.preventDefault();
     e.stopPropagation();
+    // Blokada wielokrotnych kliknięć w trakcie tworzenia rozmowy.
+    if (isBusy) return;
     if (locked) {
       setUpgradeOpen(true);
       return;
@@ -99,10 +103,16 @@ export function DirectMessageButton({
     openChat();
   };
 
-  const label = t("directMessage.button");
-  const aria = t("directMessage.ariaLabel", { name: displayName });
-  const title = locked ? t("directMessage.tooltipLocked") : t("directMessage.tooltipEnabled");
-  const Icon = locked ? Lock : MessageSquare;
+  const label = isBusy ? t("directMessage.opening") : t("directMessage.button");
+  const aria = isBusy
+    ? t("directMessage.ariaBusy", { name: displayName })
+    : t("directMessage.ariaLabel", { name: displayName });
+  const title = isBusy
+    ? t("directMessage.tooltipBusy")
+    : locked
+      ? t("directMessage.tooltipLocked")
+      : t("directMessage.tooltipEnabled");
+  const Icon = isBusy ? Loader2 : locked ? Lock : MessageSquare;
 
   return (
     <>
@@ -110,7 +120,10 @@ export function DirectMessageButton({
         type="button"
         variant={locked || iconOnly ? "outline" : "default"}
         size={iconOnly ? "icon" : compact ? "sm" : "default"}
-        disabled={startChat.isPending}
+        disabled={isBusy}
+        aria-busy={isBusy}
+        aria-disabled={isBusy}
+        data-loading={isBusy ? "true" : undefined}
         onClick={handleClick}
         aria-label={aria}
         title={title}
@@ -118,17 +131,25 @@ export function DirectMessageButton({
           "gap-1.5 rounded-[6px]",
           compact && !iconOnly && "h-8 px-2.5 text-xs",
           iconOnly && "h-8 w-8 shrink-0 transition-colors [&_svg]:transition-colors",
-          iconOnly && !locked && "hover:bg-brand/10 hover:text-brand hover:border-brand/40",
+          iconOnly && !locked && !isBusy && "hover:bg-brand/10 hover:text-brand hover:border-brand/40",
           iconOnly && locked && "hover:bg-muted/60",
-          locked && "text-muted-foreground",
+          locked && !isBusy && "text-muted-foreground",
+          isBusy && "cursor-wait opacity-80",
           className,
         )}
       >
-        <Icon className="h-3.5 w-3.5" aria-hidden />
+        <Icon
+          className={cn("h-3.5 w-3.5", isBusy && "animate-spin")}
+          aria-hidden
+        />
         {!iconOnly && (
           <span className={cn(compact && "hidden sm:inline")}>{label}</span>
         )}
+        {iconOnly && isBusy && (
+          <span className="sr-only">{t("directMessage.opening")}</span>
+        )}
       </Button>
+
 
 
 
