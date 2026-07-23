@@ -114,9 +114,9 @@ function notificationActorId(href: string | null): string | null {
 }
 
 interface NotificationActorProfile {
-  id: string | null;
+  connection_id: string;
   avatar_url: string | null;
-  display_name: string | null;
+  display_name: string;
 }
 
 export interface NotificationsBellProps {
@@ -158,17 +158,27 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
     queryKey: ["notifications", "actor-profiles", actorIds],
     enabled: !!user && actorIds.length > 0,
     queryFn: async (): Promise<NotificationActorProfile[]> => {
-      const { data, error } = await supabase
-        .from("profiles_public")
-        .select("id, avatar_url, display_name")
-        .in("id", actorIds);
+      const [connections, received, sent] = await Promise.all([
+        supabase.rpc("my_connections", { p_limit: 100, p_offset: 0, p_query: "" }),
+        supabase.rpc("my_connection_requests", { p_direction: "in", p_limit: 100, p_offset: 0 }),
+        supabase.rpc("my_connection_requests", { p_direction: "out", p_limit: 100, p_offset: 0 }),
+      ]);
+      const error = connections.error ?? received.error ?? sent.error;
       if (error) throw error;
-      return data ?? [];
+      const relevantIds = new Set(actorIds);
+      return [...(connections.data ?? []), ...(received.data ?? []), ...(sent.data ?? [])]
+        .filter((profile) => relevantIds.has(profile.connection_id))
+        .map((profile) => ({
+          connection_id: profile.connection_id,
+          avatar_url: profile.avatar_url || null,
+          display_name: profile.display_name,
+        }));
     },
     staleTime: 5 * 60_000,
   });
   const actorProfiles = useMemo(
-    () => new Map((actorProfilesQ.data ?? []).map((profile) => [profile.id, profile])),
+    () =>
+      new Map((actorProfilesQ.data ?? []).map((profile) => [profile.connection_id, profile])),
     [actorProfilesQ.data],
   );
 
