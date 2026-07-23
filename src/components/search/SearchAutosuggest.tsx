@@ -237,7 +237,7 @@ export function SearchAutosuggest({
           <div className="flex flex-wrap items-center gap-1">
             <span
               data-typography-exempt
-              className="mr-1 !text-[7px] !leading-[9px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+              className="mr-1 !text-[9px] !leading-[12px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
             >
               {t("operators", "Operatory")}
             </span>
@@ -261,7 +261,7 @@ export function SearchAutosuggest({
                     el.setSelectionRange(pos, pos);
                   });
                 }}
-                className="inline-flex items-center rounded-[6px] border border-border/60 bg-background px-1 py-px font-brand !text-[7px] !leading-[10px] font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                className="inline-flex items-center rounded-[6px] border border-border/60 bg-background px-1 py-px font-brand !text-[9px] !leading-[12px] font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
               >
                 {op}
               </button>

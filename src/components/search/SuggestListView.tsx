@@ -125,7 +125,7 @@ export function SuggestRow({
       {meta && (
         <span
           data-typography-exempt
-          className={`hidden shrink-0 rounded-[6px] px-1 py-px !text-[6px] !leading-[9px] font-semibold uppercase !tracking-[0.02em] sm:inline-flex ${
+          className={`hidden shrink-0 rounded-[6px] px-1 py-px !text-[9px] !leading-[12px] font-semibold uppercase !tracking-[0.02em] sm:inline-flex ${
             active ? "text-[var(--brand-ink)]" : "text-muted-foreground"
           }`}
           style={{
