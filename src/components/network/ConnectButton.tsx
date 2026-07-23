@@ -296,11 +296,16 @@ export function ConnectButton({
             variant="outline"
             size={size}
             disabled={busy}
-            className={cn("gap-1.5", iconOnlyClass, iconHoverClass, className)}
+            className={cn(
+              "gap-1.5 transition-colors hover:bg-brand/10 hover:text-brand hover:border-brand/40 [&_svg]:transition-colors",
+              iconOnlyClass,
+              iconHoverClass,
+              className,
+            )}
             aria-label={`${t("network.connected")}: ${displayName}`}
             title={iconOnly ? t("network.connected") : undefined}
           >
-            <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <UserCheck className="h-3.5 w-3.5 text-emerald-600 group-hover:text-brand dark:text-emerald-400" aria-hidden />
             {!iconOnly && (
               <span className={cn(compact && "hidden sm:inline")}>{t("network.connected")}</span>
             )}
