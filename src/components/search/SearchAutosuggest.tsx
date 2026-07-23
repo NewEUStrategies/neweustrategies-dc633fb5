@@ -27,6 +27,7 @@ import {
   type SuggestBucket,
 } from "@/lib/search/facetModel";
 import { SuggestGroupHeader, SuggestRow, SuggestListShell } from "./SuggestListView";
+import { useAuthorAvatars } from "@/lib/search/useAuthorAvatars";
 
 interface Props {
   items: AutosuggestItem[];
