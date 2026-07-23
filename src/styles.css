@@ -2,6 +2,16 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* UnreadBadge: neutralizuje `font-size: 14px !important` z reguł
+   `[data-w-id] span:not(...)` widgetów Theme Design, aby licznik
+   powiadomień/wiadomości zachował ustawiony rozmiar (6-7 px). */
+[data-unread-badge][data-unread-badge][data-unread-badge] {
+  font-size: inherit;
+}
+span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge] {
+  font-size: var(--unread-badge-fs, 6px) !important;
+}
+
 /* Self-hosted Red Hat Display (variable axis 400-900). Replaces the
    render-blocking Google Fonts stylesheet + two cross-origin preconnects, and
    keeps visitor IPs off Google's servers (GDPR - this is an EU site). Two

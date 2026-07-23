@@ -1,4 +1,5 @@
 // Atom: compact unread counter for notification and chat surfaces.
+import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
@@ -18,9 +19,15 @@ interface UnreadBadgeProps {
 }
 
 const SIZE_CLASSES: Record<UnreadBadgeSize, string> = {
-  sm: "h-[13px] min-w-[13px] px-[3px] text-[4px]",
-  md: "h-[15px] min-w-[15px] px-[3px] text-[4px]",
-  lg: "h-[17px] min-w-[17px] px-1 text-[5px]",
+  sm: "h-[13px] min-w-[13px] px-[3px]",
+  md: "h-[15px] min-w-[15px] px-[3px]",
+  lg: "h-[17px] min-w-[17px] px-1",
+};
+
+const SIZE_FONT_PX: Record<UnreadBadgeSize, number> = {
+  sm: 6,
+  md: 6,
+  lg: 7,
 };
 
 const VARIANT_CLASSES: Record<UnreadBadgeVariant, string> = {
@@ -44,6 +51,7 @@ export function UnreadBadge({
 
   return (
     <span
+      data-unread-badge=""
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-[5px] font-display font-bold leading-none tabular-nums whitespace-nowrap",
         "isolate z-[100] overflow-visible pointer-events-none select-none",
@@ -53,6 +61,7 @@ export function UnreadBadge({
         pulse && "motion-safe:animate-pulse",
         className,
       )}
+      style={{ ["--unread-badge-fs" as string]: `${SIZE_FONT_PX[size]}px` } as CSSProperties}
       aria-label={t(labelKey, { count, defaultValue: `${count} nieprzeczytanych` })}
       aria-live="polite"
     >
