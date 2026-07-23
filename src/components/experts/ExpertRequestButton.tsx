@@ -54,7 +54,7 @@ export function ExpertRequestButton({
       type="button"
       variant="outline"
       size={compact ? "sm" : "default"}
-      className={cn("h-8 gap-1.5", className)}
+      className={cn("h-8 gap-1.5 transition-colors hover:bg-brand/10 hover:text-brand hover:border-brand/40 [&_svg]:transition-colors", className)}
       aria-label={`${t("expertRequest.cta")}: ${expertName}`}
       onClick={() =>
         openExpertRequestDialog({
