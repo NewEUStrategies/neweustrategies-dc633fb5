@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { emitSiteSettingsInvalidate } from "@/lib/builder/siteSettingsLiveSync";
+import { deepMerge } from "@/lib/deepMerge";
 
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 export type SettingsRecord = { [k: string]: Json };
@@ -22,7 +23,10 @@ export function useSettings<T extends SettingsRecord>(key: string, defaults: T) 
         .eq("key", key)
         .maybeSingle();
       if (error) throw error;
-      return { ...defaults, ...((data?.value as T | null) ?? {}) };
+      // Stored settings evolve over time and may only contain selected nested
+      // branches. A shallow spread can remove required defaults (for example
+      // theme_options.header.search), which then crashes the whole admin pane.
+      return deepMerge(defaults, data?.value);
     },
   });
 
