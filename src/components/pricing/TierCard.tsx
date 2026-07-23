@@ -360,9 +360,16 @@ export function TierCard({
 }) {
   const { t } = useTranslation();
   const badge = tierBadge(tier, lang);
-  const benefits = parseTierBenefits(tier.benefits);
+  const allBenefits = parseTierBenefits(tier.benefits);
   const description = lang === "en" ? tier.description_en : tier.description_pl;
   const plan = pickPlanForInterval(plans, interval);
+
+  // Eliminacja powielenia: benefity użyte w spotlight'cie "Co wyróżnia ten plan"
+  // nie mogą ponownie pojawić się na pełnej liście - użytkownik widzi każdy
+  // punkt dokładnie raz. Porównanie po znormalizowanym tekście w języku strony.
+  const norm = (v: string): string => v.trim().toLowerCase();
+  const highlightSet = new Set((highlights ?? []).map((b) => norm(benefitText(b, lang))));
+  const restBenefits = allBenefits.filter((b) => !highlightSet.has(norm(benefitText(b, lang))));
 
   return (
     <Card
@@ -374,7 +381,7 @@ export function TierCard({
         isCurrentTier && !tier.highlight && "border-brand bg-brand/5",
       )}
     >
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <h3
             className={cn(
@@ -399,7 +406,7 @@ export function TierCard({
           ) : null}
         </div>
         {description && (
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
+          <p className="mt-1.5 text-sm leading-snug text-muted-foreground">{description}</p>
         )}
         <PriceBlock tier={tier} plans={plans} interval={interval} lang={lang} />
         {plan && plan.trial_days > 0 && (
@@ -408,7 +415,7 @@ export function TierCard({
           </p>
         )}
       </CardHeader>
-      <CardFooter className="pb-4 pt-0">
+      <CardFooter className="pb-3 pt-0">
         <TierCardCta
           tier={tier}
           plans={plans}
@@ -419,16 +426,15 @@ export function TierCard({
           onContact={onContact}
         />
       </CardFooter>
-      <CardContent className="flex-1 border-t border-border/50 pt-5">
+      <CardContent className="flex-1 border-t border-border/50 pt-3">
         {highlights && highlights.length > 0 && (
-          <div className="mb-4 rounded-[6px] border border-brand/25 bg-brand/5 p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-ink">
-              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+          <div className="mb-3 rounded-[6px] border border-brand/25 bg-brand/5 p-2.5">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-brand-ink">
               {t("pricing.highlightsHeading")}
             </p>
-            <ul className="space-y-1.5">
+            <ul className="space-y-1">
               {highlights.map((benefit, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm font-medium text-foreground">
+                <li key={i} className="flex items-start gap-2 text-[13px] font-medium text-foreground">
                   <span
                     className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand"
                     aria-hidden="true"
@@ -439,7 +445,7 @@ export function TierCard({
             </ul>
           </div>
         )}
-        <TierBenefitList benefits={benefits} lang={lang} />
+        <TierBenefitList benefits={restBenefits} lang={lang} />
       </CardContent>
     </Card>
   );
