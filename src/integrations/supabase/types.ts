@@ -12343,6 +12343,7 @@ export type Database = {
           title_pl: string
         }[]
       }
+      seed_chat_tier_flags: { Args: { p_tenant: string }; Returns: undefined }
       seed_membership_tiers: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_audiences: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_defaults: { Args: { p_tenant: string }; Returns: undefined }
