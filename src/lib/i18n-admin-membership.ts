@@ -204,6 +204,11 @@ const adminMembershipEn = {
     },
     grants: {
       heading: "Membership grants (off-plan)",
+      newHeading: "New grant",
+      activeHeading: "Active grants",
+      activeHint: "Accounts that have a tier granted outside a plan subscription.",
+      revokedHeading: "Revoked grants",
+      revokedHint: "History of revoked grants (read-only).",
       hint: "Grant a tier directly by account email (invoice sales, expert/partner membership, complimentary). Leave “months” empty for an open-ended grant.",
       tier: "Tier",
       tierSelect: "select",
