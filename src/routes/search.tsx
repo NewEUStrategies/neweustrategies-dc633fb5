@@ -61,7 +61,6 @@ import {
   collectLabels,
   hasAnyFilter,
   orderSuggestions,
-  suggestionHref,
   AUTOSUGGEST_LISTBOX_ID,
   autosuggestOptionId,
   DIM_PARAM,
