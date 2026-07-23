@@ -817,7 +817,7 @@ export function SearchButtonWidget({
                   if (hasQuery) addRecentSearch(q);
                   setFocused(false);
                 }}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold hover:underline"
+                className="inline-flex items-center gap-1 text-[9px] font-semibold hover:underline"
                 style={{ color: "var(--brand)" }}
               >
                 <LucideIcons.SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
