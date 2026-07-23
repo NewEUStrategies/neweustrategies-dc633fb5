@@ -638,7 +638,7 @@ export function SearchButtonWidget({
                                 tabIndex={-1}
                                 onClick={goToResult}
                                 onMouseEnter={() => setActive(i)}
-                                className={`group relative mx-1.5 flex items-center gap-2.5 rounded-md px-2 py-2 text-[13px] leading-[1.4] transition-all ${
+                                className={`group relative mx-1.5 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] leading-[1.4] transition-all ${
                                   isActive
                                     ? "bg-[color-mix(in_oklab,var(--brand)_8%,transparent)] text-foreground"
                                     : "text-foreground hover:bg-muted/60"
@@ -652,37 +652,47 @@ export function SearchButtonWidget({
                                   }`}
                                   style={{ backgroundColor: "var(--brand)" }}
                                 />
-                                <span
-                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-all ${
-                                    isActive
-                                      ? "border-transparent"
-                                      : "border-border/60 bg-background/60 group-hover:border-border"
-                                  }`}
-                                  style={
-                                    isActive
-                                      ? {
-                                          backgroundColor:
-                                            "color-mix(in oklab, var(--brand) 14%, transparent)",
-                                        }
-                                      : undefined
-                                  }
-                                >
-                                  <Icon
-                                    className="h-3.5 w-3.5"
+                                {it.kind === "author" && it.id && authorAvatars[it.id] ? (
+                                  <img
+                                    src={authorAvatars[it.id] as string}
+                                    alt=""
                                     aria-hidden
-                                    style={{
-                                      color: isActive
-                                        ? "var(--brand)"
-                                        : "var(--muted-foreground)",
-                                    }}
+                                    loading="lazy"
+                                    className="h-7 w-7 shrink-0 rounded-md border border-border/60 object-cover"
                                   />
-                                </span>
+                                ) : (
+                                  <span
+                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-all ${
+                                      isActive
+                                        ? "border-transparent"
+                                        : "border-border/60 bg-background/60 group-hover:border-border"
+                                    }`}
+                                    style={
+                                      isActive
+                                        ? {
+                                            backgroundColor:
+                                              "color-mix(in oklab, var(--brand) 14%, transparent)",
+                                          }
+                                        : undefined
+                                    }
+                                  >
+                                    <Icon
+                                      className="h-3.5 w-3.5"
+                                      aria-hidden
+                                      style={{
+                                        color: isActive
+                                          ? "var(--brand)"
+                                          : "var(--muted-foreground)",
+                                      }}
+                                    />
+                                  </span>
+                                )}
                                 <span className="min-w-0 flex-1 truncate">
                                   {itemLabel(it)}
                                 </span>
                                 {kindLabel && (
                                   <span
-                                    className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide sm:inline-flex ${
+                                    className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-wide sm:inline-flex ${
                                       isActive
                                         ? "text-[var(--brand-ink)]"
                                         : "text-muted-foreground"
