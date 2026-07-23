@@ -80,7 +80,7 @@ const pl = {
       orders: "Historia płatności",
       security: "Bezpieczeństwo",
       privacy: "Prywatność",
-      inmails: "InMaile",
+      inmails: "Zapytania do ekspertów",
     },
     navGroups: {
       identity: "Tożsamość",
