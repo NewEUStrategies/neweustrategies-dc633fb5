@@ -96,7 +96,9 @@ export function ConnectButton({
   if (resolved.status === "none" && !resolved.canInvite) return null;
 
   const busy = send.isPending || respond.isPending || cancel.isPending || remove.isPending;
-  const size = compact ? "sm" : "default";
+  const size = iconOnly ? "icon" : compact ? "sm" : "default";
+  const iconOnlyClass = iconOnly ? "h-8 w-8 shrink-0" : "";
+
 
   const sendInvite = () => {
     send.mutate(
