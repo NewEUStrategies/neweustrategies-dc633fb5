@@ -122,9 +122,10 @@ export const inmailEn = {
     sending: "Sending…",
     sentToast: "InMail sent. You will be notified about the reply.",
     error: {
-      rateLimit: "You have already sent the maximum number of requests to this expert in the last 24 h.",
-      notExpert: "This user is not an expert - send a normal DM instead.",
-      tierDisabled: "Your tier does not include messaging. Upgrade your plan to chat within the ecosystem.",
+      rateLimit: "You have sent too many requests in a short period.",
+      monthlyQuota: "You have used your monthly inMail quota. Plus: 2/mo, Pro: 5/mo. Upgrade to reach more experts or VIPs.",
+      notExpert: "This user does not require an inMail - send a normal DM instead.",
+      tierDisabled: "Your tier does not include inMails. Upgrade your plan (Plus - 2/mo, Pro - 5/mo, VIP - direct).",
       generic: "Could not send. Please try again.",
     },
     status: {
