@@ -754,7 +754,7 @@ export function SearchButtonWidget({
           {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2">
               <div className="flex flex-wrap items-center gap-1">
-                <span className="mr-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                <span className="mr-1 text-[8px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                   {t("operators")}
                 </span>
                 {[
