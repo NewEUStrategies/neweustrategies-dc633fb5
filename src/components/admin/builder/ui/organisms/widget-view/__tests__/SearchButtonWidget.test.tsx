@@ -17,6 +17,15 @@ vi.mock("@/integrations/supabase/client", () => ({
       rpc.calls.push({ name, args });
       return { data: name === "search_autosuggest" ? rpc.rows : [], error: null };
     },
+    // Widget dociąga avatary autorów efektem `supabase.from("profiles_public")`
+    // (kind === "author"). Bez tego stubu efekt rzucał „supabase.from is not a
+    // function" jako nieobsłużone odrzucenie po zakończeniu testu (exit 1, choć
+    // asercje przechodziły). Chainowalny no-op zwraca pusty zestaw awatarów.
+    from: () => ({
+      select: () => ({
+        in: async () => ({ data: [], error: null }),
+      }),
+    }),
   },
 }));
 
