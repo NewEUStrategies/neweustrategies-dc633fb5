@@ -160,14 +160,10 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
           aria-expanded={open}
         >
           <Bell
-            className={[
-              "h-[18px] w-[18px] transition-transform",
-              unread > 0 && "motion-safe:animate-[wiggle_1.6s_ease-in-out_infinite]",
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            className="h-[18px] w-[18px] transition-transform duration-200"
             aria-hidden
           />
+
           <UnreadBadge
             count={unread}
             variant="alert"
