@@ -1,12 +1,12 @@
-// Supplementary i18n bundle dla systemu inMail (Plus → Ekspert).
+// Supplementary i18n bundle dla systemu „Zapytanie do eksperta" (dawniej inMail).
 // Rejestracja przy pierwszym imporcie modułu (patrz InMailDialogHost).
 import i18n from "./i18n";
 
 export const inmailPl = {
   inmail: {
-    dialogTitle: "Wyślij inMail do eksperta lub VIP-a",
+    dialogTitle: "Wyślij zapytanie do eksperta lub VIP-a",
     dialogSubtitle:
-      "Twoja warstwa korzysta z inMaili: Plus - 2 miesięcznie, Pro - 5 miesięcznie. Prześlij formalne zapytanie - jeśli odbiorca zaakceptuje, otworzymy stałą konwersację.",
+      "Twoja warstwa korzysta z zapytań do ekspertów: Plus - 2 miesięcznie, Pro - 5 miesięcznie. Prześlij formalne zapytanie - jeśli odbiorca zaakceptuje, otworzymy stałą konwersację.",
     upgradeCta: "Zobacz plan VIP (bezpośrednia rozmowa z ekspertami i VIP-ami)",
     recipientLabel: "Odbiorca",
     fields: {
@@ -33,15 +33,15 @@ export const inmailPl = {
       questionsMax: "Możesz podać maksymalnie 5 pytań.",
       linksMax: "Możesz podać maksymalnie 3 linki.",
     },
-    submit: "Wyślij inMail",
+    submit: "Wyślij zapytanie",
     cancel: "Anuluj",
     sending: "Wysyłam…",
-    sentToast: "InMail wysłany. Poinformujemy Cię o odpowiedzi.",
+    sentToast: "Zapytanie wysłane. Poinformujemy Cię o odpowiedzi.",
     error: {
       rateLimit: "Wysłałeś już maksymalną liczbę zapytań w krótkim czasie.",
-      monthlyQuota: "Wyczerpałeś miesięczną pulę inMaili. Plus: 2/mies., Pro: 5/mies. Zwiększ plan, aby napisać do kolejnych ekspertów lub VIP-ów.",
-      notExpert: "Ten użytkownik nie wymaga inMail - napisz do niego bezpośrednio z listy kontaktów.",
-      tierDisabled: "Twoja warstwa nie umożliwia wysyłania inMaili. Zaktualizuj plan (Plus - 2/mies., Pro - 5/mies., VIP - bezpośrednio).",
+      monthlyQuota: "Wyczerpałeś miesięczną pulę zapytań do ekspertów. Plus: 2/mies., Pro: 5/mies. Zwiększ plan, aby napisać do kolejnych ekspertów lub VIP-ów.",
+      notExpert: "Ten użytkownik nie wymaga zapytania - napisz do niego bezpośrednio z listy kontaktów.",
+      tierDisabled: "Twoja warstwa nie umożliwia wysyłania zapytań do ekspertów. Zaktualizuj plan (Plus - 2/mies., Pro - 5/mies., VIP - bezpośrednio).",
       generic: "Nie udało się wysłać. Spróbuj ponownie.",
     },
     status: {
@@ -67,7 +67,7 @@ export const inmailPl = {
       confirm: "Zatwierdź",
     },
     admin: {
-      title: "InMaile do ekspertów",
+      title: "Zapytania do ekspertów",
       subtitle:
         "Sformalizowane zapytania od użytkowników Plus do ekspertów. Zatwierdź - powstaje bezpośrednia konwersacja; odrzuć - zapytanie kończy się z powodem.",
       filter: "Status",
@@ -75,12 +75,12 @@ export const inmailPl = {
       countTotal: "Łącznie: {{count}}",
     },
     profile: {
-      title: "InMaile",
+      title: "Zapytania do ekspertów",
       subtitle: "Sformalizowane zapytania - wysłane i otrzymane od ekspertów.",
     },
     chatGate: {
       tierDisabledToast: "Twoja warstwa nie pozwala rozpocząć rozmowy. Zaktualizuj plan.",
-      inmailOpened: "Otwieramy okno inMail - napisz formalnie do eksperta.",
+      inmailOpened: "Otwieramy okno zapytania - napisz formalnie do eksperta.",
       openPricing: "Zobacz plany",
     },
   },
@@ -88,9 +88,9 @@ export const inmailPl = {
 
 export const inmailEn = {
   inmail: {
-    dialogTitle: "Send an inMail to an expert or VIP",
+    dialogTitle: "Send an Expert Request to an expert or VIP",
     dialogSubtitle:
-      "Your tier uses inMails: Plus - 2 per month, Pro - 5 per month. Send a formal request - if the recipient approves, we open an ongoing conversation.",
+      "Your tier uses Expert Requests: Plus - 2 per month, Pro - 5 per month. Send a formal request - if the recipient approves, we open an ongoing conversation.",
     upgradeCta: "See the VIP plan (direct chat with experts and VIPs)",
     recipientLabel: "Recipient",
     fields: {
@@ -117,15 +117,15 @@ export const inmailEn = {
       questionsMax: "You may include up to 5 questions.",
       linksMax: "You may include up to 3 links.",
     },
-    submit: "Send inMail",
+    submit: "Send request",
     cancel: "Cancel",
     sending: "Sending…",
-    sentToast: "InMail sent. You will be notified about the reply.",
+    sentToast: "Expert Request sent. You will be notified about the reply.",
     error: {
       rateLimit: "You have sent too many requests in a short period.",
-      monthlyQuota: "You have used your monthly inMail quota. Plus: 2/mo, Pro: 5/mo. Upgrade to reach more experts or VIPs.",
-      notExpert: "This user does not require an inMail - send a normal DM instead.",
-      tierDisabled: "Your tier does not include inMails. Upgrade your plan (Plus - 2/mo, Pro - 5/mo, VIP - direct).",
+      monthlyQuota: "You have used your monthly Expert Request quota. Plus: 2/mo, Pro: 5/mo. Upgrade to reach more experts or VIPs.",
+      notExpert: "This user does not require an Expert Request - send a normal DM instead.",
+      tierDisabled: "Your tier does not include Expert Requests. Upgrade your plan (Plus - 2/mo, Pro - 5/mo, VIP - direct).",
       generic: "Could not send. Please try again.",
     },
     status: {
@@ -151,7 +151,7 @@ export const inmailEn = {
       confirm: "Confirm",
     },
     admin: {
-      title: "Expert inMails",
+      title: "Expert Requests",
       subtitle:
         "Formal requests from Plus users to experts. Approve to open a direct conversation; decline to end the request with a reason.",
       filter: "Status",
@@ -159,12 +159,12 @@ export const inmailEn = {
       countTotal: "Total: {{count}}",
     },
     profile: {
-      title: "InMails",
+      title: "Expert Requests",
       subtitle: "Formal requests - sent and received from experts.",
     },
     chatGate: {
       tierDisabledToast: "Your tier does not allow starting a conversation. Upgrade your plan.",
-      inmailOpened: "Opening the inMail dialog - please write to the expert formally.",
+      inmailOpened: "Opening the Expert Request dialog - please write to the expert formally.",
       openPricing: "See plans",
     },
   },
