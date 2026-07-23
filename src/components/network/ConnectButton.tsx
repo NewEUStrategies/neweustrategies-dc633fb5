@@ -54,6 +54,8 @@ export interface ConnectButtonProps {
   state?: ConnectionState;
   /** Zwarta wersja na karty list (ikona + krótka etykieta). */
   compact?: boolean;
+  /** Wariant „tylko ikona" (h-8 w-8) - do gęstych pasków akcji na profilu. */
+  iconOnly?: boolean;
   className?: string;
 }
 
@@ -62,6 +64,7 @@ export function ConnectButton({
   displayName,
   state,
   compact,
+  iconOnly,
   className,
 }: ConnectButtonProps) {
   const { t } = useTranslation();
@@ -93,7 +96,9 @@ export function ConnectButton({
   if (resolved.status === "none" && !resolved.canInvite) return null;
 
   const busy = send.isPending || respond.isPending || cancel.isPending || remove.isPending;
-  const size = compact ? "sm" : "default";
+  const size = iconOnly ? "icon" : compact ? "sm" : "default";
+  const iconOnlyClass = iconOnly ? "h-8 w-8 shrink-0" : "";
+
 
   const sendInvite = () => {
     send.mutate(
@@ -130,14 +135,18 @@ export function ConnectButton({
             type="button"
             size={size}
             disabled={busy}
-            className={cn("gap-1.5", className)}
+            className={cn("gap-1.5", iconOnlyClass, className)}
             aria-label={`${t("network.connect")}: ${displayName}`}
+            title={iconOnly ? t("network.connect") : undefined}
           >
             <UserPlus className="h-3.5 w-3.5" aria-hidden />
-            <span className={cn(compact && "hidden sm:inline")}>
-              {compact ? t("network.connectShort") : t("network.connect")}
-            </span>
+            {!iconOnly && (
+              <span className={cn(compact && "hidden sm:inline")}>
+                {compact ? t("network.connectShort") : t("network.connect")}
+              </span>
+            )}
           </Button>
+
         </PopoverTrigger>
         <PopoverContent align="end" className="w-80 space-y-2 p-3">
           <p className="text-sm font-medium">{t("network.inviteNoteLabel")}</p>
@@ -176,14 +185,17 @@ export function ConnectButton({
           variant="outline"
           size={size}
           disabled={busy}
-          className={cn("gap-1.5 text-muted-foreground", className)}
-          title={t("network.pendingOutHint")}
+          className={cn("gap-1.5 text-muted-foreground", iconOnlyClass, className)}
+          title={iconOnly ? t("network.pendingOut") : t("network.pendingOutHint")}
           aria-label={`${t("network.withdraw")}: ${displayName}`}
           onClick={() => setConfirm("withdraw")}
         >
           <Clock className="h-3.5 w-3.5" aria-hidden />
-          <span className={cn(compact && "hidden sm:inline")}>{t("network.pendingOut")}</span>
+          {!iconOnly && (
+            <span className={cn(compact && "hidden sm:inline")}>{t("network.pendingOut")}</span>
+          )}
         </Button>
+
         <ConfirmDialog
           open={confirm === "withdraw"}
           onOpenChange={(open) => setConfirm(open ? "withdraw" : null)}
@@ -269,12 +281,16 @@ export function ConnectButton({
             variant="outline"
             size={size}
             disabled={busy}
-            className={cn("gap-1.5", className)}
+            className={cn("gap-1.5", iconOnlyClass, className)}
             aria-label={`${t("network.connected")}: ${displayName}`}
+            title={iconOnly ? t("network.connected") : undefined}
           >
             <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            <span className={cn(compact && "hidden sm:inline")}>{t("network.connected")}</span>
+            {!iconOnly && (
+              <span className={cn(compact && "hidden sm:inline")}>{t("network.connected")}</span>
+            )}
           </Button>
+
         </PopoverTrigger>
         <PopoverContent align="end" className="w-56 p-1.5">
           <button
