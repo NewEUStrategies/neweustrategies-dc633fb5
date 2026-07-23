@@ -31,6 +31,7 @@ import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { ProfileLinkButton } from "@/components/network/ProfileLinkButton";
 import { useAuth } from "@/hooks/useAuth";
 
 import { useOnlineUsers } from "@/lib/chat/presence";
@@ -208,6 +209,7 @@ function PersonCard({
         avatarUrl={person.avatar_url}
         online={online}
         size="md"
+        to={person.slug ? `/author/${person.slug}` : undefined}
       />
       {person.slug ? (
         <Link
@@ -222,6 +224,9 @@ function PersonCard({
         <div className="min-w-0 flex-1">{details}</div>
       )}
       <div className="flex shrink-0 items-center gap-1.5">
+        {person.slug && (
+          <ProfileLinkButton slug={person.slug} displayName={person.display_name} compact />
+        )}
         {/* Status z batchowanego RPC - bez mapy nie renderujemy przycisku,
             żeby każda karta nie odpytywała o status osobno. */}
         {connection && (

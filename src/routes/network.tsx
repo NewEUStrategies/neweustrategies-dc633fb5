@@ -159,7 +159,13 @@ function PersonRow({
       )}
       data-user-id={userId}
     >
-      <ChatAvatar name={displayName} avatarUrl={avatarUrl} online={online} size="md" />
+      <ChatAvatar
+        name={displayName}
+        avatarUrl={avatarUrl}
+        online={online}
+        size="md"
+        to={slug ? `/author/${slug}` : undefined}
+      />
       {slug ? (
         <Link
           to="/author/$slug"
@@ -417,6 +423,7 @@ function RequestsTab({
               avatarUrl={r.avatar_url}
               online={online.has(r.user_id)}
               size="md"
+              to={r.slug ? `/author/${r.slug}` : undefined}
             />
             <div className="min-w-0 flex-1">
               {r.slug ? (

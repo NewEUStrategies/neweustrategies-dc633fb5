@@ -170,7 +170,12 @@ function LeaderboardRow({
       >
         {entry.position}
       </span>
-      <ChatAvatar name={entry.display_name} avatarUrl={entry.avatar_url} size="sm" />
+      <ChatAvatar
+        name={entry.display_name}
+        avatarUrl={entry.avatar_url}
+        size="sm"
+        to={entry.slug ? `/author/${entry.slug}` : undefined}
+      />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm font-semibold">
           {entry.slug ? (
