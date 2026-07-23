@@ -3119,7 +3119,7 @@ export type Database = {
           },
         ]
       }
-      expert_requests: {
+      expert_inmails: {
         Row: {
           admin_note: string | null
           converted_conversation_id: string | null
@@ -10549,7 +10549,7 @@ export type Database = {
         }
         Returns: string
       }
-      admin_list_expert_requests: {
+      admin_list_inmails: {
         Args: { p_limit?: number; p_offset?: number; p_status?: string }
         Returns: {
           admin_note: string | null
@@ -10571,7 +10571,7 @@ export type Database = {
         }[]
         SetofOptions: {
           from: "*"
-          to: "expert_requests"
+          to: "expert_inmails"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -11636,7 +11636,7 @@ export type Database = {
           total_count: number
         }[]
       }
-      list_my_expert_requests: {
+      list_my_inmails: {
         Args: { p_box?: string }
         Returns: {
           admin_note: string | null
@@ -11658,7 +11658,7 @@ export type Database = {
         }[]
         SetofOptions: {
           from: "*"
-          to: "expert_requests"
+          to: "expert_inmails"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -11808,7 +11808,7 @@ export type Database = {
         }[]
       }
       my_has_feature: { Args: { p_key: string }; Returns: boolean }
-      my_expert_request_quota: { Args: never; Returns: Json }
+      my_inmail_quota: { Args: never; Returns: Json }
       my_introduction_requests: {
         Args: { p_role?: string }
         Returns: {
@@ -12154,8 +12154,8 @@ export type Database = {
         Returns: string
       }
       request_public_host: { Args: never; Returns: string }
-      resolve_expert_request: {
-        Args: { p_action: string; p_request_id: string; p_note?: string }
+      resolve_expert_inmail: {
+        Args: { p_action: string; p_inmail_id: string; p_note?: string }
         Returns: Json
       }
       resolve_path: {
@@ -12358,7 +12358,7 @@ export type Database = {
           similarity: number
         }[]
       }
-      send_expert_request: {
+      send_expert_inmail: {
         Args: {
           p_expected_answers?: string
           p_external_links?: string[]
