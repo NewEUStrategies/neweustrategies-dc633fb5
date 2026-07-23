@@ -4,10 +4,10 @@ import i18n from "./i18n";
 
 export const inmailPl = {
   inmail: {
-    dialogTitle: "Wyślij wiadomość do eksperta",
+    dialogTitle: "Wyślij inMail do eksperta lub VIP-a",
     dialogSubtitle:
-      "Twój plan Plus nie pozwala pisać bezpośrednio do ekspertów. Prześlij formalne zapytanie - ekspert (lub redakcja) zdecyduje, czy otworzyć rozmowę.",
-    upgradeCta: "Zobacz plan Pro (bezpośrednia rozmowa z ekspertami)",
+      "Twoja warstwa korzysta z inMaili: Plus - 2 miesięcznie, Pro - 5 miesięcznie. Prześlij formalne zapytanie - jeśli odbiorca zaakceptuje, otworzymy stałą konwersację.",
+    upgradeCta: "Zobacz plan VIP (bezpośrednia rozmowa z ekspertami i VIP-ami)",
     recipientLabel: "Odbiorca",
     fields: {
       subject: "Temat rozmowy",
