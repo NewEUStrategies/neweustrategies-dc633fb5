@@ -692,7 +692,7 @@ export function SearchButtonWidget({
                                 </span>
                                 {kindLabel && (
                                   <span
-                                    className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-wide sm:inline-flex ${
+                                    className={`search-kind-label hidden shrink-0 items-center rounded-md px-1 py-px font-semibold uppercase sm:inline-flex ${
                                       isActive
                                         ? "text-[var(--brand-ink)]"
                                         : "text-muted-foreground"
@@ -754,7 +754,7 @@ export function SearchButtonWidget({
           {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2">
               <div className="flex flex-wrap items-center gap-1">
-                <span className="mr-1 text-[8px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                <span className="search-operators-heading mr-0.5 font-semibold uppercase text-muted-foreground">
                   {t("operators")}
                 </span>
                 {[
@@ -782,7 +782,7 @@ export function SearchButtonWidget({
                         el.setSelectionRange(pos, pos);
                       });
                     }}
-                    className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[8px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                    className="search-operator-button inline-flex items-center rounded-md border border-border/60 bg-background px-1 py-px font-mono font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
                   >
                     {op}
                   </button>
