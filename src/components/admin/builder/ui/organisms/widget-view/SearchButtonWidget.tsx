@@ -415,11 +415,11 @@ export function SearchButtonWidget({
 
       {showPopover && (
         <div
-          className="builder-search-megabox absolute left-0 right-0 top-[calc(100%+10px)] z-[70] rounded-xl border border-border bg-card text-card-foreground shadow-2xl"
+          className="builder-search-megabox absolute left-0 right-0 top-[calc(100%+12px)] z-[70] overflow-hidden rounded-[10px] border border-border/70 bg-popover text-popover-foreground shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35),0_8px_24px_-12px_rgba(0,0,0,0.25)] ring-1 ring-black/[0.04] backdrop-blur-xl animate-in fade-in-0 zoom-in-[0.99] slide-in-from-top-1 duration-150"
           style={{
             fontFamily:
               '"Red Hat Display", "Red Hat Display Fallback", system-ui, -apple-system, "Segoe UI", sans-serif',
-            minWidth: "min(680px, 92vw)",
+            minWidth: "min(720px, 94vw)",
           }}
         >
           {/* ============= Tabs (mega-box category filter) ============= */}
@@ -427,14 +427,14 @@ export function SearchButtonWidget({
             <div
               role="tablist"
               aria-label={t("categories")}
-              className="flex items-center gap-1 border-b border-border/60 px-2 pt-2"
+              className="flex items-center gap-1 border-b border-border/60 bg-muted/30 px-2.5 py-1.5"
             >
               {(["all", ...SUGGEST_BUCKET_ORDER] as const).map((k) => {
                 const count =
                   k === "all" ? flat.length : (grouped.get(k as SuggestBucket)?.length ?? 0);
                 if (k !== "all" && count === 0) return null;
                 const isActive = tab === k;
-                const label = k === "all" ? t("all") : bucketLabel(k as SuggestBucket);
+                const tabLabel = k === "all" ? t("all") : bucketLabel(k as SuggestBucket);
                 return (
                   <button
                     key={k}
@@ -446,39 +446,34 @@ export function SearchButtonWidget({
                       setTab(k);
                       setActive(-1);
                     }}
-                    className={`relative inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-[13px] font-medium leading-none transition-colors ${
-                      isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium leading-none transition-all ${
+                      isActive
+                        ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
+                        : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
                     }`}
                   >
-                    {label}
+                    {tabLabel}
                     <span
-                      className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+                      className={`inline-flex min-w-[16px] items-center justify-center rounded px-1 text-[9px] font-semibold tabular-nums ${
                         isActive
-                          ? "bg-[color-mix(in_oklab,var(--brand)_18%,transparent)] text-[var(--brand-ink)]"
-                          : "bg-muted text-muted-foreground"
+                          ? "bg-[color-mix(in_oklab,var(--brand)_16%,transparent)] text-[var(--brand-ink)]"
+                          : "bg-muted/60 text-muted-foreground/80"
                       }`}
                     >
                       {count}
                     </span>
-                    {isActive && (
-                      <span
-                        aria-hidden
-                        className="absolute inset-x-2 -bottom-px h-[2px] rounded-full"
-                        style={{ backgroundColor: "var(--brand)" }}
-                      />
-                    )}
                   </button>
                 );
               })}
             </div>
           )}
 
-          <div className="max-h-[440px] overflow-y-auto py-1.5">
+          <div className="max-h-[460px] overflow-y-auto">
             {/* ============= Ostatnie wyszukiwania (puste pole) ============= */}
             {showRecent && (
-              <div className="px-1.5 pb-1">
-                <div className="flex items-center justify-between px-2.5 pt-1.5 pb-1">
-                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="px-3 pt-3 pb-2">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                     <LucideIcons.Clock className="w-3 h-3" aria-hidden />
                     {t("recent")}
                   </span>
@@ -489,74 +484,116 @@ export function SearchButtonWidget({
                       clearRecentSearches();
                       setRecent([]);
                     }}
-                    className="text-[10px] text-muted-foreground transition-colors hover:text-foreground hover:underline"
+                    className="text-[10px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
                   >
                     {t("recent_clear")}
                   </button>
                 </div>
-                <ul>
+                <div className="flex flex-wrap gap-1.5">
                   {recent.map((term) => (
-                    <li key={term}>
-                      <button
-                        type="button"
-                        // mousedown (nie click) - wyprzedza blur pola, fraza
-                        // ląduje w inpucie i live results startują od razu.
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setQ(term);
-                          addRecentSearch(term);
-                          setFocused(false);
-                          navigateToHref(`/search?q=${encodeURIComponent(term)}`);
-                        }}
-                        className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] leading-[1.5] text-foreground transition-colors hover:bg-muted/50"
-                      >
-                        <LucideIcons.Clock
-                          className="w-3.5 h-3.5 shrink-0 text-muted-foreground"
-                          aria-hidden
-                        />
-                        <span className="truncate">{term}</span>
-                      </button>
+                    <button
+                      key={term}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setQ(term);
+                        addRecentSearch(term);
+                        setFocused(false);
+                        navigateToHref(`/search?q=${encodeURIComponent(term)}`);
+                      }}
+                      className="group inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2.5 py-1.5 text-[12px] leading-none text-foreground transition-all hover:border-[var(--brand)] hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)] hover:text-[var(--brand-ink)]"
+                    >
+                      <LucideIcons.Clock
+                        className="w-3 h-3 shrink-0 text-muted-foreground/70 group-hover:text-[var(--brand)]"
+                        aria-hidden
+                      />
+                      <span className="max-w-[180px] truncate">{term}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {focused && hasQuery && loading && (
+              <div className="px-3 py-3">
+                <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  <LucideIcons.Loader2 className="w-3 h-3 animate-spin" aria-hidden />
+                  {t("searching")}
+                </div>
+                <ul className="space-y-1.5" aria-hidden>
+                  {[70, 55, 62].map((w, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center gap-2.5 rounded-md px-2 py-2"
+                    >
+                      <span className="h-6 w-6 shrink-0 animate-pulse rounded-md bg-muted" />
+                      <span
+                        className="h-3 animate-pulse rounded bg-muted"
+                        style={{ width: `${w}%` }}
+                      />
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {focused && hasQuery && loading && (
-              <div className="flex items-center gap-2 px-4 py-5 text-xs text-muted-foreground">
-                <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin" />
-                {t("searching")}
-              </div>
-            )}
-
             {focused && hasQuery && !loading && showEmpty && (
-              <div className="px-4 py-6 text-[13px] text-muted-foreground">
-                {t("no_results")}
-                <span className="font-medium text-foreground">„{q.trim()}"</span>
+              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/60">
+                  <LucideIcons.Search
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden
+                  />
+                </div>
+                <div className="text-[13px] text-foreground">
+                  {t("no_results")}
+                  <span className="font-semibold">„{q.trim()}"</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  {t("no_results_hint")}
+                </div>
               </div>
             )}
 
             {focused && hasQuery && !loading && flat.length > 0 && (
-              <div id={listboxId} role="listbox" aria-label={t("results")}>
+              <div id={listboxId} role="listbox" aria-label={t("results")} className="py-1">
                 {SUGGEST_BUCKET_ORDER.map((bucket) => {
                   if (tab !== "all" && tab !== bucket) return null;
                   const entries = grouped.get(bucket) ?? [];
                   if (entries.length === 0) return null;
                   const Icon = iconFor(bucket);
                   return (
-                    <div key={bucket} className="border-t border-border/50 first:border-t-0">
-                      <div className="flex items-center gap-2 px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        <Icon className="w-3 h-3" aria-hidden style={{ color: "var(--brand)" }} />
-                        <span>{bucketLabel(bucket)}</span>
-                        <span className="ml-auto tabular-nums text-muted-foreground/70">
+                    <div key={bucket} className="pb-1">
+                      <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+                        <span
+                          className="flex h-4 w-4 items-center justify-center rounded-sm"
+                          style={{
+                            backgroundColor:
+                              "color-mix(in oklab, var(--brand) 12%, transparent)",
+                          }}
+                        >
+                          <Icon
+                            className="h-2.5 w-2.5"
+                            aria-hidden
+                            style={{ color: "var(--brand)" }}
+                          />
+                        </span>
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                          {bucketLabel(bucket)}
+                        </span>
+                        <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-muted-foreground">
                           {entries.length}
                         </span>
                       </div>
-                      <ul role="presentation" className="pb-1">
+                      <ul role="presentation">
                         {entries.map((entry) => {
                           const it = entry.item;
                           const i = entry.index;
                           const isActive = i === active;
+                          const kindLabel = i18n.t(
+                            `search.widget.kind.${it.kind}`,
+                            { lng: lang, defaultValue: "" },
+                          ) as string;
                           return (
                             <li key={`${it.kind}:${it.id ?? it.slug ?? i}`} role="presentation">
                               <AppLink
@@ -567,26 +604,72 @@ export function SearchButtonWidget({
                                 tabIndex={-1}
                                 onClick={goToResult}
                                 onMouseEnter={() => setActive(i)}
-                                className={`group flex items-center gap-2.5 px-4 py-2 text-[13px] leading-[1.5] transition-colors ${
-                                  isActive ? "bg-muted/70" : "hover:bg-muted/50"
+                                className={`group relative mx-1.5 flex items-center gap-2.5 rounded-md px-2 py-2 text-[13px] leading-[1.4] transition-all ${
+                                  isActive
+                                    ? "bg-[color-mix(in_oklab,var(--brand)_8%,transparent)] text-foreground"
+                                    : "text-foreground hover:bg-muted/60"
                                 }`}
                                 style={{ overflow: "visible" }}
                               >
-                                <Icon
-                                  className="w-3.5 h-3.5 shrink-0 text-muted-foreground group-hover:text-[var(--brand)]"
+                                <span
                                   aria-hidden
-                                  style={isActive ? { color: "var(--brand)" } : undefined}
+                                  className={`absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-r-full transition-opacity ${
+                                    isActive ? "opacity-100" : "opacity-0"
+                                  }`}
+                                  style={{ backgroundColor: "var(--brand)" }}
                                 />
                                 <span
-                                  className="truncate text-foreground"
-                                  style={{ lineHeight: 1.5, paddingBottom: "2px" }}
+                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-all ${
+                                    isActive
+                                      ? "border-transparent"
+                                      : "border-border/60 bg-background/60 group-hover:border-border"
+                                  }`}
+                                  style={
+                                    isActive
+                                      ? {
+                                          backgroundColor:
+                                            "color-mix(in oklab, var(--brand) 14%, transparent)",
+                                        }
+                                      : undefined
+                                  }
                                 >
+                                  <Icon
+                                    className="h-3.5 w-3.5"
+                                    aria-hidden
+                                    style={{
+                                      color: isActive
+                                        ? "var(--brand)"
+                                        : "var(--muted-foreground)",
+                                    }}
+                                  />
+                                </span>
+                                <span className="min-w-0 flex-1 truncate">
                                   {itemLabel(it)}
                                 </span>
+                                {kindLabel && (
+                                  <span
+                                    className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide sm:inline-flex ${
+                                      isActive
+                                        ? "text-[var(--brand-ink)]"
+                                        : "text-muted-foreground"
+                                    }`}
+                                    style={{
+                                      backgroundColor: isActive
+                                        ? "color-mix(in oklab, var(--brand) 14%, transparent)"
+                                        : "color-mix(in oklab, var(--muted-foreground) 10%, transparent)",
+                                    }}
+                                  >
+                                    {kindLabel}
+                                  </span>
+                                )}
                                 <LucideIcons.ArrowRight
-                                  className="ml-auto w-3.5 h-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-70"
+                                  className={`h-3.5 w-3.5 shrink-0 transition-all ${
+                                    isActive
+                                      ? "translate-x-0 opacity-100"
+                                      : "-translate-x-0.5 opacity-0 group-hover:translate-x-0 group-hover:opacity-70"
+                                  }`}
                                   aria-hidden
-                                  style={{ color: "var(--brand-ink)" }}
+                                  style={{ color: "var(--brand)" }}
                                 />
                               </AppLink>
                             </li>
@@ -607,78 +690,100 @@ export function SearchButtonWidget({
                   addRecentSearch(q);
                   setFocused(false);
                 }}
-                className="flex items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-[13px] font-medium leading-[1.5] transition-colors hover:bg-muted/50"
+                className="group flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 text-[12px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
                 style={{ color: "var(--brand)" }}
               >
-                <span style={{ lineHeight: 1.5, paddingBottom: "2px" }}>
+                <span className="inline-flex items-center gap-1.5">
+                  <LucideIcons.Search className="h-3.5 w-3.5" aria-hidden />
                   {t("view_all")}
-                  <span className="font-semibold">„{q.trim()}"</span>
+                  <span className="font-bold">„{q.trim()}"</span>
                 </span>
-                <LucideIcons.ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                <LucideIcons.ArrowRight
+                  className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden
+                />
               </AppLink>
             )}
-
-            {/* Boolean operators + advanced search */}
-            {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
-              <div
-                className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/30 px-3 py-1.5 text-[10px] text-muted-foreground"
-                style={{ lineHeight: 1.4 }}
-              >
-                <div className="flex flex-wrap items-center gap-1">
-                  <span className="mr-1 text-[9px] font-semibold uppercase tracking-wider">
-                    {t("operators")}
-                  </span>
-                  {[
-                    // caret: pozycja kursora względem początku wstawki -
-                    // dla "" kursor ląduje MIĘDZY cudzysłowami, gotowy do pisania.
-                    { op: '"fraza"', ins: '"" ', caret: 1 },
-                    { op: "AND", ins: " AND " },
-                    { op: "OR", ins: " OR " },
-                    { op: "NOT", ins: " NOT " },
-                    { op: t("operator_word"), ins: " -" },
-                  ].map(({ op, ins, caret }) => (
-                    <button
-                      key={op}
-                      type="button"
-                      title={t("operator_insert")}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        const el = inputRef.current;
-                        if (!el) return;
-                        const start = el.selectionStart ?? q.length;
-                        const end = el.selectionEnd ?? q.length;
-                        const next = q.slice(0, start) + ins + q.slice(end);
-                        setQ(next);
-                        requestAnimationFrame(() => {
-                          el.focus();
-                          const pos = start + (caret ?? ins.length);
-                          el.setSelectionRange(pos, pos);
-                        });
-                      }}
-                      className="rounded border border-border/60 bg-background px-1 py-0 text-[9px] font-medium leading-[1.4] text-foreground transition-colors hover:border-[var(--brand)] hover:text-[var(--brand)]"
-                      style={{ paddingBottom: "2px" }}
-                    >
-                      {op}
-                    </button>
-                  ))}
-                </div>
-                <AppLink
-                  href={hasQuery ? `${searchAllHref}&adv=1` : "/search?adv=1"}
-                  onClick={() => {
-                    if (hasQuery) addRecentSearch(q);
-                    setFocused(false);
-                  }}
-                  className="inline-flex items-center gap-1 text-[10px] font-medium hover:underline"
-                  style={{ color: "var(--brand)", lineHeight: 1.4 }}
-                >
-                  <LucideIcons.SlidersHorizontal className="w-3 h-3 shrink-0" aria-hidden />
-                  {t("advanced")}
-                </AppLink>
-              </div>
-            )}
           </div>
+
+          {/* Footer: operators + keyboard hints + advanced search */}
+          {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="mr-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  {t("operators")}
+                </span>
+                {[
+                  { op: '"fraza"', ins: '"" ', caret: 1 },
+                  { op: "AND", ins: " AND " },
+                  { op: "OR", ins: " OR " },
+                  { op: "NOT", ins: " NOT " },
+                  { op: t("operator_word"), ins: " -" },
+                ].map(({ op, ins, caret }) => (
+                  <button
+                    key={op}
+                    type="button"
+                    title={t("operator_insert")}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const el = inputRef.current;
+                      if (!el) return;
+                      const start = el.selectionStart ?? q.length;
+                      const end = el.selectionEnd ?? q.length;
+                      const next = q.slice(0, start) + ins + q.slice(end);
+                      setQ(next);
+                      requestAnimationFrame(() => {
+                        el.focus();
+                        const pos = start + (caret ?? ins.length);
+                        el.setSelectionRange(pos, pos);
+                      });
+                    }}
+                    className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[9px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                  >
+                    {op}
+                  </button>
+                ))}
+              </div>
+              <div className="hidden items-center gap-2 text-[9px] text-muted-foreground md:flex">
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">
+                    ↑
+                  </kbd>
+                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">
+                    ↓
+                  </kbd>
+                  {t("kbd_navigate")}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">
+                    ↵
+                  </kbd>
+                  {t("kbd_select")}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[9px] leading-none text-foreground/80">
+                    esc
+                  </kbd>
+                  {t("kbd_close")}
+                </span>
+              </div>
+              <AppLink
+                href={hasQuery ? `${searchAllHref}&adv=1` : "/search?adv=1"}
+                onClick={() => {
+                  if (hasQuery) addRecentSearch(q);
+                  setFocused(false);
+                }}
+                className="inline-flex items-center gap-1 text-[10px] font-semibold hover:underline"
+                style={{ color: "var(--brand)" }}
+              >
+                <LucideIcons.SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
+                {t("advanced")}
+              </AppLink>
+            </div>
+          )}
         </div>
       )}
+
 
       <style
         dangerouslySetInnerHTML={{
