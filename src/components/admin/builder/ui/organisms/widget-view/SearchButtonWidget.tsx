@@ -102,6 +102,9 @@ export function SearchButtonWidget({
   // Ostatnie wyszukiwania (localStorage) - pokazywane po fokusie przy pustym
   // polu, odświeżane przy każdym otwarciu popovera.
   const [recent, setRecent] = useState<string[]>([]);
+  // Avatary autorów dociągane batch-em z profiles_public - pokazywane
+  // w wierszach osób/organizacji jak w /messages i na kartach eksperta.
+  const [authorAvatars, setAuthorAvatars] = useState<Record<string, string | null>>({});
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const reqIdRef = useRef(0);
