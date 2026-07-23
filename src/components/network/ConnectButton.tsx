@@ -185,14 +185,17 @@ export function ConnectButton({
           variant="outline"
           size={size}
           disabled={busy}
-          className={cn("gap-1.5 text-muted-foreground", className)}
-          title={t("network.pendingOutHint")}
+          className={cn("gap-1.5 text-muted-foreground", iconOnlyClass, className)}
+          title={iconOnly ? t("network.pendingOut") : t("network.pendingOutHint")}
           aria-label={`${t("network.withdraw")}: ${displayName}`}
           onClick={() => setConfirm("withdraw")}
         >
           <Clock className="h-3.5 w-3.5" aria-hidden />
-          <span className={cn(compact && "hidden sm:inline")}>{t("network.pendingOut")}</span>
+          {!iconOnly && (
+            <span className={cn(compact && "hidden sm:inline")}>{t("network.pendingOut")}</span>
+          )}
         </Button>
+
         <ConfirmDialog
           open={confirm === "withdraw"}
           onOpenChange={(open) => setConfirm(open ? "withdraw" : null)}
