@@ -98,6 +98,11 @@ export function ConnectButton({
   const busy = send.isPending || respond.isPending || cancel.isPending || remove.isPending;
   const size = iconOnly ? "icon" : compact ? "sm" : "default";
   const iconOnlyClass = iconOnly ? "h-8 w-8 shrink-0" : "";
+  // Wspólny hover dla akcji ikonowych na pasku profilu - miękkie tło brandu +
+  // wybarwienie ikony, żeby wszystkie CTA reagowały tak samo.
+  const iconHoverClass = iconOnly
+    ? "transition-colors hover:bg-brand/10 hover:text-brand hover:border-brand/40 [&_svg]:transition-colors"
+    : "";
 
 
   const sendInvite = () => {
