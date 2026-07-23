@@ -24,6 +24,8 @@ import {
   type BillingInterval,
 } from "@/lib/pricing/selectors";
 import { TierBenefitList } from "./TierBenefitList";
+import { trackCta } from "@/lib/analytics/track";
+
 
 function intervalSuffix(interval: AccessPlan["interval"], t: (key: string) => string): string {
   switch (interval) {
@@ -147,6 +149,16 @@ function PriceBlock({
   );
 }
 
+// Jeden wariant przycisku CTA dla całej karty warstwy - eliminuje "skakanie"
+// stylu przy zmianie przełącznika miesięcznie/rocznie oraz między różnymi
+// gałęziami (checkout / kontakt / rejestracja). Ciemny/jasny motyw obsługują
+// tokeny (`default` = solid brand, `outline` = border + hover token) - nie
+// hardkodujemy kolorów, więc dark/light zachowują się identycznie.
+type CtaVariant = "default" | "outline";
+function tierCtaVariant(tier: MembershipTierRow): CtaVariant {
+  return tier.highlight ? "default" : "outline";
+}
+
 function TierCardCta({
   tier,
   plans,
@@ -166,6 +178,12 @@ function TierCardCta({
 }) {
   const { t } = useTranslation();
   const mode = tierCtaMode(tier);
+  const variant = tierCtaVariant(tier);
+  // Jednolita klasa dla wszystkich CTA - stała wysokość, pełna szerokość i
+  // domyślny 6px rounding zgodnie z systemem projektowym. Dzięki temu każda
+  // gałąź (checkout, kontakt, rejestracja, "obecny plan") wygląda identycznie
+  // niezależnie od przełącznika miesięcznie/rocznie i trybu dark/light.
+  const ctaClass = "w-full h-10 rounded-[6px] text-sm font-semibold";
 
   // "Tylko na zaproszenie" - swiadomie bez jakiegokolwiek przycisku.
   if (mode === "none") return null;
@@ -173,35 +191,57 @@ function TierCardCta({
   if (tier.is_default) {
     if (isCurrentTier) {
       return (
-        <Button className="w-full" disabled variant="outline">
+        <Button className={ctaClass} disabled variant="outline">
           {t("pricing.currentTier")}
         </Button>
       );
     }
     if (!isAuthenticated) {
       return (
-        <Button asChild className="w-full" variant="outline">
-          <Link to="/login">{t("pricing.signupCta")}</Link>
+        <Button asChild className={ctaClass} variant={variant}>
+          <Link
+            to="/login"
+            onClick={() =>
+              trackCta("pricing_signup_click", {
+                tier_key: tier.key,
+                tier_id: tier.id,
+                interval,
+              })
+            }
+          >
+            {t("pricing.signupCta")}
+          </Link>
         </Button>
       );
     }
     return null;
   }
 
+
   // Tryb 'contact': cena moze byc widoczna (np. per miejsce), ale zakup idzie
   // przez rozmowe - checkout pojedynczego miejsca bylby nieuczciwy.
   if (mode === "contact") {
     if (isCurrentTier) {
       return (
-        <Button className="w-full" disabled variant="outline">
+        <Button className={ctaClass} disabled variant="outline">
           {t("pricing.currentTier")}
         </Button>
       );
     }
     if (tier.contact_url) {
       return (
-        <Button asChild className="w-full" variant={tier.highlight ? "default" : "outline"}>
-          <a href={tier.contact_url}>
+        <Button asChild className={ctaClass} variant={variant}>
+          <a
+            href={tier.contact_url}
+            onClick={() =>
+              trackCta("pricing_contact_click", {
+                tier_key: tier.key,
+                tier_id: tier.id,
+                interval,
+                target: "external",
+              })
+            }
+          >
             <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("pricing.contactCta")}
           </a>
@@ -210,9 +250,17 @@ function TierCardCta({
     }
     return (
       <Button
-        className="w-full"
-        variant={tier.highlight ? "default" : "outline"}
-        onClick={() => onContact(tier)}
+        className={ctaClass}
+        variant={variant}
+        onClick={() => {
+          trackCta("pricing_contact_click", {
+            tier_key: tier.key,
+            tier_id: tier.id,
+            interval,
+            target: "dialog",
+          });
+          onContact(tier);
+        }}
       >
         <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
         {t("pricing.contactCta")}
@@ -224,24 +272,38 @@ function TierCardCta({
   if (plan) {
     if (currentPlanId === plan.id || isCurrentTier) {
       return (
-        <Button className="w-full" disabled variant="outline">
+        <Button className={ctaClass} disabled variant="outline">
           {currentPlanId === plan.id ? t("pricing.current") : t("pricing.currentTier")}
         </Button>
       );
     }
     return (
-      <Button asChild className="w-full" variant={tier.highlight ? "default" : "outline"}>
-        <Link to="/checkout/$planId" params={{ planId: plan.id }}>
+      <Button asChild className={ctaClass} variant={variant}>
+        <Link
+          to="/checkout/$planId"
+          params={{ planId: plan.id }}
+          onClick={() =>
+            trackCta("pricing_checkout_click", {
+              tier_key: tier.key,
+              tier_id: tier.id,
+              plan_id: plan.id,
+              interval,
+              amount_cents: plan.price_cents,
+              currency: plan.currency,
+            })
+          }
+        >
           {t("pricing.choose")}
         </Link>
       </Button>
     );
   }
 
+
   // Warstwa bez planu w sprzedaży samoobsługowej.
   if (tier.key === "supporter") {
     return (
-      <Button asChild className="w-full" variant="outline">
+      <Button asChild className={ctaClass} variant="outline">
         <Link to="/support" search={{ status: undefined }}>
           <HandHeart className="mr-2 h-4 w-4" aria-hidden="true" />
           {t("pricing.tiers.supporterCta")}
@@ -251,14 +313,14 @@ function TierCardCta({
   }
   if (isCurrentTier) {
     return (
-      <Button className="w-full" disabled variant="outline">
+      <Button className={ctaClass} disabled variant="outline">
         {t("pricing.currentTier")}
       </Button>
     );
   }
   if (tier.contact_url) {
     return (
-      <Button asChild className="w-full" variant={tier.highlight ? "default" : "outline"}>
+      <Button asChild className={ctaClass} variant={variant}>
         <a href={tier.contact_url}>
           <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
           {t("pricing.contactCta")}
@@ -268,8 +330,8 @@ function TierCardCta({
   }
   return (
     <Button
-      className="w-full"
-      variant={tier.highlight ? "default" : "outline"}
+      className={ctaClass}
+      variant={variant}
       onClick={() => onContact(tier)}
     >
       <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -277,6 +339,7 @@ function TierCardCta({
     </Button>
   );
 }
+
 
 export function TierCard({
   tier,

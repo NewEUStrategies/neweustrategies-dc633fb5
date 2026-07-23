@@ -152,6 +152,19 @@ export async function sendWebPush(
   payload: Record<string, unknown>,
   vapid: VapidConfig,
 ): Promise<PushSendResult> {
+  // SSRF guard: refuse to POST to a user-controlled endpoint unless it is
+  // https + resolves to a public IP (rejects localhost, private ranges, cloud
+  // metadata, .internal / .local suffixes). Fail-closed: on any refusal we
+  // report the subscription as gone so the dispatcher stops retrying it.
+  const { assertPublicHttpUrl, BlockedUrlError } = await import("@/lib/http/egressGuard.server");
+  try {
+    await assertPublicHttpUrl(sub.endpoint);
+  } catch (err) {
+    if (err instanceof BlockedUrlError) {
+      return { ok: false, gone: true, status: 0 };
+    }
+    throw err;
+  }
   const endpoint = new URL(sub.endpoint);
   const body = encryptPushPayload(
     Buffer.from(JSON.stringify(payload), "utf8"),
@@ -160,8 +173,10 @@ export async function sendWebPush(
   );
   const jwt = buildVapidJwt(endpoint.origin, vapid, Math.floor(Date.now() / 1000));
 
+
   const res = await fetch(sub.endpoint, {
     method: "POST",
+    redirect: "manual",
     headers: {
       Authorization: `vapid t=${jwt}, k=${vapid.publicKey}`,
       "Content-Encoding": "aes128gcm",
@@ -171,6 +186,7 @@ export async function sendWebPush(
     },
     body: new Uint8Array(body),
   });
+
   // Treść odpowiedzi nie jest potrzebna; niektóre usługi wysyłają puste 201.
   await res.arrayBuffer().catch(() => undefined);
 

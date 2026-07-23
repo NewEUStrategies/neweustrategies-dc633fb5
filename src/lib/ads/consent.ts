@@ -338,6 +338,26 @@ export function useCategoryGranted(cat: ConsentCategory): boolean {
   return !!categories[cat];
 }
 
+/**
+ * Non-hook, poza-Reactowy odczyt aktywnej zgody dla danej kategorii.
+ * Uwzględnia tryb podglądu (sessionStorage) oraz trwały zapis (localStorage).
+ * Używany m.in. przez silnik analityki (`src/lib/analytics/track.ts`),
+ * gdzie beacony wysyłane są z event-handlerów spoza drzewa Reacta.
+ */
+export function hasCategoryConsent(cat: ConsentCategory): boolean {
+  if (cat === "necessary") return true;
+  if (typeof window === "undefined") return false;
+  const preview = readPreview();
+  if (preview) return !!preview.categories[cat];
+  const state = readLocal();
+  return !!state?.categories?.[cat];
+}
+
+export function hasAnalyticsConsent(): boolean {
+  return hasCategoryConsent("analytics");
+}
+
+
 // -------- Backward compat (marketing-only API) --------
 
 export function useMarketingConsent() {

@@ -392,7 +392,11 @@ function RootComponent() {
           lastPath = nextPath;
         }
       });
+      // Silnik analityki: page_view przy każdym rozwiązanym routingu
+      // (SPA + first paint). Fire-and-forget, respektuje zgodę analytics.
+      void import("../lib/analytics/track").then((m) => m.trackPageView());
     });
+
     return () => {
       unsub();
       stopWatchdog?.();
