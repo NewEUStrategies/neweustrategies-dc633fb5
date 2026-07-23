@@ -1,13 +1,14 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Search, X, Loader2, ArrowRight, Clock } from "@/lib/lucide-shim";
+import { Search, X, Loader2, ArrowRight, Clock, FileText } from "@/lib/lucide-shim";
 import "@/lib/i18n-public";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
 import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { trackSearch } from "@/lib/analytics/track";
+import { SuggestGroupHeader, SuggestRow } from "@/components/search/SuggestListView";
 
 type Mode = "standalone" | "dropdown" | "fullscreen";
 type Result = { id: string; slug: string; title: string; excerpt: string | null };
@@ -346,52 +347,34 @@ function ResultsList({
     );
   }
   return (
-    <ul
+    <div
       id={listboxId}
       role="listbox"
       aria-label={t("searchOverlay.resultsLabel")}
-      className={`overflow-y-auto divide-y divide-border/60 ${compact ? "max-h-[60vh]" : "max-h-[52vh]"}`}
+      className={`overflow-y-auto py-1 ${compact ? "max-h-[60vh]" : "max-h-[52vh]"}`}
     >
-      {results.map((r, i) => {
-        const isActive = i === active;
-        // Wzorzec listbox/option: rolę option nosi SAM link (tabIndex=-1,
-        // fokus zostaje w combobox i jest ogłaszany przez aria-activedescendant).
-        // option nie może zawierać zagnieżdżonych elementów interaktywnych
-        // (axe: nested-interactive), więc <li> jest czysto prezentacyjne.
-        return (
+      <SuggestGroupHeader
+        icon={FileText}
+        label={t("searchOverlay.resultsLabel") as string}
+        count={results.length}
+      />
+      <ul role="presentation">
+        {results.map((r, i) => (
           <li key={r.id} role="presentation">
-            <AppLink
-              href={`/post/${r.slug}`}
+            <SuggestRow
               id={optionId(i)}
-              role="option"
-              aria-selected={isActive}
-              tabIndex={-1}
-              onClick={onSelect}
-              onMouseEnter={() => setActive(i)}
-              className={`group flex items-start gap-3 px-5 py-3.5 transition ${
-                isActive ? "bg-muted/70" : "hover:bg-muted/40"
-              }`}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-foreground line-clamp-1">{r.title}</div>
-                {r.excerpt && (
-                  <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                    {r.excerpt}
-                  </div>
-                )}
-              </div>
-              <ArrowRight
-                className={`w-4 h-4 mt-0.5 shrink-0 transition ${
-                  isActive
-                    ? "text-foreground translate-x-0.5"
-                    : "text-muted-foreground/40 group-hover:text-muted-foreground"
-                }`}
-              />
-            </AppLink>
+              href={`/post/${r.slug}`}
+              label={r.title}
+              meta={r.excerpt ?? undefined}
+              icon={FileText}
+              active={i === active}
+              onSelect={onSelect}
+              onHover={() => setActive(i)}
+            />
           </li>
-        );
-      })}
-    </ul>
+        ))}
+      </ul>
+    </div>
   );
 }
 
