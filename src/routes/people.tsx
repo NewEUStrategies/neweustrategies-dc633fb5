@@ -34,7 +34,7 @@ import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { useAuth } from "@/hooks/useAuth";
 
 import { useOnlineUsers } from "@/lib/chat/presence";
-import { useStartConversation } from "@/lib/chat/useConversations";
+
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useUserCounter } from "@/lib/counters/usePendingCounters";
