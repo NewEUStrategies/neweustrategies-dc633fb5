@@ -3,6 +3,15 @@ import { z } from "zod";
 
 export type WebStoryStatus = "draft" | "published" | "archived";
 
+// Dozwolone tylko linki http(s) i sciezki wzgledne (zaczynajace sie od "/").
+// Blokuje `javascript:`/`data:` itp. w cta_href, ktore trafia do <a href> w
+// StoryViewer (stored XSS). Wartosc niebezpieczna -> pusty string (CTA ukryte).
+const SAFE_CTA_HREF_RE = /^(https?:\/\/|\/)[^\s]*$/i;
+export function safeStoryHref(value: string): string {
+  const v = (value ?? "").trim();
+  return SAFE_CTA_HREF_RE.test(v) ? v : "";
+}
+
 export const StoryPageSchema = z.object({
   id: z.string(),
   background: z.enum(["image", "video", "color"]).default("image"),
@@ -15,7 +24,7 @@ export const StoryPageSchema = z.object({
   caption_en: z.string().default(""),
   cta_label_pl: z.string().default(""),
   cta_label_en: z.string().default(""),
-  cta_href: z.string().default(""),
+  cta_href: z.string().default("").transform(safeStoryHref),
   text_position: z.enum(["top", "center", "bottom"]).default("bottom"),
   text_align: z.enum(["left", "center", "right"]).default("left"),
   duration_seconds: z.number().int().min(2).max(30).default(6),

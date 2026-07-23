@@ -33,7 +33,13 @@ import {
   COMPACT_WIDGET_TYPES,
 } from "@/components/admin/builder/ui/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
-import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
+import {
+  sanitizeHtmlId,
+  sanitizeCssClass,
+  safeImageUrl,
+  hardenStyleCss,
+  safeUrl,
+} from "@/lib/sanitize";
 import {
   sectionWrapperStyle,
   sectionContainerStyle,
@@ -154,11 +160,6 @@ function deviceForWidth(width: number): Device {
   return "desktop";
 }
 
-function detectViewportDevice(): Device {
-  if (typeof window === "undefined") return "desktop";
-  return deviceForWidth(window.innerWidth);
-}
-
 // Debug-only overlay rules. Injected ONCE per page (by the primary renderer) and
 // ONLY while debug is active - everything functional/responsive now lives in the
 // global stylesheet (see styles.css → "Builder public renderer"). Kept inline
@@ -182,9 +183,11 @@ export function BuilderRenderer({
   editorPreview = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [viewportDevice, setViewportDevice] = useState<Device>(
-    () => device ?? detectViewportDevice(),
-  );
+  // Pierwszy render MUSI byc deterministyczny (desktop-first), inaczej SSR
+  // wyemituje "desktop", a pierwszy render kliencki na telefonie policzy
+  // "mobile" (rozjazd hydratacji + CLS). Rzeczywiste urzadzenie ustawia
+  // useIsomorphicLayoutEffect ponizej (przed malowaniem na kliencie).
+  const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? "desktop");
   const safeDoc = safeParseBuilderDoc(doc);
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
@@ -838,7 +841,7 @@ const RenderColumn = memo(function RenderColumn({
                 <div className="relative w-full h-full">
                   {w.advanced?.link?.url && (
                     <a
-                      href={w.advanced.link.url}
+                      href={safeUrl(w.advanced.link.url)}
                       target={w.advanced.link.target ?? "_self"}
                       rel={
                         [

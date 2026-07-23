@@ -345,11 +345,14 @@ export interface TaxonomyFeedMeta {
   description_en: string | null;
 }
 
-const TAXONOMY_TABLES: Record<FeedTaxonomyKind, { table: "categories" | "tags" | "programs" }> = {
-  category: { table: "categories" },
-  tag: { table: "tags" },
-  program: { table: "programs" },
-};
+// UWAGA (mapowanie zrodel feedow taksonomii): category -> categories +
+// post_categories; tag -> tags + post_tags; program -> research_programs
+// (programy badawcze; landing /programs/$slug i sitemap tez z tej tabeli),
+// laczac wpisy przez category_id -> post_categories. Wczesniej `program`
+// odpytywal tabele `programs` (hub ekspercki) + junction `post_programs` -
+// rozlaczny byt i przestrzen slugow, wiec feed 404-owal dla poprawnego slugu
+// albo serwowal wpisy zupelnie innego programu. Zrodla sa teraz jawnie
+// rozgalezione w funkcjach ponizej (typowanie klienta Supabase per tabela).
 
 /** Metadane taksonomii do nagłówka kanału; null = 404 feedu. */
 export async function fetchTaxonomyForFeed(
@@ -377,9 +380,27 @@ export async function fetchTaxonomyForFeed(
           description_en: null,
         };
       }
-      const table = TAXONOMY_TABLES[kind].table as "categories" | "programs";
+      if (kind === "program") {
+        // research_programs nie ma description_pl/en - opis kanalu bierzemy z
+        // tagline. Tylko opublikowane programy maja feed.
+        const { data } = await supabaseAdmin
+          .from("research_programs")
+          .select("slug, name_pl, name_en, tagline_pl, tagline_en")
+          .eq("tenant_id", tenantId)
+          .eq("slug", slug)
+          .eq("status", "published")
+          .maybeSingle();
+        if (!data) return null;
+        return {
+          slug: data.slug,
+          name_pl: data.name_pl,
+          name_en: data.name_en,
+          description_pl: data.tagline_pl ?? null,
+          description_en: data.tagline_en ?? null,
+        };
+      }
       const { data } = await supabaseAdmin
-        .from(table)
+        .from("categories")
         .select("slug, name_pl, name_en, description_pl, description_en")
         .eq("tenant_id", tenantId)
         .eq("slug", slug)
@@ -399,34 +420,49 @@ export async function fetchPublishedPostsByTaxonomy(
   return edgeTtlCache(`seo:feed-posts:${tenantId}:${kind}:${slug}:${limit}`, CACHE_TTL_MS, () =>
     resilient("feed-taxonomy-posts", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const spec = TAXONOMY_TABLES[kind];
-      const { data: tax } = await supabaseAdmin
-        .from(spec.table)
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("slug", slug)
-        .maybeSingle();
-      if (!tax?.id) return [];
       // Jawny switch po tabeli łączącej - dynamiczna nazwa kolumny łamałaby
       // typowanie klienta Supabase (keyof Row per tabela).
       let joinRows: Array<{ post_id: string }> = [];
-      if (kind === "category") {
+      if (kind === "program") {
+        // research_programs -> category_id -> post_categories (jak landing).
+        const { data: program } = await supabaseAdmin
+          .from("research_programs")
+          .select("category_id")
+          .eq("tenant_id", tenantId)
+          .eq("slug", slug)
+          .eq("status", "published")
+          .maybeSingle();
+        if (!program?.category_id) return [];
+        const { data: rows } = await supabaseAdmin
+          .from("post_categories")
+          .select("post_id")
+          .eq("category_id", program.category_id);
+        joinRows = rows ?? [];
+      } else if (kind === "category") {
+        const { data: tax } = await supabaseAdmin
+          .from("categories")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("slug", slug)
+          .maybeSingle();
+        if (!tax?.id) return [];
         const { data: rows } = await supabaseAdmin
           .from("post_categories")
           .select("post_id")
           .eq("category_id", tax.id);
         joinRows = rows ?? [];
-      } else if (kind === "tag") {
+      } else {
+        const { data: tax } = await supabaseAdmin
+          .from("tags")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("slug", slug)
+          .maybeSingle();
+        if (!tax?.id) return [];
         const { data: rows } = await supabaseAdmin
           .from("post_tags")
           .select("post_id")
           .eq("tag_id", tax.id);
-        joinRows = rows ?? [];
-      } else {
-        const { data: rows } = await supabaseAdmin
-          .from("post_programs")
-          .select("post_id")
-          .eq("program_id", tax.id);
         joinRows = rows ?? [];
       }
       const postIds = [...new Set(joinRows.map((r) => r.post_id))];

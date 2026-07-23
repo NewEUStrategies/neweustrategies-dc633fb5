@@ -7,6 +7,7 @@ import {
   storyTitle,
   pageCaption,
   pageCtaLabel,
+  safeStoryHref,
 } from "../types";
 
 describe("web-stories types", () => {
@@ -41,5 +42,30 @@ describe("web-stories types", () => {
   it("duration is clamped between 2 and 30", () => {
     expect(() => StoryPageSchema.parse({ ...newStoryPage(), duration_seconds: 1 })).toThrow();
     expect(() => StoryPageSchema.parse({ ...newStoryPage(), duration_seconds: 31 })).toThrow();
+  });
+});
+
+describe("safeStoryHref (cta_href XSS guard)", () => {
+  it("allows http(s) and relative URLs", () => {
+    expect(safeStoryHref("https://example.org/x")).toBe("https://example.org/x");
+    expect(safeStoryHref("http://example.org")).toBe("http://example.org");
+    expect(safeStoryHref("/blog/foo")).toBe("/blog/foo");
+    expect(safeStoryHref("  /trim-me  ")).toBe("/trim-me");
+  });
+
+  it("blanks javascript:, data: and other unsafe schemes", () => {
+    expect(safeStoryHref("javascript:alert(1)")).toBe("");
+    expect(safeStoryHref("JavaScript:alert(1)")).toBe("");
+    expect(safeStoryHref("data:text/html,<script>")).toBe("");
+    expect(safeStoryHref("mailto:a@b.c")).toBe("");
+    expect(safeStoryHref("vbscript:x")).toBe("");
+    expect(safeStoryHref("")).toBe("");
+  });
+
+  it("StoryPageSchema strips an unsafe cta_href on parse", () => {
+    const p = StoryPageSchema.parse({ ...newStoryPage(), cta_href: "javascript:alert(1)" });
+    expect(p.cta_href).toBe("");
+    const ok = StoryPageSchema.parse({ ...newStoryPage(), cta_href: "https://example.org" });
+    expect(ok.cta_href).toBe("https://example.org");
   });
 });

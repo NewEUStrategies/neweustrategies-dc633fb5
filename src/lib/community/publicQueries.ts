@@ -298,6 +298,8 @@ export interface PublicQaQuestion {
   votes: number;
   /** Autor ma flagę qa_priority (tier Pro) - pytanie w kolejce priorytetowej. */
   is_priority: boolean;
+  /** Czy bieżący użytkownik już zagłosował (parytet z ankietami: my_vote). */
+  my_vote: boolean;
 }
 
 /**

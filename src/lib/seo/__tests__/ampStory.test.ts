@@ -101,6 +101,44 @@ describe("canBuildAmpStory / resolvePosterPortrait", () => {
     });
     expect(resolvePosterPortrait(i)).toBe("https://cdn.example.org/9.jpg");
   });
+
+  it("uses a video page's poster_url (NOT the video URL) as the portrait poster", () => {
+    const i = input({
+      cover_url: null,
+      pages: [
+        page({
+          id: "v1",
+          background: "video",
+          media_url: "https://cdn.example.org/clip.mp4",
+          poster_url: "https://cdn.example.org/clip-poster.jpg",
+        }),
+      ],
+    });
+    // Poster MUSI byc obrazem - nigdy URL-em pliku wideo.
+    expect(resolvePosterPortrait(i)).toBe("https://cdn.example.org/clip-poster.jpg");
+  });
+
+  it("skips a video page without a poster and uses a later image page", () => {
+    const i = input({
+      cover_url: null,
+      pages: [
+        page({ id: "v1", background: "video", media_url: "https://cdn.example.org/clip.mp4" }),
+        page({ id: "p2", media_url: "https://cdn.example.org/2.jpg" }),
+      ],
+    });
+    expect(resolvePosterPortrait(i)).toBe("https://cdn.example.org/2.jpg");
+  });
+
+  it("cannot build a story whose only page is a video without a poster", () => {
+    const i = input({
+      cover_url: null,
+      pages: [
+        page({ id: "v1", background: "video", media_url: "https://cdn.example.org/clip.mp4" }),
+      ],
+    });
+    expect(resolvePosterPortrait(i)).toBe("");
+    expect(canBuildAmpStory(i)).toBe(false);
+  });
 });
 
 describe("htmlEscape", () => {

@@ -21,8 +21,9 @@ export function initObservability(): () => void {
   if (started || typeof window === "undefined") return () => {};
   started = true;
 
-  // Core Web Vitals (LCP/CLS/INP/FCP/TTFB) - already guards its own re-init.
-  initWebVitals();
+  // Core Web Vitals (LCP/CLS/INP/FCP/TTFB) - zwraca teardown, ktory rozlacza
+  // obserwery i listenery flush przy cofnieciu zgody (RODO).
+  const teardownWebVitals = initWebVitals();
 
   // Global error capture: uncaught errors and rejected promises that React's
   // error boundaries never see. Beaconed to the observability endpoint (no-op
@@ -39,6 +40,7 @@ export function initObservability(): () => void {
   return () => {
     window.removeEventListener("error", onError);
     window.removeEventListener("unhandledrejection", onRejection);
+    teardownWebVitals();
     started = false;
   };
 }

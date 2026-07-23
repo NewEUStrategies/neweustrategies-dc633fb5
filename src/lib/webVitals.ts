@@ -108,12 +108,16 @@ export function markWebVitalsPage(pathname: string): void {
   resetAccumulators();
 }
 
-export function initWebVitals(): void {
-  if (typeof window === "undefined" || typeof PerformanceObserver === "undefined") return;
-  if ((window as Window & { __vitalsInit?: boolean }).__vitalsInit) return;
+export function initWebVitals(): () => void {
+  const noop = () => {};
+  if (typeof window === "undefined" || typeof PerformanceObserver === "undefined") return noop;
+  if ((window as Window & { __vitalsInit?: boolean }).__vitalsInit) return noop;
   (window as Window & { __vitalsInit?: boolean }).__vitalsInit = true;
 
   currentPath = location.pathname;
+
+  // Rejestr obserwerow do rozlaczenia przy teardownie (cofniecie zgody RODO).
+  const observers: PerformanceObserver[] = [];
 
   // LCP - keep last entry per page.
   try {
@@ -123,6 +127,7 @@ export function initWebVitals(): void {
       if (last) lcpValue = last.startTime;
     });
     lcpObs.observe({ type: "largest-contentful-paint", buffered: true });
+    observers.push(lcpObs);
   } catch {
     /* unsupported */
   }
@@ -135,6 +140,7 @@ export function initWebVitals(): void {
       }
     });
     clsObs.observe({ type: "layout-shift", buffered: true });
+    observers.push(clsObs);
   } catch {
     /* unsupported */
   }
@@ -151,6 +157,7 @@ export function initWebVitals(): void {
       buffered: true,
       durationThreshold: 40,
     } as PerformanceObserverInit);
+    observers.push(inpObs);
   } catch {
     /* unsupported */
   }
@@ -162,8 +169,9 @@ export function initWebVitals(): void {
       flushCurrent(currentPath);
     }
   };
+  const onPageHide = () => flushCurrent(currentPath);
   addEventListener("visibilitychange", onHide);
-  addEventListener("pagehide", () => flushCurrent(currentPath));
+  addEventListener("pagehide", onPageHide);
 
   // FCP + TTFB from Paint / Navigation Timing - only meaningful on the initial
   // hard load. Attribute to whatever the initial pathname is.
@@ -185,4 +193,20 @@ export function initWebVitals(): void {
   } catch {
     /* unsupported */
   }
+
+  // Teardown: cofniecie zgody analitycznej musi FAKTYCZNIE zatrzymac pomiar -
+  // rozlaczamy obserwery, zdejmujemy listenery flush i zwalniamy flage, zeby
+  // ponowne wyrazenie zgody moglo re-zainicjalizowac web-vitals.
+  return () => {
+    for (const obs of observers) {
+      try {
+        obs.disconnect();
+      } catch {
+        /* ignore */
+      }
+    }
+    removeEventListener("visibilitychange", onHide);
+    removeEventListener("pagehide", onPageHide);
+    (window as Window & { __vitalsInit?: boolean }).__vitalsInit = false;
+  };
 }

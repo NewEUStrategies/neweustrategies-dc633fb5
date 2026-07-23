@@ -24,6 +24,8 @@ import { DemoBotListItem } from "@/components/chat/DemoBotListItem";
 import { GroupCreateDialog } from "@/components/chat/GroupCreateDialog";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
 import { NotificationsCenter } from "@/components/notifications/NotificationsCenter";
+import { CommunityDisabled } from "@/components/community/CommunityDisabled";
+import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useAuth } from "@/hooks/useAuth";
 import { conversationDisplay, isGroupView } from "@/lib/chat/display";
 import { useNicknames } from "@/lib/chat/nicknames";
@@ -93,8 +95,14 @@ function MessagesInner() {
   const { user } = useAuth();
   const { c, view } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const activeView: MessagesView =
+  // Gdy admin wylaczyl modul „Chat", trasa /messages nadal hostuje powiadomienia
+  // i zgody, ale zakladka czatu jest ukryta, a widok „chats" (takze domyslny)
+  // przekierowuje na powiadomienia - inaczej czat dzialalby przez bezposredni URL.
+  const chatEnabled = useCommunityModules().chat_enabled;
+  const resolvedView: MessagesView =
     view === "notifications" ? "notifications" : view === "consents" ? "consents" : "chats";
+  const activeView: MessagesView =
+    !chatEnabled && resolvedView === "chats" ? "notifications" : resolvedView;
   const unreadNotifQ = useUnreadCount();
   const unreadNotif = unreadNotifQ.data ?? 0;
 
@@ -193,7 +201,16 @@ function MessagesInner() {
     icon: typeof MessagesSquare;
     badge?: number;
   }> = [
-    { id: "chats", label: t("chat.messages"), icon: MessagesSquare, badge: unreadTotal },
+    ...(chatEnabled
+      ? [
+          {
+            id: "chats" as const,
+            label: t("chat.messages"),
+            icon: MessagesSquare,
+            badge: unreadTotal,
+          },
+        ]
+      : []),
     {
       id: "notifications",
       label: t("notifications.title", { defaultValue: "Powiadomienia" }),
@@ -250,6 +267,10 @@ function MessagesInner() {
         ) : activeView === "consents" ? (
           <div className="w-full min-w-0">
             <NotificationsCenter mode="consents" />
+          </div>
+        ) : !chatEnabled ? (
+          <div className="w-full min-w-0">
+            <CommunityDisabled />
           </div>
         ) : (
           <>

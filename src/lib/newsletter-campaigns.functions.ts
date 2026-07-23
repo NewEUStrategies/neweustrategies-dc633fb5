@@ -655,16 +655,18 @@ async function runCampaignSend(
     // wywołanie - blok "najnowsze wpisy" jest świeży w momencie WYSYŁKI, nie
     // zapisu. Per odbiorca zostaje tylko personalizacja zmiennych + tracking
     // (renderCampaignHtml niżej, wspólny z trybem html).
+    // Absolutny origin jest wymagany dla KAZDEGO trybu (doc i html): bez niego
+    // stopka "Wypisz sie" i naglowki RFC-8058 (List-Unsubscribe) nie zostana
+    // doklejone (patrz nizej: unsubscribeUrl wymaga origin), wiec mail wyszedlby
+    // bez mechanizmu wypisu (naruszenie prawne + ryzyko blacklisty domeny).
+    // Zatrzymujemy kampanie z czytelnym bledem (markFailed w catch) zamiast
+    // wysylac niezgodne maile. Wczesniej ten guard obejmowal tylko tryb doc.
+    if (!origin) throw new Error("missing_site_origin");
     let docHtmlPl = camp.html_pl;
     let docHtmlEn = camp.html_en;
     if (camp.editor === "doc") {
       const doc = parseEmailDoc(camp.content_doc);
       if (!doc) throw new Error("invalid_content_doc");
-      // Bez absolutnego origin blok "najnowsze wpisy" dałby względne (martwe)
-      // linki, a stopka "Wypisz się" i tak nie zostałaby doklejona - nie
-      // wysyłamy niezgodnych z RFC-8058 maili, tylko zatrzymujemy kampanię
-      // (markFailed w catch) z czytelnym błędem operacyjnym.
-      if (!origin) throw new Error("missing_site_origin");
       const rows = await fetchEmailDocPostRows(admin as unknown as EmailDocDbClient, tenantId, doc);
       docHtmlPl = renderEmailHtml(doc, "pl", { postsByBlock: postRefsForLang(rows, origin, "pl") });
       docHtmlEn = renderEmailHtml(doc, "en", { postsByBlock: postRefsForLang(rows, origin, "en") });

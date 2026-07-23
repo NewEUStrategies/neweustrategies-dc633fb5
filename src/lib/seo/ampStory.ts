@@ -49,14 +49,26 @@ export function safeCssColor(value: string | null | undefined): string {
   return /^[#a-zA-Z0-9(),.%\s-]{1,64}$/.test(s) ? s : "transparent";
 }
 
-/** Poster pionowy jest w AMP wymagany: okładka, a w razie braku pierwsze medium. */
+/**
+ * Poster pionowy jest w AMP wymagany i MUSI byc OBRAZEM. Kolejnosc: okladka,
+ * potem pierwsza strona dajaca obraz. Dla strony `image` to media_url, dla
+ * strony `video` to poster_url (URL pliku wideo NIE jest waznym posterem -
+ * amp-story wymaga obrazu, wiec strona wideo bez postera jest pomijana).
+ */
 export function resolvePosterPortrait(input: AmpStoryInput): string {
   const cover = input.story.cover_url?.trim();
   if (cover) return cover;
-  const firstMedia = input.story.pages.find(
-    (p) => p.background !== "color" && p.media_url.trim() !== "",
-  );
-  return firstMedia?.media_url.trim() ?? "";
+  for (const p of input.story.pages) {
+    if (p.background === "color") continue;
+    if (p.background === "video") {
+      const poster = p.poster_url.trim();
+      if (poster) return poster;
+      continue;
+    }
+    const media = p.media_url.trim();
+    if (media) return media;
+  }
+  return "";
 }
 
 /**
