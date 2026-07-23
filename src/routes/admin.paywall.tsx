@@ -472,7 +472,7 @@ function PaywallAdmin() {
 // i grup pól. Nie eksportowane, bo nigdzie indziej nie mają sensu.
 // ---------------------------------------------------------------------------
 
-type IconType = typeof Layers;
+type IconType = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
 function KpiTile({ icon: Icon, label, value }: { icon: IconType; label: string; value: string }) {
   return (
