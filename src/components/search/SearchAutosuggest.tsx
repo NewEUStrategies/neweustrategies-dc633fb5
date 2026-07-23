@@ -138,7 +138,7 @@ export function SearchAutosuggest({
                   e.preventDefault();
                   setTab(k);
                 }}
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium leading-none transition-all ${
+                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium leading-none transition-all ${
                   isActive
                     ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
                     : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
@@ -146,7 +146,7 @@ export function SearchAutosuggest({
               >
                 {tLabel}
                 <span
-                  className={`inline-flex min-w-[16px] items-center justify-center rounded px-1 text-[9px] font-semibold tabular-nums ${
+                  className={`inline-flex min-w-[14px] items-center justify-center rounded px-1 text-[8px] font-semibold tabular-nums ${
                     isActive
                       ? "bg-[color-mix(in_oklab,var(--brand)_16%,transparent)] text-[var(--brand-ink)]"
                       : "bg-muted/60 text-muted-foreground/80"
