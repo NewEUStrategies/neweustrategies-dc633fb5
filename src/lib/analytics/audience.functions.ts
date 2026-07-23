@@ -152,6 +152,7 @@ export const getAudienceSegments = createServerFn({ method: "POST" })
       const { data: posts } = await supabaseAdmin
         .from("posts")
         .select("id, title_pl, title_en, slug")
+        .eq("tenant_id", tenantId)
         .in("id", [...topIds]);
       (posts ?? []).forEach((p) => {
         titles.set(p.id, {

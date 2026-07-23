@@ -1,25 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
-import { useIsFetching, useIsMutating } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 /**
- * Slim top-of-viewport progress bar that visualises any in-flight work:
- *  - route navigation / loaders (TanStack Router)
- *  - query fetching (TanStack Query)
- *  - mutations (TanStack Query)
+ * Slim top-of-viewport progress bar that visualises route NAVIGATION only
+ * (TanStack Router loaders / transitions).
+ *
+ * Celowo NIE reaguje na useIsFetching()/useIsMutating(): wpis po hydratacji
+ * odpala wiele tlowych zapytan (meta, metering, related, komentarze), przez co
+ * pasek pelznie do 90% i „udaje ladowanie", gdy artykul jest juz w pelni
+ * czytelny - mylacy sygnal wydajnosci. Feedback dla mutacji/zapisow zapewniaja
+ * stany przyciskow na poziomie komponentow.
  *
  * Renders a 2px GPU-accelerated bar that fades in after a short delay so
- * fast sub-200ms transitions never flash, then crawls toward 90% while work
- * is pending and snaps to 100% + fades out on completion.
+ * fast sub-200ms transitions never flash, then crawls toward 90% while a
+ * navigation is pending and snaps to 100% + fades out on completion.
  */
 export function RouteProgress() {
-  const routerBusy = useRouterState({
+  const busy = useRouterState({
     select: (s) => s.isLoading || s.isTransitioning,
   });
-  const fetching = useIsFetching();
-  const mutating = useIsMutating();
-  const busy = routerBusy || fetching > 0 || mutating > 0;
   const { t } = useTranslation();
 
   const [progress, setProgress] = useState(0);
@@ -101,7 +101,7 @@ export function RouteProgress() {
           to screen readers via a polite live region. Only route transitions
           (not every background query) are announced, to avoid chatter. */}
       <div role="status" aria-live="polite" className="sr-only">
-        {routerBusy ? t("common.loading", { defaultValue: "Ładowanie…" }) : ""}
+        {busy ? t("common.loading", { defaultValue: "Ładowanie…" }) : ""}
       </div>
     </>
   );
