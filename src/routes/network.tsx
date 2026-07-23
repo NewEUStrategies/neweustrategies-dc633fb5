@@ -499,7 +499,7 @@ function SuggestionsTab() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">{t("network.suggestionsHint")}</p>
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((s: ConnectionSuggestionRow) => (
           <PersonRow
             key={s.user_id}
