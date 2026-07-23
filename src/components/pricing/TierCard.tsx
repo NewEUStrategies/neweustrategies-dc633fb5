@@ -26,7 +26,6 @@ import {
 import { TierBenefitList } from "./TierBenefitList";
 import { trackCta } from "@/lib/analytics/track";
 
-
 function intervalSuffix(interval: AccessPlan["interval"], t: (key: string) => string): string {
   switch (interval) {
     case "day":
@@ -222,7 +221,6 @@ function TierCardCta({
     return null;
   }
 
-
   // Tryb 'contact': cena moze byc widoczna (np. per miejsce), ale zakup idzie
   // przez rozmowe - checkout pojedynczego miejsca bylby nieuczciwy.
   if (mode === "contact") {
@@ -304,7 +302,6 @@ function TierCardCta({
     );
   }
 
-
   // Warstwa bez planu w sprzedaży samoobsługowej.
   if (tier.key === "supporter") {
     return (
@@ -334,17 +331,12 @@ function TierCardCta({
     );
   }
   return (
-    <Button
-      className={ctaClass}
-      variant={variant}
-      onClick={() => onContact(tier)}
-    >
+    <Button className={ctaClass} variant={variant} onClick={() => onContact(tier)}>
       <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
       {t("pricing.contactCta")}
     </Button>
   );
 }
-
 
 export function TierCard({
   tier,

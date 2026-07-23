@@ -45,6 +45,7 @@ import {
 } from "@/lib/billing/tiers";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
 import { TierFeatureTogglesEditor } from "@/components/admin/pricing/TierFeatureTogglesEditor";
+import { ConfluenceReconciliationCard } from "@/components/admin/pricing/ConfluenceReconciliationCard";
 import {
   fetchMembershipGrants,
   grantMembership,
@@ -408,6 +409,9 @@ function AdminMembershipPage() {
           </Link>
         </Button>
       </section>
+
+      {/* Referencja tylko dla zespołu: uzgodnienie z modelem Confluence. */}
+      <ConfluenceReconciliationCard lang={lang} />
     </div>
   );
 }
