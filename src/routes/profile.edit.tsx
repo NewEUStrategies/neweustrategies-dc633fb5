@@ -9,8 +9,6 @@
 // wskazują konkretny widok.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ShieldAlert } from "lucide-react";
-import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AccountIdentityPanel } from "@/components/profile/identity/AccountIdentityPanel";
@@ -46,8 +44,15 @@ function ProfileEditPage() {
   const { user, roles, tenantId, loading } = useAuth();
   const { tab } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const activeTab: IdentityTab = tab ?? "basic";
   const showExpert = isAuthorRole(roles);
+  // Bramka: zakładka "Profil eksperta" jest widoczna tylko dla użytkowników
+  // z rolą autora/admina. Rola autorska nadawana jest przez admina, przy
+  // tworzeniu konta (mode/role="author" w user_invitations) lub po akceptacji
+  // zaproszenia mailowego/linkiem. Jeśli ktoś wymusi ?tab=expert bez roli -
+  // przenosimy na "basic", żeby nie serwować pustego, zablokowanego panelu.
+  const requestedExpert = tab === "expert";
+  const activeTab: IdentityTab =
+    requestedExpert && !showExpert ? "basic" : (tab ?? "basic");
 
   if (loading || !user) return null;
 
@@ -75,9 +80,11 @@ function ProfileEditPage() {
           <TabsTrigger value="basic">
             {t("profile.edit.tabs.basic", { defaultValue: "Dane podstawowe" })}
           </TabsTrigger>
-          <TabsTrigger value="expert">
-            {t("profile.edit.tabs.expert", { defaultValue: "Profil eksperta" })}
-          </TabsTrigger>
+          {showExpert && (
+            <TabsTrigger value="expert">
+              {t("profile.edit.tabs.expert", { defaultValue: "Profil eksperta" })}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="social">
             {t("profile.edit.tabs.social", { defaultValue: "Social i bio" })}
           </TabsTrigger>
@@ -85,8 +92,8 @@ function ProfileEditPage() {
         <TabsContent value="basic" className="mt-4">
           <AccountIdentityPanel />
         </TabsContent>
-        <TabsContent value="expert" className="mt-4">
-          {showExpert ? (
+        {showExpert && (
+          <TabsContent value="expert" className="mt-4">
             <Card>
               <CardHeader>
                 <CardTitle>
@@ -103,30 +110,8 @@ function ProfileEditPage() {
                 <AuthorProfileEditor userId={user.id} tenantId={tenantId} mode="self" />
               </CardContent>
             </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BrandIcon
-                    name="shield-alert"
-                    fallback={ShieldAlert}
-                    className="h-5 w-5 text-muted-foreground"
-                    alt=""
-                  />
-                  {t("profile.author.title", { defaultValue: "Profil eksperta" })}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  {t("profile.author.noRole", {
-                    defaultValue:
-                      "Profil eksperta jest dostępny tylko dla użytkowników z rolą autora lub administratora.",
-                  })}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+          </TabsContent>
+        )}
         <TabsContent value="social" className="mt-4">
           <SocialIdentityPanel />
         </TabsContent>
@@ -134,3 +119,4 @@ function ProfileEditPage() {
     </div>
   );
 }
+
