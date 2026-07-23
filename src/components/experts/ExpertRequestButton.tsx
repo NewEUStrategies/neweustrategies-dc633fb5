@@ -43,7 +43,10 @@ export function ExpertRequestButton({
   // Progi bezpośrednie piszą zwykłą wiadomością (ConnectButton) - bez zapytania.
   if (quota?.direct) return null;
 
-  const hasAllowance = !!quota && quota.quota > 0;
+  // Sentinel puli „nieograniczonej" (RPC zwraca duże liczby dla VIP+/ekspertów).
+  const UNLIMITED_THRESHOLD = 1000;
+  const isUnlimited = !!quota && quota.quota >= UNLIMITED_THRESHOLD;
+  const hasAllowance = !!quota && quota.quota > 0 && !isUnlimited;
   const exhausted = hasAllowance && quota.remaining <= 0;
 
   return (
