@@ -276,6 +276,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       <div className="flex flex-wrap items-center gap-1">
         <span
           data-typography-exempt
+          style={{ fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
           className="mr-1 !text-[9px] !leading-[12px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
         >
           {t("search.widget.operators", { defaultValue: "Operatory" }) as string}
@@ -289,7 +290,8 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               e.preventDefault();
               insertOperator(ins, caret);
             }}
-            className="inline-flex items-center rounded-[6px] border border-border/60 bg-background px-1 py-px font-brand !text-[9px] !leading-[12px] font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+            style={{ fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
+            className="inline-flex items-center rounded-[6px] border border-border/60 bg-background px-1 py-px !text-[9px] !leading-[12px] font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
           >
             {op}
           </button>
