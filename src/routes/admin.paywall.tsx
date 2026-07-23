@@ -31,6 +31,9 @@ import {
 import { CHECKOUT_SETTINGS_QUERY_KEY, useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import type { CheckoutSettings } from "@/lib/billing/checkoutSettings";
 import { Plus, Trash2 as Trash } from "@/lib/lucide-shim";
+import { Layers, Gauge, SlidersHorizontal, CreditCard, Sparkles } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/paywall")({ component: PaywallAdmin });
