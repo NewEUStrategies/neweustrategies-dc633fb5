@@ -582,7 +582,15 @@ function NetworkInner() {
   );
 
   return (
-    <div className="container mx-auto max-w-5xl px-3 py-5 sm:px-4 sm:py-6">
+    <div className="container mx-auto max-w-7xl px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mb-3">
+        <Button asChild variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground">
+          <Link to="/profile">
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+            {t("network.backToProfile", { defaultValue: "Wróć do mojego profilu" })}
+          </Link>
+        </Button>
+      </div>
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">
@@ -598,6 +606,7 @@ function NetworkInner() {
           </Link>
         </Button>
       </header>
+
 
       <Tabs
         value={active}
