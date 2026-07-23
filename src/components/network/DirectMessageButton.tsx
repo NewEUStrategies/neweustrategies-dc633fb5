@@ -34,7 +34,10 @@ export interface DirectMessageButtonProps {
   userId: string;
   displayName: string;
   displayAvatar?: string | null;
+  /** Kompaktowy przycisk h-8 (listy, kafelki wyszukiwarki). */
   compact?: boolean;
+  /** Tylko ikona - do wąskich pigułek i kart w gridzie. */
+  iconOnly?: boolean;
   className?: string;
 }
 
@@ -43,6 +46,7 @@ export function DirectMessageButton({
   displayName,
   displayAvatar,
   compact,
+  iconOnly,
   className,
 }: DirectMessageButtonProps) {
   const { t } = useTranslation();
@@ -62,7 +66,6 @@ export function DirectMessageButton({
   // Dopóki nie znamy warstwy, nie decydujemy - domyślnie zablokowane, żeby nie
   // migać "aktywne -> zablokowane" po rozstrzygnięciu warstwy.
   const locked = !canDm;
-  const size = compact ? "sm" : "default";
 
   const openChat = (): void => {
     startChat.mutate(
@@ -83,7 +86,11 @@ export function DirectMessageButton({
     );
   };
 
-  const handleClick = (): void => {
+  const handleClick = (e: React.MouseEvent): void => {
+    // W listach osoby często siedzą pod <Link>/<AppLink> - nie chcemy, żeby
+    // klik w przycisk otwierał profil.
+    e.preventDefault();
+    e.stopPropagation();
     if (locked) {
       setUpgradeOpen(true);
       return;
@@ -91,28 +98,35 @@ export function DirectMessageButton({
     openChat();
   };
 
+  const label = t("directMessage.button");
+  const aria = t("directMessage.ariaLabel", { name: displayName });
+  const title = locked ? t("directMessage.tooltipLocked") : t("directMessage.tooltipEnabled");
+  const Icon = locked ? Lock : MessageCircle;
+
   return (
     <>
       <Button
         type="button"
         variant={locked ? "outline" : "default"}
-        size={size}
+        size={iconOnly ? "icon" : compact ? "sm" : "default"}
         disabled={startChat.isPending}
         onClick={handleClick}
-        aria-label={t("directMessage.ariaLabel", { name: displayName })}
-        title={locked ? t("directMessage.tooltipLocked") : t("directMessage.tooltipEnabled")}
+        aria-label={aria}
+        title={title}
         className={cn(
           "gap-1.5 rounded-[6px]",
+          compact && !iconOnly && "h-8 px-2.5 text-xs",
+          iconOnly && "h-8 w-8",
           locked && "text-muted-foreground",
           className,
         )}
       >
-        {locked ? (
-          <Lock className="h-3.5 w-3.5" aria-hidden />
-        ) : (
-          <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+        <Icon className="h-3.5 w-3.5" aria-hidden />
+        {!iconOnly && (
+          <span className={cn(compact && "hidden sm:inline")}>{label}</span>
         )}
-        <span className={cn(compact && "hidden sm:inline")}>
+      </Button>
+
           {t("directMessage.button")}
         </span>
       </Button>
