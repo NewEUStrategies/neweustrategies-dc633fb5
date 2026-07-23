@@ -75,10 +75,8 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
     key: "chat_enabled",
     enforced: true,
     gate: "chat",
-    where_pl:
-      "Bramka rozpoczęcia rozmowy DM (get_or_create_direct_conversation) - Plus i wyżej.",
-    where_en:
-      "Gate for starting a DM (get_or_create_direct_conversation) - Plus and above.",
+    where_pl: "Bramka rozpoczęcia rozmowy DM (get_or_create_direct_conversation) - Plus i wyżej.",
+    where_en: "Gate for starting a DM (get_or_create_direct_conversation) - Plus and above.",
   },
   {
     key: "chat_direct_gated",
@@ -179,6 +177,24 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
     gate: "none",
     where_pl: "Brak bramki - aktualizacje wysyłane kanałem newslettera.",
     where_en: "No gate - updates sent via the newsletter channel.",
+  },
+  {
+    key: "expert_request",
+    enforced: false,
+    gate: "none",
+    where_pl:
+      "Zapytanie do eksperta: flaga konfigurowana w panelu (per tenant, membership_tiers.features), widoczna w macierzy i profilu; zgłoszenie obsługuje redakcja poza aplikacją (brak twardej bramki).",
+    where_en:
+      "Expert request: a flag configured in the panel (per tenant, membership_tiers.features), shown in the matrix and profile; requests handled editorially off-app (no hard gate).",
+  },
+  {
+    key: "gift_links",
+    enforced: true,
+    gate: "content",
+    where_pl:
+      "Tworzenie linków podarunkowych do analiz (can_gift_articles / create_gift_link) - dostępne od Pro w górę.",
+    where_en:
+      "Creating gift links to analyses (can_gift_articles / create_gift_link) - available from Pro upwards.",
   },
 ] as const;
 
