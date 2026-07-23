@@ -8,7 +8,7 @@
 // - Aktywny (Plus/Pro/VIP+): startuje rozmowę i otwiera dock czatu. Gdy DB
 //   sygnalizuje "chat: expert requires request", `useStartConversation`
 //   otwiera globalny ExpertRequestDialog przez bus - tu tylko wyciszamy toast.
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { Check, Lock, MessageCircle } from "lucide-react";
