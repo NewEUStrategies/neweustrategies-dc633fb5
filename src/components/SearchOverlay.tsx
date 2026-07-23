@@ -206,13 +206,13 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           </ul>
         </div>
       ) : showEmpty ? (
-        <div role="status" className="px-4 py-8 text-center text-[12px] text-muted-foreground">
+        <div role="status" className="px-4 py-8 text-center text-[10px] text-muted-foreground">
           {t("searchOverlay.noResults")}
         </div>
       ) : recent.length > 0 ? (
         <div className="py-1">
           <div className="flex items-center justify-between px-3 pt-2 pb-1">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <Clock className="h-3 w-3" aria-hidden />
               {t("search.recent", { defaultValue: "Ostatnie wyszukiwania" }) as string}
             </span>
@@ -222,7 +222,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
                 clearRecentSearches();
                 setRecent([]);
               }}
-              className="text-[10px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
+              className="text-[9px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
             >
               {t("search.recent_clear", { defaultValue: "Wyczyść" }) as string}
             </button>
@@ -246,7 +246,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-md bg-muted/50">
             <Search className="h-4 w-4 text-muted-foreground" />
           </div>
-          <p className="text-[12px] text-muted-foreground">{t("searchOverlay.startTyping")}</p>
+          <p className="text-[10px] text-muted-foreground">{t("searchOverlay.startTyping")}</p>
         </div>
       )}
 
