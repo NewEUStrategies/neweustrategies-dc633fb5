@@ -574,7 +574,7 @@ const en: typeof pl = {
       orders: "Payment history",
       security: "Security",
       privacy: "Privacy",
-      inmails: "InMails",
+      inmails: "Expert Requests",
     },
     navGroups: {
       identity: "Identity",
