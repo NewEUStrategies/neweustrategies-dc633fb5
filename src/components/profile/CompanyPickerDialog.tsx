@@ -245,7 +245,7 @@ export function CompanyPickerDialog({
           <div className="flex flex-col">
             <div className="px-5 py-3 border-b border-border">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   ref={inputRef}
                   value={query}
@@ -253,7 +253,7 @@ export function CompanyPickerDialog({
                   placeholder={t("company.searchPh", {
                     defaultValue: "np. New European Strategies",
                   })}
-                  className="h-9 pl-8 text-[13px] rounded-md"
+                  className="h-9 pl-10 text-[13px] rounded-md"
                   autoComplete="off"
                 />
               </div>
