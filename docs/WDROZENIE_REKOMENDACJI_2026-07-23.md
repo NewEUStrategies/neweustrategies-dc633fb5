@@ -53,6 +53,13 @@
 | P1 `RouteProgress` mylący | `RouteProgress.tsx` - tylko nawigacja routera |
 | P2 filtr tenanta top-postów | `audience.functions.ts` - `.eq("tenant_id", ...)` |
 
+## WDROŻONE - Fala 5: niezawodność + zielony zestaw testów
+
+| Rek. | Wdrożenie |
+|------|-----------|
+| P1 budżet czasu `jobs-tick` | `jobsTick.server.ts` - globalny deadline 25 s (`runJobStep`): kosztowne joby sieciowe pomijane przy wyczerpaniu budżetu (idempotentne, wracają w kolejnym ticku), zamiast zabicia ticku w połowie |
+| Naprawa wszystkich failujących testów | 2463 pass / 0 fail: `SearchAutosuggest`, `SearchButtonWidget`, `PeopleOrgResults` (pre-existing z maina - zmiana `suggestionHref`/react-query) + `observability/index.test` (nowy kontrakt teardown `initWebVitals`) |
+
 ## Weryfikacje-korekty audytu (bez zmian w kodzie)
 
 - **`eu_policy_positions` (P1 „do weryfikacji") - FAŁSZYWY ALARM.** Polityka RLS
@@ -75,7 +82,9 @@ należy wykonać ostrożnie (z pełnym pokryciem testami), by nie ryzykować reg
 - **Newsletter: rozdzielenie tokenu trackingu od tokenu wypisu** (HMAC per kampania) -
   zmiana w confirm/unsubscribe/tracking + generacji linków.
 - **Newsletter: paginacja audytorium/loga** w `runCampaignSend` (kursor po id/email).
-- **`jobs-tick`: globalny budżet czasu** + zrównoleglenie `Promise.allSettled` per-job.
+- **`jobs-tick`: zrównoleglenie `Promise.allSettled` + per-job timeout** oraz
+  wewnętrzny sub-budżet dla `runIntegrationDispatch` (globalny deadline już wdrożony
+  - fala 5; pozostaje granularne zrównoleglenie i twardy limit pojedynczego joba).
 - **Spójność waluty audytu kuponu EUR** (`checkout.functions.ts` / `redeem_b2b_coupon`).
 - **Moderacja: akcje masowe** (komentarze/czat) + **akcje na sprawcy** ze zgłoszenia.
 - **Unifikacja „zapisanych"** (`/reading-list` gubi zapisane strony) - dodać strony.
