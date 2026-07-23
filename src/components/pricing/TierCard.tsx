@@ -10,12 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { type AccessPlan } from "@/lib/billing/types";
-import { formatApproxDisplayMoney, formatDisplayMoney } from "@/lib/billing/displayCurrency";
+import { formatDisplayMoney } from "@/lib/billing/displayCurrency";
 
 import { parseTierBenefits, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 import {
   intervalPair,
-  monthlyEquivalentCents,
   pickPlanForInterval,
   tierBadge,
   tierCtaMode,
@@ -104,34 +103,27 @@ function PriceBlock({
   const perSeatSuffix = tier.per_seat ? ` ${t("pricing.perSeat")}` : "";
 
   if (plan.interval === "year") {
-    const monthlyEq = monthlyEquivalentCents(plan);
     const pair = intervalPair(plans);
     const savings = yearlySavingsPct(pair.month, pair.year);
-    // Kotwica: czysta równowartość miesięczna („≈49 zł/mies") zamiast
-    // przypadkowo wyglądającego ułamka („49,17 zł"). Dokładna cena roczna
-    // zostaje w linii „rozliczane rocznie" niżej - nic nie jest zmyślone.
+    // Konkretna kwota - dokładnie ta, którą pobiera Stripe i widzi admin.
+    // Bez „≈"/kotwic wprowadzających w błąd: cena roczna jest jedynym źródłem prawdy.
     return (
       <div className="pt-4">
         {fromPrefix}
         <span className="text-4xl font-bold tracking-tight">
-          {monthlyEq !== null
-            ? `≈${formatApproxDisplayMoney(monthlyEq, plan.currency, lang)}`
-            : fmt(plan.price_cents, plan.currency, lang)}
+          {fmt(plan.price_cents, plan.currency, lang)}
         </span>
         <span className="ml-1 text-sm text-muted-foreground">
-          {t("pricing.perMonth")}
+          {t("pricing.perYear")}
           {perSeatSuffix}
         </span>
-        <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {t("pricing.billedYearly", {
-            amount: fmt(plan.price_cents, plan.currency, lang),
-          })}
-          {savings !== null && (
+        {savings !== null && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">
               {t("pricing.savePct", { pct: savings })}
             </span>
-          )}
-        </p>
+          </p>
+        )}
         {noteLine}
       </div>
     );
