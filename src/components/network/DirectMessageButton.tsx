@@ -23,6 +23,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentTier, tierHasFeature } from "@/lib/billing/tiers";
 import { useStartConversation } from "@/lib/chat/useConversations";
@@ -30,6 +36,7 @@ import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-direct-message";
+
 
 export interface DirectMessageButtonProps {
   userId: string;
@@ -116,45 +123,45 @@ export function DirectMessageButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant={locked || iconOnly ? "outline" : "default"}
-        size={iconOnly ? "icon" : compact ? "sm" : "default"}
-        disabled={isBusy}
-        aria-busy={isBusy}
-        aria-disabled={isBusy}
-        data-loading={isBusy ? "true" : undefined}
-        onClick={handleClick}
-        aria-label={aria}
-        title={title}
-        className={cn(
-          "gap-1.5 rounded-[6px]",
-          compact && !iconOnly && "h-8 px-2.5 text-xs",
-          iconOnly && "h-8 w-8 shrink-0 transition-colors [&_svg]:transition-colors",
-          iconOnly && !locked && !isBusy && "hover:bg-brand/10 hover:text-brand hover:border-brand/40",
-          iconOnly && locked && "hover:bg-muted/60",
-          locked && !isBusy && "text-muted-foreground",
-          isBusy && "cursor-wait opacity-80",
-          className,
-        )}
-      >
-        <Icon
-          className={cn("h-3.5 w-3.5", isBusy && "animate-spin")}
-          aria-hidden
-        />
-        {!iconOnly && (
-          <span className={cn(compact && "hidden sm:inline")}>{label}</span>
-        )}
-        {iconOnly && isBusy && (
-          <span className="sr-only">{t("directMessage.opening")}</span>
-        )}
-      </Button>
-
-
-
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled={isBusy}
+              aria-busy={isBusy}
+              aria-disabled={isBusy}
+              data-loading={isBusy ? "true" : undefined}
+              onClick={handleClick}
+              aria-label={aria}
+              className={cn(
+                "rounded-[6px] shrink-0 transition-colors",
+                compact ? "h-8 w-8" : "h-9 w-9",
+                !locked && !isBusy &&
+                  "hover:bg-brand/10 hover:text-brand hover:border-brand/40",
+                locked && !isBusy && "text-muted-foreground hover:bg-muted/60",
+                isBusy && "cursor-wait opacity-80",
+                className,
+              )}
+            >
+              <Icon
+                className={cn("h-4 w-4", isBusy && "animate-spin")}
+                aria-hidden
+              />
+              <span className="sr-only">{label}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={6}>
+            {title}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       <Dialog open={upgradeOpen} onOpenChange={setUpgradeOpen}>
         <DialogContent className="sm:max-w-md">
+
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageCircleMore
