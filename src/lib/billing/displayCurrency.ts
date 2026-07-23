@@ -28,6 +28,30 @@ export function convertToDisplayCurrency(
   return { cents, currency: src as DisplayCurrency };
 }
 
+/**
+ * Przelicza kwoty audytu kuponu (oryginał + kwota finalna) do waluty
+ * prezentacji z parytetem 1 EUR = 2 PLN. RABAT wyprowadzamy z RÓŻNICY
+ * przeliczonych kwot, więc niezmiennik `original = final + discount` trzyma się
+ * DOKŁADNIE w walucie docelowej (bez dryfu zaokrągleń między osobno
+ * konwertowanymi wartościami). Wszystkie zwrócone kwoty są w `currency`, więc
+ * zapis redemption i metadane zamówienia są spójne walutowo.
+ */
+export function couponAuditInDisplayCurrency(
+  originalCents: number,
+  finalCents: number,
+  fromCurrency: string,
+  target: DisplayCurrency,
+): { originalCents: number; finalCents: number; discountCents: number; currency: DisplayCurrency } {
+  const o = convertToDisplayCurrency(originalCents, fromCurrency, target);
+  const f = convertToDisplayCurrency(finalCents, fromCurrency, target);
+  return {
+    originalCents: o.cents,
+    finalCents: f.cents,
+    discountCents: Math.max(0, o.cents - f.cents),
+    currency: f.currency,
+  };
+}
+
 /** Skrót: konwersja + formatowanie w jednej wywołce. */
 export function formatDisplayMoney(cents: number, currency: string, lang: string): string {
   const d = convertToDisplayCurrency(cents, currency, displayCurrencyForLang(lang));
