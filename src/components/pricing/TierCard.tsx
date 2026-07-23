@@ -4,7 +4,7 @@
 // bezpłatna), wsparcie fundacji albo rozmowa z zespołem (oferty offline).
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { HandHeart, MessageCircle } from "lucide-react";
+import { Check, HandHeart, MessageCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -371,10 +371,16 @@ export function TierCard({
   const highlightSet = new Set((highlights ?? []).map((b) => norm(benefitText(b, lang))));
   const restBenefits = allBenefits.filter((b) => !highlightSet.has(norm(benefitText(b, lang))));
 
+  // Ograniczenie listy „pozostałych" benefitów pod spotlight'em - dokładnie
+  // 4 dodatkowe pozycje, żeby każda karta powyżej Essential miała identyczną
+  // strukturę (3 wyróżnienia + 4 kolejne elementy).
+  const restCap = highlights && highlights.length > 0 ? 4 : 8;
+  const restCapped = restBenefits.slice(0, restCap);
+
   return (
     <Card
       className={cn(
-        "relative flex flex-col rounded-[6px] transition-shadow",
+        "relative flex h-full flex-col rounded-[6px] transition-shadow",
         tier.highlight
           ? "border-brand ring-2 ring-brand/40 shadow-[0_10px_40px_-12px_color-mix(in_oklab,var(--brand)_35%,transparent)]"
           : "border-border/60",
@@ -405,15 +411,23 @@ export function TierCard({
             </span>
           ) : null}
         </div>
-        {description && (
-          <p className="mt-1.5 text-sm leading-snug text-muted-foreground">{description}</p>
-        )}
-        <PriceBlock tier={tier} plans={plans} interval={interval} lang={lang} />
-        {plan && plan.trial_days > 0 && (
-          <p className="mt-1 text-xs text-primary">
-            {t("pricing.trial", { days: plan.trial_days })}
-          </p>
-        )}
+        {/* min-h wyrównuje opis między kartami, żeby cena zaczynała się na tej
+            samej wysokości niezależnie od długości podpisu warstwy. */}
+        <div className="min-h-[3.25rem]">
+          {description && (
+            <p className="mt-1.5 text-sm leading-snug text-muted-foreground">{description}</p>
+          )}
+        </div>
+        {/* Stała wysokość bloku ceny -> CTA startuje na tej samej linii we
+            wszystkich kartach (Bezpłatnie / kwota / Oferta na zapytanie). */}
+        <div className="min-h-[6rem]">
+          <PriceBlock tier={tier} plans={plans} interval={interval} lang={lang} />
+          {plan && plan.trial_days > 0 && (
+            <p className="mt-1 text-xs text-primary">
+              {t("pricing.trial", { days: plan.trial_days })}
+            </p>
+          )}
+        </div>
       </CardHeader>
       <CardFooter className="pb-3 pt-0">
         <TierCardCta
@@ -435,17 +449,14 @@ export function TierCard({
             <ul className="space-y-1">
               {highlights.map((benefit, i) => (
                 <li key={i} className="flex items-start gap-2 text-[13px] font-medium text-foreground">
-                  <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand"
-                    aria-hidden="true"
-                  />
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
                   <span>{benefitText(benefit, lang)}</span>
                 </li>
               ))}
             </ul>
           </div>
         )}
-        <TierBenefitList benefits={restBenefits} lang={lang} />
+        <TierBenefitList benefits={restCapped} lang={lang} />
       </CardContent>
     </Card>
   );

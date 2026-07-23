@@ -182,7 +182,7 @@ function PricingPage() {
     cardTiers.forEach((tier, index) => {
       map.set(
         tier.id,
-        index > 0 ? distinguishingBenefits(parsed[index], parsed[index - 1], lang) : [],
+        index > 0 ? distinguishingBenefits(parsed[index], parsed[index - 1], lang, 3) : [],
       );
     });
     return map;
