@@ -215,16 +215,16 @@ export function SearchAutosuggest({
               e.preventDefault();
               onSubmitPhrase(trimmed);
             }}
-            className="group flex w-full items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 text-[12px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
+            className="group flex w-full items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-[10px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
             style={{ color: "var(--brand)" }}
           >
             <span className="inline-flex items-center gap-1.5">
-              <SearchIcon className="h-3.5 w-3.5" aria-hidden />
+              <SearchIcon className="h-3 w-3" aria-hidden />
               {t("view_all", "Zobacz wszystkie wyniki dla")}
               <span className="font-bold">„{trimmed}"</span>
             </span>
             <ArrowRight
-              className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+              className="h-3 w-3 shrink-0 transition-transform group-hover:translate-x-0.5"
               aria-hidden
             />
           </button>
