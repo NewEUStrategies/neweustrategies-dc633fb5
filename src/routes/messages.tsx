@@ -1,7 +1,7 @@
 // Full Messages inbox (Messenger-style two-pane). Registered users only:
 // content is gated by AuthGate and the route is noindex + robots-disallowed,
 // so nothing here is visible to anonymous visitors or crawlers.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import {
