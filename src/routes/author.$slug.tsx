@@ -23,6 +23,7 @@ import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { RecommendationsSection } from "@/components/network/RecommendationsSection";
 import { FollowButton } from "@/components/FollowButton";
 import { ConnectButton } from "@/components/network/ConnectButton";
+import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
 import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
 import { ReportUserButton } from "@/components/network/ReportUserDialog";
