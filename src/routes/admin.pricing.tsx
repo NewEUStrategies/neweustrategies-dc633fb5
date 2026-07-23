@@ -16,15 +16,24 @@ import { toast } from "sonner";
 import {
   ArrowDown,
   ArrowUp,
+  Award,
   BadgePercent,
   Crown,
   HeartHandshake,
+  Layers,
   LayoutDashboard,
+  Link2,
+  ListChecks,
   Lock,
   Megaphone,
+  MessageSquare,
   Plus,
   Save,
+  Sparkles,
+  Star,
+  Tag,
   Trash2,
+  Users,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
