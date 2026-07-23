@@ -189,6 +189,37 @@ export function SearchButtonWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, liveResults]);
 
+  // Batch-fetch avatarów dla autorów w bieżącym zestawie podpowiedzi.
+  // Cache w stanie unika ponownych zapytań przy dopisywaniu do frazy.
+  useEffect(() => {
+    const ids = Array.from(
+      new Set(
+        items
+          .filter((it) => it.kind === "author" && it.id && !(it.id in authorAvatars))
+          .map((it) => it.id as string),
+      ),
+    );
+    if (ids.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("profiles_public")
+        .select("id, avatar_url")
+        .in("id", ids);
+      if (cancelled) return;
+      const next: Record<string, string | null> = {};
+      for (const id of ids) next[id] = null;
+      for (const row of (data ?? []) as { id: string; avatar_url: string | null }[]) {
+        next[row.id] = row.avatar_url ?? null;
+      }
+      setAuthorAvatars((prev) => ({ ...prev, ...next }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
+
   // Dyktowanie frazy: transkrypcja płynie do pola (live results reagują same
   // przez debounce wyżej); przy wyłączonych live results finał odpala search.
   const voice = useVoiceSearch({
