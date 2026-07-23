@@ -176,6 +176,7 @@ export async function sendWebPush(
 
   const res = await fetch(sub.endpoint, {
     method: "POST",
+    redirect: "manual",
     headers: {
       Authorization: `vapid t=${jwt}, k=${vapid.publicKey}`,
       "Content-Encoding": "aes128gcm",
@@ -185,6 +186,7 @@ export async function sendWebPush(
     },
     body: new Uint8Array(body),
   });
+
   // Treść odpowiedzi nie jest potrzebna; niektóre usługi wysyłają puste 201.
   await res.arrayBuffer().catch(() => undefined);
 
