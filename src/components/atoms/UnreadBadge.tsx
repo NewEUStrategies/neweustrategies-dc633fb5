@@ -1,4 +1,5 @@
 // Atom: compact unread counter for notification and chat surfaces.
+import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
