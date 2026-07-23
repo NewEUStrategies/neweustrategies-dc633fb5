@@ -168,7 +168,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             count={unread}
             variant="alert"
             size="sm"
-            className="absolute -top-1 -right-1"
+            className="absolute -top-1 -right-0.5 z-[100]"
           />
         </button>
       </PopoverTrigger>
