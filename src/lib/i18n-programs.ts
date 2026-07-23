@@ -46,7 +46,7 @@ export const programsPl = {
   // zostawal bez kluczy - pilnuje tego i18nSupportBundles.test.ts).
   adminPrograms: {
     title: "Landing programów badawczych",
-    subtitle: "Pełne strony programów (teza, zespół, projekty, partnerzy, kuratorowane treści).",
+    subtitle: "Pełne strony programów (teza, zespół, projekty, partnerzy, wybrane treści).",
     newProgram: "Nowy program",
     editProgram: "Edytuj program",
     empty: "Brak programów. Utwórz pierwszy.",
@@ -81,7 +81,7 @@ export const programsPl = {
       team: "Zespół",
       projects: "Projekty",
       partners: "Partnerzy",
-      curated: "Kuratorowane",
+      curated: "Wybrane",
     },
     members: {
       selectUser: "Wybierz użytkownika",
