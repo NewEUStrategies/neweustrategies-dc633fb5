@@ -9215,6 +9215,39 @@ export type Database = {
         }
         Relationships: []
       }
+      site_settings_revisions: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          id: string
+          key: string
+          note: string | null
+          operation: string
+          tenant_id: string
+          value: Json
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          key: string
+          note?: string | null
+          operation?: string
+          tenant_id: string
+          value: Json
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          key?: string
+          note?: string | null
+          operation?: string
+          tenant_id?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           created_at: string
