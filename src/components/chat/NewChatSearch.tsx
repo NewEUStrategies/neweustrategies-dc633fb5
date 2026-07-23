@@ -66,12 +66,12 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
                       onSuccess: (conversationId) => onOpened(conversationId),
                       onError: (err) => {
                         const msg = err instanceof Error ? err.message : "";
-                        // InMailDialog otwiera się z busa - nie duplikujemy toastem.
-                        if (msg.includes("chat: expert requires inmail")) return;
+                        // ExpertRequestDialog otwiera się z busa - nie duplikujemy toastem.
+                        if (msg.includes("chat: expert requires request")) return;
                         if (msg.includes("chat: tier disabled")) {
-                          toast.error(t("inmail.chatGate.tierDisabledToast"), {
+                          toast.error(t("expertRequest.chatGate.tierDisabledToast"), {
                             action: {
-                              label: t("inmail.chatGate.openPricing"),
+                              label: t("expertRequest.chatGate.openPricing"),
                               onClick: () => {
                                 window.location.href = "/pricing";
                               },

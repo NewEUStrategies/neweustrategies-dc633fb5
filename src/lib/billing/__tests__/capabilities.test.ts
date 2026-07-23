@@ -20,8 +20,6 @@ const EXPECTED_ENFORCED = [
   "qa_priority",
   "chat_enabled",
   "chat_direct_gated",
-  "chat_inmail_quota_2",
-  "chat_inmail_quota_5",
   "gift_links",
 ].sort();
 

@@ -134,6 +134,21 @@ export function tierHasFeature(features: Json, key: string): boolean {
   return (features as Record<string, unknown>)[key] === true;
 }
 
+/**
+ * Wartość liczbowa flagi features (np. `expert_request_quota`). Akceptuje liczbę
+ * lub numeryczny string (panel zapisuje features jako JSON); 0 gdy brak/niepoprawna.
+ */
+export function tierFeatureNumber(features: Json, key: string): number {
+  if (!features || typeof features !== "object" || Array.isArray(features)) return 0;
+  const raw = (features as Record<string, unknown>)[key];
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
 export async function fetchMembershipTiers(): Promise<MembershipTierRow[]> {
   const { data, error } = await supabase
     .from("membership_tiers")

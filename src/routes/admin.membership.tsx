@@ -45,6 +45,7 @@ import {
 } from "@/lib/billing/tiers";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
 import { TierFeatureTogglesEditor } from "@/components/admin/pricing/TierFeatureTogglesEditor";
+import { ExpertRequestQuotaEditor } from "@/components/admin/pricing/ExpertRequestQuotaEditor";
 import { ConfluenceReconciliationCard } from "@/components/admin/pricing/ConfluenceReconciliationCard";
 import {
   fetchMembershipGrants,
@@ -319,6 +320,10 @@ function AdminMembershipPage() {
                 <div className="space-y-1.5">
                   <Label className="text-xs">{tm("fields.featuresKnown")}</Label>
                   <TierFeatureTogglesEditor
+                    value={draft.features}
+                    onChange={(features) => set({ features })}
+                  />
+                  <ExpertRequestQuotaEditor
                     value={draft.features}
                     onChange={(features) => set({ features })}
                   />

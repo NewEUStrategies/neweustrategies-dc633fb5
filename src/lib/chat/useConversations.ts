@@ -233,9 +233,9 @@ export function usePeopleSearch(query: string, limit = 20): UseQueryResult<Perso
  * Open (or create) the direct conversation with a peer.
  *
  * Serwer bramkuje kontakt (sieć + tier + status ekspert):
- *  - `chat: expert requires inmail` -> otwieramy globalny InMailDialog
- *    (bus w `inmailDialogBus`) zamiast toastu; UI od razu wie, że użytkownik
- *    z tierem Plus musi wysłać sformalizowany inMail do eksperta.
+ *  - `chat: expert requires request` -> otwieramy globalny ExpertRequestDialog
+ *    (bus w `expertRequestDialogBus`) zamiast toastu; UI od razu wie, że
+ *    użytkownik z tierem Plus/Pro musi wysłać sformalizowane zapytanie do eksperta.
  *  - inne błędy propagujemy do callera (toast / komunikat kontekstowy).
  */
 export function useStartConversation() {
@@ -250,11 +250,11 @@ export function useStartConversation() {
         p_peer_id: peerId,
       });
       if (error) {
-        // Serwer sygnalizuje bramkę ekspertów: otwórz dialog inMail
-        // z prefillem odbiorcy zamiast pokazywać nagi błąd.
-        if ((error.message ?? "").includes("chat: expert requires inmail")) {
-          const { openInMailDialog } = await import("./inmailDialogBus");
-          openInMailDialog({
+        // Serwer sygnalizuje bramkę ekspertów: otwórz dialog „Zapytanie do
+        // eksperta" z prefillem odbiorcy zamiast pokazywać nagi błąd.
+        if ((error.message ?? "").includes("chat: expert requires request")) {
+          const { openExpertRequestDialog } = await import("./expertRequestDialogBus");
+          openExpertRequestDialog({
             recipientId: peerId,
             recipientName: typeof input === "string" ? null : (input.peerName ?? null),
             recipientAvatar: typeof input === "string" ? null : (input.peerAvatar ?? null),

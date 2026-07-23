@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Shield,
   Lock,
+  MessageSquareQuote,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
@@ -36,7 +37,7 @@ type NavKey =
   | "orders"
   | "security"
   | "privacy"
-  | "inmails";
+  | "expertRequests";
 
 type NavItem = {
   to: string;
@@ -62,7 +63,7 @@ const CONTENT: NavItem[] = [
   // Świadomie linkują POZA profil (sieć kontaktów i centrum wiadomości).
   { to: "/network", key: "network", icon: Users },
   { to: "/messages", search: { view: "notifications" }, key: "notifications", icon: Bell },
-  { to: "/profile/inmails", key: "inmails", icon: Bell },
+  { to: "/profile/expert-requests", key: "expertRequests", icon: MessageSquareQuote },
 ];
 
 const FINANCE: NavItem[] = [

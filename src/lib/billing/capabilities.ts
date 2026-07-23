@@ -83,23 +83,9 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
     enforced: true,
     gate: "chat",
     where_pl:
-      "Bezpośredni DM z ekspertami i VIP-ami bez inMail (VIP i wyżej). Bez tej flagi Plus/Pro wysyłają inMail.",
+      "Bezpośredni DM z ekspertami i VIP-ami bez zapytania (VIP i wyżej). Bez tej flagi Plus/Pro wysyłają zapytanie do eksperta (liczbę ustawia expert_request_quota).",
     where_en:
-      "Direct DM with experts and VIPs without inMail (VIP and above). Without it, Plus/Pro must send an inMail.",
-  },
-  {
-    key: "chat_inmail_quota_2",
-    enforced: true,
-    gate: "chat",
-    where_pl: "Kwota 2 inMaili miesięcznie (Plus).",
-    where_en: "Quota of 2 inMails per month (Plus).",
-  },
-  {
-    key: "chat_inmail_quota_5",
-    enforced: true,
-    gate: "chat",
-    where_pl: "Kwota 5 inMaili miesięcznie (Pro).",
-    where_en: "Quota of 5 inMails per month (Pro).",
+      "Direct DM with experts and VIPs without a request (VIP and above). Without it, Plus/Pro must send an expert request (count set by expert_request_quota).",
   },
   {
     key: "events_members",
@@ -177,15 +163,6 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
     gate: "none",
     where_pl: "Brak bramki - aktualizacje wysyłane kanałem newslettera.",
     where_en: "No gate - updates sent via the newsletter channel.",
-  },
-  {
-    key: "expert_request",
-    enforced: false,
-    gate: "none",
-    where_pl:
-      "Zapytanie do eksperta: flaga konfigurowana w panelu (per tenant, membership_tiers.features), widoczna w macierzy i profilu; zgłoszenie obsługuje redakcja poza aplikacją (brak twardej bramki).",
-    where_en:
-      "Expert request: a flag configured in the panel (per tenant, membership_tiers.features), shown in the matrix and profile; requests handled editorially off-app (no hard gate).",
   },
   {
     key: "gift_links",

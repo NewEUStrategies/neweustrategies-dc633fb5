@@ -26,6 +26,12 @@ const adminMembershipPl = {
       featuresHint:
         "Zielone flagi mają realną bramkę w systemie, szare są dziś deklaracją marketingową (najedź, aby zobaczyć punkt egzekwowania). Surowy JSON obsługuje flagi niestandardowe.",
     },
+    expertRequest: {
+      label: "Zapytania do eksperta - pula miesięczna",
+      unit: "zapytań / miesiąc",
+      directNote: "Warstwa pisze do ekspertów bezpośrednio (chat_direct_gated) - bez limitu.",
+      hint: "Miesięczna pula sformalizowanych zapytań do ekspertów i VIP-ów (0 = brak). Egzekwowana serwerowo per tenant przez send_expert_request; ta sama liczba pokazuje się w cenniku.",
+    },
     save: "Zapisz",
     toast: {
       tierSaved: "Zapisano warstwę",
@@ -109,6 +115,12 @@ const adminMembershipEn = {
       featuresKnown: "Flags from the capabilities registry (click to toggle)",
       featuresHint:
         "Green flags are enforced by a real gate in the system; grey ones are marketing-only today (hover to see the enforcement point). The raw JSON accepts custom flags.",
+    },
+    expertRequest: {
+      label: "Expert requests - monthly allowance",
+      unit: "requests / month",
+      directNote: "This tier messages experts directly (chat_direct_gated) - no limit.",
+      hint: "Monthly allowance of formal requests to experts and VIPs (0 = none). Enforced server-side per tenant by send_expert_request; the same number shows on the pricing page.",
     },
     save: "Save",
     toast: {

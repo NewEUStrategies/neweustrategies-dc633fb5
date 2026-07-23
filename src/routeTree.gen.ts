@@ -63,12 +63,12 @@ import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
 import { Route as AdminExpertLayoutsRouteImport } from './routes/admin.expert-layouts'
+import { Route as AdminExpertRequestsRouteImport } from './routes/admin.expert-requests'
 import { Route as AdminGiftingRouteImport } from './routes/admin.gifting'
 import { Route as AdminGlossaryRouteImport } from './routes/admin.glossary'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
-import { Route as AdminInmailsRouteImport } from './routes/admin.inmails'
 import { Route as AdminIntegrationsRouteImport } from './routes/admin.integrations'
 import { Route as AdminKeyTakeawaysRouteImport } from './routes/admin.key-takeaways'
 import { Route as AdminLibraryRouteImport } from './routes/admin.library'
@@ -129,8 +129,8 @@ import { Route as ProfileAuthorRouteImport } from './routes/profile.author'
 import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileBookmarksRouteImport } from './routes/profile.bookmarks'
 import { Route as ProfileEditRouteImport } from './routes/profile.edit'
+import { Route as ProfileExpertRequestsRouteImport } from './routes/profile.expert-requests'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
-import { Route as ProfileInmailsRouteImport } from './routes/profile.inmails'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
@@ -501,6 +501,11 @@ const AdminExpertLayoutsRoute = AdminExpertLayoutsRouteImport.update({
   path: '/expert-layouts',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminExpertRequestsRoute = AdminExpertRequestsRouteImport.update({
+  id: '/expert-requests',
+  path: '/expert-requests',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminGiftingRoute = AdminGiftingRouteImport.update({
   id: '/gifting',
   path: '/gifting',
@@ -524,11 +529,6 @@ const AdminIconsRoute = AdminIconsRouteImport.update({
 const AdminImportWordpressRoute = AdminImportWordpressRouteImport.update({
   id: '/import-wordpress',
   path: '/import-wordpress',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminInmailsRoute = AdminInmailsRouteImport.update({
-  id: '/inmails',
-  path: '/inmails',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminIntegrationsRoute = AdminIntegrationsRouteImport.update({
@@ -831,14 +831,14 @@ const ProfileEditRoute = ProfileEditRouteImport.update({
   path: '/edit',
   getParentRoute: () => ProfileRoute,
 } as any)
+const ProfileExpertRequestsRoute = ProfileExpertRequestsRouteImport.update({
+  id: '/expert-requests',
+  path: '/expert-requests',
+  getParentRoute: () => ProfileRoute,
+} as any)
 const ProfileFollowsRoute = ProfileFollowsRouteImport.update({
   id: '/follows',
   path: '/follows',
-  getParentRoute: () => ProfileRoute,
-} as any)
-const ProfileInmailsRoute = ProfileInmailsRouteImport.update({
-  id: '/inmails',
-  path: '/inmails',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileInterestsRoute = ProfileInterestsRouteImport.update({
@@ -1397,12 +1397,12 @@ export interface FileRoutesByFullPath {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
+  '/admin/expert-requests': typeof AdminExpertRequestsRoute
   '/admin/gifting': typeof AdminGiftingRoute
   '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
-  '/admin/inmails': typeof AdminInmailsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/library': typeof AdminLibraryRoute
@@ -1460,8 +1460,8 @@ export interface FileRoutesByFullPath {
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/edit': typeof ProfileEditRoute
+  '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
-  '/profile/inmails': typeof ProfileInmailsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -1612,12 +1612,12 @@ export interface FileRoutesByTo {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
+  '/admin/expert-requests': typeof AdminExpertRequestsRoute
   '/admin/gifting': typeof AdminGiftingRoute
   '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
-  '/admin/inmails': typeof AdminInmailsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/library': typeof AdminLibraryRoute
@@ -1672,8 +1672,8 @@ export interface FileRoutesByTo {
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/edit': typeof ProfileEditRoute
+  '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
-  '/profile/inmails': typeof ProfileInmailsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -1830,12 +1830,12 @@ export interface FileRoutesById {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
+  '/admin/expert-requests': typeof AdminExpertRequestsRoute
   '/admin/gifting': typeof AdminGiftingRoute
   '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
-  '/admin/inmails': typeof AdminInmailsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/key-takeaways': typeof AdminKeyTakeawaysRoute
   '/admin/library': typeof AdminLibraryRoute
@@ -1893,8 +1893,8 @@ export interface FileRoutesById {
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/edit': typeof ProfileEditRoute
+  '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
-  '/profile/inmails': typeof ProfileInmailsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -2053,12 +2053,12 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
+    | '/admin/expert-requests'
     | '/admin/gifting'
     | '/admin/glossary'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
-    | '/admin/inmails'
     | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/library'
@@ -2116,8 +2116,8 @@ export interface FileRouteTypes {
     | '/profile/billing'
     | '/profile/bookmarks'
     | '/profile/edit'
+    | '/profile/expert-requests'
     | '/profile/follows'
-    | '/profile/inmails'
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
@@ -2268,12 +2268,12 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
+    | '/admin/expert-requests'
     | '/admin/gifting'
     | '/admin/glossary'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
-    | '/admin/inmails'
     | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/library'
@@ -2328,8 +2328,8 @@ export interface FileRouteTypes {
     | '/profile/billing'
     | '/profile/bookmarks'
     | '/profile/edit'
+    | '/profile/expert-requests'
     | '/profile/follows'
-    | '/profile/inmails'
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
@@ -2485,12 +2485,12 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
+    | '/admin/expert-requests'
     | '/admin/gifting'
     | '/admin/glossary'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
-    | '/admin/inmails'
     | '/admin/integrations'
     | '/admin/key-takeaways'
     | '/admin/library'
@@ -2548,8 +2548,8 @@ export interface FileRouteTypes {
     | '/profile/billing'
     | '/profile/bookmarks'
     | '/profile/edit'
+    | '/profile/expert-requests'
     | '/profile/follows'
-    | '/profile/inmails'
     | '/profile/interests'
     | '/profile/membership'
     | '/profile/orders'
@@ -3111,6 +3111,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminExpertLayoutsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/expert-requests': {
+      id: '/admin/expert-requests'
+      path: '/expert-requests'
+      fullPath: '/admin/expert-requests'
+      preLoaderRoute: typeof AdminExpertRequestsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/gifting': {
       id: '/admin/gifting'
       path: '/gifting'
@@ -3144,13 +3151,6 @@ declare module '@tanstack/react-router' {
       path: '/import-wordpress'
       fullPath: '/admin/import-wordpress'
       preLoaderRoute: typeof AdminImportWordpressRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/inmails': {
-      id: '/admin/inmails'
-      path: '/inmails'
-      fullPath: '/admin/inmails'
-      preLoaderRoute: typeof AdminInmailsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/integrations': {
@@ -3573,18 +3573,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileEditRouteImport
       parentRoute: typeof ProfileRoute
     }
+    '/profile/expert-requests': {
+      id: '/profile/expert-requests'
+      path: '/expert-requests'
+      fullPath: '/profile/expert-requests'
+      preLoaderRoute: typeof ProfileExpertRequestsRouteImport
+      parentRoute: typeof ProfileRoute
+    }
     '/profile/follows': {
       id: '/profile/follows'
       path: '/follows'
       fullPath: '/profile/follows'
       preLoaderRoute: typeof ProfileFollowsRouteImport
-      parentRoute: typeof ProfileRoute
-    }
-    '/profile/inmails': {
-      id: '/profile/inmails'
-      path: '/inmails'
-      fullPath: '/profile/inmails'
-      preLoaderRoute: typeof ProfileInmailsRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/interests': {
@@ -4540,12 +4540,12 @@ interface AdminRouteChildren {
   AdminDonationsRoute: typeof AdminDonationsRoute
   AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminExpertLayoutsRoute: typeof AdminExpertLayoutsRoute
+  AdminExpertRequestsRoute: typeof AdminExpertRequestsRoute
   AdminGiftingRoute: typeof AdminGiftingRoute
   AdminGlossaryRoute: typeof AdminGlossaryRoute
   AdminGreetingsRoute: typeof AdminGreetingsRoute
   AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
-  AdminInmailsRoute: typeof AdminInmailsRoute
   AdminIntegrationsRoute: typeof AdminIntegrationsRoute
   AdminKeyTakeawaysRoute: typeof AdminKeyTakeawaysRoute
   AdminLibraryRoute: typeof AdminLibraryRoute
@@ -4608,12 +4608,12 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminDonationsRoute: AdminDonationsRoute,
   AdminExperimentsRoute: AdminExperimentsRoute,
   AdminExpertLayoutsRoute: AdminExpertLayoutsRoute,
+  AdminExpertRequestsRoute: AdminExpertRequestsRoute,
   AdminGiftingRoute: AdminGiftingRoute,
   AdminGlossaryRoute: AdminGlossaryRoute,
   AdminGreetingsRoute: AdminGreetingsRoute,
   AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
-  AdminInmailsRoute: AdminInmailsRoute,
   AdminIntegrationsRoute: AdminIntegrationsRoute,
   AdminKeyTakeawaysRoute: AdminKeyTakeawaysRoute,
   AdminLibraryRoute: AdminLibraryRoute,
@@ -4675,8 +4675,8 @@ interface ProfileRouteChildren {
   ProfileBillingRoute: typeof ProfileBillingRoute
   ProfileBookmarksRoute: typeof ProfileBookmarksRoute
   ProfileEditRoute: typeof ProfileEditRoute
+  ProfileExpertRequestsRoute: typeof ProfileExpertRequestsRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
-  ProfileInmailsRoute: typeof ProfileInmailsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
   ProfileMembershipRoute: typeof ProfileMembershipRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
@@ -4695,8 +4695,8 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileBillingRoute: ProfileBillingRoute,
   ProfileBookmarksRoute: ProfileBookmarksRoute,
   ProfileEditRoute: ProfileEditRoute,
+  ProfileExpertRequestsRoute: ProfileExpertRequestsRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
-  ProfileInmailsRoute: ProfileInmailsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
   ProfileMembershipRoute: ProfileMembershipRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,

@@ -287,13 +287,13 @@ export function ConnectButton({
                 onSuccess: (conversationId) => openChatWindow({ conversationId }),
                 onError: (err) => {
                   const msg = err instanceof Error ? err.message : "";
-                  // InMailDialog otwiera się z busa (useStartConversation) -
+                  // ExpertRequestDialog otwiera się z busa (useStartConversation) -
                   // toast byłby duplikatem tej samej informacji.
-                  if (msg.includes("chat: expert requires inmail")) return;
+                  if (msg.includes("chat: expert requires request")) return;
                   if (msg.includes("chat: tier disabled")) {
-                    toast.error(t("inmail.chatGate.tierDisabledToast"), {
+                    toast.error(t("expertRequest.chatGate.tierDisabledToast"), {
                       action: {
-                        label: t("inmail.chatGate.openPricing"),
+                        label: t("expertRequest.chatGate.openPricing"),
                         onClick: () => {
                           window.location.href = "/pricing";
                         },

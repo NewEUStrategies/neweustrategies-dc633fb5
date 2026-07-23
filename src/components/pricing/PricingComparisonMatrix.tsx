@@ -12,12 +12,21 @@
 // Zawartość wierszy żyje w i18n (pricing.comparisonMatrix.rows) - jedno źródło
 // PL/EN, a komponent renderuje tylko kolumny i wiersze mające pokrycie w
 // bieżącym segmencie (żadnych martwych kolumn ani pustych rzędów).
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Check, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { tierHasFeature, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
+import {
+  tierFeatureNumber,
+  tierHasFeature,
+  tierName,
+  type MembershipTierRow,
+} from "@/lib/billing/tiers";
 
 type CellValue = "check" | "dash" | string;
+
+/** Wiersze wyliczane z realnych, nieboolowskich danych warstwy (nie flagą 0/1). */
+type MatrixDerive = "expertRequest";
 
 interface MatrixRow {
   id: string;
@@ -25,7 +34,9 @@ interface MatrixRow {
   /** Klucz flagi w `membership_tiers.features`; gdy ustawiony, komórka wynika
    *  z realnego stanu warstwy (nie z zahardkodowanej wartości). */
   feature?: string;
-  /** Wartości redakcyjne per tier.key (fallback, gdy brak `feature`). */
+  /** Wyliczenie komórki z realnych danych warstwy (np. limit liczbowy). */
+  derive?: MatrixDerive;
+  /** Wartości redakcyjne per tier.key (fallback, gdy brak `feature`/`derive`). */
   values?: Record<string, CellValue>;
 }
 
@@ -47,7 +58,16 @@ const KNOWN_TIER_KEYS = [
   "team",
 ] as const;
 
-function cellFor(row: MatrixRow, tier: MembershipTierRow): CellValue {
+function cellFor(row: MatrixRow, tier: MembershipTierRow, t: TFunction): CellValue {
+  // „Zapytanie do eksperta": realna liczba z planu (Plus/Pro) lub „Bezpośrednio"
+  // dla progów pisania wprost (VIP+). Zero => brak (kreska).
+  if (row.derive === "expertRequest") {
+    if (tierHasFeature(tier.features, "chat_direct_gated")) {
+      return t("pricing.comparisonMatrix.expertRequestDirect");
+    }
+    const quota = tierFeatureNumber(tier.features, "expert_request_quota");
+    return quota > 0 ? t("pricing.comparisonMatrix.perMonth", { n: quota }) : "dash";
+  }
   if (row.feature) return tierHasFeature(tier.features, row.feature) ? "check" : "dash";
   return row.values?.[tier.key] ?? "dash";
 }
@@ -77,7 +97,9 @@ export function PricingComparisonMatrix({
 
   // Wiersz jest przydatny tylko, gdy przynajmniej jedna widoczna kolumna niesie
   // wartość pozytywną - pusty rząd (same "-") byłby wizualnym szumem.
-  const visibleRows = rows.filter((row) => columns.some((tier) => isPositive(cellFor(row, tier))));
+  const visibleRows = rows.filter((row) =>
+    columns.some((tier) => isPositive(cellFor(row, tier, t))),
+  );
   if (visibleRows.length === 0) return null;
 
   const renderCell = (value: CellValue) => {
@@ -169,7 +191,7 @@ export function PricingComparisonMatrix({
                       key={tier.id}
                       className={cn("p-3 text-center align-middle", isCurrent && "bg-brand/5")}
                     >
-                      {renderCell(cellFor(row, tier))}
+                      {renderCell(cellFor(row, tier, t))}
                     </td>
                   );
                 })}

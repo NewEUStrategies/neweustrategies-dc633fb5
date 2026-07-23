@@ -31,6 +31,8 @@ const pricingPl = {
       yes: "Tak",
       no: "Nie",
       yourPlan: "Twój plan",
+      perMonth: "{{n}}/mies.",
+      expertRequestDirect: "Bezpośrednio",
       note: "Limit 5 analiz miesięcznie w planie darmowym dotyczy wyłącznie treści za paywallem; materiały publikowane bez paywalla są dostępne bez ograniczeń.",
       rows: [
         {
@@ -218,7 +220,7 @@ const pricingPl = {
           },
         },
         { id: "qa", label: "Priorytet pytań w sesjach Q&A z ekspertami", feature: "qa_priority" },
-        { id: "expertRequest", label: "Zapytanie do eksperta", feature: "expert_request" },
+        { id: "expertRequest", label: "Zapytanie do eksperta", derive: "expertRequest" },
         {
           id: "giftLinks",
           label: "Tworzenie linków podarunkowych do analiz",
@@ -475,6 +477,8 @@ const pricingEn: typeof pricingPl = {
       yes: "Yes",
       no: "No",
       yourPlan: "Your plan",
+      perMonth: "{{n}}/mo",
+      expertRequestDirect: "Direct",
       note: "The 5-analyses-per-month limit on the free plan applies only to paywalled content; items published without a paywall are available without limits.",
       rows: [
         {
@@ -662,7 +666,7 @@ const pricingEn: typeof pricingPl = {
           },
         },
         { id: "qa", label: "Priority questions in expert Q&A sessions", feature: "qa_priority" },
-        { id: "expertRequest", label: "Expert request", feature: "expert_request" },
+        { id: "expertRequest", label: "Expert request", derive: "expertRequest" },
         {
           id: "giftLinks",
           label: "Create gift links to analyses",
