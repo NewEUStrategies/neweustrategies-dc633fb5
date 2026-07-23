@@ -105,6 +105,11 @@ export const workflowsPl = {
         name: "Utwórz lead w CRM",
         description: "Upsert leada CRM z danych payloadu (e-mail, imię, nazwisko, zgody).",
       },
+      create_crm_task: {
+        name: "Utwórz zadanie w CRM",
+        description:
+          "Zadanie follow-up przy leadzie dopasowanym po e-mailu z payloadu lub profilu użytkownika (user_id). Jedno otwarte zadanie o danym tytule per lead.",
+      },
       add_cross_reference: {
         name: "Dodaj powiązanie w grafie",
         description: "Krawędź w grafie powiązań między agregatem zdarzenia a wskazanym celem.",
@@ -123,6 +128,9 @@ export const workflowsPl = {
       email_from: "Klucz payloadu z e-mailem",
       first_name_from: "Klucz payloadu z imieniem",
       last_name_from: "Klucz payloadu z nazwiskiem",
+      title: "Tytuł zadania",
+      note: "Notatka zadania",
+      due_days: "Termin (dni od zdarzenia)",
       newsletter: "Oznacz zgodę newsletter",
       marketing: "Oznacz zgodę marketing",
       target_id: "ID celu (na stałe)",
@@ -281,6 +289,11 @@ export const workflowsEn = {
         name: "Create a CRM lead",
         description: "Upserts a CRM lead from payload data (email, first/last name, consents).",
       },
+      create_crm_task: {
+        name: "Create a CRM task",
+        description:
+          "Follow-up task on the lead matched by payload email or the user's profile (user_id). One open task per title per lead.",
+      },
       add_cross_reference: {
         name: "Add a graph cross-reference",
         description: "An edge in the reference graph between the event's aggregate and a target.",
@@ -299,6 +312,9 @@ export const workflowsEn = {
       email_from: "Payload key with the email",
       first_name_from: "Payload key with the first name",
       last_name_from: "Payload key with the last name",
+      title: "Task title",
+      note: "Task note",
+      due_days: "Due (days from the event)",
       newsletter: "Mark newsletter consent",
       marketing: "Mark marketing consent",
       target_id: "Target id (fixed)",

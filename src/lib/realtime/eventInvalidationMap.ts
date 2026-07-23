@@ -137,6 +137,7 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     billingKeys.currentTierAll(),
     billingKeys.admin.memberOrgs(),
     billingKeys.admin.memberOrgAll(),
+    billingKeys.admin.crmCompanyMemberOrgsAll(),
     billingKeys.crmLeadMembershipAll(),
   ],
   "org_seat.changed.v1": () => [

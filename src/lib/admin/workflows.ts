@@ -29,6 +29,7 @@ export const WORKFLOW_ACTIONS = [
   "notify_staff",
   "notify_followers",
   "create_crm_lead",
+  "create_crm_task",
   "add_cross_reference",
 ] as const;
 
@@ -79,6 +80,16 @@ export const WORKFLOW_ACTION_PARAMS: Record<WorkflowActionKey, WorkflowActionPar
     { key: "last_name_from", kind: "text", example: "last_name" },
     { key: "newsletter", kind: "boolean" },
     { key: "marketing", kind: "boolean" },
+  ],
+  // Zadanie follow-up przy leadzie: lead po e-mailu z payloadu (email_from)
+  // albo po profilu użytkownika (user_from; zdarzenia monetyzacji niosą
+  // user_id). Dedup silnika: jedno OTWARTE zadanie o tym tytule per lead.
+  create_crm_task: [
+    { key: "title", kind: "text", example: "Retencja: anulowanie subskrypcji" },
+    { key: "note", kind: "text" },
+    { key: "due_days", kind: "text", example: "3" },
+    { key: "user_from", kind: "text", example: "user_id" },
+    { key: "email_from", kind: "text", example: "email" },
   ],
   add_cross_reference: [
     { key: "target_id", kind: "text" },

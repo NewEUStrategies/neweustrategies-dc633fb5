@@ -29,11 +29,25 @@ function intervalLabel(interval: AccessPlan["interval"], t: (key: string) => str
   }
 }
 
-export function PlanCard({ plan, isCurrent }: { plan: AccessPlan; isCurrent?: boolean }) {
+export function PlanCard({
+  plan,
+  isCurrent,
+  fallbackBenefits,
+}: {
+  plan: AccessPlan;
+  isCurrent?: boolean;
+  /**
+   * Benefity zastępcze, gdy plan nie ma własnych features_pl/en - np. benefity
+   * warstwy z tier_key (selektor planDisplayBenefits). Karta planu podpiętego
+   * pod warstwę nigdy nie świeci pustą listą.
+   */
+  fallbackBenefits?: string[];
+}) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const badge = planBadge(plan, lang);
-  const features = planFeatures(plan, lang);
+  const own = planFeatures(plan, lang);
+  const features = own.length > 0 ? own : (fallbackBenefits ?? []);
 
   return (
     <Card

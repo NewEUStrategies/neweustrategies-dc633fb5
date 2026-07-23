@@ -34,6 +34,7 @@ import {
   maxYearlySavingsPct,
   passPlans,
   plansByTierKey,
+  planTierBenefits,
   recurringPlans,
   sanitizeAudienceKey,
   sortTiers,
@@ -345,7 +346,12 @@ function PricingPage() {
               </h2>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {orphanPlans.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} isCurrent={currentPlanId === plan.id} />
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    isCurrent={currentPlanId === plan.id}
+                    fallbackBenefits={planTierBenefits(plan, tiersAll, lang)}
+                  />
                 ))}
               </div>
             </section>
@@ -361,7 +367,12 @@ function PricingPage() {
               </p>
               <div className="mt-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {passes.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} isCurrent={currentPlanId === plan.id} />
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    isCurrent={currentPlanId === plan.id}
+                    fallbackBenefits={planTierBenefits(plan, tiersAll, lang)}
+                  />
                 ))}
               </div>
             </section>

@@ -60,6 +60,10 @@ export const billingKeys = {
     /** Miejsca organizacji w panelu admina. */
     orgSeats: (orgId: string) => ["admin", "org-seats", orgId] as const,
     orgSeatsAll: () => ["admin", "org-seats"] as const,
+    /** Organizacje członkowskie połączone z kartoteką firmy CRM. */
+    crmCompanyMemberOrgs: (companyId: string) =>
+      ["admin", "crm-company-member-orgs", companyId] as const,
+    crmCompanyMemberOrgsAll: () => ["admin", "crm-company-member-orgs"] as const,
     /** Pulpit monetyzacji (prefiks obejmuje filtry dat/planów). */
     monetization: () => ["admin", "monetization"] as const,
     /** Rejestr darowizn w panelu. */

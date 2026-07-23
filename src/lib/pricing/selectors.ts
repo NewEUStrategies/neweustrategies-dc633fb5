@@ -6,7 +6,7 @@
 //  - segment odbiorcy nigdy nie "gubi" warstw (nieznane klucze -> pierwszy
 //    segment), więc redakcyjne literówki nie chowają oferty.
 import type { AccessPlan } from "@/lib/billing/types";
-import type { MembershipTierRow, TierBenefit } from "@/lib/billing/tiers";
+import { parseTierBenefits, type MembershipTierRow, type TierBenefit } from "@/lib/billing/tiers";
 import type { PricingAudienceRow, PricingFaqItemRow } from "./queries";
 
 export type BillingInterval = "month" | "year";
@@ -231,6 +231,23 @@ export function groupBenefits(benefits: TierBenefit[], lang: string): BenefitGro
     else groups.push({ group: label, items: [benefit] });
   }
   return groups;
+}
+
+/**
+ * Benefity warstwy wskazanej przez plan (tier_key) jako teksty do listy -
+ * fallback karty PLANU (PlanCard), gdy plan nie ma własnych features_pl/en.
+ * Jedno źródło prawdy z kartami warstw: plan podpięty pod warstwę nigdy nie
+ * świeci pustą listą, a plan bez warstwy uczciwie zwraca [].
+ */
+export function planTierBenefits(
+  plan: Pick<AccessPlan, "tier_key">,
+  tiers: MembershipTierRow[],
+  lang: string,
+): string[] {
+  if (!plan.tier_key) return [];
+  const tier = tiers.find((row) => row.key === plan.tier_key);
+  if (!tier) return [];
+  return parseTierBenefits(tier.benefits).map((benefit) => benefitText(benefit, lang));
 }
 
 export function faqQuestion(item: PricingFaqItemRow, lang: string): string {
