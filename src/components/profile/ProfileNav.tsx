@@ -35,7 +35,8 @@ type NavKey =
   | "subscription"
   | "orders"
   | "security"
-  | "privacy";
+  | "privacy"
+  | "inmails";
 
 type NavItem = {
   to: string;
