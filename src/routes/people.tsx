@@ -32,7 +32,7 @@ import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { useAuth } from "@/hooks/useAuth";
-import { openChatWindow } from "@/lib/chat/chatDockBus";
+
 import { useOnlineUsers } from "@/lib/chat/presence";
 import { useStartConversation } from "@/lib/chat/useConversations";
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
