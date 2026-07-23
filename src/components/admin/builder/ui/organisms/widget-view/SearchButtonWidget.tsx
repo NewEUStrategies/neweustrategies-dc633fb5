@@ -692,6 +692,7 @@ export function SearchButtonWidget({
                                 </span>
                                 {kindLabel && (
                                   <span
+                                    data-typography-exempt
                                     className={`search-kind-label hidden shrink-0 items-center rounded-md px-1 py-px font-semibold uppercase sm:inline-flex ${
                                       isActive
                                         ? "text-[var(--brand-ink)]"
@@ -754,7 +755,10 @@ export function SearchButtonWidget({
           {focused && hasQuery && !loading && (flat.length > 0 || showEmpty) && (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2">
               <div className="flex flex-wrap items-center gap-1">
-                <span className="search-operators-heading mr-0.5 font-semibold uppercase text-muted-foreground">
+                <span
+                  data-typography-exempt
+                  className="search-operators-heading mr-0.5 font-semibold uppercase text-muted-foreground"
+                >
                   {t("operators")}
                 </span>
                 {[
@@ -765,6 +769,7 @@ export function SearchButtonWidget({
                   { op: t("operator_word"), ins: " -" },
                 ].map(({ op, ins, caret }) => (
                   <button
+                    data-typography-exempt
                     key={op}
                     type="button"
                     title={t("operator_insert")}

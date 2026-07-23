@@ -78,6 +78,10 @@ function buildWidgetTypographyRules(
   const repeat = "[data-w-id]".repeat(Math.max(0, specificity - 1));
   const sel = `${ancestor}[data-w-id="${id}"]${repeat}`;
   const notCounters = ":not(.post-list-numbered-index):not(.rl-num)";
+  // Atomic controls and microcopy can opt out of broad widget typography.
+  // Without this guard a generated `[data-w-id]... span { ... !important }`
+  // rule overrides their intentional compact type, even when it is scoped.
+  const notExempt = ":not([data-typography-exempt])";
   // Keep these selectors intentionally boring. The previous compact `:is()`
   // groups were valid in modern browsers, but one invalid/unsupported selector
   // in an embedded preview stylesheet made everything except the dedicated
@@ -98,7 +102,7 @@ function buildWidgetTypographyRules(
     `${sel} [data-typography-role="description"]`,
     `${sel}[data-typography-role="description"]`,
     ...["p", "li", "dd", "blockquote", "figcaption", "small"].map(
-      (tag) => `${sel} ${tag}:not(.cms-post-title)${notCounters}`,
+      (tag) => `${sel} ${tag}:not(.cms-post-title)${notExempt}${notCounters}`,
     ),
     `${sel} .prose p`,
   ];
@@ -133,7 +137,8 @@ function buildWidgetTypographyRules(
   const genericTextTargets = [
     sel,
     ...genericTextTags.map(
-      (tag) => `${sel} ${tag}:not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`,
+      (tag) =>
+        `${sel} ${tag}:not(.cms-post-title):not(.cms-post-excerpt)${notExempt}${notCounters}`,
     ),
     `${sel} .prose`,
     `${sel} .prose *:not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`,
