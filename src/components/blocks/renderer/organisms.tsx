@@ -15,12 +15,13 @@
 import type { BlockRenderer } from "./context";
 import { bool, num, readBlocksArray, str, strList } from "./data";
 import type { CurrentPostAuthor } from "@/lib/builder/currentPostContext";
-import { LiveBlogBlock } from "../LiveBlogBlock";
-import { PollBlockView } from "../PollBlockView";
+// Ciężkie / rzadkie bloki dynamiczne (realtime live blog, ankieta, kalendarz)
+// dogrywamy leniwie z osobnych chunków - patrz lazyBlockViews.tsx. Czytelnik
+// zwykłego artykułu nie ściąga już ich kodu; SSR i tak wypełnia boundary.
+import { CalendarView, LiveBlogBlock, PollBlockView } from "./lazyBlockViews";
 import { LatestPostsView } from "../LatestPostsView";
 import { TaxonomyListView } from "../TaxonomyListView";
 import { TagCloudView } from "../TagCloudView";
-import { CalendarView } from "../CalendarView";
 import {
   PostTitleView,
   PostDateView,

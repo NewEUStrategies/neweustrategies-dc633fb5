@@ -66,7 +66,11 @@ import {
   BannerImageView,
   VideoHeroView,
 } from "../ConversionViews";
-import { ChartBlockView, DataMapBlockView } from "../DataVizViews";
+// Silnik data-viz (autorskie wykresy SVG + mapa choropleth + zasoby geo) to
+// najcięższe, rzadko używane poddrzewo renderera - dogrywamy je leniwie z
+// osobnego chunka (lazyBlockViews.tsx). SSR wypełnia boundary, więc HTML dla
+// crawlerów pozostaje ten sam, a bundle czytelnika już go nie niesie.
+import { ChartBlockView, DataMapBlockView } from "./lazyBlockViews";
 
 // ---------------------------------------------------------------------------
 // Media

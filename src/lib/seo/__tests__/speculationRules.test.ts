@@ -3,13 +3,14 @@ import { describe, expect, it } from "vitest";
 import { buildSpeculationRules, speculationRulesJson } from "../speculationRules";
 
 describe("speculationRules", () => {
-  it("prefetches moderately and prerenders conservatively over the same scope", () => {
+  it("prefetches moderately and emits no prerender set", () => {
     const rules = buildSpeculationRules();
     expect(rules.prefetch).toHaveLength(1);
-    expect(rules.prerender).toHaveLength(1);
     expect(rules.prefetch[0].eagerness).toBe("moderate");
-    expect(rules.prerender[0].eagerness).toBe("conservative");
-    expect(rules.prefetch[0].where).toEqual(rules.prerender[0].where);
+    // Prerender jest świadomie usunięty - AppLink przechwytuje nawigacje SPA,
+    // więc przeglądarka nigdy nie skonsumowałaby prerenderowanego dokumentu.
+    expect((rules as unknown as Record<string, unknown>).prerender).toBeUndefined();
+    expect(speculationRulesJson()).not.toContain("prerender");
   });
 
   it("excludes logged-in/transactional surfaces in both languages", () => {

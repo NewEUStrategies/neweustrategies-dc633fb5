@@ -161,6 +161,92 @@ export interface PostAuthorRef {
   last_name: string | null;
 }
 
+/**
+ * Wiersz profiles_public pobierany jednym selectem .in() dla wszystkich
+ * autorów wpisu - nadzbiór PostAuthorRef o avatar/bio, z którego budujemy
+ * zarówno pełny profil autora głównego, jak i lekkie referencje pozostałych.
+ */
+export type FullAuthorRow = PostAuthorRef & {
+  avatar_url: string | null;
+  bio_pl: string | null;
+  bio_en: string | null;
+};
+
+/** Surowy wiersz author_profiles: jak overlay, ale custom_socials to Json. */
+export type RawAuthorOverlay = Omit<AuthorProfileOverlay, "custom_socials"> & {
+  custom_socials: unknown;
+};
+
+/**
+ * Kanoniczna kolejność autorów wpisu: główny (author_id) zawsze pierwszy,
+ * potem współautorzy z post_authors wg sort_order, z deduplikacją. Czysta
+ * funkcja - kolejność musi być policzona PRZED pojedynczym selectem .in(),
+ * więc żyje osobno od kształtowania profili.
+ */
+export function orderAuthorIds(
+  mainAuthorId: string | null,
+  coAuthorUserIds: readonly string[],
+): string[] {
+  const ordered: string[] = [];
+  if (mainAuthorId) ordered.push(mainAuthorId);
+  for (const uid of coAuthorUserIds) {
+    if (uid && !ordered.includes(uid)) ordered.push(uid);
+  }
+  return ordered;
+}
+
+/**
+ * Buduje pełny profil autora głównego (avatar/bio + nakładka author_profiles)
+ * oraz uporządkowane, lekkie referencje WSZYSTKICH autorów z jednego zestawu
+ * wierszy profiles_public. Czysta transformacja bez I/O - cały ruch do bazy
+ * dzieje się u wołającego jednym round-tripem, tu tylko kształtujemy dane, co
+ * czyni logikę kolejności/scalania testowalną w izolacji.
+ */
+export function buildPostAuthors(input: {
+  orderedAuthorIds: readonly string[];
+  profileRows: readonly FullAuthorRow[];
+  mainAuthorId: string | null;
+  overlay: RawAuthorOverlay | null;
+}): { author: PostAuthor | null; authors: PostAuthorRef[] } {
+  const byId = new Map(input.profileRows.map((p) => [p.id, p] as const));
+  const authors: PostAuthorRef[] = input.orderedAuthorIds
+    .map((id) => byId.get(id))
+    .filter((p): p is FullAuthorRow => !!p)
+    .map((p) => ({
+      id: p.id,
+      slug: p.slug,
+      display_name: p.display_name,
+      first_name: p.first_name,
+      last_name: p.last_name,
+    }));
+  let author: PostAuthor | null = null;
+  const mainRow = input.mainAuthorId ? byId.get(input.mainAuthorId) : undefined;
+  if (mainRow) {
+    const overlay = input.overlay;
+    const cs = Array.isArray(overlay?.custom_socials)
+      ? (overlay!.custom_socials as unknown as Array<{
+          label: string;
+          url: string;
+          iconUrl?: string;
+        }>)
+      : [];
+    author = {
+      id: mainRow.id,
+      slug: mainRow.slug,
+      display_name: mainRow.display_name,
+      first_name: mainRow.first_name,
+      last_name: mainRow.last_name,
+      avatar_url: mainRow.avatar_url,
+      bio_pl: mainRow.bio_pl,
+      bio_en: mainRow.bio_en,
+      author_profile: overlay
+        ? { ...(overlay as unknown as AuthorProfileOverlay), custom_socials: cs }
+        : null,
+    };
+  }
+  return { author, authors };
+}
+
 export type ResolvedContent =
   | {
       kind: "post";
@@ -429,72 +515,46 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
           .map((r) => (r as { categories: PostCategory | null }).categories)
           .filter((c): c is PostCategory => !!c);
         const post = { ...data, ...body } as PostData;
+        // Profile WSZYSTKICH autorów (główny + współautorzy) pobieramy JEDNYM
+        // selectem .in() po profiles_public - wcześniej były to dwie
+        // sekwencyjne rundy (osobny profil autora głównego, a potem drugi
+        // .in() na współautorów), co dokładało 1-2 round-tripy na krytycznej
+        // ścieżce TTFB wpisu. Nakładka author_profiles (tylko dla autora
+        // głównego) leci równolegle w tym samym Promise.all, więc nie dokłada
+        // opóźnienia. Ten sam klient anon i te same widoki - izolacja
+        // tenanta/RLS bez zmian. Kolejność i scalanie są czystymi funkcjami
+        // (orderAuthorIds / buildPostAuthors), przetestowanymi w izolacji.
+        const mainAuthorId = post.author_id ?? null;
+        const orderedAuthorIds = orderAuthorIds(
+          mainAuthorId,
+          (coAuthorRows ?? []).map((row) => (row as { user_id: string }).user_id),
+        );
         let author: PostAuthor | null = null;
-        if (post.author_id) {
-          const [{ data: authorRow }, { data: apRow }] = await Promise.all([
+        let authors: PostAuthorRef[] = [];
+        if (orderedAuthorIds.length > 0) {
+          const overlayQuery = mainAuthorId
+            ? supabase
+                .from("author_profiles")
+                .select(
+                  "avatar_url, job_title, company, bio_pl, bio_en, contact_email, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
+                )
+                .eq("user_id", mainAuthorId)
+                .eq("is_public", true)
+                .maybeSingle()
+            : null;
+          const [{ data: profileRows }, overlayRes] = await Promise.all([
             supabase
               .from("profiles_public")
               .select("id, slug, display_name, first_name, last_name, avatar_url, bio_pl, bio_en")
-              .eq("id", post.author_id)
-              .maybeSingle(),
-            supabase
-              .from("author_profiles")
-              .select(
-                "avatar_url, job_title, company, bio_pl, bio_en, contact_email, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
-              )
-              .eq("user_id", post.author_id)
-              .eq("is_public", true)
-              .maybeSingle(),
+              .in("id", orderedAuthorIds),
+            overlayQuery ?? Promise.resolve({ data: null } as const),
           ]);
-          if (authorRow) {
-            const cs = Array.isArray(apRow?.custom_socials)
-              ? (apRow!.custom_socials as unknown as Array<{
-                  label: string;
-                  url: string;
-                  iconUrl?: string;
-                }>)
-              : [];
-            author = {
-              ...(authorRow as Omit<PostAuthor, "author_profile">),
-              author_profile: apRow
-                ? { ...(apRow as unknown as AuthorProfileOverlay), custom_socials: cs }
-                : null,
-            };
-          }
-        }
-        // Kanoniczna kolejność autorów: główny (author_id) pierwszy, potem
-        // współautorzy wg sort_order. Zwykły wpis (bez współautorów) nie
-        // kosztuje żadnego dodatkowego zapytania - profil głównego autora
-        // został już pobrany wyżej; dopiero realni współautorzy uruchamiają
-        // jeden select .in() po profiles_public.
-        const orderedAuthorIds: string[] = [];
-        if (post.author_id) orderedAuthorIds.push(post.author_id);
-        for (const row of coAuthorRows ?? []) {
-          const uid = (row as { user_id: string }).user_id;
-          if (!orderedAuthorIds.includes(uid)) orderedAuthorIds.push(uid);
-        }
-        let authors: PostAuthorRef[] = [];
-        if (orderedAuthorIds.length === 1 && author && orderedAuthorIds[0] === author.id) {
-          authors = [
-            {
-              id: author.id,
-              slug: author.slug,
-              display_name: author.display_name,
-              first_name: author.first_name,
-              last_name: author.last_name,
-            },
-          ];
-        } else if (orderedAuthorIds.length > 0) {
-          const { data: profileRows } = await supabase
-            .from("profiles_public")
-            .select("id, slug, display_name, first_name, last_name")
-            .in("id", orderedAuthorIds);
-          const byId = new Map(
-            ((profileRows ?? []) as PostAuthorRef[]).map((p) => [p.id, p] as const),
-          );
-          authors = orderedAuthorIds
-            .map((id) => byId.get(id))
-            .filter((p): p is PostAuthorRef => !!p);
+          ({ author, authors } = buildPostAuthors({
+            orderedAuthorIds,
+            profileRows: (profileRows ?? []) as FullAuthorRow[],
+            mainAuthorId,
+            overlay: overlayRes.data as RawAuthorOverlay | null,
+          }));
         }
         return {
           kind: "post",
