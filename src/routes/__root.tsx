@@ -215,9 +215,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // readers and crawlers find the feeds regardless of the entry URL.
         ...feedDiscoveryLinks(getOrigin()),
       ],
-      // Speculation Rules API: natywny prefetch (hover) + prerender
-      // (pointerdown) publicznych nawigacji; powierzchnie zalogowane i
-      // transakcyjne wykluczone (wspólna lista z NES Edge Cache). Beacony są
+      // Speculation Rules API: natywny prefetch (hover) publicznych nawigacji;
+      // powierzchnie zalogowane i transakcyjne wykluczone (wspólna lista z NES
+      // Edge Cache). Prerender świadomie pominięty - AppLink przechwytuje
+      // nawigacje SPA, więc prerenderowany dokument nigdy nie byłby
+      // konsumowany (szczegóły w speculationRules.ts). Beacony i tak są
       // osłonięte przed prerenderem w src/lib/prerender.ts.
       scripts: [{ type: "speculationrules", children: speculationRulesJson() }],
     };

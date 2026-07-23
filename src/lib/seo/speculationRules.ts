@@ -1,15 +1,19 @@
 // Generator <script type="speculationrules"> - natywny, przeglądarkowy
-// prefetch/prerender nawigacji (Speculation Rules API) zamiast zewnętrznego
-// CDN-owego "early hints". Czysty builder (testowalny), emitowany raz w
-// head() __root.tsx; dokument jest identyczny dla wszystkich, więc pozostaje
+// prefetch nawigacji (Speculation Rules API) zamiast zewnętrznego CDN-owego
+// "early hints". Czysty builder (testowalny), emitowany raz w head()
+// __root.tsx; dokument jest identyczny dla wszystkich, więc pozostaje
 // bezpieczny dla NES Edge Cache.
 //
-// Strategia zachowawcza:
-//   - prefetch `moderate` (hover ~200 ms) - tani, sam dokument;
-//   - prerender `conservative` (pointerdown) - pełny render w tle dopiero przy
-//     kliknięciu, co i tak ścina ~100-200 ms percepcji nawigacji, a nie pali
-//     zasobów na każdy najazd kursora. Beacony są osłonięte `document.prerendering`
-//     (src/lib/prerender.ts), więc spekulacja nie zawyża statystyk.
+// TYLKO prefetch `moderate` (hover ~200 ms) - tani, dogrywa sam dokument HTML.
+// Zestaw `prerender` został ŚWIADOMIE usunięty: nawigacje wewnątrz witryny
+// przechwytuje AppLink (`preventDefault()` + `router.navigate()`), więc klik w
+// link tego samego pochodzenia nigdy nie wywołuje nawigacji dokumentowej -
+// przeglądarkowy prerender (aktywowany dopiero przy nawigacji dokumentu) nie
+// zostawał więc nigdy skonsumowany, a pełny render w tle szedł do kosza.
+// Dane trasy (loader + chunki) dogrywa kliencki router.preloadRoute() na
+// intent (hover/focus) w AppLink - to warstwa, która realnie skraca nawigację
+// SPA. Guard `document.prerendering` (src/lib/prerender.ts) zostaje mimo to,
+// bo prerender może zainicjować sama przeglądarka (pasek adresu itd.).
 //
 // Wykluczenia współdzielą listę z NES Edge Cache (te same powierzchnie
 // zalogowane/transakcyjne), w obu wariantach językowych (PL goła ścieżka,
@@ -26,7 +30,6 @@ interface SpeculationWhere {
 
 interface SpeculationRuleSet {
   prefetch: Array<{ where: SpeculationWhere; eagerness: "moderate" }>;
-  prerender: Array<{ where: SpeculationWhere; eagerness: "conservative" }>;
 }
 
 function denyPatterns(): string[] {
@@ -48,7 +51,6 @@ export function buildSpeculationRules(): SpeculationRuleSet {
   };
   return {
     prefetch: [{ where, eagerness: "moderate" }],
-    prerender: [{ where, eagerness: "conservative" }],
   };
 }
 
