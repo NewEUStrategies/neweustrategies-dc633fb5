@@ -210,8 +210,13 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
   const online = useOnlineUsers();
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 24;
   useEffect(() => {
-    const handle = setTimeout(() => setQuery(input), 250);
+    const handle = setTimeout(() => {
+      setQuery(input);
+      setPage(1);
+    }, 250);
     return () => clearTimeout(handle);
   }, [input]);
 
@@ -225,6 +230,23 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
       ),
     [connectionsQ.data],
   );
+
+  const totalPages = Math.max(1, Math.ceil(connections.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const paged = connections.slice(pageStart, pageStart + PAGE_SIZE);
+
+  // Prefetch dalszych stron gdy zbliżamy się do końca aktualnie załadowanych.
+  useEffect(() => {
+    if (
+      connectionsQ.hasNextPage &&
+      !connectionsQ.isFetchingNextPage &&
+      pageStart + PAGE_SIZE >= connections.length
+    ) {
+      void connectionsQ.fetchNextPage();
+    }
+  }, [pageStart, connections.length, connectionsQ]);
+
 
   return (
     <div className="space-y-3">
