@@ -3119,6 +3119,78 @@ export type Database = {
           },
         ]
       }
+      expert_inmails: {
+        Row: {
+          admin_note: string | null
+          converted_conversation_id: string | null
+          created_at: string
+          decline_reason: string | null
+          expected_answers: string | null
+          external_links: string[]
+          id: string
+          questions: string[]
+          reason: string
+          recipient_id: string
+          responded_at: string | null
+          sender_id: string
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_note?: string | null
+          converted_conversation_id?: string | null
+          created_at?: string
+          decline_reason?: string | null
+          expected_answers?: string | null
+          external_links?: string[]
+          id?: string
+          questions?: string[]
+          reason: string
+          recipient_id: string
+          responded_at?: string | null
+          sender_id: string
+          status?: string
+          subject: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_note?: string | null
+          converted_conversation_id?: string | null
+          created_at?: string
+          decline_reason?: string | null
+          expected_answers?: string | null
+          external_links?: string[]
+          id?: string
+          questions?: string[]
+          reason?: string
+          recipient_id?: string
+          responded_at?: string | null
+          sender_id?: string
+          status?: string
+          subject?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expert_inmails_converted_conversation_id_fkey"
+            columns: ["converted_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expert_inmails_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expert_layout_settings: {
         Row: {
           accent_color: string | null
@@ -10477,6 +10549,33 @@ export type Database = {
         }
         Returns: string
       }
+      admin_list_inmails: {
+        Args: { p_limit?: number; p_offset?: number; p_status?: string }
+        Returns: {
+          admin_note: string | null
+          converted_conversation_id: string | null
+          created_at: string
+          decline_reason: string | null
+          expected_answers: string | null
+          external_links: string[]
+          id: string
+          questions: string[]
+          reason: string
+          recipient_id: string
+          responded_at: string | null
+          sender_id: string
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "expert_inmails"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       admin_list_membership_grants: {
         Args: never
         Returns: {
@@ -11446,6 +11545,7 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
+      is_expert_user: { Args: { _uid: string }; Returns: boolean }
       is_form_field_active: {
         Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
@@ -11533,6 +11633,33 @@ export type Database = {
           revoked_at: string
           total_count: number
         }[]
+      }
+      list_my_inmails: {
+        Args: { p_box?: string }
+        Returns: {
+          admin_note: string | null
+          converted_conversation_id: string | null
+          created_at: string
+          decline_reason: string | null
+          expected_answers: string | null
+          external_links: string[]
+          id: string
+          questions: string[]
+          reason: string
+          recipient_id: string
+          responded_at: string | null
+          sender_id: string
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "expert_inmails"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       list_qa_questions: {
         Args: { p_session_id: string }
@@ -11662,6 +11789,7 @@ export type Database = {
           verified: boolean
         }[]
       }
+      my_effective_tier_features: { Args: never; Returns: Json }
       my_event_participation: {
         Args: never
         Returns: {
@@ -11677,6 +11805,7 @@ export type Database = {
           title_pl: string
         }[]
       }
+      my_has_feature: { Args: { p_key: string }; Returns: boolean }
       my_introduction_requests: {
         Args: { p_role?: string }
         Returns: {
@@ -12022,6 +12151,10 @@ export type Database = {
         Returns: string
       }
       request_public_host: { Args: never; Returns: string }
+      resolve_expert_inmail: {
+        Args: { p_action: string; p_inmail_id: string; p_note?: string }
+        Returns: Json
+      }
       resolve_path: {
         Args: { _segments: string[] }
         Returns: {
@@ -12221,6 +12354,17 @@ export type Database = {
           post_id: string
           similarity: number
         }[]
+      }
+      send_expert_inmail: {
+        Args: {
+          p_expected_answers?: string
+          p_external_links?: string[]
+          p_questions?: string[]
+          p_reason: string
+          p_recipient_id: string
+          p_subject: string
+        }
+        Returns: string
       }
       set_user_consent: {
         Args: {
