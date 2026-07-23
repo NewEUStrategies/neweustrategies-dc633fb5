@@ -109,24 +109,21 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
   }
 }
 
+// Import AFTER vi.mock calls above; vitest hoists vi.mock so this order works.
+import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
+
 function renderPane() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   // Deliberately NO <AuthProvider> - regression: pane must not crash without it.
   return render(
     <QueryClientProvider client={qc}>
       <Boundary>
-        {/* import here so the mocks above are installed first */}
-        <LazyPane />
+        <ThemeOptionsPane />
       </Boundary>
     </QueryClientProvider>,
   );
 }
 
-function LazyPane() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { ThemeOptionsPane } = require("@/components/admin/ThemeOptionsPane");
-  return <ThemeOptionsPane />;
-}
 
 describe("/admin/theme-options regression", () => {
   beforeEach(() => {
