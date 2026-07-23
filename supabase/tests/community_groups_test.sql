@@ -17,7 +17,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(21);
+SELECT plan(22);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -33,6 +33,19 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id)
 SELECT u.id, u.email, split_part(u.email, '@', 1), (SELECT public.public_tenant_id())
   FROM auth.users u
  WHERE u.email LIKE '%@grp.test';
+
+-- Czat (także grupowy) jest bramkowany od progu Plus (features.chat_enabled).
+-- Owner kręgu dostaje aktywną subskrypcję Plus (member) w publicznym tenancie,
+-- żeby przejść bramkę create_group_conversation; pozostali zostają Essential
+-- (bez subskrypcji) - to pozwala też zweryfikować odrzucenie niższego progu.
+INSERT INTO public.access_plans (id, tenant_id, name_pl, name_en, price_cents, currency, interval, tier_key)
+VALUES ('b7333333-3333-3333-3333-333333333333', (SELECT public.public_tenant_id()),
+        'Plus (test)', 'Plus (test)', 4900, 'eur', 'month', 'member');
+
+INSERT INTO public.user_subscriptions (user_id, plan_id, tenant_id, status, current_period_end)
+VALUES ('b7000000-0000-0000-0000-0000000000a1',
+        'b7333333-3333-3333-3333-333333333333',
+        (SELECT public.public_tenant_id()), 'active', now() + interval '30 days');
 
 -- g1 blokuje bX; g4 zyje w trybie cichym - obaj musza odpasc z zaproszen.
 INSERT INTO public.user_blocks (blocker_id, blocked_id, tenant_id)
@@ -58,13 +71,30 @@ SELECT throws_ok(
   'tytul kregu krotszy niz 2 znaki odpada'
 );
 
+-- Essential (bez subskrypcji -> brak chat_enabled) nie zakłada kręgu: bramka
+-- progu jak w DM. Tytuł poprawny, więc odpada dopiero na bramce tieru.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b7000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
+
+SELECT throws_ok(
+  $$ SELECT public.create_group_conversation('Krag Essential',
+       ARRAY['b7000000-0000-0000-0000-0000000000a3']::uuid[]) $$,
+  'P0001',
+  'chat: tier disabled',
+  'uzytkownik bez chat_enabled (Essential) nie zaklada kregu'
+);
+
+-- Powrót do właściciela z aktywnym planem Plus.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b7000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+
 SELECT lives_ok(
   $$ SELECT public.create_group_conversation('Krag testowy',
        ARRAY['b7000000-0000-0000-0000-0000000000a2',
              'b7000000-0000-0000-0000-0000000000a3',
              'b7000000-0000-0000-0000-0000000000a4',
              'b7000000-0000-0000-0000-0000000000b1']::uuid[]) $$,
-  'utworzenie kregu z lista kandydatow przechodzi'
+  'utworzenie kregu z lista kandydatow przechodzi (owner z planem Plus)'
 );
 
 RESET ROLE;
