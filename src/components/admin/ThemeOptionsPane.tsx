@@ -396,10 +396,21 @@ export function ThemeOptionsPane() {
                   return s ? t(s.labelKey) : "";
                 })()}
               </h3>
-              <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
-                <Save className="w-4 h-4 mr-2" />{" "}
-                {save.isPending ? t("themeOptions.saving") : t("themeOptions.save")}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setHistoryOpen(true)}
+                  title={t("themeOptions.history.title", { defaultValue: "Historia zmian" })}
+                >
+                  <Clock className="w-4 h-4 mr-2" />
+                  {t("themeOptions.history.button", { defaultValue: "Historia" })}
+                </Button>
+                <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
+                  <Save className="w-4 h-4 mr-2" />{" "}
+                  {save.isPending ? t("themeOptions.saving") : t("themeOptions.save")}
+                </Button>
+              </div>
             </div>
 
             {active === "logo" && (
