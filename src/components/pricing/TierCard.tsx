@@ -391,8 +391,7 @@ export function TierCard({
               {badge || t("pricing.popular")}
             </span>
           ) : isCurrentTier ? (
-            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium leading-none text-brand">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />
+            <span className="inline-flex h-5 shrink-0 items-center justify-center rounded-[6px] bg-brand/15 px-2 text-[10px] font-semibold uppercase tracking-wide leading-none text-brand">
               {t("pricing.tiers.current")}
             </span>
 
