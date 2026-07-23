@@ -32,11 +32,15 @@ export const directMessagePl = {
 export const directMessageEn = {
   directMessage: {
     button: "Direct Message",
+    opening: "Opening chat…",
     ariaLabel: "Send a message to {{name}}",
+    ariaBusy: "Opening chat with {{name}}",
     tooltipEnabled: "Start a direct conversation",
     tooltipLocked: "Requires a higher subscription plan",
+    tooltipBusy: "Opening chat…",
     signInRequired: "Sign in to message this person.",
     startError: "Could not open the conversation. Please try again.",
+
     upgrade: {
       title: "Unlock direct messages",
       description:
