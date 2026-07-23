@@ -79,10 +79,10 @@ function Card({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
   const { t } = useTranslation();
   const sub = itemSublabel(it, lang);
   return (
-    <li>
+    <li className="relative">
       <AppLink
         href={hrefFor(it)}
-        className="group flex h-full items-start gap-3 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-brand"
+        className="group flex h-full items-start gap-3 rounded-xl border border-border/60 bg-card p-4 pr-14 transition-colors hover:border-brand"
       >
         {it.kind === "person" ? (
           <PersonAvatar it={it} lang={lang} />
@@ -112,6 +112,17 @@ function Card({ it, lang }: { it: PeopleOrgItem; lang: "pl" | "en" }) {
           </span>
         </span>
       </AppLink>
+      {it.kind === "person" && (
+        <div className="absolute right-3 top-3">
+          <DirectMessageButton
+            userId={it.id}
+            displayName={itemLabel(it, lang)}
+            displayAvatar={it.avatarUrl}
+            compact
+            iconOnly
+          />
+        </div>
+      )}
     </li>
   );
 }
