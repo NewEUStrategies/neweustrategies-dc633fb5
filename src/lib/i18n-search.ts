@@ -388,6 +388,7 @@ const en = {
         post: "Article",
         author: "Author",
         organization: "Organization",
+        company: "Company",
         category: "Category",
         topic: "Tag",
         series: "Series",
