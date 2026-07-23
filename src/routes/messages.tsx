@@ -1,11 +1,12 @@
 // Full Messages inbox (Messenger-style two-pane). Registered users only:
 // content is gated by AuthGate and the route is noindex + robots-disallowed,
 // so nothing here is visible to anonymous visitors or crawlers.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
+  ArrowLeft,
   Bell,
   ChevronDown,
   ChevronRight,
@@ -226,6 +227,17 @@ function MessagesInner() {
 
   return (
     <div className="container mx-auto max-w-6xl px-2 py-4 sm:px-4 sm:py-6">
+      {/* Powrót do profilu - spójny z layoutem breadcrumbs, kompaktowy. */}
+      <div className="mb-3">
+        <Link
+          to="/profile"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-[var(--brand)]/10 hover:text-[var(--brand)]"
+          aria-label={t("chat.backToProfile", { defaultValue: "Wróć do profilu" })}
+        >
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+          {t("chat.backToProfile", { defaultValue: "Wróć do profilu" })}
+        </Link>
+      </div>
       {/* Segmentowane taby widoków: pigułka z aktywnym tłem i licznikami. */}
       <div
         role="tablist"
