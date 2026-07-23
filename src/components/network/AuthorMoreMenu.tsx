@@ -31,7 +31,7 @@ export function AuthorMoreMenu({ userId, displayName }: AuthorMoreMenuProps) {
             type="button"
             variant="outline"
             size="icon"
-            className="h-8 w-8 shrink-0"
+            className="h-8 w-8 shrink-0 transition-colors hover:bg-brand/10 hover:text-brand hover:border-brand/40 [&_svg]:transition-colors"
             aria-label={t("common.more", { defaultValue: "Więcej" })}
             title={t("common.more", { defaultValue: "Więcej" })}
           >

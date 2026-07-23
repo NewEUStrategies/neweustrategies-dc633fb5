@@ -107,7 +107,7 @@ export function DirectMessageButton({
     <>
       <Button
         type="button"
-        variant={locked ? "outline" : "default"}
+        variant={locked || iconOnly ? "outline" : "default"}
         size={iconOnly ? "icon" : compact ? "sm" : "default"}
         disabled={startChat.isPending}
         onClick={handleClick}
@@ -116,7 +116,9 @@ export function DirectMessageButton({
         className={cn(
           "gap-1.5 rounded-[6px]",
           compact && !iconOnly && "h-8 px-2.5 text-xs",
-          iconOnly && "h-8 w-8",
+          iconOnly && "h-8 w-8 shrink-0 transition-colors [&_svg]:transition-colors",
+          iconOnly && !locked && "hover:bg-brand/10 hover:text-brand hover:border-brand/40",
+          iconOnly && locked && "hover:bg-muted/60",
           locked && "text-muted-foreground",
           className,
         )}
