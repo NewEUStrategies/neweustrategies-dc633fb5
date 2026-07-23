@@ -734,7 +734,7 @@ export function SearchButtonWidget({
                   addRecentSearch(q);
                   setFocused(false);
                 }}
-                className="group flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2.5 text-[12px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
+                className="group flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-[10px] font-semibold leading-none transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_6%,transparent)]"
                 style={{ color: "var(--brand)" }}
               >
                 <span className="inline-flex items-center gap-1.5">
