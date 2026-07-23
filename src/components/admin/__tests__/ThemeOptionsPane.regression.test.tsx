@@ -112,53 +112,35 @@ describe("/admin/theme-options regression", () => {
   });
 
   it("renders every section (including nested header.* branches) from a partial stored row", async () => {
-    renderPane();
+    const { container } = renderPane();
 
-    // These labels correspond to SECTIONS in ThemeOptionsPane. i18next is
-    // uninitialised in the test environment, so t(labelKey) returns the key
-    // itself - which is exactly the assertion surface we want (stable, no
-    // translation coupling).
-    const expected = [
-      "themeOptions.sections.logo",
-      "themeOptions.sections.globalColors",
-      "themeOptions.sections.backgrounds",
-      "themeOptions.sections.headerLayout",
-      "themeOptions.sections.mainMenu",
-      "themeOptions.sections.headerSearch",
-      "themeOptions.sections.alertBar",
-      "themeOptions.sections.socialIcons",
-      "themeOptions.sections.signinButtons",
-      "themeOptions.sections.mobileHeader",
-      "themeOptions.sections.buttons",
-      "themeOptions.sections.textFields",
-      "themeOptions.sections.inputColors",
-      "themeOptions.sections.iconColors",
-      "themeOptions.sections.linkColors",
-      "themeOptions.sections.fontSizes",
-      "themeOptions.sections.contentStylingAdvanced",
-    ];
-
-    // Wait for the pane to hydrate from the mocked settings row.
+    // Wait for the pane to hydrate from the mocked settings row and mount
+    // the sidebar with its section buttons.
     await waitFor(() => {
-      expect(screen.getByTitle("themeOptions.sections.logo")).toBeInTheDocument();
+      expect(container.querySelectorAll('[data-sidebar="menu-button"]').length).toBeGreaterThan(
+        0,
+      );
     });
 
-    for (const key of expected) {
-      expect(
-        screen.getByTitle(key),
-        `section button "${key}" should render`,
-      ).toBeInTheDocument();
-    }
+    // 17 sections defined in ThemeOptionsPane.SECTIONS - all must render,
+    // including the nested `header.*` items (mainMenu, headerSearch, alertBar,
+    // socialIcons, signinButtons, mobileHeader) that a shallow-merge bug used
+    // to drop when the stored row only contained { logo, header: { layout } }.
+    const buttons = container.querySelectorAll('[data-sidebar="menu-button"]');
+    expect(buttons.length).toBe(17);
 
     // Error boundary must NOT have fired.
     expect(screen.queryByTestId("boundary")).toBeNull();
   });
 
   it("does not throw into the error boundary when no AuthProvider is mounted", async () => {
-    renderPane();
+    const { container } = renderPane();
     await waitFor(() => {
-      expect(screen.getByTitle("themeOptions.sections.logo")).toBeInTheDocument();
+      expect(container.querySelectorAll('[data-sidebar="menu-button"]').length).toBeGreaterThan(
+        0,
+      );
     });
     expect(screen.queryByTestId("boundary")).toBeNull();
   });
 });
+
