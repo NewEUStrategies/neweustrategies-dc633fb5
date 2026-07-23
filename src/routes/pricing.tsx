@@ -46,7 +46,6 @@ import { audiencePanelId, audienceTabId } from "@/components/pricing/audienceMet
 import { IntervalToggle } from "@/components/pricing/IntervalToggle";
 import { TierCard } from "@/components/pricing/TierCard";
 import { SupporterStrip } from "@/components/pricing/SupporterStrip";
-import { ComparisonTable } from "@/components/pricing/ComparisonTable";
 import { PricingComparisonMatrix } from "@/components/pricing/PricingComparisonMatrix";
 
 import { PricingFaq } from "@/components/pricing/PricingFaq";
@@ -264,8 +263,6 @@ function PricingPage() {
       {/* Przełącznik Miesięcznie/Rocznie renderuje AudienceSwitcher powyżej -
           duplikat usunięty. */}
 
-
-
       {isLoading ? (
         <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
           {[0, 1, 2].map((i) => (
@@ -385,10 +382,7 @@ function PricingPage() {
             </section>
           )}
 
-          <PricingComparisonMatrix tiers={cardTiers} lang={lang} />
-
-          <ComparisonTable tiers={cardTiers} lang={lang} />
-
+          <PricingComparisonMatrix tiers={cardTiers} lang={lang} currentTierKey={currentTierKey} />
 
           <PricingFaq
             key={`faq-${activeKey ?? "all"}`}

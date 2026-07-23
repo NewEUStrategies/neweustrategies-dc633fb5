@@ -3,7 +3,7 @@
 // przyjmując parytet 1 EUR = 2 PLN (spójne z /support i cennikiem darowizn).
 // Konwersja jest deterministyczna i tożsama na FE i BE, więc UI cennika,
 // koszyk oraz panel admina pokazują tę samą kwotę.
-import { formatMoney } from "@/lib/billing/types";
+import { formatMoney, formatMoneyWhole } from "@/lib/billing/types";
 
 export type DisplayCurrency = "PLN" | "EUR";
 
@@ -32,4 +32,17 @@ export function convertToDisplayCurrency(
 export function formatDisplayMoney(cents: number, currency: string, lang: string): string {
   const d = convertToDisplayCurrency(cents, currency, displayCurrencyForLang(lang));
   return formatMoney(d.cents, d.currency, lang);
+}
+
+/**
+ * Przybliżona kwota miesięczna dla kotwicy planu rocznego: konwersja do waluty
+ * prezentacji, zaokrąglenie W DÓŁ do pełnej jednostki (nigdy nie zawyża
+ * równowartości) i format bez ułamka. Zaokrąglamy w walucie docelowej, żeby
+ * wersja EUR też była czysta. Etykieta „≈" i dokładna cena roczna obok czynią
+ * tę wartość jawnie orientacyjną.
+ */
+export function formatApproxDisplayMoney(cents: number, currency: string, lang: string): string {
+  const d = convertToDisplayCurrency(cents, currency, displayCurrencyForLang(lang));
+  const whole = Math.floor(d.cents / 100) * 100;
+  return formatMoneyWhole(whole, d.currency, lang);
 }

@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import type { BillingInterval } from "@/lib/pricing/selectors";
 import { trackCta } from "@/lib/analytics/track";
 
-
 export function IntervalToggle({
   value,
   onChange,
@@ -41,7 +40,6 @@ export function IntervalToggle({
                 ? "bg-background text-foreground shadow"
                 : "text-muted-foreground hover:text-foreground",
             )}
-
           >
             {interval === "month" ? t("pricing.intervalMonthly") : t("pricing.intervalYearly")}
             {interval === "year" && savingsPct !== null && (

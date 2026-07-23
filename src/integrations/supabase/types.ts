@@ -10604,6 +10604,10 @@ export type Database = {
         Args: { p_tenant: string }
         Returns: undefined
       }
+      apply_pricing_catalog_v4: {
+        Args: { p_tenant: string }
+        Returns: undefined
+      }
       ask_qa_question: {
         Args: { p_anonymous?: boolean; p_body: string; p_session_id: string }
         Returns: string
@@ -11870,6 +11874,13 @@ export type Database = {
           price_note_pl: string
           rank: number
           sort_order: number
+        }[]
+      }
+      pricing_catalog_v4_benefits: {
+        Args: never
+        Returns: {
+          benefits: Json
+          key: string
         }[]
       }
       process_mentions: {

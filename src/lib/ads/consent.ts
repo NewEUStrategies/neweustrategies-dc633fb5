@@ -357,7 +357,6 @@ export function hasAnalyticsConsent(): boolean {
   return hasCategoryConsent("analytics");
 }
 
-
 // -------- Backward compat (marketing-only API) --------
 
 export function useMarketingConsent() {

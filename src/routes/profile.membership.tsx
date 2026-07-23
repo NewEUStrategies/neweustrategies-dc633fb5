@@ -40,8 +40,10 @@ import {
   type MyOrganization,
 } from "@/lib/billing/membership";
 import { formatMoney } from "@/lib/billing/types";
+import { PricingComparisonMatrix } from "@/components/pricing/PricingComparisonMatrix";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensureMembershipI18n } from "@/lib/i18n-membership";
+import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";
 export const Route = createFileRoute("/profile/membership")({
   component: MembershipHub,
 });
@@ -50,6 +52,7 @@ function MembershipHub() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProfileI18n();
   ensureMembershipI18n();
+  ensurePricingI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   // Odbiór zaproszonych miejsc organizacji po wejściu (idempotentnie).
@@ -63,6 +66,14 @@ function MembershipHub() {
   const tier = currentTier.data;
   const fullTier = (tiers.data ?? []).find((x) => x.key === tier?.key) ?? null;
   const benefits = fullTier ? parseTierBenefits(fullTier.benefits) : [];
+
+  // Porównanie zawężone do segmentu bieżącej warstwy (ta sama publiczność co
+  // /pricing), per tenant - użytkownik widzi swoją kolumnę wyróżnioną i ścieżkę
+  // w górę. Bez segmentu (np. brak dopasowania) domyślnie ścieżka indywidualna.
+  const audienceKey = fullTier?.audience_key ?? "individual";
+  const segmentTiers = (tiers.data ?? [])
+    .filter((x) => (x.audience_key ?? "individual") === audienceKey && x.key !== "supporter")
+    .sort((a, b) => a.rank - b.rank || a.sort_order - b.sort_order);
 
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL") : "";
@@ -116,6 +127,15 @@ function MembershipHub() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Porównanie planów w segmencie bieżącej warstwy - ta sama matryca co na
+          /pricing, wyprowadzona z realnych features tenanta, z podświetloną
+          kolumną „Twój plan". Sam się chowa, gdy segment ma < 2 warstwy. */}
+      <PricingComparisonMatrix
+        tiers={segmentTiers}
+        lang={lang}
+        currentTierKey={tier?.key ?? null}
+      />
 
       {/* Źródła poziomu (nadania) */}
       {(grants.data?.length ?? 0) > 0 && (
