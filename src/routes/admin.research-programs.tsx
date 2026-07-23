@@ -2,7 +2,7 @@
 // + members/projects/partners/items). Odrębne od /admin/programs, które
 // zarządza uproszczoną tabelą `programs` używaną do tagowania treści i
 // przypisań ekspertów. Tutaj: pełny landing (teza, zakres, pytania badawcze,
-// zespół z liderem, projekty, partnerzy, kuratorowane raporty flagowe,
+// zespół z liderem, projekty, partnerzy, wybrane raporty flagowe,
 // podcasty i wydarzenia).
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";

@@ -209,7 +209,7 @@ const pricingPl = {
         },
         {
           id: "learningPath",
-          label: "Cykl „Learning Path” (kuratorowane listy lektur)",
+          label: "Cykl „Learning Path” (wybrane listy lektur)",
           values: {
             reader: "check",
             member: "check",
@@ -264,7 +264,7 @@ const pricingPl = {
         },
         {
           id: "networkIntros",
-          label: "Kuratorowane wprowadzenia do sieci",
+          label: "Wybrane wprowadzenia do sieci",
           values: { vip: "check" },
         },
         {
