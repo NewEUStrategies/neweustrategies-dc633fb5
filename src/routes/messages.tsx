@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { useTranslation } from "react-i18next";
 import {
   Archive,
+  ArrowLeft,
   Bell,
   ChevronDown,
   ChevronRight,
