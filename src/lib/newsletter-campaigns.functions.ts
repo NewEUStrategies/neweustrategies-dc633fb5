@@ -40,6 +40,7 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/tracking";
+import { signTrackingToken } from "@/lib/newsletter/trackingToken.server";
 import { parseEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
 import { renderEmailHtml } from "@/lib/newsletter/renderEmailHtml";
 import {
@@ -703,8 +704,11 @@ async function runCampaignSend(
             { email: sub.email, firstName: sub.first_name ?? "", lastName: sub.last_name ?? "" },
             lang,
             unsubscribeUrl,
-            origin && sub.unsubscribe_token
-              ? { origin, campaignId: camp.id, token: sub.unsubscribe_token }
+            // Token trackingu jest ODDZIELNY od tokenu wypisu: podpisany HMAC-em
+            // per (kampania, subskrybent), więc jego wyciek w URL-u nie pozwala
+            // wypisać odbiorcy (unsubscribe dalej wymaga unsubscribe_token).
+            origin
+              ? { origin, campaignId: camp.id, token: signTrackingToken(camp.id, sub.id) }
               : null,
           );
           const result = await sendEmail({
@@ -800,8 +804,9 @@ function renderCampaignHtml(
   lang: "pl" | "en",
   unsubscribeUrl: string | null,
   // When present, body links are rewritten through the click-tracking redirect
-  // and an open-tracking pixel is appended. `token` reuses the subscriber's
-  // existing unsubscribe token. Null for test sends (no tracking).
+  // and an open-tracking pixel is appended. `token` is the SIGNED tracking token
+  // (HMAC per campaign+subscriber, see trackingToken.server) - NOT the
+  // unsubscribe token. Null for test sends (no tracking).
   tracking: { origin: string; campaignId: string; token: string } | null = null,
 ): string {
   const replaced = rawHtml

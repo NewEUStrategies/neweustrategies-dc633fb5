@@ -1,12 +1,13 @@
 // Newsletter open-tracking pixel. GET /api/public/nl-open?c=<campaignId>&s=<token>
 // Always returns a 1x1 transparent GIF (fail-safe); best-effort records an
-// `open` event. `s` is the subscriber's existing unsubscribe token (reused).
+// `open` event. `s` is the SIGNED tracking token (HMAC per campaign+subscriber),
+// verified server-side - NOT the unsubscribe token, so a leaked pixel URL can
+// never unsubscribe the recipient.
 import { createFileRoute } from "@tanstack/react-router";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
-import { isValidTrackingToken } from "@/lib/newsletter/tracking";
+import { verifyTrackingToken } from "@/lib/newsletter/trackingToken.server";
 import { recordCampaignEvent } from "@/lib/newsletter/trackingEvents.server";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // A mail client may re-request the pixel a few times; generous burst, light
 // sustained rate per IP just to blunt a flood.
 const limiter = createRateLimiter({ capacity: 120, refillPerSec: 2 });
@@ -39,8 +40,9 @@ export const Route = createFileRoute("/api/public/nl-open")({
             const url = new URL(request.url);
             const c = url.searchParams.get("c");
             const s = url.searchParams.get("s");
-            if (c && UUID_RE.test(c) && isValidTrackingToken(s)) {
-              await recordCampaignEvent(c, s, "open", null);
+            const subscriberId = c ? verifyTrackingToken(c, s) : null;
+            if (c && subscriberId) {
+              await recordCampaignEvent(c, subscriberId, "open", null);
             }
           }
         } catch {

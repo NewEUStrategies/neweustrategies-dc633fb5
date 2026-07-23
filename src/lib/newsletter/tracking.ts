@@ -5,11 +5,6 @@
 // logic is unit-testable in isolation; the DB writes live in
 // trackingEvents.server.ts.
 
-/** A tracking id reuses the subscriber's unsubscribe token: 16-128 hex chars. */
-export function isValidTrackingToken(token: string | null | undefined): token is string {
-  return !!token && token.length >= 16 && token.length <= 128 && /^[a-f0-9]+$/i.test(token);
-}
-
 /**
  * True only for an ABSOLUTE http/https URL. `new URL(raw)` (no base) rejects
  * relative paths, protocol-relative "//evil", and dangerous schemes

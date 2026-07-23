@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   buildTrackedClickUrl,
   isSafeHttpUrl,
-  isValidTrackingToken,
   rewriteTrackingLinks,
   trackingPixelImg,
   trackingPixelUrl,
@@ -10,20 +9,7 @@ import {
 
 const ORIGIN = "https://news.example.com";
 const CID = "11111111-1111-4111-8111-111111111111";
-const TOKEN = "a1b2c3d4e5f60718"; // 16 hex chars
-
-describe("isValidTrackingToken", () => {
-  it("accepts 16-128 hex chars", () => {
-    expect(isValidTrackingToken(TOKEN)).toBe(true);
-    expect(isValidTrackingToken("f".repeat(128))).toBe(true);
-  });
-  it("rejects too short / non-hex / empty", () => {
-    expect(isValidTrackingToken("abc")).toBe(false);
-    expect(isValidTrackingToken("g".repeat(20))).toBe(false);
-    expect(isValidTrackingToken(null)).toBe(false);
-    expect(isValidTrackingToken("f".repeat(129))).toBe(false);
-  });
-});
+const TOKEN = "a1b2c3d4e5f60718"; // przykładowy token trackingu w URL-ach testowych
 
 describe("isSafeHttpUrl (open-redirect guard)", () => {
   it("accepts absolute http/https", () => {
