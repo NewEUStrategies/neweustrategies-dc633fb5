@@ -192,6 +192,7 @@ const pl = {
         post: "Publikacja",
         author: "Autor",
         organization: "Organizacja",
+        company: "Firma",
         category: "Kategoria",
         topic: "Tag",
         series: "Seria",
