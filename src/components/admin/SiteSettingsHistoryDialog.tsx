@@ -2,7 +2,7 @@
 // Wired to `site_settings_revisions` (populated by the snapshot trigger).
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { History, RotateCcw, Eye, User as UserIcon } from "@/lib/lucide-shim";
+import { Clock, RotateCcw, Eye, User as UserIcon } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
