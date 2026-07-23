@@ -163,6 +163,7 @@ const pricingPl = {
           id: "audioVideo",
           label: "Podcast „Depesza Dyplomaty”, wywiady i audio-wideo",
           values: {
+            reader: "check",
             member: "check",
             pro: "check",
             vip: "check",
@@ -176,6 +177,7 @@ const pricingPl = {
           id: "analysisWeek",
           label: "Panel „Analiza Tygodnia” (mapy, wykresy)",
           values: {
+            reader: "check",
             member: "check",
             pro: "check",
             vip: "check",
@@ -189,6 +191,7 @@ const pricingPl = {
           id: "learningPath",
           label: "Cykl „Learning Path” (kuratorowane listy lektur)",
           values: {
+            reader: "check",
             member: "check",
             pro: "check",
             vip: "check",
@@ -202,6 +205,7 @@ const pricingPl = {
           id: "citations",
           label: "Narzędzia cytowania (Chicago, APA, BibTeX)",
           values: {
+            reader: "check",
             member: "check",
             pro: "check",
             vip: "check",
@@ -213,19 +217,9 @@ const pricingPl = {
         },
         { id: "qa", label: "Priorytet pytań w sesjach Q&A z ekspertami", feature: "qa_priority" },
         {
-          id: "gras",
-          label: "Monitoring regulacyjny z alertami (GRAS)",
-          feature: "regulatory_monitoring",
-        },
-        {
           id: "proBriefings",
           label: "Zamknięte briefingi Pro (scenariusze, foresight)",
           feature: "pro_briefings",
-        },
-        {
-          id: "workingGroups",
-          label: "Zamknięta grupa robocza ekspertów",
-          feature: "working_groups",
         },
         {
           id: "foresightNote",
