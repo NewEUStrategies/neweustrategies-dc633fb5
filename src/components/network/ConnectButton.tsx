@@ -287,7 +287,7 @@ export function ConnectButton({
             variant="outline"
             size={size}
             disabled={busy}
-            className={cn("gap-1.5", iconOnlyClass, className)}
+            className={cn("gap-1.5", iconOnlyClass, iconHoverClass, className)}
             aria-label={`${t("network.connected")}: ${displayName}`}
             title={iconOnly ? t("network.connected") : undefined}
           >
