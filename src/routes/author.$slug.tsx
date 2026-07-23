@@ -305,6 +305,11 @@ function ExpertHubPage() {
               {/* Sieć kontaktów: widoczne tylko dla zalogowanych na cudzym
                   profilu (komponenty same zwracają null w pozostałych stanach). */}
               <ConnectButton userId={expert.id} displayName={name} />
+              <DirectMessageButton
+                userId={expert.id}
+                displayName={name}
+                displayAvatar={expert.avatar_url}
+              />
               <ExpertRequestButton
                 expertId={expert.id}
                 expertName={name}
