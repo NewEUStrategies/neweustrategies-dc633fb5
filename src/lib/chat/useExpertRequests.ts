@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
-export type ExpertRequestRow = Database["public"]["Tables"]["expert_requests"]["Row"];
+export type ExpertRequestRow = Database["public"]["Tables"]["expert_inmails"]["Row"];
 export type ExpertRequestBox = "sent" | "received";
 export type ExpertRequestAction = "approve" | "decline" | "answered" | "cancel";
 
