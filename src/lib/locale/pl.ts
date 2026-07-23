@@ -4,6 +4,19 @@
 export const pl = {
   common: {
     retry: "Spróbuj ponownie",
+    loading: "Ładowanie…",
+    loadMore: "Załaduj więcej",
+    add: "Dodaj",
+    remove: "Usuń",
+    delete: "Usuń",
+    saving: "Zapisuję…",
+    working: "Pracuję…",
+    yes: "Tak",
+    no: "Nie",
+    preview: {
+      lightMode: "Tryb jasny",
+      darkMode: "Tryb ciemny",
+    },
     cancel: "Anuluj",
     confirm: "Potwierdź",
     save: "Zapisz",
@@ -32,6 +45,29 @@ export const pl = {
   },
   hero: {
     by: "Autor",
+  },
+  blog: {
+    empty: "Brak opublikowanych wpisów.",
+  },
+  footer: {
+    back_to_top: "Wróć na górę",
+  },
+  archive: {
+    empty: "Brak opublikowanych wpisów.",
+    next: "Następna strona",
+    prev: "Poprzednia strona",
+    pageLabel: "Strona",
+  },
+  consent: {
+    preview: {
+      title: "Podgląd zgody",
+      active: "AKTYWNY",
+      inactive: "REALNE",
+      hint: "Testuj skrypty bez czyszczenia cookies - override tylko dla tej sesji.",
+      acceptAll: "Wszystko",
+      rejectAll: "Nic",
+      reset: "Wróć do rzeczywistej zgody",
+    },
   },
   newsletter: {
     title: "STRATEGICZNE MYŚLENIE, NOWE PERSPEKTYWY",
@@ -72,6 +108,8 @@ export const pl = {
     signup: "Zarejestruj się",
     signinOk: "Zalogowano",
     signupOk: "Konto utworzone",
+    invalidInput: "Nieprawidłowe dane - sprawdź adres e-mail i spróbuj ponownie.",
+    rateLimited: "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
   },
   post: {
     takeaways: {
@@ -83,6 +121,11 @@ export const pl = {
       hint: "Krótkie, konkretne bullet pointy - max 6. Wyświetlane nad treścią wpisu w wybranym języku.",
       empty: "Brak punktów dla tego języka.",
     },
+    readMinutes_one: "{{count}} min czytania",
+    readMinutes_few: "{{count}} min czytania",
+    readMinutes_many: "{{count}} min czytania",
+    readMinutes_other: "{{count}} min czytania",
+    updated: "Aktualizacja",
   },
   ads: {
     label: "Reklama",
@@ -1822,6 +1865,8 @@ export const pl = {
     markUnread: "Oznacz jako nieprzeczytane",
     markGroupRead: "Oznacz całą rozmowę jako przeczytaną",
     markGroupUnread: "Oznacz całą rozmowę jako nieprzeczytaną",
+    deleteGroup: "Usuń całą rozmowę",
+    loadMore: "Załaduj więcej",
     grouped: {
       messagesFrom: "Wiadomości od {{name}}",
       moreMessages_one: "+{{count}} kolejna wiadomość",
@@ -1852,6 +1897,21 @@ export const pl = {
         system: "Ogłoszenia systemowe",
         security: "Alerty bezpieczeństwa (zawsze włączone)",
       },
+      channelsHeader: "Kanały doręczeń",
+      channelsSubtitle: "Powiadomienia poza aplikacją: push w przeglądarce i zbiorczy e-mail.",
+      chatBell: "Dzwonek czatu w pasku górnym",
+      chatBellHint:
+        "Wyłącz, żeby ukryć skrót do czatu w pasku górnym. Rozmowy nadal działają w /messages i doku.",
+      push: "Powiadomienia push w tej przeglądarce",
+      pushHint: "Alert pojawi się nawet przy zamkniętej karcie. Każde urządzenie włączasz osobno.",
+      pushDenied: "Przeglądarka odmówiła zgody na powiadomienia.",
+      pushError: "Nie udało się włączyć powiadomień push.",
+      pushUnsupported: "Ta przeglądarka lub instalacja nie wspiera powiadomień push.",
+      digest: "Digest e-mail z nieprzeczytanych powiadomień",
+      digestHint: "Jedno zbiorcze podsumowanie zamiast pojedynczych e-maili.",
+      digestOff: "Wyłączony",
+      digestDaily: "Codziennie",
+      digestWeekly: "Co tydzień",
       saved: "Zapisano preferencje",
       saveError: "Nie udało się zapisać preferencji",
     },
@@ -1937,10 +1997,21 @@ export const pl = {
     anonymous: "Użytkownik",
     signInPrompt: "Chcesz dołączyć do dyskusji?",
     signInLink: "Zaloguj się",
+    closed: "Komentarze pod tym wpisem są zamknięte.",
+    edit: "Edytuj",
+    edited: "edytowano",
+    editSaved: "Komentarz zaktualizowany",
+    saveEdit: "Zapisz zmiany",
+    guestBadge: "gość",
+    guestName: "Twoje imię lub pseudonim",
+    loadMore: "Załaduj więcej komentarzy",
+    submittedPending: "Dziękujemy - komentarz pojawi się po zatwierdzeniu przez moderację.",
     errors: {
       authRequired: "Zaloguj się, aby komentować.",
       disabled: "Komentarze są wyłączone.",
       generic: "Nie udało się wysłać komentarza.",
+      editExpired: "Komentarz można edytować tylko przez 15 minut od dodania.",
+      rateLimited: "Zwolnij - za dużo komentarzy na raz.",
     },
   },
   adminComments: {

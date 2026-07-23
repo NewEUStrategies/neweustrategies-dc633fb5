@@ -6,6 +6,61 @@ import i18n from "./i18n";
 const pl = {
   profile: {
     title: "Mój profil",
+    subtitle: "Centrum zarządzania",
+    privacy: {
+      title: "Prywatność i zgody",
+      hint: "Twoje wybory są zapisywane i synchronizowane z profilem.",
+    },
+    author: {
+      title: "Profil eksperta",
+      intro:
+        "Publiczny profil eksperta - widoczny na /author/<slug> oraz w widget BIO we wpisach. Niezależny od profilu prywatnego (dane kontaktowe mogą się różnić).",
+      create: "Utwórz profil eksperta",
+      noRole:
+        "Profil eksperta jest dostępny tylko dla użytkowników z rolą autora lub administratora.",
+      isPublic: "Widoczny publicznie",
+      isPublicHint: "Wyłączenie ukrywa profil w widget BIO autora we wpisach.",
+      avatarSection: "Zdjęcie eksperta",
+      basicSection: "Dane zawodowe",
+      contactSection: "Publiczne dane kontaktowe (mogą się różnić od profilu prywatnego)",
+      contactEmail: "Publiczny e-mail",
+      website: "Strona WWW",
+      socialSection: "Media społecznościowe",
+      socialLabel: "Etykieta",
+      customSocials: "Własne linki (z ikoną)",
+      noCustomSocials: "Brak własnych linków. Dodaj np. Threads, Bluesky, Mastodon...",
+      iconUrl: "URL ikony (opcjonalnie)",
+      bioBulletsHint:
+        "Bio w formie punktorów - maksymalnie 5. Kolor punktora dziedziczony z ustawień tenanta (admin › Layouty ekspertów). Edycja synchronizuje profil prywatny.",
+      bioPl: "Bio - punktory (PL)",
+      bioEn: "Bio - punktory (EN)",
+      ogRefreshBtn: "Odśwież podgląd społecznościowy",
+      ogRefreshHint:
+        "Po zmianie zdjęcia lub bio odśwież podgląd społecznościowy - wymusi to nowy og:image w linkach.",
+      ogRefreshOk:
+        "Podgląd społecznościowy zaktualizowany. Otwórz Post Debugger, aby wymusić rescrape.",
+      ogRefreshError:
+        "Nie udało się odświeżyć podglądu społecznościowego. Uzupełnij slug profilu i spróbuj ponownie.",
+      media: {
+        heading: "Obecność w mediach, materiały zewnętrzne, podcasty",
+        hint: "Dodawaj linki do wywiadów, wystąpień, op-edów i podcastów, w których się pojawiasz. Publiczne wpisy pokażą się na Twoim profilu eksperta w sekcji „W mediach”.",
+        empty:
+          "Nie masz jeszcze dodanych wystąpień medialnych. Kliknij „Dodaj” i wklej link do wywiadu, op-eda lub podcastu.",
+        kind: "Rodzaj",
+        language: "Język (opcjonalnie)",
+        outlet: "Wydawca / stacja / podcast",
+        title: "Tytuł materiału",
+        titlePlaceholder: "np. Wywiad o polityce bezpieczeństwa UE",
+        url: "Link (URL)",
+        cover: "Okładka - URL obrazu (opcjonalnie)",
+        publishedOn: "Data publikacji",
+        isPublic: "Widoczne na profilu publicznym",
+        added: "Dodano wpis medialny",
+        removed: "Usunięto wpis medialny",
+        saved: "Zapisano",
+        validation: "Wypełnij tytuł, wydawcę i datę.",
+      },
+    },
     nav: {
       overview: "Przegląd",
       edit: "Edycja profilu",
@@ -152,6 +207,13 @@ const pl = {
       signOutOthers: "Wyloguj pozostałe sesje",
       signedOutOthers: "Wylogowano pozostałe sesje.",
       exportFailed: "Nie udało się przygotować eksportu. Spróbuj ponownie.",
+      export: {
+        title: "Twoje dane (RODO)",
+        subtitle:
+          "Pobierz kopię danych osobowych, które o Tobie przechowujemy (art. 15 i 20 RODO): profil, komentarze, obserwacje, zamówienia i preferencje - jako plik JSON.",
+        busy: "Przygotowywanie...",
+        download: "Pobierz moje dane (JSON)",
+      },
       email: {
         title: "Adres e-mail",
         subtitle: "Zmiana wymaga potwierdzenia linkiem wysłanym na nowy adres.",
@@ -413,6 +475,60 @@ const pl = {
 const en: typeof pl = {
   profile: {
     title: "My profile",
+    subtitle: "Management centre",
+    privacy: {
+      title: "Privacy & consent",
+      hint: "Your choices persist across visits and sync to your profile.",
+    },
+    author: {
+      title: "Expert profile",
+      intro:
+        "Public expert profile - shown at /author/<slug> and in the author BIO widget on posts. Independent of your private profile (contact details may differ).",
+      create: "Create expert profile",
+      noRole:
+        "The expert profile is available only to users with the author or administrator role.",
+      isPublic: "Publicly visible",
+      isPublicHint: "Turning this off hides the profile in the author BIO widget on posts.",
+      avatarSection: "Expert photo",
+      basicSection: "Professional details",
+      contactSection: "Public contact details (may differ from your private profile)",
+      contactEmail: "Public e-mail",
+      website: "Website",
+      socialSection: "Social media",
+      socialLabel: "Label",
+      customSocials: "Custom links (with icon)",
+      noCustomSocials: "No custom links yet. Add e.g. Threads, Bluesky, Mastodon...",
+      iconUrl: "Icon URL (optional)",
+      bioBulletsHint:
+        "Bio as bullet points - up to 5. Bullet colour is inherited from the tenant settings (admin › Expert layouts). Editing syncs your private profile.",
+      bioPl: "Bio - bullets (PL)",
+      bioEn: "Bio - bullets (EN)",
+      ogRefreshBtn: "Refresh social preview",
+      ogRefreshHint:
+        "After changing your photo or bio, refresh the social preview - this forces a new og:image in links.",
+      ogRefreshOk: "Social preview updated. Open the Post Debugger to force a rescrape.",
+      ogRefreshError:
+        "Could not refresh the social preview. Fill in the profile slug and try again.",
+      media: {
+        heading: "Media presence, external materials, podcasts",
+        hint: "Add links to interviews, appearances, op-eds and podcasts you feature in. Public entries appear on your expert profile in the In the media section.",
+        empty:
+          "You haven't added any media appearances yet. Click Add and paste a link to an interview, op-ed or podcast.",
+        kind: "Type",
+        language: "Language (optional)",
+        outlet: "Publisher / station / podcast",
+        title: "Material title",
+        titlePlaceholder: "e.g. Interview on EU security policy",
+        url: "Link (URL)",
+        cover: "Cover - image URL (optional)",
+        publishedOn: "Publication date",
+        isPublic: "Visible on public profile",
+        added: "Media entry added",
+        removed: "Media entry removed",
+        saved: "Saved",
+        validation: "Fill in the title, publisher and date.",
+      },
+    },
     nav: {
       overview: "Overview",
       edit: "Edit profile",
@@ -558,6 +674,13 @@ const en: typeof pl = {
       signOutOthers: "Sign out other sessions",
       signedOutOthers: "Signed out other sessions.",
       exportFailed: "Could not prepare the export. Please try again.",
+      export: {
+        title: "Your data (GDPR)",
+        subtitle:
+          "Download a copy of the personal data we store about you (Art. 15 and 20 GDPR): profile, comments, follows, orders and preferences - as a JSON file.",
+        busy: "Preparing...",
+        download: "Download my data (JSON)",
+      },
       email: {
         title: "Email address",
         subtitle: "Changing it requires confirmation via a link sent to the new address.",

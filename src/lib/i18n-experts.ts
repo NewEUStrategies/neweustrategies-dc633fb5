@@ -46,6 +46,7 @@ const pl = {
     // Eksplorator materiałów
     materialsHeading: "Materiały",
     materialsSubtitle: "Publikacje, raporty, wideo, podcasty i wydarzenia.",
+    publicationsHeading: "Publikacje eksperta",
     filterFormat: "Format",
     filterTopic: "Temat",
     filterRegion: "Region",
@@ -140,6 +141,7 @@ const en = {
     },
     materialsHeading: "Materials",
     materialsSubtitle: "Publications, reports, video, podcasts and events.",
+    publicationsHeading: "Expert publications",
     filterFormat: "Format",
     filterTopic: "Topic",
     filterRegion: "Region",
