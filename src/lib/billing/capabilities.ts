@@ -10,7 +10,7 @@
 // kontrakt weryfikowany code-review, a nie zgadywankę po grepie.
 
 /** Gdzie flaga jest egzekwowana (do grupowania i ikon w panelu). */
-export type CapabilityGate = "content" | "events" | "qa" | "tracker" | "none";
+export type CapabilityGate = "content" | "events" | "qa" | "tracker" | "chat" | "none";
 
 export interface CapabilityMeta {
   /** Klucz we `features` (membership_tiers.features). */
