@@ -143,15 +143,35 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={[
+            "relative inline-flex h-10 w-10 items-center justify-center shrink-0",
+            "rounded-[10px] border border-border/70 bg-card text-foreground",
+            "shadow-sm transition-all duration-200",
+            "hover:bg-muted hover:border-border hover:shadow-md hover:-translate-y-px",
+            "active:translate-y-0 active:shadow-sm",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            "disabled:opacity-50 disabled:pointer-events-none",
+            unread > 0 && "text-foreground",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           aria-label={t("notifications.title", { defaultValue: "Powiadomienia" })}
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          <Bell className="h-4 w-4" aria-hidden />
-          <UnreadBadge count={unread} className="absolute -top-0.5 -right-0.5" />
+          <Bell
+            className="h-[18px] w-[18px] transition-transform duration-200"
+            aria-hidden
+          />
+
+          <UnreadBadge
+            count={unread}
+            variant="alert"
+            className="absolute -top-1 -right-1"
+          />
         </button>
       </PopoverTrigger>
+
       <PopoverContent
         align="end"
         sideOffset={8}
