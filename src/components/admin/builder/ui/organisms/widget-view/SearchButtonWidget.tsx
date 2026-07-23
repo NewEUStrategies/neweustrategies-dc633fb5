@@ -889,15 +889,16 @@ export function SearchButtonWidget({
             }
             .builder-search-widget .search-operators-heading {
               font-family: "Red Hat Display", system-ui, sans-serif !important;
-              font-size: 7px !important;
-              line-height: 10px !important;
+              font-size: 6px !important;
+              line-height: 9px !important;
               letter-spacing: 0.04em !important;
             }
             .builder-search-widget .search-operator-button {
-              font-size: 7px !important;
-              line-height: 10px !important;
+              font-family: "Red Hat Display", system-ui, sans-serif !important;
+              font-size: 6px !important;
+              line-height: 9px !important;
               letter-spacing: 0 !important;
-              min-height: 14px !important;
+              min-height: 12px !important;
             }
             /* Klasyczny floating label: unosi się na górną krawędź inputa. */
             .builder-search-widget .input-group > .input:focus ~ .user-label,
