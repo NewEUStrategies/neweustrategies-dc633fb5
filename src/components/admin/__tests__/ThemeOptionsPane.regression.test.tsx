@@ -77,21 +77,6 @@ vi.mock("@/lib/ssrCache", () => ({
   edgeTtlCache: async <T,>(_key: string, _ttl: number, fn: () => Promise<T>) => fn(),
 }));
 
-// The lucide-shim resolves icons async in some builds; return simple stubs.
-vi.mock("@/lib/lucide-shim", async () => {
-  const React = await import("react");
-  const Stub = (name: string) =>
-    // eslint-disable-next-line react/display-name
-    React.forwardRef<HTMLSpanElement, { className?: string }>((props, ref) => (
-      <span ref={ref} data-icon={name} className={props.className} />
-    ));
-  return new Proxy(
-    {},
-    {
-      get: (_t, key) => Stub(String(key)),
-    },
-  );
-});
 
 class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
