@@ -232,21 +232,12 @@ function PersonCard({
             compact
           />
         )}
-        <button
-          type="button"
-          disabled={start.isPending}
-          onClick={() =>
-            start.mutate(person.id, {
-              onSuccess: (conversationId) => openChatWindow({ conversationId }),
-              onError: () => toast.error(t("chat.startError")),
-            })
-          }
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-          aria-label={`${t("people.message")}: ${person.display_name}`}
-        >
-          <MessageCircle className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden sm:inline">{t("people.message")}</span>
-        </button>
+        <DirectMessageButton
+          userId={person.id}
+          displayName={person.display_name}
+          displayAvatar={person.avatar_url}
+          compact
+        />
       </div>
     </li>
   );
