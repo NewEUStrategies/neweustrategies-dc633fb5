@@ -28,11 +28,11 @@ export function SuggestGroupHeader({ icon: Icon, label, count }: SuggestGroupHea
       >
         <Icon className="h-2.5 w-2.5" aria-hidden />
       </span>
-      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+      <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </span>
       {typeof count === "number" && (
-        <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-muted-foreground">
+        <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 text-[8px] font-semibold tabular-nums text-muted-foreground">
           {count}
         </span>
       )}
