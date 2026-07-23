@@ -79,7 +79,7 @@ export function SiteSettingsHistoryDialog({
       <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <History className="w-4 h-4" />
+            <Clock className="w-4 h-4" />
             {title ?? t("themeOptions.history.title", "Historia zmian")}
           </DialogTitle>
           <DialogDescription>
