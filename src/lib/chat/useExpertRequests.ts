@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
-export type ExpertRequestRow = Database["public"]["Tables"]["expert_requests"]["Row"];
+export type ExpertRequestRow = Database["public"]["Tables"]["expert_inmails"]["Row"];
 export type ExpertRequestBox = "sent" | "received";
 export type ExpertRequestAction = "approve" | "decline" | "answered" | "cancel";
 
@@ -47,7 +47,7 @@ export function useMyExpertRequestQuota(): UseQueryResult<ExpertRequestQuota> {
     enabled: !!user,
     staleTime: 60_000,
     queryFn: async (): Promise<ExpertRequestQuota> => {
-      const { data, error } = await supabase.rpc("my_expert_request_quota");
+      const { data, error } = await supabase.rpc("my_inmail_quota");
       if (error) throw error;
       const rec = (data && typeof data === "object" && !Array.isArray(data) ? data : {}) as Record<
         string,
@@ -71,9 +71,9 @@ export function useMyExpertRequests(box: ExpertRequestBox): UseQueryResult<Exper
     enabled: !!user,
     staleTime: 15_000,
     queryFn: async (): Promise<ExpertRequestRow[]> => {
-      const { data, error } = await supabase.rpc("list_my_expert_requests", { p_box: box });
+      const { data, error } = await supabase.rpc("list_my_inmails", { p_box: box });
       if (error) throw error;
-      return (data ?? []) as ExpertRequestRow[];
+      return (data ?? []) as unknown as ExpertRequestRow[];
     },
   });
 }
@@ -90,9 +90,9 @@ export function useAdminExpertRequests(
         p_offset: 0,
       };
       if (status) args.p_status = status;
-      const { data, error } = await supabase.rpc("admin_list_expert_requests", args);
+      const { data, error } = await supabase.rpc("admin_list_inmails", args);
       if (error) throw error;
-      return (data ?? []) as ExpertRequestRow[];
+      return (data ?? []) as unknown as ExpertRequestRow[];
     },
   });
 }
@@ -119,7 +119,7 @@ export function useSendExpertRequest() {
       if (input.expectedAnswers && input.expectedAnswers.trim().length > 0) {
         args.p_expected_answers = input.expectedAnswers.trim();
       }
-      const { data, error } = await supabase.rpc("send_expert_request", args);
+      const { data, error } = await supabase.rpc("send_expert_inmail", args);
       if (error) throw error;
       return data as string;
     },
@@ -138,14 +138,14 @@ export function useResolveExpertRequest() {
       action: ExpertRequestAction;
       note?: string;
     }) => {
-      const args: { p_request_id: string; p_action: string; p_note?: string } = {
-        p_request_id: input.requestId,
+      const args: { p_inmail_id: string; p_action: string; p_note?: string } = {
+        p_inmail_id: input.requestId,
         p_action: input.action,
       };
       if (input.note && input.note.trim().length > 0) {
         args.p_note = input.note.trim();
       }
-      const { data, error } = await supabase.rpc("resolve_expert_request", args);
+      const { data, error } = await supabase.rpc("resolve_expert_inmail", args);
       if (error) throw error;
       return data as { status: string; conversation_id?: string } | null;
     },
