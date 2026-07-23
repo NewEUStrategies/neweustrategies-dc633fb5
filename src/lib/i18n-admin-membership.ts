@@ -10,9 +10,35 @@ const adminMembershipPl = {
     newTier: "Nowa warstwa",
     rankBadge: "ranga",
     defaultBadge: "domyślna",
+    inactiveBadge: "nieaktywna",
     deleteTitle: "Usuń warstwę",
     deleteDefaultDisabled: "Nie można usunąć warstwy domyślnej",
     deleteConfirm: 'Usunąć warstwę "{{key}}"? Operacji nie można cofnąć.',
+    kpi: {
+      tiers: "Warstwy (aktywne / wszystkie)",
+      default: "Domyślna warstwa",
+      mappedPlans: "Plany z warstwą",
+      activeGrants: "Aktywne nadania",
+    },
+    tabs: {
+      tiers: "Warstwy",
+      mapping: "Mapowanie planów",
+      grants: "Nadania",
+      orgs: "Organizacje",
+    },
+    sections: {
+      tiersTitle: "Katalog warstw",
+      tiersDesc:
+        "Nazwa, opis, benefity i bramki (capabilities) każdej warstwy. Kolejność wg rangi.",
+    },
+    groups: {
+      naming: "Nazewnictwo i opis",
+      status: "Ranga i status",
+      benefits: "Benefity (per punkt)",
+      capabilities: "Bramki i limity (capabilities)",
+      grantForm: "Nowe nadanie",
+    },
+
     fields: {
       namePl: "Nazwa PL",
       nameEn: "Name EN",
