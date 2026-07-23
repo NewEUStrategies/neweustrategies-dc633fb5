@@ -782,7 +782,7 @@ export function SearchButtonWidget({
                         el.setSelectionRange(pos, pos);
                       });
                     }}
-                    className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[9px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                    className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[8px] font-semibold leading-[1.4] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
                   >
                     {op}
                   </button>
