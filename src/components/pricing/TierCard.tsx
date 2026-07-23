@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { type AccessPlan } from "@/lib/billing/types";
-import { formatDisplayMoney } from "@/lib/billing/displayCurrency";
+import { formatApproxDisplayMoney, formatDisplayMoney } from "@/lib/billing/displayCurrency";
 
 import { parseTierBenefits, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 import {
@@ -108,11 +108,16 @@ function PriceBlock({
     const monthlyEq = monthlyEquivalentCents(plan);
     const pair = intervalPair(plans);
     const savings = yearlySavingsPct(pair.month, pair.year);
+    // Kotwica: czysta równowartość miesięczna („≈49 zł/mies") zamiast
+    // przypadkowo wyglądającego ułamka („49,17 zł"). Dokładna cena roczna
+    // zostaje w linii „rozliczane rocznie" niżej - nic nie jest zmyślone.
     return (
       <div className="pt-4">
         {fromPrefix}
         <span className="text-4xl font-bold tracking-tight">
-          {fmt(monthlyEq ?? plan.price_cents, plan.currency, lang)}
+          {monthlyEq !== null
+            ? `≈${formatApproxDisplayMoney(monthlyEq, plan.currency, lang)}`
+            : fmt(plan.price_cents, plan.currency, lang)}
         </span>
         <span className="ml-1 text-sm text-muted-foreground">
           {t("pricing.perMonth")}
