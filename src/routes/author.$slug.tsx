@@ -298,17 +298,18 @@ function ExpertHubPage() {
           lang={lang}
           showPlaceholders={false}
           action={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
               {personalized.followInAuthorHeader && (
                 <FollowButton targetType="author" targetId={expert.id} lang={lang} />
               )}
               {/* Sieć kontaktów: widoczne tylko dla zalogowanych na cudzym
                   profilu (komponenty same zwracają null w pozostałych stanach). */}
-              <ConnectButton userId={expert.id} displayName={name} />
+              <ConnectButton userId={expert.id} displayName={name} iconOnly />
               <DirectMessageButton
                 userId={expert.id}
                 displayName={name}
                 displayAvatar={expert.avatar_url}
+                iconOnly
               />
               <ExpertRequestButton
                 expertId={expert.id}
@@ -317,9 +318,10 @@ function ExpertHubPage() {
               />
               <RequestIntroductionButton userId={expert.id} displayName={name} />
               <MutualConnectionsHint userId={expert.id} />
-              <ReportUserButton userId={expert.id} displayName={name} />
+              <AuthorMoreMenu userId={expert.id} displayName={name} />
             </div>
           }
+
         />
 
         {showExpertiseBar && data.areas.length > 0 && (
