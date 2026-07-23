@@ -264,7 +264,7 @@ function ProfileInline() {
           {/* Meta pills: specialization, location, email */}
           <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
             {data.specialization ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground">
+              <span className="inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground">
                 <Award className="h-3 w-3 text-primary" />
                 {data.specialization}
               </span>
@@ -279,7 +279,7 @@ function ProfileInline() {
                     if (v != null) void saveField("specialization", v.trim() || null);
                   });
                 }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-[6px] border border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground transition-colors"
               >
                 <Award className="h-3 w-3" />
                 {t("profile.inline.addSpecialization")}
@@ -287,7 +287,7 @@ function ProfileInline() {
             ) : null}
 
             {data.location ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground">
+              <span className="inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground">
                 <MapPin className="h-3 w-3 text-primary" />
                 {data.location}
               </span>
@@ -302,7 +302,7 @@ function ProfileInline() {
                     if (v != null) void saveField("location", v.trim() || null);
                   });
                 }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-[6px] border border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground transition-colors"
               >
                 <MapPin className="h-3 w-3" />
                 {t("profile.inline.addLocation")}
@@ -312,7 +312,7 @@ function ProfileInline() {
             {user?.email && (
               <a
                 href={`mailto:${user.email}`}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted/60 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted/60 transition-colors"
               >
                 <Mail className="h-3 w-3 text-primary" />
                 <span className="truncate max-w-[200px] sm:max-w-[280px]">{user.email}</span>
@@ -331,7 +331,7 @@ function ProfileInline() {
               {roles.map((r) => (
                 <span
                   key={r}
-                  className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/[0.08] px-2.5 py-[3px] text-[10px] font-semibold text-primary leading-none whitespace-nowrap"
+                  className="inline-flex items-center gap-1 rounded-[6px] border border-primary/15 bg-primary/[0.08] px-2.5 py-[3px] text-[10px] font-semibold text-primary leading-none whitespace-nowrap"
                 >
                   <ShieldCheck className="h-3 w-3" />
                   {t(`profile.role.${r}`)}
@@ -342,7 +342,7 @@ function ProfileInline() {
                   asChild
                   size="sm"
                   variant="outline"
-                  className="h-6 rounded-full px-3 text-[10px] font-semibold gap-1 border-primary/20 hover:bg-primary/[0.05] hover:text-primary"
+                  className="h-6 rounded-[6px] px-3 text-[10px] font-semibold gap-1 border-primary/20 hover:bg-primary/[0.05] hover:text-primary"
                 >
                   <Link to="/admin" className="!text-foreground inline-flex items-center">
                     <ShieldCheck className="h-3 w-3" />
@@ -1097,7 +1097,7 @@ function GuestPreviewActionBar() {
   const { t } = useTranslation();
   const previewHint = t("network.guestPreview.hint");
   const pillBase =
-    "group/pill relative inline-flex items-center gap-1.5 rounded-full border px-3 h-7 text-[11px] font-medium transition-all duration-200 ease-out cursor-not-allowed select-none overflow-hidden " +
+    "group/pill relative inline-flex items-center gap-1.5 rounded-[6px] border px-3 h-7 text-[11px] font-medium transition-all duration-200 ease-out cursor-not-allowed select-none overflow-hidden " +
     "disabled:opacity-100 " +
     "hover:-translate-y-px hover:shadow-[0_4px_14px_-6px_rgba(0,0,0,0.18)] " +
     "[&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110";
@@ -1105,12 +1105,12 @@ function GuestPreviewActionBar() {
     "before:pointer-events-none before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/25 before:to-transparent before:transition-transform before:duration-700 group-hover/pill:before:translate-x-full";
   return (
     <div
-      className="mt-3 flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-dashed border-border/60 bg-muted/20 px-2 py-1.5 backdrop-blur-sm sm:justify-start"
+      className="mt-3 flex flex-wrap items-center justify-center gap-1.5 rounded-[6px] border border-dashed border-border/60 bg-muted/20 px-2 py-1.5 backdrop-blur-sm sm:justify-start"
       role="group"
       aria-label={previewHint}
       title={previewHint}
     >
-      <span className="inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="inline-flex items-center gap-1 rounded-[6px] bg-foreground/5 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
         <Eye className="h-2.5 w-2.5" aria-hidden />
         {t("network.guestPreview.badge")}
       </span>

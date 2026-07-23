@@ -266,7 +266,7 @@ function ExpertHubPage() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {expert.is_expert && (
               <span
-                className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
+                className="rounded-[6px] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
                 style={{
                   backgroundColor: "color-mix(in oklab, var(--pv-accent) 18%, transparent)",
                   color: "var(--pv-accent)",
@@ -277,7 +277,7 @@ function ExpertHubPage() {
             )}
             {expert.verified_at && (
               <span
-                className="inline-flex items-center gap-1 rounded-full bg-sky-400/25 px-2 py-0.5 text-[11px] font-medium text-sky-900 dark:text-sky-50"
+                className="inline-flex items-center gap-1 rounded-[6px] bg-sky-400/25 px-2 py-0.5 text-[11px] font-medium text-sky-900 dark:text-sky-50"
                 title={
                   lang === "pl"
                     ? "Profil zweryfikowany zawodowo"

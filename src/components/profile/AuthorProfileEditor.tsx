@@ -693,8 +693,8 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
                       aria-pressed={active}
                       className={
                         active
-                          ? "rounded-full border border-[var(--brand)] bg-[var(--brand)]/10 px-3 py-1 text-sm text-foreground"
-                          : "rounded-full border border-border bg-muted/30 px-3 py-1 text-sm text-muted-foreground hover:border-border"
+                          ? "rounded-[6px] border border-[var(--brand)] bg-[var(--brand)]/10 px-3 py-1 text-sm text-foreground"
+                          : "rounded-[6px] border border-border bg-muted/30 px-3 py-1 text-sm text-muted-foreground hover:border-border"
                       }
                     >
                       {i18n.language === "en" ? a.name_en : a.name_pl}
