@@ -8,7 +8,7 @@
 //   FAQ                 pytania cennika (pricing_faq_items), globalne lub
 //                       per segment, z kolejnością i aktywnością.
 // Rangi, features (bramki) i mapowanie planów pozostają w /admin/membership.
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
