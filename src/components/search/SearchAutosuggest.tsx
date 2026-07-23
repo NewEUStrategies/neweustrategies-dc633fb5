@@ -191,6 +191,7 @@ export function SearchAutosuggest({
                           label={label(it)}
                           meta={kindLabel(it.kind)}
                           icon={Icon}
+                          avatarUrl={it.kind === "author" && it.id ? authorAvatars[it.id] ?? null : null}
                           active={i === activeIndex}
                           onMouseDown={(e) => {
                             e.preventDefault();
