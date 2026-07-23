@@ -681,95 +681,143 @@ function TiersTab({
     const draft = drafts[tier.id] ?? draftFromTier(tier);
     const set = (patch: Partial<TierMarketingDraft>) =>
       setDrafts((d) => ({ ...d, [tier.id]: { ...draft, ...patch } }));
+    const tierName = lang === "en" ? tier.name_en : tier.name_pl;
+    const badgeText = lang === "en" ? draft.badge_en : draft.badge_pl;
+    const rankTone = rankTone_(tier.rank);
     return (
-      <Card key={tier.id}>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between gap-2 text-base">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate font-mono text-sm">{tier.key}</span>
-              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal">
-                {ta("tiers.rankBadge")} {tier.rank}
+      <Card
+        key={tier.id}
+        className={`overflow-hidden rounded-md border transition-colors ${
+          draft.highlight
+            ? "border-primary/60 shadow-[0_10px_30px_-20px_hsl(var(--primary)/0.6)] ring-1 ring-primary/25"
+            : "border-border/70"
+        }`}
+      >
+        <CardHeader
+          className={`space-y-2 border-b border-border/60 bg-gradient-to-br ${rankTone.header} pb-3`}
+        >
+          <CardTitle className="flex items-start justify-between gap-3 text-base">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${rankTone.iconBg}`}
+                aria-hidden="true"
+              >
+                <Crown className={`h-4.5 w-4.5 ${rankTone.iconFg}`} />
               </span>
-              <span className="truncate text-sm font-normal text-muted-foreground">
-                {lang === "en" ? tier.name_en : tier.name_pl}
-              </span>
-            </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold text-foreground">{tierName}</span>
+                  {draft.highlight ? (
+                    <span className="inline-flex items-center gap-1 rounded-[6px] bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                      <Star className="h-2.5 w-2.5" aria-hidden="true" />
+                      {ta("tiers.highlight")}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="font-mono">{tier.key}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className={`inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 font-medium ${rankTone.pill}`}>
+                    <Award className="h-3 w-3" aria-hidden="true" />
+                    {ta("tiers.rankBadge")} {tier.rank}
+                  </span>
+                  {badgeText ? (
+                    <span className="inline-flex items-center rounded-[6px] bg-foreground/5 px-1.5 py-0.5 font-medium text-foreground/80">
+                      {badgeText}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div>
-              <Label className="text-xs">{ta("tiers.audience")}</Label>
-              <Select value={draft.audience_key} onValueChange={(v) => set({ audience_key: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_AUDIENCE}>{ta("tiers.none")}</SelectItem>
-                  {audiences.map((audience) => (
-                    <SelectItem key={audience.key} value={audience.key}>
-                      {audience.key} ({lang === "en" ? audience.name_en : audience.name_pl})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <CardContent className="flex flex-col gap-4 pt-4">
+          <FieldGroup icon={Users} title={ta("tiers.audience")} accent={rankTone.dot}>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="sm:col-span-1">
+                <Label className="text-xs">{ta("tiers.audience")}</Label>
+                <Select value={draft.audience_key} onValueChange={(v) => set({ audience_key: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_AUDIENCE}>{ta("tiers.none")}</SelectItem>
+                    {audiences.map((audience) => (
+                      <SelectItem key={audience.key} value={audience.key}>
+                        {audience.key} ({lang === "en" ? audience.name_en : audience.name_pl})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">{ta("tiers.badgePl")}</Label>
+                <Input
+                  value={draft.badge_pl}
+                  onChange={(e) => set({ badge_pl: e.target.value })}
+                  placeholder="Najpopularniejszy"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">{ta("tiers.badgeEn")}</Label>
+                <Input
+                  value={draft.badge_en}
+                  onChange={(e) => set({ badge_en: e.target.value })}
+                  placeholder="Most popular"
+                />
+              </div>
             </div>
-            <div>
-              <Label className="text-xs">{ta("tiers.badgePl")}</Label>
-              <Input
-                value={draft.badge_pl}
-                onChange={(e) => set({ badge_pl: e.target.value })}
-                placeholder="Najpopularniejszy"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">{ta("tiers.badgeEn")}</Label>
-              <Input
-                value={draft.badge_en}
-                onChange={(e) => set({ badge_en: e.target.value })}
-                placeholder="Most popular"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-2">
-            <div className="flex items-center gap-2 pb-2">
+            <label className="mt-2 flex items-start gap-2 rounded-[6px] border border-border/60 bg-muted/30 px-2.5 py-2">
               <Switch checked={draft.highlight} onCheckedChange={(v) => set({ highlight: v })} />
-              <span className="text-xs">{ta("tiers.highlight")}</span>
-              <span className="text-[11px] text-muted-foreground">{ta("tiers.highlightHint")}</span>
+              <span className="flex flex-col">
+                <span className="text-xs font-medium">{ta("tiers.highlight")}</span>
+                <span className="text-[11px] text-muted-foreground">{ta("tiers.highlightHint")}</span>
+              </span>
+            </label>
+          </FieldGroup>
+
+          <FieldGroup icon={MessageSquare} title={ta("tiers.ctaMode")} accent={rankTone.dot}>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div>
+                <Label className="text-xs">{ta("tiers.ctaMode")}</Label>
+                <Select value={draft.cta_mode} onValueChange={(v) => set({ cta_mode: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CTA_MODES.map((mode) => (
+                      <SelectItem key={mode} value={mode}>
+                        {ta(`tiers.ctaModes.${mode}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-[11px] text-muted-foreground">{ta("tiers.ctaModeHint")}</p>
+              </div>
+              <div>
+                <Label className="flex items-center gap-1 text-xs">
+                  <Link2 className="h-3 w-3" aria-hidden="true" />
+                  {ta("tiers.contactUrl")}
+                </Label>
+                <Input
+                  value={draft.contact_url}
+                  onChange={(e) => set({ contact_url: e.target.value })}
+                  placeholder="/kontakt lub mailto:..."
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">{ta("tiers.contactUrlHint")}</p>
+              </div>
             </div>
-            <div>
-              <Label className="text-xs">{ta("tiers.contactUrl")}</Label>
-              <Input
-                value={draft.contact_url}
-                onChange={(e) => set({ contact_url: e.target.value })}
-                placeholder="/kontakt lub mailto:..."
-              />
-              <p className="mt-1 text-[11px] text-muted-foreground">{ta("tiers.contactUrlHint")}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-3">
-            <div>
-              <Label className="text-xs">{ta("tiers.ctaMode")}</Label>
-              <Select value={draft.cta_mode} onValueChange={(v) => set({ cta_mode: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CTA_MODES.map((mode) => (
-                    <SelectItem key={mode} value={mode}>
-                      {ta(`tiers.ctaModes.${mode}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-[11px] text-muted-foreground">{ta("tiers.ctaModeHint")}</p>
-            </div>
-            <div className="flex items-center gap-2 pb-2">
+          </FieldGroup>
+
+          <FieldGroup icon={Tag} title={ta("tiers.priceNotePl")} accent={rankTone.dot}>
+            <label className="flex items-start gap-2 rounded-[6px] border border-border/60 bg-muted/30 px-2.5 py-2">
               <Switch checked={draft.per_seat} onCheckedChange={(v) => set({ per_seat: v })} />
-              <span className="text-xs">{ta("tiers.perSeat")}</span>
-              <span className="text-[11px] text-muted-foreground">{ta("tiers.perSeatHint")}</span>
-            </div>
-            <div className="grid grid-cols-1 gap-1.5">
+              <span className="flex flex-col">
+                <span className="text-xs font-medium">{ta("tiers.perSeat")}</span>
+                <span className="text-[11px] text-muted-foreground">{ta("tiers.perSeatHint")}</span>
+              </span>
+            </label>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div>
                 <Label className="text-xs">{ta("tiers.priceNotePl")}</Label>
                 <Input
@@ -787,8 +835,12 @@ function TiersTab({
                 />
               </div>
             </div>
-          </div>
-          <TierBenefitsEditor value={draft.benefits} onChange={(benefits) => set({ benefits })} />
+          </FieldGroup>
+
+          <FieldGroup icon={ListChecks} title="Benefity (PL/EN)" accent={rankTone.dot}>
+            <TierBenefitsEditor value={draft.benefits} onChange={(benefits) => set({ benefits })} />
+          </FieldGroup>
+
           <div className="pt-1">
             <Button
               size="sm"
@@ -805,11 +857,32 @@ function TiersTab({
     );
   };
 
+  const totalTiers = tiers.length;
+  const highlighted = tiers.filter((tier) => tier.highlight).length;
+  const assignedTiers = tiers.filter(
+    (tier) => tier.audience_key && knownKeys.has(tier.audience_key),
+  ).length;
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-        <p className="text-xs text-muted-foreground">{ta("tiers.coreHint")}</p>
-        <Button asChild size="sm" variant="outline">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <PricingKpi icon={Layers} label={ta("tabs.tiers")} value={totalTiers} tone="primary" />
+        <PricingKpi icon={Users} label={ta("tabs.audiences")} value={audiences.length} tone="sky" />
+        <PricingKpi icon={Star} label={ta("tiers.highlight")} value={highlighted} tone="amber" />
+        <PricingKpi
+          icon={ListChecks}
+          label={ta("tiers.assigned")}
+          value={`${assignedTiers}/${totalTiers}`}
+          tone="emerald"
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent px-3 py-2.5">
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+          {ta("tiers.coreHint")}
+        </p>
+        <Button asChild size="sm" variant="outline" className="h-8">
           <Link to="/admin/membership">
             <Crown className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {ta("tiers.openMembership")}
@@ -822,28 +895,161 @@ function TiersTab({
         if (list.length === 0) return null;
         const Icon = audienceIcon(audience.icon);
         return (
-          <section key={audience.key}>
-            <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-              <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-              {lang === "en" ? audience.name_en : audience.name_pl}
-              <span className="font-mono text-xs font-normal text-muted-foreground">
-                {audience.key}
+          <section key={audience.key} className="space-y-3">
+            <div className="flex items-center gap-3 rounded-md border border-border/60 bg-card px-3 py-2.5">
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+                aria-hidden="true"
+              >
+                <Icon className="h-4.5 w-4.5" />
               </span>
-            </h2>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-sm font-semibold text-foreground">
+                  {lang === "en" ? audience.name_en : audience.name_pl}
+                </h2>
+                <p className="truncate font-mono text-[11px] text-muted-foreground">{audience.key}</p>
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-[6px] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <Layers className="h-3 w-3" aria-hidden="true" />
+                {list.length}
+              </span>
+            </div>
             <div className="grid gap-4 lg:grid-cols-2">{list.map(renderTierCard)}</div>
           </section>
         );
       })}
 
       {groups.unassigned.length > 0 && (
-        <section>
-          <h2 className="mb-1 text-lg font-semibold">{ta("tiers.unassigned")}</h2>
-          <p className="mb-3 text-xs text-muted-foreground">{ta("tiers.unassignedHint")}</p>
+        <section className="space-y-3">
+          <div className="flex items-center gap-3 rounded-md border border-dashed border-border/70 bg-muted/30 px-3 py-2.5">
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
+              aria-hidden="true"
+            >
+              <Layers className="h-4.5 w-4.5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-sm font-semibold text-foreground">
+                {ta("tiers.unassigned")}
+              </h2>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {ta("tiers.unassignedHint")}
+              </p>
+            </div>
+          </div>
           <div className="grid gap-4 lg:grid-cols-2">{groups.unassigned.map(renderTierCard)}</div>
         </section>
       )}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Pomocnicze prezentery TiersTab: KPI, grupy pól, tonacja rangi.
+// ---------------------------------------------------------------------------
+type KpiTone = "primary" | "sky" | "amber" | "emerald";
+
+const KPI_TONES: Record<KpiTone, { icon: string; ring: string }> = {
+  primary: { icon: "bg-primary/10 text-primary", ring: "ring-primary/20" },
+  sky: { icon: "bg-sky-500/10 text-sky-600 dark:text-sky-400", ring: "ring-sky-500/20" },
+  amber: { icon: "bg-amber-500/10 text-amber-600 dark:text-amber-400", ring: "ring-amber-500/20" },
+  emerald: {
+    icon: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    ring: "ring-emerald-500/20",
+  },
+};
+
+function PricingKpi({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: typeof Layers;
+  label: string;
+  value: number | string;
+  tone: KpiTone;
+}) {
+  const t = KPI_TONES[tone];
+  return (
+    <div className={`flex items-center gap-3 rounded-md border border-border/60 bg-card px-3 py-2.5 ring-1 ${t.ring}`}>
+      <span className={`flex h-9 w-9 items-center justify-center rounded-md ${t.icon}`} aria-hidden="true">
+        <Icon className="h-4.5 w-4.5" />
+      </span>
+      <div className="min-w-0">
+        <div className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="text-lg font-semibold leading-tight text-foreground">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function FieldGroup({
+  icon: Icon,
+  title,
+  accent,
+  children,
+}: {
+  icon: typeof Layers;
+  title: string;
+  accent: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card/60 p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={`h-1.5 w-1.5 rounded-full ${accent}`} aria-hidden="true" />
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function rankTone_(rank: number): {
+  header: string;
+  iconBg: string;
+  iconFg: string;
+  pill: string;
+  dot: string;
+} {
+  if (rank >= 30) {
+    return {
+      header: "from-amber-500/10 via-amber-500/5 to-transparent",
+      iconBg: "bg-amber-500/15",
+      iconFg: "text-amber-600 dark:text-amber-400",
+      pill: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      dot: "bg-amber-500",
+    };
+  }
+  if (rank >= 15) {
+    return {
+      header: "from-primary/10 via-primary/5 to-transparent",
+      iconBg: "bg-primary/15",
+      iconFg: "text-primary",
+      pill: "bg-primary/10 text-primary",
+      dot: "bg-primary",
+    };
+  }
+  if (rank >= 5) {
+    return {
+      header: "from-sky-500/10 via-sky-500/5 to-transparent",
+      iconBg: "bg-sky-500/15",
+      iconFg: "text-sky-600 dark:text-sky-400",
+      pill: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
+      dot: "bg-sky-500",
+    };
+  }
+  return {
+    header: "from-muted/60 via-muted/20 to-transparent",
+    iconBg: "bg-muted",
+    iconFg: "text-muted-foreground",
+    pill: "bg-muted text-muted-foreground",
+    dot: "bg-muted-foreground/60",
+  };
 }
 
 // ---------------------------------------------------------------------------
