@@ -50,7 +50,7 @@ interface QueuedEvent {
   ts: number;
 }
 
-let queue: QueuedEvent[] = [];
+const queue: QueuedEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let listenersAttached = false;
 

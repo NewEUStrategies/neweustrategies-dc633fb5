@@ -9,7 +9,6 @@ import { addRecentSearch, getRecentSearches } from "@/lib/search/recentSearches"
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { trackSearch } from "@/lib/analytics/track";
 
-
 type Mode = "standalone" | "dropdown" | "fullscreen";
 type Result = { id: string; slug: string; title: string; excerpt: string | null };
 
@@ -194,54 +193,54 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             expanded={showResults}
           />
           <div className="flex-1 min-h-0 overflow-y-auto sm:overflow-visible sm:flex-none">
-          {showResults || showEmpty ? (
-            <>
-              <ResultsList
-                results={results}
-                active={active}
-                setActive={setActive}
-                onSelect={() => selectAndClose(q)}
-                empty={showEmpty}
-                listboxId={listboxId}
-                optionId={optionId}
-              />
-              {hasQuery && (
-                <AppLink
-                  href={`/search?q=${encodeURIComponent(q.trim())}`}
-                  onClick={() => selectAndClose(q)}
-                  className="flex items-center justify-between gap-2 border-t border-border px-5 py-3 text-sm font-medium text-brand-ink transition hover:bg-muted/40"
-                >
-                  <span>
-                    {t("searchOverlay.viewAllFor")}
-                    <span className="font-semibold">„{q.trim()}"</span>
-                  </span>
-                  <ArrowRight className="w-4 h-4 shrink-0" />
-                </AppLink>
-              )}
-            </>
-          ) : (
-            <div className="px-6 py-10 text-center">
-              <div className="mx-auto w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
-                <Search className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground">{t("searchOverlay.startTyping")}</p>
-              {recent.length > 0 && (
-                <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  {recent.map((term) => (
-                    <button
-                      key={term}
-                      type="button"
-                      onClick={() => setQ(term)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-foreground transition hover:bg-muted"
-                    >
-                      <Clock className="w-3 h-3 text-muted-foreground" />
-                      {term}
-                    </button>
-                  ))}
+            {showResults || showEmpty ? (
+              <>
+                <ResultsList
+                  results={results}
+                  active={active}
+                  setActive={setActive}
+                  onSelect={() => selectAndClose(q)}
+                  empty={showEmpty}
+                  listboxId={listboxId}
+                  optionId={optionId}
+                />
+                {hasQuery && (
+                  <AppLink
+                    href={`/search?q=${encodeURIComponent(q.trim())}`}
+                    onClick={() => selectAndClose(q)}
+                    className="flex items-center justify-between gap-2 border-t border-border px-5 py-3 text-sm font-medium text-brand-ink transition hover:bg-muted/40"
+                  >
+                    <span>
+                      {t("searchOverlay.viewAllFor")}
+                      <span className="font-semibold">„{q.trim()}"</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 shrink-0" />
+                  </AppLink>
+                )}
+              </>
+            ) : (
+              <div className="px-6 py-10 text-center">
+                <div className="mx-auto w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                  <Search className="w-5 h-5 text-muted-foreground" />
                 </div>
-              )}
-            </div>
-          )}
+                <p className="text-sm text-muted-foreground">{t("searchOverlay.startTyping")}</p>
+                {recent.length > 0 && (
+                  <div className="mt-5 flex flex-wrap justify-center gap-2">
+                    {recent.map((term) => (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() => setQ(term)}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-foreground transition hover:bg-muted"
+                      >
+                        <Clock className="w-3 h-3 text-muted-foreground" />
+                        {term}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <Footer />
         </div>
@@ -249,7 +248,6 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     </div>
   );
 }
-
 
 function SearchBar({
   inputRef,
@@ -279,7 +277,9 @@ function SearchBar({
     <div
       className={`flex items-center gap-2 sm:gap-3 border-b border-border ${compact ? "px-3 py-2.5" : "px-4 py-3 sm:px-5 sm:py-4"}`}
     >
-      <Search className={`text-muted-foreground shrink-0 ${compact ? "w-4 h-4" : "w-4 h-4 sm:w-5 sm:h-5"}`} />
+      <Search
+        className={`text-muted-foreground shrink-0 ${compact ? "w-4 h-4" : "w-4 h-4 sm:w-5 sm:h-5"}`}
+      />
 
       <input
         ref={inputRef}
@@ -425,4 +425,3 @@ function Footer() {
     </div>
   );
 }
-

@@ -173,7 +173,6 @@ export async function sendWebPush(
   );
   const jwt = buildVapidJwt(endpoint.origin, vapid, Math.floor(Date.now() / 1000));
 
-
   const res = await fetch(sub.endpoint, {
     method: "POST",
     redirect: "manual",
