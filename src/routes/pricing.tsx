@@ -17,8 +17,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans, fetchMySubscription } from "@/lib/billing/queries";
-import { fetchMembershipTiers, useCurrentTier, useMembershipTiers } from "@/lib/billing/tiers";
-import type { MembershipTierRow } from "@/lib/billing/tiers";
+import {
+  fetchMembershipTiers,
+  parseTierBenefits,
+  useCurrentTier,
+  useMembershipTiers,
+} from "@/lib/billing/tiers";
+import type { MembershipTierRow, TierBenefit } from "@/lib/billing/tiers";
 import {
   pricingAudiencesQueryOptions,
   pricingFaqQueryOptions,
@@ -29,6 +34,7 @@ import {
 import {
   audienceTagline,
   audienceTrust,
+  distinguishingBenefits,
   faqForAudience,
   hasBothIntervals,
   maxYearlySavingsPct,
@@ -165,6 +171,22 @@ function PricingPage() {
     [activeTiers],
   );
   const supporterTier = activeTiers.find((tier) => tier.key === "supporter") ?? null;
+
+  // Benefity wyróżniające każdą kartę względem progu bezpośrednio niższego w tym
+  // segmencie (drabinka rośnie po randze). Czytelnik od razu widzi, za co dopłaca
+  // względem taniej warstwy - spotlight „Co wyróżnia ten plan" na karcie. Najniższa
+  // karta nie ma progu odniesienia, więc jej callout się nie pokazuje.
+  const cardHighlights = useMemo(() => {
+    const parsed = cardTiers.map((tier) => parseTierBenefits(tier.benefits));
+    const map = new Map<string, TierBenefit[]>();
+    cardTiers.forEach((tier, index) => {
+      map.set(
+        tier.id,
+        index > 0 ? distinguishingBenefits(parsed[index], parsed[index - 1], lang) : [],
+      );
+    });
+    return map;
+  }, [cardTiers, lang]);
 
   const plansMap = useMemo(() => plansByTierKey(plansAll), [plansAll]);
   const audiencePlans = useMemo(
@@ -319,6 +341,7 @@ function PricingPage() {
                   currentPlanId={currentPlanId}
                   isAuthenticated={!!session}
                   onContact={openContact}
+                  highlights={cardHighlights.get(tier.id) ?? []}
                 />
               ))}
             </div>

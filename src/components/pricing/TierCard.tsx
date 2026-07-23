@@ -4,7 +4,7 @@
 // bezpłatna), wsparcie fundacji albo rozmowa z zespołem (oferty offline).
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { HandHeart, MessageCircle } from "lucide-react";
+import { HandHeart, MessageCircle, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -12,8 +12,14 @@ import { cn } from "@/lib/utils";
 import { type AccessPlan } from "@/lib/billing/types";
 import { formatDisplayMoney } from "@/lib/billing/displayCurrency";
 
-import { parseTierBenefits, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 import {
+  parseTierBenefits,
+  tierName,
+  type MembershipTierRow,
+  type TierBenefit,
+} from "@/lib/billing/tiers";
+import {
+  benefitText,
   intervalPair,
   pickPlanForInterval,
   tierBadge,
@@ -339,6 +345,7 @@ export function TierCard({
   currentPlanId,
   isAuthenticated,
   onContact,
+  highlights,
 }: {
   tier: MembershipTierRow;
   plans: AccessPlan[];
@@ -348,6 +355,8 @@ export function TierCard({
   currentPlanId: string | null;
   isAuthenticated: boolean;
   onContact: (tier: MembershipTierRow) => void;
+  /** Benefity wyróżniające ten próg względem progu niżej - spotlight u góry. */
+  highlights?: TierBenefit[];
 }) {
   const { t } = useTranslation();
   const badge = tierBadge(tier, lang);
@@ -383,7 +392,6 @@ export function TierCard({
             <span className="inline-flex h-5 shrink-0 items-center justify-center rounded-[6px] border border-brand-ink bg-brand/15 px-2 text-[10px] font-semibold uppercase tracking-wide leading-none text-brand-ink">
               {t("pricing.tiers.current")}
             </span>
-
           ) : badge ? (
             <span className="inline-flex h-5 shrink-0 items-center justify-center rounded-[6px] bg-muted px-2 text-[10px] font-medium uppercase tracking-wide leading-none text-muted-foreground">
               {badge}
@@ -412,6 +420,25 @@ export function TierCard({
         />
       </CardFooter>
       <CardContent className="flex-1 border-t border-border/50 pt-5">
+        {highlights && highlights.length > 0 && (
+          <div className="mb-4 rounded-[6px] border border-brand/25 bg-brand/5 p-3">
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-ink">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("pricing.highlightsHeading")}
+            </p>
+            <ul className="space-y-1.5">
+              {highlights.map((benefit, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm font-medium text-foreground">
+                  <span
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand"
+                    aria-hidden="true"
+                  />
+                  <span>{benefitText(benefit, lang)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <TierBenefitList benefits={benefits} lang={lang} />
       </CardContent>
     </Card>

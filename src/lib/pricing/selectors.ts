@@ -253,6 +253,31 @@ export function planTierBenefits(
   return parseTierBenefits(tier.benefits).map((benefit) => benefitText(benefit, lang));
 }
 
+/**
+ * Benefity WYRÓŻNIAJĄCE dany próg: obecne w bieżącej warstwie, a nieobecne w
+ * warstwie bezpośrednio niższej (porównanie po znormalizowanym tekście w
+ * języku strony). Zasila spotlight „Co wyróżnia ten plan" na karcie - czytelnik
+ * od razu widzi, za co konkretnie dopłaca względem progu niżej. Bez warstwy
+ * niższej (najniższy próg) zwraca [] - callout się nie pokazuje.
+ */
+export function distinguishingBenefits(
+  current: TierBenefit[],
+  previous: TierBenefit[],
+  lang: string,
+  max = 4,
+): TierBenefit[] {
+  const norm = (value: string): string => value.trim().toLowerCase();
+  const prevSet = new Set(previous.map((b) => norm(benefitText(b, lang))));
+  const out: TierBenefit[] = [];
+  for (const benefit of current) {
+    const text = benefitText(benefit, lang);
+    if (!text.trim() || prevSet.has(norm(text))) continue;
+    out.push(benefit);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 export function faqQuestion(item: PricingFaqItemRow, lang: string): string {
   return lang === "en"
     ? item.question_en || item.question_pl

@@ -178,6 +178,10 @@ export function PricingComparisonMatrix({
           </tbody>
         </table>
       </div>
+
+      <p className="mx-auto mt-3 max-w-3xl text-center text-xs text-muted-foreground">
+        {t("pricing.comparisonMatrix.note")}
+      </p>
     </section>
   );
 }

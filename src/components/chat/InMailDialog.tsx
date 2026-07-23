@@ -27,7 +27,14 @@ const schema = z.object({
   reason: z.string().trim().min(20).max(2000),
   questions: z.array(z.string().trim().min(5).max(500)).max(5),
   expectedAnswers: z.string().trim().max(2000).optional(),
-  externalLinks: z.array(z.string().trim().regex(/^https?:\/\//i)).max(3),
+  externalLinks: z
+    .array(
+      z
+        .string()
+        .trim()
+        .regex(/^https?:\/\//i),
+    )
+    .max(3),
 });
 
 export interface InMailDialogProps {
@@ -212,9 +219,7 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
                 {t("inmail.fields.addQuestion")}
               </Button>
             )}
-            {errors.questions && (
-              <p className="text-xs text-destructive">{errors.questions}</p>
-            )}
+            {errors.questions && <p className="text-xs text-destructive">{errors.questions}</p>}
           </div>
 
           <FloatingTextarea
@@ -289,11 +294,7 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
             >
               {t("inmail.cancel")}
             </Button>
-            <Button
-              type="submit"
-              disabled={!canSubmit || send.isPending}
-              className="rounded-[6px]"
-            >
+            <Button type="submit" disabled={!canSubmit || send.isPending} className="rounded-[6px]">
               {send.isPending ? t("inmail.sending") : t("inmail.submit")}
             </Button>
           </DialogFooter>

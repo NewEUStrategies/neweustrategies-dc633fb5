@@ -13,6 +13,7 @@ import {
   audienceTrust,
   benefitDetail,
   benefitText,
+  distinguishingBenefits,
   faqForAudience,
   groupBenefits,
   hasBothIntervals,
@@ -304,6 +305,57 @@ describe("groupBenefits", () => {
     expect(benefitText(b, "en")).toBe("Po polsku");
     expect(benefitDetail(b, "en")).toBe("Detal");
     expect(benefitDetail({ pl: "X", en: "X" }, "pl")).toBeNull();
+  });
+});
+
+describe("distinguishingBenefits (spotlight „Co wyróżnia ten plan”)", () => {
+  const lower: TierBenefit[] = [
+    { pl: "Artykuły", en: "Articles" },
+    { pl: "Newsletter", en: "Newsletter" },
+  ];
+  const higher: TierBenefit[] = [
+    { pl: "Artykuły", en: "Articles" },
+    { pl: "Newsletter", en: "Newsletter" },
+    { pl: "Zapytanie do eksperta", en: "Expert request" },
+    { pl: "Linki podarunkowe", en: "Gift links" },
+  ];
+
+  it("zwraca tylko benefity obecne wyżej, a nieobecne niżej", () => {
+    expect(distinguishingBenefits(higher, lower, "pl").map((b) => b.pl)).toEqual([
+      "Zapytanie do eksperta",
+      "Linki podarunkowe",
+    ]);
+  });
+
+  it("porównuje po języku strony (EN nie chowa różnicy PL-only)", () => {
+    const en: TierBenefit[] = [{ pl: "Tylko PL", en: "" }];
+    expect(distinguishingBenefits(en, [], "en").map((b) => b.pl)).toEqual(["Tylko PL"]);
+    expect(distinguishingBenefits(en, en, "en")).toEqual([]);
+  });
+
+  it("normalizuje spacje/wielkość liter i pomija puste teksty", () => {
+    const cur: TierBenefit[] = [
+      { pl: "  Newsletter  ", en: "" },
+      { pl: "   ", en: "" },
+      { pl: "Nowość", en: "" },
+    ];
+    expect(
+      distinguishingBenefits(cur, [{ pl: "newsletter", en: "" }], "pl").map((b) => b.pl),
+    ).toEqual(["Nowość"]);
+  });
+
+  it("najniższy próg (brak warstwy niżej) nie ma czego wyróżnić", () => {
+    expect(distinguishingBenefits(lower, [], "pl")).toEqual(lower);
+    expect(distinguishingBenefits([], lower, "pl")).toEqual([]);
+  });
+
+  it("respektuje limit max (domyślnie 4)", () => {
+    const many: TierBenefit[] = Array.from({ length: 7 }, (_, i) => ({
+      pl: `Benefit ${i}`,
+      en: `Benefit ${i}`,
+    }));
+    expect(distinguishingBenefits(many, [], "pl")).toHaveLength(4);
+    expect(distinguishingBenefits(many, [], "pl", 2)).toHaveLength(2);
   });
 });
 

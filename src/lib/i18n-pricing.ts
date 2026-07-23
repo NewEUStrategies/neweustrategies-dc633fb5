@@ -22,6 +22,7 @@ const pricingPl = {
     signupCta: "Załóż bezpłatne konto",
     contactCta: "Porozmawiajmy",
     compareAll: "Porównaj wszystkie funkcje",
+    highlightsHeading: "Co wyróżnia ten plan",
     comparisonMatrix: {
       title: "Pełne porównanie planów",
       subtitle:
@@ -30,6 +31,7 @@ const pricingPl = {
       yes: "Tak",
       no: "Nie",
       yourPlan: "Twój plan",
+      note: "Limit 5 analiz miesięcznie w planie darmowym dotyczy wyłącznie treści za paywallem; materiały publikowane bez paywalla są dostępne bez ograniczeń.",
       rows: [
         {
           id: "articles",
@@ -216,6 +218,12 @@ const pricingPl = {
           },
         },
         { id: "qa", label: "Priorytet pytań w sesjach Q&A z ekspertami", feature: "qa_priority" },
+        { id: "expertRequest", label: "Zapytanie do eksperta", feature: "expert_request" },
+        {
+          id: "giftLinks",
+          label: "Tworzenie linków podarunkowych do analiz",
+          feature: "gift_links",
+        },
         {
           id: "proBriefings",
           label: "Zamknięte briefingi Pro (scenariusze, foresight)",
@@ -458,6 +466,7 @@ const pricingEn: typeof pricingPl = {
     signupCta: "Create a free account",
     contactCta: "Talk to us",
     compareAll: "Compare all features",
+    highlightsHeading: "What sets this plan apart",
     comparisonMatrix: {
       title: "Full plan comparison",
       subtitle:
@@ -466,6 +475,7 @@ const pricingEn: typeof pricingPl = {
       yes: "Yes",
       no: "No",
       yourPlan: "Your plan",
+      note: "The 5-analyses-per-month limit on the free plan applies only to paywalled content; items published without a paywall are available without limits.",
       rows: [
         {
           id: "articles",
@@ -652,6 +662,12 @@ const pricingEn: typeof pricingPl = {
           },
         },
         { id: "qa", label: "Priority questions in expert Q&A sessions", feature: "qa_priority" },
+        { id: "expertRequest", label: "Expert request", feature: "expert_request" },
+        {
+          id: "giftLinks",
+          label: "Create gift links to analyses",
+          feature: "gift_links",
+        },
         {
           id: "proBriefings",
           label: "Closed-door Pro briefings (scenarios, foresight)",
