@@ -11,7 +11,9 @@
 // Jest per-kampania, weryfikowalny serwerowo i NIE da się nim wypisać
 // (unsubscribe dalej wymaga osobnego unsubscribe_token). Wyciek tokenu trackingu
 // pozwala co najwyżej sfałszować zdarzenie open/click, nie wypisać odbiorcy.
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { hmac } from "@noble/hashes/hmac.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SIG_HEX_LEN = 32; // 16 bajtów (128 bitów) - w zupełności wystarcza jako tag.
@@ -27,10 +29,18 @@ function getSecret(): string {
 }
 
 function computeSig(campaignId: string, subscriberId: string): string {
-  return createHmac("sha256", getSecret())
-    .update(`${campaignId}:${subscriberId}`)
-    .digest("hex")
-    .slice(0, SIG_HEX_LEN);
+  return bytesToHex(
+    hmac(sha256, utf8ToBytes(getSecret()), utf8ToBytes(`${campaignId}:${subscriberId}`)),
+  ).slice(0, SIG_HEX_LEN);
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    diff |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  }
+  return diff === 0;
 }
 
 /** Podpisany, per-kampania token trackingu dla danego subskrybenta. */
@@ -53,8 +63,5 @@ export function verifyTrackingToken(campaignId: string, token: string | null): s
   if (!UUID_RE.test(subscriberId)) return null;
   if (sig.length !== SIG_HEX_LEN || !/^[a-f0-9]+$/i.test(sig)) return null;
   const expected = computeSig(campaignId, subscriberId);
-  const a = Buffer.from(sig, "hex");
-  const b = Buffer.from(expected, "hex");
-  if (a.length !== b.length) return null;
-  return timingSafeEqual(a, b) ? subscriberId : null;
+  return constantTimeEqual(sig.toLowerCase(), expected) ? subscriberId : null;
 }
