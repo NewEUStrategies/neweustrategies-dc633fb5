@@ -376,6 +376,13 @@ function AdminShellInner({
           }),
         },
         {
+          to: "/admin/inmails",
+          icon: Inbox,
+          label: t("admin.nav.inmails", {
+            defaultValue: lang === "pl" ? "InMaile do ekspertów" : "Expert inMails",
+          }),
+        },
+        {
           to: "/admin/tracker",
           icon: Landmark,
           label: t("admin.nav.tracker", {
