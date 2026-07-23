@@ -879,6 +879,26 @@ export function SearchButtonWidget({
             .builder-search-widget button:hover svg {
               color: var(--foreground);
             }
+            /* Builder/CMS typography has stronger inherited rules. These
+               selectors intentionally lock compact metadata and operators. */
+            .builder-search-widget .search-kind-label {
+              font-family: "Red Hat Display", system-ui, sans-serif !important;
+              font-size: 7px !important;
+              line-height: 10px !important;
+              letter-spacing: 0 !important;
+            }
+            .builder-search-widget .search-operators-heading {
+              font-family: "Red Hat Display", system-ui, sans-serif !important;
+              font-size: 7px !important;
+              line-height: 10px !important;
+              letter-spacing: 0.04em !important;
+            }
+            .builder-search-widget .search-operator-button {
+              font-size: 7px !important;
+              line-height: 10px !important;
+              letter-spacing: 0 !important;
+              min-height: 14px !important;
+            }
             /* Klasyczny floating label: unosi się na górną krawędź inputa. */
             .builder-search-widget .input-group > .input:focus ~ .user-label,
             .builder-search-widget .input-group > .input:not(:placeholder-shown) ~ .user-label {
