@@ -167,7 +167,8 @@ function PersonCard({
   connection?: ConnectionState;
 }) {
   const { t } = useTranslation();
-  const start = useStartConversation();
+
+
 
   const details = (
     <>
