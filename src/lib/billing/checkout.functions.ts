@@ -103,7 +103,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     if (amountCents <= 0) throw new Error("zero_amount");
 
     // Zapamiętujemy oryginalną kwotę do audytu użycia kuponu (redemption row).
-    const originalCents = amountCents;
+    // `let`, bo przy walucie prezentacji (EN → EUR) przeliczamy ją parytetowo
+    // razem z kwotą finalną, żeby audyt kuponu był spójny walutowo (patrz niżej).
+    let originalCents = amountCents;
     let couponId: string | null = null;
     let couponCode: string | null = null;
     let couponDiscountCents = 0;
@@ -143,10 +145,27 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // walidacja kuponu B2B odbyła się w oryginalnej walucie planu (kupony
     // są zdefiniowane per waluta). Sam koszyk/Stripe zawsze widzi już
     // walutę wybraną przez klienta.
+    //
+    // WAŻNE (spójność walutowa audytu kuponu): kwoty zapisywane w redemption
+    // (_applied_cents/_original_cents) ORAZ w metadanych zamówienia MUSZĄ być
+    // w tej samej walucie co etykieta (_currency/currency). Wcześniej finalna
+    // kwota była konwertowana do EUR, a rabat/oryginał zostawały w PLN z
+    // etykietą EUR - dashboard sumował applied_cents mieszając grosze PLN i EUR.
+    // Konwertujemy parytetowo (1 EUR = 2 PLN) oryginał i finał, a RABAT
+    // wyprowadzamy z ich RÓŻNICY, dzięki czemu niezmiennik
+    // `original = final + discount` trzyma się dokładnie w walucie docelowej
+    // (bez dryfu zaokrągleń między osobno konwertowanymi wartościami).
     if (data.display_currency) {
-      const { convertToDisplayCurrency } = await import("@/lib/billing/displayCurrency");
-      const conv = convertToDisplayCurrency(amountCents, currency, data.display_currency);
-      amountCents = conv.cents;
+      const { couponAuditInDisplayCurrency } = await import("@/lib/billing/displayCurrency");
+      const conv = couponAuditInDisplayCurrency(
+        originalCents,
+        amountCents,
+        currency,
+        data.display_currency,
+      );
+      originalCents = conv.originalCents;
+      amountCents = conv.finalCents;
+      couponDiscountCents = conv.discountCents;
       currency = conv.currency;
     }
 
