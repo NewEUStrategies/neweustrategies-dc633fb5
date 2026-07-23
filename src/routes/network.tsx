@@ -7,7 +7,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, MapPin, Search, UserPlus, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight, MapPin, Search, UserPlus, Users, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthGate } from "@/components/profile/AuthGate";
