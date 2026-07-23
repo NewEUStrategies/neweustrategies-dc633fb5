@@ -5,35 +5,35 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  useMyInmails,
-  useResolveInmail,
-  type InMailBox,
-  type InMailRow,
-} from "@/lib/chat/useInmails";
-import { ensureI18n as ensureInmailI18n } from "@/lib/i18n-inmail";
+  useMyExpertRequests,
+  useResolveExpertRequest,
+  type ExpertRequestBox,
+  type ExpertRequestRow,
+} from "@/lib/chat/useExpertRequests";
+import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 
-export const Route = createFileRoute("/profile/inmails")({
+export const Route = createFileRoute("/profile/expert-requests")({
   head: () => ({
     meta: [{ title: "Zapytania do ekspertów" }, { name: "robots", content: "noindex, nofollow" }],
   }),
-  component: ProfileInmails,
+  component: ProfileExpertRequests,
 });
 
-function InmailList({ box }: { box: InMailBox }) {
+function ExpertRequestList({ box }: { box: ExpertRequestBox }) {
   const { t } = useTranslation();
-  const q = useMyInmails(box);
-  const resolve = useResolveInmail();
+  const q = useMyExpertRequests(box);
+  const resolve = useResolveExpertRequest();
 
-  async function act(row: InMailRow, action: "approve" | "decline" | "answered" | "cancel") {
+  async function act(row: ExpertRequestRow, action: "approve" | "decline" | "answered" | "cancel") {
     try {
-      await resolve.mutateAsync({ inmailId: row.id, action });
+      await resolve.mutateAsync({ requestId: row.id, action });
       toast.success(
         t(
-          `inmail.status.${action === "cancel" ? "cancelled" : action === "approve" ? "approved" : action}`,
+          `expertRequest.status.${action === "cancel" ? "cancelled" : action === "approve" ? "approved" : action}`,
         ),
       );
     } catch {
-      toast.error(t("inmail.error.generic"));
+      toast.error(t("expertRequest.error.generic"));
     }
   }
 
@@ -41,7 +41,7 @@ function InmailList({ box }: { box: InMailBox }) {
   if (rows.length === 0) {
     return (
       <p className="rounded-[6px] border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-        {t("inmail.box.empty")}
+        {t("expertRequest.box.empty")}
       </p>
     );
   }
@@ -52,7 +52,7 @@ function InmailList({ box }: { box: InMailBox }) {
           <div className="flex items-center justify-between gap-2">
             <p className="truncate text-sm font-semibold">{row.subject}</p>
             <span className="rounded-[6px] border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-              {t(`inmail.status.${row.status}`)}
+              {t(`expertRequest.status.${row.status}`)}
             </span>
           </div>
           <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{row.reason}</p>
@@ -65,7 +65,7 @@ function InmailList({ box }: { box: InMailBox }) {
                   className="rounded-[6px]"
                   onClick={() => act(row, "cancel")}
                 >
-                  {t("inmail.actions.cancel")}
+                  {t("expertRequest.actions.cancel")}
                 </Button>
               ) : (
                 <>
@@ -75,10 +75,10 @@ function InmailList({ box }: { box: InMailBox }) {
                     className="rounded-[6px]"
                     onClick={() => act(row, "decline")}
                   >
-                    {t("inmail.actions.decline")}
+                    {t("expertRequest.actions.decline")}
                   </Button>
                   <Button size="sm" className="rounded-[6px]" onClick={() => act(row, "approve")}>
-                    {t("inmail.actions.approve")}
+                    {t("expertRequest.actions.approve")}
                   </Button>
                 </>
               )}
@@ -90,28 +90,28 @@ function InmailList({ box }: { box: InMailBox }) {
   );
 }
 
-function ProfileInmails() {
-  ensureInmailI18n();
+function ProfileExpertRequests() {
+  ensureExpertRequestI18n();
   const { t } = useTranslation();
-  const [tab, setTab] = useState<InMailBox>("received");
+  const [tab, setTab] = useState<ExpertRequestBox>("received");
   return (
     <div className="flex flex-col gap-4">
       <header>
         <h1 className="text-xl font-bold uppercase italic tracking-tight text-foreground">
-          {t("inmail.profile.title")}
+          {t("expertRequest.profile.title")}
         </h1>
-        <p className="mt-1 text-xs text-muted-foreground">{t("inmail.profile.subtitle")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("expertRequest.profile.subtitle")}</p>
       </header>
-      <Tabs value={tab} onValueChange={(v) => setTab(v as InMailBox)}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as ExpertRequestBox)}>
         <TabsList>
-          <TabsTrigger value="received">{t("inmail.box.received")}</TabsTrigger>
-          <TabsTrigger value="sent">{t("inmail.box.sent")}</TabsTrigger>
+          <TabsTrigger value="received">{t("expertRequest.box.received")}</TabsTrigger>
+          <TabsTrigger value="sent">{t("expertRequest.box.sent")}</TabsTrigger>
         </TabsList>
         <TabsContent value="received" className="mt-3">
-          <InmailList box="received" />
+          <ExpertRequestList box="received" />
         </TabsContent>
         <TabsContent value="sent" className="mt-3">
-          <InmailList box="sent" />
+          <ExpertRequestList box="sent" />
         </TabsContent>
       </Tabs>
     </div>

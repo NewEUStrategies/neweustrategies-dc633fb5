@@ -1,7 +1,7 @@
-// InMailDialog - sformalizowana wiadomość do eksperta.
-// Otwierany globalnie przez `inmailDialogBus` gdy serwer zwróci
-// `chat: expert requires inmail`; można też odpalać ręcznie w profilu
-// eksperta lub w wynikach wyszukiwania.
+// ExpertRequestDialog - sformalizowane „Zapytanie do eksperta".
+// Otwierany globalnie przez `expertRequestDialogBus` gdy serwer zwróci
+// `chat: expert requires request`; można też odpalać wprost w profilu
+// eksperta (ExpertRequestButton) lub w wynikach wyszukiwania.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
@@ -19,8 +19,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useSendInmail } from "@/lib/chat/useInmails";
-import type { InMailPrefill } from "@/lib/chat/inmailDialogBus";
+import { useSendExpertRequest, useMyExpertRequestQuota } from "@/lib/chat/useExpertRequests";
+import type { ExpertRequestPrefill } from "@/lib/chat/expertRequestDialogBus";
 
 const schema = z.object({
   subject: z.string().trim().min(5).max(140),
@@ -37,10 +37,10 @@ const schema = z.object({
     .max(3),
 });
 
-export interface InMailDialogProps {
+export interface ExpertRequestDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  prefill: InMailPrefill | null;
+  prefill: ExpertRequestPrefill | null;
 }
 
 function initials(name?: string | null): string {
@@ -49,9 +49,10 @@ function initials(name?: string | null): string {
   return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
 }
 
-export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps) {
+export function ExpertRequestDialog({ open, onOpenChange, prefill }: ExpertRequestDialogProps) {
   const { t } = useTranslation();
-  const send = useSendInmail();
+  const send = useSendExpertRequest();
+  const quotaQ = useMyExpertRequestQuota();
 
   const [subject, setSubject] = useState("");
   const [reason, setReason] = useState("");
@@ -71,9 +72,27 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
     setErrors({});
   }, [open, prefill?.recipientId, prefill?.subject]);
 
+  const quota = quotaQ.data;
+  const quotaLine = useMemo(() => {
+    if (!quota) return null;
+    if (quota.direct) return t("expertRequest.quota.direct");
+    if (quota.quota <= 0) return t("expertRequest.quota.none");
+    if (quota.remaining <= 0) return t("expertRequest.quota.exhausted", { quota: quota.quota });
+    return t("expertRequest.quota.remaining", {
+      remaining: quota.remaining,
+      quota: quota.quota,
+    });
+  }, [quota, t]);
+
+  const outOfQuota = !!quota && !quota.direct && quota.remaining <= 0;
+
   const canSubmit = useMemo(
-    () => subject.trim().length >= 5 && reason.trim().length >= 20 && !!prefill?.recipientId,
-    [subject, reason, prefill?.recipientId],
+    () =>
+      subject.trim().length >= 5 &&
+      reason.trim().length >= 20 &&
+      !!prefill?.recipientId &&
+      !outOfQuota,
+    [subject, reason, prefill?.recipientId, outOfQuota],
   );
 
   async function onSubmit(e: React.FormEvent) {
@@ -93,10 +112,10 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
       const errs: Record<string, string> = {};
       for (const issue of parsed.error.issues) {
         const key = issue.path[0]?.toString() ?? "form";
-        if (key === "subject") errs.subject = t("inmail.validation.subject");
-        else if (key === "reason") errs.reason = t("inmail.validation.reason");
-        else if (key === "questions") errs.questions = t("inmail.validation.question");
-        else if (key === "externalLinks") errs.externalLinks = t("inmail.validation.link");
+        if (key === "subject") errs.subject = t("expertRequest.validation.subject");
+        else if (key === "reason") errs.reason = t("expertRequest.validation.reason");
+        else if (key === "questions") errs.questions = t("expertRequest.validation.question");
+        else if (key === "externalLinks") errs.externalLinks = t("expertRequest.validation.link");
       }
       setErrors(errs);
       return;
@@ -111,16 +130,16 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
         expectedAnswers: parsed.data.expectedAnswers,
         externalLinks: parsed.data.externalLinks,
       });
-      toast.success(t("inmail.sentToast"));
+      toast.success(t("expertRequest.sentToast"));
       onOpenChange(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("monthly quota")) toast.error(t("inmail.error.monthlyQuota"));
-      else if (msg.includes("rate limit")) toast.error(t("inmail.error.rateLimit"));
+      if (msg.includes("monthly quota")) toast.error(t("expertRequest.error.monthlyQuota"));
+      else if (msg.includes("rate limit")) toast.error(t("expertRequest.error.rateLimit"));
       else if (msg.includes("recipient is not gated") || msg.includes("not an expert"))
-        toast.error(t("inmail.error.notExpert"));
-      else if (msg.includes("tier disabled")) toast.error(t("inmail.error.tierDisabled"));
-      else toast.error(t("inmail.error.generic"));
+        toast.error(t("expertRequest.error.notExpert"));
+      else if (msg.includes("tier disabled")) toast.error(t("expertRequest.error.tierDisabled"));
+      else toast.error(t("expertRequest.error.generic"));
     }
   }
 
@@ -128,8 +147,8 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{t("inmail.dialogTitle")}</DialogTitle>
-          <DialogDescription>{t("inmail.dialogSubtitle")}</DialogDescription>
+          <DialogTitle>{t("expertRequest.dialogTitle")}</DialogTitle>
+          <DialogDescription>{t("expertRequest.dialogSubtitle")}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -147,7 +166,7 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
               </Avatar>
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t("inmail.recipientLabel")}
+                  {t("expertRequest.recipientLabel")}
                 </p>
                 <p className="truncate text-sm font-semibold text-foreground">
                   {prefill.recipientName ?? "-"}
@@ -156,8 +175,17 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
             </div>
           )}
 
+          {quotaLine && (
+            <p
+              className={cnQuota(outOfQuota || (!!quota && quota.quota <= 0 && !quota.direct))}
+              role="status"
+            >
+              {quotaLine}
+            </p>
+          )}
+
           <FloatingInput
-            label={t("inmail.fields.subject")}
+            label={t("expertRequest.fields.subject")}
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             maxLength={140}
@@ -166,7 +194,7 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
           />
 
           <FloatingTextarea
-            label={t("inmail.fields.reason")}
+            label={t("expertRequest.fields.reason")}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             maxLength={2000}
@@ -177,13 +205,13 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
 
           <div className="flex flex-col gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("inmail.fields.questions")}
+              {t("expertRequest.fields.questions")}
             </p>
             {questions.map((q, i) => (
               <div key={i} className="flex items-start gap-2">
                 <div className="flex-1">
                   <FloatingInput
-                    label={t("inmail.fields.questionPlaceholder", { n: i + 1 })}
+                    label={t("expertRequest.fields.questionPlaceholder", { n: i + 1 })}
                     value={q}
                     maxLength={500}
                     onChange={(e) => {
@@ -199,7 +227,7 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
                     variant="ghost"
                     size="icon"
                     className="mt-1 h-9 w-9 shrink-0"
-                    aria-label={t("inmail.fields.removeQuestion")}
+                    aria-label={t("expertRequest.fields.removeQuestion")}
                     onClick={() => setQuestions(questions.filter((_, j) => j !== i))}
                   >
                     <X className="h-4 w-4" />
@@ -216,14 +244,14 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
                 onClick={() => setQuestions([...questions, ""])}
               >
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                {t("inmail.fields.addQuestion")}
+                {t("expertRequest.fields.addQuestion")}
               </Button>
             )}
             {errors.questions && <p className="text-xs text-destructive">{errors.questions}</p>}
           </div>
 
           <FloatingTextarea
-            label={t("inmail.fields.expectedAnswers")}
+            label={t("expertRequest.fields.expectedAnswers")}
             value={expectedAnswers}
             onChange={(e) => setExpectedAnswers(e.target.value)}
             maxLength={2000}
@@ -232,13 +260,13 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
 
           <div className="flex flex-col gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("inmail.fields.links")}
+              {t("expertRequest.fields.links")}
             </p>
             {externalLinks.map((l, i) => (
               <div key={i} className="flex items-start gap-2">
                 <div className="flex-1">
                   <FloatingInput
-                    label={t("inmail.fields.linkPlaceholder")}
+                    label={t("expertRequest.fields.linkPlaceholder")}
                     value={l}
                     type="url"
                     onChange={(e) => {
@@ -253,7 +281,7 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
                   variant="ghost"
                   size="icon"
                   className="mt-1 h-9 w-9 shrink-0"
-                  aria-label={t("inmail.fields.removeLink")}
+                  aria-label={t("expertRequest.fields.removeLink")}
                   onClick={() => setExternalLinks(externalLinks.filter((_, j) => j !== i))}
                 >
                   <X className="h-4 w-4" />
@@ -269,7 +297,7 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
                 onClick={() => setExternalLinks([...externalLinks, ""])}
               >
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                {t("inmail.fields.addLink")}
+                {t("expertRequest.fields.addLink")}
               </Button>
             )}
             {errors.externalLinks && (
@@ -282,7 +310,7 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
             className="inline-flex items-center gap-1.5 self-start text-[12px] font-medium text-primary hover:underline"
           >
             <ExternalLink className="h-3.5 w-3.5" />
-            {t("inmail.upgradeCta")}
+            {t("expertRequest.upgradeCta")}
           </Link>
 
           <DialogFooter>
@@ -292,14 +320,21 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
               onClick={() => onOpenChange(false)}
               className="rounded-[6px]"
             >
-              {t("inmail.cancel")}
+              {t("expertRequest.cancel")}
             </Button>
             <Button type="submit" disabled={!canSubmit || send.isPending} className="rounded-[6px]">
-              {send.isPending ? t("inmail.sending") : t("inmail.submit")}
+              {send.isPending ? t("expertRequest.sending") : t("expertRequest.submit")}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Baner puli: neutralny gdy są zapytania, ostrzegawczy gdy wyczerpane/brak. */
+function cnQuota(warn: boolean): string {
+  return warn
+    ? "rounded-[6px] border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-300"
+    : "rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground";
 }

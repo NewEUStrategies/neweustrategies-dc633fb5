@@ -57,7 +57,7 @@ import { SiteChrome } from "../components/SiteChrome";
 import { GlobalAudioPlayerProvider, useGlobalAudioPlayer } from "../lib/audio/global-player";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 import { AppDialogHost } from "../components/AppDialogHost";
-import { InMailDialogHost } from "../components/chat/InMailDialogHost";
+import { ExpertRequestDialogHost } from "../components/chat/ExpertRequestDialogHost";
 
 // Nakładki (popupy, paleta komend, pasek audio) nie są potrzebne do pierwszego
 // malowania ŻADNEJ strony - React.lazy trzyma je poza bundlem wejściowym
@@ -445,7 +445,7 @@ function RootComponent() {
           <UnsavedChangesGuardHost />
           <AppDialogHost />
           <Suspense fallback={null}>
-            <InMailDialogHost />
+            <ExpertRequestDialogHost />
           </Suspense>
           <Toaster />
         </AuthProvider>

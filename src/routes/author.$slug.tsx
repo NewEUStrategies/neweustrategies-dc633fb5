@@ -30,6 +30,7 @@ import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
 import { ExpertHubDetails } from "@/components/experts/ExpertHubDetails";
 import { ExpertInTheNews } from "@/components/experts/ExpertInTheNews";
+import { ExpertRequestButton } from "@/components/experts/ExpertRequestButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { useUserBadges } from "@/lib/profile/badges";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
@@ -303,6 +304,11 @@ function ExpertHubPage() {
               {/* Sieć kontaktów: widoczne tylko dla zalogowanych na cudzym
                   profilu (komponenty same zwracają null w pozostałych stanach). */}
               <ConnectButton userId={expert.id} displayName={name} />
+              <ExpertRequestButton
+                expertId={expert.id}
+                expertName={name}
+                expertAvatar={expert.avatar_url}
+              />
               <RequestIntroductionButton userId={expert.id} displayName={name} />
               <MutualConnectionsHint userId={expert.id} />
               <ReportUserButton userId={expert.id} displayName={name} />

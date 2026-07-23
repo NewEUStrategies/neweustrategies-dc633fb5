@@ -1,14 +1,22 @@
-// Supplementary i18n bundle dla systemu „Zapytanie do eksperta" (dawniej inMail).
-// Rejestracja przy pierwszym imporcie modułu (patrz InMailDialogHost).
+// Pakiet i18n systemu „Zapytanie do eksperta" (Expert Request).
+// Rejestracja przy pierwszym imporcie modułu (patrz ExpertRequestDialogHost).
 import i18n from "./i18n";
 
-export const inmailPl = {
-  inmail: {
+export const expertRequestPl = {
+  expertRequest: {
+    cta: "Zapytanie do eksperta",
+    ctaShort: "Zapytanie",
     dialogTitle: "Wyślij zapytanie do eksperta lub VIP-a",
     dialogSubtitle:
-      "Twoja warstwa korzysta z zapytań do ekspertów: Plus - 2 miesięcznie, Pro - 5 miesięcznie. Prześlij formalne zapytanie - jeśli odbiorca zaakceptuje, otworzymy stałą konwersację.",
+      "Prześlij formalne zapytanie - jeśli odbiorca je zaakceptuje, otworzymy stałą konwersację.",
     upgradeCta: "Zobacz plan VIP (bezpośrednia rozmowa z ekspertami i VIP-ami)",
     recipientLabel: "Odbiorca",
+    quota: {
+      remaining: "Pozostało {{remaining}} z {{quota}} zapytań w tym miesiącu.",
+      direct: "Twój plan pozwala pisać do ekspertów bezpośrednio - bez limitu zapytań.",
+      none: "Twój plan nie obejmuje zapytań do ekspertów. Zaktualizuj plan, aby napisać.",
+      exhausted: "Wykorzystałeś miesięczną pulę zapytań ({{quota}}). Odnowi się 1. dnia miesiąca.",
+    },
     fields: {
       subject: "Temat rozmowy",
       subjectHint: "Krótko - o czym chcesz porozmawiać (5-140 znaków).",
@@ -40,11 +48,11 @@ export const inmailPl = {
     error: {
       rateLimit: "Wysłałeś już maksymalną liczbę zapytań w krótkim czasie.",
       monthlyQuota:
-        "Wyczerpałeś miesięczną pulę zapytań do ekspertów. Plus: 2/mies., Pro: 5/mies. Zwiększ plan, aby napisać do kolejnych ekspertów lub VIP-ów.",
+        "Wyczerpałeś miesięczną pulę zapytań do ekspertów. Zwiększ plan, aby napisać do kolejnych ekspertów lub VIP-ów.",
       notExpert:
         "Ten użytkownik nie wymaga zapytania - napisz do niego bezpośrednio z listy kontaktów.",
       tierDisabled:
-        "Twoja warstwa nie umożliwia wysyłania zapytań do ekspertów. Zaktualizuj plan (Plus - 2/mies., Pro - 5/mies., VIP - bezpośrednio).",
+        "Twoja warstwa nie umożliwia wysyłania zapytań do ekspertów. Zaktualizuj plan (Plus, Pro lub VIP).",
       generic: "Nie udało się wysłać. Spróbuj ponownie.",
     },
     status: {
@@ -72,7 +80,7 @@ export const inmailPl = {
     admin: {
       title: "Zapytania do ekspertów",
       subtitle:
-        "Sformalizowane zapytania od użytkowników Plus do ekspertów. Zatwierdź - powstaje bezpośrednia konwersacja; odrzuć - zapytanie kończy się z powodem.",
+        "Sformalizowane zapytania od użytkowników do ekspertów. Zatwierdź - powstaje bezpośrednia konwersacja; odrzuć - zapytanie kończy się z powodem.",
       filter: "Status",
       filterAll: "Wszystkie",
       countTotal: "Łącznie: {{count}}",
@@ -83,19 +91,27 @@ export const inmailPl = {
     },
     chatGate: {
       tierDisabledToast: "Twoja warstwa nie pozwala rozpocząć rozmowy. Zaktualizuj plan.",
-      inmailOpened: "Otwieramy okno zapytania - napisz formalnie do eksperta.",
+      requestOpened: "Otwieramy okno zapytania - napisz formalnie do eksperta.",
       openPricing: "Zobacz plany",
     },
   },
 };
 
-export const inmailEn = {
-  inmail: {
-    dialogTitle: "Send an Expert Request to an expert or VIP",
+export const expertRequestEn = {
+  expertRequest: {
+    cta: "Expert request",
+    ctaShort: "Request",
+    dialogTitle: "Send an expert request to an expert or VIP",
     dialogSubtitle:
-      "Your tier uses Expert Requests: Plus - 2 per month, Pro - 5 per month. Send a formal request - if the recipient approves, we open an ongoing conversation.",
+      "Send a formal request - if the recipient approves, we open an ongoing conversation.",
     upgradeCta: "See the VIP plan (direct chat with experts and VIPs)",
     recipientLabel: "Recipient",
+    quota: {
+      remaining: "{{remaining}} of {{quota}} requests left this month.",
+      direct: "Your plan lets you message experts directly - no request limit.",
+      none: "Your plan does not include expert requests. Upgrade your plan to write.",
+      exhausted: "You have used your monthly quota ({{quota}}). It renews on the 1st of the month.",
+    },
     fields: {
       subject: "Subject",
       subjectHint: "Briefly - what would you like to discuss (5-140 characters).",
@@ -123,14 +139,14 @@ export const inmailEn = {
     submit: "Send request",
     cancel: "Cancel",
     sending: "Sending…",
-    sentToast: "Expert Request sent. You will be notified about the reply.",
+    sentToast: "Expert request sent. You will be notified about the reply.",
     error: {
       rateLimit: "You have sent too many requests in a short period.",
       monthlyQuota:
-        "You have used your monthly Expert Request quota. Plus: 2/mo, Pro: 5/mo. Upgrade to reach more experts or VIPs.",
-      notExpert: "This user does not require an Expert Request - send a normal DM instead.",
+        "You have used your monthly expert request quota. Upgrade to reach more experts or VIPs.",
+      notExpert: "This user does not require a request - send a normal DM instead.",
       tierDisabled:
-        "Your tier does not include Expert Requests. Upgrade your plan (Plus - 2/mo, Pro - 5/mo, VIP - direct).",
+        "Your tier does not include expert requests. Upgrade your plan (Plus, Pro or VIP).",
       generic: "Could not send. Please try again.",
     },
     status: {
@@ -156,27 +172,27 @@ export const inmailEn = {
       confirm: "Confirm",
     },
     admin: {
-      title: "Expert Requests",
+      title: "Expert requests",
       subtitle:
-        "Formal requests from Plus users to experts. Approve to open a direct conversation; decline to end the request with a reason.",
+        "Formal requests from users to experts. Approve to open a direct conversation; decline to end the request with a reason.",
       filter: "Status",
       filterAll: "All",
       countTotal: "Total: {{count}}",
     },
     profile: {
-      title: "Expert Requests",
+      title: "Expert requests",
       subtitle: "Formal requests - sent and received from experts.",
     },
     chatGate: {
       tierDisabledToast: "Your tier does not allow starting a conversation. Upgrade your plan.",
-      inmailOpened: "Opening the Expert Request dialog - please write to the expert formally.",
+      requestOpened: "Opening the expert request dialog - please write to the expert formally.",
       openPricing: "See plans",
     },
   },
 };
 
-i18n.addResourceBundle("pl", "translation", inmailPl, true, true);
-i18n.addResourceBundle("en", "translation", inmailEn, true, true);
+i18n.addResourceBundle("pl", "translation", expertRequestPl, true, true);
+i18n.addResourceBundle("en", "translation", expertRequestEn, true, true);
 
 /** No-op - side-effect import registers the bundle. */
 export function ensureI18n(): void {}

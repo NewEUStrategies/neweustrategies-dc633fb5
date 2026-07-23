@@ -80,7 +80,7 @@ const pl = {
       orders: "Historia płatności",
       security: "Bezpieczeństwo",
       privacy: "Prywatność",
-      inmails: "Zapytania do ekspertów",
+      expertRequests: "Zapytania do ekspertów",
     },
     navGroups: {
       identity: "Tożsamość",
@@ -574,7 +574,7 @@ const en: typeof pl = {
       orders: "Payment history",
       security: "Security",
       privacy: "Privacy",
-      inmails: "Expert Requests",
+      expertRequests: "Expert requests",
     },
     navGroups: {
       identity: "Identity",
