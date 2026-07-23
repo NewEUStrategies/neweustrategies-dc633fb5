@@ -13,7 +13,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { Button } from "@/components/ui/button";
-import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
+import { FloatingInput } from "@/components/ui/floating-input";
+import { MentionText } from "@/components/mentions/MentionText";
+import { MentionTextarea } from "@/components/mentions/MentionTextarea";
 import { toast } from "sonner";
 import { Trash2 } from "@/lib/lucide-shim";
 import { MessageCircle, Pencil, Reply } from "lucide-react";
@@ -347,10 +349,10 @@ function GuestCommentComposer({
         autoComplete="name"
         lang={lang}
       />
-      <FloatingTextarea
+      <MentionTextarea
         label={t("comments.placeholder")}
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={setBody}
         rows={4}
         maxLength={5000}
         lang={lang}
@@ -418,10 +420,10 @@ function CommentComposer({
       }}
       className="space-y-3"
     >
-      <FloatingTextarea
+      <MentionTextarea
         label={placeholder ?? t("comments.placeholder")}
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={setBody}
         rows={4}
         maxLength={5000}
         lang={lang}
@@ -641,7 +643,7 @@ function CommentItem({
             {isDeleted ? (
               <em className="text-muted-foreground">{t("comments.deletedPlaceholder")}</em>
             ) : (
-              c.body
+              <MentionText body={c.body} />
             )}
           </div>
         )}
