@@ -26,7 +26,7 @@ import { ConnectButton } from "@/components/network/ConnectButton";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
 import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
-import { ReportUserButton } from "@/components/network/ReportUserDialog";
+import { AuthorMoreMenu } from "@/components/network/AuthorMoreMenu";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
 import { ExpertHubDetails } from "@/components/experts/ExpertHubDetails";
