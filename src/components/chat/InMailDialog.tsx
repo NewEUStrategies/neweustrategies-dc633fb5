@@ -108,8 +108,10 @@ export function InMailDialog({ open, onOpenChange, prefill }: InMailDialogProps)
       onOpenChange(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("rate limit")) toast.error(t("inmail.error.rateLimit"));
-      else if (msg.includes("not an expert")) toast.error(t("inmail.error.notExpert"));
+      if (msg.includes("monthly quota")) toast.error(t("inmail.error.monthlyQuota"));
+      else if (msg.includes("rate limit")) toast.error(t("inmail.error.rateLimit"));
+      else if (msg.includes("recipient is not gated") || msg.includes("not an expert"))
+        toast.error(t("inmail.error.notExpert"));
       else if (msg.includes("tier disabled")) toast.error(t("inmail.error.tierDisabled"));
       else toast.error(t("inmail.error.generic"));
     }
