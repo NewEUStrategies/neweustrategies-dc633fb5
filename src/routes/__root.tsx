@@ -443,6 +443,9 @@ function RootComponent() {
           </Suspense>
           <UnsavedChangesGuardHost />
           <AppDialogHost />
+          <Suspense fallback={null}>
+            <InMailDialogHost />
+          </Suspense>
           <Toaster />
         </AuthProvider>
       </ThemeProvider>
