@@ -11550,6 +11550,7 @@ export type Database = {
         Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
       }
+      is_gated_recipient: { Args: { _uid: string }; Returns: boolean }
       is_org_owner: { Args: { p_org: string }; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
@@ -11557,6 +11558,7 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
+      is_vip_user: { Args: { _uid: string }; Returns: boolean }
       join_us_link_and_backfill: {
         Args: {
           _company: string
@@ -11806,6 +11808,7 @@ export type Database = {
         }[]
       }
       my_has_feature: { Args: { p_key: string }; Returns: boolean }
+      my_inmail_quota: { Args: never; Returns: Json }
       my_introduction_requests: {
         Args: { p_role?: string }
         Returns: {

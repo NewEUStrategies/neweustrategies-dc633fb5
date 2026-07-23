@@ -4,10 +4,10 @@ import i18n from "./i18n";
 
 export const inmailPl = {
   inmail: {
-    dialogTitle: "Wyślij wiadomość do eksperta",
+    dialogTitle: "Wyślij inMail do eksperta lub VIP-a",
     dialogSubtitle:
-      "Twój plan Plus nie pozwala pisać bezpośrednio do ekspertów. Prześlij formalne zapytanie - ekspert (lub redakcja) zdecyduje, czy otworzyć rozmowę.",
-    upgradeCta: "Zobacz plan Pro (bezpośrednia rozmowa z ekspertami)",
+      "Twoja warstwa korzysta z inMaili: Plus - 2 miesięcznie, Pro - 5 miesięcznie. Prześlij formalne zapytanie - jeśli odbiorca zaakceptuje, otworzymy stałą konwersację.",
+    upgradeCta: "Zobacz plan VIP (bezpośrednia rozmowa z ekspertami i VIP-ami)",
     recipientLabel: "Odbiorca",
     fields: {
       subject: "Temat rozmowy",
@@ -38,9 +38,10 @@ export const inmailPl = {
     sending: "Wysyłam…",
     sentToast: "InMail wysłany. Poinformujemy Cię o odpowiedzi.",
     error: {
-      rateLimit: "Wysłałeś już maksymalną liczbę zapytań do tego eksperta w ciągu ostatnich 24 h.",
-      notExpert: "Ten użytkownik nie jest ekspertem - napisz do niego bezpośrednio z listy kontaktów.",
-      tierDisabled: "Twoja warstwa nie umożliwia wysyłania wiadomości. Zaktualizuj plan, aby pisać w ekosystemie.",
+      rateLimit: "Wysłałeś już maksymalną liczbę zapytań w krótkim czasie.",
+      monthlyQuota: "Wyczerpałeś miesięczną pulę inMaili. Plus: 2/mies., Pro: 5/mies. Zwiększ plan, aby napisać do kolejnych ekspertów lub VIP-ów.",
+      notExpert: "Ten użytkownik nie wymaga inMail - napisz do niego bezpośrednio z listy kontaktów.",
+      tierDisabled: "Twoja warstwa nie umożliwia wysyłania inMaili. Zaktualizuj plan (Plus - 2/mies., Pro - 5/mies., VIP - bezpośrednio).",
       generic: "Nie udało się wysłać. Spróbuj ponownie.",
     },
     status: {
@@ -87,10 +88,10 @@ export const inmailPl = {
 
 export const inmailEn = {
   inmail: {
-    dialogTitle: "Send a message to an expert",
+    dialogTitle: "Send an inMail to an expert or VIP",
     dialogSubtitle:
-      "Your Plus plan does not include direct chat with experts. Send a formal inMail - the expert (or the editorial team) will decide whether to open a conversation.",
-    upgradeCta: "See the Pro plan (direct chat with experts)",
+      "Your tier uses inMails: Plus - 2 per month, Pro - 5 per month. Send a formal request - if the recipient approves, we open an ongoing conversation.",
+    upgradeCta: "See the VIP plan (direct chat with experts and VIPs)",
     recipientLabel: "Recipient",
     fields: {
       subject: "Subject",
@@ -121,9 +122,10 @@ export const inmailEn = {
     sending: "Sending…",
     sentToast: "InMail sent. You will be notified about the reply.",
     error: {
-      rateLimit: "You have already sent the maximum number of requests to this expert in the last 24 h.",
-      notExpert: "This user is not an expert - send a normal DM instead.",
-      tierDisabled: "Your tier does not include messaging. Upgrade your plan to chat within the ecosystem.",
+      rateLimit: "You have sent too many requests in a short period.",
+      monthlyQuota: "You have used your monthly inMail quota. Plus: 2/mo, Pro: 5/mo. Upgrade to reach more experts or VIPs.",
+      notExpert: "This user does not require an inMail - send a normal DM instead.",
+      tierDisabled: "Your tier does not include inMails. Upgrade your plan (Plus - 2/mo, Pro - 5/mo, VIP - direct).",
       generic: "Could not send. Please try again.",
     },
     status: {

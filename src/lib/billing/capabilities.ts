@@ -81,13 +81,27 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
       "Gate for starting a DM (get_or_create_direct_conversation) - Plus and above.",
   },
   {
-    key: "chat_experts_direct",
+    key: "chat_direct_gated",
     enforced: true,
     gate: "chat",
     where_pl:
-      "Bezpośrednia rozmowa z ekspertem (Pro i wyżej). Bez flagi Plus wysyła inMail.",
+      "Bezpośredni DM z ekspertami i VIP-ami bez inMail (VIP i wyżej). Bez tej flagi Plus/Pro wysyłają inMail.",
     where_en:
-      "Direct DM with an expert (Pro and above). Without the flag, Plus sends an inMail.",
+      "Direct DM with experts and VIPs without inMail (VIP and above). Without it, Plus/Pro must send an inMail.",
+  },
+  {
+    key: "chat_inmail_quota_2",
+    enforced: true,
+    gate: "chat",
+    where_pl: "Kwota 2 inMaili miesięcznie (Plus).",
+    where_en: "Quota of 2 inMails per month (Plus).",
+  },
+  {
+    key: "chat_inmail_quota_5",
+    enforced: true,
+    gate: "chat",
+    where_pl: "Kwota 5 inMaili miesięcznie (Pro).",
+    where_en: "Quota of 5 inMails per month (Pro).",
   },
   {
     key: "events_members",
