@@ -103,239 +103,433 @@ function PaywallAdmin() {
     }
   };
 
+  const activePlans = plans.filter((p) => p.active).length;
+  const highlightedPlans = plans.filter((p) => p.highlighted).length;
+  const currencies = Array.from(new Set(plans.map((p) => (p.currency ?? "PLN").toUpperCase())));
+
   return (
     <AdminShell hideSidebar>
       <div className="space-y-6">
-        <header>
-          <h1 className="font-display text-2xl font-bold">{t("admin.paywall.title")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{t("admin.paywall.subtitle")}</p>
-        </header>
-
-        <section className="border border-border rounded-lg bg-card">
-          <table className="w-full text-sm">
-            <thead className="text-xs text-muted-foreground border-b border-border">
-              <tr>
-                <th className="text-left p-3">{t("admin.paywall.colName")}</th>
-                <th className="text-left p-3">{t("admin.paywall.colPrice")}</th>
-                <th className="text-left p-3">{t("admin.paywall.colInterval")}</th>
-                <th className="text-left p-3">{t("admin.paywall.colActive")}</th>
-                <th className="p-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((p) => (
-                <tr key={p.id} className="border-b border-border hover:bg-muted/40">
-                  <td className="p-3">
-                    <div className="font-semibold">{p.name_pl || p.name_en}</div>
-                    {p.name_en && p.name_pl && (
-                      <div className="text-xs text-muted-foreground">{p.name_en}</div>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    {formatMoney(p.price_cents, p.currency)}
-                    {p.currency?.toUpperCase() === "PLN" && (
-                      <div className="text-[11px] text-muted-foreground">
-                        EN:{" "}
-                        {formatMoney(
-                          convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents,
-                          "EUR",
-                        )}
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="p-3">{p.interval}</td>
-                  <td className="p-3">{p.active ? "✓" : "-"}</td>
-                  <td className="p-3 text-right space-x-2">
-                    <Button size="sm" variant="outline" onClick={() => setDraft(p)}>
-                      {t("admin.paywall.edit")}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => remove(p.id)}>
-                      <Trash className="w-4 h-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {plans.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">
-                    {t("admin.paywall.empty")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </section>
-
-        <section className="border border-border rounded-lg bg-card p-5">
-          <h2 className="font-semibold mb-4">
-            {draft.id ? t("admin.paywall.editPlan") : t("admin.paywall.newPlan")}
-          </h2>
-          <div className="grid sm:grid-cols-2 gap-4">
+        {/* Header + KPI: szybki podgląd stanu paywalla bez wchodzenia w zakładki. */}
+        <header className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <Label>{t("admin.paywall.namePl")}</Label>
-              <Input
-                value={draft.name_pl ?? ""}
-                onChange={(e) => setDraft({ ...draft, name_pl: e.target.value })}
-              />
+              <h1 className="font-display text-2xl font-bold">{t("admin.paywall.title")}</h1>
+              <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+                {t("admin.paywall.subtitle")}
+              </p>
             </div>
-            <div>
-              <Label>{t("admin.paywall.nameEn")}</Label>
-              <Input
-                value={draft.name_en ?? ""}
-                onChange={(e) => setDraft({ ...draft, name_en: e.target.value })}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>{t("admin.paywall.descPl")}</Label>
-              <Textarea
-                rows={2}
-                value={draft.description_pl ?? ""}
-                onChange={(e) => setDraft({ ...draft, description_pl: e.target.value })}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>{t("admin.paywall.descEn")}</Label>
-              <Textarea
-                rows={2}
-                value={draft.description_en ?? ""}
-                onChange={(e) => setDraft({ ...draft, description_en: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>{t("admin.paywall.priceCents")}</Label>
-              <Input
-                type="number"
-                value={draft.price_cents ?? 0}
-                onChange={(e) => setDraft({ ...draft, price_cents: Number(e.target.value) })}
-              />
-            </div>
-            <div>
-              <Label>{t("admin.paywall.currency")}</Label>
-              <Input
-                value={draft.currency ?? "PLN"}
-                onChange={(e) => setDraft({ ...draft, currency: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>{t("admin.paywall.interval")}</Label>
-              <Select
-                value={draft.interval ?? "month"}
-                onValueChange={(v) => setDraft({ ...draft, interval: v as AccessPlan["interval"] })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="month">{t("admin.paywall.intervalMonth")}</SelectItem>
-                  <SelectItem value="quarter">{t("admin.paywall.intervalQuarter")}</SelectItem>
-                  <SelectItem value="year">{t("admin.paywall.intervalYear")}</SelectItem>
-                  <SelectItem value="one_time">{t("admin.paywall.intervalOnce")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={!!draft.active}
-                  onCheckedChange={(v) => setDraft({ ...draft, active: v })}
-                />{" "}
-                {t("admin.paywall.active")}
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={!!draft.highlighted}
-                  onCheckedChange={(v) => setDraft({ ...draft, highlighted: v })}
-                />{" "}
-                {t("admin.paywall.highlighted", "Wyróżniony")}
-              </label>
-              <div className="ml-auto">
-                <Label>{t("admin.paywall.sort")}</Label>
-                <Input
-                  type="number"
-                  value={draft.sort_order ?? 0}
-                  onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })}
-                  className="w-24"
-                />
-              </div>
-            </div>
-            <div>
-              <Label>{t("admin.paywall.badgePl", "Plakietka (PL)")}</Label>
-              <Input
-                value={draft.badge_pl ?? ""}
-                onChange={(e) => setDraft({ ...draft, badge_pl: e.target.value })}
-                placeholder="Najpopularniejszy"
-              />
-            </div>
-            <div>
-              <Label>{t("admin.paywall.badgeEn", "Badge (EN)")}</Label>
-              <Input
-                value={draft.badge_en ?? ""}
-                onChange={(e) => setDraft({ ...draft, badge_en: e.target.value })}
-                placeholder="Most popular"
-              />
-            </div>
-            <div>
-              <Label>{t("admin.paywall.trialDays", "Dni okresu próbnego")}</Label>
-              <Input
-                type="number"
-                min={0}
-                value={draft.trial_days ?? 0}
-                onChange={(e) => setDraft({ ...draft, trial_days: Number(e.target.value) })}
-              />
-            </div>
-            <div></div>
-            <div className="sm:col-span-2">
-              <Label>{t("admin.paywall.featuresPl", "Funkcje (PL, jedna na linię)")}</Label>
-              <Textarea
-                rows={4}
-                value={(draft.features_pl ?? []).join("\n")}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    features_pl: e.target.value
-                      .split("\n")
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  })
-                }
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>{t("admin.paywall.featuresEn", "Features (EN, one per line)")}</Label>
-              <Textarea
-                rows={4}
-                value={(draft.features_en ?? []).join("\n")}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    features_en: e.target.value
-                      .split("\n")
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  })
-                }
-              />
-            </div>
-          </div>
-          <div className="flex gap-2 mt-5">
-            <Button onClick={save} disabled={busy}>
-              <Plus className="w-4 h-4 mr-2" />
-              {draft.id ? t("admin.save") : t("admin.paywall.addPlan")}
-            </Button>
-            {draft.id && (
-              <Button variant="outline" onClick={() => setDraft(emptyPlan())}>
-                {t("admin.cancel")}
-              </Button>
+            {highlightedPlans > 0 && (
+              <Badge variant="secondary" className="gap-1 rounded-[6px]">
+                <Sparkles className="h-3 w-3" aria-hidden />
+                {t("admin.paywall.highlighted", "Wyróżniony")} × {highlightedPlans}
+              </Badge>
             )}
           </div>
-        </section>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <KpiTile
+              icon={Layers}
+              label={t("admin.paywall.kpiPlans", { defaultValue: "Plany" })}
+              value={String(plans.length)}
+            />
+            <KpiTile
+              icon={Sparkles}
+              label={t("admin.paywall.kpiActive", { defaultValue: "Aktywne" })}
+              value={String(activePlans)}
+            />
+            <KpiTile
+              icon={CreditCard}
+              label={t("admin.paywall.kpiCurrencies", { defaultValue: "Waluty" })}
+              value={currencies.join(" / ") || "-"}
+            />
+            <KpiTile
+              icon={Gauge}
+              label={t("admin.paywall.kpiMetering", { defaultValue: "Metering" })}
+              value={t("admin.paywall.kpiConfigured", { defaultValue: "Skonfigurowane" })}
+            />
+          </div>
+        </header>
 
-        <MeteringSettingsCard />
-        <MeteringOverridesCard />
-        <CheckoutSettingsCard />
+        {/* Tabs porządkują 4 luźne sekcje w jasny podział: Plany | Metering | Wyjątki | Checkout. */}
+        <Tabs defaultValue="plans" className="w-full">
+          <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-md bg-muted/40 p-1">
+            <TabsTrigger value="plans" className="gap-1.5 rounded-[6px] text-xs">
+              <Layers className="h-3.5 w-3.5" aria-hidden />
+              {t("admin.paywall.tabPlans", { defaultValue: "Plany" })}
+              <span className="ml-1 rounded-[6px] bg-background/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+                {plans.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="metering" className="gap-1.5 rounded-[6px] text-xs">
+              <Gauge className="h-3.5 w-3.5" aria-hidden />
+              {t("admin.paywall.tabMetering", { defaultValue: "Metering" })}
+            </TabsTrigger>
+            <TabsTrigger value="overrides" className="gap-1.5 rounded-[6px] text-xs">
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+              {t("admin.paywall.tabOverrides", { defaultValue: "Wyjątki" })}
+            </TabsTrigger>
+            <TabsTrigger value="checkout" className="gap-1.5 rounded-[6px] text-xs">
+              <CreditCard className="h-3.5 w-3.5" aria-hidden />
+              {t("admin.paywall.tabCheckout", { defaultValue: "Checkout" })}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ————— PLANY ————— */}
+          <TabsContent value="plans" className="mt-4 space-y-6">
+            <SectionCard
+              icon={Layers}
+              title={t("admin.paywall.plansListTitle", { defaultValue: "Katalog planów" })}
+              description={t("admin.paywall.plansListDesc", {
+                defaultValue:
+                  "Kolejność, ceny i status widoczności planów subskrypcyjnych. Edytuj wiersz, aby zmienić szczegóły.",
+              })}
+              padded={false}
+            >
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground border-b border-border">
+                  <tr>
+                    <th className="text-left p-3">{t("admin.paywall.colName")}</th>
+                    <th className="text-left p-3">{t("admin.paywall.colPrice")}</th>
+                    <th className="text-left p-3">{t("admin.paywall.colInterval")}</th>
+                    <th className="text-left p-3">{t("admin.paywall.colActive")}</th>
+                    <th className="p-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans.map((p) => (
+                    <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/40">
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{p.name_pl || p.name_en}</span>
+                          {p.highlighted && (
+                            <Badge variant="secondary" className="h-4 rounded-[6px] px-1.5 text-[10px]">
+                              <Sparkles className="mr-0.5 h-2.5 w-2.5" aria-hidden />
+                              {t("admin.paywall.highlighted", "Wyróżniony")}
+                            </Badge>
+                          )}
+                        </div>
+                        {p.name_en && p.name_pl && (
+                          <div className="text-xs text-muted-foreground">{p.name_en}</div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {formatMoney(p.price_cents, p.currency)}
+                        {p.currency?.toUpperCase() === "PLN" && (
+                          <div className="text-[11px] text-muted-foreground">
+                            EN:{" "}
+                            {formatMoney(
+                              convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents,
+                              "EUR",
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3 text-muted-foreground">{p.interval}</td>
+                      <td className="p-3">
+                        {p.active ? (
+                          <Badge variant="secondary" className="rounded-[6px]">
+                            {t("admin.paywall.active")}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right space-x-2">
+                        <Button size="sm" variant="outline" onClick={() => setDraft(p)}>
+                          {t("admin.paywall.edit")}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => remove(p.id)}>
+                          <Trash className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {plans.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">
+                        {t("admin.paywall.empty")}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </SectionCard>
+
+            <SectionCard
+              icon={Plus}
+              title={draft.id ? t("admin.paywall.editPlan") : t("admin.paywall.newPlan")}
+              description={t("admin.paywall.newPlanDesc", {
+                defaultValue:
+                  "Uzupełnij treści dwujęzycznie (PL/EN). Cenę podajesz w najmniejszej jednostce - groszach lub centach.",
+              })}
+            >
+              {/* Grupa: Nazewnictwo */}
+              <FieldGroup label={t("admin.paywall.groupNaming", { defaultValue: "Nazewnictwo" })}>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label>{t("admin.paywall.namePl")}</Label>
+                    <Input
+                      value={draft.name_pl ?? ""}
+                      onChange={(e) => setDraft({ ...draft, name_pl: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.paywall.nameEn")}</Label>
+                    <Input
+                      value={draft.name_en ?? ""}
+                      onChange={(e) => setDraft({ ...draft, name_en: e.target.value })}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>{t("admin.paywall.descPl")}</Label>
+                    <Textarea
+                      rows={2}
+                      value={draft.description_pl ?? ""}
+                      onChange={(e) => setDraft({ ...draft, description_pl: e.target.value })}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>{t("admin.paywall.descEn")}</Label>
+                    <Textarea
+                      rows={2}
+                      value={draft.description_en ?? ""}
+                      onChange={(e) => setDraft({ ...draft, description_en: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </FieldGroup>
+
+              {/* Grupa: Cennik i rozliczenie */}
+              <FieldGroup label={t("admin.paywall.groupPricing", { defaultValue: "Cennik i rozliczenie" })}>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <Label>{t("admin.paywall.priceCents")}</Label>
+                    <Input
+                      type="number"
+                      value={draft.price_cents ?? 0}
+                      onChange={(e) => setDraft({ ...draft, price_cents: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.paywall.currency")}</Label>
+                    <Input
+                      value={draft.currency ?? "PLN"}
+                      onChange={(e) => setDraft({ ...draft, currency: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.paywall.interval")}</Label>
+                    <Select
+                      value={draft.interval ?? "month"}
+                      onValueChange={(v) =>
+                        setDraft({ ...draft, interval: v as AccessPlan["interval"] })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="month">{t("admin.paywall.intervalMonth")}</SelectItem>
+                        <SelectItem value="quarter">{t("admin.paywall.intervalQuarter")}</SelectItem>
+                        <SelectItem value="year">{t("admin.paywall.intervalYear")}</SelectItem>
+                        <SelectItem value="one_time">{t("admin.paywall.intervalOnce")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>{t("admin.paywall.trialDays", "Dni okresu próbnego")}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={draft.trial_days ?? 0}
+                      onChange={(e) => setDraft({ ...draft, trial_days: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+              </FieldGroup>
+
+              {/* Grupa: Widoczność i akcenty */}
+              <FieldGroup label={t("admin.paywall.groupVisibility", { defaultValue: "Widoczność i akcenty" })}>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={!!draft.active}
+                      onCheckedChange={(v) => setDraft({ ...draft, active: v })}
+                    />
+                    {t("admin.paywall.active")}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={!!draft.highlighted}
+                      onCheckedChange={(v) => setDraft({ ...draft, highlighted: v })}
+                    />
+                    {t("admin.paywall.highlighted", "Wyróżniony")}
+                  </label>
+                  <div>
+                    <Label>{t("admin.paywall.sort")}</Label>
+                    <Input
+                      type="number"
+                      value={draft.sort_order ?? 0}
+                      onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })}
+                      className="w-24"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label>{t("admin.paywall.badgePl", "Plakietka (PL)")}</Label>
+                      <Input
+                        value={draft.badge_pl ?? ""}
+                        onChange={(e) => setDraft({ ...draft, badge_pl: e.target.value })}
+                        placeholder="Najpopularniejszy"
+                      />
+                    </div>
+                    <div>
+                      <Label>{t("admin.paywall.badgeEn", "Badge (EN)")}</Label>
+                      <Input
+                        value={draft.badge_en ?? ""}
+                        onChange={(e) => setDraft({ ...draft, badge_en: e.target.value })}
+                        placeholder="Most popular"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </FieldGroup>
+
+              {/* Grupa: Lista funkcji */}
+              <FieldGroup label={t("admin.paywall.groupFeatures", { defaultValue: "Lista funkcji" })}>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label>{t("admin.paywall.featuresPl", "Funkcje (PL, jedna na linię)")}</Label>
+                    <Textarea
+                      rows={5}
+                      value={(draft.features_pl ?? []).join("\n")}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          features_pl: e.target.value
+                            .split("\n")
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.paywall.featuresEn", "Features (EN, one per line)")}</Label>
+                    <Textarea
+                      rows={5}
+                      value={(draft.features_en ?? []).join("\n")}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          features_en: e.target.value
+                            .split("\n")
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              </FieldGroup>
+
+              <div className="flex gap-2 pt-2 border-t border-border/60 mt-2">
+                <Button onClick={save} disabled={busy}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  {draft.id ? t("admin.save") : t("admin.paywall.addPlan")}
+                </Button>
+                {draft.id && (
+                  <Button variant="outline" onClick={() => setDraft(emptyPlan())}>
+                    {t("admin.cancel")}
+                  </Button>
+                )}
+              </div>
+            </SectionCard>
+          </TabsContent>
+
+          {/* ————— METERING ————— */}
+          <TabsContent value="metering" className="mt-4">
+            <MeteringSettingsCard />
+          </TabsContent>
+
+          {/* ————— WYJĄTKI ————— */}
+          <TabsContent value="overrides" className="mt-4">
+            <MeteringOverridesCard />
+          </TabsContent>
+
+          {/* ————— CHECKOUT ————— */}
+          <TabsContent value="checkout" className="mt-4">
+            <CheckoutSettingsCard />
+          </TabsContent>
+        </Tabs>
       </div>
     </AdminShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// UI primitives lokalne dla tej strony - trzymają spójny wygląd sekcji, KPI
+// i grup pól. Nie eksportowane, bo nigdzie indziej nie mają sensu.
+// ---------------------------------------------------------------------------
+
+type IconType = typeof Layers;
+
+function KpiTile({ icon: Icon, label, value }: { icon: IconType; label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card px-3 py-2.5 flex items-center gap-3">
+      <div className="flex h-8 w-8 items-center justify-center rounded-[6px] bg-muted/60 text-muted-foreground">
+        <Icon className="h-4 w-4" aria-hidden />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="text-sm font-semibold truncate">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function SectionCard({
+  icon: Icon,
+  title,
+  description,
+  children,
+  padded = true,
+}: {
+  icon: IconType;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  padded?: boolean;
+}) {
+  return (
+    <section className="border border-border rounded-lg bg-card overflow-hidden">
+      <header className="flex items-start gap-3 border-b border-border/60 bg-muted/20 px-5 py-3">
+        <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-[6px] bg-background text-muted-foreground border border-border/60">
+          <Icon className="h-4 w-4" aria-hidden />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-semibold text-sm">{title}</h2>
+          {description && (
+            <p className="text-xs text-muted-foreground mt-0.5 max-w-3xl">{description}</p>
+          )}
+        </div>
+      </header>
+      <div className={padded ? "p-5 space-y-5" : ""}>{children}</div>
+    </section>
+  );
+}
+
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
+        <div className="h-px flex-1 bg-border/60" aria-hidden />
+      </div>
+      {children}
+    </div>
   );
 }
 
