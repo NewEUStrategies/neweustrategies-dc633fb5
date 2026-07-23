@@ -13,6 +13,7 @@ const pl = {
     disabledTitle: "Personalizacja jest wyłączona",
     disabledBody: "Administrator wyłączył listy czytelnicze i rekomendacje na tej stronie.",
     savedEmpty: "Nie masz jeszcze żadnych zapisanych artykułów.",
+    savedPagesHeading: "Zapisane strony",
     guestSavedInfo:
       "Zapisujesz jako gość - lista jest przechowywana tylko na tym urządzeniu. Zaloguj się, aby zabrać ją ze sobą.",
     guestSavedEmpty: "Nie masz jeszcze zapisanych artykułów na tym urządzeniu.",
@@ -53,6 +54,7 @@ const en: typeof pl = {
     disabledTitle: "Personalization is disabled",
     disabledBody: "The administrator has disabled reading lists and recommendations on this site.",
     savedEmpty: "You have no saved articles yet.",
+    savedPagesHeading: "Saved pages",
     guestSavedInfo:
       "You are saving as a guest - the list lives only on this device. Sign in to take it with you.",
     guestSavedEmpty: "No articles saved on this device yet.",
