@@ -144,7 +144,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
         <button
           type="button"
           className={[
-            "relative inline-flex h-10 w-10 items-center justify-center shrink-0 overflow-visible",
+            "relative isolate inline-flex h-10 w-10 items-center justify-center shrink-0 overflow-visible",
             "rounded-[10px] border border-transparent bg-transparent text-foreground",
             "transition-all duration-200",
             "hover:bg-muted/60 hover:border-border/60 hover:-translate-y-px",
@@ -168,7 +168,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             count={unread}
             variant="alert"
             size="sm"
-            className="absolute -top-1 -right-0.5 z-[100]"
+            className="absolute right-0 top-0 z-[100]"
           />
         </button>
       </PopoverTrigger>

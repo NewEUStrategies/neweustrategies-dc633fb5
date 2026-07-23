@@ -1,7 +1,4 @@
-// Atom: readable unread counter badge for notification/chat bells.
-// - High-contrast primary surface, bold typography, crisp shadow/ring.
-// - i18n-ready aria-label; caps at "99+".
-// - Sizes tuned for header icon triggers (md) and panel headings (lg).
+// Atom: compact unread counter for notification and chat surfaces.
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
@@ -21,17 +18,14 @@ interface UnreadBadgeProps {
 }
 
 const SIZE_CLASSES: Record<UnreadBadgeSize, string> = {
-  sm: "h-3 min-w-[14px] px-0.5 text-[5px]",
-  md: "h-3.5 min-w-[16px] px-1 text-[6px]",
-  lg: "h-4 min-w-[18px] px-1 text-[7px]",
+  sm: "h-[13px] min-w-[13px] px-[3px] text-[6px]",
+  md: "h-[15px] min-w-[15px] px-[3px] text-[7px]",
+  lg: "h-[17px] min-w-[17px] px-1 text-[8px]",
 };
 
 const VARIANT_CLASSES: Record<UnreadBadgeVariant, string> = {
-  primary: "bg-primary text-primary-foreground ring-2 ring-background shadow-md",
-  // Czerwona pigułka w headerze - czytelna w light i dark, biały kontur odcina
-  // ją od ikony pod spodem.
-  alert:
-    "bg-[hsl(0_84%_55%)] text-white ring-2 ring-background shadow-[0_2px_6px_-1px_hsl(0_84%_55%/0.5)]",
+  primary: "bg-primary text-primary-foreground ring-1 ring-background shadow-sm",
+  alert: "bg-destructive text-destructive-foreground ring-1 ring-background shadow-sm",
 };
 
 export function UnreadBadge({
@@ -51,8 +45,8 @@ export function UnreadBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center rounded-[5px] font-bold leading-none whitespace-nowrap",
-        "z-[100] overflow-visible",
+        "inline-flex shrink-0 items-center justify-center rounded-[5px] font-display font-bold leading-none tabular-nums whitespace-nowrap",
+        "isolate z-[100] overflow-visible pointer-events-none select-none",
         "motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200",
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
