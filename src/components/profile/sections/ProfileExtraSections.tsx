@@ -65,15 +65,18 @@ function useUserList<T>(
   orderCol: string,
   ascending: boolean,
   userId: string | undefined,
+  tenantId: string | undefined,
 ) {
   return useQuery({
-    queryKey: [table, userId],
-    enabled: !!userId,
+    queryKey: [table, userId, tenantId],
+    enabled: !!userId && !!tenantId,
     queryFn: async () => {
+      if (!userId || !tenantId) throw new Error("Missing profile ownership context");
       const { data, error } = await supabase
         .from(table)
         .select("*")
-        .eq("user_id", userId!)
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
         .order(orderCol, { ascending });
       if (error) throw error;
       return (data ?? []) as T[];
@@ -141,7 +144,7 @@ export function ExperienceSection({
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const q = useUserList<Experience>("profile_experiences", "sort_order", true, userId);
+  const q = useUserList<Experience>("profile_experiences", "sort_order", true, userId, tenantId);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     role_title: "",
@@ -152,10 +155,11 @@ export function ExperienceSection({
     is_current: false,
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["profile_experiences", userId] });
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: ["profile_experiences", userId, tenantId] });
 
   async function add() {
-    if (!form.role_title.trim()) return;
+    if (!form.role_title.trim()) return toast.error(t("profile.forms.roleTitle"));
     const { error } = await supabase.from("profile_experiences").insert({
       user_id: userId,
       tenant_id: tenantId,
@@ -319,7 +323,7 @@ export function EducationSection({
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const q = useUserList<Education>("profile_education", "sort_order", true, userId);
+  const q = useUserList<Education>("profile_education", "sort_order", true, userId, tenantId);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     school: "",
@@ -329,10 +333,11 @@ export function EducationSection({
     end_date: "",
   });
   const items = q.data ?? [];
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["profile_education", userId] });
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: ["profile_education", userId, tenantId] });
 
   async function add() {
-    if (!form.school.trim()) return;
+    if (!form.school.trim()) return toast.error(t("profile.forms.school"));
     const { error } = await supabase.from("profile_education").insert({
       user_id: userId,
       tenant_id: tenantId,
@@ -343,6 +348,7 @@ export function EducationSection({
       end_date: form.end_date || null,
     });
     if (error) return toast.error(error.message);
+    toast.success(t("profile.actions.saved"));
     setOpen(false);
     setForm({ school: "", degree: "", field: "", start_date: "", end_date: "" });
     invalidate();
@@ -464,14 +470,14 @@ export function SkillsSection({
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const q = useUserList<Skill>("profile_skills", "sort_order", true, userId);
+  const q = useUserList<Skill>("profile_skills", "sort_order", true, userId, tenantId);
   const [value, setValue] = useState("");
   const items = q.data ?? [];
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["profile_skills", userId] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["profile_skills", userId, tenantId] });
 
   async function add() {
     const label = value.trim();
-    if (!label) return;
+    if (!label) return toast.error(t("profile.forms.addSkill"));
     const { error } = await supabase.from("profile_skills").insert({
       user_id: userId,
       tenant_id: tenantId,
@@ -479,6 +485,7 @@ export function SkillsSection({
       level: 3,
     });
     if (error) return toast.error(error.message);
+    toast.success(t("profile.actions.saved"));
     setValue("");
     invalidate();
   }
@@ -566,7 +573,7 @@ export function AwardsSection({
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const q = useUserList<Award>("profile_awards", "sort_order", true, userId);
+  const q = useUserList<Award>("profile_awards", "sort_order", true, userId, tenantId);
   const items = (q.data ?? []).filter((a) => a.kind === kind);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
@@ -576,10 +583,10 @@ export function AwardsSection({
     description: "",
     url: "",
   });
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["profile_awards", userId] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["profile_awards", userId, tenantId] });
 
   async function add() {
-    if (!form.title.trim()) return;
+    if (!form.title.trim()) return toast.error(t("profile.forms.title"));
     const { error } = await supabase.from("profile_awards").insert({
       user_id: userId,
       tenant_id: tenantId,
@@ -591,6 +598,7 @@ export function AwardsSection({
       url: form.url.trim() || null,
     });
     if (error) return toast.error(error.message);
+    toast.success(t("profile.actions.saved"));
     setOpen(false);
     setForm({ title: "", issuer: "", awarded_at: "", description: "", url: "" });
     invalidate();
@@ -744,11 +752,12 @@ export function CvSection({
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const q = useUserList<CvFile>("profile_cv_files", "uploaded_at", false, userId);
+  const q = useUserList<CvFile>("profile_cv_files", "uploaded_at", false, userId, tenantId);
   const [uploading, setUploading] = useState(false);
   const items = q.data ?? [];
   const current = items.find((f) => f.is_current) ?? items[0];
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["profile_cv_files", userId] });
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: ["profile_cv_files", userId, tenantId] });
 
   async function onUpload(file: File) {
     if (file.size > 10 * 1024 * 1024) return toast.error("Max 10MB");
