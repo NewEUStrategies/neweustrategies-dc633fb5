@@ -10724,6 +10724,7 @@ export type Database = {
           mime_type: string
         }[]
       }
+      auto_connect_experts: { Args: never; Returns: number }
       b2b_coupons_analytics: {
         Args: { _from: string; _to: string }
         Returns: {
