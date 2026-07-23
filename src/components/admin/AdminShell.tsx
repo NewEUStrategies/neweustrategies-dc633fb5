@@ -376,10 +376,10 @@ function AdminShellInner({
           }),
         },
         {
-          to: "/admin/inmails",
+          to: "/admin/expert-requests",
           icon: Inbox,
-          label: t("admin.nav.inmails", {
-            defaultValue: lang === "pl" ? "InMaile do ekspertów" : "Expert inMails",
+          label: t("admin.nav.expertRequests", {
+            defaultValue: lang === "pl" ? "Zapytania do ekspertów" : "Expert requests",
           }),
         },
         {

@@ -3,9 +3,10 @@
 // - Realtime updates (channel scoped per user_id)
 // - Multi-tenant safe: reads go through RLS (auth.uid() + current_tenant_id)
 // - i18n PL/EN, respects prefers-reduced-motion, uses semantic tokens only
-import { useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useMemo, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 // Nazwane importy + DynamicIcon zamiast `import * as lucide-react`: dzwonek
 // renderuje się w chrome każdej strony, a namespace-import z dynamicznym
 // lookupem wciągał CAŁĄ bibliotekę ikon (~640 KB raw) do bundla wejściowego.
@@ -27,8 +28,10 @@ import {
 } from "lucide-react";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   useNotificationsInfinite,
   useNotificationsRealtime,
@@ -101,6 +104,21 @@ function isPlainLeftClick(e: ReactMouseEvent<HTMLAnchorElement>): boolean {
   );
 }
 
+function notificationActorId(href: string | null): string | null {
+  if (!href || !isInternalHref(href)) return null;
+  try {
+    return new URL(href, "https://local.invalid").searchParams.get("c");
+  } catch {
+    return null;
+  }
+}
+
+interface NotificationActorProfile {
+  connection_id: string;
+  avatar_url: string | null;
+  display_name: string;
+}
+
 export interface NotificationsBellProps {
   panelWidth?: number;
 }
@@ -124,11 +142,50 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
   const markMany = useMarkNotificationsRead();
   const unreadOne = useMarkNotificationUnread();
 
+  const items: NotificationRow[] = listQ.data?.pages[0] ?? [];
+  const actorIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          items
+            .map((item) => notificationActorId(item.href))
+            .filter((id): id is string => id !== null),
+        ),
+      ).sort(),
+    [items],
+  );
+  const actorProfilesQ = useQuery({
+    queryKey: ["notifications", "actor-profiles", actorIds],
+    enabled: !!user && actorIds.length > 0,
+    queryFn: async (): Promise<NotificationActorProfile[]> => {
+      const [connections, received, sent] = await Promise.all([
+        supabase.rpc("my_connections", { p_limit: 100, p_offset: 0, p_query: "" }),
+        supabase.rpc("my_connection_requests", { p_direction: "in", p_limit: 100, p_offset: 0 }),
+        supabase.rpc("my_connection_requests", { p_direction: "out", p_limit: 100, p_offset: 0 }),
+      ]);
+      const error = connections.error ?? received.error ?? sent.error;
+      if (error) throw error;
+      const relevantIds = new Set(actorIds);
+      return [...(connections.data ?? []), ...(received.data ?? []), ...(sent.data ?? [])]
+        .filter((profile) => relevantIds.has(profile.connection_id))
+        .map((profile) => ({
+          connection_id: profile.connection_id,
+          avatar_url: profile.avatar_url || null,
+          display_name: profile.display_name,
+        }));
+    },
+    staleTime: 5 * 60_000,
+  });
+  const actorProfiles = useMemo(
+    () =>
+      new Map((actorProfilesQ.data ?? []).map((profile) => [profile.connection_id, profile])),
+    [actorProfilesQ.data],
+  );
+
   if (!user) return null;
 
   // Dzwonek pokazuje tylko pierwszą stronę - "Zobacz wszystkie" kieruje do
   // /messages?view=notifications, gdzie Center dokleja kolejne strony.
-  const items: NotificationRow[] = listQ.data?.pages[0] ?? [];
   const unread = countQ.data ?? 0;
   const groupByConversation = prefsQ.data?.group_by_conversation ?? true;
   const groups = groupNotifications(items, { groupByConversation });
@@ -143,15 +200,36 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={[
+            "relative isolate inline-flex h-10 w-10 items-center justify-center shrink-0 overflow-visible",
+            "rounded-[10px] border border-transparent bg-transparent text-foreground",
+            "transition-all duration-200",
+            "hover:bg-muted/60 hover:border-border/60 hover:-translate-y-px",
+            "active:translate-y-0",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            "disabled:opacity-50 disabled:pointer-events-none",
+            unread > 0 && "text-foreground",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           aria-label={t("notifications.title", { defaultValue: "Powiadomienia" })}
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          <Bell className="h-4 w-4" aria-hidden />
-          <UnreadBadge count={unread} className="absolute -top-0.5 -right-0.5" />
+          <Bell
+            className="h-[18px] w-[18px] transition-transform duration-200"
+            aria-hidden
+          />
+
+          <UnreadBadge
+            count={unread}
+            variant="alert"
+            size="sm"
+            className="absolute right-0 top-0 z-[100]"
+          />
         </button>
       </PopoverTrigger>
+
       <PopoverContent
         align="end"
         sideOffset={8}
@@ -210,6 +288,8 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
               {groups.map((g) => {
                 const n = g.latest;
                 const KindIcon = KIND_ICONS[n.kind] ?? Circle;
+                const actorId = notificationActorId(n.href);
+                const actor = actorId ? actorProfiles.get(actorId) : undefined;
                 const groupUnread = g.unreadCount;
                 const isUnread = groupUnread > 0;
                 const extra = g.items.length - 1;
@@ -222,19 +302,28 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                     : pickTitle(n, lang);
                 const inner = (
                   <div className="flex items-start gap-2.5 px-3 py-2.5">
-                    <div
-                      className={[
-                        "mt-0.5 shrink-0 rounded-full p-1.5",
-                        isUnread ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
-                      ].join(" ")}
-                      aria-hidden
-                    >
-                      {n.icon ? (
-                        <DynamicIcon name={n.icon} className="h-3.5 w-3.5" size={14} />
-                      ) : (
-                        <KindIcon className="h-3.5 w-3.5" />
-                      )}
-                    </div>
+                    <Avatar className="mt-0.5 h-8 w-8 rounded-[5px] border border-border/60 bg-muted">
+                      {actor?.avatar_url ? (
+                        <AvatarImage
+                          src={actor.avatar_url}
+                          alt={actor.display_name ?? title}
+                          className="rounded-[5px] object-cover"
+                        />
+                      ) : null}
+                      <AvatarFallback
+                        className={[
+                          "rounded-[5px]",
+                          isUnread ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                        ].join(" ")}
+                        aria-hidden
+                      >
+                        {n.icon ? (
+                          <DynamicIcon name={n.icon} className="h-3.5 w-3.5" size={14} />
+                        ) : (
+                          <KindIcon className="h-3.5 w-3.5" />
+                        )}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span
@@ -249,6 +338,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           <UnreadBadge
                             count={groupUnread}
                             size="sm"
+                             className="rounded-[5px] text-[5px]"
                             labelKey="notifications.unread"
                           />
                         )}

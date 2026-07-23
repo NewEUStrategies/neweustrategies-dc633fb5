@@ -237,7 +237,7 @@ const pricingPl = {
           },
         },
         { id: "qa", label: "Priorytet pytań w sesjach Q&A z ekspertami", feature: "qa_priority" },
-        { id: "expertRequest", label: "Zapytanie do eksperta", feature: "expert_request" },
+        { id: "expertRequest", label: "Zapytanie do eksperta", derive: "expertRequest" },
         {
           id: "giftLinks",
           label: "Tworzenie linków podarunkowych do analiz",
@@ -700,7 +700,7 @@ const pricingEn: typeof pricingPl = {
           },
         },
         { id: "qa", label: "Priority questions in expert Q&A sessions", feature: "qa_priority" },
-        { id: "expertRequest", label: "Expert request", feature: "expert_request" },
+        { id: "expertRequest", label: "Expert request", derive: "expertRequest" },
         {
           id: "giftLinks",
           label: "Create gift links to analyses",

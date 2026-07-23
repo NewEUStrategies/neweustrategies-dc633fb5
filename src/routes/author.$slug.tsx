@@ -23,13 +23,15 @@ import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { RecommendationsSection } from "@/components/network/RecommendationsSection";
 import { FollowButton } from "@/components/FollowButton";
 import { ConnectButton } from "@/components/network/ConnectButton";
+import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
 import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
-import { ReportUserButton } from "@/components/network/ReportUserDialog";
+import { AuthorMoreMenu } from "@/components/network/AuthorMoreMenu";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
 import { ExpertHubDetails } from "@/components/experts/ExpertHubDetails";
 import { ExpertInTheNews } from "@/components/experts/ExpertInTheNews";
+import { ExpertRequestButton } from "@/components/experts/ExpertRequestButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { useUserBadges } from "@/lib/profile/badges";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
@@ -296,18 +298,30 @@ function ExpertHubPage() {
           lang={lang}
           showPlaceholders={false}
           action={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
               {personalized.followInAuthorHeader && (
                 <FollowButton targetType="author" targetId={expert.id} lang={lang} />
               )}
               {/* Sieć kontaktów: widoczne tylko dla zalogowanych na cudzym
                   profilu (komponenty same zwracają null w pozostałych stanach). */}
-              <ConnectButton userId={expert.id} displayName={name} />
+              <ConnectButton userId={expert.id} displayName={name} iconOnly />
+              <DirectMessageButton
+                userId={expert.id}
+                displayName={name}
+                displayAvatar={expert.avatar_url}
+                iconOnly
+              />
+              <ExpertRequestButton
+                expertId={expert.id}
+                expertName={name}
+                expertAvatar={expert.avatar_url}
+              />
               <RequestIntroductionButton userId={expert.id} displayName={name} />
               <MutualConnectionsHint userId={expert.id} />
-              <ReportUserButton userId={expert.id} displayName={name} />
+              <AuthorMoreMenu userId={expert.id} displayName={name} />
             </div>
           }
+
         />
 
         {showExpertiseBar && data.areas.length > 0 && (

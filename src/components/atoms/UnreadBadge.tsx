@@ -1,15 +1,16 @@
-// Atom: readable unread counter badge for notification/chat bells.
-// - High-contrast primary surface, bold typography, crisp shadow/ring.
-// - i18n-ready aria-label; caps at "99+".
-// - Sizes tuned for header icon triggers (md) and panel headings (lg).
+// Atom: compact unread counter for notification and chat surfaces.
+import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 export type UnreadBadgeSize = "sm" | "md" | "lg";
+export type UnreadBadgeVariant = "primary" | "alert";
 
 interface UnreadBadgeProps {
   count: number;
   size?: UnreadBadgeSize;
+  /** primary = neutralne (panele), alert = czerwona pigułka dla headera. */
+  variant?: UnreadBadgeVariant;
   pulse?: boolean;
   className?: string;
   /** Optional override for the aria label; defaults to i18n "notifications.unread" / "chat.unread". */
@@ -18,14 +19,26 @@ interface UnreadBadgeProps {
 }
 
 const SIZE_CLASSES: Record<UnreadBadgeSize, string> = {
-  sm: "h-4 min-w-[16px] px-1 text-[9px]",
-  md: "h-[18px] min-w-[18px] px-1 text-[10px]",
-  lg: "h-5 min-w-[20px] px-1.5 text-[11px]",
+  sm: "h-[15px] min-w-[15px] px-[4px]",
+  md: "h-[17px] min-w-[17px] px-[4px]",
+  lg: "h-[19px] min-w-[19px] px-[5px]",
+};
+
+const SIZE_FONT_PX: Record<UnreadBadgeSize, number> = {
+  sm: 8,
+  md: 8,
+  lg: 9,
+};
+
+const VARIANT_CLASSES: Record<UnreadBadgeVariant, string> = {
+  primary: "bg-primary text-primary-foreground ring-1 ring-background shadow-sm",
+  alert: "bg-destructive text-destructive-foreground ring-1 ring-background shadow-sm",
 };
 
 export function UnreadBadge({
   count,
   size = "md",
+  variant = "primary",
   pulse = false,
   className,
   labelKey = "notifications.unread",
@@ -38,15 +51,17 @@ export function UnreadBadge({
 
   return (
     <span
+      data-unread-badge=""
       className={cn(
-        "inline-flex items-center justify-center rounded-full",
-        "bg-primary text-primary-foreground font-bold leading-none",
-        "ring-2 ring-background shadow-md",
+        "inline-flex shrink-0 items-center justify-center rounded-[5px] font-display font-bold leading-none tabular-nums whitespace-nowrap",
+        "isolate z-[100] overflow-visible pointer-events-none select-none",
         "motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200",
+        VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         pulse && "motion-safe:animate-pulse",
         className,
       )}
+      style={{ ["--unread-badge-fs" as string]: `${SIZE_FONT_PX[size]}px` } as CSSProperties}
       aria-label={t(labelKey, { count, defaultValue: `${count} nieprzeczytanych` })}
       aria-live="polite"
     >
@@ -54,3 +69,4 @@ export function UnreadBadge({
     </span>
   );
 }
+
