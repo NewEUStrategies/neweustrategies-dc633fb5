@@ -540,7 +540,7 @@ export function SearchButtonWidget({
             {focused && hasQuery && !loading && showEmpty && (
               <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/60">
-                  <LucideIcons.SearchX
+                  <LucideIcons.Search
                     className="h-4 w-4 text-muted-foreground"
                     aria-hidden
                   />
@@ -662,7 +662,7 @@ export function SearchButtonWidget({
                                     {kindLabel}
                                   </span>
                                 )}
-                                <LucideIcons.ArrowUpRight
+                                <LucideIcons.ArrowRight
                                   className={`h-3.5 w-3.5 shrink-0 transition-all ${
                                     isActive
                                       ? "translate-x-0 opacity-100"
