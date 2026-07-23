@@ -16,6 +16,7 @@ import { Component, type ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+
 // A minimal stored row that DOES NOT include every branch of ThemeOptions
 // defaults - the pane must still render the header/buttons/text_fields
 // sections thanks to deep-merge in useSettings, not because they were stored.
