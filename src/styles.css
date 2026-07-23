@@ -8,7 +8,7 @@
 [data-unread-badge][data-unread-badge][data-unread-badge] {
   font-size: inherit;
 }
-span[data-unread-badge] {
+span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge] {
   font-size: var(--unread-badge-fs, 6px) !important;
 }
 
