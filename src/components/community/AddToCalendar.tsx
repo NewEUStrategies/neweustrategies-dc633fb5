@@ -15,6 +15,7 @@ import {
   type CalendarEventInput,
 } from "@/lib/community/calendar";
 import type { PublicEvent } from "@/lib/community/publicQueries";
+import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 
 function toCalendarInput(
   event: PublicEvent,
@@ -35,6 +36,9 @@ function toCalendarInput(
 }
 
 export function AddToCalendar({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
+  // Rejestruje słownik community w chunku tej molekuły - działa też gdy komponent
+  // renderowany jest poza trasą /events/$slug (patrz lib/i18n-*).
+  ensureCommunityI18n();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 

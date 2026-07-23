@@ -282,7 +282,7 @@ function TocAdmin() {
                   })}
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {t("admin.toc.showInBody.hint", {
+                  {t("admin.toc.showInBodyHint", {
                     defaultValue:
                       "Domyślnie wyłączone - ToC jest widoczny tylko w prawym sidebarze.",
                   })}

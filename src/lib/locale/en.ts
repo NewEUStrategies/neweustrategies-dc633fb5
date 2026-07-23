@@ -4,6 +4,19 @@
 export const en = {
   common: {
     retry: "Try again",
+    loading: "Loading…",
+    loadMore: "Load more",
+    add: "Add",
+    remove: "Remove",
+    delete: "Delete",
+    saving: "Saving…",
+    working: "Working…",
+    yes: "Yes",
+    no: "No",
+    preview: {
+      lightMode: "Light mode",
+      darkMode: "Dark mode",
+    },
     cancel: "Cancel",
     confirm: "Confirm",
     save: "Save",
@@ -32,6 +45,29 @@ export const en = {
   },
   hero: {
     by: "By",
+  },
+  blog: {
+    empty: "No published posts yet.",
+  },
+  footer: {
+    back_to_top: "Back to top",
+  },
+  archive: {
+    empty: "No published posts yet.",
+    next: "Next page",
+    prev: "Previous page",
+    pageLabel: "Page",
+  },
+  consent: {
+    preview: {
+      title: "Consent preview",
+      active: "ACTIVE",
+      inactive: "REAL",
+      hint: "Test scripts without clearing cookies - session-only override.",
+      acceptAll: "All",
+      rejectAll: "None",
+      reset: "Back to real consent",
+    },
   },
   newsletter: {
     title: "STRATEGIC THINKING, NEW PERSPECTIVES",
@@ -71,6 +107,8 @@ export const en = {
     signup: "Sign up",
     signinOk: "Signed in",
     signupOk: "Account created",
+    invalidInput: "Invalid input - check your email address and try again.",
+    rateLimited: "Too many attempts - try again in a few minutes.",
   },
   post: {
     takeaways: {
@@ -82,6 +120,9 @@ export const en = {
       hint: "Short, concrete bullet points - max 6. Shown above the post content in the matching language.",
       empty: "No bullets for this language.",
     },
+    readMinutes_one: "{{count}} min read",
+    readMinutes_other: "{{count}} min read",
+    updated: "Updated",
   },
   ads: {
     label: "Advertisement",
@@ -90,6 +131,9 @@ export const en = {
     dismiss: "Close ad",
   },
   admin: {
+    unsavedChangesTitle: "Unsaved changes",
+    leave: "Leave without saving",
+    stay: "Stay",
     nav: {
       dashboard: "Dashboard",
       posts: "Posts",
@@ -1813,6 +1857,8 @@ export const en = {
     markUnread: "Mark as unread",
     markGroupRead: "Mark whole conversation as read",
     markGroupUnread: "Mark whole conversation as unread",
+    deleteGroup: "Delete whole conversation",
+    loadMore: "Load more",
     grouped: {
       messagesFrom: "Messages from {{name}}",
       moreMessages_one: "+{{count}} more message",
@@ -1840,6 +1886,21 @@ export const en = {
         system: "System announcements",
         security: "Security alerts (always on)",
       },
+      channelsHeader: "Delivery channels",
+      channelsSubtitle: "Notifications outside the app: browser push and a digest e-mail.",
+      chatBell: "Chat bell in the top bar",
+      chatBellHint:
+        "Turn off to hide the chat shortcut in the top bar. Conversations still work in /messages and the dock.",
+      push: "Push notifications in this browser",
+      pushHint: "The alert appears even when the tab is closed. Enable each device separately.",
+      pushDenied: "The browser denied notification permission.",
+      pushError: "Could not enable push notifications.",
+      pushUnsupported: "This browser or installation does not support push notifications.",
+      digest: "Digest e-mail of unread notifications",
+      digestHint: "One combined summary instead of individual e-mails.",
+      digestOff: "Off",
+      digestDaily: "Daily",
+      digestWeekly: "Weekly",
       saved: "Preferences saved",
       saveError: "Could not save preferences",
     },
@@ -1921,10 +1982,21 @@ export const en = {
     anonymous: "User",
     signInPrompt: "Want to join the discussion?",
     signInLink: "Sign in",
+    closed: "Comments are closed for this post.",
+    edit: "Edit",
+    edited: "edited",
+    editSaved: "Comment updated",
+    saveEdit: "Save changes",
+    guestBadge: "guest",
+    guestName: "Your name or nickname",
+    loadMore: "Load more comments",
+    submittedPending: "Thank you - your comment will appear once approved by moderation.",
     errors: {
       authRequired: "Please sign in to comment.",
       disabled: "Comments are disabled.",
       generic: "Could not submit comment.",
+      editExpired: "Comments can only be edited within 15 minutes of posting.",
+      rateLimited: "Slow down - too many comments at once.",
     },
   },
   adminComments: {

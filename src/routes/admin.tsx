@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 
 export const Route = createFileRoute("/admin")({
   // Auth stan jest w localStorage (Supabase), więc SSR-owy render szkicu
@@ -14,6 +15,9 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminLayout() {
+  // Rejestruje słownik brakujących kluczy admina/CRM w chunku tras /admin
+  // (patrz lib/i18n-admin-extras) - jeden punkt wejścia dla całego panelu.
+  ensureAdminExtrasI18n();
   const { loading, session, isStaff } = useAuth();
   const navigate = useNavigate();
 
