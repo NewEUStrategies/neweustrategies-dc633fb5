@@ -337,9 +337,31 @@ function SearchPage() {
     // input czyścił się do pustego stringa, a lista pokazywała wszystkich).
     const pickedLabel =
       (lang === "en" ? item.label_en || item.label_pl : item.label_pl || item.label_en) || "";
-    if (item.kind === "author" && item.id) {
-      setDraft(pickedLabel);
-      applyPatch({ q: pickedLabel, author: item.id });
+    if (item.kind === "author") {
+      if (item.slug) {
+        navigate({ href: `/author/${item.slug}` } as never);
+        return;
+      }
+      if (item.id) {
+        setDraft(pickedLabel);
+        applyPatch({ q: pickedLabel, author: item.id });
+        return;
+      }
+    }
+    if (item.kind === "category" && item.slug) {
+      navigate({ href: `/category/${item.slug}` } as never);
+      return;
+    }
+    if (item.kind === "topic" && item.slug) {
+      navigate({ href: `/tag/${item.slug}` } as never);
+      return;
+    }
+    if (item.kind === "series" && item.slug) {
+      navigate({ href: `/series/${item.slug}` } as never);
+      return;
+    }
+    if (item.kind === "project" && item.slug) {
+      navigate({ href: `/programs/${item.slug}` } as never);
       return;
     }
     // Term taksonomii: kind == FacetDim; mapujemy na parametr URL.
