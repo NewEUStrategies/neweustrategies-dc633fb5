@@ -12378,7 +12378,7 @@ export type Database = {
         | "failed"
         | "refunded"
         | "canceled"
-      plan_interval: "month" | "quarter" | "year" | "one_time"
+      plan_interval: "month" | "year" | "one_time" | "quarter"
       post_status:
         | "draft"
         | "published"
@@ -12572,7 +12572,7 @@ export const Constants = {
         "refunded",
         "canceled",
       ],
-      plan_interval: ["month", "year", "one_time"],
+      plan_interval: ["month", "year", "one_time", "quarter"],
       post_status: [
         "draft",
         "published",

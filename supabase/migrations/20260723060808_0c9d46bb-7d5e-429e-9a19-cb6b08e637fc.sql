@@ -1,0 +1,1 @@
+ALTER TYPE public.plan_interval ADD VALUE IF NOT EXISTS 'quarter';
