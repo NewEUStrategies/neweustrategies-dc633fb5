@@ -8,7 +8,7 @@ import { useMyInmails, useResolveInmail, type InMailBox, type InMailRow } from "
 import { ensureI18n as ensureInmailI18n } from "@/lib/i18n-inmail";
 
 export const Route = createFileRoute("/profile/inmails")({
-  head: () => ({ meta: [{ title: "InMaile" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({ meta: [{ title: "Zapytania do ekspertów" }, { name: "robots", content: "noindex, nofollow" }] }),
   component: ProfileInmails,
 });
 

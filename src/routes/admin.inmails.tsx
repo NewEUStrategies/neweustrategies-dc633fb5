@@ -14,7 +14,7 @@ import { ensureI18n as ensureInmailI18n } from "@/lib/i18n-inmail";
 
 export const Route = createFileRoute("/admin/inmails")({
   ssr: false,
-  head: () => ({ meta: [{ title: "InMaile - Admin" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({ meta: [{ title: "Zapytania do ekspertów - Admin" }, { name: "robots", content: "noindex, nofollow" }] }),
   component: AdminInmails,
 });
 
