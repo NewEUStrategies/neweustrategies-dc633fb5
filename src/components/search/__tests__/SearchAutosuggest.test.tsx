@@ -85,20 +85,35 @@ describe("suggestionHref", () => {
     expect(suggestionHref(it0({ kind: "post", slug: "moj-wpis" }))).toBe("/post/moj-wpis");
   });
 
-  it("autor filtruje /search po id", () => {
-    expect(suggestionHref(it0({ kind: "author", id: "a-1", slug: "jan" }))).toBe(
-      "/search?author=a-1",
-    );
+  it("autor prowadzi bezpośrednio do profilu /author/<slug>", () => {
+    expect(suggestionHref(it0({ kind: "author", id: "a-1", slug: "jan" }))).toBe("/author/jan");
   });
 
-  it("term taksonomii filtruje /search po ID (parametry _terms są uuid)", () => {
-    expect(suggestionHref(it0({ kind: "topic", id: "t-1", slug: "energia" }))).toBe(
-      "/search?topic=t-1",
-    );
+  it("autor bez sluga wraca do /search po id", () => {
+    expect(suggestionHref(it0({ kind: "author", id: "a-1" }))).toBe("/search?author=a-1");
+  });
+
+  it("term taksonomii bez publicznej strony filtruje /search po ID", () => {
     expect(suggestionHref(it0({ kind: "organization", id: "o-1", slug: "nato" }))).toBe(
       "/search?org=o-1",
     );
   });
+
+  it("kategoria/tag/seria/program prowadzą do publicznego archiwum po slug", () => {
+    expect(suggestionHref(it0({ kind: "category", id: "c-1", slug: "geo" }))).toBe(
+      "/category/geo",
+    );
+    expect(suggestionHref(it0({ kind: "topic", id: "t-1", slug: "energia" }))).toBe(
+      "/tag/energia",
+    );
+    expect(suggestionHref(it0({ kind: "series", id: "s-1", slug: "raporty" }))).toBe(
+      "/series/raporty",
+    );
+    expect(suggestionHref(it0({ kind: "project", id: "p-1", slug: "eu-green" }))).toBe(
+      "/programs/eu-green",
+    );
+  });
+
 
   it("wymiary wyliczane (format/rok) filtrują po slugu", () => {
     expect(suggestionHref(it0({ kind: "format", slug: "video" }))).toBe("/search?format=video");
