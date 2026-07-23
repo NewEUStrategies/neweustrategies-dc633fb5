@@ -3393,6 +3393,7 @@ export type Database = {
         Row: {
           enabled: boolean
           link_ttl_days: number
+          max_redemptions_per_link: number
           monthly_limit: number
           tenant_id: string
           updated_at: string
@@ -3401,6 +3402,7 @@ export type Database = {
         Insert: {
           enabled?: boolean
           link_ttl_days?: number
+          max_redemptions_per_link?: number
           monthly_limit?: number
           tenant_id?: string
           updated_at?: string
@@ -3409,6 +3411,7 @@ export type Database = {
         Update: {
           enabled?: boolean
           link_ttl_days?: number
+          max_redemptions_per_link?: number
           monthly_limit?: number
           tenant_id?: string
           updated_at?: string
@@ -11675,6 +11678,7 @@ export type Database = {
           id: string
           is_anonymous: boolean
           is_priority: boolean
+          my_vote: boolean
           session_id: string
           status: string
           votes: number
@@ -11808,6 +11812,7 @@ export type Database = {
           title_pl: string
         }[]
       }
+      my_expert_request_quota: { Args: never; Returns: Json }
       my_has_feature: { Args: { p_key: string }; Returns: boolean }
       my_inmail_quota: { Args: never; Returns: Json }
       my_introduction_requests: {
@@ -12361,6 +12366,17 @@ export type Database = {
         }[]
       }
       send_expert_inmail: {
+        Args: {
+          p_expected_answers?: string
+          p_external_links?: string[]
+          p_questions?: string[]
+          p_reason: string
+          p_recipient_id: string
+          p_subject: string
+        }
+        Returns: string
+      }
+      send_expert_request: {
         Args: {
           p_expected_answers?: string
           p_external_links?: string[]
