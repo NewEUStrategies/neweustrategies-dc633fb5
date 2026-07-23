@@ -32,11 +32,27 @@ export function useSettings<T extends SettingsRecord>(key: string, defaults: T) 
 
   const save = useMutation({
     mutationFn: async (next: T) => {
+      // Preserve unrelated nested branches. Several panes (e.g. General, SEO,
+      // GlobalColorsEditor) call `useSettings("theme_options", <narrow shape>)`
+      // - saving the narrow draft as-is would overwrite the whole row and
+      // drop siblings like `header`, `buttons`, `text_fields`. Re-read the
+      // current row and deep-merge `next` on top so partial writes are safe.
+      const { data: existing, error: readErr } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", key)
+        .maybeSingle();
+      if (readErr) throw readErr;
+      const base =
+        existing?.value && typeof existing.value === "object" && !Array.isArray(existing.value)
+          ? (existing.value as SettingsRecord)
+          : ({} as SettingsRecord);
+      const merged = deepMerge(base, next as unknown) as T;
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key, value: toJson(next) }, { onConflict: "tenant_id,key" });
+        .upsert({ key, value: toJson(merged) }, { onConflict: "tenant_id,key" });
       if (error) throw error;
-      return next;
+      return merged;
     },
     onSuccess: (next) => {
       qc.setQueryData(["site_settings", key], next);
@@ -52,6 +68,7 @@ export function useSettings<T extends SettingsRecord>(key: string, defaults: T) 
     },
     onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
   });
+
 
   return { query, save };
 }
