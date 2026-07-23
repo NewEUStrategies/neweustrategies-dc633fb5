@@ -45,10 +45,7 @@ export function TimelineEditor({ c, lang, setContent }: Props) {
   };
 
   const addHeading = () =>
-    commit([
-      ...entries,
-      { type: "heading", date_pl: "Nowa data", date_en: "New date" },
-    ]);
+    commit([...entries, { type: "heading", date_pl: "Nowa data", date_en: "New date" }]);
   const addItem = () =>
     commit([
       ...entries,
@@ -71,11 +68,7 @@ export function TimelineEditor({ c, lang, setContent }: Props) {
     ]);
 
   return (
-    <ListShell
-      title={t("builder.timelineEditor.sectionTitle")}
-      items={entries}
-      onAdd={addItem}
-    >
+    <ListShell title={t("builder.timelineEditor.sectionTitle")} items={entries} onAdd={addItem}>
       <div className="flex gap-1 -mt-1 mb-2">
         <Button
           type="button"
@@ -126,9 +119,7 @@ export function TimelineEditor({ c, lang, setContent }: Props) {
                     ↓
                   </Button>
                 </div>
-                <PropField
-                  label={t("builder.timelineEditor.date", { lang: lang.toUpperCase() })}
-                >
+                <PropField label={t("builder.timelineEditor.date", { lang: lang.toUpperCase() })}>
                   <Input
                     value={strOf(it[`date_${lang}`])}
                     onChange={(e) => patch(i, { [`date_${lang}`]: e.target.value })}
@@ -166,10 +157,7 @@ export function TimelineEditor({ c, lang, setContent }: Props) {
                 </Button>
               </div>
               <PropField label={t("builder.timelineEditor.iconType")}>
-                <Select
-                  value={iconType}
-                  onValueChange={(v) => patch(i, { iconType: v })}
-                >
+                <Select value={iconType} onValueChange={(v) => patch(i, { iconType: v })}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -233,9 +221,7 @@ export function TimelineEditor({ c, lang, setContent }: Props) {
                   className="h-8 text-xs"
                 />
               </PropField>
-              <PropField
-                label={t("builder.timelineEditor.desc", { lang: lang.toUpperCase() })}
-              >
+              <PropField label={t("builder.timelineEditor.desc", { lang: lang.toUpperCase() })}>
                 <Textarea
                   rows={2}
                   value={strOf(it[`desc_${lang}`])}

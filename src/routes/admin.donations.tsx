@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { HandHeart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { billingKeys } from "@/lib/billing/keys";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -31,7 +32,7 @@ function AdminDonationsPage() {
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
   const donationsQ = useQuery({
-    queryKey: ["admin", "donations"],
+    queryKey: billingKeys.admin.donations(),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("donations")

@@ -32,6 +32,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import { planName } from "@/lib/billing/types";
 import { convertToDisplayCurrency } from "@/lib/billing/displayCurrency";
@@ -43,7 +44,7 @@ import {
   type TierBenefit,
 } from "@/lib/billing/tiers";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
-import { FeatureEnforcementBadges } from "@/components/admin/pricing/FeatureEnforcementBadges";
+import { TierFeatureTogglesEditor } from "@/components/admin/pricing/TierFeatureTogglesEditor";
 import {
   fetchMembershipGrants,
   grantMembership,
@@ -93,7 +94,7 @@ function AdminMembershipPage() {
   const qc = useQueryClient();
 
   const tiersQ = useQuery({
-    queryKey: ["admin", "membership-tiers"],
+    queryKey: billingKeys.admin.membershipTiers(),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("membership_tiers")
@@ -103,7 +104,7 @@ function AdminMembershipPage() {
       return data;
     },
   });
-  const plansQ = useQuery({ queryKey: ["admin", "plans-active"], queryFn: fetchActivePlans });
+  const plansQ = useQuery({ queryKey: billingKeys.admin.plans(), queryFn: fetchActivePlans });
 
   const [drafts, setDrafts] = useState<Record<string, TierDraft>>({});
   const tierOptions = useMemo(
@@ -137,8 +138,8 @@ function AdminMembershipPage() {
     },
     onSuccess: () => {
       toast.success(tm("toast.tierSaved"));
-      void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
-      void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipTiers() });
+      void qc.invalidateQueries({ queryKey: billingKeys.membershipTiers() });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -150,8 +151,8 @@ function AdminMembershipPage() {
     },
     onSuccess: () => {
       toast.success(tm("toast.tierDeleted"));
-      void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
-      void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipTiers() });
+      void qc.invalidateQueries({ queryKey: billingKeys.membershipTiers() });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -174,8 +175,8 @@ function AdminMembershipPage() {
     },
     onSuccess: () => {
       toast.success(tm("toast.tierCreated"));
-      void qc.invalidateQueries({ queryKey: ["admin", "membership-tiers"] });
-      void qc.invalidateQueries({ queryKey: ["membership-tiers"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipTiers() });
+      void qc.invalidateQueries({ queryKey: billingKeys.membershipTiers() });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -190,7 +191,7 @@ function AdminMembershipPage() {
     },
     onSuccess: () => {
       toast.success(tm("toast.planMappingSaved"));
-      void qc.invalidateQueries({ queryKey: ["admin", "plans-active"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.plans() });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -314,18 +315,19 @@ function AdminMembershipPage() {
                     <span className="text-xs">{tm("fields.default")}</span>
                   </div>
                 </div>
-                <div>
-                  <Label className="text-xs">features (JSON)</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tm("fields.featuresKnown")}</Label>
+                  <TierFeatureTogglesEditor
+                    value={draft.features}
+                    onChange={(features) => set({ features })}
+                  />
+                  <Label className="text-xs">{tm("fields.featuresJson")}</Label>
                   <Input
                     value={draft.features}
                     onChange={(e) => set({ features: e.target.value })}
                     className="font-mono text-xs"
                   />
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {tm("fields.featuresHint")}
-                  </p>
-                  {/* Które flagi mają realną bramkę, a które są dziś dekoracją. */}
-                  <FeatureEnforcementBadges features={draft.features} />
+                  <p className="text-[11px] text-muted-foreground">{tm("fields.featuresHint")}</p>
                 </div>
                 <div className="mt-auto pt-1">
                   <Button
@@ -360,11 +362,14 @@ function AdminMembershipPage() {
                   {(plan.price_cents / 100).toFixed(2)} {plan.currency} / {plan.interval}
                   {plan.currency.toUpperCase() === "PLN" && (
                     <span className="ml-2 text-[11px] text-muted-foreground/80">
-                      · EN: {(convertToDisplayCurrency(plan.price_cents, plan.currency, "EUR").cents / 100).toFixed(2)} EUR
+                      · EN:{" "}
+                      {(
+                        convertToDisplayCurrency(plan.price_cents, plan.currency, "EUR").cents / 100
+                      ).toFixed(2)}{" "}
+                      EUR
                     </span>
                   )}
                 </div>
-
               </div>
               <Select
                 value={plan.tier_key ?? "none"}
@@ -422,7 +427,7 @@ function GrantsSection({
   const qc = useQueryClient();
 
   const grantsQ = useQuery({
-    queryKey: ["admin", "membership-grants"],
+    queryKey: billingKeys.admin.membershipGrants(),
     queryFn: fetchMembershipGrants,
   });
 
@@ -443,7 +448,7 @@ function GrantsSection({
       toast.success(tm("toast.grantSuccess"));
       setEmail("");
       setNote("");
-      void qc.invalidateQueries({ queryKey: ["admin", "membership-grants"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipGrants() });
     },
     onError: (e: Error) => {
       const msg = e.message || "";
@@ -457,7 +462,7 @@ function GrantsSection({
     mutationFn: (id: string) => revokeGrant(id),
     onSuccess: () => {
       toast.success(tm("toast.grantRevoked"));
-      void qc.invalidateQueries({ queryKey: ["admin", "membership-grants"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipGrants() });
     },
     onError: (e: Error) => toast.error(e.message),
   });

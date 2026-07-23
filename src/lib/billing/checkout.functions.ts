@@ -31,7 +31,6 @@ const createOrderSchema = z.object({
   display_currency: z.enum(["PLN", "EUR"]).optional(),
 });
 
-
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => createOrderSchema.parse(input))
@@ -99,8 +98,6 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     if (amountCents <= 0) throw new Error("zero_amount");
 
-
-
     // Zapamiętujemy oryginalną kwotę do audytu użycia kuponu (redemption row).
     const originalCents = amountCents;
     let couponId: string | null = null;
@@ -148,7 +145,6 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       amountCents = conv.cents;
       currency = conv.currency;
     }
-
 
     // Fail-closed ZANIM powstanie zamówienie: produkcja bez działającej
     // konfiguracji Stripe (brak klucza LUB brak origin do success_url) odmawia

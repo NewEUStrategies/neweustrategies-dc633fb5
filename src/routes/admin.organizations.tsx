@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { billingKeys } from "@/lib/billing/keys";
 import { useMembershipTiers, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 import {
   fetchOrganizations,
@@ -39,7 +40,7 @@ export const Route = createFileRoute("/admin/organizations")({
 type Lang = "pl" | "en";
 const tr = (lang: Lang) => (pl: string, en: string) => (lang === "pl" ? pl : en);
 
-const ORGS_KEY = ["admin", "member-orgs"] as const;
+const ORGS_KEY = billingKeys.admin.memberOrgs();
 
 function AdminOrganizationsPage() {
   const { i18n } = useTranslation();
@@ -231,7 +232,7 @@ function SeatManager({
 }) {
   const L = tr(lang);
   const qc = useQueryClient();
-  const seatsKey = ["admin", "org-seats", orgId] as const;
+  const seatsKey = billingKeys.admin.orgSeats(orgId);
 
   const seatsQ = useQuery({
     queryKey: seatsKey,

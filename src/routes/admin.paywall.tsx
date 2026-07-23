@@ -132,7 +132,11 @@ function PaywallAdmin() {
                     {formatMoney(p.price_cents, p.currency)}
                     {p.currency?.toUpperCase() === "PLN" && (
                       <div className="text-[11px] text-muted-foreground">
-                        EN: {formatMoney(convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents, "EUR")}
+                        EN:{" "}
+                        {formatMoney(
+                          convertToDisplayCurrency(p.price_cents, p.currency, "EUR").cents,
+                          "EUR",
+                        )}
                       </div>
                     )}
                   </td>

@@ -9,6 +9,7 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { currentUserIdFromSession } from "@/lib/auth/currentUser";
+import { billingKeys } from "@/lib/billing/keys";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface MembershipGrantRow {
@@ -38,7 +39,7 @@ export async function fetchMyGrants(): Promise<MembershipGrantRow[]> {
 export function useMyGrants(): UseQueryResult<MembershipGrantRow[]> {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["my-grants", user?.id ?? "anon"],
+    queryKey: billingKeys.myGrants(user?.id),
     queryFn: fetchMyGrants,
     enabled: !!user,
   });
@@ -68,7 +69,7 @@ export async function fetchMyDonations(): Promise<MyDonationRow[]> {
 export function useMyDonations(): UseQueryResult<MyDonationRow[]> {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["my-donations", user?.id ?? "anon"],
+    queryKey: billingKeys.myDonations(user?.id),
     queryFn: fetchMyDonations,
     enabled: !!user,
   });
@@ -98,7 +99,7 @@ export async function fetchMyOrganization(): Promise<MyOrganization | null> {
 export function useMyOrganization(): UseQueryResult<MyOrganization | null> {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["my-organization", user?.id ?? "anon"],
+    queryKey: billingKeys.myOrganization(user?.id),
     queryFn: fetchMyOrganization,
     enabled: !!user,
   });
@@ -126,7 +127,7 @@ export async function fetchOrgSeats(orgId: string): Promise<OrgSeatRow[]> {
 
 export function useOrgSeats(orgId: string | null | undefined): UseQueryResult<OrgSeatRow[]> {
   return useQuery({
-    queryKey: ["org-seats", orgId ?? "none"],
+    queryKey: billingKeys.orgSeats(orgId),
     queryFn: () => fetchOrgSeats(orgId as string),
     enabled: !!orgId,
   });
@@ -146,8 +147,8 @@ export function useAddSeat(orgId: string | null | undefined) {
       return data as string;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["org-seats", orgId ?? "none"] });
-      void qc.invalidateQueries({ queryKey: ["my-organization"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.orgSeats(orgId) });
+      void qc.invalidateQueries({ queryKey: billingKeys.myOrganizationAll() });
     },
   });
 }
@@ -160,8 +161,8 @@ export function useRemoveSeat(orgId: string | null | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["org-seats", orgId ?? "none"] });
-      void qc.invalidateQueries({ queryKey: ["my-organization"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.orgSeats(orgId) });
+      void qc.invalidateQueries({ queryKey: billingKeys.myOrganizationAll() });
     },
   });
 }
@@ -237,8 +238,8 @@ export function useClaimOrgSeats(): void {
       if (error) throw error;
       const claimed = (data as number) ?? 0;
       if (claimed > 0) {
-        void qc.invalidateQueries({ queryKey: ["current-tier"] });
-        void qc.invalidateQueries({ queryKey: ["my-organization"] });
+        void qc.invalidateQueries({ queryKey: billingKeys.currentTierAll() });
+        void qc.invalidateQueries({ queryKey: billingKeys.myOrganizationAll() });
       }
       return claimed;
     },

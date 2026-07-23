@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { billingKeys } from "@/lib/billing/keys";
 import { fetchMyOrders } from "@/lib/billing/queries";
 import { formatMoney } from "@/lib/billing/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +24,7 @@ function OrdersPage() {
   const { t, i18n } = useTranslation();
   const { session } = useAuth();
   const { data } = useQuery({
-    queryKey: ["my-orders"],
+    queryKey: billingKeys.myOrders(session?.user?.id),
     queryFn: fetchMyOrders,
     enabled: !!session,
   });

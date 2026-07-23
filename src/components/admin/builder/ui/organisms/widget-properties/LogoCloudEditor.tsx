@@ -93,11 +93,7 @@ export function LogoCloudEditor({ c, lang, setContent }: Props) {
       <ListShell title={t("builder.logoCloudEditor.logos")} items={logos} onAdd={add}>
         <div className="space-y-2">
           {logos.map((it, i) => (
-            <ItemFrame
-              key={i}
-              title={strOf(it.label) || `#${i + 1}`}
-              onRemove={() => remove(i)}
-            >
+            <ItemFrame key={i} title={strOf(it.label) || `#${i + 1}`} onRemove={() => remove(i)}>
               <div className="flex gap-1 mb-1">
                 <Button
                   type="button"

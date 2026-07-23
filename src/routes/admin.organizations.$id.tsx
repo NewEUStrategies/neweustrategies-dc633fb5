@@ -20,6 +20,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { billingKeys } from "@/lib/billing/keys";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,7 +67,7 @@ function AdminOrganizationDetailPage() {
   const navigate = useNavigate();
 
   const orgQ = useQuery({
-    queryKey: ["admin", "member-org", id] as const,
+    queryKey: billingKeys.admin.memberOrg(id),
     queryFn: () => fetchOrganizationById(id),
   });
 
@@ -107,8 +108,8 @@ function AdminOrganizationDetailPage() {
     },
     onSuccess: () => {
       toast.success(L("Zapisano", "Saved"));
-      void qc.invalidateQueries({ queryKey: ["admin", "member-org", id] });
-      void qc.invalidateQueries({ queryKey: ["admin", "member-orgs"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(id) });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrgs() });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -117,7 +118,7 @@ function AdminOrganizationDetailPage() {
     mutationFn: () => deleteOrganization(id),
     onSuccess: () => {
       toast.success(L("Usunięto organizację", "Organization deleted"));
-      void qc.invalidateQueries({ queryKey: ["admin", "member-orgs"] });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrgs() });
       void navigate({ to: "/admin/organizations" });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -736,7 +737,7 @@ function PreviewTile({
 function SeatsPane({ lang, orgId, seatsLimit }: { lang: Lang; orgId: string; seatsLimit: number }) {
   const L = tr(lang);
   const qc = useQueryClient();
-  const seatsKey = ["admin", "org-seats", orgId] as const;
+  const seatsKey = billingKeys.admin.orgSeats(orgId);
 
   const seatsQ = useQuery({ queryKey: seatsKey, queryFn: () => fetchAdminOrgSeats(orgId) });
   const seats = seatsQ.data ?? [];

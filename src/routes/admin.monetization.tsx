@@ -14,6 +14,7 @@ import {
   HeartHandshake,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { billingKeys } from "@/lib/billing/keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Database } from "@/integrations/supabase/types";
@@ -59,7 +60,7 @@ function AdminMonetizationPage() {
   const [orgId, setOrgId] = useState<string>(ALL);
 
   const plansQ = useQuery({
-    queryKey: ["admin", "monetization", "plans"],
+    queryKey: [...billingKeys.admin.monetization(), "plans"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("access_plans")
@@ -72,7 +73,7 @@ function AdminMonetizationPage() {
   });
 
   const orgsQ = useQuery({
-    queryKey: ["admin", "monetization", "orgs"],
+    queryKey: [...billingKeys.admin.monetization(), "orgs"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("member_organizations")
@@ -85,7 +86,7 @@ function AdminMonetizationPage() {
   });
 
   const dashQ = useQuery({
-    queryKey: ["admin", "monetization", from, to, planId, orgId],
+    queryKey: [...billingKeys.admin.monetization(), from, to, planId, orgId],
     queryFn: async (): Promise<DashboardShape> => {
       const { data, error } = await supabase.rpc("monetization_dashboard", {
         _from: new Date(from).toISOString(),

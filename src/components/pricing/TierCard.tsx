@@ -46,8 +46,6 @@ function fmt(cents: number, currency: string, lang: string): string {
   return formatDisplayMoney(cents, currency, lang);
 }
 
-
-
 function PriceBlock({
   tier,
   plans,

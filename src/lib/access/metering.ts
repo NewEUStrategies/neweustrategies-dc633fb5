@@ -35,7 +35,6 @@ export const DEFAULT_METERING_SETTINGS: MeteringSettings = {
   show_counter: true,
 };
 
-
 /** Stan licznika zwracany przez consume_metered_view / metering_state. */
 export interface MeterState {
   granted: boolean;

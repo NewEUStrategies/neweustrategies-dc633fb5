@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, Fragment, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { billingKeys } from "@/lib/billing/keys";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,7 +151,7 @@ function Users() {
   // Subskrypcje: użyte do filtrowania i grupowania po poziomie dostępu.
   // RLS na user_subscriptions dopuszcza admina tenanta.
   const { data: subs } = useQuery({
-    queryKey: ["all-user-subscriptions", tenantId],
+    queryKey: [...billingKeys.admin.allUserSubscriptions(), tenantId],
     queryFn: async (): Promise<SubscriptionInfo[]> => {
       const { data: rows, error } = await supabase
         .from("user_subscriptions")

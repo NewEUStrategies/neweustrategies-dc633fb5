@@ -7,13 +7,7 @@ import { cn } from "@/lib/utils";
 
 // BreadcrumbList JSON-LD is emitted from the route head() (src/routes/$.tsx),
 // where it renders during SSR with absolute, localized URLs.
-export function Breadcrumbs({
-  items,
-  className,
-}: {
-  items: BreadcrumbItem[];
-  className?: string;
-}) {
+export function Breadcrumbs({ items, className }: { items: BreadcrumbItem[]; className?: string }) {
   if (items.length === 0) return null;
   const lang = currentLang();
   const home = homeLabel(lang);

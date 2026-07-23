@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ShieldCheck, RefreshCcw, Zap } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans, fetchMySubscription } from "@/lib/billing/queries";
 import { fetchMembershipTiers, useCurrentTier, useMembershipTiers } from "@/lib/billing/tiers";
 import type { MembershipTierRow } from "@/lib/billing/tiers";
@@ -70,10 +71,10 @@ export const Route = createFileRoute("/pricing")({
       qc.ensureQueryData(pricingAudiencesQueryOptions()).catch(() => null),
       qc.ensureQueryData(pricingFaqQueryOptions()).catch(() => null),
       qc
-        .ensureQueryData({ queryKey: ["membership-tiers"], queryFn: fetchMembershipTiers })
+        .ensureQueryData({ queryKey: billingKeys.membershipTiers(), queryFn: fetchMembershipTiers })
         .catch(() => null),
       qc
-        .ensureQueryData({ queryKey: ["plans-active"], queryFn: fetchActivePlans })
+        .ensureQueryData({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans })
         .catch(() => null),
     ]);
     return { seo };
@@ -111,14 +112,13 @@ function PricingPage() {
   const { session } = useAuth();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  
 
   const audiencesQ = usePricingAudiences();
   const faqQ = usePricingFaq();
   const tiersQ = useMembershipTiers();
-  const plansQ = useQuery({ queryKey: ["plans-active"], queryFn: fetchActivePlans });
+  const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
   const mySub = useQuery({
-    queryKey: ["my-subscription"],
+    queryKey: billingKeys.mySubscription(session?.user?.id),
     queryFn: fetchMySubscription,
     enabled: !!session,
   });
@@ -255,32 +255,6 @@ function PricingPage() {
             lang={lang}
             label={t("pricing.segmentsAria")}
           />
-        </div>
-      )}
-
-      {showToggle && (
-        <div className="mb-8 flex justify-center">
-          <div
-            role="group"
-            aria-label={t("pricing.title")}
-            className="inline-flex rounded-full border border-border bg-muted/40 p-1"
-          >
-            {(["month", "year"] as const).map((iv) => (
-              <button
-                key={iv}
-                type="button"
-                aria-pressed={interval === iv}
-                onClick={() => setInterval(iv)}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                  interval === iv
-                    ? "bg-background text-foreground shadow"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {iv === "month" ? t("pricing.intervalMonthly") : t("pricing.intervalYearly")}
-              </button>
-            ))}
-          </div>
         </div>
       )}
 

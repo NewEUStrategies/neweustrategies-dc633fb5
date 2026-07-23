@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { billingKeys } from "@/lib/billing/keys";
 import {
   cancelMySubscription,
   fetchMySubscription,
@@ -28,7 +29,7 @@ function SubscriptionPage() {
   const [retentionOpen, setRetentionOpen] = useState(false);
 
   const { data } = useQuery({
-    queryKey: ["my-subscription"],
+    queryKey: billingKeys.mySubscription(session?.user?.id),
     queryFn: fetchMySubscription,
     enabled: !!session,
   });
@@ -38,7 +39,7 @@ function SubscriptionPage() {
     setBusy(true);
     try {
       await cancelMySubscription(data.id);
-      await qc.invalidateQueries({ queryKey: ["my-subscription"] });
+      await qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
       toast.success(t("profile.subscription.canceled"));
     } catch {
       // Serwer nie oznacza anulowania, jeśli Stripe odmówił - komunikat musi
@@ -54,7 +55,7 @@ function SubscriptionPage() {
     setBusy(true);
     try {
       await resumeMySubscription(data.id);
-      await qc.invalidateQueries({ queryKey: ["my-subscription"] });
+      await qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
       toast.success(t("profile.subscription.resumed"));
     } catch {
       toast.error(t("profile.subscription.resumeError"));
