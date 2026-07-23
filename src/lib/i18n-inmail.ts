@@ -88,10 +88,10 @@ export const inmailPl = {
 
 export const inmailEn = {
   inmail: {
-    dialogTitle: "Send a message to an expert",
+    dialogTitle: "Send an inMail to an expert or VIP",
     dialogSubtitle:
-      "Your Plus plan does not include direct chat with experts. Send a formal inMail - the expert (or the editorial team) will decide whether to open a conversation.",
-    upgradeCta: "See the Pro plan (direct chat with experts)",
+      "Your tier uses inMails: Plus - 2 per month, Pro - 5 per month. Send a formal request - if the recipient approves, we open an ongoing conversation.",
+    upgradeCta: "See the VIP plan (direct chat with experts and VIPs)",
     recipientLabel: "Recipient",
     fields: {
       subject: "Subject",
