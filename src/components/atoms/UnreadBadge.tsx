@@ -21,9 +21,9 @@ interface UnreadBadgeProps {
 }
 
 const SIZE_CLASSES: Record<UnreadBadgeSize, string> = {
-  sm: "h-4 min-w-[16px] px-1 text-[9px]",
-  md: "h-[18px] min-w-[18px] px-1 text-[10px]",
-  lg: "h-5 min-w-[20px] px-1.5 text-[11px]",
+  sm: "h-3.5 min-w-[14px] px-1 text-[8px]",
+  md: "h-4 min-w-[16px] px-1 text-[9px]",
+  lg: "h-5 min-w-[20px] px-1.5 text-[10px]",
 };
 
 const VARIANT_CLASSES: Record<UnreadBadgeVariant, string> = {
