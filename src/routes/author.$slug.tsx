@@ -23,6 +23,7 @@ import { AuthorCvSections } from "@/components/author/AuthorCvSections";
 import { RecommendationsSection } from "@/components/network/RecommendationsSection";
 import { FollowButton } from "@/components/FollowButton";
 import { ConnectButton } from "@/components/network/ConnectButton";
+import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
 import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
 import { ReportUserButton } from "@/components/network/ReportUserDialog";
@@ -304,6 +305,11 @@ function ExpertHubPage() {
               {/* Sieć kontaktów: widoczne tylko dla zalogowanych na cudzym
                   profilu (komponenty same zwracają null w pozostałych stanach). */}
               <ConnectButton userId={expert.id} displayName={name} />
+              <DirectMessageButton
+                userId={expert.id}
+                displayName={name}
+                displayAvatar={expert.avatar_url}
+              />
               <ExpertRequestButton
                 expertId={expert.id}
                 expertName={name}
