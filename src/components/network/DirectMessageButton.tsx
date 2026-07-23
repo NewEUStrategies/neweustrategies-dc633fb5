@@ -127,9 +127,7 @@ export function DirectMessageButton({
         )}
       </Button>
 
-          {t("directMessage.button")}
-        </span>
-      </Button>
+
 
       <Dialog open={upgradeOpen} onOpenChange={setUpgradeOpen}>
         <DialogContent className="sm:max-w-md">
