@@ -64,11 +64,23 @@ export function GroupCreateDialog({
           onCreated(conversationId);
         },
         onError: (err) => {
-          if (err.message.includes("invalid group title"))
-            toast.error(t("chat.group.titleInvalid"));
-          else if (err.message.includes("no eligible members"))
-            toast.error(t("chat.group.noEligible"));
-          else if (err.message.includes("too many members")) toast.error(t("chat.group.tooMany"));
+          const msg = err instanceof Error ? err.message : "";
+          // Czat grupowy (kręgi) też wymaga progu Plus - Essential dostaje
+          // upsell do /pricing zamiast nagiego błędu (spójnie z DM).
+          if (msg.includes("chat: tier disabled")) {
+            toast.error(t("inmail.chatGate.tierDisabledToast"), {
+              action: {
+                label: t("inmail.chatGate.openPricing"),
+                onClick: () => {
+                  window.location.href = "/pricing";
+                },
+              },
+            });
+            return;
+          }
+          if (msg.includes("invalid group title")) toast.error(t("chat.group.titleInvalid"));
+          else if (msg.includes("no eligible members")) toast.error(t("chat.group.noEligible"));
+          else if (msg.includes("too many members")) toast.error(t("chat.group.tooMany"));
           else toast.error(t("chat.group.createError"));
         },
       },

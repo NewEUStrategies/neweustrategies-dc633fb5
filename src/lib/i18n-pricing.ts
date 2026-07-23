@@ -165,6 +165,7 @@ const pricingPl = {
         },
         { id: "recordings", label: "Nagrania z wydarzeń", feature: "recordings" },
         { id: "library", label: "Biblioteka materiałów do pobrania", feature: "member_library" },
+        { id: "chat", label: "Czat z członkami społeczności", feature: "chat_enabled" },
         {
           id: "conferenceDiscount",
           label: "Zniżka na konferencję „Geopolityczna Gra Mocarstw”",
@@ -627,6 +628,7 @@ const pricingEn: typeof pricingPl = {
         },
         { id: "recordings", label: "Event recordings", feature: "recordings" },
         { id: "library", label: "Downloadable members' library", feature: "member_library" },
+        { id: "chat", label: "Chat with community members", feature: "chat_enabled" },
         {
           id: "conferenceDiscount",
           label: "Discount on the „Geopolityczna Gra Mocarstw” conference",

@@ -237,7 +237,33 @@ function PersonCard({
           onClick={() =>
             start.mutate(person.id, {
               onSuccess: (conversationId) => openChatWindow({ conversationId }),
-              onError: () => toast.error(t("chat.startError")),
+              onError: (err) => {
+                const msg = err instanceof Error ? err.message : "";
+                // InMailDialog otwiera się z busa (useStartConversation) -
+                // toast byłby duplikatem tej samej informacji.
+                if (msg.includes("chat: expert requires inmail")) return;
+                // Czat od progu Plus w górę: Essential dostaje upsell do /pricing
+                // zamiast nagiego błędu (spójnie z NewChatSearch i ConnectButton).
+                if (msg.includes("chat: tier disabled")) {
+                  toast.error(t("inmail.chatGate.tierDisabledToast"), {
+                    action: {
+                      label: t("inmail.chatGate.openPricing"),
+                      onClick: () => {
+                        window.location.href = "/pricing";
+                      },
+                    },
+                  });
+                  return;
+                }
+                toast.error(
+                  msg.includes("not in your network")
+                    ? t("chat.notInNetwork", {
+                        defaultValue:
+                          "Możesz pisać tylko do osób z Twojej zaakceptowanej sieci kontaktów.",
+                      })
+                    : t("chat.startError"),
+                );
+              },
             })
           }
           className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
