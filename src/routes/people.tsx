@@ -293,16 +293,26 @@ function PeopleInner() {
           <p className="mt-0.5 text-xs text-muted-foreground">{t("people.subtitle")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="gap-1.5">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="gap-1.5 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-brand"
+          >
             <Link to="/contributors">
-              <Trophy className="h-3.5 w-3.5" aria-hidden />
+              <Trophy className="h-3.5 w-3.5 transition-colors" aria-hidden />
               {t("community.reputation.boardLink")}
             </Link>
           </Button>
           {modules.connections_enabled && (
-            <Button asChild variant="outline" size="sm" className="gap-1.5">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="gap-1.5 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-brand"
+            >
               <Link to="/network">
-                <Users className="h-3.5 w-3.5" aria-hidden />
+                <Users className="h-3.5 w-3.5 transition-colors" aria-hidden />
                 {t("network.networkLink")}
                 {pendingInvites > 0 && (
                   <span
