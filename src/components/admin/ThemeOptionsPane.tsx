@@ -38,7 +38,9 @@ import {
   Brush,
   Heading1,
   Palette,
+  Clock,
 } from "@/lib/lucide-shim";
+import { SiteSettingsHistoryDialog } from "@/components/admin/SiteSettingsHistoryDialog";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 import { ThemeDesignPane } from "@/components/admin/theme-design";
 import { ThemeFontSizesPane } from "@/components/admin/ThemeFontSizesPane";
@@ -320,6 +322,7 @@ export function ThemeOptionsPane() {
   const [logoTab, setLogoTab] = useState<
     "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"
   >("default");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("themeOptions.loading")}</p>;
 
@@ -393,10 +396,21 @@ export function ThemeOptionsPane() {
                   return s ? t(s.labelKey) : "";
                 })()}
               </h3>
-              <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
-                <Save className="w-4 h-4 mr-2" />{" "}
-                {save.isPending ? t("themeOptions.saving") : t("themeOptions.save")}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setHistoryOpen(true)}
+                  title={t("themeOptions.history.title", { defaultValue: "Historia zmian" })}
+                >
+                  <Clock className="w-4 h-4 mr-2" />
+                  {t("themeOptions.history.button", { defaultValue: "Historia" })}
+                </Button>
+                <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
+                  <Save className="w-4 h-4 mr-2" />{" "}
+                  {save.isPending ? t("themeOptions.saving") : t("themeOptions.save")}
+                </Button>
+              </div>
             </div>
 
             {active === "logo" && (
@@ -1322,6 +1336,17 @@ export function ThemeOptionsPane() {
           </>
         )}
       </section>
+      <SiteSettingsHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        settingsKey="theme_options"
+        currentValue={draft}
+        onRestore={async (value) => {
+          const restored = value as ThemeOptions;
+          setDraft(restored);
+          await save.mutateAsync(restored);
+        }}
+      />
     </ThemeOptionsBody>
   );
 }
