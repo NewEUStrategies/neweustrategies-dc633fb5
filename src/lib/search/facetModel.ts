@@ -346,13 +346,21 @@ export function orderSuggestions(items: AutosuggestItem[]): AutosuggestItem[] {
   });
 }
 
-/** Statyczny cel nawigacji podpowiedzi: publikacja → permalink /post/<slug>;
- *  autor / term taksonomii / wymiar wyliczany → /search z właściwym filtrem.
- *  Termy taksonomii identyfikuje ID (parametry spec/type/… trafiają do RPC
- *  jako uuid[] - slug w URL wywracał zapytanie). */
+/** Statyczny cel nawigacji podpowiedzi:
+ *  - publikacja → permalink `/post/<slug>`,
+ *  - autor → profil `/author/<slug>` (fallback: `/search?author=<id>`),
+ *  - kategoria/tag/seria/program → publiczna strona archiwum, jeśli mamy slug,
+ *  - pozostałe wymiary taksonomii i wymiary wyliczane → `/search` z odpowiednim filtrem.
+ *  Termy taksonomii bez publicznej strony identyfikuje ID (parametry
+ *  spec/type/… trafiają do RPC jako uuid[] - slug w URL wywracał zapytanie). */
 export function suggestionHref(it: AutosuggestItem): string {
   const kind = it.kind as string;
   if (kind === "post" && it.slug) return `/post/${it.slug}`;
+  if (kind === "author" && it.slug) return `/author/${it.slug}`;
+  if (kind === "category" && it.slug) return `/category/${it.slug}`;
+  if (kind === "topic" && it.slug) return `/tag/${it.slug}`;
+  if (kind === "series" && it.slug) return `/series/${it.slug}`;
+  if (kind === "project" && it.slug) return `/programs/${it.slug}`;
   const patch: Record<string, string> = {};
   if (kind === "author") {
     if (it.id) patch.author = it.id;
@@ -368,6 +376,7 @@ export function suggestionHref(it: AutosuggestItem): string {
   const qs = new URLSearchParams(patch).toString();
   return qs ? `/search?${qs}` : "/search";
 }
+
 
 export const AUTOSUGGEST_LISTBOX_ID = "search-autosuggest-listbox";
 export const autosuggestOptionId = (i: number) => `search-suggest-opt-${i}`;
