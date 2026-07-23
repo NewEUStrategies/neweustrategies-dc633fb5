@@ -493,11 +493,29 @@ const pricingEn: typeof pricingPl = {
       yes: "Yes",
       no: "No",
       yourPlan: "Your plan",
-      note: "The 5-analyses-per-month limit on the free plan applies only to paywalled content; items published without a paywall are available without limits.",
+      note: "Articles and analyses are available without limits on every subscription. The 5-per-month cap on the Essential plan applies only to in-depth analytical materials behind the paywall.",
       rows: [
         {
           id: "articles",
           label: "Articles and analyses",
+          values: {
+            reader: "check",
+            member: "check",
+            pro: "check",
+            vip: "check",
+            student: "check",
+            educator: "check",
+            ngo: "check",
+            corporate: "check",
+            partner: "check",
+            partner_general: "check",
+            presidents_circle: "check",
+            team: "check",
+          },
+        },
+        {
+          id: "deepAnalytical",
+          label: "In-depth analytical materials",
           values: {
             reader: "5 / mo.",
             member: "check",
