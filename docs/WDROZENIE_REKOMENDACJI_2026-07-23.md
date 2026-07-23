@@ -60,6 +60,13 @@
 | P1 budżet czasu `jobs-tick` | `jobsTick.server.ts` - globalny deadline 25 s (`runJobStep`): kosztowne joby sieciowe pomijane przy wyczerpaniu budżetu (idempotentne, wracają w kolejnym ticku), zamiast zabicia ticku w połowie |
 | Naprawa wszystkich failujących testów | 2463 pass / 0 fail: `SearchAutosuggest`, `SearchButtonWidget`, `PeopleOrgResults` (pre-existing z maina - zmiana `suggestionHref`/react-query) + `observability/index.test` (nowy kontrakt teardown `initWebVitals`) |
 
+## WDROŻONE - Fala 6: optimistic-lock + autosave stron
+
+| Rek. | Wdrożenie |
+|------|-----------|
+| P1 optimistic-lock `updatePost`/`updatePage` | `content.functions.ts` - zapis niesie `baseUpdatedAt`; serwer odrzuca zapis, gdy wiersz zmienił się w międzyczasie (wczesny check + atomowy guard `.eq("updated_at")` + rozróżnienie konflikt/RLS na 0 wierszy). Kontrakt `src/lib/content/saveConflict.ts` (+ test). Klient (`usePostEditorForm`, `admin.pages.$slug`) przekazuje bazę, przesuwa ją po zapisie i pokazuje i18n toast konfliktu (`admin.editConflict` PL/EN) |
+| P1 autosave stron | `admin.pages.$slug.tsx` - autosave włączony (`enabled: !!form`), bezpieczny dzięki optimistic-lockowi; koniec z utratą pracy przy awarii/zamknięciu karty |
+
 ## Weryfikacje-korekty audytu (bez zmian w kodzie)
 
 - **`eu_policy_positions` (P1 „do weryfikacji") - FAŁSZYWY ALARM.** Polityka RLS
@@ -76,9 +83,6 @@ Pozycje odroczone świadomie - większy nakład lub zmiana ścieżek krytycznych
 należy wykonać ostrożnie (z pełnym pokryciem testami), by nie ryzykować regresji:
 
 ### P1
-- **Optimistic-lock `updatePost`/`updatePage`** (`.eq("updated_at", expected)` + UI
-  konfliktu) oraz **autosave stron buildera** - ochrona przed cichym nadpisaniem i
-  utratą pracy. Dotyka rdzenia zapisu treści + formularza edytora + UI.
 - **Newsletter: rozdzielenie tokenu trackingu od tokenu wypisu** (HMAC per kampania) -
   zmiana w confirm/unsubscribe/tracking + generacji linków.
 - **Newsletter: paginacja audytorium/loga** w `runCampaignSend` (kursor po id/email).

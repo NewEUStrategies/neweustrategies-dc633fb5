@@ -955,6 +955,8 @@ export const pl = {
     confirmDelete: "Na pewno usunąć?",
     unsavedChanges: "Masz niezapisane zmiany - czy na pewno chcesz opuścić edytor?",
     slugTaken: 'Slug był zajęty - zapisano jako "{{slug}}"',
+    editConflict:
+      "Ktoś inny zapisał w międzyczasie. Odśwież, aby pobrać najnowszą wersję - Twoje niezapisane zmiany zostaną w edytorze.",
     bulkResult: {
       none: "Nie wykonano - brak uprawnień lub elementy juz nie istnieją",
       partial:
