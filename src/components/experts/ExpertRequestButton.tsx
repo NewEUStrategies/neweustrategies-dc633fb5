@@ -10,7 +10,9 @@ import { MessageSquareQuote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useMyExpertRequestQuota } from "@/lib/chat/useExpertRequests";
+import { expertRequestGateOpen } from "@/lib/chat/expertRequestGate";
 import { openExpertRequestDialog } from "@/lib/chat/expertRequestDialogBus";
 import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 
@@ -18,6 +20,11 @@ export interface ExpertRequestButtonProps {
   expertId: string;
   expertName: string;
   expertAvatar?: string | null;
+  /**
+   * Per-user zgoda odbiorcy na zapytania (profiles.expert_requests_enabled).
+   * undefined = nieznana (traktowana jak włączona, domyślna wartość kolumny).
+   */
+  recipientEnabled?: boolean;
   /** Zwarta wersja (ikona + krótka etykieta) na listy/karty. */
   compact?: boolean;
   className?: string;
@@ -27,13 +34,20 @@ export function ExpertRequestButton({
   expertId,
   expertName,
   expertAvatar,
+  recipientEnabled,
   compact,
   className,
 }: ExpertRequestButtonProps) {
   ensureExpertRequestI18n();
   const { t } = useTranslation();
   const { user } = useAuth();
+  const modules = useCommunityModules();
   const quotaQ = useMyExpertRequestQuota();
+
+  // Bramka funkcji: globalny przełącznik tenanta ORAZ zgoda eksperta. Wyłączenie
+  // po którejkolwiek stronie chowa przycisk (serwer i tak odrzuci wysyłkę).
+  if (!expertRequestGateOpen({ globalEnabled: modules.expert_requests_enabled, recipientEnabled }))
+    return null;
 
   // Anon / własny profil / jeszcze nie znamy puli -> nie serwujemy przycisku.
   if (!user || user.id === expertId) return null;
@@ -54,7 +68,10 @@ export function ExpertRequestButton({
       type="button"
       variant="outline"
       size={compact ? "sm" : "default"}
-      className={cn("h-8 gap-1.5 transition-colors hover:bg-brand/10 hover:text-brand hover:border-brand/40 [&_svg]:transition-colors", className)}
+      className={cn(
+        "h-8 gap-1.5 transition-colors hover:bg-brand/10 hover:text-brand hover:border-brand/40 [&_svg]:transition-colors",
+        className,
+      )}
       aria-label={`${t("expertRequest.cta")}: ${expertName}`}
       onClick={() =>
         openExpertRequestDialog({

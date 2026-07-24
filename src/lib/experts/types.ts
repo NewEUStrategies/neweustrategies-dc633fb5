@@ -84,6 +84,8 @@ export interface ExpertProfile {
   /** ISO timestamp - używany jako cache-buster og:image (`?v=...`). */
   updated_at: string | null;
   is_expert: boolean;
+  /** Zgoda eksperta na przyjmowanie zapytań ("Zapytanie do eksperta"). */
+  expert_requests_enabled: boolean;
   // Kontakt bezpośredni
   contact_email: string | null;
   website_url: string | null;
