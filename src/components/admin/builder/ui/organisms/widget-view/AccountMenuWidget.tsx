@@ -244,7 +244,12 @@ function IconByName({ name, className }: { name: string | undefined; className?:
 }
 
 export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig; lang: Lang }) {
-  const mounted = useHasMounted();
+  // Bez bramki `useHasMounted`: SSR i pierwszy client render renderują ten
+  // sam guest-trigger (sesja przychodzi asynchronicznie z useAuth), więc
+  // header nie miga pustką i nie czeka jednego dodatkowego renderu, zanim
+  // ChatBell/NotificationsBell zamontują swoje zapytania. Gdy sesja
+  // zhydratyzuje się z localStorage, trigger płynnie zamienia się na wariant
+  // zalogowany, a dzwonki startują queries od razu.
   const { session, user, signOut, isStaff, isAdmin, isSuperAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
@@ -281,20 +286,8 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   };
 
   // Trigger - greeting based on time of day + gender + vocative (PL).
-  // Must be called unconditionally before any early return to preserve hook order.
   const greeting = useGreeting();
 
-  // Hydration-safe placeholder (matches SSR neutral state).
-  if (!mounted) {
-    return (
-      <span
-        className="inline-flex h-7 items-center gap-2 text-[11px] leading-none opacity-0"
-        aria-hidden
-      >
-        {signInLabel}|{signUpLabel}
-      </span>
-    );
-  }
 
   const sectionItems = (sec: AccountMenuSection) =>
     items.filter((i) => i.section === sec).map((i) => ({ raw: i, ...resolveItem(i, pages, lang) }));
