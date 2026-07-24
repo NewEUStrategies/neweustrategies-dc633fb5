@@ -1,0 +1,725 @@
+-- ============================================================================
+-- FIX (P0 bezpieczeństwo): izolacja tenanta w raportowych/staffowych funkcjach
+-- SECURITY DEFINER - zamknięcie klasy "header-scope vs home-authz".
+--
+-- PRZYCZYNA ŹRÓDŁOWA (systemowa): dwa źródła tenanta były rozprzężone:
+--   * public.current_tenant_id() = tenant DOMOWY wołającego
+--       (SELECT tenant_id FROM profiles WHERE id = auth.uid()) - z sesji/JWT;
+--   * public.public_tenant_id() = tenant z nagłówka x-tenant-host
+--       (request_public_host()), ustawianego PO STRONIE KLIENTA
+--       (src/integrations/supabase/tenant-host-fetch.ts) - BEZ walidacji
+--       trusted-proxy, więc surowe supabase.rpc()/curl może podać dowolną wartość.
+--
+-- Poniższe funkcje SKALOWAŁY dane / autoryzowały akcje po public_tenant_id()
+-- (nagłówek), a rolę sprawdzały przez has_role()/is_org_owner() (tenant domowy).
+-- Efekt: admin/edytor tenanta A wołając RPC z x-tenant-host: <domena B> mógł
+--   - CZYTAĆ finanse/metering tenanta B (monetization_dashboard,
+--     metering_impact_preview, get_user_monthly_metering_count),
+--   - PISAĆ do tenanta B (org_add_seat, org_touch_seat_invite,
+--     bulk_generate_coupons_for_campaign, publish_qa_session_summary),
+--   - OMIJAĆ bramkę treści tenanta B jako "staff" (get_event_access,
+--     authorize_resource_download).
+-- Wszystkie są GRANT ... TO authenticated, więc szły wprost przez PostgREST,
+-- omijając requireStaff + step-up MFA.
+--
+-- NAPRAWA: dla ścieżek staffowych tenant pochodzi z current_tenant_id()
+-- (domowy), nie z nagłówka. Funkcje publiczne (event/resource) DALEJ czytają po
+-- public_tenant_id() - to poprawne dla członka przeglądającego swój tenant - ale
+-- BYPASS "staff" jest teraz zawężony do przypadku, gdy przeglądany tenant JEST
+-- tenantem domowym staffu (row.tenant_id = current_tenant_id()).
+--
+-- INWARIANT (utrzymywać na przyszłość): w ciele SECURITY DEFINER nie łącz
+-- public_tenant_id() z has_role()/is_staff() jako podstawy AUTORYZACJI staffowej
+-- - to jest ta powtarzalna dziura. Regresję pilnuje pgTAP
+-- (definer_header_tenant_isolation_test.sql).
+--
+-- Ciała funkcji są odtworzone 1:1 z ich ostatnich definicji; jedyna zmiana
+-- merytoryczna to źródło tenanta / zawężenie bypassu staffu (oznaczone // FIX).
+-- ============================================================================
+
+-- 1) ── monetization_dashboard: przychód/zamówienia/kupony/metering ──────────
+--    (baza: 20260724090300; jedyna zmiana: v_tenant = current_tenant_id())
+CREATE OR REPLACE FUNCTION public.monetization_dashboard(
+  _from timestamptz DEFAULT (now() - interval '30 days'),
+  _to timestamptz DEFAULT now(),
+  _plan_id uuid DEFAULT NULL,
+  _organization_id uuid DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public' STABLE AS $$
+DECLARE v_tenant uuid := public.current_tenant_id(); v_out jsonb; -- FIX: był public_tenant_id()
+BEGIN
+  IF NOT (public.has_role(auth.uid(),'admin') OR public.has_role(auth.uid(),'editor')) THEN
+    RAISE EXCEPTION 'forbidden';
+  END IF;
+  WITH mv AS (
+    SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE user_id IS NOT NULL)::int AS members,
+           count(*) FILTER (WHERE user_id IS NULL)::int AS anonymous
+    FROM public.metered_views
+    WHERE tenant_id = v_tenant AND created_at >= _from AND created_at <= _to
+  ), ev AS (
+    SELECT
+      count(*) FILTER (WHERE outcome='consumed')::int AS consumed,
+      count(*) FILTER (WHERE outcome='denied')::int AS denied,
+      count(*) FILTER (WHERE outcome='requires_registration')::int AS reg_wall
+    FROM public.metering_event_log
+    WHERE tenant_id = v_tenant AND occurred_at >= _from AND occurred_at <= _to
+  ), orders AS (
+    SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE status='paid')::int AS paid,
+           coalesce(sum(amount_cents) FILTER (WHERE status='paid'),0)::bigint AS revenue_cents
+    FROM public.payment_orders
+    WHERE tenant_id = v_tenant
+      AND created_at >= _from AND created_at <= _to
+      AND (_plan_id IS NULL OR plan_id = _plan_id)
+  ), coupons AS (
+    SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE active)::int AS active,
+           coalesce(sum(redemptions_count),0)::int AS redemptions
+    FROM public.b2b_coupons
+    WHERE tenant_id = v_tenant
+      AND (_organization_id IS NULL OR organization_id = _organization_id)
+  ), redemptions AS (
+    SELECT count(*)::int AS in_range,
+           coalesce(sum(applied_cents),0)::bigint AS discount_cents
+    FROM public.b2b_coupon_redemptions r
+    WHERE r.tenant_id = v_tenant
+      AND r.created_at >= _from AND r.created_at <= _to
+      AND (_organization_id IS NULL
+           OR EXISTS (SELECT 1 FROM public.b2b_coupons c
+                       WHERE c.id = r.coupon_id AND c.organization_id = _organization_id))
+  ), cs AS (
+    SELECT to_jsonb(cs.*) AS settings
+    FROM public.checkout_settings cs
+    WHERE cs.tenant_id = v_tenant
+    LIMIT 1
+  )
+  SELECT jsonb_build_object(
+    'range', jsonb_build_object('from', _from, 'to', _to),
+    'metered_views', (SELECT to_jsonb(mv) FROM mv),
+    'metering_events', (SELECT to_jsonb(ev) FROM ev),
+    'orders', (SELECT to_jsonb(orders) FROM orders),
+    'coupons', (SELECT to_jsonb(coupons) FROM coupons),
+    'redemptions', (SELECT to_jsonb(redemptions) FROM redemptions),
+    'checkout_settings', COALESCE((SELECT settings FROM cs), '{}'::jsonb)
+  ) INTO v_out;
+  RETURN v_out;
+END $$;
+
+-- 2) ── metering_impact_preview ──────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.metering_impact_preview(_proposed_member_limit integer)
+RETURNS TABLE (
+  total_members bigint,
+  members_blocked bigint,
+  members_warning bigint,
+  members_safe bigint,
+  total_anon bigint,
+  anon_blocked bigint,
+  avg_used numeric,
+  max_used integer,
+  total_views bigint
+)
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_tenant uuid := public.current_tenant_id(); -- FIX: był public_tenant_id()
+  v_month date := date_trunc('month', now())::date;
+  v_limit integer := GREATEST(0, LEAST(1000, COALESCE(_proposed_member_limit, 0)));
+BEGIN
+  IF NOT (
+    public.has_role(auth.uid(), 'admin')
+    OR public.has_role(auth.uid(), 'editor')
+    OR public.has_role(auth.uid(), 'tenant_admin')
+  ) THEN
+    RAISE EXCEPTION 'insufficient_privilege' USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  WITH members AS (
+    SELECT user_id, COUNT(*)::int AS used
+      FROM public.metered_views
+     WHERE tenant_id = v_tenant
+       AND period_month = v_month
+       AND user_id IS NOT NULL
+     GROUP BY user_id
+  ),
+  anon AS (
+    SELECT visitor_id, COUNT(*)::int AS used
+      FROM public.metered_views
+     WHERE tenant_id = v_tenant
+       AND period_month = v_month
+       AND user_id IS NULL
+       AND visitor_id IS NOT NULL
+     GROUP BY visitor_id
+  )
+  SELECT
+    (SELECT COUNT(*) FROM members),
+    (SELECT COUNT(*) FROM members WHERE v_limit > 0 AND used >= v_limit),
+    (SELECT COUNT(*) FROM members WHERE v_limit > 0 AND used > 0 AND used < v_limit),
+    (SELECT COUNT(*) FROM members WHERE v_limit = 0 OR used = 0),
+    (SELECT COUNT(*) FROM anon),
+    (SELECT COUNT(*) FROM anon WHERE v_limit > 0 AND used >= v_limit),
+    COALESCE((SELECT ROUND(AVG(used)::numeric, 2) FROM members), 0)::numeric,
+    COALESCE((SELECT MAX(used) FROM members), 0)::int,
+    (SELECT COUNT(*) FROM public.metered_views
+      WHERE tenant_id = v_tenant AND period_month = v_month);
+END $$;
+
+-- 3) ── get_user_monthly_metering_count ──────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.get_user_monthly_metering_count(_user_id uuid)
+RETURNS TABLE (
+  used integer,
+  monthly_limit integer,
+  remaining integer,
+  period_month date
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_tenant uuid := public.current_tenant_id(); -- FIX: był public_tenant_id()
+  v_limit integer;
+  v_used integer;
+  v_period date := date_trunc('month', now())::date;
+BEGIN
+  -- Tylko staff może odczytywać cudze liczniki.
+  IF _user_id <> auth.uid()
+     AND NOT (has_role(auth.uid(), 'admin'::app_role)
+              OR has_role(auth.uid(), 'editor'::app_role)
+              OR has_role(auth.uid(), 'super_admin'::app_role)) THEN
+    RAISE EXCEPTION 'forbidden';
+  END IF;
+
+  SELECT ms.member_monthly_limit
+    INTO v_limit
+    FROM public.metering_settings ms
+   WHERE ms.tenant_id = v_tenant;
+  v_limit := COALESCE(v_limit, 5);
+
+  SELECT count(*)::int
+    INTO v_used
+    FROM public.metered_views mv
+   WHERE mv.tenant_id = v_tenant
+     AND mv.user_id = _user_id
+     AND mv.period_month = v_period;
+  v_used := COALESCE(v_used, 0);
+
+  used := v_used;
+  monthly_limit := v_limit;
+  remaining := GREATEST(v_limit - v_used, 0);
+  period_month := v_period;
+  RETURN NEXT;
+END;
+$$;
+
+-- 4) ── bulk_generate_coupons_for_campaign: guard po tenancie DOMOWYM ─────────
+CREATE OR REPLACE FUNCTION public.bulk_generate_coupons_for_campaign(_campaign_id UUID)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _c public.b2b_coupon_campaigns%ROWTYPE;
+  _uid UUID := auth.uid();
+  _i INTEGER := 0;
+  _created INTEGER := 0;
+  _code TEXT;
+  _alphabet TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  _tries INTEGER;
+BEGIN
+  IF _uid IS NULL THEN RAISE EXCEPTION 'unauthorized'; END IF;
+
+  SELECT * INTO _c FROM public.b2b_coupon_campaigns WHERE id = _campaign_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'campaign_not_found'; END IF;
+  IF _c.tenant_id <> current_tenant_id() THEN RAISE EXCEPTION 'wrong_tenant'; END IF; -- FIX: był public_tenant_id()
+  IF NOT (has_role(_uid,'admin'::app_role) OR has_role(_uid,'editor'::app_role)) THEN
+    RAISE EXCEPTION 'forbidden';
+  END IF;
+  IF _c.status <> 'draft' THEN RAISE EXCEPTION 'campaign_already_generated'; END IF;
+
+  WHILE _i < _c.code_count LOOP
+    _tries := 0;
+    LOOP
+      _code := COALESCE(NULLIF(_c.prefix,''),'') ||
+        (SELECT string_agg(substr(_alphabet, 1 + floor(random()*length(_alphabet))::int, 1),'')
+         FROM generate_series(1, _c.code_length));
+      BEGIN
+        INSERT INTO public.b2b_coupons(
+          tenant_id, code, name, discount_kind, discount_percent, discount_cents, currency,
+          active, max_redemptions, valid_from, valid_until, plan_ids,
+          campaign_id, grants_tier_key, grants_duration_days, newsletter_segment,
+          created_by, metadata
+        ) VALUES (
+          _c.tenant_id, _code, _c.name, _c.discount_kind, _c.discount_percent, _c.discount_cents, _c.currency,
+          true, _c.max_redemptions_per_code, _c.valid_from, _c.valid_until, _c.plan_ids,
+          _c.id, _c.grants_tier_key, _c.grants_duration_days, _c.newsletter_segment,
+          _uid, jsonb_build_object('campaign', _c.name)
+        );
+        _created := _created + 1;
+        EXIT;
+      EXCEPTION WHEN unique_violation THEN
+        _tries := _tries + 1;
+        IF _tries > 5 THEN RAISE EXCEPTION 'code_collision_limit'; END IF;
+      END;
+    END LOOP;
+    _i := _i + 1;
+  END LOOP;
+
+  UPDATE public.b2b_coupon_campaigns
+     SET status = 'generated', generated_count = _created, updated_at = now()
+   WHERE id = _campaign_id;
+
+  RETURN _created;
+END;
+$$;
+
+-- 5) ── org_add_seat: gałąź admina zawężona do tenanta domowego ──────────────
+CREATE OR REPLACE FUNCTION public.org_add_seat(p_org uuid, p_email text, p_role text DEFAULT 'member')
+RETURNS uuid
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_org public.member_organizations%ROWTYPE;
+  v_email text := lower(btrim(COALESCE(p_email, '')));
+  v_user uuid;
+  v_used integer;
+  v_id uuid;
+BEGIN
+  IF v_uid IS NULL THEN RAISE EXCEPTION 'orgs: authentication required'; END IF;
+  IF p_role NOT IN ('owner', 'member') THEN RAISE EXCEPTION 'orgs: invalid role'; END IF;
+  IF v_email !~* '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' THEN
+    RAISE EXCEPTION 'orgs: invalid email';
+  END IF;
+
+  SELECT * INTO v_org FROM public.member_organizations WHERE id = p_org FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'orgs: not found'; END IF;
+
+  -- FIX: admin działa tylko na organizacjach SWOJEGO tenanta; owner - na własnej.
+  IF NOT (
+    (public.has_role(v_uid, 'admin'::app_role) AND v_org.tenant_id = public.current_tenant_id())
+    OR public.is_org_owner(p_org)
+  ) THEN
+    RAISE EXCEPTION 'orgs: not allowed';
+  END IF;
+  -- Tylko admin redakcji (tego tenanta) może mintować miejsce 'owner'.
+  IF p_role = 'owner' AND NOT (
+    public.has_role(v_uid, 'admin'::app_role) AND v_org.tenant_id = public.current_tenant_id()
+  ) THEN
+    RAISE EXCEPTION 'orgs: not allowed';
+  END IF;
+  IF v_org.status <> 'active' THEN RAISE EXCEPTION 'orgs: organization inactive'; END IF;
+
+  SELECT count(*) INTO v_used FROM public.organization_seats WHERE org_id = p_org;
+  IF v_used >= v_org.seats_limit THEN RAISE EXCEPTION 'orgs: seats limit reached'; END IF;
+
+  SELECT u.id INTO v_user FROM auth.users u WHERE lower(u.email) = v_email LIMIT 1;
+
+  INSERT INTO public.organization_seats
+    (tenant_id, org_id, invited_email, user_id, role, claimed_at, invited_by, last_invited_at)
+  VALUES
+    (v_org.tenant_id, p_org, v_email, v_user, p_role,
+     CASE WHEN v_user IS NULL THEN NULL ELSE now() END,
+     v_uid, now())
+  RETURNING id INTO v_id;
+
+  RETURN v_id;
+EXCEPTION WHEN unique_violation THEN
+  RAISE EXCEPTION 'orgs: seat exists';
+END $$;
+
+-- 6) ── org_touch_seat_invite: gałąź admina zawężona do tenanta domowego ─────
+CREATE OR REPLACE FUNCTION public.org_touch_seat_invite(p_seat uuid)
+RETURNS TABLE (seat_id uuid, invited_email text, org_name text, last_invited_at timestamptz)
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_seat public.organization_seats%ROWTYPE;
+  v_org public.member_organizations%ROWTYPE;
+BEGIN
+  IF v_uid IS NULL THEN RAISE EXCEPTION 'orgs: authentication required'; END IF;
+
+  SELECT * INTO v_seat FROM public.organization_seats WHERE id = p_seat FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'orgs: not found'; END IF;
+
+  -- FIX: admin tylko na miejscach SWOJEGO tenanta; owner - na własnej organizacji.
+  IF NOT (
+    (public.has_role(v_uid, 'admin'::app_role) AND v_seat.tenant_id = public.current_tenant_id())
+    OR public.is_org_owner(v_seat.org_id)
+  ) THEN
+    RAISE EXCEPTION 'orgs: not allowed';
+  END IF;
+  IF v_seat.claimed_at IS NOT NULL OR v_seat.user_id IS NOT NULL THEN
+    RAISE EXCEPTION 'orgs: seat already claimed';
+  END IF;
+
+  SELECT * INTO v_org FROM public.member_organizations WHERE id = v_seat.org_id;
+  IF NOT FOUND OR v_org.status <> 'active' THEN
+    RAISE EXCEPTION 'orgs: organization inactive';
+  END IF;
+
+  UPDATE public.organization_seats os
+     SET last_invited_at = now()
+   WHERE os.id = p_seat;
+
+  RETURN QUERY
+    SELECT v_seat.id, v_seat.invited_email, v_org.name, now()::timestamptz;
+END $$;
+
+-- 7) ── publish_qa_session_summary: sesja z tenanta DOMOWEGO ──────────────────
+--    Publikacja to akcja staffu/hosta dla sesji WŁASNEGO tenanta; host ma
+--    current_tenant_id() = tenant sesji, więc zawężenie nie psuje ścieżki hosta.
+CREATE OR REPLACE FUNCTION public.publish_qa_session_summary(
+  p_session_id uuid,
+  p_publish boolean DEFAULT false
+)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_session public.qa_sessions%ROWTYPE;
+  v_staff boolean;
+  v_q record;
+  v_n integer := 0;
+  v_body_pl text := '';
+  v_body_en text := '';
+  v_author_pl text;
+  v_author_en text;
+  v_slug text;
+  v_post_id uuid;
+  v_parent_page uuid;
+  v_was_published boolean := false;
+  v_status public.post_status;
+  v_notified uuid[];
+BEGIN
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION 'qa: authentication required';
+  END IF;
+
+  SELECT * INTO v_session
+    FROM public.qa_sessions
+   WHERE id = p_session_id AND tenant_id = public.current_tenant_id(); -- FIX: był public_tenant_id()
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'qa: session not found';
+  END IF;
+
+  v_staff := public.has_role(v_user, 'admin'::app_role)
+          OR public.has_role(v_user, 'editor'::app_role);
+  IF NOT v_staff AND v_session.host_user_id <> v_user THEN
+    RAISE EXCEPTION 'qa: not allowed';
+  END IF;
+
+  -- Publikacja przechodzi przez workflow redakcyjny (trigger
+  -- enforce_post_workflow i tak by ją zatrzymał - tu czytelny błąd domenowy).
+  IF p_publish AND NOT public.can_publish_content(v_user) THEN
+    RAISE EXCEPTION 'qa: publish requires editorial role';
+  END IF;
+
+  -- Podsumowanie ma sens od fazy odpowiadania; szkic/otwarta sesja to za wcześnie.
+  IF v_session.status NOT IN ('answering', 'closed') THEN
+    RAISE EXCEPTION 'qa: session not summarizable';
+  END IF;
+
+  -- Wstęp sesji otwiera wpis (jeśli istnieje).
+  IF COALESCE(btrim(v_session.intro_pl), '') <> '' THEN
+    v_body_pl := public.qa_text_to_html(v_session.intro_pl);
+  END IF;
+  IF COALESCE(btrim(v_session.intro_en), '') <> '' THEN
+    v_body_en := public.qa_text_to_html(v_session.intro_en);
+  END IF;
+
+  -- Porządek jak na stronie sesji: głosy społeczności > starszeństwo.
+  FOR v_q IN
+    SELECT q.body, q.answer_body, q.author_display, q.is_anonymous, q.user_id
+      FROM public.qa_questions q
+      LEFT JOIN LATERAL (
+        SELECT count(*) AS votes
+          FROM public.qa_question_votes qv
+         WHERE qv.question_id = q.id
+      ) v ON true
+     WHERE q.session_id = p_session_id
+       AND q.status = 'answered'
+       AND COALESCE(btrim(q.answer_body), '') <> ''
+     ORDER BY v.votes DESC, q.created_at ASC
+     LIMIT 200
+  LOOP
+    v_n := v_n + 1;
+    v_author_pl := CASE
+      WHEN v_q.is_anonymous OR COALESCE(btrim(v_q.author_display), '') = ''
+        THEN 'Anonimowo'
+      ELSE public.qa_escape_html(v_q.author_display)
+    END;
+    v_author_en := CASE
+      WHEN v_q.is_anonymous OR COALESCE(btrim(v_q.author_display), '') = ''
+        THEN 'Anonymous'
+      ELSE public.qa_escape_html(v_q.author_display)
+    END;
+
+    v_body_pl := v_body_pl
+      || '<h3>Pytanie ' || v_n || '</h3>'
+      || '<blockquote>' || public.qa_text_to_html(v_q.body)
+      || '<p><cite>- ' || v_author_pl || '</cite></p></blockquote>'
+      || public.qa_text_to_html(v_q.answer_body);
+    v_body_en := v_body_en
+      || '<h3>Question ' || v_n || '</h3>'
+      || '<blockquote>' || public.qa_text_to_html(v_q.body)
+      || '<p><cite>- ' || v_author_en || '</cite></p></blockquote>'
+      || public.qa_text_to_html(v_q.answer_body);
+
+    v_notified := array_append(v_notified, v_q.user_id);
+  END LOOP;
+
+  IF v_n = 0 THEN
+    RAISE EXCEPTION 'qa: no answered questions';
+  END IF;
+
+  v_slug := 'qa-' || v_session.slug || '-podsumowanie';
+
+  -- Idempotentny upsert: najpierw wpis spięty z sesją, potem slug w tenancie.
+  v_post_id := v_session.post_id;
+  IF v_post_id IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM public.posts p WHERE p.id = v_post_id) THEN
+    v_post_id := NULL;
+  END IF;
+  IF v_post_id IS NULL THEN
+    SELECT p.id INTO v_post_id
+      FROM public.posts p
+     WHERE p.tenant_id = v_session.tenant_id AND p.slug = v_slug;
+  END IF;
+
+  IF v_post_id IS NULL THEN
+    -- Wpisy żyją pod stroną-rodzicem (posts.parent_page_id NOT NULL) -
+    -- kanonicznie strona "blog" tenanta, awaryjnie najstarsza strona główna.
+    SELECT pg.id INTO v_parent_page
+      FROM public.pages pg
+     WHERE pg.tenant_id = v_session.tenant_id
+       AND pg.slug = 'blog'
+       AND pg.parent_id IS NULL
+       AND pg.deleted_at IS NULL
+     ORDER BY pg.created_at ASC
+     LIMIT 1;
+    IF v_parent_page IS NULL THEN
+      SELECT pg.id INTO v_parent_page
+        FROM public.pages pg
+       WHERE pg.tenant_id = v_session.tenant_id
+         AND pg.parent_id IS NULL
+         AND pg.deleted_at IS NULL
+       ORDER BY pg.created_at ASC
+       LIMIT 1;
+    END IF;
+    IF v_parent_page IS NULL THEN
+      RAISE EXCEPTION 'qa: no parent page for summary post';
+    END IF;
+
+    INSERT INTO public.posts (
+      tenant_id, slug, parent_page_id, author_id, status, editor,
+      title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en,
+      published_at
+    )
+    VALUES (
+      v_session.tenant_id,
+      v_slug,
+      v_parent_page,
+      COALESCE(v_session.host_user_id, v_user),
+      CASE WHEN p_publish THEN 'published' ELSE 'draft' END::public.post_status,
+      'richtext'::public.editor_type,
+      'Q&A: ' || v_session.title_pl || ' - podsumowanie',
+      'Q&A: ' || v_session.title_en || ' - recap',
+      'Najważniejsze pytania społeczności i odpowiedzi eksperta z sesji Q&A.',
+      'The community''s top questions and the expert''s answers from the Q&A session.',
+      v_body_pl,
+      v_body_en,
+      CASE WHEN p_publish THEN now() END
+    )
+    RETURNING id INTO v_post_id;
+  ELSE
+    SELECT p.status = 'published' INTO v_was_published
+      FROM public.posts p WHERE p.id = v_post_id;
+    UPDATE public.posts
+       SET title_pl = 'Q&A: ' || v_session.title_pl || ' - podsumowanie',
+           title_en = 'Q&A: ' || v_session.title_en || ' - recap',
+           content_pl = v_body_pl,
+           content_en = v_body_en,
+           -- Publikacja jest jednokierunkowa: odświeżenie treści nie cofa
+           -- opublikowanego wpisu do szkicu.
+           status = CASE
+             WHEN p_publish OR v_was_published THEN 'published'::public.post_status
+             ELSE status
+           END,
+           published_at = CASE
+             WHEN p_publish OR v_was_published THEN COALESCE(published_at, now())
+             ELSE published_at
+           END,
+           deleted_at = NULL,
+           updated_at = now()
+     WHERE id = v_post_id;
+  END IF;
+
+  UPDATE public.qa_sessions
+     SET post_id = v_post_id, updated_at = now()
+   WHERE id = p_session_id;
+
+  SELECT p.status INTO v_status FROM public.posts p WHERE p.id = v_post_id;
+
+  -- Powiadom autorów odpowiedzianych pytań przy pierwszej publikacji -
+  -- ich pytanie właśnie stało się częścią opublikowanej treści.
+  IF p_publish AND NOT v_was_published THEN
+    PERFORM public.enqueue_notification(
+      u.user_id,
+      'content',
+      'Podsumowanie sesji Q&A jest już dostępne',
+      'The Q&A session recap is now available',
+      v_session.title_pl,
+      v_session.title_en,
+      '/post/' || v_slug,
+      'BookOpenCheck'
+    )
+    FROM (SELECT DISTINCT unnest(v_notified) AS user_id) u
+    WHERE u.user_id IS NOT NULL;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'post_id', v_post_id,
+    'slug', v_slug,
+    'status', v_status,
+    'questions', v_n
+  );
+END;
+$$;
+
+-- 8) ── get_event_access: publiczny odczyt zostaje, BYPASS staffu zawężony ────
+CREATE OR REPLACE FUNCTION public.get_event_access(p_event_id uuid)
+RETURNS TABLE (
+  can_join boolean,
+  join_url text,
+  can_watch boolean,
+  recording_url text,
+  reason text,
+  watch_reason text
+)
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_event public.events%ROWTYPE;
+  v_staff boolean := false;
+  v_allowed boolean;
+  v_can_watch boolean;
+  v_rsvp text;
+BEGIN
+  SELECT * INTO v_event
+    FROM public.events
+   WHERE id = p_event_id AND tenant_id = public.public_tenant_id();
+  IF NOT FOUND OR v_event.status <> 'published' THEN
+    RETURN QUERY SELECT false, NULL::text, false, NULL::text, 'not_found', 'not_found';
+    RETURN;
+  END IF;
+
+  IF v_user IS NULL THEN
+    RETURN QUERY SELECT false, NULL::text, false, NULL::text, 'auth_required',
+      CASE WHEN v_event.recording_url IS NULL THEN 'none' ELSE 'auth_required' END;
+    RETURN;
+  END IF;
+
+  -- FIX: bypass staffu tylko gdy przeglądany tenant JEST tenantem domowym staffu
+  -- (inaczej admin tenanta A widziałby join/recording tenanta B przez nagłówek).
+  v_staff := v_event.tenant_id = public.current_tenant_id()
+         AND (public.has_role(v_user, 'admin'::app_role)
+              OR public.has_role(v_user, 'editor'::app_role));
+  SELECT er.status INTO v_rsvp
+    FROM public.event_rsvps er
+   WHERE er.event_id = p_event_id AND er.user_id = v_user;
+
+  -- Ta sama bramka co w rsvp_event: members-briefing wymaga flagi
+  -- pro_briefings; pozostałe members - efektywnej rangi (min. 1).
+  IF v_staff THEN
+    v_allowed := true;
+  ELSIF v_event.visibility = 'members' AND v_event.kind = 'briefing' THEN
+    v_allowed := public.has_tier_feature('pro_briefings');
+  ELSIF v_event.visibility = 'members' THEN
+    v_allowed := public.has_tier_rank(GREATEST(COALESCE(v_event.min_tier_rank, 0), 1));
+  ELSE
+    v_allowed := public.has_tier_rank(COALESCE(v_event.min_tier_rank, 0));
+  END IF;
+
+  IF NOT v_allowed THEN
+    RETURN QUERY SELECT false, NULL::text, false, NULL::text, 'tier_required',
+      CASE WHEN v_event.recording_url IS NULL THEN 'none' ELSE 'tier_required' END;
+    RETURN;
+  END IF;
+
+  -- Nagrania: benefit warstwy (flaga recordings), nie sama ranga wydarzenia -
+  -- URL nie opuszcza bazy bez uprawnienia.
+  v_can_watch := v_event.recording_url IS NOT NULL
+             AND (v_staff OR public.has_tier_feature('recordings'));
+
+  RETURN QUERY SELECT
+    (v_staff OR v_rsvp = 'going') AND v_event.join_url IS NOT NULL,
+    CASE WHEN (v_staff OR v_rsvp = 'going') THEN v_event.join_url END,
+    v_can_watch,
+    CASE WHEN v_can_watch THEN v_event.recording_url END,
+    CASE
+      WHEN v_rsvp = 'going' OR v_staff THEN 'ok'
+      WHEN v_rsvp = 'waitlist' THEN 'waitlisted'
+      ELSE 'rsvp_required'
+    END,
+    CASE
+      WHEN v_event.recording_url IS NULL THEN 'none'
+      WHEN v_can_watch THEN 'ok'
+      ELSE 'tier_required'
+    END;
+END;
+$$;
+
+-- 9) ── authorize_resource_download: publiczny odczyt zostaje, BYPASS zawężony ─
+CREATE OR REPLACE FUNCTION public.authorize_resource_download(p_resource uuid)
+RETURNS TABLE (file_path text, file_name text, mime_type text)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_res public.member_resources%ROWTYPE;
+  v_staff boolean;
+BEGIN
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION 'resources: authentication required';
+  END IF;
+  SELECT * INTO v_res FROM public.member_resources
+   WHERE id = p_resource
+     AND tenant_id = COALESCE(public.public_tenant_id(), public.current_tenant_id());
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'resources: not found';
+  END IF;
+  -- FIX: bypass staffu tylko na zasobie WŁASNEGO tenanta (inaczej admin A
+  -- pobrałby plik zasobu tenanta B przez nagłówek).
+  v_staff := v_res.tenant_id = public.current_tenant_id()
+             AND (public.has_role(v_user, 'admin'::app_role)
+                  OR public.has_role(v_user, 'editor'::app_role));
+  IF NOT v_res.published AND NOT v_staff THEN
+    RAISE EXCEPTION 'resources: not found';
+  END IF;
+  IF NOT v_staff AND NOT public.has_tier_rank(v_res.min_tier_rank) THEN
+    RAISE EXCEPTION 'resources: tier required';
+  END IF;
+
+  INSERT INTO public.resource_downloads (tenant_id, resource_id, user_id)
+  VALUES (v_res.tenant_id, v_res.id, v_user);
+
+  RETURN QUERY SELECT v_res.file_path, v_res.file_name, v_res.mime_type;
+END;
+$$;
