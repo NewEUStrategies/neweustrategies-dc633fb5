@@ -22,7 +22,14 @@ const SETTINGS_QUERY_KEY = ["site_settings_public", "all"] as const;
 
 const SSR_TTL_MS = 60_000;
 
-async function fetchAllSiteSettings(): Promise<SettingsMap> {
+/**
+ * Bulk odczyt WSZYSTKICH publicznych site_settings (za edgeTtlCache per tenant
+ * host). Eksportowane dla serwerowych czytelników pojedynczych kluczy (home
+ * mode/page w lib/queries/public.ts): na serwerze mapa jest już rozgrzana
+ * przez root loader, więc odczyt klucza kosztuje zero round-tripów zamiast
+ * dedykowanego selecta tego samego wiersza.
+ */
+export async function fetchAllSiteSettings(): Promise<SettingsMap> {
   return edgeTtlCache("site_settings_public:all", SSR_TTL_MS, async () => {
     const { data, error } = await supabase.from("site_settings").select("key,value");
     if (error) throw error;

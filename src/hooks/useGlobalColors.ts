@@ -9,21 +9,21 @@ import {
   type GlobalColorsValue,
   globalColorsToCss,
 } from "@/lib/builder/globalColors";
+import { fetchSiteDesignTokensRow } from "@/lib/builder/designTokens";
 
 const QUERY_KEY = ["site_global_colors"] as const;
 
 export const globalColorsQueryOptions = queryOptions({
   queryKey: QUERY_KEY,
   queryFn: async (): Promise<GlobalColorsValue> => {
-    const { data, error } = await supabase
-      .from("site_design_tokens")
-      .select("global_colors")
-      .maybeSingle();
+    // Wspólny odczyt wiersza `site_design_tokens` z tokenami marki (jeden
+    // round-trip zamiast dwóch na każdą trasę - patrz fetchSiteDesignTokensRow).
     // Presentational only (feeds CSS variables) and warmed by the root loader on
     // every route: degrade to defaults on error instead of throwing, so a
     // transient failure here cannot 500 the whole site.
-    if (error) return EMPTY_GLOBAL_COLORS;
-    const raw = (data?.global_colors ?? {}) as Record<string, { light?: string; dark?: string }>;
+    const data = await fetchSiteDesignTokensRow();
+    if (!data) return EMPTY_GLOBAL_COLORS;
+    const raw = (data.global_colors ?? {}) as Record<string, { light?: string; dark?: string }>;
     return raw ?? EMPTY_GLOBAL_COLORS;
   },
   staleTime: 5 * 60_000,

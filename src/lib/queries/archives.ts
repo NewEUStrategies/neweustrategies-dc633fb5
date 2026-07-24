@@ -6,8 +6,11 @@ import { semanticSearch, type SemanticHit } from "@/lib/search/semantic.function
 import type { BlogListItem } from "@/lib/queries/public";
 import type { SectionNode } from "@/lib/builder/types";
 import { currentLang } from "@/lib/i18n/localeRuntime";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 const TTL = 2 * 60_000;
+/** TTL per-isolate archiwów: publikacje widoczne w minutę, jak reszta SSR. */
+const ARCHIVE_SSR_TTL_MS = 60_000;
 
 // Page sizes for "load more" pagination. The first page equals the page size,
 // so SSR loaders (which call the query options with the default limit) keep
@@ -20,16 +23,46 @@ export const SEARCH_LIMIT_MAX = 300;
 
 // ---------- helpers --------------------------------------------------------
 
+/**
+ * Batch rezolucji pełnych ścieżek stron-rodziców JEDNYM round-tripem
+ * (`page_full_paths(uuid[])`, migracja 20260724150000). Wcześniej każdy
+ * unikalny `parent_page_id` kosztował osobne wywołanie RPC `page_full_path` -
+ * klasyczny N+1 (do ~60 round-tripów na stronę archiwum). Fallback per-id
+ * zostaje na czas między deployem kodu a wdrożeniem migracji (ten sam wzorzec
+ * odporności co search_autosuggest).
+ */
+async function fetchParentPaths(parentIds: string[]): Promise<Map<string, string>> {
+  const paths = new Map<string, string>();
+  if (parentIds.length === 0) return paths;
+  // Cast przez `unknown`: wygenerowane typy Supabase nie znają jeszcze funkcji
+  // z migracji 20260724150000 (regeneracja typów następuje po jej wdrożeniu).
+  const { data, error } = await (
+    supabase.rpc as unknown as (
+      fn: string,
+      args: { _page_ids: string[] },
+    ) => PromiseLike<{ data: unknown; error: { message: string } | null }>
+  )("page_full_paths", { _page_ids: parentIds });
+  if (!error && Array.isArray(data)) {
+    for (const row of data as Array<{ page_id?: unknown; full_path?: unknown }>) {
+      if (typeof row.page_id === "string" && typeof row.full_path === "string") {
+        paths.set(row.page_id, row.full_path);
+      }
+    }
+    return paths;
+  }
+  await Promise.all(
+    parentIds.map(async (pid) => {
+      const { data: single } = await supabase.rpc("page_full_path", { _page_id: pid });
+      if (typeof single === "string") paths.set(pid, single);
+    }),
+  );
+  return paths;
+}
+
 async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<BlogListItem[]> {
   if (rows.length === 0) return [];
   const parentIds = Array.from(new Set(rows.map((r) => r.parent_page_id)));
-  const paths = new Map<string, string>();
-  await Promise.all(
-    parentIds.map(async (pid) => {
-      const { data } = await supabase.rpc("page_full_path", { _page_id: pid });
-      if (typeof data === "string") paths.set(pid, data);
-    }),
-  );
+  const paths = await fetchParentPaths(parentIds);
   return rows.map((r) => ({
     ...r,
     href: `/${paths.get(r.parent_page_id) ?? "blog"}/${r.slug}`,
@@ -84,6 +117,118 @@ export interface TaxonomyArchiveResult {
   sort: ArchiveSort;
 }
 
+/**
+ * Rdzeń archiwum taksonomii, wydzielony z queryFn (edgeTtlCache poniżej).
+ * Fale round-tripów: term -> Promise.all(pivot + sekcja featured) -> wpisy
+ * (z count) -> ścieżki rodziców (1 batch RPC). Wcześniej łańcuch był w pełni
+ * sekwencyjny (term -> pivot -> featured -> wpisy -> N+1 ścieżek).
+ */
+async function fetchTaxonomyArchive(
+  kind: TaxonomyKind,
+  slug: string,
+  page: number,
+  pageSize: number,
+  sort: ArchiveSort,
+): Promise<TaxonomyArchiveResult | null> {
+  let taxRow: {
+    id: string;
+    slug: string;
+    name_pl: string;
+    name_en: string;
+    description_pl: string | null;
+    description_en: string | null;
+    featured_template_id: string | null;
+  } | null = null;
+
+  if (kind === "category") {
+    const { data: tax, error: taxError } = await supabase
+      .from("categories")
+      .select("id, slug, name_pl, name_en, description_pl, description_en, featured_template_id")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (taxError) throw taxError;
+    if (!tax) return null;
+    taxRow = {
+      id: tax.id as string,
+      slug: tax.slug as string,
+      name_pl: tax.name_pl as string,
+      name_en: tax.name_en as string,
+      description_pl: (tax.description_pl as string | null) ?? null,
+      description_en: (tax.description_en as string | null) ?? null,
+      featured_template_id: (tax.featured_template_id as string | null) ?? null,
+    };
+  } else {
+    const { data: tax, error: taxError } = await supabase
+      .from("tags")
+      .select("id, slug, name, featured_template_id")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (taxError) throw taxError;
+    if (!tax) return null;
+    const name = tax.name as string;
+    taxRow = {
+      id: tax.id as string,
+      slug: tax.slug as string,
+      name_pl: name,
+      name_en: name,
+      description_pl: null,
+      description_en: null,
+      featured_template_id: (tax.featured_template_id as string | null) ?? null,
+    };
+  }
+
+  // Pivot i sekcja featured nie zależą od siebie - jedna fala zamiast dwóch.
+  const pivotQuery =
+    kind === "category"
+      ? supabase.from("post_categories").select("post_id").eq("category_id", taxRow.id)
+      : supabase.from("post_tags").select("post_id").eq("tag_id", taxRow.id);
+  const [{ data: pivot, error: pivotError }, featured_section] = await Promise.all([
+    pivotQuery,
+    fetchFeaturedSection(taxRow.featured_template_id),
+  ]);
+  if (pivotError) throw pivotError;
+  const postIds = (pivot ?? []).map((r) => (r as { post_id: string }).post_id);
+
+  let posts: BlogListItem[] = [];
+  let total = 0;
+  if (postIds.length > 0) {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    let q = supabase
+      .from("posts")
+      .select(POST_COLS, { count: "exact" })
+      .in("id", postIds)
+      .eq("status", "published")
+      .is("deleted_at", null);
+    if (sort === "oldest") q = q.order("published_at", { ascending: true });
+    else if (sort === "popular")
+      q = q.order("views_count", { ascending: false }).order("published_at", { ascending: false });
+    else q = q.order("published_at", { ascending: false });
+    const { data: rows, count, error: postsError } = await q.range(from, to);
+    if (postsError) throw postsError;
+    total = count ?? 0;
+    posts = await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>);
+  }
+
+  return {
+    taxonomy: {
+      id: taxRow.id,
+      slug: taxRow.slug,
+      name_pl: taxRow.name_pl,
+      name_en: taxRow.name_en,
+      description_pl: taxRow.description_pl ?? null,
+      description_en: taxRow.description_en ?? null,
+      featured_template_id: taxRow.featured_template_id,
+      featured_section,
+    },
+    posts,
+    total,
+    page,
+    pageSize,
+    sort,
+  };
+}
+
 export const taxonomyArchiveQueryOptions = (
   kind: TaxonomyKind,
   slug: string,
@@ -94,112 +239,15 @@ export const taxonomyArchiveQueryOptions = (
   const sort: ArchiveSort = params.sort ?? "newest";
   return queryOptions({
     queryKey: ["public", "archive", kind, slug, { page, pageSize, sort }] as const,
-    queryFn: async (): Promise<TaxonomyArchiveResult | null> => {
-      let taxRow: {
-        id: string;
-        slug: string;
-        name_pl: string;
-        name_en: string;
-        description_pl: string | null;
-        description_en: string | null;
-        featured_template_id: string | null;
-      } | null = null;
-      let postIds: string[] = [];
-
-      if (kind === "category") {
-        const { data: tax, error: taxError } = await supabase
-          .from("categories")
-          .select(
-            "id, slug, name_pl, name_en, description_pl, description_en, featured_template_id",
-          )
-          .eq("slug", slug)
-          .maybeSingle();
-        if (taxError) throw taxError;
-        if (!tax) return null;
-        taxRow = {
-          id: tax.id as string,
-          slug: tax.slug as string,
-          name_pl: tax.name_pl as string,
-          name_en: tax.name_en as string,
-          description_pl: (tax.description_pl as string | null) ?? null,
-          description_en: (tax.description_en as string | null) ?? null,
-          featured_template_id: (tax.featured_template_id as string | null) ?? null,
-        };
-        const { data: pivot, error: pivotError } = await supabase
-          .from("post_categories")
-          .select("post_id")
-          .eq("category_id", taxRow.id);
-        if (pivotError) throw pivotError;
-        postIds = (pivot ?? []).map((r) => r.post_id as string);
-      } else {
-        const { data: tax, error: taxError } = await supabase
-          .from("tags")
-          .select("id, slug, name, featured_template_id")
-          .eq("slug", slug)
-          .maybeSingle();
-        if (taxError) throw taxError;
-        if (!tax) return null;
-        const name = tax.name as string;
-        taxRow = {
-          id: tax.id as string,
-          slug: tax.slug as string,
-          name_pl: name,
-          name_en: name,
-          description_pl: null,
-          description_en: null,
-          featured_template_id: (tax.featured_template_id as string | null) ?? null,
-        };
-        const { data: pivot, error: pivotError } = await supabase
-          .from("post_tags")
-          .select("post_id")
-          .eq("tag_id", taxRow.id);
-        if (pivotError) throw pivotError;
-        postIds = (pivot ?? []).map((r) => r.post_id as string);
-      }
-
-      const featured_section = await fetchFeaturedSection(taxRow.featured_template_id);
-
-      let posts: BlogListItem[] = [];
-      let total = 0;
-      if (postIds.length > 0) {
-        const from = (page - 1) * pageSize;
-        const to = from + pageSize - 1;
-        let q = supabase
-          .from("posts")
-          .select(POST_COLS, { count: "exact" })
-          .in("id", postIds)
-          .eq("status", "published")
-          .is("deleted_at", null);
-        if (sort === "oldest") q = q.order("published_at", { ascending: true });
-        else if (sort === "popular")
-          q = q
-            .order("views_count", { ascending: false })
-            .order("published_at", { ascending: false });
-        else q = q.order("published_at", { ascending: false });
-        const { data: rows, count, error: postsError } = await q.range(from, to);
-        if (postsError) throw postsError;
-        total = count ?? 0;
-        posts = await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>);
-      }
-
-      return {
-        taxonomy: {
-          id: taxRow.id,
-          slug: taxRow.slug,
-          name_pl: taxRow.name_pl,
-          name_en: taxRow.name_en,
-          description_pl: taxRow.description_pl ?? null,
-          description_en: taxRow.description_en ?? null,
-          featured_template_id: taxRow.featured_template_id,
-          featured_section,
-        },
-        posts,
-        total,
-        page,
-        pageSize,
-        sort,
-      };
-    },
+    queryFn: async (): Promise<TaxonomyArchiveResult | null> =>
+      // Per-isolate TTL (per tenant host): archiwa nie miały dotąd żadnego
+      // cache po stronie SSR - każde żądanie płaciło pełny zestaw zapytań.
+      // Klucz odzwierciedla pełną parametryzację strony wyników.
+      edgeTtlCache(
+        `public:archive:${kind}:${slug}:${page}:${pageSize}:${sort}`,
+        ARCHIVE_SSR_TTL_MS,
+        () => fetchTaxonomyArchive(kind, slug, page, pageSize, sort),
+      ),
     staleTime: TTL,
   });
 };

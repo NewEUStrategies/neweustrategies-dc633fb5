@@ -8,6 +8,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 export interface TickerPost {
   id: string;
@@ -96,7 +97,13 @@ export const newsTickerQueryOptions = (c: WidgetContent, _lang: Lang) => {
   const input = newsTickerInput(c);
   return queryOptions({
     queryKey: ["builder-news-ticker", input] as const,
-    queryFn: () => fetchTickerPosts(input),
+    queryFn: () =>
+      // Per-isolate TTL: ticker w chrome jest prefetchowany na każdej trasie z
+      // builderowym headerem/footerem - bez cache płacił do 3 round-tripów na
+      // każdy nie-cache'owany render (na kliencie przezroczyste).
+      edgeTtlCache(`builder:news-ticker:${JSON.stringify(input)}`, 60_000, () =>
+        fetchTickerPosts(input),
+      ),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,
   });

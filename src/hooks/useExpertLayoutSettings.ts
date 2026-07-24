@@ -11,18 +11,24 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { defaultExpertLayoutSettings, type ExpertLayoutSettings } from "@/lib/expertLayouts";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 export const expertLayoutSettingsQueryOptions = (tenantId?: string | null) =>
   queryOptions({
     queryKey: ["expert-layout-settings", tenantId ?? "__current__"] as const,
-    queryFn: async (): Promise<ExpertLayoutSettings> => {
-      let q = supabase.from("expert_layout_settings").select("*");
-      if (tenantId) q = q.eq("tenant_id", tenantId);
-      const { data, error } = await q.maybeSingle();
-      if (error && error.code !== "PGRST116") throw error;
-      if (!data) return defaultExpertLayoutSettings(tenantId ?? "");
-      return data as unknown as ExpertLayoutSettings;
-    },
+    queryFn: async (): Promise<ExpertLayoutSettings> =>
+      // Per-isolate TTL (per tenant host): publiczny profil eksperta doklejał
+      // ten odczyt do każdego renderu; wariant bez tenantId rozstrzyga RLS po
+      // hoście żądania, co pokrywa się ze scope'em klucza cache (na kliencie
+      // przezroczyste - panel admina zapisuje przez invalidateQueries).
+      edgeTtlCache(`expert-layout:${tenantId ?? "current"}`, 60_000, async () => {
+        let q = supabase.from("expert_layout_settings").select("*");
+        if (tenantId) q = q.eq("tenant_id", tenantId);
+        const { data, error } = await q.maybeSingle();
+        if (error && error.code !== "PGRST116") throw error;
+        if (!data) return defaultExpertLayoutSettings(tenantId ?? "");
+        return data as unknown as ExpertLayoutSettings;
+      }),
     staleTime: 5 * 60_000,
   });
 
