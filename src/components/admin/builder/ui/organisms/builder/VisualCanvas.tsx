@@ -1099,6 +1099,14 @@ export function VisualCanvas({
           }}
         />
       )}
+      {onWidgetResize && (
+        <WidgetResizeOverlay
+          containerRef={rootRef}
+          widgetId={selection.kind === "widget" ? selection.id : null}
+          device={device}
+          onResize={onWidgetResize}
+        />
+      )}
     </div>
   );
 }
