@@ -206,10 +206,11 @@ export function AuthorBusinessCard({
             ].join(" ")}
           >
             {isFollowing ? (
-              <Check className="h-3.5 w-3.5" aria-hidden />
+              <Check className="h-3.5 w-3.5 [&_*]:stroke-current" style={{ color: "currentColor" }} aria-hidden />
             ) : (
               <Plus
-                className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90"
+                className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90 [&_*]:stroke-current"
+                style={{ color: "currentColor" }}
                 aria-hidden
               />
             )}
