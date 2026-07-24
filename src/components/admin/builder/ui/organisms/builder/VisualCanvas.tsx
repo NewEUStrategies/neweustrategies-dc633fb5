@@ -5,6 +5,7 @@ import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/glob
 import { BuilderRenderer, BuilderEmptyPickerProvider } from "../../../BuilderRenderer";
 import { InlineEditProvider } from "../../../inlineEditContext";
 import { SectionDropZone } from "./SectionDropZone";
+import { WidgetResizeOverlay } from "./WidgetResizeOverlay";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
