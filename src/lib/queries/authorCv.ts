@@ -69,7 +69,7 @@ export const authorCvQueryOptions = (userId: string | null | undefined) =>
       if (!userId) return { experiences: [], education: [], skills: [], awards: [], hobbies: [] };
       const [exp, edu, sk, aw, ho] = await Promise.all([
         supabase
-          .from("profile_experiences")
+          .from("profile_experiences_public")
           .select(
             "id, role_title, company, location, start_date, end_date, is_current, description, logo_url",
           )
@@ -77,25 +77,25 @@ export const authorCvQueryOptions = (userId: string | null | undefined) =>
           .order("sort_order", { ascending: true })
           .order("start_date", { ascending: false }),
         supabase
-          .from("profile_education")
+          .from("profile_education_public")
           .select("id, school, degree, field, start_date, end_date, description, logo_url")
           .eq("user_id", userId)
           .order("sort_order", { ascending: true })
           .order("start_date", { ascending: false }),
         supabase
-          .from("profile_skills")
+          .from("profile_skills_public")
           .select("id, label, level, category")
           .eq("user_id", userId)
           .order("sort_order", { ascending: true })
           .order("label", { ascending: true }),
         supabase
-          .from("profile_awards")
+          .from("profile_awards_public")
           .select("id, title, issuer, awarded_at, description, icon, url, kind")
           .eq("user_id", userId)
           .order("sort_order", { ascending: true })
           .order("awarded_at", { ascending: false }),
         supabase
-          .from("profile_hobbies")
+          .from("profile_hobbies_public")
           .select("id, label, icon")
           .eq("user_id", userId)
           .order("sort_order", { ascending: true })
