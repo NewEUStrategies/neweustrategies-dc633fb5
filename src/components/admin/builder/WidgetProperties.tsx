@@ -847,10 +847,31 @@ export function WidgetProperties({
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              {t("builder.widgetProps.dimensions", { defaultValue: "Wymiary widgetu" })}
+            </h4>
+            <p className="text-[10px] text-muted-foreground -mt-1">
+              {t("builder.widgetProps.dimensionsHint", {
+                defaultValue:
+                  "Desktop jest wiodący. Na tabletach i telefonach wysokość dostosowuje się automatycznie do treści.",
+              })}
+            </p>
+            <WidgetHeightControl
+              value={readDesktopHeight(widget.advanced?.height)}
+              onChange={(next) =>
+                setAdvanced((a) => {
+                  a.height = writeDesktopHeight(a.height, next);
+                })
+              }
+            />
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Motion
             </h4>
             <MotionControl value={widget.advanced} onChange={setAdvanced} />
           </section>
+
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
