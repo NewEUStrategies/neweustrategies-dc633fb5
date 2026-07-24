@@ -693,7 +693,7 @@ export function WidgetProperties({
         </TabsContent>
 
         <TabsContent value="advanced" className="space-y-4 mt-3">
-          <section className="space-y-2">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.identifiers")}
             </h4>
