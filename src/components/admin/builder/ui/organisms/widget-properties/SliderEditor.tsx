@@ -66,6 +66,8 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     | "oldest"
     | "title";
   const showExcerpt = c.showExcerpt !== false;
+  const showAuthor = c.showAuthor !== false;
+
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
   const titleSizePx = typeof c.titleSizePx === "number" ? c.titleSizePx : 0;
@@ -174,6 +176,8 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
     subtitleWeight,
     showExcerpt,
+    showAuthor,
+
     navSizePx,
     navRoundedPx,
     navBgColor,
@@ -409,6 +413,20 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           <Select
             value={showExcerpt ? "on" : "off"}
             onValueChange={(v) => setContent("showExcerpt", v === "on")}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="on">{t("builder.sliderEditor.yes")}</SelectItem>
+              <SelectItem value="off">{t("builder.sliderEditor.no")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </PropField>
+        <PropField label={t("builder.sliderEditor.showAuthor")}>
+          <Select
+            value={showAuthor ? "on" : "off"}
+            onValueChange={(v) => setContent("showAuthor", v === "on")}
           >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />

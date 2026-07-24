@@ -641,6 +641,8 @@ const pl = {
       tags: "Tagi",
       excludeIds: "Wyklucz ID wpisów (po przecinku)",
       showExcerpt: "Pokaż zajawkę",
+      showAuthor: "Pokaż autora",
+
       yes: "tak",
       no: "nie",
       ctaText: "Tekst CTA ({{lang}})",

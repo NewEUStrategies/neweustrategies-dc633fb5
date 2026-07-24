@@ -35,7 +35,10 @@ export interface SliderItem {
   category_en?: string;
   categoryColor?: string;
   author?: string;
+  authorAvatar?: string;
+  authorSlug?: string;
   readTime?: string;
+
 }
 
 export const SLIDER_VARIANTS: { value: SliderVariant; label: string }[] = [
@@ -80,6 +83,9 @@ export interface SliderConfig {
   subtitleWeight?: number;
   /** Show excerpt/subtitle below the title. Default: true. */
   showExcerpt?: boolean;
+  /** Show author avatar + name below the title. Default: true. */
+  showAuthor?: boolean;
+
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
   columns?: 1 | 2 | 3 | 4;
@@ -610,10 +616,13 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           image: pickStr(it.image, ref.cover),
           href: pickStr(it.href, ref.href),
           author: pickStr(it.author, ref.authorName),
+          authorAvatar: pickStr(it.authorAvatar, ref.authorAvatar),
+          authorSlug: pickStr(it.authorSlug, ref.authorSlug),
           [titleKey]: pickStr(it[titleKey], ref.title),
           [subKey]: pickStr(it[subKey], ref.excerpt),
         };
       }),
+
     [rawItems, refMap, lang],
   );
 
@@ -833,6 +842,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   const nav = resolveNavStyle(config);
   const showExcerpt = config.showExcerpt !== false;
+  const showAuthor = config.showAuthor !== false;
+
   const sharedProps = {
     items,
     safeIdx,
@@ -857,7 +868,9 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     columns,
     nav,
     showExcerpt,
+    showAuthor,
   };
+
 
   return (
     <div
@@ -913,7 +926,68 @@ type VariantProps = {
   columns: 1 | 2 | 3 | 4;
   nav: NavStyleResolved;
   showExcerpt: boolean;
+  showAuthor: boolean;
 };
+
+/** Compact author badge: 6px-rounded avatar + display name; links to the
+ *  author profile when a slug is present. Used across all slider variants so
+ *  editing a post's author propagates live via useResolvedPostRefs. */
+function AuthorBadge({
+  name,
+  avatar,
+  slug,
+  tone = "light",
+  size = 22,
+}: {
+  name?: string;
+  avatar?: string;
+  slug?: string;
+  tone?: "light" | "dark";
+  size?: number;
+}) {
+  if (!name && !avatar) return null;
+  const safeAvatar = avatar ? safeImageUrl(avatar) : "";
+  const initial = (name || "?").trim().charAt(0).toUpperCase();
+  const textCls = tone === "dark" ? "text-white" : "text-foreground/80";
+  const inner = (
+    <span className="inline-flex items-center gap-1.5">
+      {safeAvatar ? (
+        <img
+          src={safeAvatar}
+          alt={name || ""}
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          className="object-cover shrink-0"
+          style={{ width: size, height: size, borderRadius: 6 }}
+        />
+      ) : (
+        <span
+          aria-hidden
+          className="inline-flex items-center justify-center bg-muted text-foreground/70 text-[10px] font-semibold shrink-0"
+          style={{ width: size, height: size, borderRadius: 6 }}
+        >
+          {initial}
+        </span>
+      )}
+      {name && <span className={`font-medium ${textCls}`}>{name}</span>}
+    </span>
+  );
+  if (slug) {
+    return (
+      <AppLink
+        href={`/author/${slug}`}
+        className="inline-flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {inner}
+      </AppLink>
+    );
+  }
+  return inner;
+}
+
 
 function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
   const rawTitle = (lang === "en" ? it.title_en : it.title_pl) || it.title_pl || it.title_en || "";
@@ -1040,19 +1114,26 @@ function EditorialHeroVariant(p: VariantProps) {
               {sub || "\u00A0"}
             </p>
           ))}
-        {(cur.author || cur.readTime) && (
+        {((p.showAuthor && cur.author) || cur.readTime) && (
           <div className="mt-4 flex items-center justify-center gap-2 text-xs md:text-sm text-muted-foreground">
-            {cur.author && (
-              <span>
-                By <span className="font-medium text-foreground/80">{cur.author}</span>
-              </span>
+            {p.showAuthor && cur.author && (
+              <AuthorBadge
+                name={cur.author}
+                avatar={cur.authorAvatar}
+                slug={cur.authorSlug}
+                tone="light"
+                size={22}
+              />
             )}
-            {cur.author && cur.readTime && <span className="opacity-50">|</span>}
+            {p.showAuthor && cur.author && cur.readTime && (
+              <span className="opacity-50">|</span>
+            )}
             {cur.readTime && (
               <span className="inline-flex items-center gap-1">⏱ {cur.readTime}</span>
             )}
           </div>
         )}
+
       </div>
 
       <DotsNav
@@ -1175,17 +1256,24 @@ function MultiCardVariant(p: VariantProps) {
                         {sub}
                       </p>
                     ))}
-                  {(it.author || it.readTime) && (
+                  {((p.showAuthor && it.author) || it.readTime) && (
                     <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      {it.author && (
-                        <span>
-                          By <span className="font-medium text-foreground/80">{it.author}</span>
-                        </span>
+                      {p.showAuthor && it.author && (
+                        <AuthorBadge
+                          name={it.author}
+                          avatar={it.authorAvatar}
+                          slug={it.authorSlug}
+                          tone="light"
+                          size={20}
+                        />
                       )}
-                      {it.author && it.readTime && <span className="opacity-50">·</span>}
+                      {p.showAuthor && it.author && it.readTime && (
+                        <span className="opacity-50">·</span>
+                      )}
                       {it.readTime && <span>⏱ {it.readTime}</span>}
                     </div>
                   )}
+
                 </div>
               </article>
             );
@@ -1282,17 +1370,24 @@ function CinematicOverlayVariant(p: VariantProps) {
                 {sub}
               </p>
             )}
-            {(cur.author || cur.readTime) && (
+            {((p.showAuthor && cur.author) || cur.readTime) && (
               <div className="mt-3 flex items-center gap-2 text-xs text-white/75">
-                {cur.author && (
-                  <span>
-                    By <span className="font-medium text-white">{cur.author}</span>
-                  </span>
+                {p.showAuthor && cur.author && (
+                  <AuthorBadge
+                    name={cur.author}
+                    avatar={cur.authorAvatar}
+                    slug={cur.authorSlug}
+                    tone="dark"
+                    size={22}
+                  />
                 )}
-                {cur.author && cur.readTime && <span className="opacity-60">·</span>}
+                {p.showAuthor && cur.author && cur.readTime && (
+                  <span className="opacity-60">·</span>
+                )}
                 {cur.readTime && <span>⏱ {cur.readTime}</span>}
               </div>
             )}
+
           </div>
         </div>
         {p.items.length > 1 && (
@@ -1429,17 +1524,24 @@ function SplitFeatureVariant(p: VariantProps) {
               {sub}
             </p>
           ))}
-        {(cur.author || cur.readTime) && (
+        {((p.showAuthor && cur.author) || cur.readTime) && (
           <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-            {cur.author && (
-              <span>
-                By <span className="font-medium text-foreground/80">{cur.author}</span>
-              </span>
+            {p.showAuthor && cur.author && (
+              <AuthorBadge
+                name={cur.author}
+                avatar={cur.authorAvatar}
+                slug={cur.authorSlug}
+                tone="light"
+                size={22}
+              />
             )}
-            {cur.author && cur.readTime && <span className="opacity-50">·</span>}
+            {p.showAuthor && cur.author && cur.readTime && (
+              <span className="opacity-50">·</span>
+            )}
             {cur.readTime && <span>⏱ {cur.readTime}</span>}
           </div>
         )}
+
         <DotsNav
           count={p.items.length}
           active={p.safeIdx}
