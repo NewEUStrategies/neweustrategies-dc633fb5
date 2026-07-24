@@ -953,7 +953,7 @@ function ColorGroup({
         {title}
       </p>
       <div className="space-y-1.5">
-        {COLOR_KEYS.map((k) => (
+        {keys.map((k) => (
           <ColorField
             key={k}
             id={`tt-color-${title}-${k}`}
