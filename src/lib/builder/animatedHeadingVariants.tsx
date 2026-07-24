@@ -461,6 +461,13 @@ function ShapeSvg({
         </>
       );
       break;
+    case "squiggle":
+      // Hero-style hand-drawn squiggle underline (Chakra "H1 With Squiggle" look)
+      viewBox = "0 0 200 14";
+      body = (
+        <path d="M2 9 C 14 3, 26 3, 38 9 S 62 15, 74 9 S 98 3, 110 9 S 134 15, 146 9 S 170 3, 182 9 S 198 12, 198 9" />
+      );
+      break;
     case "curly":
       viewBox = "0 0 200 10";
       body = <path d="M2 5 q 12.5 -3 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 23 0" />;
