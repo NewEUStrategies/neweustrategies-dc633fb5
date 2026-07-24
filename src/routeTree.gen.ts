@@ -161,10 +161,12 @@ import { Route as AdminCompaniesIndexRouteImport } from './routes/admin.companie
 import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
 import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slug.amp'
 import { Route as TagSlugRssDotxmlRouteImport } from './routes/tag.$slug.rss[.]xml'
+import { Route as TagSlugSplatRouteImport } from './routes/tag.$slug.$'
 import { Route as ProgramsSlugRssDotxmlRouteImport } from './routes/programs.$slug.rss[.]xml'
 import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$show.rss[.]xml'
 import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
+import { Route as CategorySlugSplatRouteImport } from './routes/category.$slug.$'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
 import { Route as ApiPublicTrackRouteImport } from './routes/api/public/track'
@@ -994,6 +996,11 @@ const TagSlugRssDotxmlRoute = TagSlugRssDotxmlRouteImport.update({
   path: '/rss.xml',
   getParentRoute: () => TagSlugRoute,
 } as any)
+const TagSlugSplatRoute = TagSlugSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => TagSlugRoute,
+} as any)
 const ProgramsSlugRssDotxmlRoute = ProgramsSlugRssDotxmlRouteImport.update({
   id: '/rss.xml',
   path: '/rss.xml',
@@ -1012,6 +1019,11 @@ const NetworkMutualUserIdRoute = NetworkMutualUserIdRouteImport.update({
 const CategorySlugRssDotxmlRoute = CategorySlugRssDotxmlRouteImport.update({
   id: '/rss.xml',
   path: '/rss.xml',
+  getParentRoute: () => CategorySlugRoute,
+} as any)
+const CategorySlugSplatRoute = CategorySlugSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => CategorySlugRoute,
 } as any)
 const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
@@ -1564,10 +1576,12 @@ export interface FileRoutesByFullPath {
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/category/$slug/$': typeof CategorySlugSplatRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
+  '/tag/$slug/$': typeof TagSlugSplatRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
@@ -1778,10 +1792,12 @@ export interface FileRoutesByTo {
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/category/$slug/$': typeof CategorySlugSplatRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
+  '/tag/$slug/$': typeof TagSlugSplatRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community': typeof AdminCommunityIndexRoute
@@ -2003,10 +2019,12 @@ export interface FileRoutesById {
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
+  '/category/$slug/$': typeof CategorySlugSplatRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
+  '/tag/$slug/$': typeof TagSlugSplatRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
@@ -2229,10 +2247,12 @@ export interface FileRouteTypes {
     | '/api/public/track'
     | '/api/public/version'
     | '/api/public/vitals'
+    | '/category/$slug/$'
     | '/category/$slug/rss.xml'
     | '/network/mutual/$userId'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
+    | '/tag/$slug/$'
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
@@ -2443,10 +2463,12 @@ export interface FileRouteTypes {
     | '/api/public/track'
     | '/api/public/version'
     | '/api/public/vitals'
+    | '/category/$slug/$'
     | '/category/$slug/rss.xml'
     | '/network/mutual/$userId'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
+    | '/tag/$slug/$'
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community'
@@ -2667,10 +2689,12 @@ export interface FileRouteTypes {
     | '/api/public/track'
     | '/api/public/version'
     | '/api/public/vitals'
+    | '/category/$slug/$'
     | '/category/$slug/rss.xml'
     | '/network/mutual/$userId'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
+    | '/tag/$slug/$'
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
     | '/admin/community/'
@@ -3835,6 +3859,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TagSlugRssDotxmlRouteImport
       parentRoute: typeof TagSlugRoute
     }
+    '/tag/$slug/$': {
+      id: '/tag/$slug/$'
+      path: '/$'
+      fullPath: '/tag/$slug/$'
+      preLoaderRoute: typeof TagSlugSplatRouteImport
+      parentRoute: typeof TagSlugRoute
+    }
     '/programs/$slug/rss.xml': {
       id: '/programs/$slug/rss.xml'
       path: '/rss.xml'
@@ -3861,6 +3892,13 @@ declare module '@tanstack/react-router' {
       path: '/rss.xml'
       fullPath: '/category/$slug/rss.xml'
       preLoaderRoute: typeof CategorySlugRssDotxmlRouteImport
+      parentRoute: typeof CategorySlugRoute
+    }
+    '/category/$slug/$': {
+      id: '/category/$slug/$'
+      path: '/$'
+      fullPath: '/category/$slug/$'
+      preLoaderRoute: typeof CategorySlugSplatRouteImport
       parentRoute: typeof CategorySlugRoute
     }
     '/api/public/vitals': {
@@ -4793,10 +4831,12 @@ const QaRouteChildren: QaRouteChildren = {
 const QaRouteWithChildren = QaRoute._addFileChildren(QaRouteChildren)
 
 interface CategorySlugRouteChildren {
+  CategorySlugSplatRoute: typeof CategorySlugSplatRoute
   CategorySlugRssDotxmlRoute: typeof CategorySlugRssDotxmlRoute
 }
 
 const CategorySlugRouteChildren: CategorySlugRouteChildren = {
+  CategorySlugSplatRoute: CategorySlugSplatRoute,
   CategorySlugRssDotxmlRoute: CategorySlugRssDotxmlRoute,
 }
 
@@ -4829,10 +4869,12 @@ const ProgramsSlugRouteWithChildren = ProgramsSlugRoute._addFileChildren(
 )
 
 interface TagSlugRouteChildren {
+  TagSlugSplatRoute: typeof TagSlugSplatRoute
   TagSlugRssDotxmlRoute: typeof TagSlugRssDotxmlRoute
 }
 
 const TagSlugRouteChildren: TagSlugRouteChildren = {
+  TagSlugSplatRoute: TagSlugSplatRoute,
   TagSlugRssDotxmlRoute: TagSlugRssDotxmlRoute,
 }
 
