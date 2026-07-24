@@ -226,6 +226,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     node.type === "video" ||
     node.type === "gallery" ||
     node.type === "map";
+  const resolvedFrameHeight = getWidgetFrameStyle(node, device).height;
+  const fillsExplicitFrameHeight =
+    resolvedFrameHeight !== undefined && resolvedFrameHeight !== "auto";
   const isCompactWidget = COMPACT_WIDGET_TYPES.has(node.type);
   // Coalesce every per-widget CSS source (hover, typography, color override,
   // user custom CSS) into a SINGLE <style> node instead of up to four. All four
@@ -309,7 +312,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         justifyContent: isCompactWidget ? "center" : "flex-start",
         width: "100%",
         minWidth: 0,
-        height: isMedia ? "auto" : "100%",
+        // Media normally keeps its intrinsic height, but a fixed widget height
+        // must propagate through this shell so the canvas changes immediately.
+        height: isMedia && !fillsExplicitFrameHeight ? "auto" : "100%",
         maxWidth: isImage ? "none" : "100%",
         boxSizing: "border-box",
         overflow: isImage ? "visible" : isMedia ? "visible" : "hidden",

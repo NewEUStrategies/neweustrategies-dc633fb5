@@ -204,9 +204,17 @@ export const getWidgetFrameStyle = (
   // flex-col regardless of the column's align-items setting).
   if (sa) {
     if (sa === "stretch") {
-      style.flexGrow = 1;
       style.alignSelf = horizontalAnchored ? style.alignSelf : "stretch";
-      style.height = "auto";
+      // A height selected in the widget panel is authoritative. Previously
+      // stretch silently replaced it with auto, so the document changed but
+      // the canvas did not.
+      if (hRaw === undefined) {
+        style.flexGrow = 1;
+        style.height = "auto";
+      } else {
+        style.flexGrow = 0;
+        style.flexShrink = 0;
+      }
     } else if (sa === "center") {
       style.marginTop = "auto";
       style.marginBottom = "auto";

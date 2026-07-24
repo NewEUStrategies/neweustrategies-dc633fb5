@@ -792,12 +792,24 @@ const RenderColumn = memo(function RenderColumn({
       {groups.map((g, gi) => {
         const renderItem = (w: (typeof visibleChildren)[number], inRow: boolean) => {
           const adv = w.advanced as
-            | { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } }
+            | {
+                height?:
+                  | number
+                  | "auto"
+                  | { desktop?: unknown; tablet?: unknown; mobile?: unknown };
+              }
             | undefined;
-          const hasExplicitHeight = !!(
-            adv?.height &&
-            (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile)
-          );
+          const hasExplicitHeight =
+            typeof adv?.height === "number" ||
+            adv?.height === "auto" ||
+            Boolean(
+              adv?.height &&
+                typeof adv.height === "object" &&
+                (adv.height[device] !== undefined ||
+                  adv.height.desktop !== undefined ||
+                  adv.height.tablet !== undefined ||
+                  adv.height.mobile !== undefined),
+            );
           const shouldFillHeight =
             onlyOneBlock &&
             !hasExplicitHeight &&
@@ -815,6 +827,7 @@ const RenderColumn = memo(function RenderColumn({
             <div
               key={w.id}
               data-widget-id={w.id}
+              data-widget-explicit-height={hasExplicitHeight ? "true" : undefined}
               data-widget-layout={inRow ? "inline" : "block"}
               data-widget-global={w.globalId ? "1" : undefined}
               data-debug-type={w.type}
