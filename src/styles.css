@@ -2174,6 +2174,23 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   }
 }
 
+/* Global rule: gdy widget ma jawnie ustawioną wysokość, jego bezpośrednie
+   dzieci wypełniają cały slot niezależnie od breakpointa, żeby zmiana
+   „Ustalona (px)" była widoczna również na desktopie. */
+[data-builder-renderer]
+  [data-col-id]
+  > [data-widget-id][data-widget-explicit-height="true"] {
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+[data-builder-renderer]
+  [data-col-id]
+  > [data-widget-id][data-widget-explicit-height="true"]
+  > * {
+  height: 100%;
+  min-height: 0;
+}
+
 @media (min-width: 768px) and (max-width: 1023px) {
   [data-builder-renderer] [data-columns-row] {
     gap: 14px !important;
