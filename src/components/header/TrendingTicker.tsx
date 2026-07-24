@@ -57,6 +57,7 @@ function safeAttr(id: string): string {
 export function TrendingTicker({
   source = "trending",
   mode = "scroll",
+  layoutStyle = "classic",
   days = 7,
   limit = 8,
   visibleCount = 1,
@@ -78,6 +79,7 @@ export function TrendingTicker({
   const kind = normalizeMode(mode);
   const palette = colors ?? DEFAULT_TICKER_COLORS;
   const vid = safeAttr(variantId);
+  const isBadge = layoutStyle === "badge";
 
   const { data, isLoading } = useQuery(
     headerTickerQueryOptions({
@@ -119,32 +121,49 @@ export function TrendingTicker({
 
   return (
     <div
-      className={`cms-trending border-b ${className ?? ""}`}
+      className={`cms-trending border-b ${isBadge ? "cms-trending--badge" : "cms-trending--classic"} ${className ?? ""}`}
       data-testid="trending-ticker"
       data-tt-vid={vid}
+      data-tt-layout={layoutStyle}
       style={{
         background: "var(--tt-bg)",
         borderColor: "var(--tt-border)",
       }}
     >
       <TickerPaletteStyle vid={vid} palette={palette} />
-      <div className={`${innerMax} px-4 lg:px-8 h-10 flex items-center gap-4 overflow-hidden`}>
-        <span
-          className="inline-flex items-center gap-1.5 text-[12px] leading-none font-bold uppercase tracking-[0.14em] shrink-0 whitespace-nowrap"
-          style={{ color: "var(--tt-label)" }}
-        >
-          <Flame
-            className={`w-4 h-4 shrink-0 ${iconClass}`}
-            style={{ color: "var(--tt-label)" }}
-            aria-hidden
-          />
-          <span className="leading-none">{label}</span>
-        </span>
-        <span
-          className="hidden sm:block h-4 w-px shrink-0"
-          aria-hidden
-          style={{ background: "var(--tt-border)" }}
-        />
+      <div
+        className={`${innerMax} ${isBadge ? "pr-4 lg:pr-8 pl-0" : "px-4 lg:px-8"} h-10 flex items-stretch gap-0 overflow-hidden`}
+      >
+        {isBadge ? (
+          <span
+            className="inline-flex items-center h-10 px-4 text-[12px] leading-none font-bold uppercase tracking-[0.14em] shrink-0 whitespace-nowrap mr-4"
+            style={{
+              background: "var(--tt-label-bg)",
+              color: "var(--tt-label-fg)",
+            }}
+          >
+            {label}
+          </span>
+        ) : (
+          <>
+            <span
+              className="inline-flex items-center h-10 gap-1.5 text-[12px] leading-none font-bold uppercase tracking-[0.14em] shrink-0 whitespace-nowrap mr-4"
+              style={{ color: "var(--tt-label)" }}
+            >
+              <Flame
+                className={`w-4 h-4 shrink-0 ${iconClass}`}
+                style={{ color: "var(--tt-label)" }}
+                aria-hidden
+              />
+              <span className="leading-none">{label}</span>
+            </span>
+            <span
+              className="hidden sm:block self-center h-4 w-px shrink-0 mr-4"
+              aria-hidden
+              style={{ background: "var(--tt-border)" }}
+            />
+          </>
+        )}
         <div
           className={`flex-1 min-w-0 flex items-center gap-6 ${
             kind === "scroll" ? "overflow-x-auto scrollbar-none" : "overflow-hidden"
@@ -153,19 +172,37 @@ export function TrendingTicker({
         >
           {kind === "scroll" ? (
             currentBatch.map((p, i) => (
-              <TickerItem key={`${p.id}-${i}`} post={p} index={i} lang={lang} animation="none" />
+              <div key={`${p.id}-${i}`} className="inline-flex items-center gap-6 shrink-0">
+                <TickerItem post={p} index={i} lang={lang} animation="none" showCounter={!isBadge} />
+                {isBadge && i < currentBatch.length - 1 && (
+                  <span
+                    className="tt-dot inline-block w-1 h-1 rounded-full shrink-0"
+                    style={{ background: "var(--tt-dot)" }}
+                    aria-hidden
+                  />
+                )}
+              </div>
             ))
           ) : (
             <div className="flex-1 min-w-0 flex items-center gap-6" key={`batch-${batch}`}>
               {currentBatch.map((p, i) => (
-                <TickerItem
-                  key={`${p.id}-${batch}-${i}`}
-                  post={p}
-                  index={batch * perView + i}
-                  lang={lang}
-                  animation={kind}
-                  delayMs={i * 90}
-                />
+                <div key={`${p.id}-${batch}-${i}`} className="inline-flex items-center gap-6 shrink-0">
+                  <TickerItem
+                    post={p}
+                    index={batch * perView + i}
+                    lang={lang}
+                    animation={kind}
+                    delayMs={i * 90}
+                    showCounter={!isBadge}
+                  />
+                  {isBadge && i < currentBatch.length - 1 && (
+                    <span
+                      className="tt-dot inline-block w-1 h-1 rounded-full shrink-0"
+                      style={{ background: "var(--tt-dot)" }}
+                      aria-hidden
+                    />
+                  )}
+                </div>
               ))}
             </div>
           )}
