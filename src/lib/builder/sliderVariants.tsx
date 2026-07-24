@@ -1521,7 +1521,7 @@ function MinimalStripVariant(p: VariantProps) {
           <h3 className="cms-post-title line-clamp-2" style={p.titleStyle}>
             {title || "\u00A0"}
           </h3>
-          {sub && (
+          {p.showExcerpt && sub && (
             <p className="cms-post-excerpt mt-1 text-white/85 line-clamp-1" style={p.subtitleStyle}>
               {sub}
             </p>
