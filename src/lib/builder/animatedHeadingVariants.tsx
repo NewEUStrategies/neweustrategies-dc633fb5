@@ -221,6 +221,7 @@ const shapeStroke: Record<AnimatedHeadingShape, number> = {
   none: 0,
   underline: 3,
   "double-underline": 4,
+  squiggle: 2.5,
   scribble: 4,
   curly: 1.75,
   zigzag: 1.75,
