@@ -86,6 +86,93 @@ export function WidgetLibrary({
     "form",
     "navigation",
   ] as const;
+
+  // Sub-grouping within each category: keeps the palette scannable when a
+  // category grows past ~6 items. Missing entries fall back to "misc" and are
+  // rendered last without a subheader when they are the only bucket.
+  const SUBGROUPS: Partial<Record<WidgetType, string>> = {
+    // basic
+    heading: "typography",
+    "animated-heading": "typography",
+    text: "typography",
+    image: "visual",
+    button: "actions",
+    divider: "layout",
+    spacer: "layout",
+    "section-label": "layout",
+    // blocks
+    accordion: "interactive",
+    tabs: "interactive",
+    "interactive-circle": "interactive",
+    "rich-text": "content",
+    testimonial: "content",
+    "team-member": "content",
+    "dark-featured-card": "content",
+    "rated-list": "content",
+    pricing: "marketing",
+    "hot-topic-bar": "marketing",
+    "logo-cloud": "marketing",
+    "ad-slot": "marketing",
+    timeline: "timeline",
+    // media
+    video: "visual",
+    gallery: "visual",
+    slider: "visual",
+    icon: "visual",
+    map: "location",
+    tts: "audio",
+    // dynamic
+    "post-list": "listings",
+    carousel: "listings",
+    "news-ticker": "listings",
+    "podcast-latest": "listings",
+    "web-stories-carousel": "listings",
+    categories: "taxonomy",
+    tags: "taxonomy",
+    chart: "dataViz",
+    "data-map": "dataViz",
+    "post-title": "singlePost",
+    "post-meta": "singlePost",
+    "post-tags-dyn": "singlePost",
+    "post-categories-dyn": "singlePost",
+    "post-author-card": "singlePost",
+    "post-breadcrumbs": "singlePost",
+    "post-cover": "singlePost",
+    "post-excerpt": "singlePost",
+    "archive-title": "singlePost",
+    // form
+    newsletter: "growth",
+    cta: "growth",
+    "join-us": "growth",
+    "customize-interests": "growth",
+    donations: "growth",
+    "login-form": "account",
+    "register-form": "account",
+    "lost-password-form": "account",
+    "reset-password-form": "account",
+    "search-form": "utility",
+    "contact-form": "utility",
+    contact: "utility",
+    // navigation
+    "nav-link": "menus",
+    "mega-menu": "menus",
+    menu: "menus",
+    "social-icons": "utility",
+    "lang-switcher": "utility",
+    "theme-toggle": "utility",
+    "account-link": "utility",
+    "search-button": "utility",
+    copyright: "footer",
+  };
+  const SUBGROUP_ORDER: Record<string, string[]> = {
+    basic: ["typography", "visual", "actions", "layout"],
+    blocks: ["interactive", "content", "marketing", "timeline"],
+    media: ["visual", "audio", "location"],
+    dynamic: ["listings", "taxonomy", "dataViz", "singlePost"],
+    form: ["growth", "account", "utility"],
+    navigation: ["menus", "utility", "footer"],
+    features: [],
+  };
   const tpl = useSectionTemplates();
   const globals = useGlobalWidgets();
   const filteredGlobals = globals.items.filter((g) =>
