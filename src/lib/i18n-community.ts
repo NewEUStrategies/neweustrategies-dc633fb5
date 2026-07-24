@@ -160,8 +160,8 @@ export const communityPl = {
       nextLevel: "Do poziomu „{{level}}” brakuje {{points}} pkt.",
       topLevel: "Najwyższy poziom - jesteś filarem tej społeczności.",
       notVisible:
-        "Masz punkty, ale nie widać Cię na tablicy - włącz widoczność w katalogu osób w ustawieniach prywatności.",
-      privacyCta: "Ustawienia prywatności",
+        "Masz punkty, ale nie widać Cię na tablicy - włącz widoczność w katalogu osób w ustawieniach profilu.",
+      privacyCta: "Ustawienia profilu",
       breakdownTitle: "Skąd punkty",
       peopleLink: "Katalog osób",
       sources: {
@@ -349,8 +349,8 @@ export const communityEn = {
       nextLevel: "{{points}} pts to reach “{{level}}”.",
       topLevel: "Top level - you are a pillar of this community.",
       notVisible:
-        "You have points but you're not on the board - enable people directory visibility in your privacy settings.",
-      privacyCta: "Privacy settings",
+        "You have points but you're not on the board - enable people directory visibility in your profile settings.",
+      privacyCta: "Profile settings",
       breakdownTitle: "Where your points come from",
       peopleLink: "People directory",
       sources: {
