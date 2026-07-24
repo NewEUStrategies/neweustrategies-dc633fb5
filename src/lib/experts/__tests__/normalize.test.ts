@@ -190,6 +190,40 @@ describe("buildExpertProfile", () => {
     expect(expert.org_functions).toEqual([]);
     expect(expert.media_contact_email).toBeNull();
   });
+
+  // Regresja: hub czyta z widoku author_profiles_public, który NIE zawiera
+  // zrewokowanego PII (contact_email / media_contact_email / media_contact_phone).
+  // Publiczne pola muszą się renderować, a brakujące PII schodzi do null - bez
+  // tego (czytanie wprost z author_profiles) całe zapytanie leciało 42501 i
+  // nakładka autora znikała z każdej strony /author/$slug.
+  it("populates public hub fields from a view-shaped row while PII stays null", () => {
+    const expert = buildExpertProfile(
+      { id: "u3", display_name: "Ola", slug: "ola" },
+      {
+        job_title: "Ekspertka",
+        company: "NES",
+        full_bio_pl: "<p>Bio</p>",
+        org_functions: [{ pl: "Szefowa", en: "Head" }],
+        media_contact_name: "Biuro Prasowe",
+        linkedin_url: "https://linkedin.com/in/ola",
+        x_url: "https://x.com/ola",
+        website_url: "https://ola.example",
+        // Kolumny PII CELOWO nieobecne (jak w author_profiles_public).
+      },
+      ["expert"],
+    );
+    expect(expert.job_title).toBe("Ekspertka");
+    expect(expert.company).toBe("NES");
+    expect(expert.full_bio_pl).toBe("<p>Bio</p>");
+    expect(expert.org_functions).toEqual([{ pl: "Szefowa", en: "Head" }]);
+    expect(expert.media_contact_name).toBe("Biuro Prasowe");
+    expect(expert.linkedin_url).toBe("https://linkedin.com/in/ola");
+    expect(expert.website_url).toBe("https://ola.example");
+    // PII nieobecne w widoku -> null (nie undefined, nie wyciek).
+    expect(expert.contact_email).toBeNull();
+    expect(expert.media_contact_email).toBeNull();
+    expect(expert.media_contact_phone).toBeNull();
+  });
 });
 
 describe("mapProgramMembers", () => {
