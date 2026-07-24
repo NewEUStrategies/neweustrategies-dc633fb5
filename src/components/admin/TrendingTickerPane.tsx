@@ -934,13 +934,16 @@ function ColorGroup({
   values: TickerColors;
   onChange: (k: keyof TickerColors, v: string) => void;
 }) {
-  const labelMap: Record<keyof TickerColors, string> = {
+  const labelMap: Partial<Record<keyof TickerColors, string>> = {
     bg: labels.color_bg,
     border: labels.color_border,
     label: labels.color_label,
     item: labels.color_item,
     itemHover: labels.color_itemHover,
     counter: labels.color_counter,
+    labelBg: labels.color_labelBg,
+    labelFg: labels.color_labelFg,
+    dot: labels.color_dot,
   };
   return (
     <div className="rounded-[5px] border border-border p-3 space-y-2 bg-background/40">
@@ -952,8 +955,8 @@ function ColorGroup({
           <ColorField
             key={k}
             id={`tt-color-${title}-${k}`}
-            label={labelMap[k]}
-            value={values[k]}
+            label={labelMap[k] ?? String(k)}
+            value={values[k] ?? ""}
             onChange={(v) => onChange(k, v)}
           />
         ))}
