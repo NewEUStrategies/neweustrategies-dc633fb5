@@ -14,6 +14,7 @@ import {
 import {
   DEFAULT_TICKER_COLORS,
   type IconAnimation,
+  type LayoutStyle,
   type MixedFill,
   type TickerColorScheme,
 } from "@/lib/views/tickerVariants";
@@ -25,6 +26,7 @@ export type { TickerMode };
 export interface TickerProps {
   source?: TickerSource;
   mode?: TickerMode;
+  layoutStyle?: LayoutStyle;
   days?: number;
   limit?: number;
   visibleCount?: number;
