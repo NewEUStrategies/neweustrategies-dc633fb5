@@ -481,9 +481,14 @@ const SHARED_STYLES = `
 [data-widget-explicit-height="true"] .eh-slider .eh-multi-track,
 [data-widget-explicit-height="true"] .eh-slider .eh-multi-card-item { height: 100%; min-height: 0; }
 [data-widget-explicit-height="true"] .eh-slider .eh-multi-card-item { display: flex; flex-direction: column; }
-[data-widget-explicit-height="true"] .eh-slider .eh-card-media-link { flex: 1 1 auto; min-height: 0; }
-[data-widget-explicit-height="true"] .eh-slider .eh-card-media { height: 100%; min-height: 0; aspect-ratio: auto !important; }
-[data-widget-explicit-height="true"] .eh-slider .eh-card-content { flex: 0 0 auto; }
+/* Media zawsze zajmuje co najmniej 60% wysokości karty i nigdy nie zanika -
+   dzięki temu przy zmniejszaniu widgetu cover skaluje się responsywnie
+   (object-fit: cover), a tekst poniżej przycina się zamiast wypychać obraz. */
+[data-widget-explicit-height="true"] .eh-slider .eh-card-media-link { flex: 1 1 60%; min-height: 96px; display: block; }
+[data-widget-explicit-height="true"] .eh-slider .eh-card-media { height: 100%; min-height: 96px; aspect-ratio: auto !important; }
+[data-widget-explicit-height="true"] .eh-slider .eh-card-content { flex: 0 1 auto; min-height: 0; overflow: hidden; }
+[data-widget-explicit-height="true"] .eh-slider .eh-card-media img,
+[data-widget-explicit-height="true"] .eh-slider .eh-card-media .eh-hover-zoom { width: 100%; height: 100%; object-fit: cover; }
 @media (max-width: 1024px) { .eh-slider .eh-card { width: calc((100% - 16px) / 2) !important; } }
 @media (max-width: 640px) { .eh-slider .eh-card { width: 100% !important; } .eh-slider .eh-track { gap: 12px !important; } }
 `;
