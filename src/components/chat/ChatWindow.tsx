@@ -85,6 +85,7 @@ import { ChatAppearanceDialog } from "./ChatAppearanceDialog";
 import { ChatAvatar } from "./ChatAvatar";
 import { ChatComposer } from "./ChatComposer";
 import { ChatMediaPanel } from "./ChatMediaPanel";
+import { ChatSurfaceBoundary } from "./ChatSurfaceBoundary";
 import { ForwardDialog } from "./ForwardDialog";
 import { GroupInfoDialog } from "./GroupInfoDialog";
 import { MessageList } from "./MessageList";
@@ -897,42 +898,46 @@ export function ChatWindow(props: ChatWindowProps) {
           onClose={() => setSearchOpen(false)}
         />
       )}
-      <MessageList
-        lang={lang}
-        myUserId={user.id}
-        messages={messages}
-        reactions={reactionsQ.data ?? EMPTY_REACTIONS_MAP}
-        reactorProfiles={reactorProfiles}
-        peerName={peerName}
-        peerAvatarUrl={peerAvatar}
-        isGroup={isGroup}
-        senderProfiles={isGroup ? peersQ.data : undefined}
-        senderNicknames={conversationNicknames}
-        typingNames={typingNames}
-        typingAvatarUrl={typingAvatarUrl}
-        peerLastReadAt={peerLastReadAt}
-        peerLastDeliveredAt={peerLastDeliveredAt}
-        peerTyping={peerTypingSafe}
-        ttlSeconds={ttlSeconds}
-        wallpaper={wallpaper}
-        starredIds={starredIdsQ.data}
-        firstUnreadId={firstUnreadId}
-        unreadCount={unreadSnapshot?.count ?? 0}
-        jumpToId={jumpTarget}
-        onJumpHandled={handleJumpHandled}
-        hasOlder={!!messagesQ.hasNextPage}
-        loadingOlder={messagesQ.isFetchingNextPage || messagesQ.isLoading}
-        onLoadOlder={handleLoadOlder}
-        onReact={handleReact}
-        onReply={handleReply}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onDiscardFailed={handleDiscardFailed}
-        onRetryFailed={handleRetryFailed}
-        onToggleStar={handleToggleStar}
-        onForward={handleForward}
-        canEdit={canEdit}
-      />
+      {/* Awaria renderowania pojedynczego dymka zostaje w panelu wątku -
+          reszta ekranu wiadomości (lista rozmów, kompozytor) żyje dalej. */}
+      <ChatSurfaceBoundary>
+        <MessageList
+          lang={lang}
+          myUserId={user.id}
+          messages={messages}
+          reactions={reactionsQ.data ?? EMPTY_REACTIONS_MAP}
+          reactorProfiles={reactorProfiles}
+          peerName={peerName}
+          peerAvatarUrl={peerAvatar}
+          isGroup={isGroup}
+          senderProfiles={isGroup ? peersQ.data : undefined}
+          senderNicknames={conversationNicknames}
+          typingNames={typingNames}
+          typingAvatarUrl={typingAvatarUrl}
+          peerLastReadAt={peerLastReadAt}
+          peerLastDeliveredAt={peerLastDeliveredAt}
+          peerTyping={peerTypingSafe}
+          ttlSeconds={ttlSeconds}
+          wallpaper={wallpaper}
+          starredIds={starredIdsQ.data}
+          firstUnreadId={firstUnreadId}
+          unreadCount={unreadSnapshot?.count ?? 0}
+          jumpToId={jumpTarget}
+          onJumpHandled={handleJumpHandled}
+          hasOlder={!!messagesQ.hasNextPage}
+          loadingOlder={messagesQ.isFetchingNextPage || messagesQ.isLoading}
+          onLoadOlder={handleLoadOlder}
+          onReact={handleReact}
+          onReply={handleReply}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onDiscardFailed={handleDiscardFailed}
+          onRetryFailed={handleRetryFailed}
+          onToggleStar={handleToggleStar}
+          onForward={handleForward}
+          canEdit={canEdit}
+        />
+      </ChatSurfaceBoundary>
       {peerBlocked ? (
         <div className="border-t border-border/60 bg-background/95 px-3 py-2.5 text-center">
           <p className="text-[12px] text-muted-foreground">{t("chat.block.composerNotice")}</p>

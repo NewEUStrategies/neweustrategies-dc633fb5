@@ -5,9 +5,38 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "@/lib/utils";
 
-const TooltipProvider = TooltipPrimitive.Provider;
+/**
+ * Radix requires a Provider above every tooltip root and THROWS when it is
+ * missing ("`Tooltip` must be used within `TooltipProvider`"). One unwrapped
+ * tooltip therefore escalates into a full-page crash through the global error
+ * boundary - exactly what a chat reaction chip did on the message preview.
+ *
+ * So the primitive heals itself: provider presence lives in our own context and
+ * `Tooltip` mounts a scoped provider when nobody above it did. An explicit
+ * `TooltipProvider` still wins and keeps its shared hover-delay grouping
+ * (`skipDelayDuration`), so composed surfaces behave exactly as before.
+ */
+const TooltipProviderPresence = React.createContext(false);
 
-const Tooltip = TooltipPrimitive.Root;
+type TooltipProviderProps = React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Provider>;
+
+const TooltipProvider = ({ children, ...props }: TooltipProviderProps) => (
+  <TooltipProviderPresence.Provider value={true}>
+    <TooltipPrimitive.Provider {...props}>{children}</TooltipPrimitive.Provider>
+  </TooltipProviderPresence.Provider>
+);
+TooltipProvider.displayName = TooltipPrimitive.Provider.displayName;
+
+type TooltipProps = React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>;
+
+const Tooltip = ({ children, ...props }: TooltipProps) => {
+  const hasProvider = React.useContext(TooltipProviderPresence);
+  const root = <TooltipPrimitive.Root {...props}>{children}</TooltipPrimitive.Root>;
+  if (hasProvider) return root;
+  // Standalone fallback: scoped to this tooltip only, honouring its own delay.
+  return <TooltipProvider delayDuration={props.delayDuration}>{root}</TooltipProvider>;
+};
+Tooltip.displayName = TooltipPrimitive.Root.displayName;
 
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
