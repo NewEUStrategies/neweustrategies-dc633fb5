@@ -326,6 +326,7 @@ function ExpertHubPage() {
                 expertId={expert.id}
                 expertName={name}
                 expertAvatar={expert.avatar_url}
+                recipientEnabled={expert.expert_requests_enabled}
               />
               <RequestIntroductionButton userId={expert.id} displayName={name} />
               <MutualConnectionsHint userId={expert.id} />

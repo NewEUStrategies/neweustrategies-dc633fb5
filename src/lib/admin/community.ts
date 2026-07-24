@@ -64,6 +64,7 @@ export async function fetchCommunityModules(): Promise<CommunityModulesSettings>
     contributor_program_enabled: raw.contributor_program_enabled !== false,
     badges_enabled: raw.badges_enabled !== false,
     push_enabled: raw.push_enabled !== false,
+    expert_requests_enabled: raw.expert_requests_enabled !== false,
     default_message_ttl_seconds:
       typeof raw.default_message_ttl_seconds === "number" ? raw.default_message_ttl_seconds : null,
   };

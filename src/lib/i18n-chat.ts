@@ -436,6 +436,11 @@ export const chatPl = {
     discoverableOff: "Profil ukryty - nikt nie znajdzie Cię w wyszukiwarce",
     externalNote:
       "Niezależnie od tego ustawienia Twój profil nigdy nie jest widoczny ani indeksowany poza platformą - osoby niezalogowane i roboty wyszukiwarek nie mają do niego dostępu.",
+    expertRequestsLabel: "Przyjmuj zapytania do eksperta",
+    expertRequestsHint:
+      "Gdy włączone, na Twoim profilu pojawia się przycisk „Zapytanie do eksperta” i inni mogą przesłać Ci formalne zapytanie. Wyłączenie ukrywa przycisk i blokuje nowe zapytania. Administrator może też wyłączyć tę funkcję globalnie.",
+    expertRequestsOn: "Przycisk widoczny na Twoim profilu",
+    expertRequestsOff: "Przycisk ukryty - nowe zapytania są zablokowane",
     allowMessagesLabel: "Kto może rozpocząć z Tobą nową rozmowę",
     allowMessagesHint:
       "Egzekwowane po stronie serwera. „Tylko dotychczasowi rozmówcy” blokuje nowe konwersacje, ale istniejące wątki działają dalej. „Nikt” dodatkowo wycisza wiadomości przychodzące także w istniejących wątkach - dopóki nie zmienisz ustawienia.",
@@ -868,6 +873,11 @@ export const chatEn = {
     discoverableOff: "Profile hidden - nobody can find you in the search",
     externalNote:
       "Regardless of this setting, your profile is never visible or indexable outside the platform - anonymous visitors and search engine bots have no access to it.",
+    expertRequestsLabel: "Accept expert requests",
+    expertRequestsHint:
+      'When enabled, an "Ask the expert" button appears on your profile and others can send you a formal request. Turning it off hides the button and blocks new requests. An admin can also disable this feature globally.',
+    expertRequestsOn: "Button visible on your profile",
+    expertRequestsOff: "Button hidden - new requests are blocked",
     allowMessagesLabel: "Who can start a new conversation with you",
     allowMessagesHint:
       "Enforced server-side. “Existing contacts only” blocks new conversations while existing threads keep working. “Nobody” additionally mutes incoming messages in existing threads too - until you change the setting.",

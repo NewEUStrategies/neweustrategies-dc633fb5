@@ -86,6 +86,8 @@ export function buildExpertProfile(prof: Row, apRow: Row | null, badges: string[
     verified_at: strOrNull(prof.verified_at),
     updated_at: strOrNull(prof.updated_at),
     is_expert: badges.includes("expert"),
+    // Domyślnie true (kolumna NOT NULL DEFAULT true); jawne false chowa przycisk.
+    expert_requests_enabled: prof.expert_requests_enabled !== false,
     contact_email: strOrNull(apRow?.contact_email),
     website_url: strOrNull(apRow?.website_url) ?? strOrNull(prof.website_url),
     twitter_url: strOrNull(apRow?.x_url) ?? strOrNull(prof.twitter_url),

@@ -12,6 +12,8 @@ export interface CommunityModulesSettings {
   contributor_program_enabled: boolean;
   badges_enabled: boolean;
   push_enabled: boolean;
+  /** Globalny przełącznik przycisku "Zapytanie do eksperta" (per tenant). */
+  expert_requests_enabled: boolean;
   default_message_ttl_seconds: number | null;
 }
 
@@ -24,6 +26,7 @@ export const COMMUNITY_MODULES_DEFAULTS: CommunityModulesSettings = {
   contributor_program_enabled: true,
   badges_enabled: true,
   push_enabled: true,
+  expert_requests_enabled: true,
   default_message_ttl_seconds: null,
 };
 

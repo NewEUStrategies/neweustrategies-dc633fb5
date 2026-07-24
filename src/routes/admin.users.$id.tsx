@@ -348,6 +348,10 @@ function UserDetail() {
             <UserConsentPanel userId={data.id} isPL={isPL} />
           </Card>
 
+          <Card title={L("Zapytania do eksperta", "Expert requests")}>
+            <ExpertRequestsAdminToggle userId={data.id} isPL={isPL} />
+          </Card>
+
           <Card title={L("Akcje", "Actions")}>
             <div className="flex flex-col gap-2">
               <Link to="/admin/users" className="text-sm text-primary hover:underline">
@@ -649,6 +653,71 @@ function BadgesEditor({ userId, tenantId }: { userId: string; tenantId: string |
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Przełącznik admina: czy pokazywać przycisk "Zapytanie do eksperta" na profilu
+// tego użytkownika. Odczyt wprost z profiles (admin=staff, RLS pozwala), zapis
+// przez SECURITY DEFINER admin_set_expert_requests_enabled (profiles UPDATE jest
+// own-row only). Uzupełnia globalny przełącznik w /admin/community.
+function ExpertRequestsAdminToggle({ userId, isPL }: { userId: string; isPL: boolean }) {
+  const L = (pl: string, en: string) => (isPL ? pl : en);
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const q = useQuery({
+    queryKey: ["admin-user-expert-requests", userId],
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("expert_requests_enabled" as never)
+        .eq("id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      return (
+        (data as { expert_requests_enabled?: boolean } | null)?.expert_requests_enabled ?? true
+      );
+    },
+  });
+  const on = q.data ?? true;
+
+  const setEnabled = async (next: boolean) => {
+    setBusy(true);
+    const { error } = await supabase.rpc(
+      "admin_set_expert_requests_enabled" as never,
+      {
+        p_user_id: userId,
+        p_enabled: next,
+      } as never,
+    );
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(L("Zapisano", "Saved"));
+    qc.invalidateQueries({ queryKey: ["admin-user-expert-requests", userId] });
+  };
+
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">
+          {L("Pokazuj przycisk zapytania", "Show request button")}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {L(
+            'Przycisk "Zapytanie do eksperta" na profilu tego użytkownika.',
+            'The "Ask the expert" button on this user\'s profile.',
+          )}
+        </p>
+      </div>
+      <Switch
+        checked={on}
+        disabled={q.isLoading || busy}
+        onCheckedChange={(v) => void setEnabled(v)}
+        aria-label={L("Zapytania do eksperta", "Expert requests")}
+      />
     </div>
   );
 }

@@ -218,6 +218,17 @@ function CommunityOverview() {
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ push_enabled: v })}
             />
+            <ToggleRow
+              label={isPl ? "Zapytania do eksperta" : "Expert requests"}
+              hint={
+                isPl
+                  ? 'Przycisk "Zapytanie do eksperta" na profilach (globalnie)'
+                  : '"Ask the expert" button on profiles (global)'
+              }
+              checked={modules?.expert_requests_enabled ?? true}
+              disabled={saveModules.isPending || !modules}
+              onChange={(v) => saveModules.mutate({ expert_requests_enabled: v })}
+            />
           </div>
 
           <div className="pt-4 border-t border-border/60 space-y-2">

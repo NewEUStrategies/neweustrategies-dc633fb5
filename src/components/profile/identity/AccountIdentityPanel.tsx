@@ -23,7 +23,12 @@ import { FieldLabel } from "@/components/profile/FieldLabel";
 import { ProfileMediaPreview } from "@/components/profile/ProfileMediaPreview";
 import { Switch } from "@/components/ui/switch";
 import { Eye, EyeOff } from "lucide-react";
-import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
+import {
+  useDiscoverable,
+  useSetDiscoverable,
+  useExpertRequestsEnabled,
+  useSetExpertRequestsEnabled,
+} from "@/lib/chat/useDiscoverable";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   useNotificationPreferences,
@@ -99,6 +104,9 @@ function PrivacyVisibilitySection() {
   const { t } = useTranslation();
   const discoverableQ = useDiscoverable();
   const setDiscoverable = useSetDiscoverable();
+  const expertRequestsQ = useExpertRequestsEnabled();
+  const setExpertRequests = useSetExpertRequestsEnabled();
+  const expertRequestsOn = expertRequestsQ.data ?? true;
   const prefsQ = useNotificationPreferences();
   const updatePrefs = useUpdateNotificationPreferences();
   const on = discoverableQ.data ?? false;
@@ -149,6 +157,37 @@ function PrivacyVisibilitySection() {
           />
           <span className="hidden text-xs font-medium sm:inline">
             {on ? t("profilePrivacy.discoverableOn") : t("profilePrivacy.discoverableOff")}
+          </span>
+        </div>
+      </div>
+
+      {/* Zgoda na "Zapytanie do eksperta" - steruje przyciskiem na Twoim profilu
+          (obok globalnego przełącznika admina; egzekwowane też w DB). */}
+      <div className="flex items-start gap-3 border-t border-border/40 pt-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug">
+            {t("profilePrivacy.expertRequestsLabel")}
+          </p>
+          <p className="mt-1 text-xs leading-snug text-muted-foreground">
+            {t("profilePrivacy.expertRequestsHint")}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 pt-0.5">
+          <Switch
+            checked={expertRequestsOn}
+            disabled={expertRequestsQ.isLoading || setExpertRequests.isPending}
+            onCheckedChange={(next) =>
+              setExpertRequests.mutate(next, {
+                onSuccess: () => toast.success(t("profilePrivacy.saved")),
+                onError: () => toast.error(t("profilePrivacy.saveError")),
+              })
+            }
+            aria-label={t("profilePrivacy.expertRequestsLabel")}
+          />
+          <span className="hidden text-xs font-medium sm:inline">
+            {expertRequestsOn
+              ? t("profilePrivacy.expertRequestsOn")
+              : t("profilePrivacy.expertRequestsOff")}
           </span>
         </div>
       </div>
