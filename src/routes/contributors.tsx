@@ -140,7 +140,7 @@ function MyReputationCard({ days }: { days: WindowDays }) {
         {!my.board_visible && my.points > 0 && (
           <p className="text-xs text-muted-foreground">
             {t("community.reputation.notVisible")}{" "}
-            <Link to="/profile/privacy" className="font-medium text-primary hover:underline">
+            <Link to="/profile/edit" className="font-medium text-primary hover:underline">
               {t("community.reputation.privacyCta")}
             </Link>
           </p>

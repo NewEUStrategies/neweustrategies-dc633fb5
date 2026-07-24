@@ -7,9 +7,19 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight, MapPin, Search, UserPlus, Users, UsersRound } from "lucide-react";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Search,
+  UserPlus,
+  Users,
+  UsersRound,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
@@ -253,7 +263,6 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
     }
   }, [pageStart, connections.length, connectionsQ]);
 
-
   return (
     <div className="space-y-3">
       <div className="relative">
@@ -376,7 +385,6 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
             </nav>
           )}
         </>
-
       )}
     </div>
   );
@@ -591,7 +599,12 @@ function NetworkInner() {
   return (
     <div className="container mx-auto max-w-7xl px-3 py-5 sm:px-4 sm:py-6">
       <div className="mb-3">
-        <Button asChild variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground">
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+        >
           <Link to="/profile">
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
             {t("network.backToProfile", { defaultValue: "Wróć do mojego profilu" })}
@@ -614,7 +627,6 @@ function NetworkInner() {
         </Button>
       </header>
 
-
       <Tabs
         value={active}
         onValueChange={(next) =>
@@ -623,7 +635,6 @@ function NetworkInner() {
             replace: true,
           })
         }
-        className="mb-4"
       >
         <TabsList className="h-9 w-full justify-start overflow-x-auto rounded-[6px] bg-muted/40 sm:w-auto">
           <TabsTrigger value="connections" className="rounded-[4px] text-xs">
@@ -639,12 +650,23 @@ function NetworkInner() {
             {tabLabel("suggestions", undefined)}
           </TabsTrigger>
         </TabsList>
-      </Tabs>
 
-      {active === "connections" && <ConnectionsTab highlightId={c} />}
-      {active === "received" && <RequestsTab direction="in" highlightId={c} />}
-      {active === "sent" && <RequestsTab direction="out" highlightId={c} />}
-      {active === "suggestions" && <SuggestionsTab />}
+        {/* Panele wewnątrz Tabs, aby Radix powiązał role="tabpanel" z aria-controls
+            wyzwalaczy (dostępność klawiatury/czytników). Nieaktywne panele są
+            odmontowywane - zachowane leniwe ładowanie danych zakładek. */}
+        <TabsContent value="connections" className="mt-4">
+          <ConnectionsTab highlightId={c} />
+        </TabsContent>
+        <TabsContent value="received" className="mt-4">
+          <RequestsTab direction="in" highlightId={c} />
+        </TabsContent>
+        <TabsContent value="sent" className="mt-4">
+          <RequestsTab direction="out" highlightId={c} />
+        </TabsContent>
+        <TabsContent value="suggestions" className="mt-4">
+          <SuggestionsTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
