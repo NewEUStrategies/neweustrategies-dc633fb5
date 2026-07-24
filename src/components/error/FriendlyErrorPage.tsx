@@ -176,7 +176,7 @@ export function FriendlyErrorPage({
         <div className="mt-5 flex items-center justify-center gap-1 text-xs text-muted-foreground">
           <HelpCircle size={14} />
           <span>{lang === "pl" ? "Potrzebujesz pomocy? " : "Need help? "}</span>
-          <Link to="/support" className="text-brand hover:underline">
+          <Link to="/support" search={{}} className="text-brand hover:underline">
             {lang === "pl" ? "Skontaktuj się z nami" : "Contact support"}
           </Link>
         </div>

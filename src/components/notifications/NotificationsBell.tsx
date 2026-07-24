@@ -201,14 +201,12 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
         <button
           type="button"
           className={[
-            "relative isolate inline-flex h-10 w-10 items-center justify-center shrink-0 overflow-visible",
-            "rounded-[10px] border border-transparent bg-transparent text-foreground",
-            "transition-all duration-200",
-            "hover:bg-muted/60 hover:border-border/60 hover:-translate-y-px",
-            "active:translate-y-0",
+            "relative isolate inline-flex items-center justify-center p-0 m-0 shrink-0 overflow-visible",
+            "bg-transparent border-0 text-foreground",
+            "transition-colors duration-200",
+            "hover:text-brand",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             "disabled:opacity-50 disabled:pointer-events-none",
-            unread > 0 && "text-foreground",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -217,7 +215,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
           aria-expanded={open}
         >
           <Bell
-            className="h-[18px] w-[18px] transition-transform duration-200"
+            className="h-[18px] w-[18px]"
             aria-hidden
           />
 
@@ -225,7 +223,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             count={unread}
             variant="alert"
             size="sm"
-            className="absolute right-0 top-0 z-[100]"
+            className="absolute -right-1 -top-1 z-[100]"
           />
         </button>
       </PopoverTrigger>
