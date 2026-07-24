@@ -396,18 +396,8 @@ export function WidgetProperties({
             </div>
           </div>
 
-          {/* ═══════════════ GROUP: Appearance ═══════════════ */}
-          <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 -mx-1">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/80 flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-brand" />
-              {t("builder.widgetProps.appearance")}
-              <span className="text-muted-foreground/60 font-normal normal-case tracking-normal text-[9px]">
-                {t("builder.widgetProps.appearanceSub")}
-              </span>
-            </div>
-          </div>
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
 
-          <section className="space-y-2">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.typography")} ({md()})
             </h4>
