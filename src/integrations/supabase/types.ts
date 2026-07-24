@@ -12375,8 +12375,8 @@ export type Database = {
         }
         Returns: {
           allowed: boolean
+          bucket_start: string
           hits: number
-          window_start: string
         }[]
       }
       recompute_crm_lead_score: { Args: { p_lead_id: string }; Returns: Json }
