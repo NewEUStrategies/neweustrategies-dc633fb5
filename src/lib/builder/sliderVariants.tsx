@@ -912,6 +912,7 @@ type VariantProps = {
   navigateTo: (href?: string) => void;
   columns: 1 | 2 | 3 | 4;
   nav: NavStyleResolved;
+  showExcerpt: boolean;
 };
 
 function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
