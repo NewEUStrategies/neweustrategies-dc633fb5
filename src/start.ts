@@ -257,6 +257,15 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
   });
 }
 
+// CSRF middleware dla wywołań serverFn: TanStack Start ostrzega, że bez
+// niego endpointy RPC są narażone na cross-site requesty. Filter zawęża
+// walidację do serverFn - dokumenty SSR i /api/public/* przechodzą bez
+// zmian. Domyślnie akceptujemy same-origin (Sec-Fetch-Site + Origin).
+const csrfMiddleware = createCsrfMiddleware({
+  filter: (ctx) => ctx.handlerType === "serverFn",
+});
+
+
 export const startInstance = createStart(() => ({
   // Middleware order matters:
   //   1. securityHeaders wraps everything so even 301/302/410 responses carry
