@@ -326,20 +326,26 @@ export function useToggleReaction(conversationId: string) {
         if (error) throw error;
         return;
       }
-      // One idempotent path handles both adding and switching. A plain UPDATE
-      // could successfully affect zero rows when the local `current` value was
-      // stale, leaving the optimistic chip visible although nothing was saved.
-      const { error } = await supabase.from("message_reactions").upsert(
-        {
-          message_id: input.messageId,
-          conversation_id: conversationId,
-          tenant_id: tenantId,
-          user_id: user.id,
-          emoji: input.emoji,
-        },
-        { onConflict: "message_id,user_id" },
-      );
-      if (error) throw error;
+      // Insert first so a stale local `current` value cannot turn a switch into
+      // a successful zero-row UPDATE. On the unique message/user conflict only
+      // the emoji column is updated, preserving the least-privilege DB grant.
+      const reaction = {
+        message_id: input.messageId,
+        conversation_id: conversationId,
+        tenant_id: tenantId,
+        user_id: user.id,
+        emoji: input.emoji,
+      };
+      const { error: insertError } = await supabase.from("message_reactions").insert(reaction);
+      if (!insertError) return;
+      if (insertError.code !== "23505") throw insertError;
+
+      const { error: updateError } = await supabase
+        .from("message_reactions")
+        .update({ emoji: input.emoji })
+        .eq("message_id", input.messageId)
+        .eq("user_id", user.id);
+      if (updateError) throw updateError;
     },
     // Optimistic: the tap lands instantly; the realtime echo (or the error
     // rollback below) reconciles the authoritative state.
