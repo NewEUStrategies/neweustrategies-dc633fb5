@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronUp } from "@/lib/lucide-shim";
+import { ChevronsUp } from "@/lib/lucide-shim";
 
 interface Props {
   thresholdPx?: number;
@@ -25,7 +25,7 @@ export function BackToTop({ thresholdPx = 400 }: Props) {
       onClick={onClick}
       aria-label={t("footer.back_to_top", { defaultValue: "Wróć na górę" })}
       className={[
-        "fixed bottom-6 right-6 z-40 h-11 w-11 rounded-full",
+        "fixed bottom-6 right-6 z-40 h-11 w-11 rounded-[6px]",
         "bg-brand text-brand-foreground shadow-lg",
         "flex items-center justify-center",
         "transition-all duration-200",
@@ -33,7 +33,7 @@ export function BackToTop({ thresholdPx = 400 }: Props) {
         "hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
       ].join(" ")}
     >
-      <ChevronUp className="w-5 h-5" aria-hidden="true" />
+      <ChevronsUp className="w-5 h-5" aria-hidden="true" />
     </button>
   );
 }
