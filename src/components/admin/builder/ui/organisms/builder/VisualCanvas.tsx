@@ -111,6 +111,8 @@ export function VisualCanvas({
   onMultiSelectionChange?: (ids: ReadonlySet<string>, mode: "replace" | "add" | "toggle") => void;
   /** Inline click-to-edit commit for widget content fields (text, HTML, labels…). */
   onWidgetContentChange?: (widgetId: string, key: string, value: string | number) => void;
+  /** Persist a new pixel height for a widget on the given breakpoint (drag-to-resize). */
+  onWidgetResize?: (widgetId: string, heightPx: number, device: Device) => void;
 }) {
   const safeDoc = safeParseBuilderDoc(doc);
   const rootRef = useRef<HTMLDivElement | null>(null);
