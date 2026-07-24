@@ -103,9 +103,14 @@ export function startCacheBusting(router: AnyRouter): () => void {
   window.addEventListener("error", onError);
   window.addEventListener("unhandledrejection", onRejection);
 
-  // (2) Polling wersji + reload przy najbliższej nawigacji SPA.
+  // (2) Polling wersji -> MIĘKKIE odświeżenie w tle (router.invalidate).
+  // Wcześniej ustawialiśmy flagę i przy najbliższej nawigacji robiliśmy
+  // window.location.replace(...) - efekt: header/UI "twardo" mrugały po
+  // każdej zmianie tras, bo w preview BUILD_ID zmienia się per-isolate
+  // (patrz api/public/version.ts fallback `rt-<Date.now()>`). Teraz nowy
+  // build sprząta wyłącznie cache React Query i re-runuje loadery w tle;
+  // hard reload zostaje wyłącznie awaryjnie dla chunk-load errors.
   let baseline: string | null = null;
-  let pendingReload = false;
   let timer: ReturnType<typeof setInterval> | null = null;
 
   const check = async () => {
@@ -115,11 +120,12 @@ export function startCacheBusting(router: AnyRouter): () => void {
       baseline = v;
       return;
     }
-    if (v !== baseline && !pendingReload) {
-      pendingReload = true;
+    if (v !== baseline) {
+      baseline = v;
       if (process.env.NODE_ENV !== "production") {
-        console.info(`[cache-busting] new build detected (${baseline} -> ${v})`);
+        console.info(`[cache-busting] new build detected - soft refresh`);
       }
+      void router.invalidate();
     }
   };
 
@@ -135,19 +141,13 @@ export function startCacheBusting(router: AnyRouter): () => void {
   };
   document.addEventListener("visibilitychange", onVisibility);
 
-  const unsubRouter = router.subscribe("onBeforeNavigate", () => {
-    if (pendingReload) {
-      safeReloadOnce("new-build-available");
-    }
-  });
-
   return () => {
     window.removeEventListener("error", onError);
     window.removeEventListener("unhandledrejection", onRejection);
     document.removeEventListener("visibilitychange", onVisibility);
     window.clearTimeout(kickoff);
     if (timer) clearInterval(timer);
-    unsubRouter();
     started = false;
   };
 }
+
