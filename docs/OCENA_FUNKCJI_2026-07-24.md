@@ -9,7 +9,8 @@ agentów-audytorów, każde ustalenie poparte ścieżką pliku/RPC. Dokument jes
 ogniwem serii i uzupełnia — nie dubluje — istniejące: `OCENA_MODULOW_2026-07-20.md` (5 modułów zbiorczo),
 `OCENA_PLATFORMY_I_MODULOW_2026-07-23.md` (audyt krytyczny obszarowy) i `REKOMENDACJE_FUNKCJE_WPISY_STRONY_2026-07-20.md`.
 Uwzględnia stan po `WDROZENIE_REKOMENDACJI_2026-07-23.md` (m.in. serie/dossier, blok ankiety, cytowania,
-kontrolki audio — już wdrożone).
+kontrolki audio — już wdrożone). Zestawienie konkurencyjne w tej samej strukturze 20 modułów (PL / UE /
+międzynarodowi, z reżimem „b/d" dla modułów niewidocznych z zewnątrz): `OCENA_FUNKCJI_KONKURENCI_2026-07-24.md`.
 
 ## Skala i metodyka oceny
 
