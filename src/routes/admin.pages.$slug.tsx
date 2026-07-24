@@ -156,17 +156,24 @@ function EditPage() {
   // Baza optimistic-locka: updated_at ostatnio załadowanego/zapisanego wiersza.
   const baseUpdatedAtRef = useRef<string | null>(null);
 
+  // Zaciągamy stan formularza WYŁĄCZNIE przy pierwszym załadowaniu strony
+  // (page.id się zmienia) - kolejne refetche `page-by-slug` przynoszą starszy
+  // updated_at (cache nie jest bumpowany po autosave), a nadpisanie
+  // baseUpdatedAtRef stalą wartością powodowało EDIT_CONFLICT przy następnym
+  // zapisie. savedFormRef też przypinamy tylko przy pierwszym odczycie -
+  // porównanie dirty i tak liczy się względem lastSaved z useAutosave.
+  const loadedIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (page) {
-      // Strony wymuszają wspólną strukturę PL/EN przez Visual Builder.
-      // Legacy tryby (richtext/markdown) są automatycznie migrowane.
-      const normalized: PageForm =
-        page.editor === "builder" ? page : { ...page, editor: "builder" };
-      history.reset(normalized);
-      savedFormRef.current = normalized;
-      baseUpdatedAtRef.current = normalized.updated_at ?? null;
-    }
+    if (!page) return;
+    if (loadedIdRef.current === page.id) return;
+    loadedIdRef.current = page.id;
+    const normalized: PageForm =
+      page.editor === "builder" ? page : { ...page, editor: "builder" };
+    history.reset(normalized);
+    savedFormRef.current = normalized;
+    baseUpdatedAtRef.current = normalized.updated_at ?? null;
   }, [page, history.reset]);
+
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

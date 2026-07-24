@@ -54,12 +54,19 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   // zgłaszał fałszywego konfliktu.
   const baseUpdatedAtRef = useRef<string | null>(null);
 
+  // Reset TYLKO przy pierwszym załadowaniu wpisu (post.id się zmienia).
+  // Kolejne refetche `post-by-slug` przynoszą starszy updated_at (cache nie
+  // jest bumpowany po autosave); zastąpienie baseUpdatedAtRef stalą wartością
+  // powodowało EDIT_CONFLICT przy następnym zapisie.
+  const loadedPostIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (post) {
-      history.reset(post);
-      baseUpdatedAtRef.current = post.updated_at ?? null;
-    }
+    if (!post) return;
+    if (loadedPostIdRef.current === post.id) return;
+    loadedPostIdRef.current = post.id;
+    history.reset(post);
+    baseUpdatedAtRef.current = post.updated_at ?? null;
   }, [post, history.reset]);
+
   useEffect(() => {
     if (data.postCats) setSelectedCats(data.postCats.map((c) => c.category_id));
   }, [data.postCats]);
