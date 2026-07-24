@@ -1,25 +1,22 @@
+// Inline gate - renders a friendly, instruction-rich sign-in CTA when there is
+// no session, instead of redirecting. Public route stays public (good for
+// SSR/share/back navigation), but content is gated. Uses the same emergency
+// error surface as route-level errors so the UX is consistent everywhere.
 import type { ReactNode } from "react";
-import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 
-/**
- * Inline gate - renders sign-in CTA when there is no session, instead of redirecting.
- * Public route stays public (good for SSR/share/back navigation), but content is gated.
- */
-export function AuthGate({
-  children,
-  fallbackTitle,
-  fallbackBody,
-}: {
+interface AuthGateProps {
   children: ReactNode;
+  /** Optional contextual title override. */
   fallbackTitle?: string;
+  /** Optional extra context shown below the steps. */
   fallbackBody?: string;
-}) {
-  const { t } = useTranslation();
+}
+
+export function AuthGate({ children, fallbackTitle, fallbackBody }: AuthGateProps) {
   const { session, loading } = useAuth();
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -30,33 +27,19 @@ export function AuthGate({
       </div>
     );
   }
+
   if (!session) {
     return (
-      <div className="container mx-auto max-w-md py-16">
-        <Card>
-          <CardHeader>
-            <CardTitle>{fallbackTitle ?? t("auth.required")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {fallbackBody ?? t("auth.requiredBody")}
-            </p>
-            <div className="flex gap-2">
-              <Button asChild>
-                <Link to="/login" search={{ mode: "signin" }}>
-                  {t("auth.signIn")}
-                </Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link to="/login" search={{ mode: "signup" }}>
-                  {t("auth.signUp")}
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto max-w-2xl py-12">
+        <FriendlyErrorPage
+          error={{ status: 401, message: "unauthorized" }}
+          variant="compact"
+          title={fallbackTitle}
+          footer={fallbackBody}
+        />
       </div>
     );
   }
+
   return <>{children}</>;
 }
