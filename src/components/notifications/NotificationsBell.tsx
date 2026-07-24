@@ -223,7 +223,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             count={unread}
             variant="alert"
             size="sm"
-            fontSizePx={4}
+            fontSizePx={9}
             className="absolute -right-1 -top-1 z-[100]"
           />
         </button>
