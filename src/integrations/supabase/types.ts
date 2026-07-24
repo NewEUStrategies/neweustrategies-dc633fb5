@@ -7805,6 +7805,7 @@ export type Database = {
           discovery_search: string | null
           display_name: string | null
           email: string | null
+          expert_requests_enabled: boolean
           facebook_url: string | null
           first_name: string | null
           gender: Database["public"]["Enums"]["name_gender"] | null
@@ -7841,6 +7842,7 @@ export type Database = {
           discovery_search?: string | null
           display_name?: string | null
           email?: string | null
+          expert_requests_enabled?: boolean
           facebook_url?: string | null
           first_name?: string | null
           gender?: Database["public"]["Enums"]["name_gender"] | null
@@ -7877,6 +7879,7 @@ export type Database = {
           discovery_search?: string | null
           display_name?: string | null
           email?: string | null
+          expert_requests_enabled?: boolean
           facebook_url?: string | null
           first_name?: string | null
           gender?: Database["public"]["Enums"]["name_gender"] | null
@@ -10441,6 +10444,7 @@ export type Database = {
           cover_url: string | null
           current_company: string | null
           display_name: string | null
+          expert_requests_enabled: boolean | null
           facebook_url: string | null
           first_name: string | null
           id: string | null
@@ -10464,6 +10468,7 @@ export type Database = {
           cover_url?: string | null
           current_company?: string | null
           display_name?: string | null
+          expert_requests_enabled?: boolean | null
           facebook_url?: string | null
           first_name?: string | null
           id?: string | null
@@ -10487,6 +10492,7 @@ export type Database = {
           cover_url?: string | null
           current_company?: string | null
           display_name?: string | null
+          expert_requests_enabled?: boolean | null
           facebook_url?: string | null
           first_name?: string | null
           id?: string | null
@@ -10724,6 +10730,10 @@ export type Database = {
           _hint_pl: string
           _password: string
         }
+        Returns: undefined
+      }
+      admin_set_expert_requests_enabled: {
+        Args: { p_enabled: boolean; p_user_id: string }
         Returns: undefined
       }
       admin_set_profile_verification: {
@@ -11330,6 +11340,7 @@ export type Database = {
           discovery_search: string | null
           display_name: string | null
           email: string | null
+          expert_requests_enabled: boolean
           facebook_url: string | null
           first_name: string | null
           gender: Database["public"]["Enums"]["name_gender"] | null
