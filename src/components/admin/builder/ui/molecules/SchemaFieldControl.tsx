@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
+import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { Image as ImageIcon } from "lucide-react";
 
 interface Props {
