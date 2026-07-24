@@ -841,6 +841,20 @@ const RenderColumn = memo(function RenderColumn({
                       marginTop: frameStyle.marginTop === "auto" ? "auto" : 0,
                       marginBottom: frameStyle.marginBottom === "auto" ? "auto" : 0,
                     }),
+                // When user picks a fixed pixel height, it must win over any
+                // flex-basis/flex-grow inherited from frameStyle (parent column
+                // is display:flex → flex-basis becomes the main-axis size and
+                // otherwise silently overrides `height`).
+                ...(hasExplicitHeight
+                  ? {
+                      height: responsiveHeight as number,
+                      minHeight: responsiveHeight as number,
+                      maxHeight: responsiveHeight as number,
+                      flexBasis: "auto",
+                      flexGrow: 0,
+                      flexShrink: 0,
+                    }
+                  : null),
                 boxSizing: "border-box",
               }}
             >
