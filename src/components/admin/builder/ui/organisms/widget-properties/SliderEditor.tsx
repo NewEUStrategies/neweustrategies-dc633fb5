@@ -13,6 +13,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { PropField } from "../../atoms";
 import { ImageSlot } from "./ImageSlot";
 import { PostPicker } from "./PostPicker";
