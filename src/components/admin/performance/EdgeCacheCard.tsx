@@ -149,6 +149,44 @@ export function EdgeCacheCard() {
               />
               <StatTile label={t("adminEdgeCache.tiles.purges")} value={number(snapshot.purges)} />
             </div>
+            <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium">{t("adminEdgeCache.l2.title")}</span>
+                <span
+                  className={[
+                    "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                    snapshot.l2.enabled
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "border-border bg-muted text-muted-foreground",
+                  ].join(" ")}
+                >
+                  {snapshot.l2.enabled
+                    ? t("adminEdgeCache.l2.active")
+                    : t("adminEdgeCache.l2.inactive")}
+                </span>
+              </div>
+              {snapshot.l2.enabled && (
+                <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <StatTile
+                    label={t("adminEdgeCache.l2.tiles.hits")}
+                    value={number(snapshot.l2.hits)}
+                  />
+                  <StatTile
+                    label={t("adminEdgeCache.l2.tiles.stale")}
+                    value={number(snapshot.l2.stale)}
+                  />
+                  <StatTile
+                    label={t("adminEdgeCache.l2.tiles.stores")}
+                    value={number(snapshot.l2.stores)}
+                  />
+                  <StatTile
+                    label={t("adminEdgeCache.l2.tiles.bumps")}
+                    value={number(snapshot.l2.bumps)}
+                  />
+                </div>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">{t("adminEdgeCache.l2.note")}</p>
+            </div>
             <p className="text-xs text-muted-foreground">
               {t("adminEdgeCache.since", {
                 date: new Date(snapshot.startedAt).toLocaleString(locale),
