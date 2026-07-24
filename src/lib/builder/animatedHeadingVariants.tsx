@@ -45,6 +45,7 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "none", label: "Brak" },
   { value: "underline", label: "Podkreślenie" },
   { value: "double-underline", label: "Podwójne podkreślenie" },
+  { value: "squiggle", label: "Squiggle (hero)" },
   { value: "scribble", label: "Odręczne podkreślenie" },
   { value: "curly", label: "Falisty" },
   { value: "zigzag", label: "Zygzak" },
