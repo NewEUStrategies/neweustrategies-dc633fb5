@@ -11865,6 +11865,7 @@ export type Database = {
       my_introduction_requests: {
         Args: { p_role?: string }
         Returns: {
+          bridge_avatar: string
           bridge_id: string
           bridge_name: string
           created_at: string
