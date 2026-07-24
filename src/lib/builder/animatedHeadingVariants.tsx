@@ -14,6 +14,7 @@ export type AnimatedHeadingShape =
   | "none"
   | "underline"
   | "double-underline"
+  | "squiggle"
   | "scribble"
   | "curly"
   | "zigzag"
@@ -44,6 +45,7 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "none", label: "Brak" },
   { value: "underline", label: "Podkreślenie" },
   { value: "double-underline", label: "Podwójne podkreślenie" },
+  { value: "squiggle", label: "Squiggle (hero)" },
   { value: "scribble", label: "Odręczne podkreślenie" },
   { value: "curly", label: "Falisty" },
   { value: "zigzag", label: "Zygzak" },
@@ -219,6 +221,7 @@ const shapeStroke: Record<AnimatedHeadingShape, number> = {
   none: 0,
   underline: 3,
   "double-underline": 4,
+  squiggle: 2.5,
   scribble: 4,
   curly: 1.75,
   zigzag: 1.75,
@@ -252,6 +255,7 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   none: 0,
   underline: 220,
   "double-underline": 460,
+  squiggle: 520,
   scribble: 240,
   curly: 440,
   zigzag: 320,
@@ -457,6 +461,13 @@ function ShapeSvg({
         </>
       );
       break;
+    case "squiggle":
+      // Hero-style hand-drawn squiggle underline (Chakra "H1 With Squiggle" look)
+      viewBox = "0 0 200 14";
+      body = (
+        <path d="M2 9 C 14 3, 26 3, 38 9 S 62 15, 74 9 S 98 3, 110 9 S 134 15, 146 9 S 170 3, 182 9 S 198 12, 198 9" />
+      );
+      break;
     case "curly":
       viewBox = "0 0 200 10";
       body = <path d="M2 5 q 12.5 -3 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 23 0" />;
@@ -504,6 +515,7 @@ function ShapeSvg({
   const isUnderlineLike =
     shape === "underline" ||
     shape === "double-underline" ||
+    shape === "squiggle" ||
     shape === "curly" ||
     shape === "zigzag";
 
@@ -602,6 +614,7 @@ export function AnimatedHeadingRender({
   const isUnderlineLike =
     shape === "underline" ||
     shape === "double-underline" ||
+    shape === "squiggle" ||
     shape === "curly" ||
     shape === "zigzag";
   const needsFrame = shape === "circle" || shape === "framed" || shape === "x";
