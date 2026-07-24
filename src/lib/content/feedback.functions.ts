@@ -13,7 +13,7 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 export const submitPostFeedback = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z.object({ postId: z.string().uuid(), helpful: z.boolean() }).parse(i ?? {}),
   )
   .handler(async ({ data }) => {

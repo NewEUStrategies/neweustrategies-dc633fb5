@@ -29,6 +29,20 @@ const pl = {
     isolateNote:
       "Pamięć jest lokalna dla instancji serwera - po publikacji pozostałe instancje " +
       "odświeżają dokumenty najpóźniej w oknie świeżości (do 3 min).",
+    l2: {
+      title: "Warstwa L2 (Cache API, per-colo)",
+      active: "Aktywna",
+      inactive: "Niedostępna w tym środowisku",
+      note:
+        "Wpisy współdzielone między instancjami tej samej lokalizacji Cloudflare; " +
+        "publikacja unieważnia je natychmiast bumpem wersji klucza.",
+      tiles: {
+        hits: "Trafienia L2",
+        stale: "Stale z L2",
+        stores: "Zapisy do L2",
+        bumps: "Bumpy wersji",
+      },
+    },
     refresh: "Odśwież",
     purge: "Wyczyść cache tenanta",
     purgeDone_one: "Usunięto {{count}} dokument z cache.",
@@ -65,6 +79,20 @@ const en = {
     isolateNote:
       "Memory is local to a server instance - after publishing, other instances refresh " +
       "documents within the freshness window (up to 3 min).",
+    l2: {
+      title: "L2 layer (Cache API, per-colo)",
+      active: "Active",
+      inactive: "Unavailable in this environment",
+      note:
+        "Entries are shared between instances of the same Cloudflare location; " +
+        "publishing invalidates them instantly via a key-version bump.",
+      tiles: {
+        hits: "L2 hits",
+        stale: "Stale from L2",
+        stores: "L2 stores",
+        bumps: "Version bumps",
+      },
+    },
     refresh: "Refresh",
     purge: "Purge tenant cache",
     purgeDone_one: "Removed {{count}} document from the cache.",

@@ -24,7 +24,7 @@ const MAX_TTL_HOURS = 24 * 30;
 
 export const createPreviewToken = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         postId: UUID,
@@ -54,7 +54,7 @@ export const createPreviewToken = createServerFn({ method: "POST" })
 
 export const listPreviewTokens = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ postId: UUID }).parse(i ?? {}))
+  .validator((i: unknown) => z.object({ postId: UUID }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { data: rows, error } = await supabase
@@ -74,7 +74,7 @@ export const listPreviewTokens = createServerFn({ method: "POST" })
 
 export const revokePreviewToken = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i ?? {}))
+  .validator((i: unknown) => z.object({ id: UUID }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { error } = await supabase.from("post_preview_tokens").delete().eq("id", data.id);
@@ -104,7 +104,7 @@ export interface PreviewPostPayload {
  * wygasł, wpis nie jest w koszu. Rate limit po tokenie tnie zgadywanie.
  */
 export const fetchPreviewPost = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ token: z.string().min(16).max(64) }).parse(i ?? {}))
+  .validator((i: unknown) => z.object({ token: z.string().min(16).max(64) }).parse(i ?? {}))
   .handler(async ({ data }): Promise<PreviewPostPayload | null> => {
     if (
       !(await rateLimit({ scope: "preview.fetch", subjectId: data.token.slice(0, 16), max: 60 }))

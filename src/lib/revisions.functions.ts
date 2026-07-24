@@ -53,7 +53,7 @@ async function guard<T>(
  */
 export const listRevisions = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         entityType: EntityType,
@@ -105,7 +105,7 @@ export const listRevisions = createServerFn({ method: "POST" })
  */
 export const getRevisionSnapshots = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         entityType: EntityType,
@@ -188,7 +188,7 @@ export const getRevisionSnapshots = createServerFn({ method: "POST" })
  */
 export const restoreRevision = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
+  .validator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("revision.restore", userId, 30, async () => {

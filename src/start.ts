@@ -5,6 +5,8 @@ import { isLocalizablePath, localizedPath, normalizeLang } from "@/lib/i18n/loca
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
 import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
 import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
+import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
+import { runAfterResponse } from "@/lib/http/waitUntil.server";
 
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
@@ -138,10 +140,35 @@ const redirectMiddleware = createMiddleware().server(async ({ request, next }) =
 const seo404Middleware = createMiddleware().server(async ({ request, next }) => {
   const response = await next();
   if (response instanceof Response) {
-    // Fire-and-forget: don't hold the response open on the observability write.
-    void maybeLog404(request, response).catch(() => undefined);
+    // Fire-and-forget, ale pod ctx.waitUntil: na Workers praca "za odpowiedzią"
+    // bez waitUntil bywa ubijana wraz z domknięciem żądania, więc log ginął.
+    runAfterResponse(maybeLog404(request, response).catch(() => undefined));
   }
   return response;
+});
+
+/**
+ * Domyślny Cache-Control publicznych dokumentów (polityka:
+ * `lib/http/defaultCacheControl.ts`). Siedzi NAJBLIŻEJ routera - poniżej
+ * documentCacheMiddleware - żeby NES Edge Cache widział już wzbogaconą
+ * odpowiedź i mógł ją zapisać. Trasa, która ustawiła własny nagłówek
+ * (degradacja home -> no-store, preview, personalized), zawsze wygrywa.
+ */
+const defaultCacheControlMiddleware = createMiddleware().server(async ({ request, next }) => {
+  const response = await next();
+  if (!(response instanceof Response)) return response;
+  const defaultPolicy = planDefaultCacheControl(request, response);
+  if (!defaultPolicy) return response;
+  // Nowa Response: nagłówki odpowiedzi routera mogą być immutable (patrz
+  // applySecurityHeaders) - przebudowa daje własną, mutowalną listę nagłówków
+  // bez naruszania strumieniowanego body.
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", defaultPolicy);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 });
 
 /**
@@ -205,11 +232,15 @@ export const startInstance = createStart(() => ({
   //      as a 404).
   //   3. redirectMiddleware short-circuits WP-legacy paths.
   //   4. legacyLangQueryMiddleware canonicalises `?lang=` before route dispatch.
-  //   5. documentCacheMiddleware (NES Edge Cache) sits INNERMOST - right above
-  //      the router - so redirects and language canonicalisation always run
-  //      first, and a memory HIT replays only the router's own render while the
-  //      outer middleware (security headers, 404 log) re-decorates every
-  //      response, cached or not.
+  //   5. documentCacheMiddleware (NES Edge Cache) sits right above the router
+  //      (behind it only the default-cache-control decorator), so redirects and
+  //      language canonicalisation always run first, and a memory HIT replays
+  //      only the router's own render while the outer middleware (security
+  //      headers, 404 log) re-decorates every response, cached or not.
+  //   6. defaultCacheControlMiddleware is INNERMOST: dokłada domyślny
+  //      Cache-Control publicznym dokumentom ZANIM odpowiedź wróci do
+  //      documentCacheMiddleware - dzięki temu polityka zapisu NES Edge Cache
+  //      (public + s-maxage) obejmuje także trasy bez własnego nagłówka.
   //
   // All DB-touching middleware wraps its work in try/catch and swallows
   // failures - the SSR document path stays deterministic even if Supabase is
@@ -221,6 +252,7 @@ export const startInstance = createStart(() => ({
     redirectMiddleware,
     legacyLangQueryMiddleware,
     documentCacheMiddleware,
+    defaultCacheControlMiddleware,
   ],
   functionMiddleware: [attachSupabaseAuth],
 }));

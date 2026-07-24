@@ -340,7 +340,7 @@ async function resolveDefaultBlogPage(
 
 export const createPost = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         title_pl: z.string().max(300).optional(),
@@ -457,7 +457,7 @@ async function writeRevisionSnapshot(
 
 export const updatePost = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         id: UUID,
@@ -684,7 +684,7 @@ export const updatePost = createServerFn({ method: "POST" })
 // Soft-delete: move to trash
 export const deletePost = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
+  .validator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
@@ -715,7 +715,7 @@ export const deletePost = createServerFn({ method: "POST" })
  */
 export const duplicatePost = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
+  .validator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("post.duplicate", userId, 20, async () => {
@@ -848,7 +848,7 @@ export const duplicatePost = createServerFn({ method: "POST" })
 
 export const bulkDeletePosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
+  .validator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("post.bulkDelete", userId, 20, async () => {
@@ -874,7 +874,7 @@ export const bulkDeletePosts = createServerFn({ method: "POST" })
 
 export const restorePosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
+  .validator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("post.restore", userId, 20, async () => {
@@ -898,7 +898,7 @@ export const restorePosts = createServerFn({ method: "POST" })
 
 export const purgePosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
+  .validator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("post.purge", userId, 20, async () => {
@@ -922,7 +922,7 @@ export const purgePosts = createServerFn({ method: "POST" })
 
 export const bulkUpdatePosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         ids: z.array(UUID).min(1).max(200),
@@ -987,7 +987,7 @@ const PageCore = z.object({
 
 export const createPage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         title_pl: z.string().max(300).optional(),
@@ -1026,7 +1026,7 @@ export const createPage = createServerFn({ method: "POST" })
 
 export const updatePage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({ id: UUID, fields: PageCore.partial(), baseUpdatedAt: z.string().optional() })
       .parse(i),
@@ -1169,7 +1169,7 @@ export const updatePage = createServerFn({ method: "POST" })
 // Soft-delete: move to trash
 export const deletePage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
+  .validator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
@@ -1191,7 +1191,7 @@ export const deletePage = createServerFn({ method: "POST" })
 
 export const bulkDeletePages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
+  .validator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("page.bulkDelete", userId, 20, async () => {
@@ -1217,7 +1217,7 @@ export const bulkDeletePages = createServerFn({ method: "POST" })
 
 export const restorePages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
+  .validator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("page.restore", userId, 20, async () => {
@@ -1241,7 +1241,7 @@ export const restorePages = createServerFn({ method: "POST" })
 
 export const purgePages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
+  .validator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("page.purge", userId, 20, async () => {
@@ -1265,7 +1265,7 @@ export const purgePages = createServerFn({ method: "POST" })
 
 export const bulkUpdatePages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         ids: z.array(UUID).min(1).max(200),
@@ -1356,7 +1356,7 @@ async function assertSlugAvailable(
 
 export const upsertCategory = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID.optional(), fields: CategoryCore }).parse(i))
+  .validator((i: unknown) => z.object({ id: UUID.optional(), fields: CategoryCore }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("category.upsert", userId, 60, async () => {
@@ -1402,7 +1402,7 @@ export const upsertCategory = createServerFn({ method: "POST" })
 
 export const deleteCategory = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
+  .validator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
@@ -1416,7 +1416,7 @@ export const deleteCategory = createServerFn({ method: "POST" })
 
 export const createTag = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ name: z.string().min(1).max(100) }).parse(i))
+  .validator((i: unknown) => z.object({ name: z.string().min(1).max(100) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("tag.create", userId, 120, async () => {
@@ -1435,7 +1435,7 @@ export const createTag = createServerFn({ method: "POST" })
 
 export const deleteTag = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
+  .validator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);

@@ -49,7 +49,11 @@ import {
   ExpertLayoutStyleScope,
   expertLayoutCssVars,
 } from "@/components/experts/ExpertLayoutRenderer";
-import { isSectionVisible } from "@/lib/expertLayouts";
+import {
+  defaultExpertLayoutSettings,
+  isSectionVisible,
+  type ExpertLayoutSettings,
+} from "@/lib/expertLayouts";
 import { isIndexableProfile, profileRobots } from "@/lib/experts/publicVisibility";
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 export const Route = createFileRoute("/author/$slug")({
@@ -58,9 +62,20 @@ export const Route = createFileRoute("/author/$slug")({
     // `expert_layout_settings` (per tenant, nie tylko dla tenanta hosta).
     const data = await context.queryClient.ensureQueryData(expertHubQueryOptions(params.slug));
     if (!data) throw notFound();
-    await context.queryClient.ensureQueryData(
-      expertLayoutSettingsQueryOptions(data.expert.tenant_id),
-    );
+    const layoutOptions = expertLayoutSettingsQueryOptions(data.expert.tenant_id);
+    if (data.layoutSettings !== undefined) {
+      // RPC get_expert_hub przyniosło layout w TYM SAMYM round-tripie - zasiej
+      // cache zamiast doklejać sekwencyjne zapytanie na krytycznej ścieżce
+      // TTFB. `null` = potwierdzony brak wiersza -> defaulty tenanta.
+      context.queryClient.setQueryData(
+        layoutOptions.queryKey,
+        data.layoutSettings !== null
+          ? (data.layoutSettings as unknown as ExpertLayoutSettings)
+          : defaultExpertLayoutSettings(data.expert.tenant_id ?? ""),
+      );
+    } else {
+      await context.queryClient.ensureQueryData(layoutOptions);
+    }
     return data;
   },
   head: ({ loaderData, params }) => {

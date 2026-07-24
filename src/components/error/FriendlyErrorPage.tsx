@@ -87,9 +87,7 @@ export function FriendlyErrorPage({
   const primaryIsLogin = kind === "unauthorized" || kind === "sessionExpired";
   const PrimaryIcon = primaryIsLogin ? LogIn : RefreshCw;
   const primaryLabel = primaryIsLogin ? scenario.primaryAction : scenario.primaryAction;
-  const primaryAction = primaryIsLogin
-    ? () => void router.navigate({ to: "/login" })
-    : handleRetry;
+  const primaryAction = primaryIsLogin ? () => void router.navigate({ to: "/login" }) : handleRetry;
 
   const content = (
     <div
@@ -176,7 +174,7 @@ export function FriendlyErrorPage({
         <div className="mt-5 flex items-center justify-center gap-1 text-xs text-muted-foreground">
           <HelpCircle size={14} />
           <span>{lang === "pl" ? "Potrzebujesz pomocy? " : "Need help? "}</span>
-          <Link to="/support" search={{}} className="text-brand hover:underline">
+          <Link to="/support" search={{ status: undefined }} className="text-brand hover:underline">
             {lang === "pl" ? "Skontaktuj się z nami" : "Contact support"}
           </Link>
         </div>
@@ -193,9 +191,7 @@ export function FriendlyErrorPage({
       <button
         type="button"
         onClick={() =>
-          window.history.length > 1
-            ? router.history.back()
-            : void router.navigate({ to: "/" })
+          window.history.length > 1 ? router.history.back() : void router.navigate({ to: "/" })
         }
         className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >

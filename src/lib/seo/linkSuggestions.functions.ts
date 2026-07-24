@@ -41,7 +41,7 @@ function tokens(...values: Array<string | null | undefined>): string[] {
 
 export const suggestInternalLinks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }): Promise<LinkSuggestion[]> => {
     const { supabase, userId } = context;
     const { postId, titlePl, titleEn, contentPl, contentEn, categoryIds, tagIds, limit } = data;

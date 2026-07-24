@@ -8,35 +8,32 @@
 // spójnie z katalogiem osób i archiwami. Zapytanie pobiera komplet raz.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { ExpertHubData, ExpertMaterial, ExpertProgram } from "./types";
+import { edgeTtlCache } from "@/lib/ssrCache";
+import type { ExpertHubData, ExpertMaterial } from "./types";
 import {
+  assembleMaterials,
   buildExpertProfile,
-  compareMaterialsByDateDesc,
-  eventRowToMaterial,
-  groupPivot,
+  mapCategoryRows,
   mapExpertiseAreaRows,
   mapMediaMentionRows,
   mapProgramMembers,
-  podcastRowToMaterial,
-  postRowToMaterial,
+  mapProgramRows,
+  mapRegionRows,
+  mapTagRows,
   reduceFacets,
-  type PostPivots,
 } from "./normalize";
+import { fetchExpertHubFromRpc } from "./rpcHub";
 
 const TTL = 2 * 60_000;
+/** TTL per-isolate huba: najcięższa publiczna trasa nie może płacić pełnego
+ *  fan-outu na każde żądanie; minuta spina się z oknem świeżości dokumentów. */
+const HUB_SSR_TTL_MS = 60_000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Zbiór materiałów eksperta z każdego źródła (posty, podcasty, wydarzenia). */
+/** Zbiór materiałów eksperta z każdego źródła (posty, podcasty, wydarzenia).
+ *  Ścieżka legacy (fallback, gdy RPC get_expert_hub jeszcze nie wdrożone). */
 async function fetchMaterials(expertId: string): Promise<ExpertMaterial[]> {
-  // Współautorstwa i wystąpienia jako prelegent - id do dołączenia.
-  const [{ data: coauthorRows }, { data: speakerRows }] = await Promise.all([
-    supabase.from("post_authors").select("post_id").eq("user_id", expertId),
-    supabase.from("event_speakers").select("event_id").eq("user_id", expertId),
-  ]);
-  const coauthorPostIds = (coauthorRows ?? []).map((r) => r.post_id as string);
-  const speakerEventIds = (speakerRows ?? []).map((r) => r.event_id as string);
-
   const POST_COLS =
     "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id";
   const PODCAST_COLS =
@@ -44,13 +41,18 @@ async function fetchMaterials(expertId: string): Promise<ExpertMaterial[]> {
   const EVENT_COLS =
     "id, slug, title_pl, title_en, description_pl, description_en, cover_url, starts_at, program_id, region_id, host_user_id";
 
+  // Fala 1: wszystko, co zależy wyłącznie od id eksperta - w tym listy id
+  // współautorstw/prelekcji ORAZ niezależne od nich materiały główne. Dawniej
+  // te trzy zapytania czekały w drugiej fali na listy id, których nie używały.
   const [
+    { data: coauthorRows },
+    { data: speakerRows },
     { data: primaryPosts },
-    { data: coauthorPosts },
     { data: podcasts },
     { data: hostEvents },
-    { data: speakerEvents },
   ] = await Promise.all([
+    supabase.from("post_authors").select("post_id").eq("user_id", expertId),
+    supabase.from("event_speakers").select("event_id").eq("user_id", expertId),
     supabase
       .from("posts")
       .select(POST_COLS)
@@ -58,14 +60,6 @@ async function fetchMaterials(expertId: string): Promise<ExpertMaterial[]> {
       .eq("status", "published")
       .is("deleted_at", null)
       .order("published_at", { ascending: false }),
-    coauthorPostIds.length
-      ? supabase
-          .from("posts")
-          .select(POST_COLS)
-          .in("id", coauthorPostIds)
-          .eq("status", "published")
-          .is("deleted_at", null)
-      : Promise.resolve({ data: [] as unknown[] }),
     supabase
       .from("podcasts")
       .select(PODCAST_COLS)
@@ -78,6 +72,20 @@ async function fetchMaterials(expertId: string): Promise<ExpertMaterial[]> {
       .select(EVENT_COLS)
       .eq("host_user_id", expertId)
       .eq("status", "published"),
+  ]);
+  const coauthorPostIds = (coauthorRows ?? []).map((r) => r.post_id as string);
+  const speakerEventIds = (speakerRows ?? []).map((r) => r.event_id as string);
+
+  // Fala 2: rekordy wskazywane przez listy id z fali 1.
+  const [{ data: coauthorPosts }, { data: speakerEvents }] = await Promise.all([
+    coauthorPostIds.length
+      ? supabase
+          .from("posts")
+          .select(POST_COLS)
+          .in("id", coauthorPostIds)
+          .eq("status", "published")
+          .is("deleted_at", null)
+      : Promise.resolve({ data: [] as unknown[] }),
     speakerEventIds.length
       ? supabase
           .from("events")
@@ -87,17 +95,13 @@ async function fetchMaterials(expertId: string): Promise<ExpertMaterial[]> {
       : Promise.resolve({ data: [] as unknown[] }),
   ]);
 
-  // Posty: dedup (główny autor wygrywa nad współautorstwem) + pivoty.
-  const postById = new Map<string, { row: Record<string, unknown>; coauthor: boolean }>();
-  for (const row of (primaryPosts ?? []) as Record<string, unknown>[]) {
-    postById.set(row.id as string, { row, coauthor: false });
-  }
-  for (const row of (coauthorPosts ?? []) as Record<string, unknown>[]) {
-    const id = row.id as string;
-    if (!postById.has(id)) postById.set(id, { row, coauthor: true });
-  }
-  const postIds = [...postById.keys()];
+  const primaryRows = (primaryPosts ?? []) as Record<string, unknown>[];
+  const coauthorRowsFull = (coauthorPosts ?? []) as Record<string, unknown>[];
+  const postIds = Array.from(
+    new Set([...primaryRows, ...coauthorRowsFull].map((row) => row.id as string)),
+  );
 
+  // Fala 3: pivoty taksonomii dla pełnego zbioru postów.
   const [{ data: pcRows }, { data: ppRows }, { data: prRows }, { data: ptRows }] =
     await Promise.all([
       postIds.length
@@ -114,175 +118,148 @@ async function fetchMaterials(expertId: string): Promise<ExpertMaterial[]> {
         : Promise.resolve({ data: [] as unknown[] }),
     ]);
 
-  const pivots: PostPivots = {
-    categories: groupPivot((pcRows ?? []) as Record<string, unknown>[], "category_id"),
-    programs: groupPivot((ppRows ?? []) as Record<string, unknown>[], "program_id"),
-    regions: groupPivot((prRows ?? []) as Record<string, unknown>[], "region_id"),
-    tags: groupPivot((ptRows ?? []) as Record<string, unknown>[], "tag_id"),
-  };
+  // Wspólne jądro asemblacji (to samo, którym RPC składa swój payload).
+  return assembleMaterials({
+    primaryPosts: primaryRows,
+    coauthorPosts: coauthorRowsFull,
+    podcasts: (podcasts ?? []) as Record<string, unknown>[],
+    hostEvents: (hostEvents ?? []) as Record<string, unknown>[],
+    speakerEvents: (speakerEvents ?? []) as Record<string, unknown>[],
+    postCategories: (pcRows ?? []) as Record<string, unknown>[],
+    postPrograms: (ppRows ?? []) as Record<string, unknown>[],
+    postRegions: (prRows ?? []) as Record<string, unknown>[],
+    postTags: (ptRows ?? []) as Record<string, unknown>[],
+  });
+}
 
-  const materials: ExpertMaterial[] = [];
+/**
+ * Ścieżka legacy huba: rezolucja profilu + fan-out osobnych zapytań. Zostaje
+ * jako fallback na okno między deployem kodu a wdrożeniem migracji RPC oraz
+ * jako ścieżka awaryjna, gdy RPC zwróci błąd.
+ */
+async function fetchExpertHubLegacy(slugOrId: string): Promise<ExpertHubData | null> {
+  // Rozwiązanie profilu: slug, a dla UUID fallback po id (błędy rzucane,
+  // nie zamieniane na fałszywe 404 - tylko brak wiersza daje null).
+  const PROFILE_COLS =
+    "id, tenant_id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url, verified_at, updated_at, expert_requests_enabled";
+  const bySlug = await supabase
+    .from("profiles_public")
+    .select(PROFILE_COLS)
+    .eq("slug", slugOrId)
+    .maybeSingle();
+  if (bySlug.error) throw bySlug.error;
+  let prof = bySlug.data as Record<string, unknown> | null;
+  if (!prof && UUID_RE.test(slugOrId)) {
+    const byId = await supabase
+      .from("profiles_public")
+      .select(PROFILE_COLS)
+      .eq("id", slugOrId)
+      .maybeSingle();
+    if (byId.error) throw byId.error;
+    prof = byId.data as Record<string, unknown> | null;
+  }
+  if (!prof) return null;
 
-  for (const { row, coauthor } of postById.values()) {
-    materials.push(postRowToMaterial(row, coauthor, pivots));
-  }
-  for (const row of (podcasts ?? []) as Record<string, unknown>[]) {
-    materials.push(podcastRowToMaterial(row));
-  }
+  const expertId = prof.id as string;
 
-  const eventById = new Map<string, Record<string, unknown>>();
-  for (const row of (hostEvents ?? []) as Record<string, unknown>[])
-    eventById.set(row.id as string, row);
-  for (const row of (speakerEvents ?? []) as Record<string, unknown>[]) {
-    const id = row.id as string;
-    if (!eventById.has(id)) eventById.set(id, row);
-  }
-  for (const row of eventById.values()) {
-    materials.push(eventRowToMaterial(row));
-  }
+  const [
+    { data: ap },
+    { data: badgeRows },
+    { data: memberRows },
+    { data: areaRows },
+    { data: mentionRows },
+    materials,
+    { data: allPrograms },
+    { data: allRegions },
+    { data: allCategories },
+    { data: allTags },
+  ] = await Promise.all([
+    // author_profiles_public: publiczna projekcja (is_public = true, tenant
+    // z public_tenant_id()) BEZ zrewokowanego PII. Czytanie WPROST z
+    // author_profiles zwracało `42501 permission denied for column
+    // contact_email` dla anon/authenticated (migracja 20260720131542 odebrała
+    // SELECT na phone/contact_email/media_contact_email/media_contact_phone) -
+    // a że błąd był tu połykany (`{ data: ap }` bez sprawdzenia), CAŁA nakładka
+    // autora (tytuł, firma, pełne bio, org_functions, socjale, media_contact_name)
+    // znikała z każdej strony /author/$slug. Widok zwraca dokładnie kolumny
+    // publiczne; PII kontaktowe zostaje prywatne z premedytacją (owner edytuje
+    // je w edytorze profilu). Nakładka jest best-effort: gdy jej brak, hub
+    // degraduje się do danych z profiles_public zamiast 500-ować stronę.
+    supabase
+      .from("author_profiles_public")
+      .select(
+        "job_title, company, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials, contact_email, full_bio_pl, full_bio_en, org_functions, media_contact_name, is_public",
+      )
+      .eq("user_id", expertId)
+      .maybeSingle(),
+    supabase.from("profile_badges").select("badge").eq("user_id", expertId),
+    supabase
+      .from("program_members")
+      .select(
+        "role_pl, role_en, sort_order, program:programs(id, slug, name_pl, name_en, kind, description_pl, description_en)",
+      )
+      .eq("user_id", expertId)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("expert_expertise_areas")
+      .select("sort_order, area:expertise_areas(id, slug, name_pl, name_en)")
+      .eq("user_id", expertId)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("media_mentions")
+      .select("id, outlet, title, url, kind, language, published_on, cover_url")
+      .eq("user_id", expertId)
+      .eq("is_public", true)
+      .order("published_on", { ascending: false }),
+    fetchMaterials(expertId),
+    supabase
+      .from("programs")
+      .select("id, slug, name_pl, name_en, kind, description_pl, description_en"),
+    supabase.from("regions").select("id, slug, name_pl, name_en"),
+    supabase.from("categories").select("id, slug, name_pl, name_en"),
+    supabase.from("tags").select("id, slug, name"),
+  ]);
 
-  // Najnowsze u góry; brak daty → na koniec.
-  materials.sort(compareMaterialsByDateDesc);
-  return materials;
+  const apRow = (ap as Record<string, unknown> | null) ?? null;
+  const badges = (badgeRows ?? []).map((b) => (b as { badge: string }).badge);
+
+  const expert = buildExpertProfile(prof, apRow, badges);
+  const programs = mapProgramMembers((memberRows ?? []) as Record<string, unknown>[]);
+  const areas = mapExpertiseAreaRows((areaRows ?? []) as Record<string, unknown>[]);
+  const mediaMentions = mapMediaMentionRows((mentionRows ?? []) as Record<string, unknown>[]);
+
+  // Pełne taksonomie (znormalizowane), potem redukcja do wartości obecnych
+  // w materiałach - fasety pokazują tylko filtry, które coś zwrócą.
+  const facets = reduceFacets(materials, {
+    programs: mapProgramRows((allPrograms ?? []) as Record<string, unknown>[]),
+    regions: mapRegionRows((allRegions ?? []) as Record<string, unknown>[]),
+    categories: mapCategoryRows((allCategories ?? []) as Record<string, unknown>[]),
+    tags: mapTagRows((allTags ?? []) as Record<string, unknown>[]),
+  });
+
+  return { expert, programs, areas, mediaMentions, materials, facets };
+}
+
+/**
+ * Pełny hub: najpierw JEDEN round-trip RPC `get_expert_hub` (z fasetami
+ * zawężonymi w bazie i layoutem tenanta profilu w tym samym wywołaniu);
+ * ścieżka legacy zostaje fallbackiem wdrożeniowo-awaryjnym.
+ */
+async function fetchExpertHub(slugOrId: string): Promise<ExpertHubData | null> {
+  const viaRpc = await fetchExpertHubFromRpc(slugOrId);
+  if (viaRpc.kind === "ok") return viaRpc.hub;
+  if (viaRpc.kind === "not-found") return null;
+  return fetchExpertHubLegacy(slugOrId);
 }
 
 export const expertHubQueryOptions = (slugOrId: string) =>
   queryOptions({
     queryKey: ["public", "expert", slugOrId] as const,
-    queryFn: async (): Promise<ExpertHubData | null> => {
-      // Rozwiązanie profilu: slug, a dla UUID fallback po id (błędy rzucane,
-      // nie zamieniane na fałszywe 404 - tylko brak wiersza daje null).
-      const PROFILE_COLS =
-        "id, tenant_id, slug, display_name, avatar_url, cover_url, bio_pl, bio_en, twitter_url, linkedin_url, website_url, verified_at, updated_at, expert_requests_enabled";
-      const bySlug = await supabase
-        .from("profiles_public")
-        .select(PROFILE_COLS)
-        .eq("slug", slugOrId)
-        .maybeSingle();
-      if (bySlug.error) throw bySlug.error;
-      let prof = bySlug.data as Record<string, unknown> | null;
-      if (!prof && UUID_RE.test(slugOrId)) {
-        const byId = await supabase
-          .from("profiles_public")
-          .select(PROFILE_COLS)
-          .eq("id", slugOrId)
-          .maybeSingle();
-        if (byId.error) throw byId.error;
-        prof = byId.data as Record<string, unknown> | null;
-      }
-      if (!prof) return null;
-
-      const expertId = prof.id as string;
-
-      const [
-        { data: ap },
-        { data: badgeRows },
-        { data: memberRows },
-        { data: areaRows },
-        { data: mentionRows },
-        materials,
-        { data: allPrograms },
-        { data: allRegions },
-        { data: allCategories },
-        { data: allTags },
-      ] = await Promise.all([
-        // author_profiles_public: publiczna projekcja (is_public = true, tenant
-        // z public_tenant_id()) BEZ zrewokowanego PII. Czytanie WPROST z
-        // author_profiles zwracało `42501 permission denied for column
-        // contact_email` dla anon/authenticated (migracja 20260720131542 odebrała
-        // SELECT na phone/contact_email/media_contact_email/media_contact_phone) -
-        // a że błąd był tu połykany (`{ data: ap }` bez sprawdzenia), CAŁA nakładka
-        // autora (tytuł, firma, pełne bio, org_functions, socjale, media_contact_name)
-        // znikała z każdej strony /author/$slug. Widok zwraca dokładnie kolumny
-        // publiczne; PII kontaktowe zostaje prywatne z premedytacją (owner edytuje
-        // je w edytorze profilu). Nakładka jest best-effort: gdy jej brak, hub
-        // degraduje się do danych z profiles_public zamiast 500-ować stronę.
-        supabase
-          .from("author_profiles_public")
-          .select(
-            "job_title, company, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials, contact_email, full_bio_pl, full_bio_en, org_functions, media_contact_name, is_public",
-          )
-          .eq("user_id", expertId)
-          .maybeSingle(),
-        supabase.from("profile_badges").select("badge").eq("user_id", expertId),
-        supabase
-          .from("program_members")
-          .select(
-            "role_pl, role_en, sort_order, program:programs(id, slug, name_pl, name_en, kind, description_pl, description_en)",
-          )
-          .eq("user_id", expertId)
-          .order("sort_order", { ascending: true }),
-        supabase
-          .from("expert_expertise_areas")
-          .select("sort_order, area:expertise_areas(id, slug, name_pl, name_en)")
-          .eq("user_id", expertId)
-          .order("sort_order", { ascending: true }),
-        supabase
-          .from("media_mentions")
-          .select("id, outlet, title, url, kind, language, published_on, cover_url")
-          .eq("user_id", expertId)
-          .eq("is_public", true)
-          .order("published_on", { ascending: false }),
-        fetchMaterials(expertId),
-        supabase
-          .from("programs")
-          .select("id, slug, name_pl, name_en, kind, description_pl, description_en"),
-        supabase.from("regions").select("id, slug, name_pl, name_en"),
-        supabase.from("categories").select("id, slug, name_pl, name_en"),
-        supabase.from("tags").select("id, slug, name"),
-      ]);
-
-      const apRow = (ap as Record<string, unknown> | null) ?? null;
-      const badges = (badgeRows ?? []).map((b) => (b as { badge: string }).badge);
-
-      const expert = buildExpertProfile(prof, apRow, badges);
-      const programs = mapProgramMembers((memberRows ?? []) as Record<string, unknown>[]);
-      const areas = mapExpertiseAreaRows((areaRows ?? []) as Record<string, unknown>[]);
-      const mediaMentions = mapMediaMentionRows((mentionRows ?? []) as Record<string, unknown>[]);
-
-      // Pełne taksonomie (znormalizowane), potem redukcja do wartości obecnych
-      // w materiałach - fasety pokazują tylko filtry, które coś zwrócą.
-      const programRows = (allPrograms ?? []) as Record<string, unknown>[];
-      const regionRows = (allRegions ?? []) as Record<string, unknown>[];
-      const categoryRows = (allCategories ?? []) as Record<string, unknown>[];
-      const allProgramsMapped: ExpertProgram[] = programRows.map((p) => ({
-        id: p.id as string,
-        slug: p.slug as string,
-        name_pl: p.name_pl as string,
-        name_en: p.name_en as string,
-        kind: (p.kind as ExpertProgram["kind"]) ?? "program",
-        description_pl: (p.description_pl as string | null) ?? null,
-        description_en: (p.description_en as string | null) ?? null,
-        role_pl: null,
-        role_en: null,
-      }));
-      const allRegionsMapped = regionRows.map((r) => ({
-        id: r.id as string,
-        slug: r.slug as string,
-        name_pl: r.name_pl as string,
-        name_en: r.name_en as string,
-      }));
-      const allCategoriesMapped = categoryRows.map((c) => ({
-        id: c.id as string,
-        slug: c.slug as string,
-        name_pl: c.name_pl as string,
-        name_en: c.name_en as string,
-      }));
-      const tagRows = (allTags ?? []) as Record<string, unknown>[];
-      const allTagsMapped = tagRows.map((t) => ({
-        id: t.id as string,
-        slug: t.slug as string,
-        name: t.name as string,
-      }));
-
-      const facets = reduceFacets(materials, {
-        programs: allProgramsMapped,
-        regions: allRegionsMapped,
-        categories: allCategoriesMapped,
-        tags: allTagsMapped,
-      });
-
-      return { expert, programs, areas, mediaMentions, materials, facets };
-    },
+    queryFn: async (): Promise<ExpertHubData | null> =>
+      // Per-isolate TTL (per tenant host): profil publiczny jest anonimową
+      // projekcją, więc współdzielenie między żądaniami jest bezpieczne;
+      // minuta amortyzuje najcięższą trasę bez opóźniania edycji profilu
+      // ponad okno świeżości dokumentów.
+      edgeTtlCache(`public:expert-hub:${slugOrId}`, HUB_SSR_TTL_MS, () => fetchExpertHub(slugOrId)),
     staleTime: TTL,
   });

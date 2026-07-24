@@ -202,7 +202,7 @@ function buildDoiEmail(p: ContactPayload, confirmUrl: string): { subject: string
 }
 
 export const submitContactMessage = createServerFn({ method: "POST" })
-  .inputValidator((data) => ContactInput.parse(data))
+  .validator((data) => ContactInput.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 

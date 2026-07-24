@@ -126,7 +126,7 @@ const listInput = z.object({
 
 export const wpListPages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d: unknown) => listInput.parse(d))
+  .validator((d: unknown) => listInput.parse(d))
   .handler(async ({ data }): Promise<{ pages: WpListedPage[] }> => {
     const site = encodeURIComponent(data.siteDomain);
     const res = await wpFetch(`/rest/v1.1/sites/${site}/posts`, {
@@ -178,7 +178,7 @@ export interface PreviewResult {
 
 export const wpPreviewPage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d: unknown) => previewInput.parse(d))
+  .validator((d: unknown) => previewInput.parse(d))
   .handler(async ({ data }): Promise<PreviewResult> => {
     const site = encodeURIComponent(data.siteDomain);
     const wp = await fetchWpPage(site, data.wpId);
@@ -216,7 +216,7 @@ export const wpPreviewPage = createServerFn({ method: "POST" })
 
 export const listExistingPages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((_d: unknown) => ({}))
+  .validator((_d: unknown) => ({}))
   .handler(
     async ({
       context,
@@ -340,7 +340,7 @@ async function buildPageFromWp(
 
 export const wpImportPages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d: unknown) => importInput.parse(d))
+  .validator((d: unknown) => importInput.parse(d))
   .handler(async ({ data, context }): Promise<{ results: ImportResultRow[] }> => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
@@ -615,7 +615,7 @@ interface WxrImportResultRow {
 
 export const wpImportFromWxr = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d: unknown) => wxrImportInput.parse(d))
+  .validator((d: unknown) => wxrImportInput.parse(d))
   .handler(async ({ data, context }): Promise<{ results: WxrImportResultRow[] }> => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);

@@ -19,7 +19,7 @@ const DeleteAccountSchema = z.object({
  */
 export const deleteMyAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => DeleteAccountSchema.parse(input))
+  .validator((input: unknown) => DeleteAccountSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId, claims } = context;
 
@@ -60,7 +60,7 @@ const ChangeEmailSchema = z.object({
  */
 export const changeMyEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => ChangeEmailSchema.parse(input))
+  .validator((input: unknown) => ChangeEmailSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, claims } = context;
 

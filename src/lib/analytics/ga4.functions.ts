@@ -200,7 +200,7 @@ export interface Ga4Report {
 
 export const runGa4Report = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => reportInput.parse(i ?? {}))
+  .validator((i: unknown) => reportInput.parse(i ?? {}))
   .handler(async ({ data, context }): Promise<Ga4Report> => {
     const ctx = context as unknown as GatewayCtx;
     await requireAdmin(ctx);
@@ -305,7 +305,7 @@ export interface Ga4MpResult {
  */
 export const sendGa4Event = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => mpInput.parse(i ?? {}))
+  .validator((i: unknown) => mpInput.parse(i ?? {}))
   .handler(async ({ data, context }): Promise<Ga4MpResult> => {
     await requireAdmin(context as unknown as GatewayCtx);
 

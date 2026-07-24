@@ -23,7 +23,7 @@ const queryCache = new Map<string, number[]>();
 const QUERY_CACHE_MAX = 300;
 
 export const semanticSearch = createServerFn({ method: "GET" })
-  .inputValidator((data: z.input<typeof InputSchema>) => InputSchema.parse(data))
+  .validator((data: z.input<typeof InputSchema>) => InputSchema.parse(data))
   .handler(async ({ data }): Promise<{ hits: SemanticHit[] }> => {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_PUBLISHABLE_KEY;

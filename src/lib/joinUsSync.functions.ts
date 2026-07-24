@@ -65,7 +65,7 @@ const LinkInput = z.object({
 // wymaga admin clienta; sama funkcja RPC waliduje przez zestaw parametrów).
 export const linkJoinUsAndBackfill = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => LinkInput.parse(input))
+  .validator((input: unknown) => LinkInput.parse(input))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
     const { userId } = context;
 

@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/r
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { customFontsCss, type CustomFont } from "@/lib/theme/customFonts";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 export interface BrandColor {
   /** Stable slug used to build the CSS variable (`--brand-primary`). */
@@ -49,19 +50,60 @@ export const EMPTY_TOKENS: DesignTokens = {
 
 const QUERY_KEY = ["site_design_tokens"] as const;
 
+/** Pełny wiersz `site_design_tokens` (tokeny marki + kolory globalne). */
+export interface SiteDesignTokensRow {
+  colors: unknown;
+  fonts: unknown;
+  scale: unknown;
+  global_colors: unknown;
+}
+
+const DESIGN_TOKENS_ROW_TTL_MS = 60_000;
+
+let inflightRow: Promise<SiteDesignTokensRow | null> | null = null;
+
+/**
+ * JEDEN odczyt wiersza `site_design_tokens` współdzielony przez tokeny marki
+ * (designTokensQueryOptions) i kolory globalne (globalColorsQueryOptions).
+ * Wcześniej root loader wykonywał dwa osobne round-tripy do tego samego
+ * jednowierszowego zapisu na KAŻDEJ trasie. Warstwy współdzielenia:
+ *   - serwer: `edgeTtlCache` (per tenant host, 60 s) - w stanie ustalonym zero
+ *     round-tripów, spójnie z site_settings;
+ *   - klient i zimny serwer: dedupe in-flight - dwa równoległe zapytania
+ *     (tokeny + kolory) zbiegają do jednego fetcha, świeżością dalej rządzi
+ *     react-query per queryKey.
+ * Błąd degraduje do null (wołający mają wbudowane defaulty) - ten sam kontrakt
+ * odporności co dotąd.
+ */
+export async function fetchSiteDesignTokensRow(): Promise<SiteDesignTokensRow | null> {
+  if (inflightRow) return inflightRow;
+  const load = async (): Promise<SiteDesignTokensRow | null> => {
+    const { data, error } = await supabase
+      .from("site_design_tokens")
+      .select("colors, fonts, scale, global_colors")
+      .maybeSingle();
+    if (error) return null;
+    return (data as SiteDesignTokensRow | null) ?? null;
+  };
+  inflightRow = edgeTtlCache("site_design_tokens:row", DESIGN_TOKENS_ROW_TTL_MS, load).catch(
+    () => null,
+  );
+  try {
+    return await inflightRow;
+  } finally {
+    inflightRow = null;
+  }
+}
+
 export const designTokensQueryOptions = queryOptions({
   queryKey: QUERY_KEY,
   queryFn: async (): Promise<DesignTokens> => {
-    const { data, error } = await supabase
-      .from("site_design_tokens")
-      .select("colors, fonts, scale")
-      .maybeSingle();
     // Brand tokens are purely presentational (they only feed CSS variables) and
     // this query is warmed by the root loader on EVERY route. A fetch failure
     // must therefore degrade to the built-in defaults, never throw - otherwise a
     // single transient error here takes the whole site down. The client re-query
     // (react-query) picks up the real tokens on the next successful fetch.
-    if (error) return EMPTY_TOKENS;
+    const data = await fetchSiteDesignTokensRow();
     if (!data) return EMPTY_TOKENS;
     return {
       colors: Array.isArray(data.colors)

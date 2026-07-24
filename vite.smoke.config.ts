@@ -20,8 +20,14 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// `minify: true` jak w produkcyjnym vite.config.ts - smoke ma odwzorowywać
+// realny artefakt (różni się wyłącznie presetem: node-server zamiast
+// cloudflare-module, żeby dało się go odpalić lokalnie). Zmienna pośrednia:
+// typy pakietu deklarują podzbiór opcji nitro - patrz komentarz w vite.config.ts.
+const nitroOptions = { preset: "node-server", minify: true };
+
 export default defineConfig({
-  nitro: { preset: "node-server" },
+  nitro: nitroOptions,
   vite: {
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
@@ -40,18 +46,10 @@ export default defineConfig({
         "seroval",
       ],
     },
-    // Skip minification of the SSR bundle: the Worker/Nitro SSR chunk grew past
-    // 2.5 MB (route tree + heavy admin analytics/builder trees) and V8's mark-
-    // compact ran out of memory during minify at `build:dev`. Minifying the
-    // server bundle is a size optimisation, not a correctness requirement -
-    // dropping it cuts peak RSS enough to build cleanly.
-    //
-    // UWAGA: to top-level ustawienie obejmuje KAŻDE środowisko builda, więc
-    // wyłączało też minifikację bundla PRZEGLĄDARKI (klient ważył ~2x więcej
-    // gzip - realny koszt każdego pierwszego wczytania). Środowisko "client"
-    // niżej jawnie przywraca esbuild-minify; serwer/worker zostaje bez zmian.
+    // Minifikacja wszystkich środowisk builda esbuildem - lustrzane odbicie
+    // vite.config.ts (2026-07-24; historia OOM i uzasadnienie tam).
     build: {
-      minify: false,
+      minify: "esbuild",
     },
     // Do not set top-level Rollup `manualChunks` here. This config is shared by
     // the browser and Cloudflare server environments; forcing vendor chunks at

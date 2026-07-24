@@ -70,7 +70,7 @@ const ListInput = z.object({
 
 export const listFunnelSubscribers = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ListInput.parse(d))
+  .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     let q = tbl(context, "crm_funnel_view")
       .select("*")
@@ -113,7 +113,7 @@ export const listFunnelSubscribers = createServerFn({ method: "POST" })
 
 export const getFunnelSubscriber = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: row, error } = await tbl(context, "crm_funnel_view")
       .select("*")
@@ -155,7 +155,7 @@ const BulkInput = z.object({
 
 export const bulkUnsubscribeFunnel = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => BulkInput.parse(d))
+  .validator((d) => BulkInput.parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await tbl(context, "newsletter_subscribers")
       .update({ status: "unsubscribed", unsubscribed_at: new Date().toISOString() })
@@ -174,7 +174,7 @@ const ConvertInput = z.object({
  */
 export const convertFunnelToContacts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ConvertInput.parse(d))
+  .validator((d) => ConvertInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: subs, error } = await tbl(context, "newsletter_subscribers")
       .select("id,tenant_id,email,first_name,last_name,language")
@@ -218,7 +218,7 @@ const TagInput = z.object({
 
 export const updateFunnelStatus = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => TagInput.parse(d))
+  .validator((d) => TagInput.parse(d))
   .handler(async ({ data, context }) => {
     const patch: Record<string, unknown> = { status: data.status };
     if (data.status === "unsubscribed") patch.unsubscribed_at = new Date().toISOString();

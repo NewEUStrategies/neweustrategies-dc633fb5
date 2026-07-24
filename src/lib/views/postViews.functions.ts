@@ -29,7 +29,7 @@ const recordSchema = z.object({
 });
 
 export const recordPostView = createServerFn({ method: "POST" })
-  .inputValidator((d) => recordSchema.parse(d))
+  .validator((d) => recordSchema.parse(d))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const sb = client();
     const { error } = await sb.rpc("record_post_view", {
@@ -95,7 +95,7 @@ const trendingSchema = z.object({
 });
 
 export const getTrendingPosts = createServerFn({ method: "GET" })
-  .inputValidator((d) => trendingSchema.parse(d))
+  .validator((d) => trendingSchema.parse(d))
   .handler(
     async ({ data }): Promise<TrendingPost[]> =>
       edgeTtlCache(`trending_posts:${data.days}:${data.limit}`, TICKER_TTL_MS, async () => {
@@ -169,7 +169,7 @@ async function toTrendingPosts(
 }
 
 export const getTickerPosts = createServerFn({ method: "GET" })
-  .inputValidator((d) => tickerSchema.parse(d))
+  .validator((d) => tickerSchema.parse(d))
   .handler(
     async ({ data }): Promise<TrendingPost[]> =>
       edgeTtlCache(

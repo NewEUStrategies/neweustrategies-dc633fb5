@@ -44,7 +44,7 @@ async function resolveOptionalUserId(): Promise<string | null> {
 }
 
 export const createDonationCheckout = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => donationInputSchema.parse(input))
+  .validator((input: unknown) => donationInputSchema.parse(input))
   .handler(async ({ data }) => {
     // Klient IP z nagłówków proxy (ta sama derywacja co formularz kontaktowy).
     let clientIp: string | null = null;

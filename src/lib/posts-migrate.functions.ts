@@ -42,7 +42,7 @@ async function migrateOne(
 
 export const migratePostToBlocks = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
+  .validator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     // Legacy body columns are revoked from the authenticated role, so read them
@@ -62,7 +62,7 @@ export const migratePostToBlocks = createServerFn({ method: "POST" })
 
 export const bulkMigratePostsToBlocks = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         ids: z.array(UUID).max(500).optional(),

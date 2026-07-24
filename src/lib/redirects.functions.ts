@@ -61,7 +61,7 @@ async function allowedRedirectHosts(): Promise<string[]> {
 
 export const upsertRedirect = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z.object({ id: UUID.optional(), fields: RedirectFields }).parse(i),
   )
   .handler(async ({ data, context }) => {
@@ -127,7 +127,7 @@ export const upsertRedirect = createServerFn({ method: "POST" })
 
 export const toggleRedirects = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z.object({ ids: z.array(UUID).min(1).max(500), is_enabled: z.boolean() }).parse(i),
   )
   .handler(async ({ data, context }) => {
@@ -153,7 +153,7 @@ export const toggleRedirects = createServerFn({ method: "POST" })
 
 export const deleteRedirects = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(500) }).parse(i))
+  .validator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(500) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("redirect.delete", userId, 60, async () => {
@@ -178,7 +178,7 @@ export const deleteRedirects = createServerFn({ method: "POST" })
 /** Bulk import from "source,target,status,note" CSV (WP migration tooling). */
 export const importRedirectsCsv = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({ csv: z.string().min(1).max(2_000_000) }).parse(i))
+  .validator((i: unknown) => z.object({ csv: z.string().min(1).max(2_000_000) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("redirect.import", userId, 10, async () => {
@@ -217,7 +217,7 @@ export const importRedirectsCsv = createServerFn({ method: "POST" })
 /** Dismiss entries from the 404 monitor (also used after "create redirect"). */
 export const dismissSeo404 = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z.object({ paths: z.array(z.string().max(500)).min(1).max(500) }).parse(i),
   )
   .handler(async ({ data, context }) => {

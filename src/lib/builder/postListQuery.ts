@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 export type Lang = "pl" | "en";
 
@@ -349,7 +350,16 @@ export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
     // dehydrated rows instead of refetching under a divergent key. uniqueOnPage
     // de-dup happens client-side via dedupeAndSlice, not in this key.
     queryKey: ["builder-post-list", input] as const,
-    queryFn: () => fetchPostListRows(input),
+    queryFn: () =>
+      // Per-isolate TTL: pojedynczy widget post-list to wewnętrznie do ~7
+      // round-tripów; chrome i strony builderowe prefetchują go na każdym
+      // renderze. Wariant "random" celowo POZA cache - zamrożenie kolejności
+      // na minutę zmieniłoby zachowanie widgetu (na kliencie przezroczyste).
+      input.orderByRaw === "random"
+        ? fetchPostListRows(input)
+        : edgeTtlCache(`builder:post-list:${JSON.stringify(input)}`, 60_000, () =>
+            fetchPostListRows(input),
+          ),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,
   });

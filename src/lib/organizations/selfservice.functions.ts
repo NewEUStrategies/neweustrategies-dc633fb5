@@ -54,7 +54,7 @@ async function sendInviteEmail(input: {
  */
 export const inviteOrgSeat = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => inviteSeatSchema.parse(input))
+  .validator((input: unknown) => inviteSeatSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const email = data.email.trim().toLowerCase();
@@ -107,7 +107,7 @@ const resendSchema = z.object({
  */
 export const resendOrgSeatInvite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => resendSchema.parse(input))
+  .validator((input: unknown) => resendSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 

@@ -131,6 +131,13 @@ export interface ExpertHubData {
     categories: CategoryMeta[];
     tags: TagMeta[];
   };
+  /**
+   * Wiersz `expert_layout_settings` tenanta profilu, gdy hub przyszedł z RPC
+   * `get_expert_hub` (jeden round-trip zamiast doklejanego zapytania w
+   * loaderze). `undefined` = ścieżka legacy, loader pobiera layout osobno;
+   * `null` = RPC potwierdziło brak wiersza (loader zasiewa defaulty).
+   */
+  layoutSettings?: Record<string, unknown> | null;
 }
 
 /** Aktywne filtry eksploratora materiałów. */

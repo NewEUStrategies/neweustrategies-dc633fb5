@@ -9,6 +9,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 export interface SliderPostRow {
   id: string;
@@ -149,7 +150,13 @@ export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
     // Key shape kept identical to the widget's historical inline query so
     // deploys don't orphan warm cache entries.
     queryKey: ["builder-slider-posts", input] as const,
-    queryFn: () => fetchSliderPosts(input, lang),
+    queryFn: () =>
+      // Per-isolate TTL: hero-slider strony głównej to do ~4 round-tripów na
+      // render. `lang` w kluczu, bo wpływa na kolumnę sortowania przy
+      // orderBy="title" (na kliencie przezroczyste).
+      edgeTtlCache(`builder:slider-posts:${lang}:${JSON.stringify(input)}`, 60_000, () =>
+        fetchSliderPosts(input, lang),
+      ),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,
   });

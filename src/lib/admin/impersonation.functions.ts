@@ -21,7 +21,7 @@ interface StartImpersonationResult {
 
 export const startImpersonation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: StartImpersonationInput): StartImpersonationInput => {
+  .validator((input: StartImpersonationInput): StartImpersonationInput => {
     if (!input || typeof input.targetUserId !== "string" || input.targetUserId.length < 8) {
       throw new Error("targetUserId required");
     }
@@ -92,7 +92,7 @@ interface EndImpersonationInput {
 
 export const endImpersonation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: EndImpersonationInput): EndImpersonationInput => {
+  .validator((input: EndImpersonationInput): EndImpersonationInput => {
     if (!input || typeof input.sessionId !== "string") {
       throw new Error("sessionId required");
     }

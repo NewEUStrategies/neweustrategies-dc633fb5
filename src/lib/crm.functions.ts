@@ -71,7 +71,7 @@ const j = (v: unknown): string => JSON.stringify(v ?? null);
 
 export const listCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ListInput.parse(d))
+  .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
     let q = tbl(context, view)
@@ -109,7 +109,7 @@ const IdInput = z.object({ id: z.string().uuid() });
 
 export const getCrmLead = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IdInput.parse(d))
+  .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead, error } = await tbl(context, "crm_leads")
       .select("*")
@@ -207,7 +207,7 @@ const UpdateInput = z.object({
 
 export const updateCrmLead = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => UpdateInput.parse(d))
+  .validator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
     const res = await (tbl(context, "crm_leads").update(patch).eq("id", id) as unknown as Promise<{
@@ -222,7 +222,7 @@ export const updateCrmLead = createServerFn({ method: "POST" })
 // w obrębie tenanta. Widoczne wyłącznie dla staff (requireStaff).
 export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IdInput.parse(d))
+  .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead } = (await tbl(context, "crm_leads")
       .select("email, tenant_id")
@@ -289,7 +289,7 @@ export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
 // z /pricing i profilem, bez osobnej kolumny do desynchronizacji.
 export const getCrmLeadMembership = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IdInput.parse(d))
+  .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead } = (await tbl(context, "crm_leads")
       .select("email, tenant_id")
@@ -398,7 +398,7 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
 const ProfileSyncInput = z.object({ lead_id: z.string().uuid() });
 export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ProfileSyncInput.parse(d))
+  .validator((d) => ProfileSyncInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead } = (await tbl(context, "crm_leads")
       .select("email, tenant_id")
@@ -500,7 +500,7 @@ const NoteInput = z.object({
 
 export const addCrmNote = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => NoteInput.parse(d))
+  .validator((d) => NoteInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
     const insertNote = async () => {
@@ -528,7 +528,7 @@ export const addCrmNote = createServerFn({ method: "POST" })
 
 export const deleteCrmNote = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IdInput.parse(d))
+  .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const res = await (tbl(context, "crm_lead_notes")
       .delete()
@@ -539,7 +539,7 @@ export const deleteCrmNote = createServerFn({ method: "POST" })
 
 export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ListInput.parse(d))
+  .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
     let q = tbl(context, view)
@@ -625,7 +625,7 @@ export const getCrmIntegrations = createServerFn({ method: "GET" })
 
 export const upsertCrmIntegrations = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IntegrationsInput.parse(d))
+  .validator((d) => IntegrationsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
     const supabase = (
@@ -676,7 +676,7 @@ const PushInput = z.object({ lead_id: z.string().uuid() });
 
 export const pushLeadToMerydian = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => PushInput.parse(d))
+  .validator((d) => PushInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
     const { data: lead, error } = await tbl(context, "crm_leads")
@@ -893,7 +893,7 @@ async function buildLeadTimeline(
 
 export const getCrmLeadTimeline = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IdInput.parse(d))
+  .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const r = await buildLeadTimeline(context, data.id);
     return { json: j(r) };
@@ -901,7 +901,7 @@ export const getCrmLeadTimeline = createServerFn({ method: "POST" })
 
 export const exportCrmLeadTimelineCsv = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IdInput.parse(d))
+  .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { lead, events } = await buildLeadTimeline(context, data.id);
     const esc = (v: unknown): string => {
@@ -1125,7 +1125,7 @@ export const getCrmScoringSettings = createServerFn({ method: "GET" })
 
 export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ScoringSettingsInput.parse(d))
+  .validator((d) => ScoringSettingsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
     const rpc = rpcOf(context);
@@ -1169,7 +1169,7 @@ export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
 
 export const recomputeLeadScore = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IdInput.parse(d))
+  .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const rpc = rpcOf(context);
     const { data: result, error } = await rpc("recompute_crm_lead_score", {
@@ -1187,7 +1187,7 @@ const RecomputeAllInput = z.object({
 
 export const recomputeAllLeadScores = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => RecomputeAllInput.parse(d))
+  .validator((d) => RecomputeAllInput.parse(d))
   .handler(
     async ({
       data,
@@ -1225,7 +1225,7 @@ const BulkUpdateInput = z.object({
 // tagami idą jednym UPDATE ... IN (...) dla wydajności.
 export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => BulkUpdateInput.parse(d))
+  .validator((d) => BulkUpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { ids, add_tags: addTags, remove_tags: removeTags, owner_id: ownerId, ...rest } = data;
 
@@ -1295,7 +1295,7 @@ const BulkDeleteInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(20
 
 export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => BulkDeleteInput.parse(d))
+  .validator((d) => BulkDeleteInput.parse(d))
   .handler(async ({ data, context }) => {
     // Delete zarezerwowane dla adminów - staff bez roli admin/super_admin
     // dostaje odmowę. RLS może i tak zablokować, ale sprawdzamy jawnie.

@@ -3,6 +3,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 export type ArchiveType = "category" | "tag";
 export type SidebarWidgetKey = "popular" | "related" | "newsletter" | "ads";
@@ -93,15 +94,18 @@ function coerce(archiveType: ArchiveType, row: Row | null): ArchiveLayoutSetting
 export function archiveLayoutQueryOptions(archiveType: ArchiveType) {
   return queryOptions({
     queryKey: ["archive-layout-settings", archiveType] as const,
-    queryFn: async (): Promise<ArchiveLayoutSettings> => {
-      const { data, error } = await supabase
-        .from("archive_layout_settings")
-        .select("*")
-        .eq("archive_type", archiveType)
-        .maybeSingle();
-      if (error) throw error;
-      return coerce(archiveType, data);
-    },
+    queryFn: async (): Promise<ArchiveLayoutSettings> =>
+      // Per-isolate TTL (per tenant host): ustawienia layoutu archiwum biegły
+      // do bazy na każdym renderze kategorii/tagu (na kliencie przezroczyste).
+      edgeTtlCache(`archive-layout:${archiveType}`, 60_000, async () => {
+        const { data, error } = await supabase
+          .from("archive_layout_settings")
+          .select("*")
+          .eq("archive_type", archiveType)
+          .maybeSingle();
+        if (error) throw error;
+        return coerce(archiveType, data);
+      }),
     staleTime: 5 * 60_000,
   });
 }

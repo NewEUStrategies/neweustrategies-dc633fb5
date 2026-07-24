@@ -71,7 +71,7 @@ const RegisterUploadSchema = z.object({
  */
 export const registerMediaUpload = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((input: unknown) => RegisterUploadSchema.parse(input))
+  .validator((input: unknown) => RegisterUploadSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
@@ -137,7 +137,7 @@ const DeleteSchema = z.object({ mediaId: z.string().uuid() });
 
 export const deleteMedia = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((input: unknown) => DeleteSchema.parse(input))
+  .validator((input: unknown) => DeleteSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 
@@ -199,7 +199,7 @@ export type MediaUsageItem = {
 
 export const getMediaUsage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((input: unknown) => UsageSchema.parse(input))
+  .validator((input: unknown) => UsageSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ items: MediaUsageItem[] }> => {
     const { supabase, userId } = context;
     // Fail-closed guard: a caller without a tenant must not run this scan
@@ -325,7 +325,7 @@ export interface ThumbnailRegenResult {
  */
 export const regenerateThumbnails = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         limit: z.number().int().min(1).max(500).default(100),
@@ -439,7 +439,7 @@ const UpdateMediaSchema = z.object({
 
 export const updateMediaMeta = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => UpdateMediaSchema.parse(i))
+  .validator((i: unknown) => UpdateMediaSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const patch: {
@@ -482,7 +482,7 @@ const BulkMoveSchema = z.object({
 
 export const bulkMoveMedia = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => BulkMoveSchema.parse(i))
+  .validator((i: unknown) => BulkMoveSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const folder = normalizeFolderPath(data.folderPath);
@@ -509,7 +509,7 @@ const BulkDeleteSchema = z.object({ mediaIds: z.array(z.string().uuid()).min(1).
 
 export const bulkDeleteMedia = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => BulkDeleteSchema.parse(i))
+  .validator((i: unknown) => BulkDeleteSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { data: rows, error } = await supabase
@@ -550,7 +550,7 @@ const DuplicateSchema = z.object({
 
 export const duplicateMedia = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => DuplicateSchema.parse(i))
+  .validator((i: unknown) => DuplicateSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const folder = normalizeFolderPath(data.folderPath);
@@ -619,7 +619,7 @@ const CreateFolderSchema = z.object({ path: z.string().min(1).max(512) });
 
 export const createMediaFolder = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => CreateFolderSchema.parse(i))
+  .validator((i: unknown) => CreateFolderSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const path = normalizeFolderPath(data.path);
@@ -656,7 +656,7 @@ const RenameFolderSchema = z.object({
 
 export const renameMediaFolder = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => RenameFolderSchema.parse(i))
+  .validator((i: unknown) => RenameFolderSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const oldP = normalizeFolderPath(data.oldPath);
@@ -708,7 +708,7 @@ const DeleteFolderSchema = z.object({
 
 export const deleteMediaFolder = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => DeleteFolderSchema.parse(i))
+  .validator((i: unknown) => DeleteFolderSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const path = normalizeFolderPath(data.path);

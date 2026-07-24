@@ -38,7 +38,7 @@ export const getGiftAdminSettings = createServerFn({ method: "GET" })
 
 export const updateGiftAdminSettings = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => SettingsSchema.parse(d))
+  .validator((d) => SettingsSchema.parse(d))
   .handler(async ({ data, context }) => {
     // Get tenant_id from caller's profile (RLS-safe: he can read his own row).
     const { data: profile, error: pErr } = await context.supabase
@@ -96,7 +96,7 @@ const ListLinksInput = z.object({
 
 export const listGiftLinksAdmin = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ListLinksInput.parse(d))
+  .validator((d) => ListLinksInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase.rpc("list_gift_links_admin", {
       _limit: data.limit,
@@ -114,7 +114,7 @@ const RevokeInput = z.object({ link_id: z.string().uuid() });
 
 export const revokeGiftLinkAdmin = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => RevokeInput.parse(d))
+  .validator((d) => RevokeInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: ok, error } = await context.supabase.rpc("revoke_gift_link_admin", {
       _link_id: data.link_id,
@@ -134,7 +134,7 @@ const ListEventsInput = z.object({
 
 export const listGiftEventsAdmin = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ListEventsInput.parse(d))
+  .validator((d) => ListEventsInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase.rpc("list_gift_events_admin", {
       _limit: data.limit,

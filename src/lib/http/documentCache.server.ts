@@ -1,24 +1,35 @@
-// NES Edge Cache - warstwa wykonawcza: magazyn per-isolate + middleware
+// NES Edge Cache - warstwa wykonawcza: dwupoziomowy magazyn + middleware
 // dokumentów SSR. Polityka (co i pod jakim kluczem wolno cache'ować) żyje w
 // czystym `src/lib/http/documentCache.ts`; tutaj jest wyłącznie pamięć,
 // single-flight stale-while-revalidate i zszycie z potokiem żądań.
 //
+// Architektura dwupoziomowa:
+//   - L1: mapa w pamięci izolatu (mikrosekundy, znika z rotacją izolatu);
+//   - L2: Cloudflare Cache API per-colo (`documentCacheL2.server.ts`) -
+//     współdzielone między izolatami kolonii, unieważniane kluczem
+//     wersjonowanym przy purge; poza Workers L2 degraduje do no-op.
+//
 // Właściwości:
-//   - HIT: odpowiedź prosto z pamięci (zero SSR, zero odczytów bazy);
+//   - HIT: odpowiedź prosto z L1 (zero SSR, zero odczytów bazy); L1 miss
+//     próbuje L2 i - przy trafieniu - zasiewa L1, więc świeży izolat grzeje
+//     się jednym odczytem z kolonii zamiast pełnym renderem;
 //   - STALE: wpis po świeżości serwowany natychmiast, a JEDNO żądanie
 //     (single-flight) płaci rewalidację; render, który się wywali, NIE zdejmuje
 //     strony - stale działa też jako bezpiecznik na czkawkę bazy;
 //   - MISS: strumień renderu jest tee-owany - czytelnik dostaje streaming SSR
-//     bez zmian, kopia zbiera się równolegle do magazynu (limit rozmiaru);
+//     bez zmian, kopia zbiera się do L1 i L2 pod `ctx.waitUntil` (praca "za
+//     odpowiedzią" nie jest już ucinana przez domknięcie żądania);
 //   - budżet bajtów z approx-LRU (Map w kolejności wstawień, odświeżanej przy
 //     trafieniu) - ten sam wzorzec co `edgeTtlCache`, ale liczony w bajtach;
 //   - klucz prefiksowany hostem tenanta ("by construction", multi-tenant safe);
+//   - Server-Timing: status cache + `ssr;dur` (czas renderu) + `db;dur`
+//     (koszt round-tripów planu anon, patrz `ssrTiming.server.ts`);
 //   - kill-switch środowiskowy: NES_EDGE_CACHE=off.
 //
-// Ograniczenie (świadome): pamięć jest per-isolate, więc purge przy publikacji
-// czyści bieżący isolate, a pozostałe doganiają w oknie świeżości (maks.
-// DOCUMENT_CACHE_MAX_FRESH_MS = 3 min). To kompromis "własnego mechanizmu"
-// bez zewnętrznego CDN-a/klastra - szybkość bez ryzyka wiecznie nieświeżych stron.
+// Spójność publikacji: purge czyści L1 bieżącego izolatu i podbija wersję L2
+// (cała kolonia natychmiast), a pozostałe kolonie doganiają w oknie świeżości
+// (maks. DOCUMENT_CACHE_MAX_FRESH_MS = 3 min) - ściśle nie gorzej niż dawny
+// per-isolate purge, zwykle dużo lepiej.
 import { createMiddleware } from "@tanstack/react-start";
 
 import {
@@ -32,6 +43,33 @@ import {
   type NesCacheStatus,
 } from "@/lib/http/documentCache";
 import { currentTenantHost, requestPublicHost } from "@/lib/http/requestHost";
+import {
+  bumpL2Version,
+  l2Match,
+  l2Put,
+  l2Stats,
+  recordL2Serve,
+  type L2DocumentEntry,
+} from "@/lib/http/documentCacheL2.server";
+import { runAfterResponse } from "@/lib/http/waitUntil.server";
+import { buildServerTimingValue, type SsrDbTiming } from "@/lib/http/ssrTiming";
+
+/**
+ * Migawka telemetrii DB bieżącego żądania. Część server-only telemetrii
+ * (getRequest/WeakMap) jest ładowana dynamicznie za bramką SSR - ten moduł
+ * jest osiągalny w grafie KLIENTA przez start.ts, a statyczny import
+ * `@tanstack/react-start/server` zatrzymałby build na import-protection
+ * (dokładnie ten sam wzorzec co lib/http/requestHost.ts).
+ */
+async function readDbTimingSafe(request: Request): Promise<SsrDbTiming | null> {
+  if (!import.meta.env.SSR) return null;
+  try {
+    const mod = await import("@/lib/http/ssrTiming.server");
+    return mod.readDbTiming(request);
+  } catch {
+    return null;
+  }
+}
 
 interface DocumentCacheEntry {
   body: Uint8Array;
@@ -42,6 +80,14 @@ interface DocumentCacheEntry {
   storedAt: number;
   freshMs: number;
   swrMs: number;
+}
+
+export interface DocumentCacheL2Snapshot {
+  enabled: boolean;
+  hits: number;
+  stale: number;
+  stores: number;
+  bumps: number;
 }
 
 export interface DocumentCacheSnapshot {
@@ -58,6 +104,8 @@ export interface DocumentCacheSnapshot {
   evictions: number;
   purges: number;
   startedAt: string;
+  /** Warstwa per-colo (Cache API); `enabled: false` poza Workers. */
+  l2: DocumentCacheL2Snapshot;
 }
 
 const store = new Map<string, DocumentCacheEntry>();
@@ -116,7 +164,7 @@ function replay(entry: DocumentCacheEntry, status: NesCacheStatus, now: number):
     "cache-control": entry.cacheControl,
     [NES_CACHE_HEADER]: status,
     [NES_CACHE_AGE_HEADER]: String(Math.max(0, Math.round((now - entry.storedAt) / 1000))),
-    "server-timing": `nes-edge;desc="${status}"`,
+    "server-timing": buildServerTimingValue(status),
   });
   if (entry.contentLanguage) headers.set("content-language", entry.contentLanguage);
   // Kopia bufora: Response może zostać skonsumowane/transferowane przez runtime,
@@ -124,10 +172,33 @@ function replay(entry: DocumentCacheEntry, status: NesCacheStatus, now: number):
   return new Response(entry.body.slice(), { status: 200, headers });
 }
 
-function withCacheStatus(response: Response, status: NesCacheStatus): Response {
+/** Wpis L1 zbudowany z wpisu L2 (odczyt z kolonii zasiewa pamięć izolatu). */
+function entryFromL2(l2Entry: L2DocumentEntry): DocumentCacheEntry {
+  return {
+    body: l2Entry.body,
+    bytes: l2Entry.body.byteLength,
+    contentType: l2Entry.contentType,
+    cacheControl: l2Entry.cacheControl,
+    contentLanguage: l2Entry.contentLanguage,
+    storedAt: l2Entry.storedAt,
+    freshMs: l2Entry.freshMs,
+    swrMs: l2Entry.swrMs,
+  };
+}
+
+interface RenderTiming {
+  renderMs: number;
+  db: SsrDbTiming | null;
+}
+
+function withCacheStatus(
+  response: Response,
+  status: NesCacheStatus,
+  timing?: RenderTiming,
+): Response {
   const headers = new Headers(response.headers);
   headers.set(NES_CACHE_HEADER, status);
-  headers.set("server-timing", `nes-edge;desc="${status}"`);
+  headers.set("server-timing", buildServerTimingValue(status, timing?.renderMs, timing?.db));
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -173,27 +244,31 @@ async function collectStream(
 
 /**
  * Render przeszedł - jeśli polityka pozwala, tee-uj strumień: jedna gałąź
- * wraca do czytelnika (streaming bez zmian), druga zbiera się do magazynu.
+ * wraca do czytelnika (streaming bez zmian), druga zbiera się do L1 i L2.
+ * Zbieranie biegnie pod `ctx.waitUntil` - domknięcie odpowiedzi nie ucina go.
  */
-function passThroughAndMaybeStore(key: string, response: Response, now: number): Response {
+function passThroughAndMaybeStore(
+  host: string | null,
+  key: string,
+  response: Response,
+  now: number,
+  timing?: RenderTiming,
+): Response {
   const policy = documentStorePolicy(
     response.status,
     response.headers.get("content-type"),
     response.headers.get("cache-control"),
   );
-  if (!policy.store || !response.body) return withCacheStatus(response, "MISS");
+  if (!policy.store || !response.body) return withCacheStatus(response, "MISS", timing);
 
   const [toClient, toCache] = response.body.tee();
   const contentType = response.headers.get("content-type") ?? "text/html; charset=utf-8";
   const cacheControl = response.headers.get("cache-control") ?? "";
   const contentLanguage = response.headers.get("content-language");
-  // Celowo bez await: czytelnik dostaje pierwsze bajty natychmiast. Jeśli
-  // runtime utnie zbieranie po domknięciu odpowiedzi, wpis po prostu nie
-  // powstanie (kolejne żądanie znów będzie MISS) - degradacja, nie korupcja.
-  void collectStream(toCache, DOCUMENT_CACHE_MAX_ENTRY_BYTES)
-    .then((body) => {
+  runAfterResponse(
+    collectStream(toCache, DOCUMENT_CACHE_MAX_ENTRY_BYTES).then(async (body) => {
       if (!body) return;
-      setEntry(key, {
+      const entry: DocumentCacheEntry = {
         body,
         bytes: body.byteLength,
         contentType,
@@ -202,13 +277,15 @@ function passThroughAndMaybeStore(key: string, response: Response, now: number):
         storedAt: now,
         freshMs: policy.freshMs,
         swrMs: policy.swrMs,
-      });
-    })
-    .catch(() => undefined);
+      };
+      setEntry(key, entry);
+      await l2Put(host, key, entry);
+    }),
+  );
 
   const headers = new Headers(response.headers);
   headers.set(NES_CACHE_HEADER, "MISS");
-  headers.set("server-timing", 'nes-edge;desc="MISS"');
+  headers.set("server-timing", buildServerTimingValue("MISS", timing?.renderMs, timing?.db));
   return new Response(toClient, {
     status: response.status,
     statusText: response.statusText,
@@ -218,9 +295,9 @@ function passThroughAndMaybeStore(key: string, response: Response, now: number):
 
 /**
  * Rdzeń mechanizmu, wydzielony z middleware dla testowalności: pełny cykl
- * BYPASS / HIT / STALE (single-flight) / MISS dla jednego żądania. Generyk po
- * wyniku `next()` zachowuje typ frameworkowego łańcucha middleware (wynik
- * nie-Response przepływa nietknięty).
+ * BYPASS / HIT / STALE (single-flight) / MISS dla jednego żądania, z L2 jako
+ * drugą szansą przed pełnym renderem. Generyk po wyniku `next()` zachowuje typ
+ * frameworkowego łańcucha middleware (wynik nie-Response przepływa nietknięty).
  */
 export async function handleDocumentRequest<T>(
   request: Request,
@@ -228,11 +305,22 @@ export async function handleDocumentRequest<T>(
 ): Promise<T | Response> {
   if (!cacheEnabled()) return next();
 
-  const plan = planDocumentCache(request, requestPublicHost(request));
+  const host = requestPublicHost(request);
+  const plan = planDocumentCache(request, host);
   if (plan.kind === "bypass") {
     if (plan.reason !== "method") stats.bypass += 1;
     return next();
   }
+
+  /** next() z pomiarem czasu renderu + kosztu bazy (Server-Timing). */
+  const renderWithTiming = async (): Promise<{ result: T; timing: RenderTiming }> => {
+    const startedAt = Date.now();
+    const result = await next();
+    return {
+      result,
+      timing: { renderMs: Date.now() - startedAt, db: await readDbTimingSafe(request) },
+    };
+  };
 
   const now = Date.now();
   const entry = store.get(plan.key);
@@ -250,11 +338,11 @@ export async function handleDocumentRequest<T>(
       }
       revalidating.add(plan.key);
       try {
-        const response = await next();
-        if (response instanceof Response) {
-          return passThroughAndMaybeStore(plan.key, response, Date.now());
+        const { result, timing } = await renderWithTiming();
+        if (result instanceof Response) {
+          return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
         }
-        return response;
+        return result;
       } catch {
         // Render się wywalił - nieświeży dokument jest lepszy niż 500.
         stats.stale += 1;
@@ -268,12 +356,48 @@ export async function handleDocumentRequest<T>(
     totalBytes -= entry.bytes;
   }
 
-  stats.misses += 1;
-  const response = await next();
-  if (response instanceof Response) {
-    return passThroughAndMaybeStore(plan.key, response, Date.now());
+  // L1 pusty: zanim zapłacimy pełny render, sprawdź wpis kolonii (L2).
+  const l2Entry = await l2Match(host, plan.key);
+  if (l2Entry) {
+    const l2Age = now - l2Entry.storedAt;
+    if (l2Age < l2Entry.freshMs) {
+      const seeded = entryFromL2(l2Entry);
+      setEntry(plan.key, seeded);
+      stats.hits += 1;
+      recordL2Serve("HIT");
+      return replay(seeded, "HIT", now);
+    }
+    if (l2Age < l2Entry.freshMs + l2Entry.swrMs) {
+      const staleEntry = entryFromL2(l2Entry);
+      if (revalidating.has(plan.key)) {
+        stats.stale += 1;
+        recordL2Serve("STALE");
+        return replay(staleEntry, "STALE", now);
+      }
+      revalidating.add(plan.key);
+      try {
+        const { result, timing } = await renderWithTiming();
+        if (result instanceof Response) {
+          return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
+        }
+        return result;
+      } catch {
+        stats.stale += 1;
+        recordL2Serve("STALE");
+        return replay(staleEntry, "STALE", now);
+      } finally {
+        revalidating.delete(plan.key);
+      }
+    }
+    // Wpis L2 poza oknem SWR: ignoruj (wygaśnie własnym TTL-em Cache API).
   }
-  return response;
+
+  stats.misses += 1;
+  const { result, timing } = await renderWithTiming();
+  if (result instanceof Response) {
+    return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
+  }
+  return result;
 }
 
 /** Middleware do `requestMiddleware` w `src/start.ts` (najbliżej routera). */
@@ -283,7 +407,9 @@ export const documentCacheMiddleware = createMiddleware().server(async ({ reques
 
 /**
  * Purge wpisów danego hosta (tenant) albo całego magazynu. Wołane po mutacjach
- * treści (publish/update/delete) i z karty admina; zwraca liczbę usuniętych.
+ * treści (publish/update/delete) i z karty admina; zwraca liczbę usuniętych
+ * wpisów L1. Warstwa L2 jest unieważniana bumpem wersji (host albo globalnym)
+ * pod `ctx.waitUntil` - natychmiast dla całej kolonii, bez iterowania kluczy.
  */
 export function purgeDocumentCache(host?: string | null): number {
   let removed = 0;
@@ -301,6 +427,7 @@ export function purgeDocumentCache(host?: string | null): number {
     store.clear();
     totalBytes = 0;
   }
+  runAfterResponse(bumpL2Version(host ?? null));
   if (removed > 0) stats.purges += 1;
   return removed;
 }
@@ -336,6 +463,7 @@ export function getDocumentCacheSnapshot(): DocumentCacheSnapshot {
     evictions: stats.evictions,
     purges: stats.purges,
     startedAt: stats.startedAt,
+    l2: l2Stats(),
   };
 }
 

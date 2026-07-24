@@ -274,6 +274,43 @@ export type ResolvedContent =
 
 const PAGE_PATH_TTL = 10 * 60_000;
 
+/** Kształt ustawień czytania konsumowany przez trasę główną. */
+interface ReadingSettingsValue {
+  homepage_mode?: string;
+  homepage_page_id?: string;
+  homepage_page_slug?: string;
+}
+
+/**
+ * Ustawienia czytania (`site_settings["reading"]`) bez dedykowanego
+ * round-tripu na serwerze: root loader grzeje bulk mapę wszystkich ustawień
+ * (edgeTtlCache per tenant host), więc odczyt jednego klucza jest darmowy.
+ * Wcześniej home-mode i home-page czytały ten sam jednowierszowy zapis dwoma
+ * osobnymi selectami na każdą rewalidację strony głównej. Przeglądarka
+ * (nawigacje SPA) zostaje przy tanim selekcie pojedynczego wiersza - bulk
+ * payload nie ma tam sensu.
+ */
+async function fetchReadingSettings(): Promise<ReadingSettingsValue> {
+  if (typeof window === "undefined" && import.meta.env.SSR) {
+    try {
+      const { fetchAllSiteSettings } = await import("@/lib/useSiteSetting");
+      const map = await fetchAllSiteSettings();
+      const reading = map["reading"];
+      return typeof reading === "object" && reading !== null
+        ? (reading as ReadingSettingsValue)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+  const { data } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "reading")
+    .maybeSingle();
+  return (data?.value ?? {}) as ReadingSettingsValue;
+}
+
 // Fetches the page used as the public homepage (`/`).
 // Resolution order:
 //   1. site_settings.reading.homepage_mode === "static_page" → page by
@@ -292,12 +329,7 @@ export const homepageModeQueryOptions = () =>
     queryKey: ["public", "home-mode"] as const,
     queryFn: async (): Promise<string> => {
       return edgeTtlCache("public:home-mode", 60_000, async () => {
-        const { data } = await supabase
-          .from("site_settings")
-          .select("value")
-          .eq("key", "reading")
-          .maybeSingle();
-        const reading = (data?.value ?? {}) as { homepage_mode?: string };
+        const reading = await fetchReadingSettings();
         return reading.homepage_mode ?? "";
       });
     },
@@ -310,16 +342,7 @@ export const homePageQueryOptions = () =>
     queryFn: async (): Promise<PageData | null> => {
       return edgeTtlCache("public:home-page", 60_000, async () => {
         // 1. Read reading-settings to find the designated homepage.
-        const { data: setting } = await supabase
-          .from("site_settings")
-          .select("value")
-          .eq("key", "reading")
-          .maybeSingle();
-        const reading = (setting?.value ?? {}) as {
-          homepage_mode?: string;
-          homepage_page_id?: string;
-          homepage_page_slug?: string;
-        };
+        const reading = await fetchReadingSettings();
 
         // Non-gated display + SEO columns only; the body (content_*/builder_data)
         // is fetched via the gated get_entity_content RPC below, so the homepage
@@ -397,28 +420,32 @@ export function resolvePostsPerPage(settings: Record<string, unknown> | undefine
 export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
   queryOptions({
     queryKey: ["public", "blog", "list", { limit }] as const,
-    queryFn: async (): Promise<{ posts: BlogListItem[] }> => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select(
-          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id",
-        )
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(limit);
-      if (error) throw error;
-      const rows = (data ?? []) as Array<Omit<BlogListItem, "href">>;
-      // Posts always link via the dedicated `/post/$slug` route, which resolves
-      // even when a parent path is missing. (A previous version fetched one
-      // `page_full_path` RPC per parent page here and then never used the
-      // result - removed: pure N+1 with no effect on the href.)
-      const posts: BlogListItem[] = rows.map((r) => ({
-        ...r,
-        href: `/post/${r.slug}`,
-      }));
-      return { posts };
-    },
+    queryFn: async (): Promise<{ posts: BlogListItem[] }> =>
+      // Per-isolate TTL: /blog nie ustawiał dotąd nagłówka cache, więc to
+      // zapytanie biegło na każde żądanie SSR. Klucz zawiera limit (rozmiar
+      // strony z ustawień czytania rozdziela wpisy cache).
+      edgeTtlCache(`public:blog-list:${limit}`, 60_000, async () => {
+        const { data, error } = await supabase
+          .from("posts")
+          .select(
+            "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id",
+          )
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("published_at", { ascending: false })
+          .limit(limit);
+        if (error) throw error;
+        const rows = (data ?? []) as Array<Omit<BlogListItem, "href">>;
+        // Posts always link via the dedicated `/post/$slug` route, which resolves
+        // even when a parent path is missing. (A previous version fetched one
+        // `page_full_path` RPC per parent page here and then never used the
+        // result - removed: pure N+1 with no effect on the href.)
+        const posts: BlogListItem[] = rows.map((r) => ({
+          ...r,
+          href: `/post/${r.slug}`,
+        }));
+        return { posts };
+      }),
     staleTime: 2 * 60_000,
   });
 
@@ -428,17 +455,18 @@ export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
 export const publicPagesTreeQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "pages-tree"] as const,
-    queryFn: async (): Promise<PageTreeRow[]> => {
-      const { data, error } = await supabase
-        .from("pages")
-        .select("id, slug, title_pl, title_en, parent_id, menu_order")
-        .eq("status", "published")
-        .eq("seo_noindex", false)
-        .is("deleted_at", null)
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: async (): Promise<PageTreeRow[]> =>
+      edgeTtlCache("public:pages-tree", 5 * 60_000, async () => {
+        const { data, error } = await supabase
+          .from("pages")
+          .select("id, slug, title_pl, title_en, parent_id, menu_order")
+          .eq("status", "published")
+          .eq("seo_noindex", false)
+          .is("deleted_at", null)
+          .limit(500);
+        if (error) throw error;
+        return data ?? [];
+      }),
     staleTime: 5 * 60_000,
   });
 
@@ -446,175 +474,192 @@ export const publicPagesTreeQueryOptions = () =>
 export const publicCategoriesQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "categories"] as const,
-    queryFn: async (): Promise<Array<{ slug: string; name_pl: string; name_en: string }>> => {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("slug, name_pl, name_en")
-        .order("name_pl");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: async (): Promise<Array<{ slug: string; name_pl: string; name_en: string }>> =>
+      edgeTtlCache("public:categories", 5 * 60_000, async () => {
+        const { data, error } = await supabase
+          .from("categories")
+          .select("slug, name_pl, name_en")
+          .order("name_pl");
+        if (error) throw error;
+        return data ?? [];
+      }),
     staleTime: 5 * 60_000,
   });
+
+/**
+ * Rdzeń rezolucji treści po segmentach ścieżki (wydzielony z queryFn, żeby
+ * objąć go edgeTtlCache bez zmiany logiki). Trzy fale round-tripów:
+ * resolve_path -> Promise.all(metadane+body+taksonomie+okruszki+access) ->
+ * profile autorów.
+ */
+async function resolveContentForSegments(segments: string[]): Promise<ResolvedContent | null> {
+  const { data: resolved, error: rErr } = await supabase.rpc("resolve_path", {
+    _segments: segments,
+  });
+  if (rErr) throw rErr;
+  const hit = (resolved ?? [])[0] as { page_id: string | null; post_id: string | null } | undefined;
+  if (!hit?.page_id) return null;
+
+  if (hit.post_id) {
+    // Body columns (content_*/builder_data/blocks_data) are fetched via the
+    // gated RPC, never selected directly - the row select carries only the
+    // non-sensitive display metadata. All four requests run in parallel so
+    // gating adds no extra latency.
+    const [
+      { data, error },
+      body,
+      { data: tagRows },
+      { data: catRows },
+      { data: coAuthorRows },
+      crumbs,
+      access,
+    ] = await Promise.all([
+      supabase
+        .from("posts")
+        .select(
+          `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, takeaways_variant, toc_override, custom_meta, related_override, author_id, audio_url_pl, audio_url_en, ${SEO_FIELDS_SELECT}`,
+        )
+        .eq("id", hit.post_id)
+        .maybeSingle(),
+      fetchGatedBody("post", hit.post_id),
+      supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
+      supabase
+        .from("post_categories")
+        .select("categories(slug, name_pl, name_en, color)")
+        .eq("post_id", hit.post_id),
+      supabase
+        .from("post_authors")
+        .select("user_id, sort_order")
+        .eq("post_id", hit.post_id)
+        .order("sort_order", { ascending: true }),
+      fetchPageBreadcrumbs(hit.page_id),
+      fetchAccessRule("post", hit.post_id),
+    ]);
+    if (error) throw error;
+    if (!data) return null;
+    const tags = (tagRows ?? [])
+      .map((r) => (r as { tags: { slug: string; name: string } | null }).tags)
+      .filter((t): t is { slug: string; name: string } => !!t);
+    const categories = (catRows ?? [])
+      .map((r) => (r as { categories: PostCategory | null }).categories)
+      .filter((c): c is PostCategory => !!c);
+    const post = { ...data, ...body } as PostData;
+    // Profile WSZYSTKICH autorów (główny + współautorzy) pobieramy JEDNYM
+    // selectem .in() po profiles_public - wcześniej były to dwie
+    // sekwencyjne rundy (osobny profil autora głównego, a potem drugi
+    // .in() na współautorów), co dokładało 1-2 round-tripy na krytycznej
+    // ścieżce TTFB wpisu. Nakładka author_profiles (tylko dla autora
+    // głównego) leci równolegle w tym samym Promise.all, więc nie dokłada
+    // opóźnienia. Ten sam klient anon i te same widoki - izolacja
+    // tenanta/RLS bez zmian. Kolejność i scalanie są czystymi funkcjami
+    // (orderAuthorIds / buildPostAuthors), przetestowanymi w izolacji.
+    const mainAuthorId = post.author_id ?? null;
+    const orderedAuthorIds = orderAuthorIds(
+      mainAuthorId,
+      (coAuthorRows ?? []).map((row) => (row as { user_id: string }).user_id),
+    );
+    let author: PostAuthor | null = null;
+    let authors: PostAuthorRef[] = [];
+    if (orderedAuthorIds.length > 0) {
+      const overlayQuery = mainAuthorId
+        ? supabase
+            .from("author_profiles")
+            .select(
+              "avatar_url, job_title, company, bio_pl, bio_en, contact_email, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
+            )
+            .eq("user_id", mainAuthorId)
+            .eq("is_public", true)
+            .maybeSingle()
+        : null;
+      const [{ data: profileRows }, overlayRes] = await Promise.all([
+        supabase
+          .from("profiles_public")
+          .select("id, slug, display_name, first_name, last_name, avatar_url, bio_pl, bio_en")
+          .in("id", orderedAuthorIds),
+        overlayQuery ?? Promise.resolve({ data: null } as const),
+      ]);
+      ({ author, authors } = buildPostAuthors({
+        orderedAuthorIds,
+        profileRows: (profileRows ?? []) as FullAuthorRow[],
+        mainAuthorId,
+        overlay: overlayRes.data as RawAuthorOverlay | null,
+      }));
+    }
+    return {
+      kind: "post",
+      item: post,
+      crumbs,
+      parentPageId: hit.page_id,
+      tags,
+      categories,
+      author,
+      authors,
+      access,
+    };
+  }
+
+  const [{ data, error }, body, crumbs, access] = await Promise.all([
+    supabase
+      .from("pages")
+      .select(
+        `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, takeaways_pl, takeaways_en, takeaways_variant, ${SEO_FIELDS_SELECT}`,
+      )
+      .eq("id", hit.page_id)
+      .maybeSingle(),
+    fetchGatedBody("page", hit.page_id),
+    fetchPageBreadcrumbs(hit.page_id),
+    fetchAccessRule("page", hit.page_id),
+  ]);
+  if (error) throw error;
+  if (!data) return null;
+  // Microsites (C4): header_override DZIEDZICZY w dół poddrzewa stron -
+  // ustawienie nagłówka raz na stronie-korzeniu microsite'u obowiązuje
+  // wszystkie podstrony (najbliższy przodek z ustawieniem wygrywa,
+  // własne ustawienie strony ma pierwszeństwo). Jedno tanie zapytanie
+  // po id przodków z okruszków, tylko gdy strona sama nie nadpisuje.
+  let effectiveHeaderOverride = (data as { header_override: string | null }).header_override;
+  if (!effectiveHeaderOverride && crumbs.length > 0) {
+    const ancestorIds = crumbs.map((c) => c.id).filter((id) => id !== hit.page_id);
+    if (ancestorIds.length > 0) {
+      const { data: ancestorRows } = await supabase
+        .from("pages")
+        .select("id, header_override")
+        .in("id", ancestorIds);
+      const overrideById = new Map(
+        (ancestorRows ?? []).map((row) => [row.id, row.header_override] as const),
+      );
+      for (const crumb of [...crumbs].sort((a, b) => b.depth - a.depth)) {
+        const inherited = overrideById.get(crumb.id);
+        if (inherited) {
+          effectiveHeaderOverride = inherited;
+          break;
+        }
+      }
+    }
+  }
+  return {
+    kind: "page",
+    item: { ...data, ...body, header_override: effectiveHeaderOverride } as PageData,
+    crumbs,
+    parentPageId: hit.page_id,
+    access,
+  };
+}
 
 export const resolvedContentQueryOptions = (segments: string[]) =>
   queryOptions({
     queryKey: ["public", "resolved", segments] as const,
     queryFn: async (): Promise<ResolvedContent | null> => {
       if (segments.length === 0) return null;
-      const { data: resolved, error: rErr } = await supabase.rpc("resolve_path", {
-        _segments: segments,
-      });
-      if (rErr) throw rErr;
-      const hit = (resolved ?? [])[0] as
-        | { page_id: string | null; post_id: string | null }
-        | undefined;
-      if (!hit?.page_id) return null;
-
-      if (hit.post_id) {
-        // Body columns (content_*/builder_data/blocks_data) are fetched via the
-        // gated RPC, never selected directly - the row select carries only the
-        // non-sensitive display metadata. All four requests run in parallel so
-        // gating adds no extra latency.
-        const [
-          { data, error },
-          body,
-          { data: tagRows },
-          { data: catRows },
-          { data: coAuthorRows },
-          crumbs,
-          access,
-        ] = await Promise.all([
-          supabase
-            .from("posts")
-            .select(
-              `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, takeaways_variant, toc_override, custom_meta, related_override, author_id, audio_url_pl, audio_url_en, ${SEO_FIELDS_SELECT}`,
-            )
-            .eq("id", hit.post_id)
-            .maybeSingle(),
-          fetchGatedBody("post", hit.post_id),
-          supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
-          supabase
-            .from("post_categories")
-            .select("categories(slug, name_pl, name_en, color)")
-            .eq("post_id", hit.post_id),
-          supabase
-            .from("post_authors")
-            .select("user_id, sort_order")
-            .eq("post_id", hit.post_id)
-            .order("sort_order", { ascending: true }),
-          fetchPageBreadcrumbs(hit.page_id),
-          fetchAccessRule("post", hit.post_id),
-        ]);
-        if (error) throw error;
-        if (!data) return null;
-        const tags = (tagRows ?? [])
-          .map((r) => (r as { tags: { slug: string; name: string } | null }).tags)
-          .filter((t): t is { slug: string; name: string } => !!t);
-        const categories = (catRows ?? [])
-          .map((r) => (r as { categories: PostCategory | null }).categories)
-          .filter((c): c is PostCategory => !!c);
-        const post = { ...data, ...body } as PostData;
-        // Profile WSZYSTKICH autorów (główny + współautorzy) pobieramy JEDNYM
-        // selectem .in() po profiles_public - wcześniej były to dwie
-        // sekwencyjne rundy (osobny profil autora głównego, a potem drugi
-        // .in() na współautorów), co dokładało 1-2 round-tripy na krytycznej
-        // ścieżce TTFB wpisu. Nakładka author_profiles (tylko dla autora
-        // głównego) leci równolegle w tym samym Promise.all, więc nie dokłada
-        // opóźnienia. Ten sam klient anon i te same widoki - izolacja
-        // tenanta/RLS bez zmian. Kolejność i scalanie są czystymi funkcjami
-        // (orderAuthorIds / buildPostAuthors), przetestowanymi w izolacji.
-        const mainAuthorId = post.author_id ?? null;
-        const orderedAuthorIds = orderAuthorIds(
-          mainAuthorId,
-          (coAuthorRows ?? []).map((row) => (row as { user_id: string }).user_id),
-        );
-        let author: PostAuthor | null = null;
-        let authors: PostAuthorRef[] = [];
-        if (orderedAuthorIds.length > 0) {
-          const overlayQuery = mainAuthorId
-            ? supabase
-                .from("author_profiles")
-                .select(
-                  "avatar_url, job_title, company, bio_pl, bio_en, contact_email, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
-                )
-                .eq("user_id", mainAuthorId)
-                .eq("is_public", true)
-                .maybeSingle()
-            : null;
-          const [{ data: profileRows }, overlayRes] = await Promise.all([
-            supabase
-              .from("profiles_public")
-              .select("id, slug, display_name, first_name, last_name, avatar_url, bio_pl, bio_en")
-              .in("id", orderedAuthorIds),
-            overlayQuery ?? Promise.resolve({ data: null } as const),
-          ]);
-          ({ author, authors } = buildPostAuthors({
-            orderedAuthorIds,
-            profileRows: (profileRows ?? []) as FullAuthorRow[],
-            mainAuthorId,
-            overlay: overlayRes.data as RawAuthorOverlay | null,
-          }));
-        }
-        return {
-          kind: "post",
-          item: post,
-          crumbs,
-          parentPageId: hit.page_id,
-          tags,
-          categories,
-          author,
-          authors,
-          access,
-        };
-      }
-
-      const [{ data, error }, body, crumbs, access] = await Promise.all([
-        supabase
-          .from("pages")
-          .select(
-            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, takeaways_pl, takeaways_en, takeaways_variant, ${SEO_FIELDS_SELECT}`,
-          )
-          .eq("id", hit.page_id)
-          .maybeSingle(),
-        fetchGatedBody("page", hit.page_id),
-        fetchPageBreadcrumbs(hit.page_id),
-        fetchAccessRule("page", hit.page_id),
-      ]);
-      if (error) throw error;
-      if (!data) return null;
-      // Microsites (C4): header_override DZIEDZICZY w dół poddrzewa stron -
-      // ustawienie nagłówka raz na stronie-korzeniu microsite'u obowiązuje
-      // wszystkie podstrony (najbliższy przodek z ustawieniem wygrywa,
-      // własne ustawienie strony ma pierwszeństwo). Jedno tanie zapytanie
-      // po id przodków z okruszków, tylko gdy strona sama nie nadpisuje.
-      let effectiveHeaderOverride = (data as { header_override: string | null }).header_override;
-      if (!effectiveHeaderOverride && crumbs.length > 0) {
-        const ancestorIds = crumbs.map((c) => c.id).filter((id) => id !== hit.page_id);
-        if (ancestorIds.length > 0) {
-          const { data: ancestorRows } = await supabase
-            .from("pages")
-            .select("id, header_override")
-            .in("id", ancestorIds);
-          const overrideById = new Map(
-            (ancestorRows ?? []).map((row) => [row.id, row.header_override] as const),
-          );
-          for (const crumb of [...crumbs].sort((a, b) => b.depth - a.depth)) {
-            const inherited = overrideById.get(crumb.id);
-            if (inherited) {
-              effectiveHeaderOverride = inherited;
-              break;
-            }
-          }
-        }
-      }
-      return {
-        kind: "page",
-        item: { ...data, ...body, header_override: effectiveHeaderOverride } as PageData,
-        crumbs,
-        parentPageId: hit.page_id,
-        access,
-      };
+      // Per-isolate TTL (per tenant host): każdy MISS cache dokumentów płacił
+      // dotąd pełne ~10 round-tripów rezolucji wpisu. Krótkie 60 s pokrywa
+      // rewalidacje i rozgrzewa świeże izolaty; publikacje i tak wchodzą w
+      // ciągu minuty (spójnie z oknem świeżości dokumentów). Wynik to zawsze
+      // ANONIMOWA projekcja (body gated = null z get_entity_content), więc
+      // współdzielenie między żądaniami jest bezpieczne z konstrukcji.
+      return edgeTtlCache(`public:resolved:${segments.join("/")}`, 60_000, () =>
+        resolveContentForSegments(segments),
+      );
     },
     staleTime: PAGE_PATH_TTL,
   });

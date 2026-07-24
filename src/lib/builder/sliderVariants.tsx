@@ -38,7 +38,6 @@ export interface SliderItem {
   authorAvatar?: string;
   authorSlug?: string;
   readTime?: string;
-
 }
 
 export const SLIDER_VARIANTS: { value: SliderVariant; label: string }[] = [
@@ -884,7 +883,6 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     showAuthor,
   };
 
-
   return (
     <div
       ref={rootRef}
@@ -1001,7 +999,6 @@ function AuthorBadge({
   }
   return inner;
 }
-
 
 function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
   const rawTitle = (lang === "en" ? it.title_en : it.title_pl) || it.title_pl || it.title_en || "";
@@ -1139,15 +1136,12 @@ function EditorialHeroVariant(p: VariantProps) {
                 size={22}
               />
             )}
-            {p.showAuthor && cur.author && cur.readTime && (
-              <span className="opacity-50">|</span>
-            )}
+            {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">|</span>}
             {cur.readTime && (
               <span className="inline-flex items-center gap-1">⏱ {cur.readTime}</span>
             )}
           </div>
         )}
-
       </div>
 
       <DotsNav
@@ -1252,7 +1246,8 @@ function MultiCardVariant(p: VariantProps) {
                       {title || "\u00A0"}
                     </h3>
                   )}
-                  {p.showExcerpt && sub &&
+                  {p.showExcerpt &&
+                    sub &&
                     (href ? (
                       <AppLink href={href} className="block">
                         <p
@@ -1287,7 +1282,6 @@ function MultiCardVariant(p: VariantProps) {
                       {it.readTime && <span>⏱ {it.readTime}</span>}
                     </div>
                   )}
-
                 </div>
               </article>
             );
@@ -1401,7 +1395,6 @@ function CinematicOverlayVariant(p: VariantProps) {
                 {cur.readTime && <span>⏱ {cur.readTime}</span>}
               </div>
             )}
-
           </div>
         </div>
         {p.items.length > 1 && (
@@ -1520,7 +1513,8 @@ function SplitFeatureVariant(p: VariantProps) {
             {title || "\u00A0"}
           </h3>
         )}
-        {p.showExcerpt && sub &&
+        {p.showExcerpt &&
+          sub &&
           (href ? (
             <AppLink href={href} className="block">
               <p
@@ -1549,9 +1543,7 @@ function SplitFeatureVariant(p: VariantProps) {
                 size={22}
               />
             )}
-            {p.showAuthor && cur.author && cur.readTime && (
-              <span className="opacity-50">·</span>
-            )}
+            {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">·</span>}
             {cur.readTime && <span>⏱ {cur.readTime}</span>}
           </div>
         )}

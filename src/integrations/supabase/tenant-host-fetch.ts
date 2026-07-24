@@ -21,12 +21,34 @@
 import { TENANT_HOST_HEADER } from "@/lib/http/host";
 import { currentTenantHost } from "@/lib/http/requestHost";
 
+/**
+ * Telemetria SSR (Server-Timing `db;dur`): każdy round-trip planu anon jest
+ * mierzony i doliczany do bieżącego żądania dokumentu. Wyłącznie na serwerze -
+ * import telemetrii jest dynamiczny za bramką SSR (ten sam wzorzec co
+ * `currentTenantHost`), więc do bundla przeglądarki nie trafia ani bajt, a
+ * moduł po pierwszym imporcie jest cache'owany przez runtime.
+ */
+async function timedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  if (typeof window !== "undefined" || !import.meta.env.SSR) return fetch(input, init);
+  const startedAt = Date.now();
+  try {
+    return await fetch(input, init);
+  } finally {
+    try {
+      const timing = await import("@/lib/http/ssrTiming.server");
+      timing.recordDbRoundTrip(Date.now() - startedAt);
+    } catch {
+      /* telemetria jest best-effort - nigdy nie może zerwać zapytania */
+    }
+  }
+}
+
 export async function fetchWithTenantHost(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
   const host = await currentTenantHost();
-  if (!host) return fetch(input, init);
+  if (!host) return timedFetch(input, init);
 
   const headers = new Headers(
     init?.headers ?? (input instanceof Request ? input.headers : undefined),
@@ -35,7 +57,7 @@ export async function fetchWithTenantHost(
   if (!headers.has(TENANT_HOST_HEADER)) headers.set(TENANT_HOST_HEADER, host);
 
   if (init || !(input instanceof Request)) {
-    return fetch(input, { ...init, headers });
+    return timedFetch(input, { ...init, headers });
   }
-  return fetch(new Request(input, { headers }));
+  return timedFetch(new Request(input, { headers }));
 }
