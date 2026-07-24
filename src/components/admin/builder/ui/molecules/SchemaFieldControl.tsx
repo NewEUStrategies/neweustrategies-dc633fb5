@@ -97,6 +97,29 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         </PropField>
       );
 
+    case "chartData":
+      return (
+        <PropField label={field.label} hint={field.hint}>
+          <div className="space-y-2">
+            <Textarea
+              rows={field.rows ?? 6}
+              value={asString(content[field.key])}
+              onChange={(e) => setContent(field.key, e.target.value)}
+              className="text-xs font-mono"
+              placeholder="; Seria A; Seria B&#10;2024; 12; 8"
+            />
+            <ChartDataSpreadsheetDialog
+              value={asString(content[field.key])}
+              onChange={(v) => setContent(field.key, v)}
+              kind={asString(content["kind"])}
+              unit={asString(content["unit"])}
+              title={asString(content[`title_${lang}`]) || asString(content["title_pl"])}
+              lang={lang}
+            />
+          </div>
+        </PropField>
+      );
+
     case "number": {
       const raw = content[field.key];
       const hasValue = typeof raw === "number" && Number.isFinite(raw);
