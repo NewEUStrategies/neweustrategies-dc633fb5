@@ -7714,6 +7714,13 @@ export type Database = {
             referencedRelation: "profile_skills"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "profile_skill_endorsements_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "profile_skills_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profile_skills: {
@@ -10462,6 +10469,177 @@ export type Database = {
           neuroticism?: number | null
           openness?: number | null
           taken_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profile_awards_public: {
+        Row: {
+          awarded_at: string | null
+          description: string | null
+          icon: string | null
+          id: string | null
+          issuer: string | null
+          kind: string | null
+          sort_order: number | null
+          title: string | null
+          url: string | null
+          user_id: string | null
+        }
+        Insert: {
+          awarded_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string | null
+          issuer?: string | null
+          kind?: string | null
+          sort_order?: number | null
+          title?: string | null
+          url?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          awarded_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string | null
+          issuer?: string | null
+          kind?: string | null
+          sort_order?: number | null
+          title?: string | null
+          url?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profile_education_public: {
+        Row: {
+          degree: string | null
+          description: string | null
+          end_date: string | null
+          field: string | null
+          id: string | null
+          logo_url: string | null
+          school: string | null
+          sort_order: number | null
+          start_date: string | null
+          user_id: string | null
+        }
+        Insert: {
+          degree?: string | null
+          description?: string | null
+          end_date?: string | null
+          field?: string | null
+          id?: string | null
+          logo_url?: string | null
+          school?: string | null
+          sort_order?: number | null
+          start_date?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          degree?: string | null
+          description?: string | null
+          end_date?: string | null
+          field?: string | null
+          id?: string | null
+          logo_url?: string | null
+          school?: string | null
+          sort_order?: number | null
+          start_date?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profile_experiences_public: {
+        Row: {
+          company: string | null
+          description: string | null
+          end_date: string | null
+          id: string | null
+          is_current: boolean | null
+          location: string | null
+          logo_url: string | null
+          role_title: string | null
+          sort_order: number | null
+          start_date: string | null
+          user_id: string | null
+        }
+        Insert: {
+          company?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string | null
+          is_current?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          role_title?: string | null
+          sort_order?: number | null
+          start_date?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          company?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string | null
+          is_current?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          role_title?: string | null
+          sort_order?: number | null
+          start_date?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profile_hobbies_public: {
+        Row: {
+          icon: string | null
+          id: string | null
+          label: string | null
+          sort_order: number | null
+          user_id: string | null
+        }
+        Insert: {
+          icon?: string | null
+          id?: string | null
+          label?: string | null
+          sort_order?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          icon?: string | null
+          id?: string | null
+          label?: string | null
+          sort_order?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profile_skills_public: {
+        Row: {
+          category: string | null
+          id: string | null
+          label: string | null
+          level: number | null
+          sort_order: number | null
+          user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          id?: string | null
+          label?: string | null
+          level?: number | null
+          sort_order?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          id?: string | null
+          label?: string | null
+          level?: number | null
+          sort_order?: number | null
           user_id?: string | null
         }
         Relationships: []
