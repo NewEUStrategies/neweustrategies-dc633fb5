@@ -1616,35 +1616,6 @@ select option {
     animation: none !important;
     mix-blend-mode: normal;
   }
-
-  /* Compact sticky header on the homepage after scroll:
-     shrinks logo images and vertical paddings inside the
-     builder-authored header without touching its markup. */
-  header[data-site-header] img {
-    transition:
-      max-height 300ms ease-out,
-      height 300ms ease-out,
-      transform 300ms ease-out;
-    will-change: max-height, transform;
-  }
-  header[data-site-header] > div,
-  header[data-site-header] section,
-  header[data-site-header] [class*="py-"],
-  header[data-site-header] [class*="pt-"],
-  header[data-site-header] [class*="pb-"] {
-    transition:
-      padding-top 300ms ease-out,
-      padding-bottom 300ms ease-out;
-  }
-  header[data-site-header][data-scrolled="true"] img {
-    max-height: 34px !important;
-    height: auto !important;
-  }
-  header[data-site-header][data-scrolled="true"] section,
-  header[data-site-header][data-scrolled="true"] > div > div {
-    padding-top: 0.35rem !important;
-    padding-bottom: 0.35rem !important;
-  }
   ::view-transition-old(admin-main),
   ::view-transition-new(admin-main) {
     animation-duration: 180ms;

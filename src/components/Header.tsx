@@ -250,28 +250,11 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
   // Pozostałe strony: header scrolluje razem ze stroną, a ReadingHeader
   // przejmuje rolę na wpisach po przewinięciu poza hero.
   const isHome = pathname === "/" || pathname === "/en" || pathname === "/en/";
-  const [scrolled, setScrolled] = useState(false);
-
-  // Kompaktowy header na home po scrollu: mniejsze logo + zmniejszone
-  // paddingi (rządzi tym atrybut data-scrolled + reguły w styles.css).
-  useEffect(() => {
-    if (!isHome) {
-      setScrolled(false);
-      return;
-    }
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [isHome]);
-
   return (
     <header
       data-site-header
-      data-scrolled={isHome && scrolled ? "true" : "false"}
       className={
-        (isHome ? "sticky top-0 " : "relative ") +
-        "z-40 bg-background border-b border-border transition-shadow duration-300 ease-out data-[scrolled=true]:shadow-sm"
+        (isHome ? "sticky top-0 " : "relative ") + "z-40 bg-background border-b border-border"
       }
       style={{ viewTransitionName: "site-header" }}
     >
