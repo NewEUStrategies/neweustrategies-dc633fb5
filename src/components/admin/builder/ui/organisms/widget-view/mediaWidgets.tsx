@@ -8,6 +8,7 @@ import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import type { SliderVariant } from "@/lib/builder/sliderVariants";
 import { SliderRender } from "./lazyWidgets";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
+import { supabase } from "@/integrations/supabase/client";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ResizableImageWrap } from "./resizeWrappers";
@@ -253,12 +254,51 @@ export function PostsSliderWidget({
   const rounded = (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full";
   const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
   const showExcerpt = c.showExcerpt !== false;
+  const showAuthor = c.showAuthor !== false;
+  const showCover = c.showCover !== false;
   const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "";
 
   // Shared with the SSR prefetch registry (lib/builder/prefetch), so the
   // streaming gate warms this exact cache entry and the slider ships as
   // complete server HTML instead of an empty state that pops in later.
   const { data: items = [], isPending } = useQuery(sliderPostsQueryOptions(c, lang));
+
+  // Batch-fetch author profiles for the resolved slider posts so name+avatar
+  // propagate live to the AuthorBadge without one query per slide.
+  const authorIds = Array.from(
+    new Set(items.map((p) => p.author_id).filter((x): x is string => Boolean(x))),
+  );
+  const { data: authorMap = new Map<string, { name: string; avatar: string; slug: string }>() } =
+    useQuery({
+      queryKey: ["builder-slider-authors", authorIds] as const,
+      enabled: authorIds.length > 0,
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      queryFn: async () => {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, display_name, first_name, last_name, avatar_url, slug")
+          .in("id", authorIds);
+        const map = new Map<string, { name: string; avatar: string; slug: string }>();
+        (data ?? []).forEach((row) => {
+          const r = row as {
+            id: string;
+            display_name: string | null;
+            first_name: string | null;
+            last_name: string | null;
+            avatar_url: string | null;
+            slug: string | null;
+          };
+          const composed = [r.first_name, r.last_name].filter(Boolean).join(" ").trim();
+          map.set(r.id, {
+            name: r.display_name?.trim() || composed || "",
+            avatar: r.avatar_url ?? "",
+            slug: r.slug ?? "",
+          });
+        });
+        return map;
+      },
+    });
 
   const columnsRaw = getNum(c, "columns", 3);
   const columns = Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4;
@@ -328,18 +368,27 @@ export function PostsSliderWidget({
       | undefined,
     navArrowStroke: typeof c.navArrowStroke === "number" ? c.navArrowStroke : undefined,
     typography,
+    showExcerpt,
+    showAuthor,
+    showCover,
     items: items
-      .filter((p) => p.cover_image_url)
-      .map((p) => ({
-        image: p.cover_image_url ?? "",
-        title_pl: p.title_pl ?? "",
-        title_en: p.title_en ?? p.title_pl ?? "",
-        subtitle_pl: showExcerpt ? (p.excerpt_pl ?? "") : "",
-        subtitle_en: showExcerpt ? (p.excerpt_en ?? p.excerpt_pl ?? "") : "",
-        href: `/post/${p.slug}`,
-        cta_pl: ctaLabel,
-        cta_en: ctaLabel,
-      })),
+      .filter((p) => showCover ? p.cover_image_url : true)
+      .map((p) => {
+        const author = p.author_id ? authorMap.get(p.author_id) : undefined;
+        return {
+          image: p.cover_image_url ?? "",
+          title_pl: p.title_pl ?? "",
+          title_en: p.title_en ?? p.title_pl ?? "",
+          subtitle_pl: showExcerpt ? (p.excerpt_pl ?? "") : "",
+          subtitle_en: showExcerpt ? (p.excerpt_en ?? p.excerpt_pl ?? "") : "",
+          href: `/post/${p.slug}`,
+          cta_pl: ctaLabel,
+          cta_en: ctaLabel,
+          author: author?.name ?? "",
+          authorAvatar: author?.avatar ?? "",
+          authorSlug: author?.slug ?? "",
+        };
+      }),
   };
   return <SliderRender config={cfg} lang={lang} />;
 }
