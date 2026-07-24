@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
-import { useHasMounted } from "@/hooks/useHasMounted";
+
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 
