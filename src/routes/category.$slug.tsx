@@ -20,9 +20,16 @@ const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 function parseSearch(search: Record<string, unknown>): { page?: number; sort?: ArchiveSort } {
   const raw = Number(search.page);
   const page = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : undefined;
-  const sortRaw = String(search.sort ?? "newest") as ArchiveSort;
-  const sort: ArchiveSort | undefined = VALID_SORT.includes(sortRaw) ? sortRaw : undefined;
-  return { page, sort };
+  // Only serialize sort when explicitly present and valid; the defaults must
+  // stay implicit or the router keeps redirecting the URL back and forth
+  // between `?sort=newest` and the canonical form.
+  const sortRaw = search.sort != null ? String(search.sort) : undefined;
+  const sort: ArchiveSort | undefined =
+    sortRaw && VALID_SORT.includes(sortRaw as ArchiveSort) ? (sortRaw as ArchiveSort) : undefined;
+  const out: { page?: number; sort?: ArchiveSort } = {};
+  if (page !== undefined) out.page = page;
+  if (sort !== undefined) out.sort = sort;
+  return out;
 }
 
 export const Route = createFileRoute("/category/$slug")({
