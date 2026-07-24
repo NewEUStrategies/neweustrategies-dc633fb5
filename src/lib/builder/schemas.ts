@@ -13,6 +13,7 @@ type FieldType =
   | "select"
   | "color" // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
+  | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
   | "stringArray"; // textarea with one item per line
 
 export interface SchemaField {
