@@ -1078,6 +1078,12 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+/* Musi pozostać na końcu arkusza: widgetowe reguły Theme Design używają
+   !important i są generowane później niż bazowe style atomu. */
+span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge] {
+  font-size: var(--unread-badge-fs, 6px) !important;
+}
 @media (min-width: 768px) and (max-width: 1023px) {
   [data-widget-grid]:not(.cms-mobile-hscroll) {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;

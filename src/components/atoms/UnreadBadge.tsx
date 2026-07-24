@@ -9,6 +9,8 @@ export type UnreadBadgeVariant = "primary" | "alert";
 interface UnreadBadgeProps {
   count: number;
   size?: UnreadBadgeSize;
+  /** Precyzyjny rozmiar cyfr dla szczególnie kompaktowych powierzchni. */
+  fontSizePx?: number;
   /** primary = neutralne (panele), alert = czerwona pigułka dla headera. */
   variant?: UnreadBadgeVariant;
   pulse?: boolean;
@@ -38,6 +40,7 @@ const VARIANT_CLASSES: Record<UnreadBadgeVariant, string> = {
 export function UnreadBadge({
   count,
   size = "md",
+  fontSizePx,
   variant = "primary",
   pulse = false,
   className,
@@ -52,6 +55,7 @@ export function UnreadBadge({
   return (
     <span
       data-unread-badge=""
+      data-typography-exempt=""
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-[5px] font-display font-bold leading-none tabular-nums whitespace-nowrap",
         "isolate z-[100] overflow-visible pointer-events-none select-none",
@@ -61,7 +65,9 @@ export function UnreadBadge({
         pulse && "motion-safe:animate-pulse",
         className,
       )}
-      style={{ ["--unread-badge-fs" as string]: `${SIZE_FONT_PX[size]}px` } as CSSProperties}
+      style={{
+        ["--unread-badge-fs" as string]: `${fontSizePx ?? SIZE_FONT_PX[size]}px`,
+      } as CSSProperties}
       aria-label={t(labelKey, { count, defaultValue: `${count} nieprzeczytanych` })}
       aria-live="polite"
     >
