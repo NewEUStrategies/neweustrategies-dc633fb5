@@ -111,18 +111,17 @@ function pickSize(value: ResponsiveSize, device: Device): number | "auto" | unde
 }
 
 /**
- * Wysokość widgetu: desktop jest wiodący, mobile / tablet są responsywne
- * (nie dziedziczą pikselowej wysokości desktopu, chyba że użytkownik zapisał
- * dla nich własną wartość). Dzięki temu ustawienie desktop=520px nie łamie
- * proporcji na wąskich ekranach.
+ * Wysokość widgetu: desktop jest wiodący. Jeżeli użytkownik zapisał wartość
+ * jedynie dla desktopu, ta sama liczba obowiązuje na tablecie i mobile
+ * ("mobile responsywne do desktopu"). Osobne wartości per breakpoint mają
+ * pierwszeństwo, jeśli zostały jawnie ustawione.
  */
 function pickHeight(value: ResponsiveSize, device: Device): number | "auto" | undefined {
   if (value === undefined) return undefined;
-  if (typeof value === "number" || value === "auto") {
-    return device === "desktop" ? value : undefined;
-  }
-  return value[device];
+  if (typeof value === "number" || value === "auto") return value;
+  return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
+
 
 function toCssSize(value: number | "auto" | undefined): string | number | undefined {
   if (value === undefined) return undefined;
