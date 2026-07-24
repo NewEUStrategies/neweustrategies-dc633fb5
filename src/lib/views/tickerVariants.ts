@@ -51,6 +51,9 @@ export const DEFAULT_LIGHT_COLORS: TickerColors = {
   item: "var(--foreground)",
   itemHover: "var(--brand)",
   counter: "var(--muted-foreground)",
+  labelBg: "var(--brand)",
+  labelFg: "#ffffff",
+  dot: "color-mix(in oklab, var(--brand) 70%, transparent)",
 };
 
 export const DEFAULT_DARK_COLORS: TickerColors = {
@@ -60,6 +63,9 @@ export const DEFAULT_DARK_COLORS: TickerColors = {
   item: "var(--foreground)",
   itemHover: "var(--brand)",
   counter: "var(--muted-foreground)",
+  labelBg: "var(--brand)",
+  labelFg: "#ffffff",
+  dot: "color-mix(in oklab, var(--brand) 70%, transparent)",
 };
 
 export const DEFAULT_TICKER_COLORS: TickerColorScheme = {
@@ -71,6 +77,7 @@ export const DEFAULT_TICKER_CONFIG: TickerConfig = {
   enabled: true,
   source: "trending",
   mode: "scroll",
+  layoutStyle: "classic",
   days: 7,
   limit: 8,
   visibleCount: 1,
