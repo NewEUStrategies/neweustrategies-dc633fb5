@@ -629,13 +629,13 @@ export function ExpertLayoutHero({
               </h1>
               <ActionBar />
             </div>
+            {social(`mt-3 ${centered ? "justify-center" : ""}`)}
             <p className="mt-2" style={roleStyle}>
               {roleLine}
             </p>
             <div className="mt-3 h-px w-full bg-border/60" />
-            {social(`mt-3 ${centered ? "justify-center" : ""}`)}
-            {contact(`mt-2 ${centered ? "justify-center" : ""}`)}
             <BioBlock className="mt-4" />
+
           </div>
         </div>
       </div>
