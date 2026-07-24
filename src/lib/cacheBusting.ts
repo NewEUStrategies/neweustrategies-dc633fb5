@@ -85,7 +85,7 @@ async function fetchVersion(): Promise<string | null> {
  * Bezpieczne do wielokrotnego wywołania - kolejne wywołania są no-opem.
  */
 let started = false;
-export function startCacheBusting(router: Router<never, never>): () => void {
+export function startCacheBusting(router: AnyRouter): () => void {
   if (typeof window === "undefined" || started) return () => {};
   started = true;
 
