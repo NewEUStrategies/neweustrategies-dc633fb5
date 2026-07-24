@@ -19,6 +19,7 @@ export interface SliderPostRow {
   excerpt_en: string | null;
   cover_image_url: string | null;
   published_at: string | null;
+  author_id: string | null;
 }
 
 function getStr(c: WidgetContent, key: string): string {
@@ -128,7 +129,9 @@ async function fetchSliderPosts(input: SliderPostsInput, lang: Lang): Promise<Sl
   if (allowedIds && allowedIds.length === 0) return [];
   let q = supabase
     .from("posts")
-    .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at")
+    .select(
+      "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id",
+    )
     .eq("status", "published");
   if (allowedIds) q = q.in("id", allowedIds);
   if (excludeIds.length) q = q.not("id", "in", `(${excludeIds.join(",")})`);

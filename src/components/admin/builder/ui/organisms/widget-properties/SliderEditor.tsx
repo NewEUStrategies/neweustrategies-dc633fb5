@@ -68,6 +68,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     | "title";
   const showExcerpt = c.showExcerpt !== false;
   const showAuthor = c.showAuthor !== false;
+  const showCover = c.showCover !== false;
 
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
@@ -178,6 +179,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     subtitleWeight,
     showExcerpt,
     showAuthor,
+    showCover,
 
     navSizePx,
     navRoundedPx,
@@ -383,6 +385,13 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           <Switch
             checked={showAuthor}
             onCheckedChange={(v) => setContent("showAuthor", v)}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
+          <span className="text-xs">{t("builder.sliderEditor.showCover", { defaultValue: "Pokaż zdjęcie (cover)" })}</span>
+          <Switch
+            checked={showCover}
+            onCheckedChange={(v) => setContent("showCover", v)}
           />
         </label>
       </div>

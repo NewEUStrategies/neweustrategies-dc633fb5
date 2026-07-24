@@ -85,6 +85,8 @@ export interface SliderConfig {
   showExcerpt?: boolean;
   /** Show author avatar + name below the title. Default: true. */
   showAuthor?: boolean;
+  /** Show cover image on each slide. Default: true. */
+  showCover?: boolean;
 
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
@@ -360,6 +362,11 @@ const SHARED_STYLES = `
 .eh-slider:hover .eh-img { transform: none; }
 .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .eh-slider .eh-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* Cover image toggle: hide media on all variants, keep overlay text + author. */
+.eh-slider[data-hide-cover="true"] .eh-img,
+.eh-slider[data-hide-cover="true"] .eh-hover-zoom,
+.eh-slider[data-hide-cover="true"] .eh-card-media img { visibility: hidden; }
+.eh-slider[data-hide-cover="true"] .eh-card-media { background: hsl(var(--muted)); }
 
 /* Side arrow buttons - base (position + transitions). Visual style comes from
    .eh-nav-<variant> modifier + inline CSS vars (--nav-bg / --nav-arrow / --nav-size / --nav-radius). */
@@ -843,6 +850,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const nav = resolveNavStyle(config);
   const showExcerpt = config.showExcerpt !== false;
   const showAuthor = config.showAuthor !== false;
+  const showCover = config.showCover !== false;
 
   const sharedProps = {
     items,
@@ -876,6 +884,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     <div
       ref={rootRef}
       className="w-full h-full min-h-0 eh-slider"
+      data-hide-cover={showCover ? undefined : "true"}
       style={{ "--eh-speed": `${speedMs}ms` } as CSSProperties}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
