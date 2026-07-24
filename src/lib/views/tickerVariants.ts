@@ -10,6 +10,9 @@ export const MAX_TICKER_VARIANTS = 5;
 
 export type IconAnimation = "none" | "pulse" | "flicker" | "spin" | "wave";
 export type MixedFill = "trending" | "latest";
+/** Visual layout of the bar. `classic` = flame + text label. `badge` = solid
+ *  colored block on the left with a horizontal marquee and dot separators. */
+export type LayoutStyle = "classic" | "badge";
 
 export interface TickerColors {
   bg: string;
@@ -18,6 +21,11 @@ export interface TickerColors {
   item: string;
   itemHover: string;
   counter: string;
+  /** Optional - used only by the `badge` layout. Defaults derive from `label`. */
+  labelBg?: string;
+  labelFg?: string;
+  /** Optional - dot separator between items in `badge` layout. */
+  dot?: string;
 }
 
 export interface TickerColorScheme {
@@ -43,6 +51,9 @@ export const DEFAULT_LIGHT_COLORS: TickerColors = {
   item: "var(--foreground)",
   itemHover: "var(--brand)",
   counter: "var(--muted-foreground)",
+  labelBg: "var(--brand)",
+  labelFg: "#ffffff",
+  dot: "color-mix(in oklab, var(--brand) 70%, transparent)",
 };
 
 export const DEFAULT_DARK_COLORS: TickerColors = {
@@ -52,6 +63,9 @@ export const DEFAULT_DARK_COLORS: TickerColors = {
   item: "var(--foreground)",
   itemHover: "var(--brand)",
   counter: "var(--muted-foreground)",
+  labelBg: "var(--brand)",
+  labelFg: "#ffffff",
+  dot: "color-mix(in oklab, var(--brand) 70%, transparent)",
 };
 
 export const DEFAULT_TICKER_COLORS: TickerColorScheme = {
@@ -63,6 +77,7 @@ export const DEFAULT_TICKER_CONFIG: TickerConfig = {
   enabled: true,
   source: "trending",
   mode: "scroll",
+  layoutStyle: "classic",
   days: 7,
   limit: 8,
   visibleCount: 1,
@@ -98,6 +113,7 @@ const SOURCES: readonly TickerSource[] = ["trending", "latest", "pinned", "selec
 const MODES: readonly TickerMode[] = ["scroll", "rotate", "fade", "slide", "flip", "typewriter"];
 const ICON_ANIMS: readonly IconAnimation[] = ["none", "pulse", "flicker", "spin", "wave"];
 const MIX_FILLS: readonly MixedFill[] = ["trending", "latest"];
+const LAYOUTS: readonly LayoutStyle[] = ["classic", "badge"];
 
 function safeEnum<T extends string>(v: unknown, allowed: readonly T[], fb: T): T {
   return typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : fb;
@@ -114,6 +130,9 @@ function normalizeColors(v: unknown): TickerColorScheme {
     item: safeString(raw.item, fb.item),
     itemHover: safeString(raw.itemHover, fb.itemHover),
     counter: safeString(raw.counter, fb.counter),
+    labelBg: safeString(raw.labelBg, fb.labelBg ?? ""),
+    labelFg: safeString(raw.labelFg, fb.labelFg ?? ""),
+    dot: safeString(raw.dot, fb.dot ?? ""),
   });
   return {
     light: pickColors(light, DEFAULT_LIGHT_COLORS),
@@ -130,6 +149,7 @@ export function normalizeTickerConfig(raw: unknown): TickerConfig {
     enabled: safeBool(r.enabled, DEFAULT_TICKER_CONFIG.enabled ?? true),
     source: safeEnum<TickerSource>(r.source, SOURCES, "trending"),
     mode: safeEnum<TickerMode>(r.mode, MODES, "scroll"),
+    layoutStyle: safeEnum<LayoutStyle>(r.layoutStyle, LAYOUTS, "classic"),
     days: Math.max(1, Math.min(90, safeNumber(r.days, 7))),
     limit: Math.max(1, Math.min(50, safeNumber(r.limit, 8))),
     visibleCount: Math.max(1, Math.min(5, safeNumber(r.visibleCount, 1))),

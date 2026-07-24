@@ -10,7 +10,7 @@ import {
   getTickerPosts,
   type TrendingPost,
 } from "@/lib/views/postViews.functions";
-import type { IconAnimation, MixedFill, TickerColorScheme } from "@/lib/views/tickerVariants";
+import type { IconAnimation, LayoutStyle, MixedFill, TickerColorScheme } from "@/lib/views/tickerVariants";
 
 export type TickerSource = "trending" | "latest" | "pinned" | "selected" | "mixed";
 // `rotate` retained as legacy alias for `slide` (single, slides up).
@@ -21,6 +21,8 @@ export interface TickerConfig {
   enabled?: boolean;
   source?: TickerSource;
   mode?: TickerMode;
+  /** Visual layout of the bar. Defaults to `classic`. */
+  layoutStyle?: LayoutStyle;
   days?: number;
   limit?: number;
   /** Rotate modes only: how many posts visible side-by-side at once. */

@@ -124,6 +124,7 @@ function HeaderInner({ adPageType = "all" }: HeaderProps) {
         <TrendingTicker
           source={trending.source ?? "trending"}
           mode={trending.mode ?? "scroll"}
+          layoutStyle={trending.layoutStyle ?? "classic"}
           days={trending.days ?? 7}
           limit={trending.limit ?? 8}
           visibleCount={trending.visibleCount ?? 1}

@@ -34,6 +34,7 @@ import {
   type TickerColorScheme,
   type TickerSettings,
   type TickerVariant,
+  type LayoutStyle,
 } from "@/lib/views/tickerVariants";
 
 type Json = Record<string, unknown>;
@@ -106,6 +107,12 @@ const COPY = {
     color_item: "Kolor tytułu",
     color_itemHover: "Tytuł na hover",
     color_counter: "Numery",
+    color_labelBg: "Tło etykiety (badge)",
+    color_labelFg: "Tekst etykiety (badge)",
+    color_dot: "Kropka separatora (badge)",
+    layoutStyle: "Styl paska",
+    layout_classic: "Klasyczny (ikona + tekst)",
+    layout_badge: "Badge marquee (kolorowy blok)",
     resetColors: "Przywróć domyślne",
     cannotDeleteLast: "Musi zostać przynajmniej jeden wariant.",
     undo: "Cofnij",
@@ -177,6 +184,12 @@ const COPY = {
     color_item: "Title color",
     color_itemHover: "Title on hover",
     color_counter: "Counters",
+    color_labelBg: "Label background (badge)",
+    color_labelFg: "Label text (badge)",
+    color_dot: "Separator dot (badge)",
+    layoutStyle: "Bar style",
+    layout_classic: "Classic (icon + text)",
+    layout_badge: "Badge marquee (solid block)",
     resetColors: "Reset to defaults",
     cannotDeleteLast: "At least one variant must remain.",
     undo: "Undo",
@@ -200,6 +213,8 @@ const COLOR_KEYS: readonly (keyof TickerColors)[] = [
   "itemHover",
   "counter",
 ];
+
+const BADGE_COLOR_KEYS: readonly (keyof TickerColors)[] = ["labelBg", "labelFg", "dot"];
 
 export function TrendingTickerPane() {
   const qc = useQueryClient();
@@ -424,7 +439,7 @@ export function TrendingTickerPane() {
 
   const previewKey = useMemo(
     () =>
-      `${activeVariant.id}-${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${(cfg.selectedPostIds ?? []).join(",")}-${cfg.mixedFill}-${cfg.iconAnimation}-${cfg.labelPl}-${cfg.labelEn}-${JSON.stringify(cfg.colors ?? {})}`,
+      `${activeVariant.id}-${cfg.source}-${cfg.mode}-${cfg.layoutStyle}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${(cfg.selectedPostIds ?? []).join(",")}-${cfg.mixedFill}-${cfg.iconAnimation}-${cfg.labelPl}-${cfg.labelEn}-${JSON.stringify(cfg.colors ?? {})}`,
     [activeVariant.id, cfg],
   );
 
@@ -580,6 +595,30 @@ export function TrendingTickerPane() {
           </div>
         </div>
 
+        {/* Layout style */}
+        <div className="space-y-1.5">
+          <Label>{t.layoutStyle}</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {(["classic", "badge"] as const).map((s) => {
+              const active = (cfg.layoutStyle ?? "classic") === s;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => set("layoutStyle", s as LayoutStyle)}
+                  className={`rounded-[6px] border px-3 py-2 text-xs transition ${
+                    active
+                      ? "border-brand bg-brand/10 text-brand font-medium"
+                      : "border-border hover:bg-muted"
+                  }`}
+                >
+                  {t[`layout_${s}` as const]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Mode */}
         <div className="space-y-1.5">
           <Label>{t.mode}</Label>
@@ -589,7 +628,7 @@ export function TrendingTickerPane() {
                 key={m}
                 type="button"
                 onClick={() => set("mode", m)}
-                className={`rounded-[5px] border px-3 py-2 text-xs transition ${
+                className={`rounded-[6px] border px-3 py-2 text-xs transition ${
                   currentMode === m
                     ? "border-brand bg-brand/10 text-brand font-medium"
                     : "border-border hover:bg-muted"
@@ -823,6 +862,24 @@ export function TrendingTickerPane() {
               onChange={(k, v) => setColor("dark", k, v)}
             />
           </div>
+          {(cfg.layoutStyle ?? "classic") === "badge" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ColorGroup
+                title={`${t.colorsLight} - badge`}
+                labels={t}
+                values={cfg.colors?.light ?? DEFAULT_LIGHT_COLORS}
+                onChange={(k, v) => setColor("light", k, v)}
+                keys={BADGE_COLOR_KEYS}
+              />
+              <ColorGroup
+                title={`${t.colorsDark} - badge`}
+                labels={t}
+                values={cfg.colors?.dark ?? DEFAULT_DARK_COLORS}
+                onChange={(k, v) => setColor("dark", k, v)}
+                keys={BADGE_COLOR_KEYS}
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between pt-1">
@@ -846,6 +903,7 @@ export function TrendingTickerPane() {
               variantId={activeVariant.id}
               source={cfg.source ?? "trending"}
               mode={cfg.mode ?? "scroll"}
+              layoutStyle={cfg.layoutStyle ?? "classic"}
               days={cfg.days ?? 7}
               limit={cfg.limit ?? 8}
               visibleCount={cfg.visibleCount ?? 1}
@@ -928,19 +986,24 @@ function ColorGroup({
   labels,
   values,
   onChange,
+  keys = COLOR_KEYS,
 }: {
   title: string;
   labels: Record<string, string>;
   values: TickerColors;
   onChange: (k: keyof TickerColors, v: string) => void;
+  keys?: readonly (keyof TickerColors)[];
 }) {
-  const labelMap: Record<keyof TickerColors, string> = {
+  const labelMap: Partial<Record<keyof TickerColors, string>> = {
     bg: labels.color_bg,
     border: labels.color_border,
     label: labels.color_label,
     item: labels.color_item,
     itemHover: labels.color_itemHover,
     counter: labels.color_counter,
+    labelBg: labels.color_labelBg,
+    labelFg: labels.color_labelFg,
+    dot: labels.color_dot,
   };
   return (
     <div className="rounded-[5px] border border-border p-3 space-y-2 bg-background/40">
@@ -948,12 +1011,12 @@ function ColorGroup({
         {title}
       </p>
       <div className="space-y-1.5">
-        {COLOR_KEYS.map((k) => (
+        {keys.map((k) => (
           <ColorField
             key={k}
             id={`tt-color-${title}-${k}`}
-            label={labelMap[k]}
-            value={values[k]}
+            label={labelMap[k] ?? String(k)}
+            value={values[k] ?? ""}
             onChange={(v) => onChange(k, v)}
           />
         ))}
