@@ -1645,13 +1645,6 @@ select option {
     padding-top: 0.35rem !important;
     padding-bottom: 0.35rem !important;
   }
-  /* Ukryj ticker / alert-bar / ad-banner nad headerem po scrollu,
-     żeby cały pasek był naprawdę kompaktowy. */
-  header[data-site-header][data-scrolled="true"] ~ *,
-  body:has(header[data-site-header][data-scrolled="true"]) [data-trending-ticker],
-  body:has(header[data-site-header][data-scrolled="true"]) [data-header-ad] {
-    /* placeholder - keep siblings intact */
-  }
   ::view-transition-old(admin-main),
   ::view-transition-new(admin-main) {
     animation-duration: 180ms;
