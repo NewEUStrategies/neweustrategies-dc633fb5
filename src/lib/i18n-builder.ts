@@ -1850,6 +1850,8 @@ const en: typeof pl = {
       tags: "Tags",
       excludeIds: "Exclude post IDs (comma-separated)",
       showExcerpt: "Show excerpt",
+      showAuthor: "Show author",
+
       yes: "yes",
       no: "no",
       ctaText: "CTA text ({{lang}})",
