@@ -832,6 +832,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   };
 
   const nav = resolveNavStyle(config);
+  const showExcerpt = config.showExcerpt !== false;
   const sharedProps = {
     items,
     safeIdx,
@@ -855,6 +856,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     navigateTo,
     columns,
     nav,
+    showExcerpt,
   };
 
   return (
