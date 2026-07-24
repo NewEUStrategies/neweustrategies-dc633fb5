@@ -937,20 +937,19 @@ type HeightResponsive = {
   tablet?: number | "auto";
   mobile?: number | "auto";
 };
-type HeightValue = number | "auto" | HeightResponsive | undefined;
+type HeightValue = number | HeightResponsive | undefined;
 type DesktopHeight = number | "auto" | undefined;
 
 function readDesktopHeight(value: HeightValue): DesktopHeight {
   if (value === undefined) return undefined;
-  if (typeof value === "number" || value === "auto") return value;
+  if (typeof value === "number") return value;
   return value.desktop;
 }
 
-function writeDesktopHeight(prev: HeightValue, next: DesktopHeight): HeightValue {
-  // Preserve any pre-existing tablet/mobile overrides so users who tuned
-  // narrow breakpoints don't lose their work when they touch desktop.
+function writeDesktopHeight(prev: HeightValue, next: DesktopHeight): HeightResponsive | undefined {
   const base: HeightResponsive =
-    prev && typeof prev === "object" ? { ...(prev as HeightResponsive) } : {};
+    prev && typeof prev === "object" ? { ...prev } : {};
+
   if (next === undefined) {
     delete base.desktop;
   } else {
