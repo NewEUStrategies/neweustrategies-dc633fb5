@@ -34,6 +34,7 @@ import {
   type TickerColorScheme,
   type TickerSettings,
   type TickerVariant,
+  type LayoutStyle,
 } from "@/lib/views/tickerVariants";
 
 type Json = Record<string, unknown>;
