@@ -16,6 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MemberPicker } from "@/components/admin/community/MemberPicker";
+import { confirmDialog } from "@/lib/appDialogs";
 import { BADGE_CATALOG, fetchBadges, grantBadge, revokeBadge } from "@/lib/admin/community";
 
 export const Route = createFileRoute("/admin/community/badges")({
@@ -76,10 +78,17 @@ function BadgesAdmin() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Input
-              placeholder="user_id (UUID)"
+            <MemberPicker
               value={userId}
-              onChange={(e) => setUserId(e.target.value)}
+              onChange={setUserId}
+              labels={{
+                placeholder: isPl ? "Wybierz członka…" : "Select a member…",
+                search: isPl ? "Szukaj po nazwisku…" : "Search by name…",
+                hint: isPl ? "Wpisz min. 2 znaki" : "Type at least 2 characters",
+                loading: isPl ? "Szukam…" : "Searching…",
+                empty: isPl ? "Brak wyników" : "No results",
+                clear: isPl ? "Wyczyść wybór" : "Clear selection",
+              }}
             />
             <Select value={badgeKey} onValueChange={setBadgeKey}>
               <SelectTrigger>
@@ -136,8 +145,17 @@ function BadgesAdmin() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => {
-                      if (confirm(isPl ? "Odebrać?" : "Revoke?")) revokeM.mutate(b.id);
+                    aria-label={isPl ? "Odbierz odznakę" : "Revoke badge"}
+                    onClick={async () => {
+                      const ok = await confirmDialog({
+                        title: isPl ? "Odebrać odznakę?" : "Revoke badge?",
+                        description: isPl
+                          ? `${labelFor(b.badge)} - tej operacji nie można cofnąć.`
+                          : `${labelFor(b.badge)} - this cannot be undone.`,
+                        confirmLabel: isPl ? "Odbierz" : "Revoke",
+                        destructive: true,
+                      });
+                      if (ok) revokeM.mutate(b.id);
                     }}
                   >
                     <Trash2 className="w-4 h-4 text-destructive" />

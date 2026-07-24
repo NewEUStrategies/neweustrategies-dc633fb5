@@ -208,6 +208,9 @@ export const networkPl = {
       toastPublished: "Opublikowano",
       toastHidden: "Ukryto",
       toastDeleted: "Usunięto",
+      deleteConfirmTitle: "Usunąć rekomendację?",
+      deleteConfirmBody:
+        "Rekomendacja od {{name}} zostanie trwale usunięta. Tej operacji nie można cofnąć.",
     },
     guestPreview: {
       badge: "Podgląd",
@@ -408,6 +411,9 @@ export const networkEn = {
       toastPublished: "Published",
       toastHidden: "Hidden",
       toastDeleted: "Deleted",
+      deleteConfirmTitle: "Delete recommendation?",
+      deleteConfirmBody:
+        "The recommendation from {{name}} will be permanently deleted. This cannot be undone.",
     },
     guestPreview: {
       badge: "Preview",

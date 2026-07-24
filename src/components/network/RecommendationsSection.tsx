@@ -28,6 +28,7 @@ import {
   type Recommendation,
 } from "@/lib/network/useRecommendations";
 import { formatDate } from "@/lib/i18n/format";
+import { confirmDialog } from "@/lib/appDialogs";
 import { toast } from "sonner";
 import "@/lib/i18n-network";
 
@@ -215,15 +216,24 @@ function PendingRow({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() =>
+          onClick={async () => {
+            const ok = await confirmDialog({
+              title: t("network.recommendations.deleteConfirmTitle"),
+              description: t("network.recommendations.deleteConfirmBody", {
+                name: rec.author_name,
+              }),
+              confirmLabel: t("network.recommendations.remove"),
+              destructive: true,
+            });
+            if (!ok) return;
             respond.mutate(
               { id: rec.id, action: "delete", recipientId },
               {
                 onSuccess: () => toast.success(t("network.recommendations.toastDeleted")),
                 onError: (e) => toast.error(e.message),
               },
-            )
-          }
+            );
+          }}
           disabled={respond.isPending}
         >
           <Trash2 className="mr-1 h-4 w-4" />
