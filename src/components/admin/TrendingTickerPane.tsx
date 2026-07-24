@@ -214,6 +214,8 @@ const COLOR_KEYS: readonly (keyof TickerColors)[] = [
   "counter",
 ];
 
+const BADGE_COLOR_KEYS: readonly (keyof TickerColors)[] = ["labelBg", "labelFg", "dot"];
+
 export function TrendingTickerPane() {
   const qc = useQueryClient();
   const { i18n } = useTranslation();
