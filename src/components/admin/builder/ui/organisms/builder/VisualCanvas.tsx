@@ -5,6 +5,7 @@ import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/glob
 import { BuilderRenderer, BuilderEmptyPickerProvider } from "../../../BuilderRenderer";
 import { InlineEditProvider } from "../../../inlineEditContext";
 import { SectionDropZone } from "./SectionDropZone";
+import { WidgetResizeOverlay } from "./WidgetResizeOverlay";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
@@ -74,6 +75,7 @@ export function VisualCanvas({
   multiSelection,
   onMultiSelectionChange,
   onWidgetContentChange,
+  onWidgetResize,
 }: {
   doc: BuilderDocument;
   lang: "pl" | "en";
@@ -110,6 +112,8 @@ export function VisualCanvas({
   onMultiSelectionChange?: (ids: ReadonlySet<string>, mode: "replace" | "add" | "toggle") => void;
   /** Inline click-to-edit commit for widget content fields (text, HTML, labels…). */
   onWidgetContentChange?: (widgetId: string, key: string, value: string | number) => void;
+  /** Persist a new pixel height for a widget on the given breakpoint (drag-to-resize). */
+  onWidgetResize?: (widgetId: string, heightPx: number, device: Device) => void;
 }) {
   const safeDoc = safeParseBuilderDoc(doc);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -1028,7 +1032,7 @@ export function VisualCanvas({
       onPointerUp={onCanvasPointerUp}
       onPointerCancel={onCanvasPointerUp}
       ref={rootRef}
-      style={{ width: "100%", overflowX: "clip", userSelect: marqueeRect ? "none" : undefined }}
+      style={{ width: "100%", position: "relative", overflowX: "clip", userSelect: marqueeRect ? "none" : undefined }}
     >
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
@@ -1093,6 +1097,14 @@ export function VisualCanvas({
             zIndex: 60,
             borderRadius: 2,
           }}
+        />
+      )}
+      {onWidgetResize && (
+        <WidgetResizeOverlay
+          containerRef={rootRef}
+          widgetId={selection.kind === "widget" ? selection.id : null}
+          device={device}
+          onResize={onWidgetResize}
         />
       )}
     </div>

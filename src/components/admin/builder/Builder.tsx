@@ -700,6 +700,17 @@ export function Builder({
                         w.content = { ...w.content, [key]: value };
                       })
                     }
+                    onWidgetResize={(wid, heightPx, dev) =>
+                      updateWidget(wid, (w) => {
+                        const adv = (w.advanced ?? {}) as Record<string, unknown>;
+                        const prev = (adv.height ?? {}) as Record<string, number | "auto">;
+                        const nextHeight =
+                          typeof prev === "object" && prev !== null
+                            ? { ...prev, [dev]: heightPx }
+                            : { [dev]: heightPx };
+                        w.advanced = { ...adv, height: nextHeight };
+                      })
+                    }
                   />
                 </div>
 
