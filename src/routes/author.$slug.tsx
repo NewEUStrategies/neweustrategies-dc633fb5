@@ -50,6 +50,7 @@ import {
   expertLayoutCssVars,
 } from "@/components/experts/ExpertLayoutRenderer";
 import { isSectionVisible } from "@/lib/expertLayouts";
+import { isIndexableProfile, profileRobots } from "@/lib/experts/publicVisibility";
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 export const Route = createFileRoute("/author/$slug")({
   loader: async ({ params, context }) => {
@@ -156,6 +157,17 @@ export const Route = createFileRoute("/author/$slug")({
       ],
     };
 
+    // Indeksujemy tylko profile z publiczną obecnością (ekspert lub kurowany
+    // dorobek). Zwykły członek bez zgody na katalog dostaje noindex - jego strona
+    // nie trafia do wyszukiwarek, mimo że profiles_public jej nie bramkuje.
+    const indexable = isIndexableProfile({
+      isExpert: expert?.is_expert ?? false,
+      materialCount: loaderData?.materials?.length ?? 0,
+      programCount: loaderData?.programs?.length ?? 0,
+      areaCount: loaderData?.areas?.length ?? 0,
+      mediaMentionCount: loaderData?.mediaMentions?.length ?? 0,
+    });
+
     const base = buildContentHead({
       url,
       lang,
@@ -164,10 +176,9 @@ export const Route = createFileRoute("/author/$slug")({
       title,
       description,
       image: versionedAvatar,
-      // Jawny `index, follow` (+ hinty max-image/max-snippet dla AI overviews).
-      // `buildContentHead` bez tego pomija tag - dodajemy go świadomie na hubie
-      // eksperta, bo strona ma zawsze być indeksowana.
-      robots: "index, follow, max-image-preview:large, max-snippet:-1",
+      // Indeksacja warunkowa: eksperci/autorzy z dorobkiem → index (+ hinty AI
+      // overview); goły profil członka → noindex, nofollow (patrz publicVisibility).
+      robots: profileRobots(indexable),
       imageAlt: expert?.display_name ? (isEn ? `Portrait of ${name}` : `Portret: ${name}`) : null,
     });
 
@@ -321,7 +332,6 @@ function ExpertHubPage() {
               <AuthorMoreMenu userId={expert.id} displayName={name} />
             </div>
           }
-
         />
 
         {showExpertiseBar && data.areas.length > 0 && (
