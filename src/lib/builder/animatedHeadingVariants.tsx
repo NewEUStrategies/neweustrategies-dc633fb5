@@ -614,6 +614,7 @@ export function AnimatedHeadingRender({
   const isUnderlineLike =
     shape === "underline" ||
     shape === "double-underline" ||
+    shape === "squiggle" ||
     shape === "curly" ||
     shape === "zigzag";
   const needsFrame = shape === "circle" || shape === "framed" || shape === "x";
