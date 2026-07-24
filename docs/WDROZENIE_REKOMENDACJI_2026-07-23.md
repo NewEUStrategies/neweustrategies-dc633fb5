@@ -67,6 +67,47 @@
 | P1 optimistic-lock `updatePost`/`updatePage` | `content.functions.ts` - zapis niesie `baseUpdatedAt`; serwer odrzuca zapis, gdy wiersz zmienił się w międzyczasie (wczesny check + atomowy guard `.eq("updated_at")` + rozróżnienie konflikt/RLS na 0 wierszy). Kontrakt `src/lib/content/saveConflict.ts` (+ test). Klient (`usePostEditorForm`, `admin.pages.$slug`) przekazuje bazę, przesuwa ją po zapisie i pokazuje i18n toast konfliktu (`admin.editConflict` PL/EN) |
 | P1 autosave stron | `admin.pages.$slug.tsx` - autosave włączony (`enabled: !!form`), bezpieczny dzięki optimistic-lockowi; koniec z utratą pracy przy awarii/zamknięciu karty |
 
+## WDROŻONE - Fala 7: przyczyna źródłowa izolacji tenantów w SECURITY DEFINER
+
+> Migracja `20260724091000_harden_security_definer_tenant_scope.sql` + bramka
+> pgTAP `security_definer_tenant_scope_test.sql` + lint inwariantu
+> `scripts/check-sql-tenant-scope.ts` (krok CI „SQL tenant-scope invariant").
+
+**Przyczyna źródłowa (powtarzalna).** Funkcja `SECURITY DEFINER` omija RLS. Jeśli
+**skaluje dane** po `public_tenant_id()` (tenant z nagłówka `x-tenant-host`,
+ustawianego przez klienta w `tenant-host-fetch.ts` - do podrobienia przez `curl`
+/ `supabase.rpc()`, brak walidacji trusted-proxy), a **autoryzuje** przez
+`has_role()`/`is_staff()` (rola w tenancie DOMOWYM = `current_tenant_id()`), to
+admin/edytor tenanta A może podrobić nagłówek na domenę tenanta B, przejść bramkę
+roli (rola w A) i odczytać/zapisać dane tenanta B. Tak wyciekał przychód w
+`monetization_dashboard` (P1-7) - to była jedna instancja szerszej klasy błędu.
+
+**Zasada naprawy.** Dla operacji uprzywilejowanych zakres danych musi pochodzić z
+`current_tenant_id()` (tenant domowy z sesji), nie z nagłówka. Podrobienie
+`x-tenant-host` przestaje mieć jakikolwiek efekt (dane zawsze w tenancie domowym),
+a legalne użycie (admin pracuje we własnym tenancie) działa bez zmian - a przy
+okazji panele admina przestają zależeć od hosta, na którym są otwarte.
+
+| Klasa | Funkcje | Poprawka |
+|-------|---------|----------|
+| (A) pełny swap `public_tenant_id()` → `current_tenant_id()` | `monetization_dashboard`, `b2b_coupons_analytics`, `metering_impact_preview`, `get_user_monthly_metering_count`, `bulk_generate_coupons_for_campaign`, `publish_qa_session_summary` | zakres danych = tenant domowy; nagłówek bez efektu |
+| (B) kandydaci bez `public_tenant_id()` | `org_add_seat`, `org_touch_seat_invite` | pobierały wiersz (organizację/miejsce) po id bez filtra tenanta; gałąź `has_role(admin)` związana z tenantem wiersza (`= current_tenant_id()`), gałąź właściciela org bez zmian. Rodzeństwo `org_touch_seat_invite` wykryto skanem klasy (rola-gated, pobranie po id, brak funkcji tenanta w ciele) - pozostałe trafienia (`admin_set_profile_verification`, `create_event_group`, `assert_admin_tenant`) już wiążą cel z tenantem domowym wywołującego |
+| (C) ścieżka publiczna/członkowska (`GRANT ... TO anon` / plan) | `authorize_resource_download`, `get_event_access`, `get_poll_results` | `public_tenant_id()` zostaje dla płaszczyzny treści (ranga warstwy liczona per host w `current_membership_tier`), ale **obejście stafowe** (`v_staff`) związane z tenantem wiersza (`= current_tenant_id()`): staff tenanta A na cudzej domenie jest zwykłym gościem, nie omija publikacji/rangi tenanta B |
+
+**Bramka pgTAP.** `security_definer_tenant_scope_test.sql` odgrywa dokładnie
+scenariusz z zadania: admin A woła RPC z podrobionym `x-tenant-host` = domena B i
+oczekuje danych A albo `forbidden`/`not allowed`/`wrong_tenant` - dla wszystkich
+sześciu funkcji klasy (A), `org_add_seat` (B) oraz `get_poll_results` (C, wraz z
+kontrolą pozytywną: podgląd stafowy nadal działa na własnej domenie).
+
+**Lint inwariantu (zapobiega regresji).** `scripts/check-sql-tenant-scope.ts`
+analizuje najnowszą definicję każdej funkcji i failuje CI, gdy ciało `SECURITY
+DEFINER` łączy `public_tenant_id()`/`request_public_host()` z
+`has_role()`/`is_staff()` - poza jawnie uzasadnioną `PUBLIC_PATH_ALLOWLIST` (3
+funkcje klasy C), której każdy wpis musi nadal wiązać obejście z
+`current_tenant_id()` (regresja wiązania też failuje gate). To domyka
+powtarzalną przyczynę źródłową na poziomie bramki, nie pojedynczej łatki.
+
 ## Weryfikacje-korekty audytu (bez zmian w kodzie)
 
 - **`eu_policy_positions` (P1 „do weryfikacji") - FAŁSZYWY ALARM.** Polityka RLS
