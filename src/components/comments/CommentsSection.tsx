@@ -17,6 +17,7 @@ import { FloatingInput } from "@/components/ui/floating-input";
 import { MentionText } from "@/components/mentions/MentionText";
 import { MentionTextarea } from "@/components/mentions/MentionTextarea";
 import { toast } from "sonner";
+import { confirmDialog } from "@/lib/appDialogs";
 import { Trash2 } from "@/lib/lucide-shim";
 import { MessageCircle, Pencil, Reply } from "lucide-react";
 import {
@@ -126,13 +127,22 @@ export function CommentsSection({ postId, lang }: Props) {
   });
 
   const guestCreate = useMutation({
-    mutationFn: (input: { body: string; authorName: string; parentId?: string | null }) =>
+    mutationFn: (input: {
+      body: string;
+      authorName: string;
+      parentId?: string | null;
+      website?: string;
+    }) =>
       guestCreate$({
         data: {
           postId,
           body: input.body,
           authorName: input.authorName,
           parentId: input.parentId ?? null,
+          // Honeypot dosłany do serwera - dopiero teraz serwerowy filtr (który
+          // cicho "przyjmuje" bez zapisu przy wypełnionym polu) faktycznie działa
+          // dla botów odtwarzających formularz z ukrytym polem.
+          website: input.website ?? "",
         },
       }),
     onSuccess: (res) => {
@@ -221,13 +231,17 @@ export function CommentsSection({ postId, lang }: Props) {
         </p>
       ) : userId ? (
         <CommentComposer
-          onSubmit={(body) => create.mutate({ body })}
+          onSubmit={async (body) => {
+            await create.mutateAsync({ body });
+          }}
           submitting={create.isPending}
           lang={lang}
         />
       ) : guestsAllowed ? (
         <GuestCommentComposer
-          onSubmit={(input) => guestCreate.mutate(input)}
+          onSubmit={async (input) => {
+            await guestCreate.mutateAsync(input);
+          }}
           submitting={guestCreate.isPending}
           lang={lang}
         />
@@ -255,8 +269,12 @@ export function CommentsSection({ postId, lang }: Props) {
               lang={lang}
               allowReplies={commentsOpen}
               guestAllowed={guestsAllowed}
-              onReply={(body, parentId) => create.mutate({ body, parentId })}
-              onGuestReply={(input) => guestCreate.mutate(input)}
+              onReply={async (body, parentId) => {
+                await create.mutateAsync({ body, parentId });
+              }}
+              onGuestReply={async (input) => {
+                await guestCreate.mutateAsync(input);
+              }}
               onDelete={(id) => remove.mutate(id)}
               onEdit={async (id, body) => {
                 await edit.mutateAsync({ id, body });
@@ -294,12 +312,15 @@ interface GuestCommentInput {
   body: string;
   authorName: string;
   parentId?: string | null;
+  /** Honeypot - puste u ludzi; przekazywane na serwer, który filtruje boty. */
+  website?: string;
 }
 
 /**
  * Kompozytor dla gości (require_login_to_comment=false): podpis + treść
- * + honeypot (ukryte pole "website" - wypełnia je tylko bot; server fn
- * cicho ignoruje takie zgłoszenia).
+ * + honeypot (ukryte pole "website" - wypełnia je tylko bot; wartość jest
+ * PRZEKAZYWANA na serwer, który cicho "przyjmuje" bez zapisu, więc filtr działa
+ * także dla botów odtwarzających formularz z pominięciem JS).
  */
 function GuestCommentComposer({
   onSubmit,
@@ -308,7 +329,7 @@ function GuestCommentComposer({
   parentId,
   onCancel,
 }: {
-  onSubmit: (input: GuestCommentInput) => void;
+  onSubmit: (input: GuestCommentInput) => void | Promise<void>;
   submitting: boolean;
   lang: "pl" | "en";
   parentId?: string | null;
@@ -326,16 +347,22 @@ function GuestCommentComposer({
     submitting;
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (disabled) return;
-        if (website.trim().length > 0) {
-          // Honeypot: bot wypełnił ukryte pole - udajemy sukces bez wysyłki.
+        try {
+          // Honeypot `website` leci na serwer; treść czyścimy DOPIERO po sukcesie,
+          // żeby błąd (rate-limit / sieć) nie kasował wpisanego komentarza.
+          await onSubmit({
+            body: body.trim(),
+            authorName: name.trim(),
+            parentId: parentId ?? null,
+            website,
+          });
           setBody("");
-          return;
+        } catch {
+          // Zachowujemy treść; toast onError u rodzica tłumaczy przyczynę.
         }
-        onSubmit({ body: body.trim(), authorName: name.trim(), parentId: parentId ?? null });
-        setBody("");
       }}
       className="space-y-3"
     >
@@ -394,7 +421,7 @@ function CommentComposer({
   initialValue,
   submitLabel,
 }: {
-  onSubmit: (body: string) => void;
+  onSubmit: (body: string) => void | Promise<void>;
   submitting: boolean;
   lang: "pl" | "en";
   placeholder?: string;
@@ -412,11 +439,17 @@ function CommentComposer({
     body.trim() === (initialValue ?? "").trim();
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (disabled) return;
-        onSubmit(body);
-        setBody("");
+        try {
+          // Czyścimy pole DOPIERO po sukcesie - błąd (rate-limit / sieć / okno
+          // edycji) nie może skasować wpisanej treści.
+          await onSubmit(body);
+          setBody("");
+        } catch {
+          // Zachowujemy treść; toast onError u rodzica tłumaczy przyczynę.
+        }
       }}
       className="space-y-3"
     >
@@ -467,8 +500,8 @@ function CommentNode({
   allowReplies: boolean;
   /** Goście (bez konta) mogą odpowiadać, gdy wyłączono wymóg logowania. */
   guestAllowed: boolean;
-  onReply: (body: string, parentId: string) => void;
-  onGuestReply: (input: GuestCommentInput) => void;
+  onReply: (body: string, parentId: string) => void | Promise<void>;
+  onGuestReply: (input: GuestCommentInput) => void | Promise<void>;
   onDelete: (id: string) => void;
   onEdit: (id: string, body: string) => void | Promise<void>;
   submittingReply: boolean;
@@ -494,8 +527,9 @@ function CommentNode({
             <CommentComposer
               lang={lang}
               submitting={submittingReply}
-              onSubmit={(body) => {
-                onReply(body, node.comment.id);
+              onSubmit={async (body) => {
+                // Zamykamy odpowiedź DOPIERO po sukcesie; błąd zostawia okno i treść.
+                await onReply(body, node.comment.id);
                 setReplying(false);
               }}
               onCancel={() => setReplying(false)}
@@ -505,8 +539,8 @@ function CommentNode({
               lang={lang}
               submitting={submittingReply}
               parentId={node.comment.id}
-              onSubmit={(input) => {
-                onGuestReply(input);
+              onSubmit={async (input) => {
+                await onGuestReply(input);
                 setReplying(false);
               }}
               onCancel={() => setReplying(false)}
@@ -673,7 +707,24 @@ function CommentItem({
             {isOwn && (
               <button
                 type="button"
-                onClick={() => onDelete(c.id)}
+                onClick={async () => {
+                  // Usunięcie jest nieodwracalne (autor nie odzyska/nie edytuje
+                  // skasowanego wpisu) - potwierdzenie przez app-dialog, nie od razu.
+                  const ok = await confirmDialog({
+                    title: t("comments.deleteConfirmTitle", {
+                      defaultValue: lang === "pl" ? "Usunąć komentarz?" : "Delete comment?",
+                    }),
+                    description: t("comments.deleteConfirmBody", {
+                      defaultValue:
+                        lang === "pl"
+                          ? "Tej operacji nie można cofnąć."
+                          : "This action cannot be undone.",
+                    }),
+                    confirmLabel: t("comments.delete"),
+                    destructive: true,
+                  });
+                  if (ok === true) onDelete(c.id);
+                }}
                 className="inline-flex items-center gap-1 hover:text-destructive"
               >
                 <Trash2 className="w-3.5 h-3.5" aria-hidden />
