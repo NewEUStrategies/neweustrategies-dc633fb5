@@ -1,4 +1,4 @@
-import { createStart, createMiddleware } from "@tanstack/react-start";
+import { createStart, createMiddleware, createCsrfMiddleware } from "@tanstack/react-start";
 
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { isLocalizablePath, localizedPath, normalizeLang } from "@/lib/i18n/localePath";
@@ -257,6 +257,15 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
   });
 }
 
+// CSRF middleware dla wywołań serverFn: TanStack Start ostrzega, że bez
+// niego endpointy RPC są narażone na cross-site requesty. Filter zawęża
+// walidację do serverFn - dokumenty SSR i /api/public/* przechodzą bez
+// zmian. Domyślnie akceptujemy same-origin (Sec-Fetch-Site + Origin).
+const csrfMiddleware = createCsrfMiddleware({
+  filter: (ctx) => ctx.handlerType === "serverFn",
+});
+
+
 export const startInstance = createStart(() => ({
   // Middleware order matters:
   //   1. securityHeaders wraps everything so even 301/302/410 responses carry
@@ -287,6 +296,11 @@ export const startInstance = createStart(() => ({
     // Response/statusCode są przepuszczane - redirecty i notFound działają dalej.
     errorMiddleware,
     securityHeadersMiddleware,
+    // CSRF: chroni endpointy serverFn (RPC same-origin) przed cross-site
+    // wywołaniami. Zawężone do handlerType === 'serverFn' - klasyczne
+    // dokumenty (SSR) i publiczne API pod /api/public/* (webhooki, cron)
+    // muszą przyjmować requesty spoza origin.
+    csrfMiddleware,
     seo404Middleware,
     redirectMiddleware,
     legacyLangQueryMiddleware,
