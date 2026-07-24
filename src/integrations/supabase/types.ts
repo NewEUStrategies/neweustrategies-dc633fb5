@@ -11794,6 +11794,20 @@ export type Database = {
         }
         Returns: Json
       }
+      mutual_connections: {
+        Args: { p_limit?: number; p_offset?: number; p_user_id: string }
+        Returns: {
+          avatar_url: string
+          current_company: string
+          display_name: string
+          job_title: string
+          location: string
+          slug: string
+          total_count: number
+          user_id: string
+          verified: boolean
+        }[]
+      }
       my_connection_requests: {
         Args: { p_direction?: string; p_limit?: number; p_offset?: number }
         Returns: {

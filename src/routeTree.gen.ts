@@ -162,6 +162,7 @@ import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slu
 import { Route as TagSlugRssDotxmlRouteImport } from './routes/tag.$slug.rss[.]xml'
 import { Route as ProgramsSlugRssDotxmlRouteImport } from './routes/programs.$slug.rss[.]xml'
 import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$show.rss[.]xml'
+import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicTrackRouteImport } from './routes/api/public/track'
@@ -996,6 +997,11 @@ const PodcastsShowRssDotxmlRoute = PodcastsShowRssDotxmlRouteImport.update({
   path: '/rss.xml',
   getParentRoute: () => PodcastsShowRoute,
 } as any)
+const NetworkMutualUserIdRoute = NetworkMutualUserIdRouteImport.update({
+  id: '/mutual/$userId',
+  path: '/mutual/$userId',
+  getParentRoute: () => NetworkRoute,
+} as any)
 const CategorySlugRssDotxmlRoute = CategorySlugRssDotxmlRouteImport.update({
   id: '/rss.xml',
   path: '/rss.xml',
@@ -1360,7 +1366,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
-  '/network': typeof NetworkRoute
+  '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
@@ -1545,6 +1551,7 @@ export interface FileRoutesByFullPath {
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
+  '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
@@ -1580,7 +1587,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
-  '/network': typeof NetworkRoute
+  '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
@@ -1756,6 +1763,7 @@ export interface FileRoutesByTo {
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
+  '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
@@ -1793,7 +1801,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/messages': typeof MessagesRoute
-  '/network': typeof NetworkRoute
+  '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/polls': typeof PollsRoute
@@ -1978,6 +1986,7 @@ export interface FileRoutesById {
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
+  '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
@@ -2201,6 +2210,7 @@ export interface FileRouteTypes {
     | '/api/public/track'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
+    | '/network/mutual/$userId'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
@@ -2412,6 +2422,7 @@ export interface FileRouteTypes {
     | '/api/public/track'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
+    | '/network/mutual/$userId'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
@@ -2633,6 +2644,7 @@ export interface FileRouteTypes {
     | '/api/public/track'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
+    | '/network/mutual/$userId'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
@@ -2670,7 +2682,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
   MessagesRoute: typeof MessagesRoute
-  NetworkRoute: typeof NetworkRoute
+  NetworkRoute: typeof NetworkRouteWithChildren
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PeopleRoute: typeof PeopleRoute
   PollsRoute: typeof PollsRoute
@@ -3804,6 +3816,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PodcastsShowRssDotxmlRouteImport
       parentRoute: typeof PodcastsShowRoute
     }
+    '/network/mutual/$userId': {
+      id: '/network/mutual/$userId'
+      path: '/mutual/$userId'
+      fullPath: '/network/mutual/$userId'
+      preLoaderRoute: typeof NetworkMutualUserIdRouteImport
+      parentRoute: typeof NetworkRoute
+    }
     '/category/$slug/rss.xml': {
       id: '/category/$slug/rss.xml'
       path: '/rss.xml'
@@ -4669,6 +4688,17 @@ const EventsRouteChildren: EventsRouteChildren = {
 const EventsRouteWithChildren =
   EventsRoute._addFileChildren(EventsRouteChildren)
 
+interface NetworkRouteChildren {
+  NetworkMutualUserIdRoute: typeof NetworkMutualUserIdRoute
+}
+
+const NetworkRouteChildren: NetworkRouteChildren = {
+  NetworkMutualUserIdRoute: NetworkMutualUserIdRoute,
+}
+
+const NetworkRouteWithChildren =
+  NetworkRoute._addFileChildren(NetworkRouteChildren)
+
 interface ProfileRouteChildren {
   ProfileAccountRoute: typeof ProfileAccountRoute
   ProfileAuthorRoute: typeof ProfileAuthorRoute
@@ -4798,7 +4828,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
   MessagesRoute: MessagesRoute,
-  NetworkRoute: NetworkRoute,
+  NetworkRoute: NetworkRouteWithChildren,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PeopleRoute: PeopleRoute,
   PollsRoute: PollsRoute,
