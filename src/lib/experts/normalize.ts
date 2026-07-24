@@ -223,3 +223,100 @@ export function groupPivot<T extends Row>(rows: T[], valueKey: string): Map<stri
   }
   return m;
 }
+
+// ---------- surowe zbiory → materiały (wspólne jądro RPC i legacy) ---------
+
+/** Surowe zbiory wierszy składające się na materiały eksperta. Ten sam kształt
+ *  produkują: legacy fetchMaterials (osobne zapytania) i RPC get_expert_hub
+ *  (jeden round-trip) - asemblacja jest jedna, więc obie ścieżki nie mogą się
+ *  rozjechać na dedupe/pivotach/sortowaniu. */
+export interface ExpertMaterialRows {
+  primaryPosts: Row[];
+  coauthorPosts: Row[];
+  podcasts: Row[];
+  hostEvents: Row[];
+  speakerEvents: Row[];
+  postCategories: Row[];
+  postPrograms: Row[];
+  postRegions: Row[];
+  postTags: Row[];
+}
+
+/** Złóż znormalizowaną listę materiałów: dedupe postów (autor główny wygrywa
+ *  nad współautorstwem), dedupe wydarzeń (host nad prelegentem), pivoty
+ *  taksonomii, sort malejąco po dacie. Czysta funkcja - testowalna bez IO. */
+export function assembleMaterials(rows: ExpertMaterialRows): ExpertMaterial[] {
+  const postById = new Map<string, { row: Row; coauthor: boolean }>();
+  for (const row of rows.primaryPosts) postById.set(str(row.id), { row, coauthor: false });
+  for (const row of rows.coauthorPosts) {
+    const id = str(row.id);
+    if (!postById.has(id)) postById.set(id, { row, coauthor: true });
+  }
+
+  const pivots: PostPivots = {
+    categories: groupPivot(rows.postCategories, "category_id"),
+    programs: groupPivot(rows.postPrograms, "program_id"),
+    regions: groupPivot(rows.postRegions, "region_id"),
+    tags: groupPivot(rows.postTags, "tag_id"),
+  };
+
+  const materials: ExpertMaterial[] = [];
+  for (const { row, coauthor } of postById.values()) {
+    materials.push(postRowToMaterial(row, coauthor, pivots));
+  }
+  for (const row of rows.podcasts) materials.push(podcastRowToMaterial(row));
+
+  const eventById = new Map<string, Row>();
+  for (const row of rows.hostEvents) eventById.set(str(row.id), row);
+  for (const row of rows.speakerEvents) {
+    const id = str(row.id);
+    if (!eventById.has(id)) eventById.set(id, row);
+  }
+  for (const row of eventById.values()) materials.push(eventRowToMaterial(row));
+
+  materials.sort(compareMaterialsByDateDesc);
+  return materials;
+}
+
+// ---------- wiersze taksonomii → meta (wspólne dla RPC i legacy) -----------
+
+/** Wiersze `programs` → ExpertProgram[] (bez funkcji roli - to katalog). */
+export function mapProgramRows(rows: Row[]): ExpertProgram[] {
+  return rows.map((p) => ({
+    id: str(p.id),
+    slug: str(p.slug),
+    name_pl: str(p.name_pl),
+    name_en: str(p.name_en),
+    kind: (strOrNull(p.kind) as ExpertProgram["kind"]) ?? "program",
+    description_pl: strOrNull(p.description_pl),
+    description_en: strOrNull(p.description_en),
+    role_pl: null,
+    role_en: null,
+  }));
+}
+
+export function mapRegionRows(rows: Row[]): RegionMeta[] {
+  return rows.map((r) => ({
+    id: str(r.id),
+    slug: str(r.slug),
+    name_pl: str(r.name_pl),
+    name_en: str(r.name_en),
+  }));
+}
+
+export function mapCategoryRows(rows: Row[]): CategoryMeta[] {
+  return rows.map((c) => ({
+    id: str(c.id),
+    slug: str(c.slug),
+    name_pl: str(c.name_pl),
+    name_en: str(c.name_en),
+  }));
+}
+
+export function mapTagRows(rows: Row[]): TagMeta[] {
+  return rows.map((t) => ({
+    id: str(t.id),
+    slug: str(t.slug),
+    name: str(t.name),
+  }));
+}

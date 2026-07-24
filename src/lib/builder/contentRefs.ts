@@ -9,6 +9,7 @@
 
 import { useQueries } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 export type Lang = "pl" | "en";
 
@@ -24,7 +25,6 @@ export interface PostRefData {
   authorAvatar: string;
   authorSlug: string;
 }
-
 
 const POST_REF_STALE = 60_000; // 1 min - aggressive enough to feel "live"
 const POST_REF_GC = 5 * 60_000;
@@ -59,10 +59,15 @@ interface AuthorInfo {
   slug: string;
 }
 
+const EMPTY_AUTHOR: AuthorInfo = { name: "", avatar: "", slug: "" };
+
 async function fetchAuthorInfo(id: string | null): Promise<AuthorInfo> {
-  if (!id) return { name: "", avatar: "", slug: "" };
+  if (!id) return EMPTY_AUTHOR;
+  // profiles_public: publiczna projekcja profilu (ta sama, którą czyta cała
+  // powierzchnia publiczna) zamiast pełnej tabeli `profiles` - lżejszy wiersz,
+  // spójny kontrakt widoczności.
   const { data } = await supabase
-    .from("profiles")
+    .from("profiles_public")
     .select("display_name, avatar_url, slug")
     .eq("id", id)
     .maybeSingle();
@@ -76,6 +81,58 @@ async function fetchAuthorInfo(id: string | null): Promise<AuthorInfo> {
     avatar: row?.avatar_url ?? "",
     slug: row?.slug ?? "",
   };
+}
+
+/** Wpis + autor jednym pakietem (niezależnym od języka - mapowanie na wariant
+ *  PL/EN robi `toPostRef` po odczycie, więc oba języki dzielą jeden wpis TTL). */
+interface PostRefBundle {
+  row: RawPostRow | null;
+  author: AuthorInfo;
+}
+
+/**
+ * Referencja wpisu JEDNYM round-tripem: RPC `get_post_refs` (migracja
+ * 20260724151000, join wpis + publiczny profil autora w bazie). Wcześniej
+ * każdy referowany wpis slidera kosztował dwa SEKWENCYJNE round-tripy
+ * (wpis -> autor). Fallback dwuetapowy zostaje na okno wdrożeniowe migracji;
+ * całość za edgeTtlCache per tenant host (klucz per id, wspólny dla języków).
+ */
+async function fetchPostRefBundle(id: string): Promise<PostRefBundle> {
+  return edgeTtlCache(
+    `builder:post-ref:${id}`,
+    POST_REF_STALE,
+    async (): Promise<PostRefBundle> => {
+      // Cast przez `unknown`: wygenerowane typy Supabase nie znają jeszcze
+      // funkcji z migracji 20260724151000 (regeneracja typów po jej wdrożeniu).
+      const { data, error } = await (
+        supabase.rpc as unknown as (
+          fn: string,
+          args: { _post_ids: string[] },
+        ) => PromiseLike<{ data: unknown; error: { message: string } | null }>
+      )("get_post_refs", { _post_ids: [id] });
+      if (!error && Array.isArray(data)) {
+        const row = (data[0] ?? null) as
+          | (RawPostRow & {
+              author_name: string | null;
+              author_avatar: string | null;
+              author_slug: string | null;
+            })
+          | null;
+        if (!row) return { row: null, author: EMPTY_AUTHOR };
+        return {
+          row,
+          author: {
+            name: row.author_name ?? "",
+            avatar: row.author_avatar ?? "",
+            slug: row.author_slug ?? "",
+          },
+        };
+      }
+      const row = await fetchPostRef(id);
+      const author = await fetchAuthorInfo(row?.author_id ?? null);
+      return { row, author };
+    },
+  );
 }
 
 function toPostRef(row: RawPostRow | null, author: AuthorInfo, lang: Lang): PostRefData | null {
@@ -102,16 +159,14 @@ export function postRefQueryOptions(id: string | null | undefined, lang: Lang) {
     queryKey: ["post-ref", id ?? "", lang] as const,
     queryFn: async (): Promise<PostRefData | null> => {
       if (!id) return null;
-      const row = await fetchPostRef(id);
-      const author = await fetchAuthorInfo(row?.author_id ?? null);
-      return toPostRef(row, author, lang);
+      const bundle = await fetchPostRefBundle(id);
+      return toPostRef(bundle.row, bundle.author, lang);
     },
     enabled: Boolean(id),
     staleTime: POST_REF_STALE,
     gcTime: POST_REF_GC,
   };
 }
-
 
 /** Batch resolver - one query per id, dedup'd before useQueries receives keys. */
 export function useResolvedPostRefs(ids: ReadonlyArray<string | null | undefined>, lang: Lang) {

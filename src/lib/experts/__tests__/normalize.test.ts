@@ -1,12 +1,17 @@
 import { describe, it, expect } from "vitest";
 import {
+  assembleMaterials,
   buildExpertProfile,
   compareMaterialsByDateDesc,
   eventRowToMaterial,
   groupPivot,
+  mapCategoryRows,
   mapExpertiseAreaRows,
   mapMediaMentionRows,
   mapProgramMembers,
+  mapProgramRows,
+  mapRegionRows,
+  mapTagRows,
   parseOrgFunctions,
   podcastRowToMaterial,
   postFormatToKind,
@@ -366,5 +371,81 @@ describe("groupPivot", () => {
     const m = postRowToMaterial({ id: "z", slug: "z", title_pl: "Z" }, false, NO_PIVOTS);
     expect(m.programIds).toEqual([]);
     expect(m.categoryIds).toEqual([]);
+  });
+});
+
+describe("assembleMaterials (wspolne jadro RPC i legacy)", () => {
+  const post = (id: string, published_at: string) => ({
+    id,
+    slug: `post-${id}`,
+    title_pl: `Wpis ${id}`,
+    title_en: `Post ${id}`,
+    published_at,
+  });
+
+  it("dedupe: autor glowny wygrywa nad wspolautorstwem, host nad prelegentem", () => {
+    const materials = assembleMaterials({
+      primaryPosts: [post("a", "2026-07-02")],
+      coauthorPosts: [post("a", "2026-07-02"), post("b", "2026-07-01")],
+      podcasts: [],
+      hostEvents: [{ id: "e1", slug: "ev", title_pl: "Ev", starts_at: "2026-06-01" }],
+      speakerEvents: [{ id: "e1", slug: "ev", title_pl: "Ev", starts_at: "2026-06-01" }],
+      postCategories: [],
+      postPrograms: [],
+      postRegions: [],
+      postTags: [],
+    });
+    const posts = materials.filter((m) => m.kind === "article");
+    expect(posts).toHaveLength(2);
+    expect(posts.find((m) => m.id === "a")?.isCoauthor).toBe(false);
+    expect(posts.find((m) => m.id === "b")?.isCoauthor).toBe(true);
+    expect(materials.filter((m) => m.kind === "event")).toHaveLength(1);
+  });
+
+  it("przypina pivoty taksonomii i sortuje najnowsze u gory", () => {
+    const materials = assembleMaterials({
+      primaryPosts: [post("a", "2026-01-01"), post("b", "2026-07-01")],
+      coauthorPosts: [],
+      podcasts: [],
+      hostEvents: [],
+      speakerEvents: [],
+      postCategories: [{ post_id: "a", category_id: "c1" }],
+      postPrograms: [{ post_id: "b", program_id: "p1" }],
+      postRegions: [],
+      postTags: [{ post_id: "a", tag_id: "t1" }],
+    });
+    expect(materials.map((m) => m.id)).toEqual(["b", "a"]);
+    expect(materials.find((m) => m.id === "a")?.categoryIds).toEqual(["c1"]);
+    expect(materials.find((m) => m.id === "a")?.tagIds).toEqual(["t1"]);
+    expect(materials.find((m) => m.id === "b")?.programIds).toEqual(["p1"]);
+  });
+});
+
+describe("mapProgramRows / mapRegionRows / mapCategoryRows / mapTagRows", () => {
+  it("mapuje wiersze taksonomii na meta faset", () => {
+    expect(
+      mapProgramRows([{ id: "p1", slug: "s", name_pl: "N", name_en: "N", kind: "program" }]),
+    ).toEqual([
+      {
+        id: "p1",
+        slug: "s",
+        name_pl: "N",
+        name_en: "N",
+        kind: "program",
+        description_pl: null,
+        description_en: null,
+        role_pl: null,
+        role_en: null,
+      },
+    ]);
+    expect(mapRegionRows([{ id: "r", slug: "eu", name_pl: "UE", name_en: "EU" }])).toEqual([
+      { id: "r", slug: "eu", name_pl: "UE", name_en: "EU" },
+    ]);
+    expect(mapCategoryRows([{ id: "c", slug: "geo", name_pl: "Geo", name_en: "Geo" }])).toEqual([
+      { id: "c", slug: "geo", name_pl: "Geo", name_en: "Geo" },
+    ]);
+    expect(mapTagRows([{ id: "t", slug: "nato", name: "NATO" }])).toEqual([
+      { id: "t", slug: "nato", name: "NATO" },
+    ]);
   });
 });
