@@ -200,7 +200,7 @@ export const expertHubQueryOptions = (slugOrId: string) =>
         supabase
           .from("author_profiles_public")
           .select(
-            "job_title, company, website_url, x_url, linkedin_url, full_bio_pl, full_bio_en, org_functions, media_contact_name, is_public",
+            "job_title, company, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials, contact_email, full_bio_pl, full_bio_en, org_functions, media_contact_name, is_public",
           )
           .eq("user_id", expertId)
           .maybeSingle(),
