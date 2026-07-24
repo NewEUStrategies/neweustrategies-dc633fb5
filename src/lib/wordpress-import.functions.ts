@@ -504,7 +504,7 @@ const ListInput = z.object({
 
 export const previewWpComPosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => ListInput.parse(i))
+  .validator((i: unknown) => ListInput.parse(i))
   .handler(async ({ data }) => {
     const site = encodeURIComponent(data.site);
     const qs = new URLSearchParams({
@@ -541,7 +541,7 @@ const JobInput = ListInput.extend({
 
 export const createWpImportJob = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => JobInput.parse(i))
+  .validator((i: unknown) => JobInput.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     if (!(await rateLimit({ scope: "wp.import", subjectId: userId, max: 10 }))) {
@@ -583,7 +583,7 @@ const RunInput = JobInput.extend({ jobId: z.string().uuid() });
 
 export const runWpImportJob = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => RunInput.parse(i))
+  .validator((i: unknown) => RunInput.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
@@ -873,7 +873,7 @@ const GetJobInput = z.object({ jobId: z.string().uuid() });
 
 export const getWpImportJob = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => GetJobInput.parse(i))
+  .validator((i: unknown) => GetJobInput.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { data: row, error } = await supabase
@@ -894,7 +894,7 @@ const CancelInput = z.object({ jobId: z.string().uuid() });
 
 export const cancelWpImportJob = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => CancelInput.parse(i))
+  .validator((i: unknown) => CancelInput.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);

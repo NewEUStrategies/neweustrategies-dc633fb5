@@ -49,7 +49,7 @@ export const listMenus = createServerFn({ method: "GET" }).handler(
 const getMenuInputSchema = z.object({ key: z.string().min(1).max(64) });
 
 export const getMenuWithItems = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => getMenuInputSchema.parse(input))
+  .validator((input: unknown) => getMenuInputSchema.parse(input))
   .handler(async ({ data }): Promise<MenuWithItems | null> => {
     // Per-isolate TTL cache (wzorzec jak tenant-directory/ticker): menu jest
     // od 2026-07-20 grzane w loaderze ROOTA na każdej trasie z chrome (SSR
@@ -103,7 +103,7 @@ async function fetchMenuWithItems(key: string): Promise<MenuWithItems | null> {
 
 export const saveMenu = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveMenuInputSchema.parse(input))
+  .validator((input: unknown) => saveMenuInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const { supabase, userId } = context;
 

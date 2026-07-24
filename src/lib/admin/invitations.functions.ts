@@ -152,7 +152,7 @@ export interface TeamImportCandidate extends TeamMemberDraft {
 
 export const previewTeamImport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ pageSlug: z.string().min(1) }).parse(input))
+  .validator((input) => z.object({ pageSlug: z.string().min(1) }).parse(input))
   .handler(async ({ data, context }): Promise<{ candidates: TeamImportCandidate[] }> => {
     const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { data: page, error } = await context.supabase
@@ -206,7 +206,7 @@ const InviteItemSchema = z.object({
 
 export const createInvitations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ items: z.array(InviteItemSchema).min(1).max(200) }).parse(input),
   )
   .handler(
@@ -408,7 +408,7 @@ async function performSend(
 
 export const sendInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }): Promise<SendResult> => {
     await assertAdmin(context.supabase, context.userId);
     return performSend(context.supabase, context.userId, data.id);
@@ -416,7 +416,7 @@ export const sendInvitation = createServerFn({ method: "POST" })
 
 export const sendInvitationsBulk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z.object({ ids: z.array(z.string().uuid()).min(1).max(100) }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ results: SendResult[] }> => {
@@ -438,7 +438,7 @@ export const sendInvitationsBulk = createServerFn({ method: "POST" })
 // UI pokazał, dla kogo nie było co ponowić.
 export const resendInvitationsForEmails = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         emails: z
@@ -479,7 +479,7 @@ export const resendInvitationsForEmails = createServerFn({ method: "POST" })
 
 export const revokeInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { error } = await context.supabase
@@ -500,7 +500,7 @@ interface LinkResult {
 
 export const linkTeamWidgets = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ pageSlug: z.string().min(1) }).parse(input))
+  .validator((input) => z.object({ pageSlug: z.string().min(1) }).parse(input))
   .handler(async ({ data, context }): Promise<LinkResult> => {
     const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { data: page, error } = await context.supabase
@@ -597,7 +597,7 @@ interface ProvisionResult {
 
 export const provisionTeamMembers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
+  .validator((input) =>
     z
       .object({
         pageSlug: z.string().min(1),

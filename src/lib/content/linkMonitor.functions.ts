@@ -7,7 +7,7 @@ import { rateLimit } from "@/lib/server/rate-limit.server";
 
 export const runLinkScanNow = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z.object({ posts: z.number().int().min(1).max(20).default(10) }).parse(i ?? {}),
   )
   .handler(async ({ data, context }) => {

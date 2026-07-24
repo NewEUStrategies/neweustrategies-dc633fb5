@@ -33,7 +33,7 @@ export interface VitalsSummaryResult extends VitalsReport {
 
 export const getVitalsSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         days: z.number().int().min(1).max(365).optional(),

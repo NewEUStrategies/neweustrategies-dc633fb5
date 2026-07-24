@@ -110,7 +110,7 @@ export interface GscRow {
 
 export const queryGscAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => analyticsInput.parse(i))
+  .validator((i: unknown) => analyticsInput.parse(i))
   .handler(async ({ data, context }): Promise<{ rows: GscRow[] }> => {
     await requireAdmin(context as unknown as GatewayCtx);
     const path = `/webmasters/v3/sites/${encodeURIComponent(data.siteUrl)}/searchAnalytics/query`;
@@ -137,7 +137,7 @@ const inspectInput = z.object({
 
 export const inspectGscUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => inspectInput.parse(i))
+  .validator((i: unknown) => inspectInput.parse(i))
   .handler(async ({ data, context }): Promise<{ raw: string }> => {
     await requireAdmin(context as unknown as GatewayCtx);
     const res = await gwFetch<unknown>("/v1/urlInspection/index:inspect", {

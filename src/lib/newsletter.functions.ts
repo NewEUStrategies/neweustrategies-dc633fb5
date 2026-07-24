@@ -168,7 +168,7 @@ function buildDoiEmail(
  * address is on the list.
  */
 export const subscribeToNewsletter = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => NewsletterInput.parse(data))
+  .validator((data: unknown) => NewsletterInput.parse(data))
   .handler(async ({ data }): Promise<NewsletterSubscribeResult> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const email = data.email.toLowerCase();

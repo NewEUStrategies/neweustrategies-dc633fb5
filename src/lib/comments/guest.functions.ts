@@ -24,7 +24,7 @@ export interface GuestCommentResult {
 }
 
 export const createGuestComment = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => GuestCommentInput.parse(i ?? {}))
+  .validator((i: unknown) => GuestCommentInput.parse(i ?? {}))
   .handler(async ({ data }): Promise<GuestCommentResult> => {
     // Bot wypełnił honeypot: cicha "zgoda" bez zapisu - nie zdradzamy filtra.
     if (data.website && data.website.trim().length > 0) {

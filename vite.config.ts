@@ -6,7 +6,24 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Minifikacja artefaktu WORKERA (2026-07-24). Chunki serwera składa NITRO
+// własnym rollupem, więc vite-owe `build.minify` ich nie dotyka - bez tej
+// opcji deploy niósł 21 MB nieminifikowanego kodu (wolniejszy parse na
+// zimnym starcie izolatu, większy artefakt; po minifikacji 13 MB raw /
+// ~3,0 MB gzip). Nitro minifikuje esbuildem (proces Go, poza heapem V8),
+// więc historyczny OOM `build:dev` przy minifikacji SSR go nie dotyczy -
+// zweryfikowane pełnym `build` i `build:dev` (docs/WDROZENIE_SSR_2026-07-24.md).
+//
+// Zmienna pośrednia zamiast literalu: typy @lovable.dev/vite-tanstack-config
+// deklarują tylko podzbiór opcji nitro (preset/output/cloudflare), ale runtime
+// forwarduje CAŁY obiekt do nitro() z nitro/vite, a `minify` jest oficjalną
+// opcją Nitro (https://nitro.build/config#minify). Przypisanie przez zmienną
+// omija excess-property-check bez żadnego rzutowania; jawny `preset` powtarza
+// dotychczasowy default (cloudflare-module) i spełnia weak-type check.
+const nitroOptions = { preset: "cloudflare-module", minify: true };
+
 export default defineConfig({
+  nitro: nitroOptions,
   vite: {
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
@@ -25,18 +42,19 @@ export default defineConfig({
         "seroval",
       ],
     },
-    // Skip minification of the SSR bundle: the Worker/Nitro SSR chunk grew past
-    // 2.5 MB (route tree + heavy admin analytics/builder trees) and V8's mark-
-    // compact ran out of memory during minify at `build:dev`. Minifying the
-    // server bundle is a size optimisation, not a correctness requirement -
-    // dropping it cuts peak RSS enough to build cleanly.
-    //
-    // UWAGA: to top-level ustawienie obejmuje KAŻDE środowisko builda, więc
-    // wyłączało też minifikację bundla PRZEGLĄDARKI (klient ważył ~2x więcej
-    // gzip - realny koszt każdego pierwszego wczytania). Środowisko "client"
-    // niżej jawnie przywraca esbuild-minify; serwer/worker zostaje bez zmian.
+    // Minifikacja WSZYSTKICH środowisk builda esbuildem (2026-07-24). Historia:
+    // top-level `minify: false` wprowadzono, gdy V8 wyczerpywał pamięć podczas
+    // minifikacji chunka SSR >2.5 MB przy `build:dev` - ale efektem ubocznym
+    // był 21 MB NIEminifikowany bundel workera (wolniejszy parse na zimnym
+    // starcie izolatu, większy artefakt deployu). Esbuild minifikuje we
+    // własnym procesie Go, poza heapem V8, więc historyczny OOM go nie
+    // dotyczy - zweryfikowane pełnym `build` i `build:dev` na 8 GB heapu
+    // (patrz docs/WDROZENIE_SSR_2026-07-24.md). Gdyby OOM wrócił na CI,
+    // pierwszy krok diagnostyki: przywrócić `minify: false` wyłącznie dla
+    // środowiska SSR/workera (environments), NIE globalnie - klient musi
+    // pozostać minifikowany.
     build: {
-      minify: false,
+      minify: "esbuild",
     },
     // Do not set top-level Rollup `manualChunks` here. This config is shared by
     // the browser and Cloudflare server environments; forcing vendor chunks at

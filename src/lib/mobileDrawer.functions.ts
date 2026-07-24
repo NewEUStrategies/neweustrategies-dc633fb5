@@ -51,7 +51,7 @@ export const getMobileDrawerConfig = createServerFn({ method: "GET" }).handler(
 
 export const upsertMobileDrawerConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => drawerConfigSchema.parse(input))
+  .validator((input: unknown) => drawerConfigSchema.parse(input))
   .handler(async ({ data, context }): Promise<DrawerConfig> => {
     const { supabase, userId } = context;
 

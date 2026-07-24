@@ -22,7 +22,7 @@ export const listMyConsents = createServerFn({ method: "GET" })
 
 export const setMyConsent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => SetConsentSchema.parse(input))
+  .validator((input: unknown) => SetConsentSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const req = (() => {
@@ -50,7 +50,7 @@ export const setMyConsent = createServerFn({ method: "POST" })
 
 export const listMyConsentEvents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => ListEventsSchema.parse(input ?? {}))
+  .validator((input: unknown) => ListEventsSchema.parse(input ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: rows, error } = await supabase

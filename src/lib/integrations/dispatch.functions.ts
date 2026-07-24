@@ -152,5 +152,5 @@ export async function runIntegrationDispatch(limit: number): Promise<DispatchSum
 
 export const dispatchIntegrationDeliveries = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((input: unknown) => DispatchInput.parse(input ?? {}))
+  .validator((input: unknown) => DispatchInput.parse(input ?? {}))
   .handler(async ({ data }): Promise<DispatchSummary> => runIntegrationDispatch(data.limit));

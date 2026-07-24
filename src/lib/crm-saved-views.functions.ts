@@ -53,7 +53,7 @@ interface SupaClient {
 
 export const listSavedViews = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ListInput.parse(d))
+  .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const supa = context.supabase as unknown as SupaClient;
     const { data: rows, error } = await supa
@@ -75,7 +75,7 @@ const UpsertInput = z.object({
 
 export const upsertSavedView = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => UpsertInput.parse(d))
+  .validator((d) => UpsertInput.parse(d))
   .handler(async ({ data, context }) => {
     const supa = context.supabase as unknown as SupaClient;
     if (data.id) {
@@ -104,7 +104,7 @@ const DeleteInput = z.object({ id: z.string().uuid() });
 
 export const deleteSavedView = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => DeleteInput.parse(d))
+  .validator((d) => DeleteInput.parse(d))
   .handler(async ({ data, context }) => {
     const supa = context.supabase as unknown as SupaClient;
     const { error } = await supa.from("saved_views").delete().eq("id", data.id);

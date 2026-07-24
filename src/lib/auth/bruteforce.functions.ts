@@ -81,7 +81,7 @@ const preAuthSchema = z.object({
 });
 
 export const preAuthGuard = createServerFn({ method: "POST" })
-  .inputValidator((raw: unknown) => {
+  .validator((raw: unknown) => {
     const parsed = preAuthSchema.safeParse(raw);
     if (parsed.success) return parsed.data;
     // Zamieniamy ZodError na stabilny, tagowany Error - dzięki temu klient nie
@@ -140,7 +140,7 @@ const unlockSchema = z.object({
 });
 
 export const unlockContentPassword = createServerFn({ method: "POST" })
-  .inputValidator((raw: unknown) => unlockSchema.parse(raw))
+  .validator((raw: unknown) => unlockSchema.parse(raw))
   .handler(async ({ data }) => {
     const ipHash = currentIpHash();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

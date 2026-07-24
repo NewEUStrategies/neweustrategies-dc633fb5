@@ -19,7 +19,7 @@ const SIGNED_URL_TTL_SECONDS = 120;
 
 export const downloadMemberResource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => downloadSchema.parse(input))
+  .validator((input: unknown) => downloadSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 

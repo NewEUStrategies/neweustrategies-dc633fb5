@@ -199,7 +199,7 @@ export const listCampaigns = createServerFn({ method: "GET" })
 // ----------------------------------------------------------------------------
 export const getCampaign = createServerFn({ method: "GET" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<CampaignRow | null> => {
     const { data: row, error } = await context.supabase
       .from("newsletter_campaigns")
@@ -215,7 +215,7 @@ export const getCampaign = createServerFn({ method: "GET" })
 // ----------------------------------------------------------------------------
 export const getCampaignEngagement = createServerFn({ method: "GET" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<{ opens: number; clicks: number }> => {
     const tenantId = await getTenantId(context);
     // `newsletter_campaign_events` has staff-read RLS (tenant-scoped), so the
@@ -240,7 +240,7 @@ export const getCampaignEngagement = createServerFn({ method: "GET" })
 // ----------------------------------------------------------------------------
 export const upsertCampaign = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => CampaignUpsert.parse(data))
+  .validator((data: unknown) => CampaignUpsert.parse(data))
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const tenantId = await getTenantId(context);
     // Dokument kreatora normalizujemy parserem (złe bloki odpadają) i
@@ -292,7 +292,7 @@ export const upsertCampaign = createServerFn({ method: "POST" })
 // ----------------------------------------------------------------------------
 export const deleteCampaign = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("newsletter_campaigns")
@@ -308,7 +308,7 @@ export const deleteCampaign = createServerFn({ method: "POST" })
 // ----------------------------------------------------------------------------
 export const countCampaignAudience = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => AudienceFilter.parse(data))
+  .validator((data: unknown) => AudienceFilter.parse(data))
   .handler(async ({ data, context }): Promise<{ count: number }> => {
     const tenantId = await getTenantId(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -348,7 +348,7 @@ export const countCampaignAudience = createServerFn({ method: "POST" })
 // ----------------------------------------------------------------------------
 export const sendCampaignTest = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -410,7 +410,7 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
 // ----------------------------------------------------------------------------
 export const sendCampaign = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(
     async ({
       data,
@@ -929,7 +929,7 @@ async function logRecipient(
 // renderEmailHtml, którym wysyła serwer (podgląd = wysyłka).
 export const resolveCampaignDocPosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => z.object({ doc: z.unknown() }).parse(data))
+  .validator((data: unknown) => z.object({ doc: z.unknown() }).parse(data))
   .handler(async ({ data, context }): Promise<{ json: string }> => {
     const tenantId = await getTenantId(context);
     // Ten sam limit rozmiaru co przy zapisie (upsertCampaign) - podgląd nie
@@ -951,7 +951,7 @@ export const resolveCampaignDocPosts = createServerFn({ method: "POST" })
 // Wyszukiwarka opublikowanych wpisów dla ręcznego doboru w bloku post-list.
 export const searchCampaignPosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ search: z.string().trim().max(200).default("") }).parse(data),
   )
   .handler(async ({ data, context }): Promise<{ json: string }> => {

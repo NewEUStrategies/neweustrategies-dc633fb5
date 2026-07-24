@@ -33,7 +33,7 @@ export interface ImportSummary {
 
 export const importNewsletterSubscribers = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => ImportInput.parse(data))
+  .validator((data: unknown) => ImportInput.parse(data))
   .handler(async ({ data, context }): Promise<ImportSummary> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -145,7 +145,7 @@ const JobRunnerUpdate = z.object({
 
 export const updateJobRunnerSettings = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => JobRunnerUpdate.parse(data))
+  .validator((data: unknown) => JobRunnerUpdate.parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin

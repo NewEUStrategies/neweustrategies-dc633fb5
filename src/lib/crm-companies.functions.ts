@@ -53,7 +53,7 @@ const ListInput = z.object({
 
 export const listCrmCompanies = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => ListInput.parse(d))
+  .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     let q = tbl(context, "crm_companies")
       .select(
@@ -122,7 +122,7 @@ const IdInput = z.object({ id: z.string().uuid() });
 
 export const getCrmCompany = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IdInput.parse(d))
+  .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: company, error } = await tbl(context, "crm_companies")
       .select("*")
@@ -174,7 +174,7 @@ const UpdateInput = z.object({
 
 export const updateCrmCompany = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => UpdateInput.parse(d))
+  .validator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
     const supa = context.supabase as unknown as {
@@ -224,7 +224,7 @@ const nullIfEmpty = (v: string | undefined): string | null => {
 
 export const createCrmCompany = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => CreateCompanyInput.parse(d))
+  .validator((d) => CreateCompanyInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
     // Tenant z profilu bieżącego staffu (requireStaff nie przekazuje go dalej).
@@ -296,7 +296,7 @@ const CreateContactInput = z.object({
 
 export const createCrmContactForCompany = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => CreateContactInput.parse(d))
+  .validator((d) => CreateContactInput.parse(d))
   .handler(async ({ data, context }) => {
     const supa = context.supabase as unknown as {
       from: (t: string) => {
@@ -349,7 +349,7 @@ const NoteInput = z.object({
 
 export const addCrmCompanyNote = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => NoteInput.parse(d))
+  .validator((d) => NoteInput.parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await write(context, "audit_log").insert({
       actor_id: (context as { userId: string }).userId,
@@ -365,7 +365,7 @@ export const addCrmCompanyNote = createServerFn({ method: "POST" })
 // ---- Feed aktywności firmy (audit_log + notatki + leady) ----------------
 export const getCrmCompanyActivity = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => IdInput.parse(d))
+  .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: leadRows } = (await tbl(context, "crm_leads")
       .select("id, email, first_name, last_name, created_at, last_activity_at, stage")
@@ -487,7 +487,7 @@ const BulkUpdateInput = z.object({
 
 export const bulkUpdateCrmCompanies = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => BulkUpdateInput.parse(d))
+  .validator((d) => BulkUpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { ids, ...patch } = data;
     if (Object.keys(patch).length === 0) return { ok: true, updated: 0 };
@@ -515,7 +515,7 @@ const BulkDeleteInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(20
 
 export const bulkDeleteCrmCompanies = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((d) => BulkDeleteInput.parse(d))
+  .validator((d) => BulkDeleteInput.parse(d))
   .handler(async ({ data, context }) => {
     const rpc = (
       context.supabase as unknown as {

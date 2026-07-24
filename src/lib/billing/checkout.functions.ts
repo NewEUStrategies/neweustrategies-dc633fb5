@@ -37,7 +37,7 @@ const createOrderSchema = z.object({
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => createOrderSchema.parse(input))
+  .validator((input: unknown) => createOrderSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
@@ -333,7 +333,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 // webhook is authoritative - so it can never bypass real payments in production.
 export const finalizeCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ order_id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ order_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     if (process.env.STRIPE_SECRET_KEY) {
       return { ok: false as const, reason: "stripe_mode" as const };
@@ -382,7 +382,7 @@ const cancelSubscriptionSchema = z.object({ subscriptionId: z.string().uuid() })
 // truth for changes made on the Stripe side.
 export const cancelSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => cancelSubscriptionSchema.parse(input))
+  .validator((input: unknown) => cancelSubscriptionSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -431,7 +431,7 @@ const changePlanSchema = z.object({
 // PLN/EUR - ta sama reguła co przy checkout'cie z display_currency).
 export const changeSubscriptionPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => changePlanSchema.parse(input))
+  .validator((input: unknown) => changePlanSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -555,7 +555,7 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
 // wznowienia, którego Stripe nie wykonał.
 export const resumeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => cancelSubscriptionSchema.parse(input))
+  .validator((input: unknown) => cancelSubscriptionSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 

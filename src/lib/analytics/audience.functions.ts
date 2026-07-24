@@ -59,7 +59,7 @@ const ROW_CAP = 50_000;
 
 export const getAudienceSegments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z.object({ days: z.number().int().min(1).max(365).default(28) }).parse(i ?? {}),
   )
   .handler(async ({ data, context }): Promise<AudienceSegmentsResult> => {

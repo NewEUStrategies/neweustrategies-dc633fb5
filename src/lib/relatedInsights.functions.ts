@@ -76,7 +76,7 @@ const EMPTY: RelatedInsightsResult = {
 
 export const getRelatedInsights = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         days: z.number().int().min(1).max(365).default(28),

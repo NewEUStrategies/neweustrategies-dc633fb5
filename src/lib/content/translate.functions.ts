@@ -23,7 +23,7 @@ const TranslateInputSchema = z.object({
 
 export const translatePostDraft = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => TranslateInputSchema.parse(i ?? {}))
+  .validator((i: unknown) => TranslateInputSchema.parse(i ?? {}))
   .handler(async ({ data, context }): Promise<TranslateOutput> => {
     const { userId } = context;
     // Tłumaczenie woła zewnętrzny model - ostrzejszy limit niż zapisy.

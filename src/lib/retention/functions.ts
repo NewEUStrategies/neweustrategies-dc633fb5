@@ -54,7 +54,7 @@ async function loadOwnedSubscription(
 
 export const submitRetentionFeedback = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => feedbackSchema.parse(input))
+  .validator((input: unknown) => feedbackSchema.parse(input))
   .handler(async ({ data, context }) => {
     const sub = await loadOwnedSubscription(context.userId, data.subscriptionId);
     if (!sub) throw new Error("subscription_not_found");
@@ -76,7 +76,7 @@ export const submitRetentionFeedback = createServerFn({ method: "POST" })
 
 export const acceptRetentionOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => acceptSchema.parse(input))
+  .validator((input: unknown) => acceptSchema.parse(input))
   .handler(async ({ data, context }) => {
     const sub = await loadOwnedSubscription(context.userId, data.subscriptionId);
     if (!sub) throw new Error("subscription_not_found");

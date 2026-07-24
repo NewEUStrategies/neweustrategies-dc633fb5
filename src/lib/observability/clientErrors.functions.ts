@@ -23,7 +23,7 @@ const SAMPLE_CAP = 5000;
 
 export const getClientErrorsReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         sinceIso: z.string().datetime().optional(),
