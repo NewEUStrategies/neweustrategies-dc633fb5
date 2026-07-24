@@ -753,7 +753,10 @@ export function VisualCanvas({
   const ringCss = `
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
     [data-visual-canvas] [data-widget-id]:hover{outline-color:color-mix(in oklab, var(--brand) 50%, transparent)}
-    [data-visual-canvas] [data-widget-id].is-selected{outline:2px solid var(--brand)}
+    /* WidgetResizeOverlay owns the single-selection frame. Keeping a second
+       outline here produced two slightly different borders after canvas
+       scaling and made neighbouring carousel cards look selected. */
+    [data-visual-canvas] [data-widget-id].is-selected{outline-color:transparent}
     [data-visual-canvas] [data-widget-id].is-multi-selected{
       outline:2px solid var(--brand);
       background:color-mix(in oklab, var(--brand) 8%, transparent);

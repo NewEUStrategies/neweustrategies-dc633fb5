@@ -27,6 +27,11 @@ interface CanvasScale {
 const MIN_H = 40;
 const MAX_H = 4000;
 
+function escapeSelectorValue(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/["\\]/g, "\\$&");
+}
+
 type HandleKind = "top" | "bottom";
 
 /**
@@ -55,7 +60,9 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
       setRect(null);
       return;
     }
-    const el = container.querySelector<HTMLElement>(`[data-widget-id="${widgetId}"]`);
+    const el = container.querySelector<HTMLElement>(
+      `[data-widget-id="${escapeSelectorValue(widgetId)}"]`,
+    );
     targetRef.current = el;
     if (!el) {
       setRect(null);
@@ -164,15 +171,17 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
       className="pointer-events-none absolute inset-0"
       style={{ zIndex: 65 }}
     >
-      {/* Selection frame */}
+      {/* Selection frame. Inset the stroke so it never changes the measured
+          footprint or visually spills into an adjacent widget. */}
       <div
-        className="absolute border-2 border-[color:var(--brand,#ff6a00)] rounded-[3px]"
+        className="absolute rounded-[3px]"
         style={{
           left: rect.left,
           top: rect.top,
           width: rect.width,
           height: rect.height,
-          boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
+          boxShadow:
+            "inset 0 0 0 2px var(--brand, #ff6a00), 0 0 0 1px color-mix(in oklab, var(--background) 65%, transparent)",
         }}
       />
       {/* Height label chip — always visible, updates live */}
