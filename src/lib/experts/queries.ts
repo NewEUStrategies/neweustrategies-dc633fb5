@@ -186,10 +186,21 @@ export const expertHubQueryOptions = (slugOrId: string) =>
         { data: allCategories },
         { data: allTags },
       ] = await Promise.all([
+        // author_profiles_public: publiczna projekcja (is_public = true, tenant
+        // z public_tenant_id()) BEZ zrewokowanego PII. Czytanie WPROST z
+        // author_profiles zwracało `42501 permission denied for column
+        // contact_email` dla anon/authenticated (migracja 20260720131542 odebrała
+        // SELECT na phone/contact_email/media_contact_email/media_contact_phone) -
+        // a że błąd był tu połykany (`{ data: ap }` bez sprawdzenia), CAŁA nakładka
+        // autora (tytuł, firma, pełne bio, org_functions, socjale, media_contact_name)
+        // znikała z każdej strony /author/$slug. Widok zwraca dokładnie kolumny
+        // publiczne; PII kontaktowe zostaje prywatne z premedytacją (owner edytuje
+        // je w edytorze profilu). Nakładka jest best-effort: gdy jej brak, hub
+        // degraduje się do danych z profiles_public zamiast 500-ować stronę.
         supabase
-          .from("author_profiles")
+          .from("author_profiles_public")
           .select(
-            "job_title, company, contact_email, website_url, x_url, linkedin_url, full_bio_pl, full_bio_en, org_functions, media_contact_name, media_contact_email, media_contact_phone, is_public",
+            "job_title, company, website_url, x_url, linkedin_url, full_bio_pl, full_bio_en, org_functions, media_contact_name, is_public",
           )
           .eq("user_id", expertId)
           .maybeSingle(),
