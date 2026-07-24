@@ -55,6 +55,7 @@ export function UnreadBadge({
   return (
     <span
       data-unread-badge=""
+      data-typography-exempt=""
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-[5px] font-display font-bold leading-none tabular-nums whitespace-nowrap",
         "isolate z-[100] overflow-visible pointer-events-none select-none",
