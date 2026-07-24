@@ -56,6 +56,7 @@ export async function recordAudit(
     entityId?: string | null;
     metadata?: Record<string, unknown>;
     ip?: string | null;
+    actorId?: string | null;
   },
 ): Promise<void> {
   if (DOCUMENT_PURGE_ACTIONS.test(params.action)) {
@@ -63,8 +64,22 @@ export async function recordAudit(
     void purgeDocumentCacheForCurrentHost().catch(() => undefined);
   }
   try {
+    // RLS "audit_log staff insert tenant" wymaga actor_id = auth.uid().
+    // Jeśli wywołujący nie podał explicit actorId, pobieramy z bieżącej sesji;
+    // brak sesji → pomijamy insert (audyt jest best-effort, nie może zablokować
+    // mutacji ani wybuchać na anon serverFn).
+    let actorId = params.actorId ?? null;
+    if (!actorId) {
+      const { data: userRes } = await supabase.auth.getUser();
+      actorId = userRes.user?.id ?? null;
+    }
+    if (!actorId) {
+      console.warn(`[audit] skipped (${params.action}): no auth session`);
+      return;
+    }
     const { error } = await supabase.from("audit_log").insert({
       tenant_id: params.tenantId,
+      actor_id: actorId,
       action: params.action,
       entity_type: params.entityType,
       entity_id: params.entityId ?? null,
