@@ -47,6 +47,7 @@ export const chatPl = {
     jumpToReplied: "Przejdź do oryginalnej wiadomości",
     react: "Dodaj reakcję",
     reactions: {
+      error: "Nie udało się zapisać reakcji. Spróbuj ponownie.",
       removeHint: "Kliknij, aby cofnąć swoją reakcję",
       addHint: "Kliknij, aby dołączyć swoją reakcję",
       you: "Ty",
@@ -503,6 +504,7 @@ export const chatEn = {
     jumpToReplied: "Jump to original message",
     react: "Add reaction",
     reactions: {
+      error: "Could not save the reaction. Please try again.",
       removeHint: "Click to remove your reaction",
       addHint: "Click to add your reaction",
       you: "You",
