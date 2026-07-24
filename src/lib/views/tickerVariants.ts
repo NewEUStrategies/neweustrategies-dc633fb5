@@ -10,6 +10,9 @@ export const MAX_TICKER_VARIANTS = 5;
 
 export type IconAnimation = "none" | "pulse" | "flicker" | "spin" | "wave";
 export type MixedFill = "trending" | "latest";
+/** Visual layout of the bar. `classic` = flame + text label. `badge` = solid
+ *  colored block on the left with a horizontal marquee and dot separators. */
+export type LayoutStyle = "classic" | "badge";
 
 export interface TickerColors {
   bg: string;
@@ -18,6 +21,11 @@ export interface TickerColors {
   item: string;
   itemHover: string;
   counter: string;
+  /** Optional - used only by the `badge` layout. Defaults derive from `label`. */
+  labelBg?: string;
+  labelFg?: string;
+  /** Optional - dot separator between items in `badge` layout. */
+  dot?: string;
 }
 
 export interface TickerColorScheme {
