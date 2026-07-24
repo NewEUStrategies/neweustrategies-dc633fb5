@@ -799,17 +799,11 @@ const RenderColumn = memo(function RenderColumn({
                   | { desktop?: unknown; tablet?: unknown; mobile?: unknown };
               }
             | undefined;
-          const hasExplicitHeight =
-            typeof adv?.height === "number" ||
-            adv?.height === "auto" ||
-            Boolean(
-              adv?.height &&
-                typeof adv.height === "object" &&
-                (adv.height[device] !== undefined ||
-                  adv.height.desktop !== undefined ||
-                  adv.height.tablet !== undefined ||
-                  adv.height.mobile !== undefined),
-            );
+          const responsiveHeight =
+            adv?.height && typeof adv.height === "object"
+              ? (adv.height[device] ?? adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile)
+              : adv?.height;
+          const hasExplicitHeight = typeof responsiveHeight === "number";
           const shouldFillHeight =
             onlyOneBlock &&
             !hasExplicitHeight &&

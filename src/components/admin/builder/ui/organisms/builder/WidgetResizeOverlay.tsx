@@ -19,6 +19,11 @@ interface Rect {
   height: number;
 }
 
+interface CanvasScale {
+  x: number;
+  y: number;
+}
+
 const MIN_H = 40;
 const MAX_H = 4000;
 
@@ -40,6 +45,7 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
     startH: number;
   } | null>(null);
   const [liveH, setLiveH] = useState<number | null>(null);
+  const scaleRef = useRef<CanvasScale>({ x: 1, y: 1 });
 
   // Locate the selected widget element + track its box.
   useEffect(() => {
@@ -58,11 +64,16 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
     const measure = () => {
       const parent = container.getBoundingClientRect();
       const r = el.getBoundingClientRect();
+      const scaleX = container.offsetWidth > 0 ? parent.width / container.offsetWidth : 1;
+      const scaleY = container.offsetHeight > 0 ? parent.height / container.offsetHeight : scaleX;
+      const safeScaleX = Number.isFinite(scaleX) && scaleX > 0 ? scaleX : 1;
+      const safeScaleY = Number.isFinite(scaleY) && scaleY > 0 ? scaleY : 1;
+      scaleRef.current = { x: safeScaleX, y: safeScaleY };
       setRect({
-        left: r.left - parent.left,
-        top: r.top - parent.top,
-        width: r.width,
-        height: r.height,
+        left: (r.left - parent.left) / safeScaleX,
+        top: (r.top - parent.top) / safeScaleY,
+        width: r.width / safeScaleX,
+        height: r.height / safeScaleY,
       });
     };
     measure();
@@ -87,16 +98,16 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
     draggingRef.current = {
       kind,
       startY: e.clientY,
-      startH: el.getBoundingClientRect().height,
+      startH: el.offsetHeight,
     };
-    setLiveH(Math.round(el.getBoundingClientRect().height));
+    setLiveH(Math.round(el.offsetHeight));
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const state = draggingRef.current;
     const el = targetRef.current;
     if (!state || !el) return;
-    const delta = e.clientY - state.startY;
+    const delta = (e.clientY - state.startY) / scaleRef.current.y;
     // Top handle shrinks/grows in the opposite direction so dragging up
     // grows the widget upward.
     const raw = state.kind === "top" ? state.startH - delta : state.startH + delta;
@@ -110,10 +121,10 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
       const parent = container.getBoundingClientRect();
       const r = el.getBoundingClientRect();
       setRect({
-        left: r.left - parent.left,
-        top: r.top - parent.top,
-        width: r.width,
-        height: r.height,
+        left: (r.left - parent.left) / scaleRef.current.x,
+        top: (r.top - parent.top) / scaleRef.current.y,
+        width: r.width / scaleRef.current.x,
+        height: r.height / scaleRef.current.y,
       });
     }
   };
@@ -131,7 +142,7 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
     } catch {
       /* noop */
     }
-    const next = Math.max(MIN_H, Math.min(MAX_H, Math.round(el.getBoundingClientRect().height)));
+    const next = Math.max(MIN_H, Math.min(MAX_H, Math.round(el.offsetHeight)));
     // Clear inline preview - the committed document + frame style repaint it.
     el.style.removeProperty("height");
     onResize(widgetId, next, device);
