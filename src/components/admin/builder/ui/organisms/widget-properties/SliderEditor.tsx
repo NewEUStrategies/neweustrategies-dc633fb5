@@ -366,7 +366,29 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         )}
       </div>
 
+      {/* Display toggles - hoisted for visibility */}
+      <div className="space-y-2 rounded-md border-2 border-brand/40 p-2 bg-brand/5">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-brand">
+          {t("builder.sliderEditor.displayTitle", { defaultValue: "Wyświetlanie" })}
+        </div>
+        <label className="flex items-center justify-between gap-2 py-1 cursor-pointer">
+          <span className="text-xs">{t("builder.sliderEditor.showExcerpt")}</span>
+          <Switch
+            checked={showExcerpt}
+            onCheckedChange={(v) => setContent("showExcerpt", v)}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
+          <span className="text-xs">{t("builder.sliderEditor.showAuthor")}</span>
+          <Switch
+            checked={showAuthor}
+            onCheckedChange={(v) => setContent("showAuthor", v)}
+          />
+        </label>
+      </div>
+
       {/* Settings */}
+
       <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {t("builder.sliderEditor.settingsTitle")}
