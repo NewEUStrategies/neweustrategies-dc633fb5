@@ -660,7 +660,9 @@ const pl = {
       off: "wyłączone",
       interval: "Interwał (ms)",
       overlay: "Przyciemnienie overlay'a (0–1)",
+      settingsTitle: "Ustawienia slidera",
       navTitle: "Przyciski nawigacji (strzałki)",
+
       navSize: "Rozmiar ({{px}}px)",
       navRounded: "Zaokrąglenie ({{val}})",
       navRoundedFull: "pełne",
@@ -1869,6 +1871,7 @@ const en: typeof pl = {
       off: "off",
       interval: "Interval (ms)",
       overlay: "Overlay dimming (0–1)",
+      settingsTitle: "Slider settings",
       navTitle: "Navigation buttons (arrows)",
       navSize: "Size ({{px}}px)",
       navRounded: "Rounding ({{val}})",
