@@ -927,7 +927,122 @@ export function WidgetProperties({
   );
 }
 
-// ---- Themed color field: shows reset button + override dot when overridden ----
+// ---- Widget desktop-height helpers ---------------------------------------
+// Storage kept per-breakpoint so an existing tablet/mobile override is
+// preserved when the user only edits desktop. `null` (from the input) means
+// "auto" - explicit hug-content mode. `undefined` clears the desktop override
+// entirely so the widget falls back to its intrinsic height.
+type HeightResponsive = {
+  desktop?: number | "auto";
+  tablet?: number | "auto";
+  mobile?: number | "auto";
+};
+type HeightValue = number | "auto" | HeightResponsive | undefined;
+type DesktopHeight = number | "auto" | undefined;
+
+function readDesktopHeight(value: HeightValue): DesktopHeight {
+  if (value === undefined) return undefined;
+  if (typeof value === "number" || value === "auto") return value;
+  return value.desktop;
+}
+
+function writeDesktopHeight(prev: HeightValue, next: DesktopHeight): HeightValue {
+  // Preserve any pre-existing tablet/mobile overrides so users who tuned
+  // narrow breakpoints don't lose their work when they touch desktop.
+  const base: HeightResponsive =
+    prev && typeof prev === "object" ? { ...(prev as HeightResponsive) } : {};
+  if (next === undefined) {
+    delete base.desktop;
+  } else {
+    base.desktop = next;
+  }
+  const hasAny =
+    base.desktop !== undefined || base.tablet !== undefined || base.mobile !== undefined;
+  return hasAny ? base : undefined;
+}
+
+function WidgetHeightControl({
+  value,
+  onChange,
+}: {
+  value: DesktopHeight;
+  onChange: (next: DesktopHeight) => void;
+}) {
+  const { t } = useTranslation();
+  const isAuto = value === "auto";
+  const numeric = typeof value === "number" ? value : "";
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1">
+        {(
+          [
+            [
+              "auto",
+              t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" }),
+              undefined as DesktopHeight,
+            ],
+            [
+              "fixed",
+              t("builder.widgetProps.dimensionsFixed", { defaultValue: "Ustalona (px)" }),
+              typeof value === "number" ? value : 480,
+            ],
+            [
+              "hug",
+              t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" }),
+              "auto" as DesktopHeight,
+            ],
+          ] as const
+        ).map(([key, label, target]) => {
+          const active =
+            (key === "auto" && value === undefined) ||
+            (key === "fixed" && typeof value === "number") ||
+            (key === "hug" && isAuto);
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onChange(target)}
+              className={`flex-1 h-8 px-2 text-xs rounded border transition ${
+                active
+                  ? "border-brand bg-brand/10 text-brand"
+                  : "border-border bg-background hover:bg-muted"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      {typeof value === "number" && (
+        <PropField
+          label={t("builder.widgetProps.dimensionsDesktopPx", {
+            defaultValue: "Wysokość desktop (px)",
+          })}
+        >
+          <Input
+            type="number"
+            min={40}
+            max={2400}
+            step={10}
+            value={numeric}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === "") {
+                onChange(undefined);
+                return;
+              }
+              const n = Number(raw);
+              if (Number.isFinite(n) && n > 0) onChange(Math.round(n));
+            }}
+            className="h-8 text-xs"
+          />
+        </PropField>
+      )}
+    </div>
+  );
+}
+
+
 function ThemedColorField({
   label,
   value,
