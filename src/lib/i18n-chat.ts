@@ -47,6 +47,7 @@ export const chatPl = {
     jumpToReplied: "Przejdź do oryginalnej wiadomości",
     react: "Dodaj reakcję",
     reactions: {
+      error: "Nie udało się zapisać reakcji. Spróbuj ponownie.",
       removeHint: "Kliknij, aby cofnąć swoją reakcję",
       addHint: "Kliknij, aby dołączyć swoją reakcję",
       you: "Ty",
@@ -288,9 +289,6 @@ export const chatPl = {
         file: "Otrzymałem plik: {{name}} (podgląd demo).",
       },
     },
-    reactions: {
-      error: "Nie udało się zapisać reakcji. Spróbuj ponownie.",
-    },
     mediaHistory: {
       open: "Multimedia i pliki",
       title: "Multimedia i pliki",
@@ -506,6 +504,7 @@ export const chatEn = {
     jumpToReplied: "Jump to original message",
     react: "Add reaction",
     reactions: {
+      error: "Could not save the reaction. Please try again.",
       removeHint: "Click to remove your reaction",
       addHint: "Click to add your reaction",
       you: "You",
@@ -730,9 +729,6 @@ export const chatEn = {
         image: "Nice photo! (demo preview - the file is not uploaded)",
         file: "Got your file: {{name}} (demo preview).",
       },
-    },
-    reactions: {
-      error: "Could not save the reaction. Please try again.",
     },
     mediaHistory: {
       open: "Media and files",
