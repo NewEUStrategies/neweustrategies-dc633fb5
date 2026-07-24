@@ -173,6 +173,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     titleWeight,
     subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
     subtitleWeight,
+    showExcerpt,
     navSizePx,
     navRoundedPx,
     navBgColor,
@@ -348,30 +349,14 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 placeholder="uuid1, uuid2"
               />
             </PropField>
-            <div className="grid grid-cols-2 gap-2">
-              <PropField label={t("builder.sliderEditor.showExcerpt")}>
-                <Select
-                  value={showExcerpt ? "on" : "off"}
-                  onValueChange={(v) => setContent("showExcerpt", v === "on")}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="on">{t("builder.sliderEditor.yes")}</SelectItem>
-                    <SelectItem value="off">{t("builder.sliderEditor.no")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </PropField>
-              <PropField label={t("builder.sliderEditor.ctaText", { lang: lang.toUpperCase() })}>
-                <Input
-                  value={ctaValue}
-                  onChange={(e) => setContent(ctaKey, e.target.value)}
-                  className="h-8 text-xs"
-                  placeholder={t("builder.sliderEditor.readMore")}
-                />
-              </PropField>
-            </div>
+            <PropField label={t("builder.sliderEditor.ctaText", { lang: lang.toUpperCase() })}>
+              <Input
+                value={ctaValue}
+                onChange={(e) => setContent(ctaKey, e.target.value)}
+                className="h-8 text-xs"
+                placeholder={t("builder.sliderEditor.readMore")}
+              />
+            </PropField>
           </>
         )}
       </div>
@@ -417,6 +402,20 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             <SelectContent>
               <SelectItem value="on">{t("builder.sliderEditor.on")}</SelectItem>
               <SelectItem value="off">{t("builder.sliderEditor.off")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </PropField>
+        <PropField label={t("builder.sliderEditor.showExcerpt")}>
+          <Select
+            value={showExcerpt ? "on" : "off"}
+            onValueChange={(v) => setContent("showExcerpt", v === "on")}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="on">{t("builder.sliderEditor.yes")}</SelectItem>
+              <SelectItem value="off">{t("builder.sliderEditor.no")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>

@@ -78,6 +78,8 @@ export interface SliderConfig {
   titleWeight?: number;
   subtitleSizePx?: number;
   subtitleWeight?: number;
+  /** Show excerpt/subtitle below the title. Default: true. */
+  showExcerpt?: boolean;
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
   columns?: 1 | 2 | 3 | 4;
@@ -830,6 +832,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   };
 
   const nav = resolveNavStyle(config);
+  const showExcerpt = config.showExcerpt !== false;
   const sharedProps = {
     items,
     safeIdx,
@@ -853,6 +856,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     navigateTo,
     columns,
     nav,
+    showExcerpt,
   };
 
   return (
@@ -908,6 +912,7 @@ type VariantProps = {
   navigateTo: (href?: string) => void;
   columns: 1 | 2 | 3 | 4;
   nav: NavStyleResolved;
+  showExcerpt: boolean;
 };
 
 function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
@@ -1017,23 +1022,24 @@ function EditorialHeroVariant(p: VariantProps) {
             </h3>
           </div>
         )}
-        {href ? (
-          <AppLink href={href} className="block">
+        {p.showExcerpt &&
+          (href ? (
+            <AppLink href={href} className="block">
+              <p
+                className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
+                style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
+              >
+                {sub || "\u00A0"}
+              </p>
+            </AppLink>
+          ) : (
             <p
               className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
               style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
             >
               {sub || "\u00A0"}
             </p>
-          </AppLink>
-        ) : (
-          <p
-            className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
-            style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
-          >
-            {sub || "\u00A0"}
-          </p>
-        )}
+          ))}
         {(cur.author || cur.readTime) && (
           <div className="mt-4 flex items-center justify-center gap-2 text-xs md:text-sm text-muted-foreground">
             {cur.author && (
@@ -1151,7 +1157,7 @@ function MultiCardVariant(p: VariantProps) {
                       {title || "\u00A0"}
                     </h3>
                   )}
-                  {sub &&
+                  {p.showExcerpt && sub &&
                     (href ? (
                       <AppLink href={href} className="block">
                         <p
@@ -1268,7 +1274,7 @@ function CinematicOverlayVariant(p: VariantProps) {
             <h3 className="cms-post-title drop-shadow" style={p.titleStyle}>
               {title || "\u00A0"}
             </h3>
-            {sub && (
+            {p.showExcerpt && sub && (
               <p
                 className="cms-post-excerpt eh-clamp-2 mt-3 text-white/85 max-w-2xl"
                 style={p.subtitleStyle}
@@ -1405,7 +1411,7 @@ function SplitFeatureVariant(p: VariantProps) {
             {title || "\u00A0"}
           </h3>
         )}
-        {sub &&
+        {p.showExcerpt && sub &&
           (href ? (
             <AppLink href={href} className="block">
               <p
@@ -1515,7 +1521,7 @@ function MinimalStripVariant(p: VariantProps) {
           <h3 className="cms-post-title line-clamp-2" style={p.titleStyle}>
             {title || "\u00A0"}
           </h3>
-          {sub && (
+          {p.showExcerpt && sub && (
             <p className="cms-post-excerpt mt-1 text-white/85 line-clamp-1" style={p.subtitleStyle}>
               {sub}
             </p>
