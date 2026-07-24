@@ -2142,15 +2142,34 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
      desktop uses flex-basis:100% + height:100% to make a hero widget fill
      the column, which on a narrow mobile column stretches every widget to
      the tallest sibling and creates huge empty gaps. */
-  [data-builder-renderer] [data-col-id] > [data-widget-id] {
+  [data-builder-renderer]
+    [data-col-id]
+    > [data-widget-id]:not([data-widget-explicit-height="true"]) {
     flex: 0 0 auto !important;
     flex-basis: auto !important;
     align-self: stretch !important;
     height: auto !important;
     min-height: 0 !important;
   }
-  [data-builder-renderer] [data-col-id] > [data-widget-id] > * {
+  [data-builder-renderer]
+    [data-col-id]
+    > [data-widget-id]:not([data-widget-explicit-height="true"])
+    > * {
     height: auto !important;
+    min-height: 0 !important;
+  }
+  /* Explicit desktop-led height also applies in responsive previews. */
+  [data-builder-renderer]
+    [data-col-id]
+    > [data-widget-id][data-widget-explicit-height="true"] {
+    flex-grow: 0 !important;
+    flex-shrink: 0 !important;
+  }
+  [data-builder-renderer]
+    [data-col-id]
+    > [data-widget-id][data-widget-explicit-height="true"]
+    > * {
+    height: 100% !important;
     min-height: 0 !important;
   }
 }

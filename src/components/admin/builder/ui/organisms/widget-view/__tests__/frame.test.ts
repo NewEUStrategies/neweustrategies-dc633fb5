@@ -135,6 +135,26 @@ describe("getWidgetFrameStyle", () => {
     expect(stretched.height).toBe("auto");
   });
 
+  it("keeps an explicit height authoritative over vertical stretch", () => {
+    const style = getWidgetFrameStyle(
+      node({
+        advanced: { height: { desktop: 360 } },
+        style: { selfAlign: "stretch" },
+      }),
+      "mobile",
+    );
+    expect(style.height).toBe(360);
+    expect(style.flexGrow).toBe(0);
+    expect(style.flexShrink).toBe(0);
+  });
+
+  it("inherits desktop height in responsive previews", () => {
+    const advanced = { height: { desktop: 420 } } as WidgetNode["advanced"];
+    expect(getWidgetFrameStyle(node({ advanced }), "desktop").height).toBe(420);
+    expect(getWidgetFrameStyle(node({ advanced }), "tablet").height).toBe(420);
+    expect(getWidgetFrameStyle(node({ advanced }), "mobile").height).toBe(420);
+  });
+
   it("keeps the search widget full width", () => {
     const style = getWidgetFrameStyle(node({ type: "search-button" }), "desktop");
     expect(style.width).toBe("100%");
