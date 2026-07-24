@@ -181,7 +181,7 @@ export const networkPl = {
       targetHint: "Widzisz tylko wprowadzenia zaakceptowane przez wspólnego znajomego.",
       status: {
         pending: "Oczekuje",
-        accepted: "Przekazane",
+        forwarded: "Przekazane",
         declined: "Odrzucone",
         withdrawn: "Wycofane",
       },
@@ -385,7 +385,7 @@ export const networkEn = {
       targetHint: "You only see introductions accepted by your mutual contact.",
       status: {
         pending: "Pending",
-        accepted: "Passed",
+        forwarded: "Passed",
         declined: "Declined",
         withdrawn: "Withdrawn",
       },

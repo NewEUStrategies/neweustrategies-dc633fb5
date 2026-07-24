@@ -33,7 +33,7 @@ type Role = "bridge" | "requester" | "target";
 
 function statusChipClass(status: string): string {
   switch (status) {
-    case "accepted":
+    case "forwarded":
       return "bg-primary/10 text-primary";
     case "declined":
     case "withdrawn":
@@ -47,13 +47,13 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
   const { t } = useTranslation();
   const respond = useRespondIntroduction();
 
-  const handle = (action: "accept" | "decline" | "withdraw") => {
+  const handle = (action: "forward" | "decline" | "withdraw") => {
     respond.mutate(
       { id: row.id, action },
       {
         onSuccess: () => {
           const key =
-            action === "accept"
+            action === "forward"
               ? "network.introductions.acceptedToast"
               : action === "decline"
                 ? "network.introductions.declinedToast"
@@ -72,7 +72,11 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
         ? row.target_name
         : row.bridge_name;
   const otherAvatar =
-    role === "bridge" ? row.requester_avatar : role === "requester" ? row.target_avatar : "";
+    role === "bridge"
+      ? row.requester_avatar
+      : role === "requester"
+        ? row.target_avatar
+        : row.bridge_avatar;
   const otherId =
     role === "bridge" ? row.requester_id : role === "requester" ? row.target_id : row.bridge_id;
 
@@ -126,7 +130,7 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
                 size="sm"
                 className="h-8 gap-1"
                 disabled={respond.isPending}
-                onClick={() => handle("accept")}
+                onClick={() => handle("forward")}
               >
                 <Check className="h-3.5 w-3.5" />
                 {t("network.introductions.accept")}
@@ -246,7 +250,7 @@ export function IntroductionsCard() {
       </TabsContent>
       <TabsContent value="target" className="mt-3">
         <List
-          rows={(targetQ.data ?? []).filter((r) => r.status === "accepted")}
+          rows={(targetQ.data ?? []).filter((r) => r.status === "forwarded")}
           role="target"
           emptyKey="network.introductions.emptyTarget"
         />
