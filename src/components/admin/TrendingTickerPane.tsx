@@ -860,6 +860,24 @@ export function TrendingTickerPane() {
               onChange={(k, v) => setColor("dark", k, v)}
             />
           </div>
+          {(cfg.layoutStyle ?? "classic") === "badge" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ColorGroup
+                title={`${t.colorsLight} - badge`}
+                labels={t}
+                values={cfg.colors?.light ?? DEFAULT_LIGHT_COLORS}
+                onChange={(k, v) => setColor("light", k, v)}
+                keys={BADGE_COLOR_KEYS}
+              />
+              <ColorGroup
+                title={`${t.colorsDark} - badge`}
+                labels={t}
+                values={cfg.colors?.dark ?? DEFAULT_DARK_COLORS}
+                onChange={(k, v) => setColor("dark", k, v)}
+                keys={BADGE_COLOR_KEYS}
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between pt-1">
