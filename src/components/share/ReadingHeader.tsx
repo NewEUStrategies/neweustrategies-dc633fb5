@@ -326,10 +326,10 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             data-reading-icon
             className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center"
           />
-          <div data-reading-icon className="hidden sm:block">
+          <div data-reading-icon className="hidden sm:flex h-7 sm:h-8 items-center">
             <NotificationsBell panelWidth={280} />
           </div>
-          <div data-reading-icon className="hidden sm:block">
+          <div data-reading-icon className="hidden sm:flex h-7 sm:h-8 items-center">
             <ChatBell panelWidth={300} />
           </div>
           {entityId && (
@@ -471,7 +471,9 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             )}
           </div>
           <span className="hidden md:block h-4 w-px bg-border" aria-hidden />
-          <LangSwitcherDropdown label={t.lang} />
+          <div className="flex h-7 sm:h-8 items-center">
+            <LangSwitcherDropdown label={t.lang} />
+          </div>
         </div>
       </div>
     </div>
