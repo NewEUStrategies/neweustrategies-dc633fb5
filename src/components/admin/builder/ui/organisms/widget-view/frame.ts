@@ -110,6 +110,20 @@ function pickSize(value: ResponsiveSize, device: Device): number | "auto" | unde
   return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
 
+/**
+ * Wysokość widgetu: desktop jest wiodący, mobile / tablet są responsywne
+ * (nie dziedziczą pikselowej wysokości desktopu, chyba że użytkownik zapisał
+ * dla nich własną wartość). Dzięki temu ustawienie desktop=520px nie łamie
+ * proporcji na wąskich ekranach.
+ */
+function pickHeight(value: ResponsiveSize, device: Device): number | "auto" | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number" || value === "auto") {
+    return device === "desktop" ? value : undefined;
+  }
+  return value[device];
+}
+
 function toCssSize(value: number | "auto" | undefined): string | number | undefined {
   if (value === undefined) return undefined;
   return value === "auto" ? "auto" : value;
@@ -123,7 +137,8 @@ export const getWidgetFrameStyle = (
     | { width?: ResponsiveSize; height?: ResponsiveSize; layout?: "block" | "inline" }
     | undefined;
   const wRaw = pickSize(adv?.width, device);
-  const hRaw = pickSize(adv?.height, device);
+  const hRaw = pickHeight(adv?.height, device);
+
   const isInline = adv?.layout === "inline";
   const shouldAlwaysFillColumn = node.type === "post-list" || node.type === "carousel";
 
