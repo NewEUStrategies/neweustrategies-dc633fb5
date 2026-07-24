@@ -11258,6 +11258,7 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: number
       }
+      get_expert_hub: { Args: { _slug_or_id: string }; Returns: Json }
       get_followed_feed: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: {
@@ -11528,6 +11529,23 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_post_refs: {
+        Args: { _post_ids: string[] }
+        Returns: {
+          author_avatar: string
+          author_id: string
+          author_name: string
+          author_slug: string
+          cover_image_url: string
+          excerpt_en: string
+          excerpt_pl: string
+          id: string
+          published_at: string
+          slug: string
+          title_en: string
+          title_pl: string
+        }[]
       }
       get_program_members: {
         Args: { p_program_ids: string[] }
@@ -12049,6 +12067,13 @@ export type Database = {
         }[]
       }
       page_full_path: { Args: { _page_id: string }; Returns: string }
+      page_full_paths: {
+        Args: { _page_ids: string[] }
+        Returns: {
+          full_path: string
+          page_id: string
+        }[]
+      }
       people_filter_options: {
         Args: never
         Returns: {
