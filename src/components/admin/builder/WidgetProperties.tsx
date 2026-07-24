@@ -27,7 +27,7 @@ import {
   isThemedValue,
 } from "@/lib/builder/themed";
 import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
-import { Sun, Moon, Undo as RotateCcw, Globe, Link2Off, Minus, Plus, Maximize2 } from "@/lib/lucide-shim";
+import { Sun, Moon, Undo as RotateCcw, Globe, Link2Off, Minus, Plus, MoveVertical } from "@/lib/lucide-shim";
 import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgets";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -977,7 +977,7 @@ function WidgetHeightControl({
       <div className="relative h-20 overflow-hidden rounded-md border border-border bg-muted/30 p-2" aria-label={t("builder.widgetProps.dimensionsPreview", { defaultValue: "Podgląd wysokości widgetu" })}>
         <div className="absolute inset-x-2 top-2 flex items-center justify-between text-[9px] text-muted-foreground">
           <span>{t("builder.widgetProps.preview", { defaultValue: "Podgląd" })}</span>
-          <span className="inline-flex items-center gap-1 font-medium text-foreground"><Maximize2 className="size-3" />{typeof value === "number" ? `${value}px` : value === "auto" ? t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" }) : t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" })}</span>
+          <span className="inline-flex items-center gap-1 font-medium text-foreground"><MoveVertical className="size-3" />{typeof value === "number" ? `${value}px` : value === "auto" ? t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" }) : t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" })}</span>
         </div>
         <div className="absolute inset-x-2 bottom-2 top-7 flex items-center justify-center border-x border-dashed border-brand/50">
           <div
