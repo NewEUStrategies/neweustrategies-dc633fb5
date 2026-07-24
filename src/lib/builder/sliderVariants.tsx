@@ -1022,23 +1022,24 @@ function EditorialHeroVariant(p: VariantProps) {
             </h3>
           </div>
         )}
-        {href ? (
-          <AppLink href={href} className="block">
+        {p.showExcerpt &&
+          (href ? (
+            <AppLink href={href} className="block">
+              <p
+                className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
+                style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
+              >
+                {sub || "\u00A0"}
+              </p>
+            </AppLink>
+          ) : (
             <p
               className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
               style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
             >
               {sub || "\u00A0"}
             </p>
-          </AppLink>
-        ) : (
-          <p
-            className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
-            style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
-          >
-            {sub || "\u00A0"}
-          </p>
-        )}
+          ))}
         {(cur.author || cur.readTime) && (
           <div className="mt-4 flex items-center justify-center gap-2 text-xs md:text-sm text-muted-foreground">
             {cur.author && (
