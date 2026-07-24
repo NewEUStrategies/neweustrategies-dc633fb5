@@ -814,13 +814,9 @@ const RenderColumn = memo(function RenderColumn({
           // accent lines / ribbons are never covered by adjacent backgrounds.
           const isSectionLabel = w.type === "section-label";
           const stackCls = isSectionLabel ? " relative z-20" : "";
-          // A fixed-height widget is a real viewport. Its content must not paint
-          // outside that box, otherwise the selection frame appears to mark a
-          // different widget (especially carousel tracks with tall cards).
-          const overflowClass = hasExplicitHeight ? " overflow-hidden" : " overflow-visible";
           const itemClass = inRow
-            ? `flex flex-col items-stretch justify-center min-w-0 max-w-full${overflowClass}${stackCls}`
-            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full${overflowClass}${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
+            ? `flex flex-col items-stretch justify-center min-w-0 max-w-full overflow-visible${stackCls}`
+            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-visible${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
           return (
             <div
               key={w.id}

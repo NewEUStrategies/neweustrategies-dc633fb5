@@ -457,6 +457,18 @@ const SHARED_STYLES = `
 .eh-slider .eh-track { display: flex; gap: 16px; will-change: transform; transition: transform var(--eh-speed, 480ms) cubic-bezier(.22,.61,.36,1); }
 .eh-slider .eh-track.is-dragging { transition: none; }
 .eh-slider .eh-card { flex: 0 0 auto; }
+/* A fixed builder height resizes the complete carousel rather than cropping it.
+   The card copy and controls retain their intrinsic size while the media area
+   grows/shrinks to consume the remaining height. */
+[data-widget-explicit-height="true"] .eh-slider { height: 100%; min-height: 0; }
+[data-widget-explicit-height="true"] .eh-slider > .eh-multi-card { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+[data-widget-explicit-height="true"] .eh-slider .eh-multi-surface { flex: 1 1 auto; min-height: 0; }
+[data-widget-explicit-height="true"] .eh-slider .eh-multi-track,
+[data-widget-explicit-height="true"] .eh-slider .eh-multi-card-item { height: 100%; min-height: 0; }
+[data-widget-explicit-height="true"] .eh-slider .eh-multi-card-item { display: flex; flex-direction: column; }
+[data-widget-explicit-height="true"] .eh-slider .eh-card-media-link { flex: 1 1 auto; min-height: 0; }
+[data-widget-explicit-height="true"] .eh-slider .eh-card-media { height: 100%; min-height: 0; aspect-ratio: auto !important; }
+[data-widget-explicit-height="true"] .eh-slider .eh-card-content { flex: 0 0 auto; }
 @media (max-width: 1024px) { .eh-slider .eh-card { width: calc((100% - 16px) / 2) !important; } }
 @media (max-width: 640px) { .eh-slider .eh-card { width: 100% !important; } .eh-slider .eh-track { gap: 12px !important; } }
 `;
@@ -846,7 +858,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   return (
     <div
       ref={rootRef}
-      className="w-full eh-slider"
+      className="w-full h-full min-h-0 eh-slider"
       style={{ "--eh-speed": `${speedMs}ms` } as CSSProperties}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -1060,16 +1072,16 @@ function MultiCardVariant(p: VariantProps) {
   const cardWidth = `calc((100% - ${(cols - 1) * gapPx}px) / ${cols})`;
   const trackTransform = `translate3d(calc(${-p.safeIdx * (100 / cols)}% + ${p.dragDx}px), 0, 0)`;
   return (
-    <div className="relative">
+    <div className="relative eh-multi-card">
       <div
-        className={`overflow-hidden eh-drag-surface ${dragging ? "is-dragging" : ""}`}
+        className={`overflow-hidden eh-drag-surface eh-multi-surface ${dragging ? "is-dragging" : ""}`}
         onPointerDown={p.onPointerDown}
         onPointerMove={p.onPointerMove}
         onPointerUp={p.endDrag}
         onPointerCancel={p.endDrag}
       >
         <div
-          className={`eh-track ${dragging ? "is-dragging" : ""}`}
+          className={`eh-track eh-multi-track ${dragging ? "is-dragging" : ""}`}
           style={{ transform: trackTransform, gap: `${gapPx}px` }}
         >
           {p.items.map((it, i) => {
@@ -1077,13 +1089,13 @@ function MultiCardVariant(p: VariantProps) {
             return (
               <article
                 key={i}
-                className="eh-card group"
+                className="eh-card eh-multi-card-item group"
                 style={{ width: cardWidth, flex: "0 0 auto" }}
               >
                 {(() => {
                   const media = (
                     <div
-                      className={`relative overflow-hidden bg-muted ${href ? "cursor-pointer" : ""}`}
+                      className={`relative overflow-hidden bg-muted eh-card-media ${href ? "cursor-pointer" : ""}`}
                       style={{ aspectRatio: "4 / 3", borderRadius: p.rounded }}
                       onClick={(e) => {
                         const d = p.dragRef.current;
@@ -1114,14 +1126,14 @@ function MultiCardVariant(p: VariantProps) {
                     </div>
                   );
                   return href ? (
-                    <AppLink href={href} aria-label={title} className="block">
+                    <AppLink href={href} aria-label={title} className="block eh-card-media-link">
                       {media}
                     </AppLink>
                   ) : (
                     media
                   );
                 })()}
-                <div className="pt-3 pb-1 px-1">
+                <div className="pt-3 pb-1 px-1 eh-card-content">
                   {href ? (
                     <AppLink href={href} className="block">
                       <h3
