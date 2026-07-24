@@ -14,7 +14,13 @@ export const BLOCK_VARIANTS: Record<string, BlockVariantOption[]> = {
     { key: "card", label: "Karta" },
     { key: "split", label: "Split" },
     { key: "inline", label: "Inline" },
-    { key: "minimal", label: "Minimalna" },
+  ],
+  // Cytat: warianty spójne z rendererem `renderQuote` i edytorem `QuoteBlock`.
+  quote: [
+    { key: "default", label: "Border" },
+    { key: "plain", label: "Plain" },
+    { key: "card", label: "Karta" },
+    { key: "minimal", label: "Minimal" },
   ],
   // Szybkie przełączanie rodzaju wykresu. Toolbar zapisuje data.variant;
   // parseChartConfig czyta variant z pierwszeństwem nad kind, a edytor
