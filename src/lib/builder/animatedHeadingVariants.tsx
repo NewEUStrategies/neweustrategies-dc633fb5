@@ -515,6 +515,7 @@ function ShapeSvg({
   const isUnderlineLike =
     shape === "underline" ||
     shape === "double-underline" ||
+    shape === "squiggle" ||
     shape === "curly" ||
     shape === "zigzag";
 
