@@ -75,6 +75,7 @@ export function VisualCanvas({
   multiSelection,
   onMultiSelectionChange,
   onWidgetContentChange,
+  onWidgetResize,
 }: {
   doc: BuilderDocument;
   lang: "pl" | "en";
