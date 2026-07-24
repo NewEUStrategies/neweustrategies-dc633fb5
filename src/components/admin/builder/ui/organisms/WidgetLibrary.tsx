@@ -420,30 +420,85 @@ export function WidgetLibrary({
                 {labels[cat]}
                 <span className="ml-1 text-[10px] normal-case opacity-60">({items.length})</span>
               </button>
-              {!isCollapsed && (
-                <div className="grid grid-cols-2 gap-1.5">
-                  {items.map((w) => {
-                    const Icon = w.icon;
-                    return (
-                      <div
-                        key={w.type}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("application/x-widget-type", w.type);
-                          e.dataTransfer.effectAllowed = "copy";
-                        }}
-                        className="h-12 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none"
-                        title={wl("dragToSection", { label: w.label })}
-                      >
-                        <Icon className="w-3.5 h-3.5 text-brand group-hover:text-brand" />
-                        <span className="text-[8px] text-center leading-[1.05] text-foreground group-hover:text-brand line-clamp-2">
-                          {w.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {!isCollapsed && (() => {
+                const renderTile = (w: (typeof items)[number]) => {
+                  const Icon = w.icon;
+                  return (
+                    <div
+                      key={w.type}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("application/x-widget-type", w.type);
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
+                      className="h-12 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none"
+                      title={wl("dragToSection", { label: w.label })}
+                    >
+                      <Icon className="w-3.5 h-3.5 text-brand group-hover:text-brand" />
+                      <span className="text-[8px] text-center leading-[1.05] text-foreground group-hover:text-brand line-clamp-2">
+                        {w.label}
+                      </span>
+                    </div>
+                  );
+                };
+
+                const order = SUBGROUP_ORDER[cat] ?? [];
+                // Group items by subgroup key; fall back to "misc" for unmapped.
+                const buckets = new Map<string, typeof items>();
+                for (const w of items) {
+                  const key = SUBGROUPS[w.type] ?? "misc";
+                  const arr = buckets.get(key) ?? [];
+                  arr.push(w);
+                  buckets.set(key, arr);
+                }
+                // Preserve declared order, then append unknown subgroups alphabetically.
+                const keys = [
+                  ...order.filter((k) => buckets.has(k)),
+                  ...[...buckets.keys()]
+                    .filter((k) => !order.includes(k))
+                    .sort((a, b) => a.localeCompare(b)),
+                ];
+                const showHeaders = keys.length > 1 || (keys.length === 1 && keys[0] !== "misc");
+
+                // When search is active we skip subgroup headers to keep results compact.
+                if (search.trim().length > 0 || !showHeaders) {
+                  return (
+                    <div className="grid grid-cols-2 gap-1.5">{items.map(renderTile)}</div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2.5">
+                    {keys.map((key) => {
+                      const arr = buckets.get(key) ?? [];
+                      if (!arr.length) return null;
+                      const subKey = `${cat}__${key}`;
+                      const subCollapsed = !!collapsed[subKey];
+                      const label = key === "misc" ? "" : wl(`sub.${key}`);
+                      return (
+                        <div key={key}>
+                          <button
+                            type="button"
+                            onClick={() => toggle(subKey)}
+                            className="w-full text-[10px] font-medium text-muted-foreground/80 mb-1 inline-flex items-center gap-1 hover:text-foreground tracking-wide"
+                          >
+                            {subCollapsed ? (
+                              <ChevronRight className="w-2.5 h-2.5" />
+                            ) : (
+                              <ChevronDown className="w-2.5 h-2.5" />
+                            )}
+                            <span className="uppercase">{label}</span>
+                            <span className="ml-0.5 opacity-60">({arr.length})</span>
+                          </button>
+                          {!subCollapsed && (
+                            <div className="grid grid-cols-2 gap-1.5">{arr.map(renderTile)}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </section>
           );
         })}
