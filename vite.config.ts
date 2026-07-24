@@ -24,6 +24,12 @@ const nitroOptions = { preset: "cloudflare-module", minify: true };
 
 export default defineConfig({
   nitro: nitroOptions,
+  // Override TanStack Start server entry so nasz wrapper (src/server.ts) opakowuje
+  // wirtualny `@tanstack/react-start/server-entry` lazy importem, try/catch i
+  // normalizacją h3-swallowed 500 (skill: tanstack-ssr-error-handling).
+  tanstackStart: {
+    server: { entry: "server" },
+  },
   vite: {
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the

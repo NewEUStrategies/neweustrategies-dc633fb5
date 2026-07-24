@@ -7,6 +7,41 @@ import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.serv
 import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
 import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
+import { renderErrorPage } from "@/lib/error-page";
+
+/**
+ * Ostatnia linia obrony przed dispatchem routera: łapie synchronowe i
+ * asynchronowe rzuty w middleware/loaderach, przepuszcza wyjątki niosące
+ * `statusCode`/Response (redirecty, 401/302 rzucane celowo przez framework),
+ * a resztę zamienia na przyjazną stronę 500 (bez wycieku stacka do usera;
+ * pełny błąd trafia do Server Logs). Nie ingeruje w normalne odpowiedzi.
+ */
+const errorMiddleware = createMiddleware().server(async ({ next }) => {
+  try {
+    return await next();
+  } catch (error) {
+    // Rzuty niosące własną Response/statusCode to intencjonalne short-circuity
+    // (np. redirect, notFound) - nie przykrywajmy ich stroną błędu.
+    if (error instanceof Response) throw error;
+    if (
+      error &&
+      typeof error === "object" &&
+      ("statusCode" in error || "status" in error) &&
+      typeof (error as { statusCode?: number; status?: number }).statusCode !== "undefined"
+    ) {
+      throw error;
+    }
+    console.error(error);
+    return new Response(renderErrorPage(), {
+      status: 500,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    });
+  }
+});
+
 
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
@@ -247,6 +282,10 @@ export const startInstance = createStart(() => ({
   // briefly unavailable (the earlier comment about DB lookups in the SSR chain
   // still holds; that risk is why these middleware never throw upward).
   requestMiddleware: [
+    // errorMiddleware NAJZEWNĘTRZNIEJ (uruchamiane pierwsze, kończone ostatnie),
+    // żeby złapać rzuty z każdego kolejnego middleware i z routera. Rzuty z
+    // Response/statusCode są przepuszczane - redirecty i notFound działają dalej.
+    errorMiddleware,
     securityHeadersMiddleware,
     seo404Middleware,
     redirectMiddleware,
