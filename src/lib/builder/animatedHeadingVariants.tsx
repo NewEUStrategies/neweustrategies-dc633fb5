@@ -14,6 +14,7 @@ export type AnimatedHeadingShape =
   | "none"
   | "underline"
   | "double-underline"
+  | "squiggle"
   | "scribble"
   | "curly"
   | "zigzag"
