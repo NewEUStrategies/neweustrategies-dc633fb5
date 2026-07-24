@@ -366,7 +366,12 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       </div>
 
       {/* Settings */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          {t("builder.sliderEditor.settingsTitle")}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+
         <PropField label={t("builder.sliderEditor.ratio")}>
           <Select value={ratio} onValueChange={(v) => setContent("ratio", v)}>
             <SelectTrigger className="h-8 text-xs">
