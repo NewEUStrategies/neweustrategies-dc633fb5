@@ -420,8 +420,11 @@ export function ChatWindow(props: ChatWindowProps) {
   const { mutate: mutateReaction } = toggleReaction;
   const handleReact = useCallback(
     (message: ChatMessage, emoji: string, current: string | null) =>
-      mutateReaction({ messageId: message.id, emoji, current }),
-    [mutateReaction],
+      mutateReaction(
+        { messageId: message.id, emoji, current },
+        { onError: () => toast.error(t("chat.reactions.error")) },
+      ),
+    [mutateReaction, t],
   );
   const handleReply = useCallback((message: ChatMessage) => {
     setEditTarget(null);

@@ -326,23 +326,19 @@ export function useToggleReaction(conversationId: string) {
         if (error) throw error;
         return;
       }
-      if (input.current) {
-        // Switch: update only the emoji column (column-level grant).
-        const { error } = await supabase
-          .from("message_reactions")
-          .update({ emoji: input.emoji })
-          .eq("message_id", input.messageId)
-          .eq("user_id", user.id);
-        if (error) throw error;
-        return;
-      }
-      const { error } = await supabase.from("message_reactions").insert({
-        message_id: input.messageId,
-        conversation_id: conversationId,
-        tenant_id: tenantId,
-        user_id: user.id,
-        emoji: input.emoji,
-      });
+      // One idempotent path handles both adding and switching. A plain UPDATE
+      // could successfully affect zero rows when the local `current` value was
+      // stale, leaving the optimistic chip visible although nothing was saved.
+      const { error } = await supabase.from("message_reactions").upsert(
+        {
+          message_id: input.messageId,
+          conversation_id: conversationId,
+          tenant_id: tenantId,
+          user_id: user.id,
+          emoji: input.emoji,
+        },
+        { onConflict: "message_id,user_id" },
+      );
       if (error) throw error;
     },
     // Optimistic: the tap lands instantly; the realtime echo (or the error
@@ -386,6 +382,11 @@ export function useToggleReaction(conversationId: string) {
           return ctx.ownRow ? [...without, ctx.ownRow] : without;
         }),
       );
+    },
+    onSettled: () => {
+      if (!user) return;
+      // Reconcile the optimistic row even if realtime is delayed/disconnected.
+      void qc.invalidateQueries({ queryKey: chatKeys.reactions(user.id, conversationId) });
     },
   });
 }
