@@ -17,6 +17,7 @@ import {
   ChevronLeft as LChevronLeft,
   ChevronRight as LChevronRight,
   ChevronUp as LChevronUp,
+  ChevronsUp as LChevronsUp,
   Circle as LCircle,
   Clock as LClock,
   Columns2 as LColumns2,
@@ -195,9 +196,10 @@ export const ChevronDownIcon = ChevronDown;
 export const ChevronLeft = makeIcon("ChevronLeft", LChevronLeft);
 export const ChevronLeftIcon = ChevronLeft;
 export const ChevronRight = makeIcon("ChevronRight", LChevronRight);
-export const ChevronRightIcon = ChevronRight;
-export const ChevronUp = makeIcon("ChevronUp", LChevronUp);
-export const Circle = makeIcon("Circle", LCircle);
+  export const ChevronRightIcon = ChevronRight;
+  export const ChevronUp = makeIcon("ChevronUp", LChevronUp);
+  export const ChevronsUp = makeIcon("ChevronsUp", LChevronsUp);
+  export const Circle = makeIcon("Circle", LCircle);
 export const Clock = makeIcon("Clock", LClock);
 export const Columns2 = makeIcon("Columns2", LColumns2);
 export const Copy = makeIcon("Copy", LCopy);
