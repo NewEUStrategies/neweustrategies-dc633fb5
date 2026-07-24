@@ -82,6 +82,14 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      # Blocking tenant-isolation gate: fails if any SECURITY DEFINER function
+      # scopes data by public_tenant_id() (client-forgeable x-tenant-host header)
+      # while authorizing by has_role()/is_staff() (home tenant). That mismatch
+      # let an admin of tenant A forge the header to read/write tenant B's data
+      # (monetization_dashboard revenue leak). Repeatable root cause -> static gate.
+      - name: SQL tenant-scope invariant
+        run: bun run check:sql-tenant-scope
+
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +
   # seed.sql). Complements Vitest, which never touches RLS policies.
