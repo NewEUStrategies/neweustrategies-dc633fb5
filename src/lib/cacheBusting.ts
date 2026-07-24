@@ -19,7 +19,7 @@
 // Wszystko jest opt-in i uruchamiane po hydratacji: żadnego wpływu na SSR
 // ani na FCP.
 
-import type { Router } from "@tanstack/react-router";
+import type { AnyRouter } from "@tanstack/react-router";
 
 const RELOAD_GUARD_KEY = "__lov_cb_reload";
 const RELOAD_GUARD_TTL_MS = 15_000;
