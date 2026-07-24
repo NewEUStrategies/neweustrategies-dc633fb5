@@ -396,18 +396,8 @@ export function WidgetProperties({
             </div>
           </div>
 
-          {/* ═══════════════ GROUP: Appearance ═══════════════ */}
-          <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 -mx-1">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/80 flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-brand" />
-              {t("builder.widgetProps.appearance")}
-              <span className="text-muted-foreground/60 font-normal normal-case tracking-normal text-[9px]">
-                {t("builder.widgetProps.appearanceSub")}
-              </span>
-            </div>
-          </div>
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
 
-          <section className="space-y-2">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.typography")} ({md()})
             </h4>
@@ -420,7 +410,7 @@ export function WidgetProperties({
           </section>
 
           {sizeFields && (
-            <section className="space-y-2 pt-2 border-t border-border">
+            <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
               <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 {t("builder.widgetProps.formSizes")}
               </h4>
@@ -453,7 +443,7 @@ export function WidgetProperties({
             </section>
           )}
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.colors")} ({md()})
             </h4>
@@ -477,7 +467,7 @@ export function WidgetProperties({
             />
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {lang === "en" ? "Icons" : "Ikony"} ({md()})
             </h4>
@@ -515,8 +505,8 @@ export function WidgetProperties({
           </section>
 
           {widget.type === "dark-featured-card" && (
-            <section className="space-y-2 pt-2 border-t border-border">
-              <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+              <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 {t("builder.widgetProps.badgeLabel")}
               </h4>
               <div className="grid grid-cols-2 gap-2">
@@ -609,7 +599,7 @@ export function WidgetProperties({
             </section>
           )}
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.cornerRounding")}
             </h4>
@@ -623,7 +613,7 @@ export function WidgetProperties({
             </PropField>
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.border")}
             </h4>
@@ -673,26 +663,16 @@ export function WidgetProperties({
             />
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
-            <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Hover ({md()})
             </h4>
 
             <HoverControl value={hoverValue} onChange={onHoverChange} />
           </section>
 
-          {/* ═══════════════ GROUP: Layout ═══════════════ */}
-          <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 -mx-1 mt-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/80 flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-brand" />
-              {t("builder.widgetProps.layout")}
-              <span className="text-muted-foreground/60 font-normal normal-case tracking-normal text-[9px]">
-                {t("builder.widgetProps.layoutSub")}
-              </span>
-            </div>
-          </div>
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
 
-          <section className="space-y-2">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.spacing")}
             </h4>
@@ -713,7 +693,7 @@ export function WidgetProperties({
         </TabsContent>
 
         <TabsContent value="advanced" className="space-y-4 mt-3">
-          <section className="space-y-2">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.identifiers")}
             </h4>
@@ -741,7 +721,7 @@ export function WidgetProperties({
             </PropField>
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.positionRelative")}
             </h4>
@@ -776,7 +756,7 @@ export function WidgetProperties({
             </p>
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.contentInside")}
             </h4>
@@ -846,7 +826,7 @@ export function WidgetProperties({
             </p>
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.dimensions", { defaultValue: "Wymiary widgetu" })}
             </h4>
@@ -866,7 +846,7 @@ export function WidgetProperties({
             />
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Motion
             </h4>
@@ -874,21 +854,21 @@ export function WidgetProperties({
           </section>
 
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.visibility")}
             </h4>
             <VisibilityControl value={widget.advanced} onChange={setAdvanced} />
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.access")}
             </h4>
             <AccessControl value={widget.advanced} onChange={setAdvanced} />
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.widgetLink")}
             </h4>
@@ -906,7 +886,7 @@ export function WidgetProperties({
             />
           </section>
 
-          <section className="space-y-2 pt-2 border-t border-border">
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Custom CSS
             </h4>
