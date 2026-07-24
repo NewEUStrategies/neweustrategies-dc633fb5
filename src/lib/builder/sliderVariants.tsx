@@ -1411,7 +1411,7 @@ function SplitFeatureVariant(p: VariantProps) {
             {title || "\u00A0"}
           </h3>
         )}
-        {sub &&
+        {p.showExcerpt && sub &&
           (href ? (
             <AppLink href={href} className="block">
               <p
