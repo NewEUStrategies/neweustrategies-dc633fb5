@@ -1,10 +1,12 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createRouter } from "@tanstack/react-router";
+import { createRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 
 import { routeTree } from "./routeTree.gen";
 import { addLangPrefix, stripLangPrefix } from "./lib/i18n/localePath";
 import { currentLang } from "./lib/i18n/localeRuntime";
+import { FriendlyErrorPage } from "./components/error/FriendlyErrorPage";
+import { errorCopy } from "./lib/errorCopy";
 
 // World-class defaults for a content-heavy public site:
 //   - 5 min staleTime: settings/menus/posts rarely change; avoid wasted refetches.
@@ -13,6 +15,21 @@ import { currentLang } from "./lib/i18n/localeRuntime";
 //   - No focus refetch: never disturb readers tabbing back into an article.
 //   - Reconnect refetch: recover gracefully after a network drop.
 //   - Mutations retry 0: side-effects must be explicit.
+function DefaultErrorComponent({ error, reset }: ErrorComponentProps) {
+  return <FriendlyErrorPage error={error} reset={reset} />;
+}
+
+function DefaultNotFoundComponent() {
+  const copy = errorCopy();
+  return (
+    <FriendlyErrorPage
+      error={{ status: 404, message: "not found" }}
+      title={copy.notFoundTitle}
+      footer={copy.notFoundBody}
+    />
+  );
+}
+
 export const getRouter = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -48,6 +65,10 @@ export const getRouter = () => {
     // Article anchors are handled by the custom reading rail scroller. This
     // avoids TanStack's immediate hash scroll fighting the eased animation.
     defaultHashScrollIntoView: false,
+    // Friendly, instruction-rich error screens for every route without its
+    // own errorComponent / notFoundComponent.
+    defaultErrorComponent: DefaultErrorComponent,
+    defaultNotFoundComponent: DefaultNotFoundComponent,
     // Language lives in the URL path (PL unprefixed, EN under "/en"). The
     // route tree is authored once for the canonical (unprefixed) paths; this
     // rewrite strips the language segment before matching and re-adds it when

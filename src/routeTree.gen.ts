@@ -35,6 +35,7 @@ import { Route as GlossaryRouteImport } from './routes/glossary'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as ExpertsRouteImport } from './routes/experts'
 import { Route as EventsRouteImport } from './routes/events'
+import { Route as ErrorRouteImport } from './routes/error'
 import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContributorsRouteImport } from './routes/contributors'
 import { Route as ContributeRouteImport } from './routes/contribute'
@@ -358,6 +359,11 @@ const ExpertsRoute = ExpertsRouteImport.update({
 const EventsRoute = EventsRouteImport.update({
   id: '/events',
   path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ErrorRoute = ErrorRouteImport.update({
+  id: '/error',
+  path: '/error',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CookiesRoute = CookiesRouteImport.update({
@@ -1356,6 +1362,7 @@ export interface FileRoutesByFullPath {
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
+  '/error': typeof ErrorRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
@@ -1577,6 +1584,7 @@ export interface FileRoutesByTo {
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
+  '/error': typeof ErrorRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
@@ -1791,6 +1799,7 @@ export interface FileRoutesById {
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
+  '/error': typeof ErrorRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
@@ -2015,6 +2024,7 @@ export interface FileRouteTypes {
     | '/contribute'
     | '/contributors'
     | '/cookies'
+    | '/error'
     | '/events'
     | '/experts'
     | '/feed'
@@ -2236,6 +2246,7 @@ export interface FileRouteTypes {
     | '/contribute'
     | '/contributors'
     | '/cookies'
+    | '/error'
     | '/events'
     | '/experts'
     | '/feed'
@@ -2449,6 +2460,7 @@ export interface FileRouteTypes {
     | '/contribute'
     | '/contributors'
     | '/cookies'
+    | '/error'
     | '/events'
     | '/experts'
     | '/feed'
@@ -2672,6 +2684,7 @@ export interface RootRouteChildren {
   ContributeRoute: typeof ContributeRoute
   ContributorsRoute: typeof ContributorsRoute
   CookiesRoute: typeof CookiesRoute
+  ErrorRoute: typeof ErrorRoute
   EventsRoute: typeof EventsRouteWithChildren
   ExpertsRoute: typeof ExpertsRoute
   FeedRoute: typeof FeedRoute
@@ -2925,6 +2938,13 @@ declare module '@tanstack/react-router' {
       path: '/events'
       fullPath: '/events'
       preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/error': {
+      id: '/error'
+      path: '/error'
+      fullPath: '/error'
+      preLoaderRoute: typeof ErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cookies': {
@@ -4818,6 +4838,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContributeRoute: ContributeRoute,
   ContributorsRoute: ContributorsRoute,
   CookiesRoute: CookiesRoute,
+  ErrorRoute: ErrorRoute,
   EventsRoute: EventsRouteWithChildren,
   ExpertsRoute: ExpertsRoute,
   FeedRoute: FeedRoute,
