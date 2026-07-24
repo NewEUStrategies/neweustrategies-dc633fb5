@@ -78,6 +78,8 @@ export interface SliderConfig {
   titleWeight?: number;
   subtitleSizePx?: number;
   subtitleWeight?: number;
+  /** Show excerpt/subtitle below the title. Default: true. */
+  showExcerpt?: boolean;
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
   columns?: 1 | 2 | 3 | 4;
