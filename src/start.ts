@@ -282,6 +282,10 @@ export const startInstance = createStart(() => ({
   // briefly unavailable (the earlier comment about DB lookups in the SSR chain
   // still holds; that risk is why these middleware never throw upward).
   requestMiddleware: [
+    // errorMiddleware NAJZEWNĘTRZNIEJ (uruchamiane pierwsze, kończone ostatnie),
+    // żeby złapać rzuty z każdego kolejnego middleware i z routera. Rzuty z
+    // Response/statusCode są przepuszczane - redirecty i notFound działają dalej.
+    errorMiddleware,
     securityHeadersMiddleware,
     seo404Middleware,
     redirectMiddleware,
