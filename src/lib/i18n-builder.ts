@@ -660,7 +660,9 @@ const pl = {
       off: "wyłączone",
       interval: "Interwał (ms)",
       overlay: "Przyciemnienie overlay'a (0–1)",
+      settingsTitle: "Ustawienia slidera",
       navTitle: "Przyciski nawigacji (strzałki)",
+
       navSize: "Rozmiar ({{px}}px)",
       navRounded: "Zaokrąglenie ({{val}})",
       navRoundedFull: "pełne",
