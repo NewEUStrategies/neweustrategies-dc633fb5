@@ -224,7 +224,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             variant="alert"
             size="sm"
             fontSizePx={9}
-            className="absolute -right-1 -top-2 z-[100]"
+            className="absolute -right-2.5 -top-2 z-[100]"
           />
         </button>
       </PopoverTrigger>
