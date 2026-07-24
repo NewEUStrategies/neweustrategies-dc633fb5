@@ -7,9 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { updatePage, deletePage } from "@/lib/content.functions";
 import { isEditConflict } from "@/lib/content/saveConflict";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
-import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
-import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isoToLocalInput, localInputToIso } from "@/lib/content/workflow";
@@ -298,19 +296,13 @@ function EditPage() {
   // (baseUpdatedAt) - równoległa edycja nie nadpisze cicho cudzych zmian, a
   // konflikt jest sygnalizowany. saveFn celowo unika ciężkich inwalidacji przy
   // każdym debounce (patrz wyżej), więc nie powoduje "auto-refresh" edytora.
-  const autosave = useAutosave({ value: form, enabled: !!form, save: saveFn });
   const isDirty = form !== null && form !== savedFormRef.current;
-  useUnsavedChangesGuard(isDirty || autosave.status === "saving");
+  useUnsavedChangesGuard(isDirty || busy);
 
-  // Ciężkie inwalidacje (widget cache, SEO cache, router.invalidate) NIE
-  // odpalają się przy każdym autozapisie (patrz saveFn) - powodowałoby to
-  // ciągłe "auto-refresh" edytora. Uruchamiamy je raz przy opuszczeniu
-  // edytora, tak żeby publiczne widoki i dashboard SEO załadowały świeży
-  // stan przy następnej wizycie użytkownika.
+  // Ciężkie inwalidacje (widget cache, SEO cache) odpalamy raz przy opuszczeniu
+  // edytora, jeśli w trakcie sesji był realny zapis - żeby publiczne widoki
+  // załadowały świeży stan przy następnej wizycie.
   const dirtyRef = useRef(false);
-  useEffect(() => {
-    if (autosave.status === "saved") dirtyRef.current = true;
-  }, [autosave.status]);
   useEffect(() => {
     return () => {
       if (!dirtyRef.current) return;
@@ -348,13 +340,14 @@ function EditPage() {
     setBusy(true);
     try {
       const snapshot = form;
-      await autosave.flush();
-      // Mark the just-persisted snapshot as clean so the unsaved-changes
-      // guard stops firing until the next real edit.
+      await saveFn(snapshot);
       savedFormRef.current = snapshot;
+      dirtyRef.current = true;
       toast.success(t("admin.saved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      if (!isEditConflict(e)) {
+        toast.error(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -598,15 +591,31 @@ function EditPage() {
               {t("admin.pages.step.content", { defaultValue: "Treść" })}
             </button>
           </div>
-          <AutosaveBar
-            status={autosave.status}
-            error={autosave.error}
-            canUndo={history.canUndo}
-            canRedo={history.canRedo}
-            onUndo={history.undo}
-            onRedo={history.redo}
-            onDiscard={discardToSaved}
-          />
+          <div className="flex items-center gap-1 text-xs">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={history.undo}
+              disabled={!history.canUndo}
+              title="Cofnij (Ctrl+Z)"
+            >
+              ↶
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={history.redo}
+              disabled={!history.canRedo}
+              title="Ponów (Ctrl+Shift+Z)"
+            >
+              ↷
+            </Button>
+            {isDirty && (
+              <span className="text-[11px] text-amber-600 dark:text-amber-400 ml-1">
+                {t("admin.unsavedChanges", { defaultValue: "niezapisane zmiany" })}
+              </span>
+            )}
+          </div>
 
           <Button
             asChild
