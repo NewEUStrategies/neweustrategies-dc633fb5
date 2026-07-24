@@ -296,19 +296,13 @@ function EditPage() {
   // (baseUpdatedAt) - równoległa edycja nie nadpisze cicho cudzych zmian, a
   // konflikt jest sygnalizowany. saveFn celowo unika ciężkich inwalidacji przy
   // każdym debounce (patrz wyżej), więc nie powoduje "auto-refresh" edytora.
-  const autosave = useAutosave({ value: form, enabled: !!form, save: saveFn });
   const isDirty = form !== null && form !== savedFormRef.current;
-  useUnsavedChangesGuard(isDirty || autosave.status === "saving");
+  useUnsavedChangesGuard(isDirty || busy);
 
-  // Ciężkie inwalidacje (widget cache, SEO cache, router.invalidate) NIE
-  // odpalają się przy każdym autozapisie (patrz saveFn) - powodowałoby to
-  // ciągłe "auto-refresh" edytora. Uruchamiamy je raz przy opuszczeniu
-  // edytora, tak żeby publiczne widoki i dashboard SEO załadowały świeży
-  // stan przy następnej wizycie użytkownika.
+  // Ciężkie inwalidacje (widget cache, SEO cache) odpalamy raz przy opuszczeniu
+  // edytora, jeśli w trakcie sesji był realny zapis - żeby publiczne widoki
+  // załadowały świeży stan przy następnej wizycie.
   const dirtyRef = useRef(false);
-  useEffect(() => {
-    if (autosave.status === "saved") dirtyRef.current = true;
-  }, [autosave.status]);
   useEffect(() => {
     return () => {
       if (!dirtyRef.current) return;
