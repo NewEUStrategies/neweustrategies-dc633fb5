@@ -641,6 +641,8 @@ const pl = {
       tags: "Tagi",
       excludeIds: "Wyklucz ID wpisów (po przecinku)",
       showExcerpt: "Pokaż zajawkę",
+      showAuthor: "Pokaż autora",
+
       yes: "tak",
       no: "nie",
       ctaText: "Tekst CTA ({{lang}})",
@@ -1848,6 +1850,8 @@ const en: typeof pl = {
       tags: "Tags",
       excludeIds: "Exclude post IDs (comma-separated)",
       showExcerpt: "Show excerpt",
+      showAuthor: "Show author",
+
       yes: "yes",
       no: "no",
       ctaText: "CTA text ({{lang}})",

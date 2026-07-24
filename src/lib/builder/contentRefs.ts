@@ -21,7 +21,10 @@ export interface PostRefData {
   href: string;
   publishedAt: string | null;
   authorName: string;
+  authorAvatar: string;
+  authorSlug: string;
 }
+
 
 const POST_REF_STALE = 60_000; // 1 min - aggressive enough to feel "live"
 const POST_REF_GC = 5 * 60_000;
@@ -50,18 +53,32 @@ async function fetchPostRef(id: string): Promise<RawPostRow | null> {
   return (data as RawPostRow | null) ?? null;
 }
 
-async function fetchAuthorName(id: string | null): Promise<string> {
-  if (!id) return "";
-  const { data } = await supabase
-    .from("profiles")
-    .select("display_name")
-    .eq("id", id)
-    .maybeSingle();
-  const row = data as { display_name: string | null } | null;
-  return row?.display_name ?? "";
+interface AuthorInfo {
+  name: string;
+  avatar: string;
+  slug: string;
 }
 
-function toPostRef(row: RawPostRow | null, authorName: string, lang: Lang): PostRefData | null {
+async function fetchAuthorInfo(id: string | null): Promise<AuthorInfo> {
+  if (!id) return { name: "", avatar: "", slug: "" };
+  const { data } = await supabase
+    .from("profiles")
+    .select("display_name, avatar_url, slug")
+    .eq("id", id)
+    .maybeSingle();
+  const row = data as {
+    display_name: string | null;
+    avatar_url: string | null;
+    slug: string | null;
+  } | null;
+  return {
+    name: row?.display_name ?? "",
+    avatar: row?.avatar_url ?? "",
+    slug: row?.slug ?? "",
+  };
+}
+
+function toPostRef(row: RawPostRow | null, author: AuthorInfo, lang: Lang): PostRefData | null {
   if (!row) return null;
   const title = (lang === "en" ? row.title_en : row.title_pl) ?? row.title_pl ?? row.title_en ?? "";
   const excerpt =
@@ -74,7 +91,9 @@ function toPostRef(row: RawPostRow | null, authorName: string, lang: Lang): Post
     cover: row.cover_image_url ?? "",
     href: `/post/${row.slug}`,
     publishedAt: row.published_at,
-    authorName,
+    authorName: author.name,
+    authorAvatar: author.avatar,
+    authorSlug: author.slug,
   };
 }
 
@@ -84,14 +103,15 @@ export function postRefQueryOptions(id: string | null | undefined, lang: Lang) {
     queryFn: async (): Promise<PostRefData | null> => {
       if (!id) return null;
       const row = await fetchPostRef(id);
-      const authorName = await fetchAuthorName(row?.author_id ?? null);
-      return toPostRef(row, authorName, lang);
+      const author = await fetchAuthorInfo(row?.author_id ?? null);
+      return toPostRef(row, author, lang);
     },
     enabled: Boolean(id),
     staleTime: POST_REF_STALE,
     gcTime: POST_REF_GC,
   };
 }
+
 
 /** Batch resolver - one query per id, dedup'd before useQueries receives keys. */
 export function useResolvedPostRefs(ids: ReadonlyArray<string | null | undefined>, lang: Lang) {
