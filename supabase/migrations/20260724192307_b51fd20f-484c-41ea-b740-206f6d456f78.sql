@@ -1,0 +1,2 @@
+UPDATE public.menu_items SET href = '/category/' || regexp_replace(href, '^.*/', '') WHERE href ~ '^/category/[^/]+/.+';
+UPDATE public.menu_items SET href = '/tag/' || regexp_replace(href, '^.*/', '') WHERE href ~ '^/tag/[^/]+/.+';

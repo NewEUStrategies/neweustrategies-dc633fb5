@@ -17,9 +17,15 @@ const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 function parseSearch(search: Record<string, unknown>): { page?: number; sort?: ArchiveSort } {
   const raw = Number(search.page);
   const page = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : undefined;
-  const sortRaw = String(search.sort ?? "newest") as ArchiveSort;
-  const sort: ArchiveSort | undefined = VALID_SORT.includes(sortRaw) ? sortRaw : undefined;
-  return { page, sort };
+  // Keep defaults implicit; otherwise the router loops between `?sort=newest`
+  // and the canonical form (see category.$slug.tsx for the same fix).
+  const sortRaw = search.sort != null ? String(search.sort) : undefined;
+  const sort: ArchiveSort | undefined =
+    sortRaw && VALID_SORT.includes(sortRaw as ArchiveSort) ? (sortRaw as ArchiveSort) : undefined;
+  const out: { page?: number; sort?: ArchiveSort } = {};
+  if (page !== undefined) out.page = page;
+  if (sort !== undefined) out.sort = sort;
+  return out;
 }
 
 export const Route = createFileRoute("/tag/$slug")({

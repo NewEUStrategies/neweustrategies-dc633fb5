@@ -165,6 +165,14 @@ export const Route = createFileRoute("/$")({
     const splat = (params as { _splat?: string })._splat ?? "";
     const segments = splatToSegments(splat);
     if (segments.length === 0) throw notFound();
+    // Legacy hierarchical taxonomy URLs like `/category/region/afryka` or
+    // `/tag/foo/bar`. Category/tag slugs are globally unique, so the last
+    // segment always resolves the correct archive - collapse to the flat form.
+    if (segments.length >= 2 && (segments[0] === "category" || segments[0] === "tag")) {
+      const last = segments[segments.length - 1];
+      const to = segments[0] === "category" ? "/category/$slug" : "/tag/$slug";
+      throw redirect({ to, params: { slug: last }, replace: true });
+    }
     const data = await context.queryClient.ensureQueryData(resolvedContentQueryOptions(segments));
     if (!data) {
       // Taxonomy fallback: /<slug> may point at a category or tag archive.
