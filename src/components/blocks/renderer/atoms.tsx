@@ -57,24 +57,104 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
   );
 };
 
-/** Cytat blokowy z opcjonalnym autorem (oba pola mogą nieść przypisy). */
+/** Cytat blokowy z opcjonalnym autorem (oba pola mogą nieść przypisy).
+ *  Warianty: `default` (border-left), `plain` (ikona cudzysłowu w rogu),
+ *  `card` (karta z tłem), `minimal` (wyśrodkowany kursywą, bez obramowań).
+ *  Paleta koloru mapowana na tokeny motywu -> działa w dark/light. */
 export const renderQuote: BlockRenderer = ({ block, fnHtml, cls }) => {
   const text = str(block.data, "text");
   const cite = str(block.data, "cite");
   const textFn = fnHtml.get(`${block.id}:text`);
   const citeFn = fnHtml.get(`${block.id}:cite`);
+  const variant = str(block.data, "variant") || "default";
+  const palette = str(block.data, "colorPalette") || "neutral";
+
+  const paletteVar: Record<string, string> = {
+    neutral: "var(--foreground)",
+    brand: "var(--brand, var(--primary))",
+    accent: "var(--accent-foreground, var(--primary))",
+    primary: "var(--primary)",
+    success: "var(--success, #16a34a)",
+    warning: "var(--warning, #d97706)",
+    danger: "var(--destructive)",
+  };
+  const accent = paletteVar[palette] ?? paletteVar.neutral;
+  const tint = `color-mix(in oklab, ${accent} 8%, transparent)`;
+
+  const TextEl =
+    textFn !== undefined ? (
+      <p className="cms-quote-text" dangerouslySetInnerHTML={{ __html: textFn }} />
+    ) : (
+      <p className="cms-quote-text">{text}</p>
+    );
+  const CiteEl = cite ? (
+    citeFn !== undefined ? (
+      <cite
+        className="cms-quote-cite text-sm text-muted-foreground not-italic"
+        dangerouslySetInnerHTML={{ __html: `- ${citeFn}` }}
+      />
+    ) : (
+      <cite className="cms-quote-cite text-sm text-muted-foreground not-italic">- {cite}</cite>
+    )
+  ) : null;
+
+  if (variant === "plain") {
+    return (
+      <blockquote
+        className={`relative pl-10 pr-2 py-2 space-y-2 ${cls}`}
+        style={{ color: accent }}
+        data-quote-variant="plain"
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="absolute left-0 top-1 h-6 w-6 opacity-70"
+          fill="currentColor"
+        >
+          <path d="M7.17 6C4.87 6 3 7.87 3 10.17V18h7.5v-7.83H6.6c0-1.42 1.16-2.58 2.58-2.58V6H7.17zm10 0c-2.3 0-4.17 1.87-4.17 4.17V18H20.5v-7.83h-3.9c0-1.42 1.16-2.58 2.58-2.58V6h-1.01z" />
+        </svg>
+        <div className="text-foreground text-lg leading-relaxed italic">{TextEl}</div>
+        {CiteEl}
+      </blockquote>
+    );
+  }
+
+  if (variant === "card") {
+    return (
+      <blockquote
+        className={`rounded-[6px] border p-5 space-y-2 ${cls}`}
+        style={{ borderColor: accent, background: tint }}
+        data-quote-variant="card"
+      >
+        <div className="text-foreground text-lg leading-relaxed">{TextEl}</div>
+        {CiteEl}
+      </blockquote>
+    );
+  }
+
+  if (variant === "minimal") {
+    return (
+      <blockquote
+        className={`text-center italic space-y-2 py-4 ${cls}`}
+        data-quote-variant="minimal"
+      >
+        <div className="text-xl leading-relaxed" style={{ color: accent }}>
+          {TextEl}
+        </div>
+        {CiteEl}
+      </blockquote>
+    );
+  }
+
+  // default: border-left
   return (
-    <blockquote className={cls}>
-      {textFn !== undefined ? <p dangerouslySetInnerHTML={{ __html: textFn }} /> : <p>{text}</p>}
-      {cite &&
-        (citeFn !== undefined ? (
-          <cite
-            className="text-sm text-muted-foreground"
-            dangerouslySetInnerHTML={{ __html: `- ${citeFn}` }}
-          />
-        ) : (
-          <cite className="text-sm text-muted-foreground">- {cite}</cite>
-        ))}
+    <blockquote
+      className={`border-l-4 pl-4 space-y-2 ${cls}`}
+      style={{ borderColor: accent }}
+      data-quote-variant="default"
+    >
+      {TextEl}
+      {CiteEl}
     </blockquote>
   );
 };
