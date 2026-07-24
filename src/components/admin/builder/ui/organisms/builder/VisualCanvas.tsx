@@ -1032,7 +1032,7 @@ export function VisualCanvas({
       onPointerUp={onCanvasPointerUp}
       onPointerCancel={onCanvasPointerUp}
       ref={rootRef}
-      style={{ width: "100%", overflowX: "clip", userSelect: marqueeRect ? "none" : undefined }}
+      style={{ width: "100%", position: "relative", overflowX: "clip", userSelect: marqueeRect ? "none" : undefined }}
     >
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
