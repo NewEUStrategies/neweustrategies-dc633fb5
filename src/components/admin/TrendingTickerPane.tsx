@@ -903,6 +903,7 @@ export function TrendingTickerPane() {
               variantId={activeVariant.id}
               source={cfg.source ?? "trending"}
               mode={cfg.mode ?? "scroll"}
+              layoutStyle={cfg.layoutStyle ?? "classic"}
               days={cfg.days ?? 7}
               limit={cfg.limit ?? 8}
               visibleCount={cfg.visibleCount ?? 1}
