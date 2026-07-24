@@ -80,4 +80,37 @@ describe("DemoBotChat", () => {
     expect(screen.getByText(chatPl.chat.today)).toBeTruthy();
     expect(screen.getByText(chatPl.chat.yesterday)).toBeTruthy();
   });
+
+  // Regresja: chip reakcji renderuje Tooltip (Radix), który wymaga
+  // TooltipProvider w drzewie. ChatWindow ma własny provider, więc podgląd
+  // demo montował MessageList BEZ niego - pierwsza reakcja wywalała cały
+  // ekran do error boundary ("Nie udało się załadować strony"). Provider
+  // należy do MessageList, więc każdy konsument dostaje go za darmo.
+  it("adds a reaction chip from the quick bar without crashing", () => {
+    renderDemo();
+
+    // Otwórz pasek szybkich reakcji przy powitaniu bota.
+    fireEvent.click(screen.getAllByLabelText(chatPl.chat.react)[0]);
+    const thumbsUp = screen.getByLabelText("👍");
+    fireEvent.click(thumbsUp);
+
+    // Chip z licznikiem pod dymkiem - i żadnego wyjątku renderowania.
+    const chip = screen.getByRole("button", { pressed: true });
+    expect(chip.getAttribute("data-emoji")).toBe("👍");
+    expect(chip.textContent).toContain("1");
+  });
+
+  it("renders the bot's automatic reaction on a longer message", () => {
+    renderDemo();
+    const textarea = screen.getByLabelText(chatPl.chat.inputPlaceholder);
+    // > 20 znaków -> bot dokłada 👍 do własnej wiadomości użytkownika.
+    fireEvent.change(textarea, { target: { value: "Wiadomość dłuższa niż dwadzieścia znaków" } });
+    fireEvent.submit(textarea.closest("form") as HTMLFormElement);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    const chip = screen.getByRole("button", { pressed: false, name: /👍/ });
+    expect(chip.getAttribute("data-emoji")).toBe("👍");
+  });
 });

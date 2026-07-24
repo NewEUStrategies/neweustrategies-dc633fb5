@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Timer } from "lucide-react";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { wallpaperClass, type ChatWallpaperId } from "@/lib/chat/themes";
 import { crossesDay, dayLabel, sameGroup, type ChatLang } from "@/lib/chat/time";
@@ -381,222 +382,230 @@ export function MessageList(props: MessageListProps) {
   }, []);
 
   return (
-    <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className={cn(
-          "h-full flex-1 overflow-y-auto overscroll-contain px-3 py-2",
-          wallpaperClass(wallpaper),
-        )}
-        role="log"
-        aria-live="polite"
-        aria-label={t("chat.messages")}
-      >
-        {/* Inner wrapper measured by the ResizeObserver (async image growth). */}
-        <div ref={contentRef} className="flex min-h-full flex-col">
-          <div ref={topSentinelRef} aria-hidden />
-
-          {ttlSeconds ? (
-            <div className="flex items-center justify-center py-1.5">
-              <span
-                className="inline-flex items-center gap-1 rounded-[6px] bg-muted/70 px-2.5 py-1 text-[10px] text-muted-foreground"
-                title={t("chat.disappearing.hint")}
-              >
-                <Timer className="h-3 w-3" aria-hidden />
-                {t("chat.disappearing.active", { window: t(ttlLabelKey(ttlSeconds)) })}
-              </span>
-            </div>
-          ) : null}
-
-          {hasOlder && (
-            <div className="flex justify-center py-1.5">
-              <span
-                className="rounded-[6px] bg-muted px-3 py-1 text-[11px] text-muted-foreground"
-                aria-live="polite"
-              >
-                {loadingOlder ? t("common.loading", { defaultValue: "..." }) : t("chat.loadOlder")}
-              </span>
-            </div>
-          )}
-
-          {messages.length === 0 && !loadingOlder && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
-              <ChatAvatar name={peerName} avatarUrl={peerAvatarUrl} size="lg" />
-              <p className="max-w-[220px] text-xs text-muted-foreground">
-                {isGroup ? t("chat.group.emptyConversation") : t("chat.conversationEmpty")}
-              </p>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-0.5">
-            {rows.map(({ message, newDay, groupStart, groupEnd }, index) => {
-              const replied = message.reply_to_id ? byId.get(message.reply_to_id) : undefined;
-              const mine = message.sender_id === myUserId;
-              // Animate only rows that appeared after the initial history
-              // render, sliding in from the sender's side (CSS classes carry
-              // their own prefers-reduced-motion kill switch).
-              const isFresh = seenIdsRef.current !== null && !seenIdsRef.current.has(message.id);
-              const inboundGroupRow = isGroup && !mine;
-              const bubble = (
-                <MessageBubble
-                  message={message}
-                  mine={mine}
-                  lang={lang}
-                  groupStart={groupStart}
-                  groupEnd={groupEnd}
-                  reactions={reactions.get(message.id) ?? NO_REACTIONS}
-                  reactorProfiles={reactorProfiles}
-                  myUserId={myUserId}
-                  repliedMessage={replied}
-                  repliedAuthorName={
-                    replied
-                      ? replied.sender_id === myUserId
-                        ? t("chat.you")
-                        : isGroup
-                          ? senderName(replied.sender_id)
-                          : peerName
-                      : undefined
-                  }
-                  editable={canEdit(message)}
-                  peerLastReadAt={peerLastReadAt}
-                  peerLastDeliveredAt={peerLastDeliveredAt}
-                  starred={starredIds.has(message.id)}
-                  onReact={onReact}
-                  onReply={onReply}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onDiscardFailed={onDiscardFailed}
-                  onRetryFailed={onRetryFailed}
-                  onToggleStar={onToggleStar}
-                  onForward={onForward}
-                  onJumpToReply={jumpToMessage}
-                />
-              );
-              return (
-                <div
-                  key={message.id}
-                  data-message-id={message.id}
-                  className={cn(
-                    "rounded-[6px] transition-colors duration-500",
-                    groupStart && index > 0 && "mt-2",
-                    isFresh && (mine ? "chat-msg-enter-mine" : "chat-msg-enter-theirs"),
-                  )}
-                >
-                  {newDay && (
-                    <div className="flex items-center justify-center py-2.5">
-                      <span className="rounded-[6px] bg-muted/70 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {dayLabel(message.created_at, lang, dayWords)}
-                      </span>
-                    </div>
-                  )}
-                  {firstUnreadId === message.id && unreadCount > 0 && (
-                    <div
-                      className="flex items-center justify-center py-1.5"
-                      data-unread-divider="1"
-                    >
-                      <span className="rounded-[6px] bg-[var(--brand)]/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand)]">
-                        {t("chat.unreadDivider", { count: unreadCount })}
-                      </span>
-                    </div>
-                  )}
-                  {inboundGroupRow && groupStart && (
-                    <p className="mb-0.5 pl-8 text-[10.5px] font-semibold text-muted-foreground">
-                      {senderName(message.sender_id)}
-                    </p>
-                  )}
-                  {inboundGroupRow ? (
-                    // Messenger convention: the sender's avatar anchors the
-                    // LAST bubble of their group; earlier rows keep a spacer
-                    // so the whole group stays aligned.
-                    <div className="flex items-end gap-1.5">
-                      {groupEnd ? (
-                        <ChatAvatar
-                          name={senderName(message.sender_id)}
-                          avatarUrl={senderProfiles?.get(message.sender_id)?.avatar_url}
-                          size="xs"
-                          className="mb-0.5"
-                        />
-                      ) : (
-                        <span className="w-5 shrink-0" aria-hidden />
-                      )}
-                      <div className="min-w-0 flex-1">{bubble}</div>
-                    </div>
-                  ) : mine ? (
-                    // Own messages never show an avatar on the right - the
-                    // sender is implicit. Applies to direct and group threads.
-                    bubble
-                  ) : !mine ? (
-                    // Direct thread: peer avatar anchors the LAST bubble of
-                    // their group; earlier rows keep a spacer so the whole
-                    // group stays left-aligned (mirror of the mine branch).
-                    <div className="flex items-end gap-1.5">
-                      {groupEnd ? (
-                        <ChatAvatar
-                          name={peerName}
-                          avatarUrl={peerAvatarUrl}
-                          size="xs"
-                          className="mb-0.5"
-                        />
-                      ) : (
-                        <span className="w-5 shrink-0" aria-hidden />
-                      )}
-                      <div className="min-w-0 flex-1">{bubble}</div>
-                    </div>
-                  ) : (
-                    bubble
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-1 flex min-h-[18px] items-center justify-end pr-0.5">
-            {lastMine?.pending ? (
-              <span className="text-[10px] text-muted-foreground">{t("chat.sending")}</span>
-            ) : seen ? (
-              <span className="text-[10px] text-muted-foreground" title={t("chat.seen")}>
-                {t("chat.seen")}
-              </span>
-            ) : null}
-          </div>
-
-          {peerTyping && (
-            <div className="pb-1 pt-0.5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150">
-              <TypingIndicator
-                names={typingNames && typingNames.length > 0 ? typingNames : [peerName]}
-                isGroup={isGroup}
-                avatarUrl={typingAvatarUrl !== undefined ? typingAvatarUrl : peerAvatarUrl}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {awayFromBottom && (
-        <button
-          type="button"
-          onClick={scrollToBottom}
+    // Reaction chips (MessageBubble) render Radix tooltips, which throw when no
+    // TooltipProvider sits above them. The list owns the provider so EVERY
+    // consumer is safe - ChatWindow has its own (nesting is fine), the demo
+    // preview used to have none and the first reaction blew up the whole page.
+    <TooltipProvider delayDuration={200}>
+      <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
           className={cn(
-            "absolute bottom-3 right-3 z-[1] flex h-8 w-8 items-center justify-center rounded-full",
-            "border border-border/60 bg-background/95 text-muted-foreground shadow-md backdrop-blur",
-            "transition-colors hover:bg-muted hover:text-foreground",
-            "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-90 motion-safe:duration-150",
+            "h-full flex-1 overflow-y-auto overscroll-contain px-3 py-2",
+            wallpaperClass(wallpaper),
           )}
-          aria-label={t("chat.scrollToBottom")}
-          title={t("chat.scrollToBottom")}
+          role="log"
+          aria-live="polite"
+          aria-label={t("chat.messages")}
         >
-          <ChevronDown className="h-4 w-4" aria-hidden />
-          {newCount > 0 && (
-            <span
-              className="absolute -top-1.5 -right-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white"
-              aria-label={t("chat.unread", { count: newCount })}
-            >
-              {newCount > 99 ? "99+" : newCount}
-            </span>
-          )}
-        </button>
-      )}
-    </div>
+          {/* Inner wrapper measured by the ResizeObserver (async image growth). */}
+          <div ref={contentRef} className="flex min-h-full flex-col">
+            <div ref={topSentinelRef} aria-hidden />
+
+            {ttlSeconds ? (
+              <div className="flex items-center justify-center py-1.5">
+                <span
+                  className="inline-flex items-center gap-1 rounded-[6px] bg-muted/70 px-2.5 py-1 text-[10px] text-muted-foreground"
+                  title={t("chat.disappearing.hint")}
+                >
+                  <Timer className="h-3 w-3" aria-hidden />
+                  {t("chat.disappearing.active", { window: t(ttlLabelKey(ttlSeconds)) })}
+                </span>
+              </div>
+            ) : null}
+
+            {hasOlder && (
+              <div className="flex justify-center py-1.5">
+                <span
+                  className="rounded-[6px] bg-muted px-3 py-1 text-[11px] text-muted-foreground"
+                  aria-live="polite"
+                >
+                  {loadingOlder
+                    ? t("common.loading", { defaultValue: "..." })
+                    : t("chat.loadOlder")}
+                </span>
+              </div>
+            )}
+
+            {messages.length === 0 && !loadingOlder && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
+                <ChatAvatar name={peerName} avatarUrl={peerAvatarUrl} size="lg" />
+                <p className="max-w-[220px] text-xs text-muted-foreground">
+                  {isGroup ? t("chat.group.emptyConversation") : t("chat.conversationEmpty")}
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-0.5">
+              {rows.map(({ message, newDay, groupStart, groupEnd }, index) => {
+                const replied = message.reply_to_id ? byId.get(message.reply_to_id) : undefined;
+                const mine = message.sender_id === myUserId;
+                // Animate only rows that appeared after the initial history
+                // render, sliding in from the sender's side (CSS classes carry
+                // their own prefers-reduced-motion kill switch).
+                const isFresh = seenIdsRef.current !== null && !seenIdsRef.current.has(message.id);
+                const inboundGroupRow = isGroup && !mine;
+                const bubble = (
+                  <MessageBubble
+                    message={message}
+                    mine={mine}
+                    lang={lang}
+                    groupStart={groupStart}
+                    groupEnd={groupEnd}
+                    reactions={reactions.get(message.id) ?? NO_REACTIONS}
+                    reactorProfiles={reactorProfiles}
+                    myUserId={myUserId}
+                    repliedMessage={replied}
+                    repliedAuthorName={
+                      replied
+                        ? replied.sender_id === myUserId
+                          ? t("chat.you")
+                          : isGroup
+                            ? senderName(replied.sender_id)
+                            : peerName
+                        : undefined
+                    }
+                    editable={canEdit(message)}
+                    peerLastReadAt={peerLastReadAt}
+                    peerLastDeliveredAt={peerLastDeliveredAt}
+                    starred={starredIds.has(message.id)}
+                    onReact={onReact}
+                    onReply={onReply}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onDiscardFailed={onDiscardFailed}
+                    onRetryFailed={onRetryFailed}
+                    onToggleStar={onToggleStar}
+                    onForward={onForward}
+                    onJumpToReply={jumpToMessage}
+                  />
+                );
+                return (
+                  <div
+                    key={message.id}
+                    data-message-id={message.id}
+                    className={cn(
+                      "rounded-[6px] transition-colors duration-500",
+                      groupStart && index > 0 && "mt-2",
+                      isFresh && (mine ? "chat-msg-enter-mine" : "chat-msg-enter-theirs"),
+                    )}
+                  >
+                    {newDay && (
+                      <div className="flex items-center justify-center py-2.5">
+                        <span className="rounded-[6px] bg-muted/70 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          {dayLabel(message.created_at, lang, dayWords)}
+                        </span>
+                      </div>
+                    )}
+                    {firstUnreadId === message.id && unreadCount > 0 && (
+                      <div
+                        className="flex items-center justify-center py-1.5"
+                        data-unread-divider="1"
+                      >
+                        <span className="rounded-[6px] bg-[var(--brand)]/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand)]">
+                          {t("chat.unreadDivider", { count: unreadCount })}
+                        </span>
+                      </div>
+                    )}
+                    {inboundGroupRow && groupStart && (
+                      <p className="mb-0.5 pl-8 text-[10.5px] font-semibold text-muted-foreground">
+                        {senderName(message.sender_id)}
+                      </p>
+                    )}
+                    {inboundGroupRow ? (
+                      // Messenger convention: the sender's avatar anchors the
+                      // LAST bubble of their group; earlier rows keep a spacer
+                      // so the whole group stays aligned.
+                      <div className="flex items-end gap-1.5">
+                        {groupEnd ? (
+                          <ChatAvatar
+                            name={senderName(message.sender_id)}
+                            avatarUrl={senderProfiles?.get(message.sender_id)?.avatar_url}
+                            size="xs"
+                            className="mb-0.5"
+                          />
+                        ) : (
+                          <span className="w-5 shrink-0" aria-hidden />
+                        )}
+                        <div className="min-w-0 flex-1">{bubble}</div>
+                      </div>
+                    ) : mine ? (
+                      // Own messages never show an avatar on the right - the
+                      // sender is implicit. Applies to direct and group threads.
+                      bubble
+                    ) : !mine ? (
+                      // Direct thread: peer avatar anchors the LAST bubble of
+                      // their group; earlier rows keep a spacer so the whole
+                      // group stays left-aligned (mirror of the mine branch).
+                      <div className="flex items-end gap-1.5">
+                        {groupEnd ? (
+                          <ChatAvatar
+                            name={peerName}
+                            avatarUrl={peerAvatarUrl}
+                            size="xs"
+                            className="mb-0.5"
+                          />
+                        ) : (
+                          <span className="w-5 shrink-0" aria-hidden />
+                        )}
+                        <div className="min-w-0 flex-1">{bubble}</div>
+                      </div>
+                    ) : (
+                      bubble
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-1 flex min-h-[18px] items-center justify-end pr-0.5">
+              {lastMine?.pending ? (
+                <span className="text-[10px] text-muted-foreground">{t("chat.sending")}</span>
+              ) : seen ? (
+                <span className="text-[10px] text-muted-foreground" title={t("chat.seen")}>
+                  {t("chat.seen")}
+                </span>
+              ) : null}
+            </div>
+
+            {peerTyping && (
+              <div className="pb-1 pt-0.5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150">
+                <TypingIndicator
+                  names={typingNames && typingNames.length > 0 ? typingNames : [peerName]}
+                  isGroup={isGroup}
+                  avatarUrl={typingAvatarUrl !== undefined ? typingAvatarUrl : peerAvatarUrl}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {awayFromBottom && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className={cn(
+              "absolute bottom-3 right-3 z-[1] flex h-8 w-8 items-center justify-center rounded-full",
+              "border border-border/60 bg-background/95 text-muted-foreground shadow-md backdrop-blur",
+              "transition-colors hover:bg-muted hover:text-foreground",
+              "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-90 motion-safe:duration-150",
+            )}
+            aria-label={t("chat.scrollToBottom")}
+            title={t("chat.scrollToBottom")}
+          >
+            <ChevronDown className="h-4 w-4" aria-hidden />
+            {newCount > 0 && (
+              <span
+                className="absolute -top-1.5 -right-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-semibold leading-none text-white"
+                aria-label={t("chat.unread", { count: newCount })}
+              >
+                {newCount > 99 ? "99+" : newCount}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+    </TooltipProvider>
   );
 }

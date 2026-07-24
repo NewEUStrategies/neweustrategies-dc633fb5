@@ -59,6 +59,11 @@ export const chatPl = {
       countLabel_many: "{{count}} reakcji",
       countLabel_other: "{{count}} reakcji",
     },
+    surfaceError: {
+      title: "Nie udało się wyświetlić wątku",
+      body: "Widok wiadomości napotkał błąd. Twoje wiadomości są bezpieczne - odśwież wątek.",
+      retry: "Odśwież wątek",
+    },
     you: "Ty",
     notInNetwork: "Możesz pisać tylko do osób z Twojej zaakceptowanej sieci kontaktów.",
     online: "Dostępny/a",
@@ -513,6 +518,11 @@ export const chatEn = {
       reactorsTitle: "Reacted with {{emoji}}",
       countLabel_one: "{{count}} reaction",
       countLabel_other: "{{count}} reactions",
+    },
+    surfaceError: {
+      title: "This thread could not be displayed",
+      body: "The message view hit an error. Your messages are safe - reload the thread.",
+      retry: "Reload thread",
     },
     you: "You",
     notInNetwork: "You can only message people in your accepted network.",

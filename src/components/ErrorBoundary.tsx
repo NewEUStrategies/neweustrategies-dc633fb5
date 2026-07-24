@@ -8,6 +8,8 @@ import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 interface Props {
   children: ReactNode;
   fallback?: (error: Error, reset: () => void) => ReactNode;
+  /** Reporting tag - lets nested boundaries (e.g. the chat surface) be told apart. */
+  name?: string;
 }
 
 interface State {
@@ -23,7 +25,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     reportLovableError(error, {
-      boundary: "global_error_boundary",
+      boundary: this.props.name ?? "global_error_boundary",
       componentStack: info.componentStack ?? undefined,
     });
   }
@@ -33,12 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.error) {
       if (this.props.fallback) return this.props.fallback(this.state.error, this.reset);
-      return (
-        <FriendlyErrorPage
-          error={this.state.error}
-          reset={this.reset}
-        />
-      );
+      return <FriendlyErrorPage error={this.state.error} reset={this.reset} />;
     }
     return this.props.children;
   }

@@ -30,6 +30,7 @@ import {
 import { usePeerProfiles } from "@/lib/chat/useConversations";
 import { useAuth } from "@/hooks/useAuth";
 import { ChatAvatar } from "./ChatAvatar";
+import { ChatSurfaceBoundary } from "./ChatSurfaceBoundary";
 import { MessageList } from "./MessageList";
 import { MediaHistoryDialog } from "./MediaHistoryDialog";
 import botAvatarUrl from "@/assets/chat-bot-avatar.jpg";
@@ -403,31 +404,36 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
       />
 
       {/* Realny MessageList: separatory dni, godziny, ticki, reakcje,
-          odpowiedzi z cytatem, tombstone, typing - wszystko jak na żywo. */}
-      <MessageList
-        lang={lang}
-        myUserId={ME_ID}
-        messages={messages}
-        reactions={reactions}
-        peerName={botName}
-        peerAvatarUrl={botAvatarUrl}
-        typingNames={[botName]}
-        typingAvatarUrl={botAvatarUrl}
-        myAvatarUrl={myAvatarUrl}
-        senderProfiles={senderProfiles}
-        peerLastReadAt={peerReadAt}
-        peerLastDeliveredAt={peerDeliveredAt}
-        peerTyping={botTyping}
-        hasOlder={false}
-        loadingOlder={false}
-        onLoadOlder={noop}
-        onReact={handleReact}
-        onReply={handleReply}
-        onEdit={noop}
-        onDelete={handleDelete}
-        onDiscardFailed={noop}
-        canEdit={never}
-      />
+          odpowiedzi z cytatem, tombstone, typing - wszystko jak na żywo.
+          Granica błędu jak w realnym wątku: awaria renderowania zostaje
+          w panelu i nie wywraca całej strony wiadomości. */}
+      <ChatSurfaceBoundary>
+        <MessageList
+          lang={lang}
+          myUserId={ME_ID}
+          messages={messages}
+          reactions={reactions}
+          reactorProfiles={senderProfiles}
+          peerName={botName}
+          peerAvatarUrl={botAvatarUrl}
+          typingNames={[botName]}
+          typingAvatarUrl={botAvatarUrl}
+          myAvatarUrl={myAvatarUrl}
+          senderProfiles={senderProfiles}
+          peerLastReadAt={peerReadAt}
+          peerLastDeliveredAt={peerDeliveredAt}
+          peerTyping={botTyping}
+          hasOlder={false}
+          loadingOlder={false}
+          onLoadOlder={noop}
+          onReact={handleReact}
+          onReply={handleReply}
+          onEdit={noop}
+          onDelete={handleDelete}
+          onDiscardFailed={noop}
+          canEdit={never}
+        />
+      </ChatSurfaceBoundary>
 
       {/* Kompozytor: pasek odpowiedzi, staged załącznik i wejście z załącznikiem. */}
       <div className="border-t border-border/60 bg-background/95 px-2 pb-2 pt-1.5">
