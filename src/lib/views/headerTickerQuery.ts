@@ -21,6 +21,8 @@ export interface TickerConfig {
   enabled?: boolean;
   source?: TickerSource;
   mode?: TickerMode;
+  /** Visual layout of the bar. Defaults to `classic`. */
+  layoutStyle?: LayoutStyle;
   days?: number;
   limit?: number;
   /** Rotate modes only: how many posts visible side-by-side at once. */
