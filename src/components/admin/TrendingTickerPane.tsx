@@ -437,7 +437,7 @@ export function TrendingTickerPane() {
 
   const previewKey = useMemo(
     () =>
-      `${activeVariant.id}-${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${(cfg.selectedPostIds ?? []).join(",")}-${cfg.mixedFill}-${cfg.iconAnimation}-${cfg.labelPl}-${cfg.labelEn}-${JSON.stringify(cfg.colors ?? {})}`,
+      `${activeVariant.id}-${cfg.source}-${cfg.mode}-${cfg.layoutStyle}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${(cfg.selectedPostIds ?? []).join(",")}-${cfg.mixedFill}-${cfg.iconAnimation}-${cfg.labelPl}-${cfg.labelEn}-${JSON.stringify(cfg.colors ?? {})}`,
     [activeVariant.id, cfg],
   );
 
