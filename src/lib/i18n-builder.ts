@@ -1871,6 +1871,7 @@ const en: typeof pl = {
       off: "off",
       interval: "Interval (ms)",
       overlay: "Overlay dimming (0–1)",
+      settingsTitle: "Slider settings",
       navTitle: "Navigation buttons (arrows)",
       navSize: "Size ({{px}}px)",
       navRounded: "Rounding ({{val}})",
