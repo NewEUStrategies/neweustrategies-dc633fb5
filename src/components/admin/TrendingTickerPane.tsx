@@ -593,6 +593,30 @@ export function TrendingTickerPane() {
           </div>
         </div>
 
+        {/* Layout style */}
+        <div className="space-y-1.5">
+          <Label>{t.layoutStyle}</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {(["classic", "badge"] as const).map((s) => {
+              const active = (cfg.layoutStyle ?? "classic") === s;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => set("layoutStyle", s as LayoutStyle)}
+                  className={`rounded-[6px] border px-3 py-2 text-xs transition ${
+                    active
+                      ? "border-brand bg-brand/10 text-brand font-medium"
+                      : "border-border hover:bg-muted"
+                  }`}
+                >
+                  {t[`layout_${s}` as const]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Mode */}
         <div className="space-y-1.5">
           <Label>{t.mode}</Label>
@@ -602,7 +626,7 @@ export function TrendingTickerPane() {
                 key={m}
                 type="button"
                 onClick={() => set("mode", m)}
-                className={`rounded-[5px] border px-3 py-2 text-xs transition ${
+                className={`rounded-[6px] border px-3 py-2 text-xs transition ${
                   currentMode === m
                     ? "border-brand bg-brand/10 text-brand font-medium"
                     : "border-border hover:bg-muted"
