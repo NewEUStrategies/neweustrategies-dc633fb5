@@ -25,9 +25,9 @@ const SIZE_CLASSES: Record<UnreadBadgeSize, string> = {
 };
 
 const SIZE_FONT_PX: Record<UnreadBadgeSize, number> = {
-  sm: 8,
-  md: 8,
-  lg: 9,
+  sm: 7,
+  md: 7,
+  lg: 8,
 };
 
 const VARIANT_CLASSES: Record<UnreadBadgeVariant, string> = {
