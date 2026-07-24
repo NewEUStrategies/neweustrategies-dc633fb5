@@ -10436,6 +10436,36 @@ export type Database = {
           },
         ]
       }
+      personality_results_public: {
+        Row: {
+          agreeableness: number | null
+          conscientiousness: number | null
+          extraversion: number | null
+          neuroticism: number | null
+          openness: number | null
+          taken_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          agreeableness?: number | null
+          conscientiousness?: number | null
+          extraversion?: number | null
+          neuroticism?: number | null
+          openness?: number | null
+          taken_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          agreeableness?: number | null
+          conscientiousness?: number | null
+          extraversion?: number | null
+          neuroticism?: number | null
+          openness?: number | null
+          taken_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles_public: {
         Row: {
           avatar_url: string | null
