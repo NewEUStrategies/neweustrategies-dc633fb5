@@ -225,9 +225,10 @@ interface TickerItemProps {
   lang: "pl" | "en";
   animation: "none" | "fade" | "slide" | "flip" | "typewriter";
   delayMs?: number;
+  showCounter?: boolean;
 }
 
-function TickerItem({ post, index, lang, animation, delayMs = 0 }: TickerItemProps) {
+function TickerItem({ post, index, lang, animation, delayMs = 0, showCounter = true }: TickerItemProps) {
   const title =
     lang === "en" ? post.title_en || post.title_pl || "" : post.title_pl || post.title_en || "";
   const displayIdx = index + 1;
@@ -248,12 +249,14 @@ function TickerItem({ post, index, lang, animation, delayMs = 0 }: TickerItemPro
       style={{ animationDelay: `${delayMs}ms`, color: "var(--tt-item)" }}
       title={title}
     >
-      <span
-        className="text-[12px] leading-none font-bold tabular-nums"
-        style={{ color: "var(--tt-counter)" }}
-      >
-        {String(displayIdx).padStart(2, "0")}
-      </span>
+      {showCounter && (
+        <span
+          className="text-[12px] leading-none font-bold tabular-nums"
+          style={{ color: "var(--tt-counter)" }}
+        >
+          {String(displayIdx).padStart(2, "0")}
+        </span>
+      )}
       {animation === "typewriter" ? (
         <TypewriterText text={title} delayMs={delayMs} />
       ) : (
