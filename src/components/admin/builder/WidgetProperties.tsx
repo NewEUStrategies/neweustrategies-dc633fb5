@@ -27,11 +27,12 @@ import {
   isThemedValue,
 } from "@/lib/builder/themed";
 import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
-import { Sun, Moon, Undo as RotateCcw, Globe, Link2Off, Minus, Plus } from "@/lib/lucide-shim";
+import { Sun, Moon, Undo as RotateCcw, Globe, Link2Off, Minus, Plus, Maximize2 } from "@/lib/lucide-shim";
 import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgets";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -970,8 +971,21 @@ function WidgetHeightControl({
   const { t } = useTranslation();
   const isAuto = value === "auto";
   const numeric = typeof value === "number" ? value : "";
+  const setFixedHeight = (next: number) => onChange(Math.max(40, Math.min(2400, next)));
   return (
     <div className="space-y-2">
+      <div className="relative h-20 overflow-hidden rounded-md border border-border bg-muted/30 p-2" aria-label={t("builder.widgetProps.dimensionsPreview", { defaultValue: "Podgląd wysokości widgetu" })}>
+        <div className="absolute inset-x-2 top-2 flex items-center justify-between text-[9px] text-muted-foreground">
+          <span>{t("builder.widgetProps.preview", { defaultValue: "Podgląd" })}</span>
+          <span className="inline-flex items-center gap-1 font-medium text-foreground"><Maximize2 className="size-3" />{typeof value === "number" ? `${value}px` : value === "auto" ? t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" }) : t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" })}</span>
+        </div>
+        <div className="absolute inset-x-2 bottom-2 top-7 flex items-center justify-center border-x border-dashed border-brand/50">
+          <div
+            className="w-full rounded-[5px] border border-brand bg-brand/10 transition-[height] duration-200"
+            style={{ height: typeof value === "number" ? `${Math.max(12, Math.min(34, value / 24))}px` : value === "auto" ? "18px" : "26px" }}
+          />
+        </div>
+      </div>
       <div className="flex gap-1">
         {(
           [
@@ -997,18 +1011,20 @@ function WidgetHeightControl({
             (key === "fixed" && typeof value === "number") ||
             (key === "hug" && isAuto);
           return (
-            <button
+            <Button
               key={key}
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => onChange(target)}
-              className={`flex-1 h-8 px-2 text-xs rounded border transition ${
+              className={`flex-1 h-8 px-2 text-[11px] rounded-md transition ${
                 active
                   ? "border-brand bg-brand/10 text-brand"
                   : "border-border bg-background hover:bg-muted"
               }`}
             >
               {label}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -1018,23 +1034,27 @@ function WidgetHeightControl({
             defaultValue: "Wysokość desktop (px)",
           })}
         >
-          <Input
-            type="number"
-            min={40}
-            max={2400}
-            step={10}
-            value={numeric}
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === "") {
-                onChange(undefined);
-                return;
-              }
-              const n = Number(raw);
-              if (Number.isFinite(n) && n > 0) onChange(Math.round(n));
-            }}
-            className="h-8 text-xs"
-          />
+          <div className="flex items-center gap-1">
+            <Button type="button" variant="outline" size="icon" className="size-8 shrink-0 rounded-md" onClick={() => setFixedHeight(Number(numeric) - 10)} aria-label={t("builder.widgetProps.decreaseHeight", { defaultValue: "Zmniejsz wysokość" })} title={t("builder.widgetProps.decreaseHeight", { defaultValue: "Zmniejsz wysokość" })}><Minus className="size-3.5" /></Button>
+            <div className="relative min-w-0 flex-1">
+              <Input
+                type="number"
+                min={40}
+                max={2400}
+                step={10}
+                value={numeric}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") return;
+                  const n = Number(raw);
+                  if (Number.isFinite(n) && n > 0) setFixedHeight(Math.round(n));
+                }}
+                className="h-8 pr-7 text-xs"
+              />
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">px</span>
+            </div>
+            <Button type="button" variant="outline" size="icon" className="size-8 shrink-0 rounded-md" onClick={() => setFixedHeight(Number(numeric) + 10)} aria-label={t("builder.widgetProps.increaseHeight", { defaultValue: "Zwiększ wysokość" })} title={t("builder.widgetProps.increaseHeight", { defaultValue: "Zwiększ wysokość" })}><Plus className="size-3.5" /></Button>
+          </div>
         </PropField>
       )}
     </div>
