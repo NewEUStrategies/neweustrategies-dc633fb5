@@ -91,7 +91,7 @@ okazji panele admina przestają zależeć od hosta, na którym są otwarte.
 | Klasa | Funkcje | Poprawka |
 |-------|---------|----------|
 | (A) pełny swap `public_tenant_id()` → `current_tenant_id()` | `monetization_dashboard`, `b2b_coupons_analytics`, `metering_impact_preview`, `get_user_monthly_metering_count`, `bulk_generate_coupons_for_campaign`, `publish_qa_session_summary` | zakres danych = tenant domowy; nagłówek bez efektu |
-| (B) kandydat bez `public_tenant_id()` | `org_add_seat` | pobierał organizację po id bez filtra tenanta; gałąź `has_role(admin)` związana z `v_org.tenant_id = current_tenant_id()` (gałąź właściciela org bez zmian) |
+| (B) kandydaci bez `public_tenant_id()` | `org_add_seat`, `org_touch_seat_invite` | pobierały wiersz (organizację/miejsce) po id bez filtra tenanta; gałąź `has_role(admin)` związana z tenantem wiersza (`= current_tenant_id()`), gałąź właściciela org bez zmian. Rodzeństwo `org_touch_seat_invite` wykryto skanem klasy (rola-gated, pobranie po id, brak funkcji tenanta w ciele) - pozostałe trafienia (`admin_set_profile_verification`, `create_event_group`, `assert_admin_tenant`) już wiążą cel z tenantem domowym wywołującego |
 | (C) ścieżka publiczna/członkowska (`GRANT ... TO anon` / plan) | `authorize_resource_download`, `get_event_access`, `get_poll_results` | `public_tenant_id()` zostaje dla płaszczyzny treści (ranga warstwy liczona per host w `current_membership_tier`), ale **obejście stafowe** (`v_staff`) związane z tenantem wiersza (`= current_tenant_id()`): staff tenanta A na cudzej domenie jest zwykłym gościem, nie omija publikacji/rangi tenanta B |
 
 **Bramka pgTAP.** `security_definer_tenant_scope_test.sql` odgrywa dokładnie

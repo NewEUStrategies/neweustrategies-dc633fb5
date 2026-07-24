@@ -32,10 +32,13 @@
 --       - bulk_generate_coupons_for_campaign (generacja kuponow; straznik tenanta)
 --       - publish_qa_session_summary  (publikacja tresci redakcyjnej z sesji Q&A)
 --
--- (B) KANDYDAT tej samej klasy bez public_tenant_id() - org_add_seat pobieral
---     organizacje po id BEZ filtra tenanta i autoryzowal has_role(admin) (tenant
---     domowy), wiec admin A mogl dodawac miejsca w organizacji tenanta B. Wiazemy
---     galaz admina z current_tenant_id() (galaz wlasciciela org zostaje bez zmian).
+-- (B) KANDYDACI tej samej klasy bez public_tenant_id() - funkcje pobieraja wiersz
+--     po id BEZ filtra tenanta i autoryzuja has_role(admin) (tenant domowy), wiec
+--     admin A moze operowac na wierszu tenanta B. Wiazemy galaz admina z
+--     current_tenant_id() (galaz wlasciciela organizacji zostaje bez zmian):
+--       - org_add_seat          (admin A dodawal miejsca w organizacji tenanta B)
+--       - org_touch_seat_invite (admin A czytal e-mail zaproszenia i ponawial
+--                                zaproszenie na miejscu tenanta B)
 --
 -- (C) SCIEZKI PUBLICZNE/CZLONKOWSKIE (GRANT ... TO anon lub plan czlonkowski),
 --     gdzie public_tenant_id() jest POPRAWNY dla plaszczyzny tresci (ranga warstwy
@@ -600,6 +603,50 @@ BEGIN
   RETURN v_id;
 EXCEPTION WHEN unique_violation THEN
   RAISE EXCEPTION 'orgs: seat exists';
+END $$;
+
+-- public.org_touch_seat_invite/1
+CREATE OR REPLACE FUNCTION public.org_touch_seat_invite(p_seat uuid)
+RETURNS TABLE (seat_id uuid, invited_email text, org_name text, last_invited_at timestamptz)
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_seat public.organization_seats%ROWTYPE;
+  v_org public.member_organizations%ROWTYPE;
+BEGIN
+  IF v_uid IS NULL THEN RAISE EXCEPTION 'orgs: authentication required'; END IF;
+
+  SELECT * INTO v_seat FROM public.organization_seats WHERE id = p_seat FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'orgs: not found'; END IF;
+
+  -- Admin redakcji autoryzuje sie WYLACZNIE we wlasnym tenancie domowym
+  -- (has_role() jest scope'owane do current_tenant_id()); inaczej admin tenanta
+  -- A z podrobionym x-tenant-host moglby odczytac e-mail zaproszenia i ponowic
+  -- zaproszenie na miejscu tenanta B. Wlasciciel organizacji bez zmian.
+  IF NOT ((public.has_role(v_uid, 'admin'::app_role)
+           AND v_seat.tenant_id = public.current_tenant_id())
+          OR public.is_org_owner(v_seat.org_id)) THEN
+    RAISE EXCEPTION 'orgs: not allowed';
+  END IF;
+  IF v_seat.claimed_at IS NOT NULL OR v_seat.user_id IS NOT NULL THEN
+    RAISE EXCEPTION 'orgs: seat already claimed';
+  END IF;
+
+  SELECT * INTO v_org FROM public.member_organizations WHERE id = v_seat.org_id;
+  IF NOT FOUND OR v_org.status <> 'active' THEN
+    RAISE EXCEPTION 'orgs: organization inactive';
+  END IF;
+
+  UPDATE public.organization_seats os
+     SET last_invited_at = now()
+   WHERE os.id = p_seat;
+
+  RETURN QUERY
+    SELECT v_seat.id, v_seat.invited_email, v_org.name, now()::timestamptz;
 END $$;
 
 -- public.authorize_resource_download/1

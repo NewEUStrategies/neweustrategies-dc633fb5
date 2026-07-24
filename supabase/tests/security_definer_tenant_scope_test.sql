@@ -20,7 +20,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(14);
+SELECT plan(15);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -89,6 +89,11 @@ INSERT INTO public.member_organizations (id, tenant_id, name, status) VALUES
   ('0b000000-0000-0000-0000-00000000000b', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
    'Org B', 'active');
 
+-- Niezajete miejsce w organizacji tenanta B (org_touch_seat_invite).
+INSERT INTO public.organization_seats (id, tenant_id, org_id, invited_email, role) VALUES
+  ('b5ea7000-0000-0000-0000-00000000000b', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+   '0b000000-0000-0000-0000-00000000000b', 'invitee-b@scope.test', 'member');
+
 -- Ankiety otwarte po jednej na tenant (get_poll_results, podglad stafowy).
 INSERT INTO public.polls (id, tenant_id, question_pl, question_en, options, status) VALUES
   ('e0a00000-0000-0000-0000-00000000000a', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -151,6 +156,13 @@ SELECT throws_ok(
 SELECT isnt(
   (SELECT public.org_add_seat('0a000000-0000-0000-0000-00000000000a', 'new-a@scope.test', 'member')),
   NULL, 'org_add_seat dziala dla wlasnej organizacji A mimo naglowka B');
+
+-- 9b) org_touch_seat_invite: admin A nie moze ponowic zaproszenia na miejscu tenanta B
+-- (blokuje odczyt invited_email/nazwy organizacji tenanta B).
+SELECT throws_ok(
+  $$ SELECT public.org_touch_seat_invite('b5ea7000-0000-0000-0000-00000000000b') $$,
+  'orgs: not allowed',
+  'org_touch_seat_invite odrzuca admina A na miejscu tenanta B');
 
 -- 10) bulk_generate_coupons_for_campaign: kampania tenanta B -> wrong_tenant.
 SELECT throws_ok(
