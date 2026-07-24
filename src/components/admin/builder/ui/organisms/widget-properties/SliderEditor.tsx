@@ -13,6 +13,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { PropField } from "../../atoms";
 import { ImageSlot } from "./ImageSlot";
 import { PostPicker } from "./PostPicker";
@@ -365,7 +366,29 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         )}
       </div>
 
+      {/* Display toggles - hoisted for visibility */}
+      <div className="space-y-2 rounded-md border-2 border-brand/40 p-2 bg-brand/5">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-brand">
+          {t("builder.sliderEditor.displayTitle", { defaultValue: "Wyświetlanie" })}
+        </div>
+        <label className="flex items-center justify-between gap-2 py-1 cursor-pointer">
+          <span className="text-xs">{t("builder.sliderEditor.showExcerpt")}</span>
+          <Switch
+            checked={showExcerpt}
+            onCheckedChange={(v) => setContent("showExcerpt", v)}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
+          <span className="text-xs">{t("builder.sliderEditor.showAuthor")}</span>
+          <Switch
+            checked={showAuthor}
+            onCheckedChange={(v) => setContent("showAuthor", v)}
+          />
+        </label>
+      </div>
+
       {/* Settings */}
+
       <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {t("builder.sliderEditor.settingsTitle")}
@@ -411,34 +434,6 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             <SelectContent>
               <SelectItem value="on">{t("builder.sliderEditor.on")}</SelectItem>
               <SelectItem value="off">{t("builder.sliderEditor.off")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </PropField>
-        <PropField label={t("builder.sliderEditor.showExcerpt")}>
-          <Select
-            value={showExcerpt ? "on" : "off"}
-            onValueChange={(v) => setContent("showExcerpt", v === "on")}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="on">{t("builder.sliderEditor.yes")}</SelectItem>
-              <SelectItem value="off">{t("builder.sliderEditor.no")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </PropField>
-        <PropField label={t("builder.sliderEditor.showAuthor")}>
-          <Select
-            value={showAuthor ? "on" : "off"}
-            onValueChange={(v) => setContent("showAuthor", v === "on")}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="on">{t("builder.sliderEditor.yes")}</SelectItem>
-              <SelectItem value="off">{t("builder.sliderEditor.no")}</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
