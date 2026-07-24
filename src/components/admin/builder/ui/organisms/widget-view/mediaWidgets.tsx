@@ -371,8 +371,10 @@ export function PostsSliderWidget({
     showExcerpt,
     showAuthor,
     showCover,
+    // Nie odfiltrowujemy slajdów po braku cover_image_url - inaczej wyłączenie
+    // "Pokaż cover" (lub post bez okładki) trwale usuwałoby slajd z karuzeli
+    // i nie dałoby się go przywrócić bez ponownego dodania okładki do wpisu.
     items: items
-      .filter((p) => showCover ? p.cover_image_url : true)
       .map((p) => {
         const author = p.author_id ? authorMap.get(p.author_id) : undefined;
         return {
