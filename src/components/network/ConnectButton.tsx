@@ -71,7 +71,11 @@ export function ConnectButton({
   const { user } = useAuth();
   const modules = useCommunityModules();
   const selfFetch = state === undefined;
-  const statusesQ = useConnectionStatuses(selfFetch && user && user.id !== userId ? [userId] : []);
+  // Nie odpytuj statusu, gdy moduł sieci jest wyłączony - przycisk i tak się
+  // nie renderuje (return null niżej), więc byłoby to zmarnowane RPC.
+  const statusesQ = useConnectionStatuses(
+    modules.connections_enabled && selfFetch && user && user.id !== userId ? [userId] : [],
+  );
   const resolved: ConnectionState = state ?? statusesQ.data?.get(userId) ?? NO_CONNECTION;
 
   const send = useSendConnectionRequest();
@@ -103,7 +107,6 @@ export function ConnectButton({
   const iconHoverClass = iconOnly
     ? "transition-colors hover:bg-brand/10 hover:text-brand hover:border-brand/40 [&_svg]:transition-colors"
     : "";
-
 
   const sendInvite = () => {
     send.mutate(
@@ -141,12 +144,7 @@ export function ConnectButton({
             variant={iconOnly ? "outline" : "default"}
             size={size}
             disabled={busy}
-            className={cn(
-              "group gap-1.5",
-              iconOnlyClass,
-              iconHoverClass,
-              className,
-            )}
+            className={cn("group gap-1.5", iconOnlyClass, iconHoverClass, className)}
             aria-label={`${t("network.connect")}: ${displayName}`}
             title={iconOnly ? t("network.connect") : undefined}
           >
@@ -160,8 +158,6 @@ export function ConnectButton({
               </span>
             )}
           </Button>
-
-
         </PopoverTrigger>
         <PopoverContent align="end" className="w-80 space-y-2 p-3">
           <p className="text-sm font-medium">{t("network.inviteNoteLabel")}</p>
@@ -305,12 +301,14 @@ export function ConnectButton({
             aria-label={`${t("network.connected")}: ${displayName}`}
             title={iconOnly ? t("network.connected") : undefined}
           >
-            <UserCheck className="h-3.5 w-3.5 text-emerald-600 group-hover:text-brand dark:text-emerald-400" aria-hidden />
+            <UserCheck
+              className="h-3.5 w-3.5 text-emerald-600 group-hover:text-brand dark:text-emerald-400"
+              aria-hidden
+            />
             {!iconOnly && (
               <span className={cn(compact && "hidden sm:inline")}>{t("network.connected")}</span>
             )}
           </Button>
-
         </PopoverTrigger>
         <PopoverContent align="end" className="w-56 p-1.5">
           <button

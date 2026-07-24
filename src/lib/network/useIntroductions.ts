@@ -23,13 +23,18 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 type Fns = Database["public"]["Functions"];
-export type IntroductionRow = Fns["my_introduction_requests"]["Returns"][number];
+// `bridge_avatar` dodane przez migrację 20260724120000; augmentujemy typ do
+// czasu regeneracji types.ts (opcjonalnie, bo wygenerowany typ jeszcze go nie
+// zna - w runtime RPC zawsze je zwraca).
+export type IntroductionRow = Fns["my_introduction_requests"]["Returns"][number] & {
+  bridge_avatar?: string;
+};
 
 /** Rola z perspektywy zalogowanego użytkownika. */
 export type IntroductionRole = "requester" | "bridge" | "target" | "all";
 
-/** Status wiersza introduction_requests. */
-export type IntroductionStatus = "pending" | "accepted" | "declined" | "withdrawn";
+/** Status wiersza introduction_requests (zgodny z CHECK w bazie). */
+export type IntroductionStatus = "pending" | "forwarded" | "declined" | "withdrawn";
 
 export const INTRO_MESSAGE_MIN = 20;
 export const INTRO_MESSAGE_MAX = 600;
@@ -102,10 +107,11 @@ export function useRequestIntroduction(): UseMutationResult<
 
 export interface RespondIntroductionInput {
   id: string;
-  action: "accept" | "decline" | "withdraw";
+  /** bridge: forward/decline · requester: withdraw (zgodne z respond_introduction). */
+  action: "forward" | "decline" | "withdraw";
 }
 
-/** Odpowiedź na prośbę (bridge: accept/decline, requester: withdraw). */
+/** Odpowiedź na prośbę (bridge: forward/decline, requester: withdraw). */
 export function useRespondIntroduction(): UseMutationResult<void, Error, RespondIntroductionInput> {
   const qc = useQueryClient();
   const { user } = useAuth();
