@@ -1,0 +1,2 @@
+-- see file supabase/migrations/20260724091000_harden_security_definer_tenant_scope.sql
+-- Inlined below
