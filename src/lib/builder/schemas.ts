@@ -13,6 +13,7 @@ type FieldType =
   | "select"
   | "color" // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
+  | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
   | "stringArray"; // textarea with one item per line
 
 export interface SchemaField {
@@ -476,10 +477,10 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "description", type: "i18nText", label: "Opis (podtytuł)" },
     {
       key: "data",
-      type: "textarea",
+      type: "chartData",
       label: "Dane",
       rows: 6,
-      hint: 'Pierwszy wiersz: "; Nazwa serii; Nazwa serii". Kolejne: "Kategoria; wartość; wartość". Separator ";", przecinek dziesiętny dozwolony.',
+      hint: 'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony).',
     },
     { key: "unit", type: "text", label: "Jednostka (np. %, mld EUR)" },
     {

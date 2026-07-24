@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
+import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { Image as ImageIcon } from "lucide-react";
 
 interface Props {
@@ -93,6 +94,29 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
             onChange={(e) => setContent(field.key, e.target.value)}
             className="text-xs"
           />
+        </PropField>
+      );
+
+    case "chartData":
+      return (
+        <PropField label={field.label} hint={field.hint}>
+          <div className="space-y-2">
+            <Textarea
+              rows={field.rows ?? 6}
+              value={asString(content[field.key])}
+              onChange={(e) => setContent(field.key, e.target.value)}
+              className="text-xs font-mono"
+              placeholder="; Seria A; Seria B&#10;2024; 12; 8"
+            />
+            <ChartDataSpreadsheetDialog
+              value={asString(content[field.key])}
+              onChange={(v) => setContent(field.key, v)}
+              kind={asString(content["kind"])}
+              unit={asString(content["unit"])}
+              title={asString(content[`title_${lang}`]) || asString(content["title_pl"])}
+              lang={lang}
+            />
+          </div>
         </PropField>
       );
 
