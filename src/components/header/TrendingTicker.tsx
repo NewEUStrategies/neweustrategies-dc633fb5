@@ -299,22 +299,30 @@ function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
 
 function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColorScheme }) {
   const sel = `[data-tt-vid="${vid}"]`;
+  const L = palette.light;
+  const D = palette.dark;
   const css = `
     ${sel} {
-      --tt-bg: ${palette.light.bg};
-      --tt-border: ${palette.light.border};
-      --tt-label: ${palette.light.label};
-      --tt-item: ${palette.light.item};
-      --tt-item-hover: ${palette.light.itemHover};
-      --tt-counter: ${palette.light.counter};
+      --tt-bg: ${L.bg};
+      --tt-border: ${L.border};
+      --tt-label: ${L.label};
+      --tt-item: ${L.item};
+      --tt-item-hover: ${L.itemHover};
+      --tt-counter: ${L.counter};
+      --tt-label-bg: ${L.labelBg || L.label};
+      --tt-label-fg: ${L.labelFg || "#ffffff"};
+      --tt-dot: ${L.dot || L.label};
     }
     :root.dark ${sel}, .dark ${sel} {
-      --tt-bg: ${palette.dark.bg};
-      --tt-border: ${palette.dark.border};
-      --tt-label: ${palette.dark.label};
-      --tt-item: ${palette.dark.item};
-      --tt-item-hover: ${palette.dark.itemHover};
-      --tt-counter: ${palette.dark.counter};
+      --tt-bg: ${D.bg};
+      --tt-border: ${D.border};
+      --tt-label: ${D.label};
+      --tt-item: ${D.item};
+      --tt-item-hover: ${D.itemHover};
+      --tt-counter: ${D.counter};
+      --tt-label-bg: ${D.labelBg || D.label};
+      --tt-label-fg: ${D.labelFg || "#ffffff"};
+      --tt-dot: ${D.dot || D.label};
     }
     ${sel} .tt-item:hover { color: var(--tt-item-hover) !important; }
   `;
