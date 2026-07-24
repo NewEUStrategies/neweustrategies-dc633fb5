@@ -480,15 +480,18 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         },
       ];
 
+  // Spójne odstępy dla rzędu ikon konta (mobile-first, unifikacja z headerem).
+  // gap-x-2 na <480 px, gap-x-3 od sm; pr-1.5 rezerwuje miejsce na overflow badge
+  // powiadomień (badge = -right-2.5), żeby nie nachodził na powitanie/avatar.
   return (
-    <div className="inline-flex items-center gap-3">
+    <div className="inline-flex items-center gap-x-2 sm:gap-x-3">
       {session ? (
         <Suspense fallback={null}>
           <ChatBell />
         </Suspense>
       ) : null}
       {session ? (
-        <span className="inline-flex pr-2">
+        <span className="inline-flex pr-1.5 sm:pr-2">
           <NotificationsBell />
         </span>
       ) : null}
