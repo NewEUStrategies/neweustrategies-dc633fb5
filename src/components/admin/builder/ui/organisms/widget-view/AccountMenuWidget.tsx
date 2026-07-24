@@ -481,13 +481,17 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       ];
 
   return (
-    <div className="inline-flex items-center gap-1">
+    <div className="inline-flex items-center gap-3">
       {session ? (
         <Suspense fallback={null}>
           <ChatBell />
         </Suspense>
       ) : null}
-      {session ? <NotificationsBell /> : null}
+      {session ? (
+        <span className="inline-flex pr-2">
+          <NotificationsBell />
+        </span>
+      ) : null}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
