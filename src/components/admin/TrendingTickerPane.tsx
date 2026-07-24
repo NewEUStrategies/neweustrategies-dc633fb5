@@ -928,11 +928,13 @@ function ColorGroup({
   labels,
   values,
   onChange,
+  keys = COLOR_KEYS,
 }: {
   title: string;
   labels: Record<string, string>;
   values: TickerColors;
   onChange: (k: keyof TickerColors, v: string) => void;
+  keys?: readonly (keyof TickerColors)[];
 }) {
   const labelMap: Partial<Record<keyof TickerColors, string>> = {
     bg: labels.color_bg,
