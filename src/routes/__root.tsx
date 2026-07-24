@@ -365,11 +365,21 @@ function RootComponent() {
       void import("../lib/analytics/track").then((m) => m.trackPageView());
     });
 
+    // Cache-busting: chunk-load errors -> jednorazowy hard reload; polling
+    // /api/public/version -> reload przy najbliższej nawigacji, gdy pojawi
+    // się nowy deploy. Ładowane leniwie po hydratacji.
+    let stopCacheBusting: (() => void) | undefined;
+    void import("../lib/cacheBusting").then((m) => {
+      stopCacheBusting = m.startCacheBusting(router);
+    });
+
     return () => {
       unsub();
       stopWatchdog?.();
+      stopCacheBusting?.();
     };
   }, [router]);
+
 
   // Per-request i18next instance on the server (isolates the render language
   // from concurrent requests); the shared singleton on the client. Rendered

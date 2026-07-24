@@ -166,6 +166,7 @@ import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$sh
 import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
+import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
 import { Route as ApiPublicTrackRouteImport } from './routes/api/public/track'
 import { Route as ApiPublicRelatedClickRouteImport } from './routes/api/public/related-click'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
@@ -1018,6 +1019,11 @@ const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   path: '/api/public/vitals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
+  id: '/api/public/version',
+  path: '/api/public/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTrackRoute = ApiPublicTrackRouteImport.update({
   id: '/api/public/track',
   path: '/api/public/track',
@@ -1556,6 +1562,7 @@ export interface FileRoutesByFullPath {
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
   '/api/public/track': typeof ApiPublicTrackRoute
+  '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
@@ -1769,6 +1776,7 @@ export interface FileRoutesByTo {
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
   '/api/public/track': typeof ApiPublicTrackRoute
+  '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
@@ -1993,6 +2001,7 @@ export interface FileRoutesById {
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
   '/api/public/track': typeof ApiPublicTrackRoute
+  '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
@@ -2218,6 +2227,7 @@ export interface FileRouteTypes {
     | '/api/public/post-tts'
     | '/api/public/related-click'
     | '/api/public/track'
+    | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/network/mutual/$userId'
@@ -2431,6 +2441,7 @@ export interface FileRouteTypes {
     | '/api/public/post-tts'
     | '/api/public/related-click'
     | '/api/public/track'
+    | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/network/mutual/$userId'
@@ -2654,6 +2665,7 @@ export interface FileRouteTypes {
     | '/api/public/post-tts'
     | '/api/public/related-click'
     | '/api/public/track'
+    | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/network/mutual/$userId'
@@ -2749,6 +2761,7 @@ export interface RootRouteChildren {
   ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
   ApiPublicRelatedClickRoute: typeof ApiPublicRelatedClickRoute
   ApiPublicTrackRoute: typeof ApiPublicTrackRoute
+  ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
   ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
@@ -3857,6 +3870,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVitalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/version': {
+      id: '/api/public/version'
+      path: '/api/public/version'
+      fullPath: '/api/public/version'
+      preLoaderRoute: typeof ApiPublicVersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/track': {
       id: '/api/public/track'
       path: '/api/public/track'
@@ -4904,6 +4924,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
   ApiPublicRelatedClickRoute: ApiPublicRelatedClickRoute,
   ApiPublicTrackRoute: ApiPublicTrackRoute,
+  ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
   ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
