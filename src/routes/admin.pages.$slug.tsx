@@ -591,15 +591,31 @@ function EditPage() {
               {t("admin.pages.step.content", { defaultValue: "Treść" })}
             </button>
           </div>
-          <AutosaveBar
-            status={autosave.status}
-            error={autosave.error}
-            canUndo={history.canUndo}
-            canRedo={history.canRedo}
-            onUndo={history.undo}
-            onRedo={history.redo}
-            onDiscard={discardToSaved}
-          />
+          <div className="flex items-center gap-1 text-xs">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={history.undo}
+              disabled={!history.canUndo}
+              title="Cofnij (Ctrl+Z)"
+            >
+              ↶
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={history.redo}
+              disabled={!history.canRedo}
+              title="Ponów (Ctrl+Shift+Z)"
+            >
+              ↷
+            </Button>
+            {isDirty && (
+              <span className="text-[11px] text-amber-600 dark:text-amber-400 ml-1">
+                {t("admin.unsavedChanges", { defaultValue: "niezapisane zmiany" })}
+              </span>
+            )}
+          </div>
 
           <Button
             asChild
