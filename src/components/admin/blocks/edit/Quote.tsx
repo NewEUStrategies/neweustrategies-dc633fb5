@@ -41,7 +41,7 @@ export function QuoteBlock({ block, onChange }: Props) {
   const accent = PALETTE_VAR[palette] ?? PALETTE_VAR.neutral;
   const tint = `color-mix(in oklab, ${accent} 8%, transparent)`;
 
-  const set = (patch: Record<string, unknown>) =>
+  const set = (patch: Record<string, string>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
 
   const wrapperStyle: React.CSSProperties =
