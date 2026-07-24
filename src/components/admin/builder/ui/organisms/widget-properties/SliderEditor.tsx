@@ -466,7 +466,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
+        </div>
       </div>
+
 
       {/* Nav buttons styling */}
       <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
