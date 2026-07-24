@@ -22,16 +22,24 @@ interface Rect {
 const MIN_H = 40;
 const MAX_H = 4000;
 
+type HandleKind = "top" | "bottom";
+
 /**
  * Elementor-style resize handles rendered as an absolutely-positioned overlay
  * on top of the currently selected widget in the builder canvas. Drag = live
- * height preview via inline style, drop = commit to the widget document.
+ * height preview via inline style, drop = commit to the widget document. Both
+ * the top and bottom edges are draggable; the badge in the corner shows the
+ * current height and updates live while dragging.
  */
 export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }: Props) {
   const [rect, setRect] = useState<Rect | null>(null);
   const targetRef = useRef<HTMLElement | null>(null);
-  const draggingRef = useRef<{ startY: number; startH: number } | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const draggingRef = useRef<{
+    kind: HandleKind;
+    startY: number;
+    startH: number;
+  } | null>(null);
+  const [liveH, setLiveH] = useState<number | null>(null);
 
   // Locate the selected widget element + track its box.
   useEffect(() => {
@@ -70,24 +78,33 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
     };
   }, [containerRef, widgetId, device]);
 
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const beginDrag = (kind: HandleKind) => (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const el = targetRef.current;
     if (!el) return;
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-    draggingRef.current = { startY: e.clientY, startH: el.getBoundingClientRect().height };
-    setDragging(true);
+    draggingRef.current = {
+      kind,
+      startY: e.clientY,
+      startH: el.getBoundingClientRect().height,
+    };
+    setLiveH(Math.round(el.getBoundingClientRect().height));
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const state = draggingRef.current;
     const el = targetRef.current;
     if (!state || !el) return;
-    const next = Math.max(MIN_H, Math.min(MAX_H, Math.round(state.startH + (e.clientY - state.startY))));
+    const delta = e.clientY - state.startY;
+    // Top handle shrinks/grows in the opposite direction so dragging up
+    // grows the widget upward.
+    const raw = state.kind === "top" ? state.startH - delta : state.startH + delta;
+    const next = Math.max(MIN_H, Math.min(MAX_H, Math.round(raw)));
     // Live preview: paint directly on the DOM so drag is smooth without
     // waiting for a React round-trip through document state.
     el.style.setProperty("height", `${next}px`, "important");
+    setLiveH(next);
     const container = containerRef.current;
     if (container) {
       const parent = container.getBoundingClientRect();
@@ -105,8 +122,10 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
     const state = draggingRef.current;
     const el = targetRef.current;
     draggingRef.current = null;
-    setDragging(false);
-    if (!state || !el || !widgetId) return;
+    if (!state || !el || !widgetId) {
+      setLiveH(null);
+      return;
+    }
     try {
       (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
     } catch {
@@ -116,13 +135,16 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
     // Clear inline preview - the committed document + frame style repaint it.
     el.style.removeProperty("height");
     onResize(widgetId, next, device);
+    setLiveH(null);
   };
 
   if (!rect || !widgetId) return null;
 
+  const dragging = liveH !== null;
+  const displayH = liveH ?? Math.round(rect.height);
   const handleBase =
     "absolute z-[70] bg-[color:var(--brand,#ff6a00)] text-white shadow-md rounded-[3px] " +
-    "flex items-center justify-center select-none";
+    "flex items-center justify-center select-none pointer-events-auto";
 
   return (
     <div
@@ -133,36 +155,80 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
     >
       {/* Selection frame */}
       <div
-        className="absolute border border-[color:var(--brand,#ff6a00)]/70 rounded-[3px]"
-        style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+        className="absolute border-2 border-[color:var(--brand,#ff6a00)] rounded-[3px]"
+        style={{
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
+        }}
       />
+      {/* Height label chip — always visible, updates live */}
+      <div
+        className="absolute rounded bg-[color:var(--brand,#ff6a00)] text-white text-[10px] font-semibold px-1.5 py-0.5 shadow-md pointer-events-none"
+        style={{
+          left: Math.max(0, rect.left + rect.width - 62),
+          top: Math.max(0, rect.top - 20),
+          lineHeight: 1.2,
+          letterSpacing: "0.02em",
+        }}
+      >
+        H: {displayH}px
+      </div>
+      {/* Top (height) handle */}
+      <div
+        role="slider"
+        aria-orientation="vertical"
+        aria-label="Zmień wysokość widgetu (górna krawędź)"
+        aria-valuenow={displayH}
+        title={`Wysokość: ${displayH} px - przeciągnij, aby zmienić`}
+        onPointerDown={beginDrag("top")}
+        onPointerMove={onPointerMove}
+        onPointerUp={finish}
+        onPointerCancel={finish}
+        className={`${handleBase} cursor-ns-resize`}
+        style={{
+          left: rect.left + rect.width / 2 - 22,
+          top: rect.top - 6,
+          width: 44,
+          height: 12,
+        }}
+      >
+        <span className="text-[10px] leading-none font-bold">═</span>
+      </div>
       {/* Bottom (height) handle */}
       <div
         role="slider"
         aria-orientation="vertical"
-        aria-label="Zmień wysokość widgetu"
-        aria-valuenow={Math.round(rect.height)}
-        title={`Wysokość: ${Math.round(rect.height)} px (przeciągnij, aby zmienić)`}
-        onPointerDown={onPointerDown}
+        aria-label="Zmień wysokość widgetu (dolna krawędź)"
+        aria-valuenow={displayH}
+        title={`Wysokość: ${displayH} px - przeciągnij, aby zmienić`}
+        onPointerDown={beginDrag("bottom")}
         onPointerMove={onPointerMove}
         onPointerUp={finish}
         onPointerCancel={finish}
-        className={`${handleBase} pointer-events-auto cursor-ns-resize`}
+        className={`${handleBase} cursor-ns-resize`}
         style={{
-          left: rect.left + rect.width / 2 - 18,
+          left: rect.left + rect.width / 2 - 22,
           top: rect.top + rect.height - 6,
-          width: 36,
+          width: 44,
           height: 12,
         }}
       >
-        <span className="text-[10px] leading-none font-semibold tracking-wide">═</span>
+        <span className="text-[10px] leading-none font-bold">═</span>
       </div>
       {dragging && (
         <div
           className="absolute pointer-events-none rounded bg-[color:var(--brand,#ff6a00)] text-white text-[11px] font-semibold px-2 py-0.5 shadow-md"
-          style={{ left: rect.left + rect.width / 2 - 30, top: rect.top + rect.height + 10, width: 60, textAlign: "center" }}
+          style={{
+            left: rect.left + rect.width / 2 - 34,
+            top: rect.top + rect.height + 10,
+            width: 68,
+            textAlign: "center",
+          }}
         >
-          {Math.round(rect.height)} px
+          {displayH} px
         </div>
       )}
     </div>
