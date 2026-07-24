@@ -349,30 +349,14 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 placeholder="uuid1, uuid2"
               />
             </PropField>
-            <div className="grid grid-cols-2 gap-2">
-              <PropField label={t("builder.sliderEditor.showExcerpt")}>
-                <Select
-                  value={showExcerpt ? "on" : "off"}
-                  onValueChange={(v) => setContent("showExcerpt", v === "on")}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="on">{t("builder.sliderEditor.yes")}</SelectItem>
-                    <SelectItem value="off">{t("builder.sliderEditor.no")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </PropField>
-              <PropField label={t("builder.sliderEditor.ctaText", { lang: lang.toUpperCase() })}>
-                <Input
-                  value={ctaValue}
-                  onChange={(e) => setContent(ctaKey, e.target.value)}
-                  className="h-8 text-xs"
-                  placeholder={t("builder.sliderEditor.readMore")}
-                />
-              </PropField>
-            </div>
+            <PropField label={t("builder.sliderEditor.ctaText", { lang: lang.toUpperCase() })}>
+              <Input
+                value={ctaValue}
+                onChange={(e) => setContent(ctaKey, e.target.value)}
+                className="h-8 text-xs"
+                placeholder={t("builder.sliderEditor.readMore")}
+              />
+            </PropField>
           </>
         )}
       </div>
