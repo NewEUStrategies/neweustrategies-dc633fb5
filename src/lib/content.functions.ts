@@ -496,8 +496,17 @@ export const updatePost = createServerFn({ method: "POST" })
       // klient go załadował. `existing` czytane przez service_role tuż przed
       // UPDATE (poniżej dokładamy atomowy guard .eq("updated_at") na wypadek
       // wyścigu). updated_at bumpuje trigger posts_set_updated na każdym UPDATE.
-      if (data.baseUpdatedAt && existing.updated_at && existing.updated_at !== data.baseUpdatedAt) {
-        throw editConflictError("post");
+      if (data.baseUpdatedAt && existing.updated_at) {
+        // Postgres may serialize the same timestamptz differently depending on
+        // the read path (RPC vs PostgREST). Compare instants, not raw strings;
+        // the UPDATE below remains the authoritative atomic lock.
+        const existingTime = Date.parse(existing.updated_at);
+        const baseTime = Date.parse(data.baseUpdatedAt);
+        const timestampsDiffer =
+          Number.isNaN(existingTime) || Number.isNaN(baseTime)
+            ? existing.updated_at !== data.baseUpdatedAt
+            : existingTime !== baseTime;
+        if (timestampsDiffer) throw editConflictError("post");
       }
       let savedUpdatedAt: string | null = existing.updated_at ?? null;
 
@@ -1042,8 +1051,17 @@ export const updatePage = createServerFn({ method: "POST" })
 
       // Optimistic-lock (jak w updatePost): odrzuć zapis, jeśli strona zmieniła
       // się od czasu załadowania. updated_at bumpuje trigger pages_set_updated_at.
-      if (data.baseUpdatedAt && existing.updated_at && existing.updated_at !== data.baseUpdatedAt) {
-        throw editConflictError("page");
+      if (data.baseUpdatedAt && existing.updated_at) {
+        // `get_page_for_edit` and PostgREST can return equivalent timestamptz
+        // values in different textual forms. A raw string comparison produced
+        // false EDIT_CONFLICT errors before the atomic UPDATE was attempted.
+        const existingTime = Date.parse(existing.updated_at);
+        const baseTime = Date.parse(data.baseUpdatedAt);
+        const timestampsDiffer =
+          Number.isNaN(existingTime) || Number.isNaN(baseTime)
+            ? existing.updated_at !== data.baseUpdatedAt
+            : existingTime !== baseTime;
+        if (timestampsDiffer) throw editConflictError("page");
       }
       let savedUpdatedAt: string | null = existing.updated_at ?? null;
 

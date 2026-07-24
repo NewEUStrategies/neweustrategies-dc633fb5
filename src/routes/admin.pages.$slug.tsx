@@ -241,10 +241,23 @@ function EditPage() {
       });
       // Przesuń bazę optimistic-locka na updated_at faktycznie zapisany.
       baseUpdatedAtRef.current = result?.updatedAt ?? baseUpdatedAtRef.current;
+      // Autosave is a real successful save: advance the clean snapshot and the
+      // query cache as one operation. Without the server `updated_at` in cache,
+      // leaving and reopening this route reused the stale optimistic-lock base
+      // and the very next edit failed with a false EDIT_CONFLICT.
+      const persistedSnapshot: PageForm = {
+        ...snapshot,
+        updated_at: result?.updatedAt ?? snapshot.updated_at,
+      };
+      savedFormRef.current = snapshot;
       // The server returns the canonical slug (uniqueSlug may have suffixed it
       // on collision). Navigate only to the persisted slug so the address bar
       // and the loaded record always match what is really in the database.
       const canonical = result?.slug ?? snapshot.slug;
+      qc.setQueryData<PageForm>(["page-by-slug", tenantId, routeSlug], {
+        ...persistedSnapshot,
+        slug: canonical,
+      });
       // WAŻNE: autosave NIE może przebudowywać całego świata przy każdym
       // debounced zapisie. Wcześniej `qc.invalidateQueries(["page-by-slug",...])`
       // powodowało refetch strony, `history.reset(page)` wpisywał nowy obiekt
@@ -270,7 +283,10 @@ function EditPage() {
         setForm((f) => (f && f.slug === snapshot.slug ? { ...f, slug: canonical } : f));
       }
       if (canonical !== routeSlug) {
-        qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
+        qc.setQueryData<PageForm>(["page-by-slug", tenantId, canonical], {
+          ...persistedSnapshot,
+          slug: canonical,
+        });
         navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
       }
     },
