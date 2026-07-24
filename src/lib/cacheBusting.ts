@@ -1,4 +1,5 @@
 // Cache-busting + bezpieczne odświeżanie zasobów po deployu.
+
 //
 // Problem: po aktualizacji preview/published przeglądarka trzyma poprzednie
 // index.html/chunk-e w pamięci. Dynamiczne `import()` do usuniętego pliku
