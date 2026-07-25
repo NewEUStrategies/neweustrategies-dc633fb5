@@ -448,7 +448,10 @@ export function TierCard({
             </p>
             <ul className="space-y-1">
               {highlights.map((benefit, i) => (
-                <li key={i} className="flex items-start gap-2 text-[13px] font-medium text-foreground">
+                <li
+                  key={i}
+                  className="flex items-start gap-2 text-[13px] font-medium text-foreground"
+                >
                   <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
                   <span>{benefitText(benefit, lang)}</span>
                 </li>

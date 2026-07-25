@@ -2165,16 +2165,11 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     min-height: 0 !important;
   }
   /* Explicit desktop-led height also applies in responsive previews. */
-  [data-builder-renderer]
-    [data-col-id]
-    > [data-widget-id][data-widget-explicit-height="true"] {
+  [data-builder-renderer] [data-col-id] > [data-widget-id][data-widget-explicit-height="true"] {
     flex-grow: 0 !important;
     flex-shrink: 0 !important;
   }
-  [data-builder-renderer]
-    [data-col-id]
-    > [data-widget-id][data-widget-explicit-height="true"]
-    > * {
+  [data-builder-renderer] [data-col-id] > [data-widget-id][data-widget-explicit-height="true"] > * {
     height: 100% !important;
     min-height: 0 !important;
   }
@@ -2183,16 +2178,11 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 /* Global rule: gdy widget ma jawnie ustawioną wysokość, jego bezpośrednie
    dzieci wypełniają cały slot niezależnie od breakpointa, żeby zmiana
    „Ustalona (px)" była widoczna również na desktopie. */
-[data-builder-renderer]
-  [data-col-id]
-  > [data-widget-id][data-widget-explicit-height="true"] {
+[data-builder-renderer] [data-col-id] > [data-widget-id][data-widget-explicit-height="true"] {
   flex-grow: 0;
   flex-shrink: 0;
 }
-[data-builder-renderer]
-  [data-col-id]
-  > [data-widget-id][data-widget-explicit-height="true"]
-  > * {
+[data-builder-renderer] [data-col-id] > [data-widget-id][data-widget-explicit-height="true"] > * {
   height: 100%;
   min-height: 0;
 }
@@ -5689,8 +5679,12 @@ textarea.input {
    więc pętla jest bezszwowa niezależnie od liczby elementów. Prędkość
    sterowana zmienną --marquee-duration; pauza na hover przez klasę. */
 @keyframes lc-marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }
 @utility lc-track {
   display: flex;
@@ -5699,10 +5693,15 @@ textarea.input {
   will-change: transform;
 }
 @utility lc-pause-hover {
-  &:hover .lc-track { animation-play-state: paused; }
+  &:hover .lc-track {
+    animation-play-state: paused;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-    .lc-track { animation: none; transform: none; }
+  .lc-track {
+    animation: none;
+    transform: none;
+  }
 }
 
 /* iOS Safari auto-zoomuje na focus w input/select/textarea, jeśli
@@ -5718,4 +5717,3 @@ textarea.input {
     font-size: 16px !important;
   }
 }
-

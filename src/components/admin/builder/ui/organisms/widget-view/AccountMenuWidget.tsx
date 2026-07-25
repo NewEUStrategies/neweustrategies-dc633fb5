@@ -288,7 +288,6 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   // Trigger - greeting based on time of day + gender + vocative (PL).
   const greeting = useGreeting();
 
-
   const sectionItems = (sec: AccountMenuSection) =>
     items.filter((i) => i.section === sec).map((i) => ({ raw: i, ...resolveItem(i, pages, lang) }));
 

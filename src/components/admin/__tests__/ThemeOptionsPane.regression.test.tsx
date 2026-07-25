@@ -16,7 +16,6 @@ import { Component, type ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-
 // ---- supabase client mock -----------------------------------------------
 // vi.mock is hoisted, so the factory cannot close over module-scope values.
 vi.mock("@/integrations/supabase/client", () => {
@@ -77,7 +76,6 @@ vi.mock("@/lib/ssrCache", () => ({
   edgeTtlCache: async <T,>(_key: string, _ttl: number, fn: () => Promise<T>) => fn(),
 }));
 
-
 class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) {
@@ -104,7 +102,6 @@ function renderPane() {
   );
 }
 
-
 describe("/admin/theme-options regression", () => {
   beforeEach(() => {
     // Fresh hash each test - the pane seeds `active` from window.location.hash.
@@ -117,9 +114,7 @@ describe("/admin/theme-options regression", () => {
     // Wait for the pane to hydrate from the mocked settings row and mount
     // the sidebar with its section buttons.
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-sidebar="menu-button"]').length).toBeGreaterThan(
-        0,
-      );
+      expect(container.querySelectorAll('[data-sidebar="menu-button"]').length).toBeGreaterThan(0);
     });
 
     // 17 sections defined in ThemeOptionsPane.SECTIONS - all must render,
@@ -136,11 +131,8 @@ describe("/admin/theme-options regression", () => {
   it("does not throw into the error boundary when no AuthProvider is mounted", async () => {
     const { container } = renderPane();
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-sidebar="menu-button"]').length).toBeGreaterThan(
-        0,
-      );
+      expect(container.querySelectorAll('[data-sidebar="menu-button"]').length).toBeGreaterThan(0);
     });
     expect(screen.queryByTestId("boundary")).toBeNull();
   });
 });
-

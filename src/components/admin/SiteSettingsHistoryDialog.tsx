@@ -172,10 +172,7 @@ export function SiteSettingsHistoryDialog({
                 <Textarea
                   readOnly
                   value={previewText}
-                  placeholder={t(
-                    "themeOptions.history.selectRevision",
-                    "Wybierz wersję z listy",
-                  )}
+                  placeholder={t("themeOptions.history.selectRevision", "Wybierz wersję z listy")}
                   className="flex-1 font-mono text-[11px] resize-none"
                 />
               </div>

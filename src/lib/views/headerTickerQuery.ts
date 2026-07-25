@@ -10,7 +10,12 @@ import {
   getTickerPosts,
   type TrendingPost,
 } from "@/lib/views/postViews.functions";
-import type { IconAnimation, LayoutStyle, MixedFill, TickerColorScheme } from "@/lib/views/tickerVariants";
+import type {
+  IconAnimation,
+  LayoutStyle,
+  MixedFill,
+  TickerColorScheme,
+} from "@/lib/views/tickerVariants";
 
 export type TickerSource = "trending" | "latest" | "pinned" | "selected" | "mixed";
 // `rotate` retained as legacy alias for `slide` (single, slides up).

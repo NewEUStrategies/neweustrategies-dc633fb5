@@ -107,7 +107,9 @@ export function SuggestRow({
       ) : Icon ? (
         <span
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-all ${
-            active ? "border-transparent" : "border-border/60 bg-background/60 group-hover:border-border"
+            active
+              ? "border-transparent"
+              : "border-border/60 bg-background/60 group-hover:border-border"
           }`}
           style={
             active
@@ -115,10 +117,7 @@ export function SuggestRow({
               : undefined
           }
         >
-          <Icon
-            className="h-3.5 w-3.5"
-            aria-hidden
-          />
+          <Icon className="h-3.5 w-3.5" aria-hidden />
         </span>
       ) : null}
       <span className="min-w-0 flex-1 truncate">{label}</span>

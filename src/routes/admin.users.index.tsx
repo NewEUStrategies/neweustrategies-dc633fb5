@@ -809,7 +809,6 @@ function Users() {
                           >
                             <Checkbox
                               checked={selected.has(u.id)}
-                              // eslint-disable-next-line @typescript-eslint/no-empty-function
                               onCheckedChange={() => {}}
                               tabIndex={-1}
                               aria-label={u.display_name ?? u.email ?? u.id}

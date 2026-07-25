@@ -51,8 +51,7 @@ function ProfileEditPage() {
   // zaproszenia mailowego/linkiem. Jeśli ktoś wymusi ?tab=expert bez roli -
   // przenosimy na "basic", żeby nie serwować pustego, zablokowanego panelu.
   const requestedExpert = tab === "expert";
-  const activeTab: IdentityTab =
-    requestedExpert && !showExpert ? "basic" : (tab ?? "basic");
+  const activeTab: IdentityTab = requestedExpert && !showExpert ? "basic" : (tab ?? "basic");
 
   if (loading || !user) return null;
 
@@ -119,4 +118,3 @@ function ProfileEditPage() {
     </div>
   );
 }
-

@@ -191,7 +191,9 @@ export function SearchAutosuggest({
                           label={label(it)}
                           meta={kindLabel(it.kind)}
                           icon={Icon}
-                          avatarUrl={it.kind === "author" && it.id ? authorAvatars[it.id] ?? null : null}
+                          avatarUrl={
+                            it.kind === "author" && it.id ? (authorAvatars[it.id] ?? null) : null
+                          }
                           active={i === activeIndex}
                           onMouseDown={(e) => {
                             e.preventDefault();
@@ -271,16 +273,24 @@ export function SearchAutosuggest({
           </div>
           <div className="hidden items-center gap-2 text-[8px] text-muted-foreground md:flex">
             <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↑</kbd>
-              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↓</kbd>
+              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
+                ↑
+              </kbd>
+              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
+                ↓
+              </kbd>
               {t("kbd_navigate", "nawiguj")}
             </span>
             <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↵</kbd>
+              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
+                ↵
+              </kbd>
               {t("kbd_select", "wybierz")}
             </span>
             <span className="inline-flex items-center gap-1">
-              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">esc</kbd>
+              <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
+                esc
+              </kbd>
               {t("kbd_close", "zamknij")}
             </span>
           </div>

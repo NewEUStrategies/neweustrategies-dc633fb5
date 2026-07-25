@@ -5,11 +5,23 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Clock, FileText, Loader2, Search, SlidersHorizontal, X } from "@/lib/lucide-shim";
+import {
+  ArrowRight,
+  Clock,
+  FileText,
+  Loader2,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "@/lib/lucide-shim";
 import "@/lib/i18n-public";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
-import { addRecentSearch, clearRecentSearches, getRecentSearches } from "@/lib/search/recentSearches";
+import {
+  addRecentSearch,
+  clearRecentSearches,
+  getRecentSearches,
+} from "@/lib/search/recentSearches";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { trackSearch } from "@/lib/analytics/track";
 import {
@@ -299,16 +311,24 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       </div>
       <div className="hidden items-center gap-2 text-[8px] text-muted-foreground md:flex">
         <span className="inline-flex items-center gap-1">
-          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↑</kbd>
-          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↓</kbd>
+          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
+            ↑
+          </kbd>
+          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
+            ↓
+          </kbd>
           {t("search.widget.kbd_navigate", { defaultValue: "nawiguj" }) as string}
         </span>
         <span className="inline-flex items-center gap-1">
-          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">↵</kbd>
+          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
+            ↵
+          </kbd>
           {t("search.widget.kbd_select", { defaultValue: "wybierz" }) as string}
         </span>
         <span className="inline-flex items-center gap-1">
-          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">esc</kbd>
+          <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
+            esc
+          </kbd>
           {t("search.widget.kbd_close", { defaultValue: "zamknij" }) as string}
         </span>
       </div>
@@ -326,9 +346,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 
   if (mode === "dropdown") {
     return (
-      <SuggestListShell
-        className="absolute right-4 top-14 z-50 w-[min(92vw,440px)] animate-in fade-in slide-in-from-top-2 duration-200"
-      >
+      <SuggestListShell className="absolute right-4 top-14 z-50 w-[min(92vw,440px)] animate-in fade-in slide-in-from-top-2 duration-200">
         {bar}
         {body}
         {footer}

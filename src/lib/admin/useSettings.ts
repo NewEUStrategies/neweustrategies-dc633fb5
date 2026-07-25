@@ -69,7 +69,6 @@ export function useSettings<T extends SettingsRecord>(key: string, defaults: T) 
     onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
   });
 
-
   return { query, save };
 }
 

@@ -568,9 +568,15 @@ export function FloatingShareBar({
               ].join(" ")}
             >
               {isSaved ? (
-                <BookmarkCheck className="w-[14px] h-[14px] [&_*]:stroke-current" style={{ color: "currentColor" }} />
+                <BookmarkCheck
+                  className="w-[14px] h-[14px] [&_*]:stroke-current"
+                  style={{ color: "currentColor" }}
+                />
               ) : (
-                <Bookmark className="w-[14px] h-[14px] [&_*]:stroke-current" style={{ color: "currentColor" }} />
+                <Bookmark
+                  className="w-[14px] h-[14px] [&_*]:stroke-current"
+                  style={{ color: "currentColor" }}
+                />
               )}
               {isSaved ? t.saved : t.saveLater}
             </button>
@@ -584,7 +590,10 @@ export function FloatingShareBar({
                 title={t.printPdf}
                 className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
               >
-                <Printer className="w-[14px] h-[14px] [&_*]:stroke-current" style={{ color: "currentColor" }} />
+                <Printer
+                  className="w-[14px] h-[14px] [&_*]:stroke-current"
+                  style={{ color: "currentColor" }}
+                />
                 {t.printPdf}
               </button>
             </div>

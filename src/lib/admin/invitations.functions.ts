@@ -206,9 +206,7 @@ const InviteItemSchema = z.object({
 
 export const createInvitations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input) =>
-    z.object({ items: z.array(InviteItemSchema).min(1).max(200) }).parse(input),
-  )
+  .validator((input) => z.object({ items: z.array(InviteItemSchema).min(1).max(200) }).parse(input))
   .handler(
     async ({ data, context }): Promise<{ created: number; skipped: number; ids: string[] }> => {
       const { tenantId } = await assertAdmin(context.supabase, context.userId);
@@ -416,9 +414,7 @@ export const sendInvitation = createServerFn({ method: "POST" })
 
 export const sendInvitationsBulk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input) =>
-    z.object({ ids: z.array(z.string().uuid()).min(1).max(100) }).parse(input),
-  )
+  .validator((input) => z.object({ ids: z.array(z.string().uuid()).min(1).max(100) }).parse(input))
   .handler(async ({ data, context }): Promise<{ results: SendResult[] }> => {
     await assertAdmin(context.supabase, context.userId);
     const results: SendResult[] = [];

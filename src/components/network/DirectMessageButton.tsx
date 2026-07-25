@@ -23,12 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentTier, tierHasFeature } from "@/lib/billing/tiers";
 import { useStartConversation } from "@/lib/chat/useConversations";
@@ -36,7 +31,6 @@ import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-direct-message";
-
 
 export interface DirectMessageButtonProps {
   userId: string;
@@ -68,9 +62,7 @@ export function DirectMessageButton({
   if (!user || user.id === userId) return null;
 
   const canDm =
-    tierQ.data && tierQ.data.features
-      ? tierHasFeature(tierQ.data.features, "chat_enabled")
-      : false;
+    tierQ.data && tierQ.data.features ? tierHasFeature(tierQ.data.features, "chat_enabled") : false;
   // Dopóki nie znamy warstwy, nie decydujemy - domyślnie zablokowane, żeby nie
   // migać "aktywne -> zablokowane" po rozstrzygnięciu warstwy.
   const locked = !canDm;
@@ -139,17 +131,13 @@ export function DirectMessageButton({
               className={cn(
                 "rounded-[6px] shrink-0 transition-colors",
                 compact ? "h-8 w-8" : "h-9 w-9",
-                !locked && !isBusy &&
-                  "hover:bg-brand/10 hover:text-brand hover:border-brand/40",
+                !locked && !isBusy && "hover:bg-brand/10 hover:text-brand hover:border-brand/40",
                 locked && !isBusy && "text-muted-foreground hover:bg-muted/60",
                 isBusy && "cursor-wait opacity-80",
                 className,
               )}
             >
-              <Icon
-                className={cn("h-4 w-4", isBusy && "animate-spin")}
-                aria-hidden
-              />
+              <Icon className={cn("h-4 w-4", isBusy && "animate-spin")} aria-hidden />
               <span className="sr-only">{label}</span>
             </Button>
           </TooltipTrigger>
@@ -161,7 +149,6 @@ export function DirectMessageButton({
 
       <Dialog open={upgradeOpen} onOpenChange={setUpgradeOpen}>
         <DialogContent className="sm:max-w-md">
-
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageCircleMore
@@ -197,11 +184,7 @@ export function DirectMessageButton({
             </ul>
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setUpgradeOpen(false)}
-            >
+            <Button type="button" variant="ghost" onClick={() => setUpgradeOpen(false)}>
               {t("directMessage.upgrade.cancel")}
             </Button>
             <Button asChild>

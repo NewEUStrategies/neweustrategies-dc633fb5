@@ -31,7 +31,7 @@ export function useSiteSettingsRevisions(key: string, limit = 50) {
       const authorIds = Array.from(
         new Set(rows.map((r) => r.changed_by).filter((v): v is string => Boolean(v))),
       );
-      let authors: Record<string, ProfileRow> = {};
+      const authors: Record<string, ProfileRow> = {};
       if (authorIds.length > 0) {
         const { data: profs } = await supabase
           .from("profiles")
@@ -47,8 +47,8 @@ export function useSiteSettingsRevisions(key: string, limit = 50) {
         changed_at: r.changed_at,
         operation: r.operation,
         note: r.note,
-        author_name: r.changed_by ? authors[r.changed_by]?.display_name ?? null : null,
-        author_avatar: r.changed_by ? authors[r.changed_by]?.avatar_url ?? null : null,
+        author_name: r.changed_by ? (authors[r.changed_by]?.display_name ?? null) : null,
+        author_avatar: r.changed_by ? (authors[r.changed_by]?.avatar_url ?? null) : null,
       }));
     },
   });

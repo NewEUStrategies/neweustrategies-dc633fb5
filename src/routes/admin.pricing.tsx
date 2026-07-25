@@ -717,7 +717,9 @@ function TiersTab({
                 <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                   <span className="font-mono">{tier.key}</span>
                   <span aria-hidden="true">·</span>
-                  <span className={`inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 font-medium ${rankTone.pill}`}>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 font-medium ${rankTone.pill}`}
+                  >
                     <Award className="h-3 w-3" aria-hidden="true" />
                     {ta("tiers.rankBadge")} {tier.rank}
                   </span>
@@ -771,7 +773,9 @@ function TiersTab({
               <Switch checked={draft.highlight} onCheckedChange={(v) => set({ highlight: v })} />
               <span className="flex flex-col">
                 <span className="text-xs font-medium">{ta("tiers.highlight")}</span>
-                <span className="text-[11px] text-muted-foreground">{ta("tiers.highlightHint")}</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {ta("tiers.highlightHint")}
+                </span>
               </span>
             </label>
           </FieldGroup>
@@ -804,7 +808,9 @@ function TiersTab({
                   onChange={(e) => set({ contact_url: e.target.value })}
                   placeholder="/kontakt lub mailto:..."
                 />
-                <p className="mt-1 text-[11px] text-muted-foreground">{ta("tiers.contactUrlHint")}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {ta("tiers.contactUrlHint")}
+                </p>
               </div>
             </div>
           </FieldGroup>
@@ -907,7 +913,9 @@ function TiersTab({
                 <h2 className="truncate text-sm font-semibold text-foreground">
                   {lang === "en" ? audience.name_en : audience.name_pl}
                 </h2>
-                <p className="truncate font-mono text-[11px] text-muted-foreground">{audience.key}</p>
+                <p className="truncate font-mono text-[11px] text-muted-foreground">
+                  {audience.key}
+                </p>
               </div>
               <span className="inline-flex items-center gap-1 rounded-[6px] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                 <Layers className="h-3 w-3" aria-hidden="true" />
@@ -972,12 +980,19 @@ function PricingKpi({
 }) {
   const t = KPI_TONES[tone];
   return (
-    <div className={`flex items-center gap-3 rounded-md border border-border/60 bg-card px-3 py-2.5 ring-1 ${t.ring}`}>
-      <span className={`flex h-9 w-9 items-center justify-center rounded-md ${t.icon}`} aria-hidden="true">
+    <div
+      className={`flex items-center gap-3 rounded-md border border-border/60 bg-card px-3 py-2.5 ring-1 ${t.ring}`}
+    >
+      <span
+        className={`flex h-9 w-9 items-center justify-center rounded-md ${t.icon}`}
+        aria-hidden="true"
+      >
         <Icon className="h-[18px] w-[18px]" />
       </span>
       <div className="min-w-0">
-        <div className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
+          {label}
+        </div>
         <div className="text-lg font-semibold leading-tight text-foreground">{value}</div>
       </div>
     </div>

@@ -314,7 +314,6 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       window.removeEventListener("scroll", onScrollOrResize, true);
       window.removeEventListener("resize", onScrollOrResize);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const updateAnchor = () => {

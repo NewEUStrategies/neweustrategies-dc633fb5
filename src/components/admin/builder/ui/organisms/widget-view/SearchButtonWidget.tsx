@@ -202,14 +202,24 @@ export function SearchButtonWidget({
     if (ids.length === 0) return;
     let cancelled = false;
     void (async () => {
-      const { data } = await supabase
-        .from("profiles_public")
-        .select("id, avatar_url")
-        .in("id", ids);
+      // Awatary są ozdobą podpowiedzi: błąd zapytania nie może wywrócić widgetu
+      // ani zostawić nieobsłużonego odrzucenia (poprzednio padało tu na offline
+      // i w każdym teście bez mocka `from`). Przy porażce zostają inicjały, a
+      // wpisy i tak trafiają do cache'u jako `null` - bez pętli ponowień.
+      let rows: { id: string; avatar_url: string | null }[] = [];
+      try {
+        const { data } = await supabase
+          .from("profiles_public")
+          .select("id, avatar_url")
+          .in("id", ids);
+        rows = (data ?? []) as { id: string; avatar_url: string | null }[];
+      } catch (err) {
+        console.warn("[search] avatar batch failed", err);
+      }
       if (cancelled) return;
       const next: Record<string, string | null> = {};
       for (const id of ids) next[id] = null;
-      for (const row of (data ?? []) as { id: string; avatar_url: string | null }[]) {
+      for (const row of rows) {
         next[row.id] = row.avatar_url ?? null;
       }
       setAuthorAvatars((prev) => ({ ...prev, ...next }));
@@ -556,10 +566,7 @@ export function SearchButtonWidget({
                 </div>
                 <ul className="space-y-1.5" aria-hidden>
                   {[70, 55, 62].map((w, i) => (
-                    <li
-                      key={i}
-                      className="flex items-center gap-2.5 rounded-md px-2 py-2"
-                    >
+                    <li key={i} className="flex items-center gap-2.5 rounded-md px-2 py-2">
                       <span className="h-6 w-6 shrink-0 animate-pulse rounded-md bg-muted" />
                       <span
                         className="h-3 animate-pulse rounded bg-muted"
@@ -574,18 +581,13 @@ export function SearchButtonWidget({
             {focused && hasQuery && !loading && showEmpty && (
               <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/60">
-                  <LucideIcons.Search
-                    className="h-4 w-4 text-muted-foreground"
-                    aria-hidden
-                  />
+                  <LucideIcons.Search className="h-4 w-4 text-muted-foreground" aria-hidden />
                 </div>
                 <div className="text-[13px] text-foreground">
                   {t("no_results")}
                   <span className="font-semibold">„{q.trim()}"</span>
                 </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {t("no_results_hint")}
-                </div>
+                <div className="text-[11px] text-muted-foreground">{t("no_results_hint")}</div>
               </div>
             )}
 
@@ -602,8 +604,7 @@ export function SearchButtonWidget({
                         <span
                           className="flex h-4 w-4 items-center justify-center rounded-sm"
                           style={{
-                            backgroundColor:
-                              "color-mix(in oklab, var(--brand) 12%, transparent)",
+                            backgroundColor: "color-mix(in oklab, var(--brand) 12%, transparent)",
                           }}
                         >
                           <Icon
@@ -624,10 +625,10 @@ export function SearchButtonWidget({
                           const it = entry.item;
                           const i = entry.index;
                           const isActive = i === active;
-                          const kindLabel = i18n.t(
-                            `search.widget.kind.${it.kind}`,
-                            { lng: lang, defaultValue: "" },
-                          ) as string;
+                          const kindLabel = i18n.t(`search.widget.kind.${it.kind}`, {
+                            lng: lang,
+                            defaultValue: "",
+                          }) as string;
                           return (
                             <li key={`${it.kind}:${it.id ?? it.slug ?? i}`} role="presentation">
                               <AppLink
@@ -687,16 +688,12 @@ export function SearchButtonWidget({
                                     />
                                   </span>
                                 )}
-                                <span className="min-w-0 flex-1 truncate">
-                                  {itemLabel(it)}
-                                </span>
+                                <span className="min-w-0 flex-1 truncate">{itemLabel(it)}</span>
                                 {kindLabel && (
                                   <span
                                     data-typography-exempt
                                     className={`search-kind-label hidden shrink-0 items-center rounded-md px-1 py-px font-semibold uppercase sm:inline-flex ${
-                                      isActive
-                                        ? "text-[var(--brand-ink)]"
-                                        : "text-muted-foreground"
+                                      isActive ? "text-[var(--brand-ink)]" : "text-muted-foreground"
                                     }`}
                                     style={{
                                       backgroundColor: isActive
@@ -832,7 +829,6 @@ export function SearchButtonWidget({
           )}
         </div>
       )}
-
 
       <style
         dangerouslySetInnerHTML={{

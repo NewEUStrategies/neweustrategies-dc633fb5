@@ -20,12 +20,20 @@ self.addEventListener("push", (event) => {
     data = { title: event.data ? event.data.text() : "" };
   }
   const title = data.title || "New European Strategies";
+  const tag = data.tag || undefined;
   const options = {
     body: data.body || "",
     icon: "/favicon.ico",
     badge: "/favicon.ico",
+    // Język powiadomienia (PL/EN wg profilu odbiorcy): system używa go do
+    // syntezy mowy i dzielenia wyrazów, a `dir: auto` pilnuje kierunku tekstu.
+    lang: data.lang === "en" ? "en" : "pl",
+    dir: "auto",
     data: { href: data.href || "/" },
-    tag: data.tag || undefined,
+    // `tag` kolapsuje kolejne powiadomienia o tym samym celu (jeden wątek =
+    // jedno powiadomienie), `renotify` pilnuje, żeby podmiana nadal alarmowała.
+    tag,
+    renotify: tag ? true : undefined,
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
