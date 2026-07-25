@@ -42,6 +42,8 @@ export interface CitationSource {
 
 export interface FormattedCitations {
   chicago: string;
+  /** Wersja Chicago bez znaczników HTML - przeznaczona do schowka. */
+  chicagoPlain: string;
   apa: string;
   bibtex: string;
 }
