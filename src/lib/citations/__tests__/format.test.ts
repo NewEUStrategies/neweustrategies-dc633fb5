@@ -37,7 +37,7 @@ describe("formatChicago", () => {
       ],
     };
     expect(formatChicago(source)).toBe(
-      "Anna Kowalska, Jan Nowak and Eva Marsh, <i>Energy Security in Central Europe</i>, " +
+      "Anna Kowalska, Jan Nowak and Eva Marsh, <em>Energy Security in Central Europe</em>, " +
         "New European Strategies, July 20, 2026, " +
         "https://neweuropeanstrategies.com/analizy/bezpieczenstwo-energetyczne,",
     );
