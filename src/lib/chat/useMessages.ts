@@ -29,6 +29,8 @@ import {
   type MessagesPage,
   type MessagesData,
 } from "./messageCache";
+import { toast } from "sonner";
+import i18n from "@/lib/i18n";
 
 // Re-exported so existing consumers (ChatWindow, /messages) keep their import
 // path; the implementations now live in the pure, unit-tested messageCache.
