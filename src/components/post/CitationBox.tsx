@@ -129,6 +129,11 @@ export function CitationBox({
                 <pre className="text-xs font-mono leading-relaxed overflow-x-auto whitespace-pre">
                   {citations[key]}
                 </pre>
+              ) : key === "chicago" ? (
+                <p
+                  className="text-sm leading-relaxed break-words"
+                  dangerouslySetInnerHTML={{ __html: citations.chicago }}
+                />
               ) : (
                 <p className="text-sm leading-relaxed break-words">{citations[key]}</p>
               )}
