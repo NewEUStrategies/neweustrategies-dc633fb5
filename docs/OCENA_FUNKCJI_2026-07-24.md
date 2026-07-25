@@ -13,6 +13,8 @@ kontrolki audio — już wdrożone). Zestawienie konkurencyjne w tej samej struk
 międzynarodowi, z reżimem „b/d" dla modułów niewidocznych z zewnątrz): `OCENA_FUNKCJI_KONKURENCI_2026-07-24.md`.
 Pełny **opisowy rejestr** wszystkich funkcji (co potrafią i jak działają, z wyliczeniem każdego elementu —
 102 bloki, 75 widgetów, wszystkie trasy/endpointy/tabele): `INWENTARZ_FUNKCJONALNOSCI_2026-07-24.md`.
+Krajobraz produktowy (który gotowy produkt pokrywa który nasz moduł + wycena odtworzenia ze złożenia SaaS-ów):
+`KRAJOBRAZ_PRODUKTOWY_2026-07-24.md`.
 
 ## Skala i metodyka oceny
 
