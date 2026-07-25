@@ -19,7 +19,7 @@ const base: CitationSource = {
 describe("formatChicago", () => {
   it("formatuje pojedynczego autora po polsku (szyk naturalny, kursywa, przecinki)", () => {
     expect(formatChicago(base)).toBe(
-      "Anna Kowalska, <i>Bezpieczeństwo energetyczne Europy Środkowej</i>, " +
+      "Anna Kowalska, <em>Bezpieczeństwo energetyczne Europy Środkowej</em>, " +
         "New European Strategies, 20 lipca 2026, " +
         "https://neweuropeanstrategies.com/analizy/bezpieczenstwo-energetyczne,",
     );
