@@ -4,8 +4,15 @@ import {
   formatApa,
   formatBibtex,
   formatChicago,
+  formatChicagoPlain,
   type CitationSource,
 } from "../format";
+
+/** Usuwa znacznik <em> z wersji HTML, aby porównać ją z wersją plain. */
+function stripEm(html: string): string {
+  return html.replace(/<em>([^<]*)<\/em>/g, "$1");
+}
+
 
 const base: CitationSource = {
   authors: [{ firstName: "Anna", lastName: "Kowalska", displayName: null }],
