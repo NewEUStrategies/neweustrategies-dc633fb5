@@ -90,6 +90,15 @@ jobs:
       - name: SQL tenant-scope invariant
         run: bun run check:sql-tenant-scope
 
+      # Blocking correctness gate: fails if any has_role() call passes a literal
+      # that is not an app_role enum value. `has_role(uuid, app_role)` casts the
+      # literal at RUNTIME (plpgsql bodies are not parsed at CREATE FUNCTION), so
+      # a typo raises 22P02 (500) instead of a clean 42501 - and only for callers
+      # that fell through the earlier OR branches, i.e. never for an admin doing
+      # a smoke test. That is how 'tenant_admin' survived unnoticed.
+      - name: SQL app_role literal invariant
+        run: bun run check:sql-app-role
+
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +
   # seed.sql). Complements Vitest, which never touches RLS policies.

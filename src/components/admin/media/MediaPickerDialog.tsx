@@ -24,6 +24,16 @@ import { Button } from "@/components/ui/button";
 import { Search, Check, X, Folder, Upload, Loader2 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
+import {
+  AUDIO_ACCEPT_ATTR,
+  AUDIO_MIME,
+  IMAGE_ACCEPT_ATTR,
+  IMAGE_MIME,
+  UPLOADABLE_MIME,
+  UPLOAD_ACCEPT_ATTR,
+  checkUploadable,
+  uploadAndRegisterMedia,
+} from "@/lib/media/upload";
 
 interface PickerRow {
   id: string;
@@ -63,7 +73,19 @@ export function MediaPickerDialog({
   const [altDraft, setAltDraft] = useState("");
   const [savingAlt, setSavingAlt] = useState(false);
 
-  const acceptAttr = accept === "image" ? "image/*" : accept === "audio" ? "audio/*" : undefined;
+  // Allowlista zamiast `image/*` / `audio/*`: wildcard obejmował także
+  // `image/svg+xml`, więc UI zapraszał do wgrania typu, który serwer odrzuca -
+  // a odrzucony plik zostawał w publicznym buckecie (patrz lib/media/upload.ts).
+  const allowedMime = useMemo(
+    () => (accept === "image" ? IMAGE_MIME : accept === "audio" ? AUDIO_MIME : UPLOADABLE_MIME),
+    [accept],
+  );
+  const acceptAttr =
+    accept === "image"
+      ? IMAGE_ACCEPT_ATTR
+      : accept === "audio"
+        ? AUDIO_ACCEPT_ATTR
+        : UPLOAD_ACCEPT_ATTR;
 
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -77,33 +99,22 @@ export function MediaPickerDialog({
       let lastUrl: string | null = null;
       try {
         for (const file of list) {
-          if (accept === "image" && !file.type.startsWith("image/")) {
-            toast.error(t("adminTeamMedia.mediaPicker.errSkippedImage", { name: file.name }));
+          if (checkUploadable(file, allowedMime)) {
+            toast.error(
+              accept === "audio"
+                ? t("adminTeamMedia.mediaPicker.errSkippedAudio", { name: file.name })
+                : t("adminTeamMedia.mediaPicker.errSkippedImage", { name: file.name }),
+            );
             continue;
           }
-          if (accept === "audio" && !file.type.startsWith("audio/")) {
-            toast.error(t("adminTeamMedia.mediaPicker.errSkippedAudio", { name: file.name }));
-            continue;
-          }
-          const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
-          const path = `${tenantId}/${user.id}/${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2)}.${ext}`;
-          const { error: upErr } = await supabase.storage
-            .from("media")
-            .upload(path, file, { contentType: file.type });
-          if (upErr) throw upErr;
-          const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
-          await registerUpload({
-            data: {
-              storagePath: path,
-              filename: file.name,
-              mimeType: file.type,
-              sizeBytes: file.size,
-              publicUrl: urlData.publicUrl,
-            },
+          const uploaded = await uploadAndRegisterMedia({
+            file,
+            tenantId,
+            userId: user.id,
+            registerMedia: registerUpload,
+            allowedMime,
           });
-          lastUrl = urlData.publicUrl;
+          lastUrl = uploaded.publicUrl;
         }
         toast.success(
           list.length > 1
@@ -119,7 +130,7 @@ export function MediaPickerDialog({
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [accept, qc, registerUpload, tenantId, user, t],
+    [accept, allowedMime, qc, registerUpload, tenantId, user, t],
   );
 
   const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {

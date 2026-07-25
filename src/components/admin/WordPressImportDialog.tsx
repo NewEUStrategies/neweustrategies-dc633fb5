@@ -207,14 +207,26 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
       const overCount = results.filter((r) => r.status === "overwritten").length;
       const skippedCount = results.filter((r) => r.status === "skipped").length;
       const errCount = results.filter((r) => r.status === "error").length;
+      // Treść EN raportujemy wprost - ta ścieżka brała z pary EN tylko tytuł
+      // i zapowiedź, a `wpEn.content` przepadało bez żadnego śladu w wyniku.
+      const enOk = results.filter((r) => r.enBody === "persisted").length;
+      const enEmpty = results.filter((r) => r.enBody === "empty").length;
       const parts = [
         `${okCount} ${lang === "pl" ? "zaimportowanych" : "imported"}`,
         overCount > 0 ? `${overCount} ${lang === "pl" ? "nadpisań" : "overwrites"}` : "",
+        enOk > 0 ? `${enOk} ${lang === "pl" ? "z treścią EN" : "with EN body"}` : "",
         skippedCount > 0 ? `${skippedCount} ${lang === "pl" ? "pominiętych" : "skipped"}` : "",
         errCount > 0 ? `${errCount} ${lang === "pl" ? "błędów" : "errors"}` : "",
       ].filter(Boolean);
       if (okCount > 0) toast.success(parts.join(" · "));
       else toast.warning(parts.join(" · "));
+      if (enEmpty > 0) {
+        toast.warning(
+          lang === "pl"
+            ? `${enEmpty} par PL/EN bez treści EN po konwersji - zapisano tylko tytuł i zapowiedź.`
+            : `${enEmpty} PL/EN pairs had no EN body after conversion - only title and excerpt saved.`,
+        );
+      }
       for (const e of results.filter((r) => r.status === "error").slice(0, 3)) {
         toast.error(`WP #${e.wpId}: ${e.message ?? "unknown error"}`);
       }

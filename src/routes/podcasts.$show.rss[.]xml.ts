@@ -7,14 +7,25 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { requestPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
-import { SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
-import { buildPodcastRssXml, type PodcastRssItem } from "@/lib/seo/podcastRss";
+import { SITE_DEFAULT_OG_IMAGE, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
+import {
+  buildPodcastRssXml,
+  type PodcastEpisodeType,
+  type PodcastRssItem,
+} from "@/lib/seo/podcastRss";
+import { resolvePodcastChannelMeta } from "@/lib/seo/podcastChannelMeta";
 import {
   fetchMediaMetaByUrls,
+  fetchPodcastChannelMeta,
   fetchPublishedPodcastsByShow,
   fetchPublishedShowBySlug,
 } from "@/lib/server/publishedContent.server";
 import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
+
+/** `podcasts.episode_type` -> typ Apple; nieznana wartość degraduje do "full". */
+function episodeType(raw: string | null | undefined): PodcastEpisodeType {
+  return raw === "trailer" || raw === "bonus" ? raw : "full";
+}
 
 function requestContext(): { origin: string; host: string; lang: AppLang } {
   const req = getRequest();
@@ -45,7 +56,10 @@ export const Route = createFileRoute("/podcasts/$show/rss.xml")({
           return new Response("Unknown program", { status: 404 });
         }
 
-        const episodes = await fetchPublishedPodcastsByShow(tenantId, show.id);
+        const [episodes, channelMeta] = await Promise.all([
+          fetchPublishedPodcastsByShow(tenantId, show.id),
+          fetchPodcastChannelMeta(tenantId),
+        ]);
         const withAudio = episodes.filter((e) => !!e.audio_url);
         const mediaMeta = await fetchMediaMetaByUrls(
           tenantId,
@@ -63,6 +77,8 @@ export const Route = createFileRoute("/podcasts/$show/rss.xml")({
           season: e.season,
           episodeNumber: e.episode_number,
           imageUrl: e.cover_image_url,
+          explicit: e.explicit,
+          episodeType: episodeType(e.episode_type),
         }));
 
         const showTitle =
@@ -72,14 +88,34 @@ export const Route = createFileRoute("/podcasts/$show/rss.xml")({
           (lang === "en" ? show.description_en || show.description_pl : show.description_pl) ||
           SITE_DEFAULT_TITLE[lang];
 
+        // Program nadpisuje metadane kanału sieciowego (inny prowadzący, inna
+        // kategoria), a brakujące pola dziedziczy - patrz podcastChannelMeta.
+        const meta = resolvePodcastChannelMeta({
+          channel: channelMeta,
+          show,
+          fallback: {
+            author: SITE_NAME,
+            imageUrl: `${origin}${SITE_DEFAULT_OG_IMAGE}`,
+            copyright: `© ${new Date().getFullYear()} ${SITE_NAME}`,
+          },
+        });
+
         const xml = buildPodcastRssXml({
           title: `${SITE_DEFAULT_TITLE[lang]} · ${showTitle}`,
           description: showDesc,
           siteUrl: `${origin}${localizedPath(`/podcasts/${show.slug}`, lang)}`,
           feedUrl: `${origin}${localizedPath(`/podcasts/${show.slug}/rss.xml`, lang)}`,
           language: lang,
-          copyright: `© ${new Date().getFullYear()} ${SITE_NAME}`,
-          imageUrl: show.cover_image_url,
+          copyright: meta.copyright,
+          imageUrl: meta.imageUrl,
+          author: meta.author,
+          ownerName: meta.ownerName,
+          ownerEmail: meta.ownerEmail,
+          category: meta.category,
+          subcategory: meta.subcategory,
+          explicit: meta.explicit,
+          showType: meta.showType,
+          complete: meta.complete,
           items,
         });
 

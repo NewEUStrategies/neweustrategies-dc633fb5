@@ -145,10 +145,14 @@ export interface PublishedPodcastRow {
   cover_image_url: string | null;
   published_at: string | null;
   show_id: string | null;
+  /** <itunes:explicit> na odcinku (Apple Podcasts Connect). */
+  explicit: boolean;
+  /** <itunes:episodeType>: full | trailer | bonus. */
+  episode_type: string;
 }
 
 const PODCAST_RSS_COLS =
-  "slug, title_pl, title_en, excerpt_pl, excerpt_en, audio_url, duration_seconds, season, episode_number, cover_image_url, published_at, show_id";
+  "slug, title_pl, title_en, excerpt_pl, excerpt_en, audio_url, duration_seconds, season, episode_number, cover_image_url, published_at, show_id, explicit, episode_type";
 
 /** Published podcast episodes for the network RSS feed (tenant-scoped). */
 export async function fetchPublishedPodcasts(
@@ -166,7 +170,10 @@ export async function fetchPublishedPodcasts(
         .is("deleted_at", null)
         .order("published_at", { ascending: false, nullsFirst: false })
         .limit(Math.max(1, Math.min(limit, 200)));
-      return (data ?? []) as PublishedPodcastRow[];
+      // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
+      // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
+      // typach - do usunięcia przy regeneracji types.ts.
+      return (data ?? []) as unknown as PublishedPodcastRow[];
     }),
   );
 }
@@ -179,7 +186,24 @@ export interface PublishedShowRow {
   description_pl: string;
   description_en: string;
   cover_image_url: string | null;
+  /**
+   * Nadpisania metadanych Apple per program - NULL oznacza dziedziczenie z
+   * `podcast_settings` (kanal sieciowy). Patrz migracja 20260725090500.
+   */
+  itunes_author: string | null;
+  itunes_owner_name: string | null;
+  itunes_owner_email: string | null;
+  itunes_category: string | null;
+  itunes_subcategory: string | null;
+  itunes_explicit: boolean | null;
+  itunes_type: string | null;
+  itunes_complete: boolean;
 }
+
+const SHOW_RSS_COLS =
+  "id, slug, title_pl, title_en, description_pl, description_en, cover_image_url, " +
+  "itunes_author, itunes_owner_name, itunes_owner_email, itunes_category, " +
+  "itunes_subcategory, itunes_explicit, itunes_type, itunes_complete";
 
 /** A single published program by slug (per-program RSS feed). */
 export async function fetchPublishedShowBySlug(
@@ -191,13 +215,16 @@ export async function fetchPublishedShowBySlug(
       const supabaseAdmin = await getSupabaseAdmin();
       const { data } = await supabaseAdmin
         .from("podcast_shows")
-        .select("id, slug, title_pl, title_en, description_pl, description_en, cover_image_url")
+        .select(SHOW_RSS_COLS)
         .eq("tenant_id", tenantId)
         .eq("slug", slug)
         .eq("status", "published")
         .is("deleted_at", null)
         .maybeSingle();
-      return (data ?? null) as PublishedShowRow | null;
+      // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
+      // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
+      // typach - do usunięcia przy regeneracji types.ts.
+      return (data ?? null) as unknown as PublishedShowRow | null;
     }),
   );
 }
@@ -220,7 +247,10 @@ export async function fetchPublishedPodcastsByShow(
         .is("deleted_at", null)
         .order("published_at", { ascending: false, nullsFirst: false })
         .limit(Math.max(1, Math.min(limit, 500)));
-      return (data ?? []) as PublishedPodcastRow[];
+      // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
+      // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
+      // typach - do usunięcia przy regeneracji types.ts.
+      return (data ?? []) as unknown as PublishedPodcastRow[];
     }),
   );
 }
@@ -232,12 +262,15 @@ export async function fetchPublishedShows(tenantId: string): Promise<PublishedSh
       const supabaseAdmin = await getSupabaseAdmin();
       const { data } = await supabaseAdmin
         .from("podcast_shows")
-        .select("id, slug, title_pl, title_en, description_pl, description_en, cover_image_url")
+        .select(SHOW_RSS_COLS)
         .eq("tenant_id", tenantId)
         .eq("status", "published")
         .is("deleted_at", null)
         .order("sort_order", { ascending: true });
-      return (data ?? []) as PublishedShowRow[];
+      // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
+      // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
+      // typach - do usunięcia przy regeneracji types.ts.
+      return (data ?? []) as unknown as PublishedShowRow[];
     }),
   );
 }
@@ -309,6 +342,45 @@ export async function fetchMediaMetaByUrls(
         }
         return map;
       }),
+  );
+}
+
+/**
+ * Metadane kanału podcastowego wymagane przez Apple Podcasts Connect
+ * (singleton per tenant, migracja 20260725090500). Program może każde z tych
+ * pól nadpisać - scalanie robi `resolvePodcastChannelMeta`.
+ */
+export interface PodcastChannelMetaRow {
+  itunes_author: string | null;
+  itunes_owner_name: string | null;
+  itunes_owner_email: string | null;
+  itunes_category: string | null;
+  itunes_subcategory: string | null;
+  itunes_explicit: boolean;
+  itunes_type: string | null;
+  itunes_image_url: string | null;
+  itunes_copyright: string | null;
+}
+
+export async function fetchPodcastChannelMeta(
+  tenantId: string,
+): Promise<PodcastChannelMetaRow | null> {
+  return edgeTtlCache(`seo:podcast-channel-meta:${tenantId}`, CACHE_TTL_MS, () =>
+    resilient("podcast-channel-meta", null, async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const { data } = await supabaseAdmin
+        .from("podcast_settings")
+        .select(
+          "itunes_author, itunes_owner_name, itunes_owner_email, itunes_category, " +
+            "itunes_subcategory, itunes_explicit, itunes_type, itunes_image_url, itunes_copyright",
+        )
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      // `as unknown as`: kolumny Apple (explicit / episode_type / itunes_*)
+      // pochodzą z migracji 20260725090500 i nie ma ich jeszcze w wygenerowanych
+      // typach - do usunięcia przy regeneracji types.ts.
+      return (data ?? null) as unknown as PodcastChannelMetaRow | null;
+    }),
   );
 }
 

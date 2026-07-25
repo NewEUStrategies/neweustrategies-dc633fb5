@@ -365,6 +365,11 @@ export const finalizeCheckout = createServerFn({ method: "POST" })
     if (!order) return { ok: true as const, alreadyFinalized: true as const };
 
     await grantEntitlement(order, order.id);
+    // Efekty kuponu B2B po zaksięgowaniu płatności (ta gałąź już ustawiła
+    // status='paid' powyżej) - ta sama ścieżka co w webhooku Stripe, żeby kupon
+    // z `grants_tier_key` działał identycznie w obu trybach.
+    const { applyCouponEffectsForOrder } = await import("@/lib/billing/couponEffects.server");
+    await applyCouponEffectsForOrder(order.id);
     return { ok: true as const };
   });
 

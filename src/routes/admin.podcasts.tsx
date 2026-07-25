@@ -10,6 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -42,6 +49,23 @@ import type {
   PodcastQuote,
   PodcastResource,
 } from "@/lib/podcast/types";
+// Osobny moduł od buildera RSS: panel potrzebuje tylko oceny gotowości,
+// generator XML zostaje na serwerze (i poza bundlem admina).
+import {
+  podcastFeedReadiness,
+  summarizeEpisodes,
+  type PodcastEpisodesSummary,
+} from "@/lib/seo/podcastFeedReadiness";
+import {
+  DEFAULT_APPLE_CATEGORY,
+  DEFAULT_APPLE_SUBCATEGORY,
+} from "@/lib/seo/applePodcastCategories";
+import { SITE_DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/seo/meta";
+import {
+  ApplePodcastMetaFields,
+  type ApplePodcastMetaValue,
+} from "@/components/admin/podcasts/ApplePodcastMetaFields";
+import { PodcastFeedReadinessCard } from "@/components/admin/podcasts/PodcastFeedReadinessCard";
 import {
   parseDuration,
   formatDuration,
@@ -206,7 +230,9 @@ function Page() {
         .eq("id", id)
         .maybeSingle();
       if (error || !data) throw error ?? new Error("Not found");
-      return data as Podcast;
+      // `as unknown as`: kolumny explicit / episode_type pochodzą z migracji
+      // 20260725090500 i nie ma ich jeszcze w wygenerowanych typach.
+      return data as unknown as Podcast;
     },
     onSuccess: (d) => setEditing(d),
   });
@@ -236,6 +262,8 @@ function Page() {
     chapters: [],
     quotes: [],
     resources: [],
+    explicit: false,
+    episode_type: "full",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -272,6 +300,8 @@ function Page() {
         chapters: parseChapters(chapters),
         quotes: parseQuotes(quotes),
         resources: parseResources(resources),
+        explicit: p.explicit,
+        episode_type: p.episode_type,
         published_at:
           p.status === "published" ? (p.published_at ?? new Date().toISOString()) : p.published_at,
       };
@@ -279,12 +309,17 @@ function Page() {
       if (!tenantId) throw new Error(t("adminPodcasts.errors.tenant"));
       let episodeId = p.id;
       if (episodeId) {
-        const { error } = await supabase.from("podcasts").update(payload).eq("id", episodeId);
+        // `as never`: explicit / episode_type z migracji 20260725090500 nie są
+        // jeszcze w wygenerowanych typach - do usunięcia przy regeneracji.
+        const { error } = await supabase
+          .from("podcasts")
+          .update(payload as never)
+          .eq("id", episodeId);
         if (error) throw error;
       } else {
         const { data, error } = await supabase
           .from("podcasts")
-          .insert({ ...payload, tenant_id: tenantId })
+          .insert({ ...payload, tenant_id: tenantId } as never)
           .select("id")
           .single();
         if (error) throw error;
@@ -933,7 +968,88 @@ function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
     apple_url: form.apple_url ?? data?.apple_url ?? "",
     google_url: form.google_url ?? data?.google_url ?? "",
     rss_url: form.rss_url ?? data?.rss_url ?? "",
+    // Metadane Apple Podcasts Connect - bez nich kanał nie jest przyjmowany.
+    itunes_author: form.itunes_author ?? data?.itunes_author ?? "",
+    itunes_owner_name: form.itunes_owner_name ?? data?.itunes_owner_name ?? "",
+    itunes_owner_email: form.itunes_owner_email ?? data?.itunes_owner_email ?? "",
+    itunes_category: form.itunes_category ?? data?.itunes_category ?? DEFAULT_APPLE_CATEGORY,
+    itunes_subcategory:
+      form.itunes_subcategory ?? data?.itunes_subcategory ?? DEFAULT_APPLE_SUBCATEGORY,
+    itunes_explicit: form.itunes_explicit ?? data?.itunes_explicit ?? false,
+    itunes_type: form.itunes_type ?? data?.itunes_type ?? "episodic",
+    itunes_image_url: form.itunes_image_url ?? data?.itunes_image_url ?? "",
+    itunes_copyright: form.itunes_copyright ?? data?.itunes_copyright ?? "",
   };
+
+  // Podsumowanie opublikowanych odcinków: pusty kanał jest dla Apple blokujący,
+  // a enclosure bez rzeczywistego rozmiaru pliku - zgłaszany jako problem.
+  const { data: episodeSummary } = useQuery({
+    queryKey: ["admin", "podcast-feed-episodes"],
+    queryFn: async (): Promise<PodcastEpisodesSummary> => {
+      const { data, error } = await supabase
+        .from("podcasts")
+        .select("audio_url, duration_seconds")
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .not("audio_url", "is", null)
+        .limit(500);
+      if (error) throw error;
+      const rows = (data ?? []).filter((r) => !!r.audio_url);
+      const { data: media } = await supabase
+        .from("media")
+        .select("public_url, size_bytes")
+        .in(
+          "public_url",
+          rows.map((r) => r.audio_url),
+        );
+      const known = new Map((media ?? []).map((m) => [m.public_url, m.size_bytes]));
+      return summarizeEpisodes(
+        rows.map((r) => ({
+          audioBytes: known.get(r.audio_url) ?? null,
+          durationSeconds: r.duration_seconds,
+        })),
+      );
+    },
+  });
+
+  // Ta sama funkcja, która liczy braki dla feedu - panel pokazuje je, zanim
+  // redakcja zgłosi kanał do Apple.
+  const readiness = useMemo(
+    () =>
+      podcastFeedReadiness({
+        title: `${SITE_NAME} · Podcast`,
+        description: SITE_DEFAULT_DESCRIPTION.pl,
+        language: "pl",
+        copyright: merged.itunes_copyright ?? "",
+        imageUrl: merged.itunes_image_url ?? "",
+        author: merged.itunes_author ?? "",
+        ownerName: merged.itunes_owner_name ?? "",
+        ownerEmail: merged.itunes_owner_email ?? "",
+        episodes: episodeSummary ?? { total: 0, withoutByteLength: 0, withoutDuration: 0 },
+      }),
+    [
+      merged.itunes_copyright,
+      merged.itunes_image_url,
+      merged.itunes_author,
+      merged.itunes_owner_name,
+      merged.itunes_owner_email,
+      episodeSummary,
+    ],
+  );
+
+  const applyApple = (patch: Partial<ApplePodcastMetaValue>) =>
+    setForm((f) => ({
+      ...f,
+      ...(patch.author !== undefined ? { itunes_author: patch.author } : {}),
+      ...(patch.ownerName !== undefined ? { itunes_owner_name: patch.ownerName } : {}),
+      ...(patch.ownerEmail !== undefined ? { itunes_owner_email: patch.ownerEmail } : {}),
+      ...(patch.category !== undefined ? { itunes_category: patch.category } : {}),
+      ...(patch.subcategory !== undefined ? { itunes_subcategory: patch.subcategory } : {}),
+      ...(patch.explicit !== undefined ? { itunes_explicit: patch.explicit } : {}),
+      ...(patch.showType !== undefined ? { itunes_type: patch.showType } : {}),
+      ...(patch.imageUrl !== undefined ? { itunes_image_url: patch.imageUrl } : {}),
+      ...(patch.copyright !== undefined ? { itunes_copyright: patch.copyright } : {}),
+    }));
 
   const save = useMutation({
     mutationFn: async () => {
@@ -947,12 +1063,23 @@ function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
         apple_url: merged.apple_url || null,
         google_url: merged.google_url || null,
         rss_url: merged.rss_url || null,
+        itunes_author: merged.itunes_author || null,
+        itunes_owner_name: merged.itunes_owner_name || null,
+        itunes_owner_email: merged.itunes_owner_email || null,
+        itunes_category: merged.itunes_category || DEFAULT_APPLE_CATEGORY,
+        itunes_subcategory: merged.itunes_subcategory || null,
+        itunes_explicit: merged.itunes_explicit,
+        itunes_type: merged.itunes_type,
+        itunes_image_url: merged.itunes_image_url || null,
+        itunes_copyright: merged.itunes_copyright || null,
       };
       // Singleton per tenant (PK = tenant_id) - upsert, żeby pierwsze zapisanie
       // utworzyło wiersz (dotąd tabela nie miała żadnego writera w kodzie).
+      // `as never`: kolumny itunes_* pochodzą z migracji 20260725090500 i nie ma
+      // ich jeszcze w wygenerowanych typach - do usunięcia przy regeneracji.
       const { error } = await supabase
         .from("podcast_settings")
-        .upsert(payload, { onConflict: "tenant_id" });
+        .upsert(payload as never, { onConflict: "tenant_id" });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1046,6 +1173,22 @@ function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
               <code>/podcast/rss.xml</code>
             </p>
           </div>
+
+          <PodcastFeedReadinessCard readiness={readiness} />
+          <ApplePodcastMetaFields
+            value={{
+              author: merged.itunes_author ?? "",
+              ownerName: merged.itunes_owner_name ?? "",
+              ownerEmail: merged.itunes_owner_email ?? "",
+              category: merged.itunes_category ?? DEFAULT_APPLE_CATEGORY,
+              subcategory: merged.itunes_subcategory ?? DEFAULT_APPLE_SUBCATEGORY,
+              explicit: merged.itunes_explicit,
+              showType: merged.itunes_type,
+              imageUrl: merged.itunes_image_url ?? "",
+              copyright: merged.itunes_copyright ?? "",
+            }}
+            onChange={applyApple}
+          />
         </div>
 
         <div className="flex justify-end gap-2">
@@ -1457,6 +1600,40 @@ function EditorPane({
                 </Button>
               </div>
             </div>
+          </div>
+
+          {/* Apple Podcasts: <itunes:episodeType> + <itunes:explicit> na odcinku. */}
+          <div className="grid sm:grid-cols-3 gap-3 items-end">
+            <div className="grid gap-1.5">
+              <Label htmlFor="episode-type">{t("adminPodcasts.editor.episodeType")}</Label>
+              <Select
+                value={d.episode_type}
+                onValueChange={(v) =>
+                  upd({ episode_type: v === "trailer" || v === "bonus" ? v : "full" })
+                }
+              >
+                <SelectTrigger id="episode-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full">{t("adminPodcasts.editor.episodeTypeFull")}</SelectItem>
+                  <SelectItem value="trailer">
+                    {t("adminPodcasts.editor.episodeTypeTrailer")}
+                  </SelectItem>
+                  <SelectItem value="bonus">
+                    {t("adminPodcasts.editor.episodeTypeBonus")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <label className="flex items-center justify-between gap-3 sm:col-span-2 py-2">
+              <span className="text-sm">{t("adminPodcasts.editor.explicit")}</span>
+              <Switch
+                checked={d.explicit}
+                onCheckedChange={(v) => upd({ explicit: v })}
+                aria-label={t("adminPodcasts.editor.explicit")}
+              />
+            </label>
           </div>
 
           <PeopleEditor people={people} setPeople={setPeople} profiles={profiles ?? []} />

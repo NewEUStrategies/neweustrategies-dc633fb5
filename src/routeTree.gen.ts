@@ -203,6 +203,7 @@ import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.n
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
+import { Route as AdminNewsletterDeliverabilityRouteImport } from './routes/admin.newsletter.deliverability'
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
 import { Route as AdminCrmIdRouteImport } from './routes/admin.crm.$id'
 import { Route as AdminCouponsRedemptionsRouteImport } from './routes/admin.coupons.redemptions'
@@ -228,6 +229,7 @@ import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as AdminCrmFunnelIndexRouteImport } from './routes/admin.crm.funnel.index'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
+import { Route as ApiPublicWebhooksResendRouteImport } from './routes/api/public/webhooks.resend'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/public/hooks.refresh-og-image'
@@ -1207,6 +1209,12 @@ const AdminNewsletterInlineRoute = AdminNewsletterInlineRouteImport.update({
   path: '/inline',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
+const AdminNewsletterDeliverabilityRoute =
+  AdminNewsletterDeliverabilityRouteImport.update({
+    id: '/deliverability',
+    path: '/deliverability',
+    getParentRoute: () => AdminNewsletterRoute,
+  } as any)
 const AdminNewsletterCampaignsRoute =
   AdminNewsletterCampaignsRouteImport.update({
     id: '/campaigns',
@@ -1340,6 +1348,11 @@ const AdminCrmFunnelIndexRoute = AdminCrmFunnelIndexRouteImport.update({
 const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   id: '/api/public/webhooks/stripe',
   path: '/api/public/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicWebhooksResendRoute = ApiPublicWebhooksResendRouteImport.update({
+  id: '/api/public/webhooks/resend',
+  path: '/api/public/webhooks/resend',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicNewsletterUnsubscribeRoute =
@@ -1533,6 +1546,7 @@ export interface FileRoutesByFullPath {
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
+  '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -1588,6 +1602,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
+  '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
@@ -1748,6 +1763,7 @@ export interface FileRoutesByTo {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -1803,6 +1819,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
+  '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/admin/crm/funnel': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsIndexRoute
@@ -1974,6 +1991,7 @@ export interface FileRoutesById {
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
+  '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
@@ -2029,6 +2047,7 @@ export interface FileRoutesById {
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
+  '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
@@ -2201,6 +2220,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
     | '/admin/newsletter/campaigns'
+    | '/admin/newsletter/deliverability'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -2256,6 +2276,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
+    | '/api/public/webhooks/resend'
     | '/api/public/webhooks/stripe'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
@@ -2416,6 +2437,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/newsletter/deliverability'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -2471,6 +2493,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
+    | '/api/public/webhooks/resend'
     | '/api/public/webhooks/stripe'
     | '/admin/crm/funnel'
     | '/admin/newsletter/campaigns'
@@ -2641,6 +2664,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
     | '/admin/newsletter/campaigns'
+    | '/admin/newsletter/deliverability'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
@@ -2696,6 +2720,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
+    | '/api/public/webhooks/resend'
     | '/api/public/webhooks/stripe'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
@@ -2779,6 +2804,7 @@ export interface RootRouteChildren {
   ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
   ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
+  ApiPublicWebhooksResendRoute: typeof ApiPublicWebhooksResendRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
 }
 
@@ -4142,6 +4168,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterInlineRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/newsletter/deliverability': {
+      id: '/admin/newsletter/deliverability'
+      path: '/deliverability'
+      fullPath: '/admin/newsletter/deliverability'
+      preLoaderRoute: typeof AdminNewsletterDeliverabilityRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/newsletter/campaigns': {
       id: '/admin/newsletter/campaigns'
       path: '/campaigns'
@@ -4317,6 +4350,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhooksStripeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webhooks/resend': {
+      id: '/api/public/webhooks/resend'
+      path: '/api/public/webhooks/resend'
+      fullPath: '/api/public/webhooks/resend'
+      preLoaderRoute: typeof ApiPublicWebhooksResendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/newsletter/unsubscribe': {
       id: '/api/public/newsletter/unsubscribe'
       path: '/api/public/newsletter/unsubscribe'
@@ -4466,6 +4506,7 @@ const AdminNewsletterCampaignsRouteWithChildren =
 
 interface AdminNewsletterRouteChildren {
   AdminNewsletterCampaignsRoute: typeof AdminNewsletterCampaignsRouteWithChildren
+  AdminNewsletterDeliverabilityRoute: typeof AdminNewsletterDeliverabilityRoute
   AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
@@ -4475,6 +4516,7 @@ interface AdminNewsletterRouteChildren {
 
 const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
   AdminNewsletterCampaignsRoute: AdminNewsletterCampaignsRouteWithChildren,
+  AdminNewsletterDeliverabilityRoute: AdminNewsletterDeliverabilityRoute,
   AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
@@ -4950,6 +4992,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
   ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
+  ApiPublicWebhooksResendRoute: ApiPublicWebhooksResendRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
 }
 export const routeTree = rootRouteImport

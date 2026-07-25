@@ -49,6 +49,8 @@ import {
   type EmailDocDbClient,
   type EmailPostRow,
 } from "@/lib/newsletter/emailDocResolve";
+import { fetchSuppressedEmails } from "@/lib/email/suppression.server";
+import { evaluateSendGate } from "@/lib/email/reputationGate.server";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -410,7 +412,17 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
 // ----------------------------------------------------------------------------
 export const sendCampaign = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        // Świadome potwierdzenie ryzyka reputacyjnego przez operatora
+        // (checkbox w dialogu wysyłki). Bez niego przekroczony próg skarg
+        // twardo zatrzymuje wysyłkę.
+        acknowledgeReputation: z.boolean().default(false),
+      })
+      .parse(data),
+  )
   .handler(
     async ({
       data,
@@ -418,6 +430,24 @@ export const sendCampaign = createServerFn({ method: "POST" })
     }): Promise<{ ok: true; sent: number; failed: number; done: boolean; remaining: number }> => {
       const tenantId = await getTenantId(context);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      // Bramka reputacji PRZED przejęciem kampanii: przekroczony próg skarg
+      // oznacza, że kolejna wysyłka pogłębi problem zamiast go rozwiązać.
+      // Wznowienie kampanii już w locie (`sending`) bramki NIE przechodzi:
+      // przerwanie wysyłki w połowie zostawia część listy z wiadomością, a
+      // część bez - gorzej niż dokończenie. Poszczególne adresy i tak chroni
+      // lista wykluczeń, sprawdzana przy każdej porcji.
+      const { data: current } = await supabaseAdmin
+        .from("newsletter_campaigns")
+        .select("status")
+        .eq("id", data.id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (current?.status !== "sending") {
+        const gate = await evaluateSendGate(supabaseAdmin, tenantId, data.acknowledgeReputation);
+        if (!gate.allowed) throw new Error(gate.errorCode ?? "reputation_blocked");
+      }
+
       const camp = await claimCampaign(supabaseAdmin, data.id, tenantId, "manual");
       if (!camp) throw new Error("campaign_not_sendable");
       const result = await runCampaignSend(supabaseAdmin, camp, tenantId, {
@@ -470,8 +500,28 @@ export async function tickNewsletterCampaigns(
   const { data: due, error } = await dueQ;
   if (error) throw new Error(error.message);
 
+  // Bramka reputacji jest liczona RAZ na tenanta w ticku (cross-tenant tick
+  // może dotknąć kilku) - to zapytanie agregujące, nie ma sensu powtarzać go
+  // dla każdej kampanii tego samego tenanta.
+  const gateByTenant = new Map<string, boolean>();
+  const tenantMaySend = async (tenant: string): Promise<boolean> => {
+    const cached = gateByTenant.get(tenant);
+    if (cached !== undefined) return cached;
+    const verdict = await evaluateSendGate(admin, tenant);
+    gateByTenant.set(tenant, verdict.allowed);
+    return verdict.allowed;
+  };
+
   for (const row of due ?? []) {
     if (budget <= 0) break;
+    // Kampania zaplanowana nie ma człowieka przy klawiaturze, więc przy
+    // przekroczonym progu skarg NIE wysyłamy jej po cichu: zatrzymujemy ze
+    // statusem `failed` i czytelnym powodem. Admin widzi to na liście i może
+    // wznowić ręcznie, potwierdzając ryzyko (albo najpierw wyczyścić listę).
+    if (!(await tenantMaySend(row.tenant_id))) {
+      await markFailed(admin, row.id, "reputation_blocked");
+      continue;
+    }
     // Atomowy claim gwarantuje, że równoległy tick (druga karta admina,
     // cron) nie odpali tej samej kampanii dwa razy.
     const camp = await claimCampaign(admin, row.id, row.tenant_id, "due");
@@ -636,10 +686,53 @@ async function runCampaignSend(
     const alreadySent = new Set(
       (logged ?? []).filter((r) => r.status === "sent").map((r) => r.email),
     );
-    const allPending = audience.filter((sub) => !alreadySent.has(sub.email));
+    const notYetSent = audience.filter((sub) => !alreadySent.has(sub.email));
+
+    // HIGIENA LISTY: adresy z aktywną blokadą (twarde odbicie, skarga na spam,
+    // blokada ręczna) wypadają z audiencji ZANIM powstanie choćby jeden request
+    // do dostawcy. Wysyłka na znany martwy/skarżący się adres to dokładnie ten
+    // sygnał, po którym Google i Microsoft obniżają reputację domeny - a przy
+    // wskaźniku skarg >=0,30% zaczynają filtrować całą pocztę z tej domeny.
+    // Każdy pominięty odbiorca zostaje w logu ze statusem 'suppressed', więc
+    // panel dostarczalności pokazuje, ILE wysyłek zaoszczędziła lista.
+    const suppressed = await fetchSuppressedEmails(
+      admin,
+      tenantId,
+      notYetSent.map((sub) => sub.email),
+    );
+    const allPending = notYetSent.filter((sub) => !suppressed.has(sub.email.toLowerCase()));
+
+    // Log pominięcia piszemy RAZ na odbiorcę: kampania na dużej liście robi
+    // wiele wywołań po MAX_EMAILS_PER_INVOCATION, a upsert tych samych wierszy
+    // przy każdej porcji byłby czystym marnotrawstwem zapisów.
+    const alreadyLoggedSuppressed = new Set(
+      (logged ?? []).filter((r) => r.status === "suppressed").map((r) => r.email),
+    );
+    const blocked = notYetSent.filter(
+      (sub) => suppressed.has(sub.email.toLowerCase()) && !alreadyLoggedSuppressed.has(sub.email),
+    );
+    if (blocked.length > 0) {
+      await Promise.all(
+        blocked.map((sub) => {
+          const hit = suppressed.get(sub.email.toLowerCase());
+          return logRecipient(admin, {
+            tenantId,
+            campaignId: camp.id,
+            subscriberId: sub.id,
+            email: sub.email,
+            language: (sub.language === "en" ? "en" : "pl") as "pl" | "en",
+            status: "suppressed",
+            error: `suppressed:${hit?.reason ?? "unknown"}`,
+          });
+        }),
+      );
+    }
+
     // Porcja tego wywołania; reszta zostaje na kolejne wywołania/tick.
     const pending = allPending.slice(0, maxEmails);
-    const recipientCount = new Set([...audience.map((sub) => sub.email), ...alreadySent]).size;
+    // Mianownik postępu ("wysłano X z Y") liczy tylko adresy, na które WOLNO
+    // wysłać - inaczej kampania z blokadami nigdy nie dobiłaby do 100%.
+    const recipientCount = new Set([...allPending.map((sub) => sub.email), ...alreadySent]).size;
 
     let sent = alreadySent.size;
     let failed = 0;
@@ -718,6 +811,7 @@ async function runCampaignSend(
             from,
             replyTo: camp.reply_to,
             listUnsubscribeUrl: unsubscribeUrl,
+            tags: { tenant: tenantId, campaign: camp.id, subscriber: sub.id },
           });
           if (result.ok) {
             sent++;
@@ -729,6 +823,7 @@ async function runCampaignSend(
               language: lang,
               status: "sent",
               sentAt: new Date().toISOString(),
+              providerMessageId: result.messageId ?? null,
             });
           } else {
             failed++;
@@ -842,7 +937,9 @@ async function sendEmail(opts: {
   from?: string;
   replyTo?: string | null;
   listUnsubscribeUrl?: string | null;
-}): Promise<{ ok: boolean; status?: number; error?: string }> {
+  /** Tagi dostawcy - korelacja zdarzeń webhooka z tenantem/kampanią/odbiorcą. */
+  tags?: Record<string, string>;
+}): Promise<{ ok: boolean; status?: number; error?: string; messageId?: string | null }> {
   const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   if (!LOVABLE_API_KEY || !RESEND_API_KEY) {
@@ -854,6 +951,7 @@ async function sendEmail(opts: {
       headers["List-Unsubscribe"] = `<${opts.listUnsubscribeUrl}>`;
       headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
     }
+    const tagList = Object.entries(opts.tags ?? {}).map(([name, value]) => ({ name, value }));
     const res = await fetch(`${GATEWAY_URL}/emails`, {
       method: "POST",
       headers: {
@@ -868,16 +966,34 @@ async function sendEmail(opts: {
         html: opts.html,
         reply_to: opts.replyTo || undefined,
         headers: Object.keys(headers).length ? headers : undefined,
+        tags: tagList.length ? tagList : undefined,
       }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       return { ok: false, status: res.status, error: body.slice(0, 500) };
     }
-    return { ok: true };
+    // Identyfikator wiadomości u dostawcy jest KLUCZEM korelacji dla webhooków
+    // (bounce/complaint wracają z email_id, nie z adresem kampanii). Bez niego
+    // odbicie nie ma jak trafić do właściwego odbiorcy - stąd zapis przy każdej
+    // udanej wysyłce. Brak/nietypowa odpowiedź gatewaya nie jest błędem wysyłki.
+    return { ok: true, messageId: await readMessageId(res) };
   } catch (err) {
     return { ok: false, error: String(err) };
   }
+}
+
+async function readMessageId(res: Response): Promise<string | null> {
+  try {
+    const body: unknown = await res.json();
+    if (typeof body === "object" && body !== null) {
+      const id = (body as Record<string, unknown>).id;
+      if (typeof id === "string" && id.trim()) return id.trim();
+    }
+  } catch {
+    // Gateway może zwrócić pustą odpowiedź - wysyłka i tak się powiodła.
+  }
+  return null;
 }
 
 async function markFailed(admin: DbClient, id: string, message: string): Promise<void> {
@@ -900,11 +1016,15 @@ async function logRecipient(
     subscriberId: string;
     email: string;
     language: "pl" | "en";
-    status: "sent" | "failed" | "skipped";
+    status: "sent" | "failed" | "skipped" | "suppressed";
     error?: string;
     sentAt?: string;
+    /** Resend email id - klucz korelacji zdarzeń dostarczalności. */
+    providerMessageId?: string | null;
   },
 ): Promise<void> {
+  // provider_message_id / delivery_state pochodzą z migracji nowszej niż
+  // wygenerowane typy Supabase -> cast payloadu (precedens: lease_until).
   await admin.from("newsletter_campaign_recipients").upsert(
     {
       tenant_id: row.tenantId,
@@ -915,7 +1035,9 @@ async function logRecipient(
       status: row.status,
       error: row.error ?? null,
       sent_at: row.sentAt ?? null,
-    },
+      provider_message_id: row.providerMessageId ?? null,
+      delivery_state: row.status === "sent" ? "sent" : row.status,
+    } as never,
     { onConflict: "campaign_id,email" },
   );
 }
