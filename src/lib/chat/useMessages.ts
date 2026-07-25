@@ -168,7 +168,15 @@ export function useSendMessage() {
       }
       void qc.invalidateQueries({ queryKey: chatKeys.conversations(user.id) });
     },
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
+      // Surface the DB-side rate limit ("chat: rate limited" / "chat: upload
+      // rate limited") as a specific toast, so the user understands why the
+      // bubble flipped to failed. Any other error keeps the generic failed
+      // state without a noisy toast (the bubble itself signals the retry).
+      const msg = err instanceof Error ? err.message : String(err ?? "");
+      if (/rate limited/i.test(msg)) {
+        toast.error(i18n.t("chat.rateLimited"));
+      }
       if (!user || !ctx?.tempId) return;
       const key = chatKeys.messages(user.id, ctx.conversationId);
       qc.setQueryData<MessagesData>(key, (old) => {
