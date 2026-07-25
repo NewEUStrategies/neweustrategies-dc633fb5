@@ -64,13 +64,26 @@ function PreviewPage() {
 
   const title = lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
   const excerpt = lang === "en" ? post.excerpt_en || post.excerpt_pl : post.excerpt_pl;
-  const builderDoc = parseBuilderDoc(post.builder_data);
+  const rawBuilderDoc = parseBuilderDoc(post.builder_data);
   const localized = (post.blocks_data as LocalizedBlocks | null) ?? null;
-  const blocksDoc: BlocksDoc | null = localized
+  const rawBlocksDoc: BlocksDoc | null = localized
     ? (localized[lang] ?? localized.pl ?? localized.en ?? null)
     : null;
   const rawHtml = lang === "en" ? post.content_en || post.content_pl : post.content_pl;
   const expires = new Date(post.expires_at).toLocaleString(lang === "en" ? "en-GB" : "pl-PL");
+  const articleRef = useRef<HTMLDivElement>(null);
+
+  // Ta sama pre-transformacja co na produkcyjnym /$slug: [fn] rozwijane pod
+  // wspólnym licznikiem, sekcja przypisów + tooltips zamontowane na dole.
+  // Bez tego redaktor widzi surowy `[fn]…[/fn]` w podglądzie, a po publikacji
+  // to samo pole pokazuje [N] i pełną listę - dokładnie ten desync z audytu.
+  const prepared = prepareContentForRender({
+    editor: post.editor,
+    builderDoc: rawBuilderDoc,
+    blocksDoc: rawBlocksDoc,
+    rawHtml: rawHtml ? sanitizeHtml(rawHtml) : "",
+    lang,
+  });
 
   return (
     <div className="flex-1 bg-background text-foreground" data-page-template="preview">
@@ -91,15 +104,21 @@ function PreviewPage() {
         )}
         <h1 className="font-display text-3xl lg:text-4xl mb-3">{title}</h1>
         {excerpt && <p className="text-lg text-muted-foreground mb-8">{excerpt}</p>}
-        <div className="article-body">
+        <div className="article-body" ref={articleRef}>
           <ContentRenderer
             editor={post.editor}
-            builderDoc={builderDoc}
-            blocksDoc={blocksDoc}
-            html={rawHtml ? sanitizeHtml(rawHtml) : ""}
+            builderDoc={prepared.builderDoc}
+            blocksDoc={prepared.blocksDoc}
+            html={prepared.html}
             lang={lang}
           />
         </div>
+        {prepared.footnotes.length > 0 && (
+          <>
+            <FootnotesList notes={prepared.footnotes} lang={lang} />
+            <FootnoteTooltips notes={prepared.footnotes} containerRef={articleRef} />
+          </>
+        )}
       </article>
     </div>
   );
