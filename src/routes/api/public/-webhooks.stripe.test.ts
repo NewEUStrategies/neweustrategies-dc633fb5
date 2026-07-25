@@ -107,12 +107,19 @@ const h = vi.hoisted(() => {
   };
 
   const grant = vi.fn(async (..._args: unknown[]) => {});
-  return { state, chain, grant };
+  const couponEffects = vi.fn(async (_orderId: string) => ({ applied: true }));
+  return { state, chain, grant, couponEffects };
 });
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.chain }));
 vi.mock("@/lib/billing/grant.server", () => ({
   grantEntitlement: (...args: unknown[]) => h.grant(...args),
+}));
+// Efekty kuponu B2B (warstwa czlonkowska + CRM) sa NASTEPSTWEM ksiegowania
+// platnosci - wczesniej ta sciezka nie istniala i kupon z `grants_tier_key`
+// nie robil nic. Mock pozwala sprawdzic, ze webhook ja wola.
+vi.mock("@/lib/billing/couponEffects.server", () => ({
+  applyCouponEffectsForOrder: (orderId: string) => h.couponEffects(orderId),
 }));
 
 // Dynamiczny import w handlerze (fetchStripeInvoiceUrl) trafia w ten mock -
@@ -166,6 +173,7 @@ describe("stripe webhook handler", () => {
     h.state.resultQueue = [];
     h.state.writeResult = { data: null, error: null };
     h.grant.mockClear();
+    h.couponEffects.mockClear();
   });
   afterEach(() => {
     delete process.env.STRIPE_WEBHOOK_SECRET;
@@ -236,6 +244,12 @@ describe("stripe webhook handler", () => {
     // The grant ran exactly once, keyed by the Stripe subscription id.
     expect(h.grant).toHaveBeenCalledTimes(1);
     expect(h.grant).toHaveBeenCalledWith(order, "sub_123");
+
+    // Efekty kuponu B2B odpalaja sie dla tego zamowienia - dopiero PO
+    // zapisaniu status='paid' (RPC jest fail-closed na nieoplaconym
+    // zamowieniu). Bez tego wywolania `grants_tier_key` bylo martwe.
+    expect(h.couponEffects).toHaveBeenCalledTimes(1);
+    expect(h.couponEffects).toHaveBeenCalledWith("ord_1");
   });
 
   it("checkout.session.completed z metadata.kind=donation zapisuje darowiznę i NIE nadaje uprawnień", async () => {
@@ -275,8 +289,10 @@ describe("stripe webhook handler", () => {
       ignoreDuplicates: true,
     });
 
-    // Darowizna to wsparcie, nie zakup: zero grantów, zero update'ów zamówień.
+    // Darowizna to wsparcie, nie zakup: zero grantów, zero update'ów zamówień,
+    // zero efektów kuponu (nie ma zamówienia, którego mogłyby dotyczyć).
     expect(h.grant).not.toHaveBeenCalled();
+    expect(h.couponEffects).not.toHaveBeenCalled();
     expect(call("update")).toBeUndefined();
   });
 

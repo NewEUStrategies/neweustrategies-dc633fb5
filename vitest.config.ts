@@ -127,6 +127,44 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // Warstwa semantyczna analityki: czysty rejestr + reguly uzgadniania,
+        // od ktorych zaleza WSZYSTKIE liczby w raportach zarzadczych. Progi
+        // floorowane tuz pod osiagnietym pokryciem. Niedobitych galezi nie da sie
+        // wywolac PRAWDZIWYM rejestrem: `authoritativeBinding`/`comparabilityOf`
+        // maja obronne sciezki dla metryki bez zrodla autorytatywnego i dla pary
+        // powiazan roznionej tylko deduplikacja (test inwariantow dowodzi, ze taka
+        // metryka/para nie istnieje), a `reconcile` ma arm `incomparable`, ktory
+        // wymagalby metryki z powiazaniami spod dwoch roznych bramek zgody.
+        "src/lib/analytics/semantic/streams.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/analytics/semantic/format.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/analytics/semantic/window.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/lib/analytics/semantic/metrics.ts": {
+          statements: 94,
+          functions: 100,
+          lines: 100,
+          branches: 83,
+        },
+        "src/lib/analytics/semantic/reconcile.ts": {
+          statements: 95,
+          functions: 100,
+          lines: 97,
+          branches: 85,
+        },
         // Billing critical path (payment -> access). Floored just below the
         // achieved coverage. webhooks.stripe: the un-hit arms are the framework
         // POST route-arrow (handle() is tested directly) and the catch-all 500,

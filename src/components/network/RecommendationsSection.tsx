@@ -17,15 +17,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { FloatingInput } from "@/components/ui/floating-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useConnectionStatuses } from "@/lib/network/useConnections";
 import {
+  RECOMMENDATION_BODY_MAX,
+  RECOMMENDATION_BODY_MIN,
+  RECOMMENDATION_RELATIONSHIPS,
+  isRecommendationRelationship,
   useRecommendations,
   useRespondRecommendation,
   useWriteRecommendation,
   type Recommendation,
+  type RecommendationRelationship,
 } from "@/lib/network/useRecommendations";
 import { formatDate } from "@/lib/i18n/format";
 import { confirmDialog } from "@/lib/appDialogs";
@@ -37,8 +49,35 @@ interface Props {
   recipientName: string;
 }
 
-const MAX_LEN = 1200;
-const MIN_LEN = 40;
+const MAX_LEN = RECOMMENDATION_BODY_MAX;
+const MIN_LEN = RECOMMENDATION_BODY_MIN;
+
+/**
+ * Kody błędów podnoszone przez RPC (`invalid_relationship`, `must_be_connected`,
+ * ...) tłumaczymy na komunikat użytkownika. Nieznany kod pokazujemy surowo -
+ * lepiej techniczny tekst niż zjedzony błąd (za tym stał defekt „cichego
+ * sukcesu": UI nie miał jak odróżnić braku zmiany od zmiany).
+ */
+const RPC_ERROR_KEYS: Readonly<Record<string, string>> = {
+  auth_required: "network.recommendations.errors.authRequired",
+  cannot_recommend_self: "network.recommendations.errors.self",
+  invalid_relationship: "network.recommendations.errors.relationship",
+  invalid_body_length: "network.recommendations.errors.bodyLength",
+  must_be_connected: "network.recommendations.errors.notConnected",
+  tenant_mismatch: "network.recommendations.errors.tenantMismatch",
+  invalid_action: "network.recommendations.errors.invalidAction",
+  not_your_recommendation: "network.recommendations.errors.notYours",
+};
+
+function useRpcErrorMessage(): (error: Error) => string {
+  const { t } = useTranslation();
+  return (error: Error): string => {
+    for (const [code, key] of Object.entries(RPC_ERROR_KEYS)) {
+      if (error.message.includes(code)) return t(key);
+    }
+    return error.message;
+  };
+}
 
 export function RecommendationsSection({
   recipientId,
@@ -50,7 +89,8 @@ export function RecommendationsSection({
   const isOwner = user?.id === recipientId;
   const listQ = useRecommendations(recipientId);
   const rows = listQ.data ?? [];
-  const visible = rows.filter((r) => r.status === "visible");
+  // `published` = słownik bazy (CHECK profile_recommendations.status).
+  const visible = rows.filter((r) => r.status === "published");
   const pending = isOwner ? rows.filter((r) => r.status === "pending") : [];
 
   const statusesQ = useConnectionStatuses(user && !isOwner ? [recipientId] : []);
@@ -111,6 +151,7 @@ function RecommendationCard({
   rec: Recommendation;
   lang: "pl" | "en";
 }): React.ReactElement {
+  const { t } = useTranslation();
   const created = new Date(rec.created_at);
   const initials = rec.author_name
     .split(/\s+/)
@@ -149,7 +190,9 @@ function RecommendationCard({
             )}
           </div>
           <div className="text-xs text-muted-foreground">
-            {rec.relationship ? <span>{rec.relationship} · </span> : null}
+            {rec.relationship ? (
+              <span>{t(`network.recommendations.relationshipOptions.${rec.relationship}`)} · </span>
+            ) : null}
             {formatDate(created, lang, { year: "numeric", month: "long" })}
           </div>
         </div>
@@ -170,12 +213,15 @@ function PendingRow({
 }): React.ReactElement {
   const { t } = useTranslation();
   const respond = useRespondRecommendation();
+  const errorMessage = useRpcErrorMessage();
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-border bg-background/60 p-3 sm:flex-row sm:items-start">
       <div className="flex-1">
         <div className="text-sm font-medium">{rec.author_name}</div>
         {rec.relationship && (
-          <div className="text-xs text-muted-foreground">{rec.relationship}</div>
+          <div className="text-xs text-muted-foreground">
+            {t(`network.recommendations.relationshipOptions.${rec.relationship}`)}
+          </div>
         )}
         <p className="mt-2 whitespace-pre-line text-sm text-foreground/90">{rec.body}</p>
       </div>
@@ -184,10 +230,10 @@ function PendingRow({
           size="sm"
           onClick={() =>
             respond.mutate(
-              { id: rec.id, action: "approve", recipientId },
+              { id: rec.id, action: "publish", recipientId },
               {
                 onSuccess: () => toast.success(t("network.recommendations.toastPublished")),
-                onError: (e) => toast.error(e.message),
+                onError: (e) => toast.error(errorMessage(e)),
               },
             )
           }
@@ -204,7 +250,7 @@ function PendingRow({
               { id: rec.id, action: "hide", recipientId },
               {
                 onSuccess: () => toast.success(t("network.recommendations.toastHidden")),
-                onError: (e) => toast.error(e.message),
+                onError: (e) => toast.error(errorMessage(e)),
               },
             )
           }
@@ -230,7 +276,7 @@ function PendingRow({
               { id: rec.id, action: "delete", recipientId },
               {
                 onSuccess: () => toast.success(t("network.recommendations.toastDeleted")),
-                onError: (e) => toast.error(e.message),
+                onError: (e) => toast.error(errorMessage(e)),
               },
             );
           }}
@@ -253,17 +299,21 @@ function WriteRecommendationDialog({
 }): React.ReactElement {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [relationship, setRelationship] = useState("");
+  // Relacja jest domkniętym słownikiem (CHECK kolumny), więc formularz podaje
+  // listę opcji - wolny tekst zawsze kończył się naruszeniem CHECK w bazie.
+  const [relationship, setRelationship] = useState<RecommendationRelationship | "">("");
   const [body, setBody] = useState("");
   const write = useWriteRecommendation(recipientId);
+  const errorMessage = useRpcErrorMessage();
   const bodyLen = body.trim().length;
-  const relLen = relationship.trim().length;
-  const canSubmit = bodyLen >= MIN_LEN && bodyLen <= MAX_LEN && relLen >= 2 && relLen <= 120;
+  const canSubmit = bodyLen >= MIN_LEN && bodyLen <= MAX_LEN && relationship !== "";
 
   const submit = () => {
+    // `canSubmit` zawiera `relationship !== ""`, więc po tym returnie TS zawęża
+    // typ do domkniętego słownika relacji (bez rzutowania).
     if (!canSubmit) return;
     write.mutate(
-      { body: body.trim(), relationship: relationship.trim() },
+      { body: body.trim(), relationship },
       {
         onSuccess: () => {
           toast.success(t("network.recommendations.toastSent"));
@@ -271,7 +321,7 @@ function WriteRecommendationDialog({
           setBody("");
           setRelationship("");
         },
-        onError: (e) => toast.error(e.message),
+        onError: (e) => toast.error(errorMessage(e)),
       },
     );
   };
@@ -292,13 +342,26 @@ function WriteRecommendationDialog({
           <DialogDescription>{t("network.recommendations.dialogDescription")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <FloatingInput
-            id="rec-rel"
-            label={t("network.recommendations.relationshipLabel")}
-            value={relationship}
-            onChange={(e) => setRelationship(e.target.value)}
-            maxLength={120}
-          />
+          <div className="grid gap-1.5">
+            <Label htmlFor="rec-rel">{t("network.recommendations.relationshipLabel")}</Label>
+            <Select
+              value={relationship}
+              onValueChange={(v) => {
+                if (isRecommendationRelationship(v)) setRelationship(v);
+              }}
+            >
+              <SelectTrigger id="rec-rel">
+                <SelectValue placeholder={t("network.recommendations.relationshipPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {RECOMMENDATION_RELATIONSHIPS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {t(`network.recommendations.relationshipOptions.${value}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div>
             <Textarea
               value={body}

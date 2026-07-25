@@ -30,14 +30,31 @@ function siteUrl(): string {
   );
 }
 
-/** Preferowany język per użytkownik: profiles.prefs->>'locale', domyślnie pl. */
-async function localesFor(userIds: string[]): Promise<Map<string, DigestLang>> {
-  const map = new Map<string, DigestLang>();
+interface RecipientProfile {
+  lang: DigestLang;
+  /** Tenant odbiorcy - wymagany, by digest przeszedł przez listę wykluczeń. */
+  tenantId: string | null;
+}
+
+/**
+ * Profil odbiorcy potrzebny do wysyłki: język (profiles.prefs->>'locale',
+ * domyślnie pl) i tenant. Jedno zapytanie na paczkę - tenant jest tu po to,
+ * żeby digest nie omijał listy wykluczeń (adres po twardym odbiciu nie może
+ * dostawać kolejnych wiadomości tylko dlatego, że to inny kanał).
+ */
+async function recipientsFor(userIds: string[]): Promise<Map<string, RecipientProfile>> {
+  const map = new Map<string, RecipientProfile>();
   if (userIds.length === 0) return map;
-  const { data } = await supabaseAdmin.from("profiles").select("id, prefs").in("id", userIds);
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("id, prefs, tenant_id")
+    .in("id", userIds);
   for (const row of data ?? []) {
     const prefs = (row.prefs ?? {}) as Record<string, unknown>;
-    map.set(row.id, prefs.locale === "en" ? "en" : "pl");
+    map.set(row.id, {
+      lang: prefs.locale === "en" ? "en" : "pl",
+      tenantId: row.tenant_id ?? null,
+    });
   }
   return map;
 }
@@ -203,18 +220,14 @@ export async function processPushJobs(limit = 100): Promise<{ claimed: number; s
   if (!jobs || jobs.length === 0) return { claimed: 0, sent: 0 };
 
   const userIds = [...new Set(jobs.map((j) => j.user_id))];
-  const tenantIds = [...new Set(jobs.map((j) => j.tenant_id))];
-  const [{ data: subs }, locales] = await Promise.all([
-    // Rola serwisowa omija RLS, więc filtr tenanta MUSI być tutaj: bez niego
-    // to samo konto zapisane na dwóch domenach dostaje powiadomienia obcego
-    // tenanta (href rozwiązałby się względem złej domeny w service workerze).
+  const [{ data: subs }, recipients] = await Promise.all([
     supabaseAdmin
       .from("push_subscriptions")
       .select("tenant_id, user_id, endpoint, p256dh, auth")
       .in("tenant_id", tenantIds)
       .in("user_id", userIds)
       .is("failed_at", null),
-    localesFor(userIds),
+    recipientsFor(userIds),
   ]);
 
   const devicesByRecipient = new Map<string, PushDevice[]>();
@@ -225,10 +238,23 @@ export async function processPushJobs(limit = 100): Promise<{ claimed: number; s
     devicesByRecipient.set(key, list);
   }
 
-  const { lanes, deviceCountByJob } = buildPushLanes(jobs, devicesByRecipient, locales);
-  const laneResults = await mapWithConcurrency(lanes, PUSH_CONCURRENCY, (lane) =>
-    drainPushLane(lane, vapid),
-  );
+  let sent = 0;
+  for (const job of jobs) {
+    const userSubs = subsByUser.get(job.user_id) ?? [];
+    if (userSubs.length === 0) {
+      await supabaseAdmin.rpc("report_push_job", { p_id: job.id, p_ok: false, p_dead: true });
+      continue;
+    }
+    const payload = (job.payload ?? {}) as PushJobPayload;
+    const lang = recipients.get(job.user_id)?.lang ?? "pl";
+    const title = pickDigestText(
+      { title_pl: payload.title_pl ?? null, title_en: payload.title_en ?? null },
+      lang,
+    );
+    const body =
+      (lang === "en"
+        ? (payload.body_en ?? payload.body_pl)
+        : (payload.body_pl ?? payload.body_en)) ?? "";
 
   // Agregacja per zadanie: dostarczenie na jakiekolwiek urządzenie wygrywa;
   // dead tylko gdy nic nie doszło i (payload nieprzechodzący albo wszystkie
@@ -297,14 +323,15 @@ export async function processDigests(
   if (error) throw error;
   if (!due || due.length === 0) return { claimed: 0, sent: 0 };
 
-  const locales = await localesFor(due.map((d) => d.user_id));
+  const recipients = await recipientsFor(due.map((d) => d.user_id));
   const base = siteUrl();
 
   let sent = 0;
   for (const row of due) {
     const items = (Array.isArray(row.items) ? row.items : []) as unknown as DigestItem[];
     if (items.length === 0) continue;
-    const lang = locales.get(row.user_id) ?? "pl";
+    const recipient = recipients.get(row.user_id);
+    const lang = recipient?.lang ?? "pl";
     const html = buildDigestHtml({
       displayName: row.display_name,
       items,
@@ -316,6 +343,8 @@ export async function processDigests(
       to: row.email,
       subject: digestSubject(items.length, lang, frequency),
       html,
+      tenantId: recipient?.tenantId ?? null,
+      tags: recipient?.tenantId ? { tenant: recipient.tenantId, stream: "digest" } : undefined,
     });
     if (!result.ok) {
       console.error("[community] digest send failed", result.error);

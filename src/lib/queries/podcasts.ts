@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Podcast, PodcastPerson, PodcastSettings, PodcastShow } from "@/lib/podcast/types";
 
 export const PODCAST_FIELDS =
-  "id,tenant_id,slug,title_pl,title_en,excerpt_pl,excerpt_en,show_notes_pl,show_notes_en,transcript_pl,transcript_en,audio_url,duration_seconds,episode_number,season,cover_image_url,status,published_at,author_id,show_id,category_id,chapters,quotes,resources,created_at,updated_at";
+  "id,tenant_id,slug,title_pl,title_en,excerpt_pl,excerpt_en,show_notes_pl,show_notes_en,transcript_pl,transcript_en,audio_url,duration_seconds,episode_number,season,cover_image_url,status,published_at,author_id,show_id,category_id,chapters,quotes,resources,explicit,episode_type,created_at,updated_at";
 
 export const PODCAST_SHOW_FIELDS =
   "id,tenant_id,slug,title_pl,title_en,description_pl,description_en,cover_image_url,spotify_url,apple_url,youtube_url,sort_order,status,created_at,updated_at";
@@ -25,7 +25,9 @@ export const latestPodcastsQueryOptions = (limit = 8) =>
         .order("published_at", { ascending: false, nullsFirst: false })
         .limit(Math.max(1, Math.min(limit, 50)));
       if (error) throw error;
-      return (data ?? []) as Podcast[];
+      // `as unknown as`: kolumny explicit / episode_type pochodzą z migracji
+      // 20260725090500 i nie ma ich jeszcze w wygenerowanych typach.
+      return (data ?? []) as unknown as Podcast[];
     },
     staleTime: 60_000,
   });
@@ -42,7 +44,7 @@ export const podcastBySlugQueryOptions = (slug: string) =>
         .is("deleted_at", null)
         .maybeSingle();
       if (error) throw error;
-      return (data ?? null) as Podcast | null;
+      return (data ?? null) as unknown as Podcast | null;
     },
     staleTime: 60_000,
     enabled: !!slug,
@@ -110,7 +112,9 @@ export const showEpisodesQueryOptions = (showId: string) =>
         .order("published_at", { ascending: false, nullsFirst: false })
         .limit(500);
       if (error) throw error;
-      return (data ?? []) as Podcast[];
+      // `as unknown as`: kolumny explicit / episode_type pochodzą z migracji
+      // 20260725090500 i nie ma ich jeszcze w wygenerowanych typach.
+      return (data ?? []) as unknown as Podcast[];
     },
     staleTime: 60_000,
     enabled: !!showId,
@@ -250,7 +254,10 @@ export const podcastsByProfileQueryOptions = (profileId: string, limit = 12) =>
 
       const seen = new Set<string>();
       const merged: Podcast[] = [];
-      for (const row of [...(byRole.data ?? []), ...(byAuthor.data ?? [])] as Podcast[]) {
+      for (const row of [
+        ...(byRole.data ?? []),
+        ...(byAuthor.data ?? []),
+      ] as unknown as Podcast[]) {
         if (seen.has(row.id)) continue;
         seen.add(row.id);
         merged.push(row);
@@ -276,7 +283,9 @@ export const podcastsByCategoryQueryOptions = (categoryId: string, limit = 8) =>
         .order("published_at", { ascending: false, nullsFirst: false })
         .limit(Math.max(1, Math.min(limit, 50)));
       if (error) throw error;
-      return (data ?? []) as Podcast[];
+      // `as unknown as`: kolumny explicit / episode_type pochodzą z migracji
+      // 20260725090500 i nie ma ich jeszcze w wygenerowanych typach.
+      return (data ?? []) as unknown as Podcast[];
     },
     staleTime: 2 * 60_000,
     enabled: !!categoryId,

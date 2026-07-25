@@ -191,7 +191,12 @@ export function NewsletterPopupForm({
         setErr(
           res.error === "not_configured" || res.error === "disabled"
             ? t("Newsletter nie jest skonfigurowany.", "Newsletter is not configured.")
-            : res.error,
+            : res.error === "suppressed"
+              ? t(
+                  "Nie możemy wysyłać wiadomości na ten adres - został wcześniej trwale zablokowany. Napisz do nas, jeśli to pomyłka.",
+                  "We cannot email this address - it was permanently blocked earlier. Contact us if this is a mistake.",
+                )
+              : res.error,
         );
         setState("err");
         return;

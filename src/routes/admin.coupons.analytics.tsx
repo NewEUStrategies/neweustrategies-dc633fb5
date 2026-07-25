@@ -17,6 +17,13 @@ export const Route = createFileRoute("/admin/coupons/analytics")({
   component: AnalyticsPage,
 });
 
+/**
+ * Kontrakt `b2b_coupons_analytics` (migracja 20260725090200):
+ *  - revenue_cents        = przychód NETTO (original_cents - applied_cents),
+ *  - discount_cents_total = udzielony RABAT (applied_cents).
+ * Wcześniej funkcja zwracała te wyrażenia odwrotnie, więc kafel „Przychód"
+ * pokazywał sumę rabatów, a „Rabat łącznie" - przychód.
+ */
 interface AnalyticsRow {
   coupon_id: string;
   code: string;
@@ -64,7 +71,6 @@ function AnalyticsPage() {
   const top10 = rows.slice(0, 10).map((r) => ({
     code: r.code,
     redemptions: Number(r.redemptions),
-    revenue: Number(r.revenue_cents) / 100,
   }));
 
   const top10Option = useMemo<EChartsCoreOption>(
@@ -102,7 +108,10 @@ function AnalyticsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label={L("Kupony", "Coupons")} value={String(rows.length)} />
         <Stat label={L("Realizacje", "Redemptions")} value={String(totalRedemptions)} />
-        <Stat label={L("Przychód", "Revenue")} value={`${(totalRevenue / 100).toFixed(2)}`} />
+        <Stat
+          label={L("Przychód netto", "Net revenue")}
+          value={`${(totalRevenue / 100).toFixed(2)}`}
+        />
         <Stat label={L("Konwersja", "Conversion")} value={`${conversion}%`} />
       </div>
 
@@ -140,7 +149,7 @@ function AnalyticsPage() {
                   <tr className="border-b border-border/60">
                     <th className="text-left py-2 pr-3">{L("Kod", "Code")}</th>
                     <th className="text-left py-2 pr-3">{L("Realizacje", "Redemptions")}</th>
-                    <th className="text-left py-2 pr-3">{L("Przychód", "Revenue")}</th>
+                    <th className="text-left py-2 pr-3">{L("Przychód netto", "Net revenue")}</th>
                     <th className="text-left py-2 pr-3">{L("Rabat łącznie", "Total discount")}</th>
                   </tr>
                 </thead>

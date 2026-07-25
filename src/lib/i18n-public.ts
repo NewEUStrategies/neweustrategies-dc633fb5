@@ -69,6 +69,8 @@ const pl = {
     consentDefault:
       "Wyrażam zgodę na otrzymywanie newslettera i przetwarzanie mojego adresu e-mail w tym celu.",
     notConfigured: "Newsletter nie jest skonfigurowany.",
+    suppressed:
+      "Nie możemy wysyłać wiadomości na ten adres - został wcześniej trwale zablokowany (odbicie lub zgłoszenie spamu). Napisz do nas, jeśli to pomyłka.",
     subscribe: "Zapisz się",
     selectPlaceholder: "Wybierz...",
   },
@@ -171,6 +173,8 @@ const en: typeof pl = {
     consentDefault:
       "I agree to receive the newsletter and processing of my e-mail address for that purpose.",
     notConfigured: "Newsletter is not configured.",
+    suppressed:
+      "We cannot email this address - it was permanently blocked earlier (bounce or spam report). Contact us if this is a mistake.",
     subscribe: "Subscribe",
     selectPlaceholder: "Select...",
   },

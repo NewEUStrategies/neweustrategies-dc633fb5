@@ -626,3 +626,75 @@ generatora dostają CTA logowania / planów (lejek konwersji). Wpisy w trybie
   unlock/metering. i18n: `src/lib/i18n-gifting.ts` (PL/EN, `en: typeof pl`
   wymusza parytet kluczy). Testy: `src/lib/gifting/__tests__/model.test.ts`,
   `src/components/gifting/__tests__/*`.
+
+## 10. Dostarczalność e-mail: suppression list z bounce/complaint
+
+Wysyłka wiedziała dotąd tylko tyle, że dostawca **przyjął** wiadomość. Odbicia
+i zgłoszenia spamu wracały do Resendu i tam zostawały, więc każda kolejna
+kampania waliła w te same martwe skrzynki i w tych samych zirytowanych
+odbiorców - a to jest dokładnie ten sygnał, po którym dostawcy obniżają
+reputację domeny nadawczej. Wytyczne Google dla nadawców masowych wymagają
+utrzymania wskaźnika zgłoszeń spamu **poniżej 0,30%** (docelowo <0,10%) i
+natychmiastowego zaprzestania wysyłki na adresy, które zgłosiły spam.
+Migracja `20260725120000_email_suppression_bounce_complaint.sql` domyka tę
+pętlę.
+
+- **Model danych.** `email_suppressions` - jeden wiersz na (tenant, adres),
+  `email_norm` generowany z `lower(btrim(email))`, aktywna blokada =
+  `released_at IS NULL AND (expires_at IS NULL OR expires_at > now())`.
+  `email_delivery_events` - append-only log dostawcy, **idempotentny po
+  `(provider, provider_event_id)`** (= `svix-id`), źródło prawdy metryk.
+  `newsletter_campaign_recipients` zyskuje `provider_message_id` (klucz
+  korelacji webhooka z odbiorcą), `delivery_state`, `delivered_at`,
+  `bounced_at`, `complained_at`, `bounce_class` oraz status `suppressed`.
+  RLS: odczyt wyłącznie staff własnego tenanta; anon bez GRANT-u (adres = PII);
+  zapis wyłącznie przez SECURITY DEFINER RPC + service_role.
+- **Klasyfikacja odbić** (`src/lib/email/deliveryEvents.ts`, czysty moduł):
+  `Permanent` → hard (adres martwy, blokada trwała), `Transient` → soft
+  (blokada czasowa z backoffem 1/2/4/8 dni), podtyp `Suppressed|Blocked` →
+  `block`, wszystko niejednoznaczne → soft. Asymetria jest celowa: fałszywe
+  trwałe wykluczenie kosztuje utraconego czytelnika, fałszywe czasowe - jedną
+  próbę. Cztery miękkie odbicia eskalują do trwałego (`email_record_suppression`).
+  Powaga blokady nigdy nie spada sama: późniejszy soft bounce nie zdejmuje
+  blokady po skardze (`email_suppression_severity`).
+- **Webhook** `POST /api/public/webhooks/resend` (`RESEND_WEBHOOK_SECRET`).
+  Podpis Svix jest **obowiązkowy** - bez sekretu endpoint zwraca 503 i nie
+  dotyka treści, bo inaczej byłby to publiczny sposób na wpisanie dowolnego
+  adresu na listę wykluczeń. Weryfikacja: HMAC-SHA256 nad `id.timestamp.body`,
+  porównanie w stałym czasie, okno tolerancji 5 min (anty-replay), obsługa
+  kilku podpisów naraz (rotacja sekretu). Tenant NIE pochodzi z treści
+  webhooka: ustala go korelacja po `provider_message_id` zapisanym w chwili
+  wysyłki, a w ostateczności **jednoznaczne** dopasowanie adresu (przy
+  wieloznaczności zdarzenie zapisuje się bez tenanta zamiast trafić do obcego
+  workspace'u). Otwarcia/kliknięcia z webhooka dolewają się do
+  `newsletter_campaign_events` obok własnego trackingu (piksel + redirect).
+- **Egzekwowanie przy wysyłce.** `runCampaignSend` filtruje porcję odbiorców
+  przez `email_filter_suppressed` (jedno zapytanie na paczkę) ZANIM powstanie
+  pierwszy request do dostawcy; pominięci lądują w logu ze statusem
+  `suppressed`. Ta sama bramka obowiązuje double opt-in
+  (`subscribeToNewsletter` → `suppressed`, formularz pokazuje zlokalizowany
+  komunikat) i pocztę transakcyjną (`sendTransactionalEmail({tenantId})`,
+  digesty powiadomień). Blokady czasowe świadomie NIE blokują nowego zapisu
+  ani wiadomości transakcyjnej - problem był chwilowy.
+- **Bramka reputacji.** `src/lib/email/reputation.ts` (izomorficzny, testowany)
+  liczy wskaźniki i statusy `healthy|watch|critical|insufficient_data` wobec
+  progów Google; `evaluateSendGate` (serwer) zatrzymuje **nową** kampanię przy
+  wskaźniku skarg ≥0,30% albo twardych odbić ≥5% - z wymogiem próbki
+  (`MIN_SAMPLE_FOR_GATE`), żeby jedna skarga na 20 wysyłek niczego nie blokowała.
+  Kampania zaplanowana zatrzymuje się ze statusem `failed` i powodem
+  `reputation_blocked` (bez człowieka nie wysyłamy „na ryzyko"); wysyłka ręczna
+  pokazuje dialog świadomego potwierdzenia. Wznowienie kampanii już w locie
+  bramki nie przechodzi - przerwanie w połowie jest gorsze niż dokończenie.
+- **Panel** `/admin/newsletter/deliverability` (atomic design: atomy
+  `SuppressionReasonBadge`/`ReputationStatusDot`, molekuła `ReputationMeter` ze
+  skalą progową, organizmy `DeliverabilityPanel`/`SuppressionTable`/
+  `WebhookSetupCard`). Pokazuje wskaźniki wobec progów, status pętli zwrotnej
+  (czy sekret ustawiony i czy COKOLWIEK przyszło), trend dzienny na silniku
+  wykresów SSR, rozbicie per kampania i listę wykluczeń z filtrami, dodawaniem
+  ręcznym, eksportem CSV i zdejmowaniem blokady (opcjonalnie z przywróceniem
+  subskrypcji). i18n: `src/lib/i18n-newsletter-deliverability.ts` (PL/EN,
+  `en: typeof pl` wymusza parytet kluczy).
+- **Testy.** pgTAP: `supabase/tests/email_suppression_test.sql` (eskalacja,
+  pierwszeństwo powagi, izolacja tenantów, idempotencja webhooka, RLS/PII).
+  Vitest: `src/lib/email/__tests__/` (klasyfikacja odbić, progi reputacji,
+  weryfikacja podpisu Svix wraz z replayem i manipulacją payloadu).

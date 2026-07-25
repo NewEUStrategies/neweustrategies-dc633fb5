@@ -11,8 +11,8 @@ import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { toastError } from "@/lib/toastError";
+import { uploadAndRegisterMedia } from "@/lib/media/upload";
 import {
   registerMediaUpload,
   bulkDeleteMedia,
@@ -109,6 +109,11 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
   const clearClipboard = useCallback(() => setClipboard(null), []);
 
   // ---------- Upload ----------
+  // Wgrywanie idzie przez `uploadAndRegisterMedia`, bo tylko ta ścieżka SPRZĄTA
+  // obiekt ze storage po odrzuconej rejestracji. Wcześniej ta funkcja składała
+  // upload + rejestrację sama i na błędzie robiła wyłącznie `toastError`, więc
+  // plik odrzucony przez serwerową allowlistę (np. SVG) zostawał żywy pod
+  // publicznym URL-em w buckecie - stored XSS mimo czerwonego toasta.
   const uploadFiles = useCallback(
     async (files: File[], targetFolder: string) => {
       if (!userId || !files.length) return;
@@ -116,26 +121,14 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
       const folder = normalizePath(targetFolder);
       try {
         for (const file of files) {
-          const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
-          const path = `${tenantId}/${userId}/${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2)}.${ext}`;
-          const { error: upErr } = await supabase.storage
-            .from("media")
-            .upload(path, file, { contentType: file.type });
-          if (upErr) throw upErr;
-          const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
-          const res = await registerUpload({
-            data: {
-              storagePath: path,
-              filename: file.name,
-              mimeType: file.type,
-              sizeBytes: file.size,
-              publicUrl: urlData.publicUrl,
-            },
+          const uploaded = await uploadAndRegisterMedia({
+            file,
+            tenantId,
+            userId,
+            registerMedia: registerUpload,
           });
           if (folder !== "/") {
-            await updateMeta({ data: { mediaId: res.id, folderPath: folder } });
+            await updateMeta({ data: { mediaId: uploaded.mediaId, folderPath: folder } });
           }
         }
         toast.success(t("admin.media.uploaded", { defaultValue: "Wgrano pliki" }));

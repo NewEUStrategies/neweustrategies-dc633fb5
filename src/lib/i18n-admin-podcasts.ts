@@ -2,7 +2,7 @@
 // ustawienia podcastu.
 import i18n from "@/lib/i18n";
 
-const pl = {
+export const adminPodcastsPl = {
   adminPodcasts: {
     title: "Podcasty",
     subtitle: "Sieć programów: serie, odcinki, prowadzący i transkrypcje",
@@ -80,6 +80,47 @@ const pl = {
       rssPlaceholder: "Domyślnie: /podcast/rss.xml",
       rssHelperPre: "Zostaw puste, aby używać wbudowanego kanału RSS: ",
       saveSettings: "Zapisz ustawienia",
+      apple: {
+        heading: "Apple Podcasts Connect",
+        intro:
+          "Pola wymagane przez Apple do przyjęcia kanału. Program podcastowy może każde z nich nadpisać własną wartością.",
+        author: "Wydawca (itunes:author)",
+        authorHint: "Nazwa prezentowana w katalogu obok tytułu kanału.",
+        ownerName: "Właściciel kanału",
+        ownerEmail: "E-mail właściciela",
+        ownerEmailHint:
+          "Apple wysyła na ten adres kod weryfikacyjny przy przejmowaniu kanału - bez niego nie potwierdzisz własności.",
+        category: "Kategoria",
+        subcategory: "Podkategoria",
+        subcategoryNone: "Bez podkategorii",
+        explicit: "Treści dla dorosłych (explicit)",
+        showType: "Typ kanału",
+        showTypeEpisodic: "Odcinkowy (najnowszy pierwszy)",
+        showTypeSerial: "Serialowy (od pierwszego odcinka)",
+        image: "Okładka kanału (URL)",
+        imageHint: "Kwadrat 1400x1400 do 3000x3000 px, JPEG lub PNG. Wymagana przez Apple.",
+        copyright: "Prawa autorskie",
+        readinessTitle: "Gotowość kanału",
+        readinessOk: "Kanał spełnia wymagania Apple Podcasts Connect.",
+        readinessBlocking: "Braki blokujące zgłoszenie:",
+        readinessWarnings: "Zalecane uzupełnienia:",
+        blocking: {
+          title: "tytuł kanału",
+          description: "opis kanału",
+          language: "język kanału",
+          image: "okładka kanału",
+          ownerEmail: "e-mail właściciela (weryfikacja własności)",
+          episodes: "co najmniej jeden opublikowany odcinek z plikiem audio",
+        },
+        warnings: {
+          author: "nazwa wydawcy (itunes:author)",
+          ownerName: "nazwa właściciela kanału",
+          copyright: "informacja o prawach autorskich",
+          enclosureLength:
+            "rzeczywisty rozmiar pliku audio (wgraj odcinki przez bibliotekę mediów)",
+          duration: "czas trwania odcinka",
+        },
+      },
     },
     editor: {
       editTitle: "Edycja odcinka",
@@ -163,7 +204,7 @@ const pl = {
   },
 };
 
-const en = {
+export const adminPodcastsEn = {
   adminPodcasts: {
     title: "Podcasts",
     subtitle: "Network of shows: series, episodes, hosts and transcripts",
@@ -241,6 +282,46 @@ const en = {
       rssPlaceholder: "Default: /podcast/rss.xml",
       rssHelperPre: "Leave empty to use the built-in RSS feed: ",
       saveSettings: "Save settings",
+      apple: {
+        heading: "Apple Podcasts Connect",
+        intro:
+          "Fields Apple requires before it accepts a show. Each podcast programme can override any of them.",
+        author: "Publisher (itunes:author)",
+        authorHint: "Name shown in the directory next to the channel title.",
+        ownerName: "Channel owner",
+        ownerEmail: "Owner e-mail",
+        ownerEmailHint:
+          "Apple sends the verification code to this address when you claim the show - without it you cannot confirm ownership.",
+        category: "Category",
+        subcategory: "Subcategory",
+        subcategoryNone: "No subcategory",
+        explicit: "Explicit content",
+        showType: "Show type",
+        showTypeEpisodic: "Episodic (newest first)",
+        showTypeSerial: "Serial (from episode one)",
+        image: "Channel artwork (URL)",
+        imageHint: "Square 1400x1400 to 3000x3000 px, JPEG or PNG. Required by Apple.",
+        copyright: "Copyright",
+        readinessTitle: "Feed readiness",
+        readinessOk: "The feed meets Apple Podcasts Connect requirements.",
+        readinessBlocking: "Blocking gaps:",
+        readinessWarnings: "Recommended additions:",
+        blocking: {
+          title: "channel title",
+          description: "channel description",
+          language: "channel language",
+          image: "channel artwork",
+          ownerEmail: "owner e-mail (ownership verification)",
+          episodes: "at least one published episode with an audio file",
+        },
+        warnings: {
+          author: "publisher name (itunes:author)",
+          ownerName: "channel owner name",
+          copyright: "copyright notice",
+          enclosureLength: "real audio file size (upload episodes through the media library)",
+          duration: "episode duration",
+        },
+      },
     },
     editor: {
       editTitle: "Edit episode",
@@ -324,8 +405,8 @@ const en = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
+i18n.addResourceBundle("pl", "translation", adminPodcastsPl, true, true);
+i18n.addResourceBundle("en", "translation", adminPodcastsEn, true, true);
 
 /**
  * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.

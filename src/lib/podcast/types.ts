@@ -31,6 +31,10 @@ const PodcastSchema = z.object({
   author_id: z.string().uuid().nullable(),
   show_id: z.string().uuid().nullable(),
   category_id: z.string().uuid().nullable(),
+  // Apple Podcasts: <itunes:explicit> i <itunes:episodeType> na elemencie
+  // kanału (migracja 20260725090500).
+  explicit: z.boolean().default(false),
+  episode_type: z.enum(["full", "trailer", "bonus"]).default("full"),
   // Kolumny jsonb - kształt egzekwują parsery poniżej, nie rzutowanie z DB.
   chapters: z.unknown(),
   quotes: z.unknown(),
@@ -143,8 +147,30 @@ const PodcastSettingsSchema = z.object({
   apple_url: z.string().nullable().optional(),
   google_url: z.string().nullable().optional(),
   rss_url: z.string().nullable().optional(),
+  // Metadane kanału wymagane przez Apple Podcasts Connect
+  // (migracja 20260725090500). Emituje je `buildPodcastRssXml`; program
+  // (`podcast_shows`) może każde z nich nadpisać.
+  itunes_author: z.string().nullable().optional(),
+  itunes_owner_name: z.string().nullable().optional(),
+  itunes_owner_email: z.string().nullable().optional(),
+  itunes_category: z.string().nullable().optional(),
+  itunes_subcategory: z.string().nullable().optional(),
+  itunes_explicit: z.boolean().default(false),
+  itunes_type: z.enum(["episodic", "serial"]).default("episodic"),
+  itunes_image_url: z.string().nullable().optional(),
+  itunes_copyright: z.string().nullable().optional(),
 });
 export type PodcastSettings = z.infer<typeof PodcastSettingsSchema>;
+
+/**
+ * <itunes:type> kanału: "episodic" (najnowszy odcinek pierwszy) albo "serial"
+ * (od pierwszego odcinka). Trzymany tu, a nie w builderze RSS, żeby formularze
+ * panelu nie musiały importować generatora XML.
+ */
+export type PodcastShowType = "episodic" | "serial";
+
+/** <itunes:episodeType> odcinka. */
+export type PodcastEpisodeType = "full" | "trailer" | "bonus";
 
 /** Format seconds as `MM:SS` or `H:MM:SS`. */
 export function formatDuration(totalSeconds: number): string {
