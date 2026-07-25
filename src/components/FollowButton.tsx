@@ -58,7 +58,11 @@ export function FollowButton({
           : "bg-brand text-brand-foreground border border-transparent hover:bg-brand/90 hover:shadow-sm",
       ].join(" ")}
     >
-      {following ? <Check className="w-4 h-4 text-current" /> : <Plus className="w-4 h-4 text-current" />}
+      {following ? (
+        <Check className="w-4 h-4 text-current" />
+      ) : (
+        <Plus className="w-4 h-4 text-current" />
+      )}
       {following ? t("Obserwujesz", "Following") : t("Obserwuj", "Follow")}
     </button>
   );

@@ -65,9 +65,11 @@ export function UnreadBadge({
         pulse && "motion-safe:animate-pulse",
         className,
       )}
-      style={{
-        ["--unread-badge-fs" as string]: `${fontSizePx ?? SIZE_FONT_PX[size]}px`,
-      } as CSSProperties}
+      style={
+        {
+          ["--unread-badge-fs" as string]: `${fontSizePx ?? SIZE_FONT_PX[size]}px`,
+        } as CSSProperties
+      }
       aria-label={t(labelKey, { count, defaultValue: `${count} nieprzeczytanych` })}
       aria-live="polite"
     >
@@ -75,4 +77,3 @@ export function UnreadBadge({
     </span>
   );
 }
-

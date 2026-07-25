@@ -77,9 +77,10 @@ export function mapServerError(err: unknown, lang: AppLang = "pl"): FriendlyMess
       : typeof err === "string"
         ? err
         : typeof (err as { message?: unknown }).message === "string"
-          ? ((err as { message: string }).message)
+          ? (err as { message: string }).message
           : "";
-  const status = (err as { status?: number; statusCode?: number }).status ??
+  const status =
+    (err as { status?: number; statusCode?: number }).status ??
     (err as { statusCode?: number }).statusCode;
 
   if (msg.includes(SERVER_ERROR_CODE.csrf) || (status === 403 && /csrf/i.test(msg))) {
@@ -88,11 +89,7 @@ export function mapServerError(err: unknown, lang: AppLang = "pl"): FriendlyMess
       description: tt(lang, "serverErrors.csrf.description"),
     };
   }
-  if (
-    msg.includes(SERVER_ERROR_CODE.rateLimit) ||
-    status === 429 ||
-    /rate.?limit/i.test(msg)
-  ) {
+  if (msg.includes(SERVER_ERROR_CODE.rateLimit) || status === 429 || /rate.?limit/i.test(msg)) {
     return {
       title: tt(lang, "serverErrors.rateLimit.title"),
       description: tt(lang, "serverErrors.rateLimit.description"),

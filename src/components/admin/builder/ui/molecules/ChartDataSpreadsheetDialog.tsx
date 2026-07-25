@@ -88,9 +88,7 @@ function csvToGrid(text: string): Grid {
 
   const rows = nonEmpty.slice(1, MAX_CATEGORIES + 1).map(split);
   const categories = rows.map((r) => r[0] ?? "");
-  const cells = rows.map((r) =>
-    seriesNames.map((_, si) => (r[si + 1] ?? "").toString()),
-  );
+  const cells = rows.map((r) => seriesNames.map((_, si) => (r[si + 1] ?? "").toString()));
   if (categories.length === 0) {
     categories.push("2024");
     cells.push(seriesNames.map(() => ""));
@@ -105,14 +103,7 @@ function gridToCsv(g: Grid): string {
   return [header, ...rows].join("\n");
 }
 
-export function ChartDataSpreadsheetDialog({
-  value,
-  onChange,
-  kind,
-  unit,
-  title,
-  lang,
-}: Props) {
+export function ChartDataSpreadsheetDialog({ value, onChange, kind, unit, title, lang }: Props) {
   const t = L[lang];
   const [open, setOpen] = useState(false);
   const [grid, setGrid] = useState<Grid>(() => csvToGrid(value));
@@ -442,12 +433,7 @@ export function ChartDataSpreadsheetDialog({
           >
             {t.cancel}
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="h-8 rounded-[6px] text-xs"
-            onClick={save}
-          >
+          <Button type="button" size="sm" className="h-8 rounded-[6px] text-xs" onClick={save}>
             {t.save}
           </Button>
         </DialogFooter>

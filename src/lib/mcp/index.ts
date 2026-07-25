@@ -24,7 +24,6 @@ const SUPABASE_ISSUER = SUPABASE_URL
   ? `${SUPABASE_URL.replace(/\/+$/, "")}/auth/v1`
   : "https://mcp-unconfigured.invalid/auth/v1";
 if (!SUPABASE_URL) {
-  // eslint-disable-next-line no-console
   console.warn(
     "[mcp] SUPABASE_URL is not set - /mcp endpoint will reject every request (fail-closed).",
   );

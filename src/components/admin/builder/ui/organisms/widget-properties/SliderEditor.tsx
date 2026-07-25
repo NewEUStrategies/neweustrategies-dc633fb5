@@ -375,24 +375,17 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </div>
         <label className="flex items-center justify-between gap-2 py-1 cursor-pointer">
           <span className="text-xs">{t("builder.sliderEditor.showExcerpt")}</span>
-          <Switch
-            checked={showExcerpt}
-            onCheckedChange={(v) => setContent("showExcerpt", v)}
-          />
+          <Switch checked={showExcerpt} onCheckedChange={(v) => setContent("showExcerpt", v)} />
         </label>
         <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
           <span className="text-xs">{t("builder.sliderEditor.showAuthor")}</span>
-          <Switch
-            checked={showAuthor}
-            onCheckedChange={(v) => setContent("showAuthor", v)}
-          />
+          <Switch checked={showAuthor} onCheckedChange={(v) => setContent("showAuthor", v)} />
         </label>
         <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
-          <span className="text-xs">{t("builder.sliderEditor.showCover", { defaultValue: "Pokaż zdjęcie (cover)" })}</span>
-          <Switch
-            checked={showCover}
-            onCheckedChange={(v) => setContent("showCover", v)}
-          />
+          <span className="text-xs">
+            {t("builder.sliderEditor.showCover", { defaultValue: "Pokaż zdjęcie (cover)" })}
+          </span>
+          <Switch checked={showCover} onCheckedChange={(v) => setContent("showCover", v)} />
         </label>
       </div>
 
@@ -403,76 +396,74 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           {t("builder.sliderEditor.settingsTitle")}
         </div>
         <div className="grid grid-cols-2 gap-2">
-
-        <PropField label={t("builder.sliderEditor.ratio")}>
-          <Select value={ratio} onValueChange={(v) => setContent("ratio", v)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="16/9">16:9</SelectItem>
-              <SelectItem value="21/9">{t("builder.sliderEditor.ratio219")}</SelectItem>
-              <SelectItem value="4/3">4:3</SelectItem>
-              <SelectItem value="3/2">3:2</SelectItem>
-              <SelectItem value="1/1">{t("builder.sliderEditor.ratio11")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </PropField>
-        <PropField label={t("builder.sliderEditor.rounded")}>
-          <Select value={rounded} onValueChange={(v) => setContent("rounded", v)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("builder.sliderEditor.roundedNone")}</SelectItem>
-              <SelectItem value="sm">{t("builder.sliderEditor.roundedSm")}</SelectItem>
-              <SelectItem value="md">{t("builder.sliderEditor.roundedMd")}</SelectItem>
-              <SelectItem value="lg">{t("builder.sliderEditor.roundedLg")}</SelectItem>
-              <SelectItem value="xl">XL</SelectItem>
-            </SelectContent>
-          </Select>
-        </PropField>
-        <PropField label={t("builder.sliderEditor.autoplay")}>
-          <Select
-            value={autoplay ? "on" : "off"}
-            onValueChange={(v) => setContent("autoplay", v === "on")}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="on">{t("builder.sliderEditor.on")}</SelectItem>
-              <SelectItem value="off">{t("builder.sliderEditor.off")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </PropField>
-        <PropField label={t("builder.sliderEditor.interval")}>
-          <Input
-            type="number"
-            min={1500}
-            max={20000}
-            step={250}
-            value={intervalMs}
-            onChange={(e) => setContent("intervalMs", Number(e.target.value) || 4500)}
-            className="h-8 text-xs"
-          />
-        </PropField>
-        <PropField label={t("builder.sliderEditor.overlay")}>
-          <Input
-            type="number"
-            min={0}
-            max={1}
-            step={0.05}
-            value={overlayOpacity}
-            onChange={(e) =>
-              setContent("overlayOpacity", Math.min(1, Math.max(0, Number(e.target.value) || 0)))
-            }
-            className="h-8 text-xs"
-          />
-        </PropField>
+          <PropField label={t("builder.sliderEditor.ratio")}>
+            <Select value={ratio} onValueChange={(v) => setContent("ratio", v)}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="16/9">16:9</SelectItem>
+                <SelectItem value="21/9">{t("builder.sliderEditor.ratio219")}</SelectItem>
+                <SelectItem value="4/3">4:3</SelectItem>
+                <SelectItem value="3/2">3:2</SelectItem>
+                <SelectItem value="1/1">{t("builder.sliderEditor.ratio11")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          <PropField label={t("builder.sliderEditor.rounded")}>
+            <Select value={rounded} onValueChange={(v) => setContent("rounded", v)}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("builder.sliderEditor.roundedNone")}</SelectItem>
+                <SelectItem value="sm">{t("builder.sliderEditor.roundedSm")}</SelectItem>
+                <SelectItem value="md">{t("builder.sliderEditor.roundedMd")}</SelectItem>
+                <SelectItem value="lg">{t("builder.sliderEditor.roundedLg")}</SelectItem>
+                <SelectItem value="xl">XL</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          <PropField label={t("builder.sliderEditor.autoplay")}>
+            <Select
+              value={autoplay ? "on" : "off"}
+              onValueChange={(v) => setContent("autoplay", v === "on")}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="on">{t("builder.sliderEditor.on")}</SelectItem>
+                <SelectItem value="off">{t("builder.sliderEditor.off")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          <PropField label={t("builder.sliderEditor.interval")}>
+            <Input
+              type="number"
+              min={1500}
+              max={20000}
+              step={250}
+              value={intervalMs}
+              onChange={(e) => setContent("intervalMs", Number(e.target.value) || 4500)}
+              className="h-8 text-xs"
+            />
+          </PropField>
+          <PropField label={t("builder.sliderEditor.overlay")}>
+            <Input
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={overlayOpacity}
+              onChange={(e) =>
+                setContent("overlayOpacity", Math.min(1, Math.max(0, Number(e.target.value) || 0)))
+              }
+              className="h-8 text-xs"
+            />
+          </PropField>
         </div>
       </div>
-
 
       {/* Nav buttons styling */}
       <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">

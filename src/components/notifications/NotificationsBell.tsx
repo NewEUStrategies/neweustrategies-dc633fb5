@@ -177,8 +177,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
     staleTime: 5 * 60_000,
   });
   const actorProfiles = useMemo(
-    () =>
-      new Map((actorProfilesQ.data ?? []).map((profile) => [profile.connection_id, profile])),
+    () => new Map((actorProfilesQ.data ?? []).map((profile) => [profile.connection_id, profile])),
     [actorProfilesQ.data],
   );
 
@@ -214,10 +213,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          <Bell
-            className="h-[18px] w-[18px]"
-            aria-hidden
-          />
+          <Bell className="h-[18px] w-[18px]" aria-hidden />
 
           <UnreadBadge
             count={unread}
@@ -312,7 +308,9 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                       <AvatarFallback
                         className={[
                           "rounded-[5px]",
-                          isUnread ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                          isUnread
+                            ? "bg-primary/15 text-primary"
+                            : "bg-muted text-muted-foreground",
                         ].join(" ")}
                         aria-hidden
                       >
@@ -337,7 +335,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           <UnreadBadge
                             count={groupUnread}
                             size="sm"
-                             className="rounded-[5px] text-[5px]"
+                            className="rounded-[5px] text-[5px]"
                             labelKey="notifications.unread"
                           />
                         )}

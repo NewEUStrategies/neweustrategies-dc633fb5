@@ -246,7 +246,10 @@ export function CompanyPickerDialog({
             <div className="px-5 py-3 border-b border-border">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <span className="absolute left-9 top-1/2 -translate-y-1/2 h-4 w-px bg-border" aria-hidden="true" />
+                <span
+                  className="absolute left-9 top-1/2 -translate-y-1/2 h-4 w-px bg-border"
+                  aria-hidden="true"
+                />
                 <Input
                   ref={inputRef}
                   value={query}

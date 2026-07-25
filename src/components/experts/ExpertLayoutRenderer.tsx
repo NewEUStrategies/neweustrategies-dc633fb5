@@ -635,7 +635,6 @@ export function ExpertLayoutHero({
             </p>
             <div className="mt-3 h-px w-full bg-border/60" />
             <BioBlock className="mt-4" />
-
           </div>
         </div>
       </div>

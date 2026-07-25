@@ -82,9 +82,7 @@ export function ExpertRequestQuotaEditor({
           </span>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">
-        {t("adminMembership.expertRequest.hint")}
-      </p>
+      <p className="text-[11px] text-muted-foreground">{t("adminMembership.expertRequest.hint")}</p>
     </div>
   );
 }

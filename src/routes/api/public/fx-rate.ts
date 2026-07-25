@@ -109,7 +109,13 @@ export const Route = createFileRoute("/api/public/fx-rate")({
         }
         try {
           await guardRateLimit(
-            { scope: "fx-rate:force", subjectId: userId, max: 6, windowMinutes: 1, failClosed: true },
+            {
+              scope: "fx-rate:force",
+              subjectId: userId,
+              max: 6,
+              windowMinutes: 1,
+              failClosed: true,
+            },
             60,
           );
         } catch (err) {

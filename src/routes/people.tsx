@@ -7,16 +7,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  BadgeCheck,
-  Eye,
-  EyeOff,
-  MapPin,
-  Search,
-  Trophy,
-  Users,
-  X,
-} from "lucide-react";
+import { BadgeCheck, Eye, EyeOff, MapPin, Search, Trophy, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -168,8 +159,6 @@ function PersonCard({
   connection?: ConnectionState;
 }) {
   const { t } = useTranslation();
-
-
 
   const details = (
     <>

@@ -168,11 +168,7 @@ export function classifyError(error: unknown): ErrorKind {
   if (status === 302 || status === 307 || status === 308) return "sessionExpired";
 
   const message = typeof e.message === "string" ? e.message.toLowerCase() : "";
-  if (
-    message.includes("unauthorized") ||
-    message.includes("auth") ||
-    message.includes("session")
-  ) {
+  if (message.includes("unauthorized") || message.includes("auth") || message.includes("session")) {
     return message.includes("expired") ? "sessionExpired" : "unauthorized";
   }
 

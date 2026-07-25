@@ -165,13 +165,11 @@ function EditPage() {
     if (!page) return;
     if (loadedIdRef.current === page.id) return;
     loadedIdRef.current = page.id;
-    const normalized: PageForm =
-      page.editor === "builder" ? page : { ...page, editor: "builder" };
+    const normalized: PageForm = page.editor === "builder" ? page : { ...page, editor: "builder" };
     history.reset(normalized);
     savedFormRef.current = normalized;
     baseUpdatedAtRef.current = normalized.updated_at ?? null;
   }, [page, history.reset]);
-
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

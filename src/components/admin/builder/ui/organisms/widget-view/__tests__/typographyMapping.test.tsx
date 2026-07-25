@@ -175,8 +175,12 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
       typography: { fontSize: { desktop: "14px" }, fontFamily: "serif" },
     });
 
-    expect(css).toContain("span:not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt])");
-    expect(css).toContain("button:not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt])");
+    expect(css).toContain(
+      "span:not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt])",
+    );
+    expect(css).toContain(
+      "button:not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt])",
+    );
   });
 
   it("updates the rendered typography CSS immediately from the live editor channel", async () => {

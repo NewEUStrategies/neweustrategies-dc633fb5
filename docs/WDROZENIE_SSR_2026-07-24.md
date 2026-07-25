@@ -184,15 +184,15 @@ bramki `check:bundle` / `check:chunks` uruchomione na finalnym artefakcie.
 
 ## Wyniki bramek na finalnym artefakcie
 
-| Bramka | Wynik |
-| --- | --- |
-| `tsc --noEmit` | czysty |
-| `vitest` (pełny) | 2593 passed / 0 failed (+~30 nowych testów cache/normalize) |
-| `vite build` (prod) | zielony |
-| `.output/server` | 13 MB raw / 2,96 MB gzip (z 21 MB / 4,02 MB) |
-| `check:bundle` | public 1541,5 KB / overall 2607,9 KB / chunk 378,0 KB gzip - vs HEAD 1540,9/2607,0/377,0 (+<1 KB z dodatków TTL); floory jak na HEAD przekroczone, plan zejścia: pkt 10 |
-| `check:chunks` | bez cykli (graf chunków klienta niezmieniony) |
-| `eslint` | 0 błędów w plikach zmienionych; globalnie 308 problemów vs 319 na HEAD (pre-istniejący dryf formatu prettiera) |
+| Bramka              | Wynik                                                                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tsc --noEmit`      | czysty                                                                                                                                                                  |
+| `vitest` (pełny)    | 2593 passed / 0 failed (+~30 nowych testów cache/normalize)                                                                                                             |
+| `vite build` (prod) | zielony                                                                                                                                                                 |
+| `.output/server`    | 13 MB raw / 2,96 MB gzip (z 21 MB / 4,02 MB)                                                                                                                            |
+| `check:bundle`      | public 1541,5 KB / overall 2607,9 KB / chunk 378,0 KB gzip - vs HEAD 1540,9/2607,0/377,0 (+<1 KB z dodatków TTL); floory jak na HEAD przekroczone, plan zejścia: pkt 10 |
+| `check:chunks`      | bez cykli (graf chunków klienta niezmieniony)                                                                                                                           |
+| `eslint`            | 0 błędów w plikach zmienionych; globalnie 308 problemów vs 319 na HEAD (pre-istniejący dryf formatu prettiera)                                                          |
 
 ## Oczekiwane efekty w produkcji (miary z OCENA_SSR)
 
@@ -219,5 +219,5 @@ bramki `check:bundle` / `check:chunks` uruchomione na finalnym artefakcie.
 - **Budżety klienta** zostają czerwone jak na HEAD - zejście do floorów to osobna,
   gate'owana praca (pkt 10); floory świadomie NIE zostały podniesione.
 
-*Wszystkie ścieżki odnoszą się do brancha `claude/ssr-system-assessment-7fmsp4`;
-raport źródłowy oceny: `docs/OCENA_SSR_2026-07-24.md`.*
+_Wszystkie ścieżki odnoszą się do brancha `claude/ssr-system-assessment-7fmsp4`;
+raport źródłowy oceny: `docs/OCENA_SSR_2026-07-24.md`._

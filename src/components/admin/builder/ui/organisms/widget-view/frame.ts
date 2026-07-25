@@ -122,7 +122,6 @@ function pickHeight(value: ResponsiveSize, device: Device): number | "auto" | un
   return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
 
-
 function toCssSize(value: number | "auto" | undefined): string | number | undefined {
   if (value === undefined) return undefined;
   return value === "auto" ? "auto" : value;

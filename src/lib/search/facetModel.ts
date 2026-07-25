@@ -384,6 +384,5 @@ export function suggestionHref(it: AutosuggestItem): string {
   return qs ? `/search?${qs}` : "/search";
 }
 
-
 export const AUTOSUGGEST_LISTBOX_ID = "search-autosuggest-listbox";
 export const autosuggestOptionId = (i: number) => `search-suggest-opt-${i}`;

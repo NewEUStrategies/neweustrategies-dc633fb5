@@ -83,7 +83,10 @@ export function AdminListToolbar({
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
       <div className="relative flex-1 min-w-[200px] max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/70 pointer-events-none z-10" strokeWidth={2.25} />
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/70 pointer-events-none z-10"
+          strokeWidth={2.25}
+        />
         <span className="absolute left-9 top-1/2 -translate-y-1/2 h-4 w-px bg-border pointer-events-none z-10" />
         <Input
           value={search}

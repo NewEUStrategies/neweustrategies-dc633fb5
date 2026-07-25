@@ -42,7 +42,6 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   }
 });
 
-
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
 // language and the destination is edge-cacheable. Localizable paths map the
@@ -264,7 +263,6 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
 const csrfMiddleware = createCsrfMiddleware({
   filter: (ctx) => ctx.handlerType === "serverFn",
 });
-
 
 export const startInstance = createStart(() => ({
   // Middleware order matters:

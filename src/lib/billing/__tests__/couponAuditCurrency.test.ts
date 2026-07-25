@@ -6,7 +6,6 @@ import { setEurPlnRateForTests } from "../fxRate";
 // żeby oczekiwane kwoty pozostały deterministyczne niezależnie od NBP.
 beforeAll(() => setEurPlnRateForTests(2));
 
-
 describe("couponAuditInDisplayCurrency (parytet PLN/EUR + spójność audytu kuponu)", () => {
   it("PLN -> EUR: kwoty w EUR, niezmiennik original = final + discount", () => {
     // 100 PLN oryginał, 80 PLN finał (kupon 20%).

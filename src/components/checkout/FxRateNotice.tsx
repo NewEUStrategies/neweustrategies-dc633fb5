@@ -32,10 +32,13 @@ async function fetchFxStatus(): Promise<FxStatusResponse | null> {
 
 function formatTime(iso: string, lang: string): string {
   const d = new Date(iso);
-  return `${formatDate(d, lang)}, ${d.toLocaleTimeString(lang.startsWith("en") ? "en-GB" : "pl-PL", {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
+  return `${formatDate(d, lang)}, ${d.toLocaleTimeString(
+    lang.startsWith("en") ? "en-GB" : "pl-PL",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+  )}`;
 }
 
 export function FxRateNotice({ displayCurrency }: { displayCurrency: "PLN" | "EUR" }) {
@@ -83,9 +86,7 @@ export function FxRateNotice({ displayCurrency }: { displayCurrency: "PLN" | "EU
           </div>
         )}
         {isFallback && data.lastError && (
-          <div className="opacity-80">
-            {t("checkout.fx.reason", { reason: data.lastError })}
-          </div>
+          <div className="opacity-80">{t("checkout.fx.reason", { reason: data.lastError })}</div>
         )}
       </div>
     </div>

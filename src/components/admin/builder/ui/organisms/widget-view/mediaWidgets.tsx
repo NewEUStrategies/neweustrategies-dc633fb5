@@ -374,23 +374,22 @@ export function PostsSliderWidget({
     // Nie odfiltrowujemy slajdów po braku cover_image_url - inaczej wyłączenie
     // "Pokaż cover" (lub post bez okładki) trwale usuwałoby slajd z karuzeli
     // i nie dałoby się go przywrócić bez ponownego dodania okładki do wpisu.
-    items: items
-      .map((p) => {
-        const author = p.author_id ? authorMap.get(p.author_id) : undefined;
-        return {
-          image: p.cover_image_url ?? "",
-          title_pl: p.title_pl ?? "",
-          title_en: p.title_en ?? p.title_pl ?? "",
-          subtitle_pl: showExcerpt ? (p.excerpt_pl ?? "") : "",
-          subtitle_en: showExcerpt ? (p.excerpt_en ?? p.excerpt_pl ?? "") : "",
-          href: `/post/${p.slug}`,
-          cta_pl: ctaLabel,
-          cta_en: ctaLabel,
-          author: author?.name ?? "",
-          authorAvatar: author?.avatar ?? "",
-          authorSlug: author?.slug ?? "",
-        };
-      }),
+    items: items.map((p) => {
+      const author = p.author_id ? authorMap.get(p.author_id) : undefined;
+      return {
+        image: p.cover_image_url ?? "",
+        title_pl: p.title_pl ?? "",
+        title_en: p.title_en ?? p.title_pl ?? "",
+        subtitle_pl: showExcerpt ? (p.excerpt_pl ?? "") : "",
+        subtitle_en: showExcerpt ? (p.excerpt_en ?? p.excerpt_pl ?? "") : "",
+        href: `/post/${p.slug}`,
+        cta_pl: ctaLabel,
+        cta_en: ctaLabel,
+        author: author?.name ?? "",
+        authorAvatar: author?.avatar ?? "",
+        authorSlug: author?.slug ?? "",
+      };
+    }),
   };
   return <SliderRender config={cfg} lang={lang} />;
 }

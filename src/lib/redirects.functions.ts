@@ -61,9 +61,7 @@ async function allowedRedirectHosts(): Promise<string[]> {
 
 export const upsertRedirect = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .validator((i: unknown) =>
-    z.object({ id: UUID.optional(), fields: RedirectFields }).parse(i),
-  )
+  .validator((i: unknown) => z.object({ id: UUID.optional(), fields: RedirectFields }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("redirect.upsert", userId, 120, async () => {

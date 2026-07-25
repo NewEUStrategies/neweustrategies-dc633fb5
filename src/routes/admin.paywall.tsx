@@ -197,12 +197,18 @@ function PaywallAdmin() {
                 </thead>
                 <tbody>
                   {plans.map((p) => (
-                    <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/40">
+                    <tr
+                      key={p.id}
+                      className="border-b border-border last:border-0 hover:bg-muted/40"
+                    >
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold">{p.name_pl || p.name_en}</span>
                           {p.highlighted && (
-                            <Badge variant="secondary" className="h-4 rounded-[6px] px-1.5 text-[10px]">
+                            <Badge
+                              variant="secondary"
+                              className="h-4 rounded-[6px] px-1.5 text-[10px]"
+                            >
                               <Sparkles className="mr-0.5 h-2.5 w-2.5" aria-hidden />
                               {t("admin.paywall.highlighted", "Wyróżniony")}
                             </Badge>
@@ -300,7 +306,9 @@ function PaywallAdmin() {
               </FieldGroup>
 
               {/* Grupa: Cennik i rozliczenie */}
-              <FieldGroup label={t("admin.paywall.groupPricing", { defaultValue: "Cennik i rozliczenie" })}>
+              <FieldGroup
+                label={t("admin.paywall.groupPricing", { defaultValue: "Cennik i rozliczenie" })}
+              >
                 <div className="grid sm:grid-cols-3 gap-4">
                   <div>
                     <Label>{t("admin.paywall.priceCents")}</Label>
@@ -330,7 +338,9 @@ function PaywallAdmin() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="month">{t("admin.paywall.intervalMonth")}</SelectItem>
-                        <SelectItem value="quarter">{t("admin.paywall.intervalQuarter")}</SelectItem>
+                        <SelectItem value="quarter">
+                          {t("admin.paywall.intervalQuarter")}
+                        </SelectItem>
                         <SelectItem value="year">{t("admin.paywall.intervalYear")}</SelectItem>
                         <SelectItem value="one_time">{t("admin.paywall.intervalOnce")}</SelectItem>
                       </SelectContent>
@@ -349,7 +359,9 @@ function PaywallAdmin() {
               </FieldGroup>
 
               {/* Grupa: Widoczność i akcenty */}
-              <FieldGroup label={t("admin.paywall.groupVisibility", { defaultValue: "Widoczność i akcenty" })}>
+              <FieldGroup
+                label={t("admin.paywall.groupVisibility", { defaultValue: "Widoczność i akcenty" })}
+              >
                 <div className="grid sm:grid-cols-2 gap-4">
                   <label className="flex items-center gap-2 text-sm">
                     <Switch
@@ -396,7 +408,9 @@ function PaywallAdmin() {
               </FieldGroup>
 
               {/* Grupa: Lista funkcji */}
-              <FieldGroup label={t("admin.paywall.groupFeatures", { defaultValue: "Lista funkcji" })}>
+              <FieldGroup
+                label={t("admin.paywall.groupFeatures", { defaultValue: "Lista funkcji" })}
+              >
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <Label>{t("admin.paywall.featuresPl", "Funkcje (PL, jedna na linię)")}</Label>

@@ -38,13 +38,7 @@ function ErrorPage() {
   // Build a synthetic error object that FriendlyErrorPage can classify.
   const syntheticError = useSyntheticError(kind);
 
-  return (
-    <FriendlyErrorPage
-      error={syntheticError}
-      title={title}
-      footer={footer}
-    />
-  );
+  return <FriendlyErrorPage error={syntheticError} title={title} footer={footer} />;
 }
 
 function useSyntheticError(kind?: ErrorKind): { status: number; message: string } {

@@ -45,19 +45,19 @@ dokumentuje decyzje i „footguny".
 luki bezpieczeństwa P1** i **jeden defekt P0 wdrożeniowy**, które podważają część
 tych gwarancji:
 
-| # | Ustalenie | Sev | Prio | Status |
-|---|-----------|-----|------|--------|
-| 1 | Kolizja timestampów migracji `20260723180000` (chat_plus vs expert_request_quota) — dla NOWYCH tenantów cicho cofa naprawę czatu i katalog cennika v5 | BUG | **P0** | POTWIERDZONE |
-| 2 | `authenticated` ma table-wide `SELECT` na `public.profiles` → każdy staff (nawet `author`) czyta e-maile/prefs/telefony wszystkich profili tenanta; łatka „Fixed security issues" domknęła tylko `anon` | BUG | **P1** | POTWIERDZONE |
-| 3 | `crm_upsert_lead(_tenant,…)` `SECURITY DEFINER` bez autoryzacji, `GRANT … TO authenticated` → cross-tenant zapis leadów + fałszowanie `marketing_consent` | BUG | **P1** | POTWIERDZONE |
-| 4 | LIKE-injection w ścieżkach folderów mediów (`%`/`_`) → `deleteMediaFolder(recursive)` może skasować cudze media w tenancie | BUG | **P0/P1** | POTWIERDZONE (regex) |
-| 5 | `href` widgetu buildera renderowany bez `safeUrl()` → `javascript:`/`data:` na stronie publicznej (stored XSS) | RYZYKO | **P1** | POTWIERDZONE |
-| 6 | Wyścig + obejście kwoty „Zapytanie do eksperta" (TOCTOU + send→cancel→send) | BUG | **P1** | POTWIERDZONE |
-| 7 | Wyciek przychodu między tenantami w `monetization_dashboard` (CTE `orders` bez `tenant_id`) | BUG | **P1** | POTWIERDZONE |
-| 8 | `/programs/$slug/rss.xml` odpytuje złą tabelę (`programs` zamiast `research_programs`) → 404 lub treść innego programu | BUG | **P1** | POTWIERDZONE |
-| 9 | Obejście moderacji komentarzy przez edycję po zatwierdzeniu (status nie resetowany) | RYZYKO | **P1** | POTWIERDZONE |
-| 10 | `/messages` bez bramki `chat_enabled` — „wyłączony" moduł czatu działa przez URL | RYZYKO | **P1** | POTWIERDZONE |
-| 11 | Mismatch hydratacji buildera na mobile (`device ?? detectViewportDevice()`) → CLS | RYZYKO | **P0/P1** | POTWIERDZONE |
+| #   | Ustalenie                                                                                                                                                                                               | Sev    | Prio      | Status               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------- | -------------------- |
+| 1   | Kolizja timestampów migracji `20260723180000` (chat_plus vs expert_request_quota) — dla NOWYCH tenantów cicho cofa naprawę czatu i katalog cennika v5                                                   | BUG    | **P0**    | POTWIERDZONE         |
+| 2   | `authenticated` ma table-wide `SELECT` na `public.profiles` → każdy staff (nawet `author`) czyta e-maile/prefs/telefony wszystkich profili tenanta; łatka „Fixed security issues" domknęła tylko `anon` | BUG    | **P1**    | POTWIERDZONE         |
+| 3   | `crm_upsert_lead(_tenant,…)` `SECURITY DEFINER` bez autoryzacji, `GRANT … TO authenticated` → cross-tenant zapis leadów + fałszowanie `marketing_consent`                                               | BUG    | **P1**    | POTWIERDZONE         |
+| 4   | LIKE-injection w ścieżkach folderów mediów (`%`/`_`) → `deleteMediaFolder(recursive)` może skasować cudze media w tenancie                                                                              | BUG    | **P0/P1** | POTWIERDZONE (regex) |
+| 5   | `href` widgetu buildera renderowany bez `safeUrl()` → `javascript:`/`data:` na stronie publicznej (stored XSS)                                                                                          | RYZYKO | **P1**    | POTWIERDZONE         |
+| 6   | Wyścig + obejście kwoty „Zapytanie do eksperta" (TOCTOU + send→cancel→send)                                                                                                                             | BUG    | **P1**    | POTWIERDZONE         |
+| 7   | Wyciek przychodu między tenantami w `monetization_dashboard` (CTE `orders` bez `tenant_id`)                                                                                                             | BUG    | **P1**    | POTWIERDZONE         |
+| 8   | `/programs/$slug/rss.xml` odpytuje złą tabelę (`programs` zamiast `research_programs`) → 404 lub treść innego programu                                                                                  | BUG    | **P1**    | POTWIERDZONE         |
+| 9   | Obejście moderacji komentarzy przez edycję po zatwierdzeniu (status nie resetowany)                                                                                                                     | RYZYKO | **P1**    | POTWIERDZONE         |
+| 10  | `/messages` bez bramki `chat_enabled` — „wyłączony" moduł czatu działa przez URL                                                                                                                        | RYZYKO | **P1**    | POTWIERDZONE         |
+| 11  | Mismatch hydratacji buildera na mobile (`device ?? detectViewportDevice()`) → CLS                                                                                                                       | RYZYKO | **P0/P1** | POTWIERDZONE         |
 
 Poza tym ~15 ustaleń P1 i ~50 P2 opisanych w sekcjach 4 i 5.
 
@@ -79,14 +79,14 @@ Poza tym ~15 ustaleń P1 i ~50 P2 opisanych w sekcjach 4 i 5.
   `grant.server`) mają wysokie progi per-plik — dobra strategia, ale środek masy
   kodu jest nieprzetestowany.
 - **Dług typów/bezpieczeństwa:** `strict: true`, ale `noUnusedLocals/Parameters:
-  false`, `skipLibCheck: true`; **223× `as any`**; **68 miejsc
+false`, `skipLibCheck: true`; **223× `as any`**; **68 miejsc
   `dangerouslySetInnerHTML`** — próbki zweryfikowane: **sanityzacja jest
   konsekwentna** (JSON-LD przez `safeJsonLd`, treść przez centralny `sanitizeHtml`,
   CSS przez `hardenStyleCss`, `SearchSnippet` celowo bez wstrzykiwania HTML). To
   mocna strona, nie dług — z dwoma wyjątkami (poz. 5 powyżej i fallback w
   `atoms.tsx`).
 - **CSP:** kompletny zestaw nagłówków (HSTS 2 lata, `nosniff`, `frame-ancestors
-  'self'`, `object-src 'none'`, `script-src-attr 'none'`), ale `script-src`
+'self'`, `object-src 'none'`, `script-src-attr 'none'`), ale `script-src`
   zawiera `'unsafe-inline'` (uzasadnione brakiem wsparcia nonce w tej wersji
   TanStack Start) — CSP nie blokuje więc wykonania wstrzykniętego skryptu inline.
 
@@ -95,6 +95,7 @@ Poza tym ~15 ustaleń P1 i ~50 P2 opisanych w sekcjach 4 i 5.
 ## 3. Najpoważniejsze ustalenia — szczegóły P0/P1 (potwierdzone)
 
 ### P0-1. Kolizja timestampów migracji `20260723180000`
+
 Dwie migracje mają identyczny prefiks: `20260723180000_chat_plus_tier_gating_and_benefit.sql`
 oraz `20260723180000_expert_request_quota.sql`. Obie robią
 `CREATE OR REPLACE FUNCTION public.seed_pricing_defaults`. Sortowanie leksykalne
@@ -111,6 +112,7 @@ expert-request, `seed_chat_tier_flags` i `apply_pricing_catalog_v5`. Dodać test
 weryfikujący flagi tieru + katalog dla świeżego tenanta.
 
 ### P1-2. `authenticated` czyta PII wszystkich profili tenanta (regresja)
+
 Łańcuch grantów na `public.profiles` (zweryfikowany chronologicznie): stan
 poprawny (kolumnowy) był utrzymany po `20260708170000`, ale **migracja
 `20260721202956_b111ae89:1` przywróciła `GRANT SELECT, INSERT, UPDATE ON
@@ -135,6 +137,7 @@ denied" (fail-closed, ale regresja funkcjonalna — może zepsuć publiczne stro
 autorów).
 
 ### P1-3. `crm_upsert_lead` — cross-tenant zapis bez autoryzacji
+
 Funkcja `crm_upsert_lead(_tenant, …)` (`20260630060254:29-82`) jest `SECURITY
 DEFINER`, bierze `_tenant` z parametru klienta i **nie ma żadnej kontroli
 autoryzacji** (brak `has_role`/`is_staff`/porównania z `current_tenant_id()`).
@@ -149,6 +152,7 @@ ataku.
 lub dodać guard `IF _tenant <> current_tenant_id() OR NOT is_staff() THEN RAISE`.
 
 ### P0/P1-4. LIKE-injection w folderach mediów
+
 `FOLDER_PATH_RE` (`media.functions.ts:395`) dopuszcza znaki `%` i `_`, a
 `renameMediaFolder`/`deleteMediaFolder` używają ścieżki wprost w
 `.like("path", "${path}%")` (`:661,676,710,719,738`). Folder o nazwie zawierającej
@@ -157,6 +161,7 @@ lub dodać guard `IF _tenant <> current_tenant_id() OR NOT is_staff() THEN RAISE
 **Rekomendacja P0/P1:** escapować `%`/`_` przed `.like` (lub usunąć je z regexu).
 
 ### P1-5. `href` widgetu buildera bez sanityzacji URL
+
 `BuilderRenderer.tsx:841` renderuje `href={w.advanced.link.url}` **bez `safeUrl()`**
 — jedyny href w całym builderze pominięty (pozostałe w `WidgetView.tsx` przechodzą
 przez `safeUrl`). Autor (w tym role `author`/`editor`) może ustawić w „linku"
@@ -164,6 +169,7 @@ widgetu `javascript:…`/`data:text/html,…`; wartość ląduje na stronie publ
 React ją wyrenderuje. **Rekomendacja P1:** owinąć w `safeUrl(...)`.
 
 ### P1-6. Kwota „Zapytanie do eksperta" — wyścig i obejście
+
 `send_expert_request` (`20260723180000_expert_request_quota`) liczy `used`, sprawdza
 limit i `INSERT` bez `LOCK`/unikalnego ograniczenia → **TOCTOU**: równoległe
 wywołania przy quota=1 wstawią dwa rekordy. Dodatkowo `my_expert_request_quota`
@@ -173,6 +179,7 @@ send→cancel→send **zeruje licznik**, umożliwiając nieograniczony spam eksp
 statusu (albo „w tym miesiącu" bez odliczania anulowanych).
 
 ### P1-7. Wyciek przychodu między tenantami w `monetization_dashboard`
+
 CTE `orders` (`20260721070203:206-212`) odpytuje `payment_orders` **bez `tenant_id =
 v_tenant`**, gdy wszystkie pozostałe CTE filtrują po tenancie; funkcja jest
 `SECURITY DEFINER` (RLS pominięte). Admin/edytor każdego tenanta widzi globalną
@@ -180,6 +187,7 @@ liczbę zamówień i sumę `revenue_cents` wszystkich tenantów.
 **Rekomendacja P1:** dodać `AND tenant_id = v_tenant` + test pgTAP izolacji.
 
 ### P1-8. RSS programów odpytuje niewłaściwą tabelę
+
 `/programs/$slug/rss.xml` → `taxonomyFeedResponse("program")` używa tabeli
 `programs` + join `post_programs` (`publishedContent.server.ts:348-351`), podczas
 gdy landing `/programs/$slug` i sitemap używają `research_programs`
@@ -189,6 +197,7 @@ programu. **Rekomendacja P1:** przełączyć `program` w `TAXONOMY_TABLES` na
 `research_programs` albo odpiąć trasę.
 
 ### P1-9. Obejście moderacji komentarzy przez edycję
+
 `comments_guard_update` (`20260713140000:143-153`) pozwala autorowi edytować `body`
 przez 15 min od utworzenia i **nie resetuje statusu**. Scenariusz: treść neutralna →
 moderator zatwierdza (`approved`) → autor w oknie 15 min podmienia na złośliwą;
@@ -197,6 +206,7 @@ komentarz pozostaje `approved`. **Rekomendacja P1:** przy włączonej moderacji 
 `status := 'pending'`.
 
 ### P1-10. `/messages` bez bramki `chat_enabled`
+
 `messages.tsx` nie używa `useCommunityModules`/`CommunityDisabled` — w
 przeciwieństwie do `network/events/qa/polls`. Wyłączenie „Chat" w panelu admina
 ukrywa jedynie przyciski (`DirectMessageButton.tsx:60`), a trasa `/messages` i
@@ -205,6 +215,7 @@ panelu (`admin.community.index.tsx:156`). **Rekomendacja P1:** dodać gate
 `chat_enabled` w `messages.tsx`.
 
 ### P0/P1-11. Mismatch hydratacji buildera na mobile
+
 Inicjalizator stanu `device ?? detectViewportDevice()` (`BuilderRenderer.tsx:185-186`)
 przy `device=undefined` (ścieżka publiczna) na kliencie czyta `window.innerWidth`,
 więc pierwszy render na telefonie liczy `"mobile"`, gdy SSR/cache wyemitował
@@ -218,6 +229,7 @@ pozostawiając korektę w istniejącym layout-effekcie; zweryfikować RUM CLS mo
 ## 4. Ocena po obszarach
 
 ### 4.1. Silniki treści i edytory (bloki, builder, dyspozytor)
+
 **Cel:** hybrydowy render treści — bloki (artykuły) i builder (strony), z jednym
 punktem decyzji `resolveContentEngine`.
 **Mocne strony:** logika renderu naprawdę scentralizowana (`contentEngine.ts`), fasada
@@ -229,6 +241,7 @@ koniec z fałszywym „Zapisano"); rewizje throttlowane + limit 50 + guard na ci
 odrzucenie RLS; sanityzacja dwusilnikowa i cytaty deterministyczne (UTC, bez `Intl`,
 brak mismatchu).
 **Słabości/błędy:**
+
 - **[RYZYKO P1]** `href` widgetu bez `safeUrl` (`BuilderRenderer.tsx:841`) — patrz P1-5.
 - **[RYZYKO P1]** Brak optimistic-concurrency: `updatePost`/`updatePage`
   (`content.functions.ts:542-546`) `UPDATE` bez guardu `updated_at` → przy dwóch
@@ -252,7 +265,8 @@ brak mismatchu).
   a kod nie lockuje; komentarz `useAutosave.ts:10-13` twierdzi, że strony nie mają
   rewizji — mają.
 
-### 4.2. Mechanika ładowania, nawigacji i przejść (SSR/routing) — *zakres rozszerzony*
+### 4.2. Mechanika ładowania, nawigacji i przejść (SSR/routing) — _zakres rozszerzony_
+
 **Cel:** szybkie ładowanie wpisów/stron, płynne przejścia SPA, stany ładowania i
 izolacja błędów.
 **Mocne strony:** i18n per-request `cloneInstance` (brak wycieku języka między
@@ -264,6 +278,7 @@ BYPASS przy `Authorization`/cookie `sb-*`, single-flight SWR z fallbackiem na st
 `pending/error/notFound` na trasach; `OptimizedImage` z rezerwacją `aspectRatio`;
 ciężkie nakładki i `echarts` poza bundlem czytnika.
 **Słabości/błędy:**
+
 - **[RYZYKO P0/P1]** Mismatch hydratacji buildera na mobile — patrz P1-11.
 - **[RYZYKO P1]** Waterfall danych na zimnym renderze wpisu (`public.ts:379→401→434→488`):
   `resolve_path` → `Promise.all(7)` → profil autora → współautorzy = 3-4 sekwencyjne
@@ -277,7 +292,7 @@ ciężkie nakładki i `echarts` poza bundlem czytnika.
   `prerender` pełnego dokumentu + `AppLink.handleClick` `preventDefault`+`navigate`
   (`AppLink.tsx:77`) → przeglądarka nigdy nie aktywuje prerenderu (brak nawigacji
   dokumentowej), wyrenderowana strona porzucona; dodatkowo `defaultPreload:"intent"`
-  + ręczny `preloadRoute` (redundancja). Ograniczyć do `prefetch`.
+  - ręczny `preloadRoute` (redundancja). Ograniczyć do `prefetch`.
 - **[DŁUG P1]** Blocks renderer importuje **eagerly wszystkie** widoki bloków
   (`organisms.tsx:18-43`: LiveBlog, Poll, Calendar, QueryLoop…) → czytelnik zwykłego
   artykułu ściąga kod wszystkich typów. Zlazy-load'ować ciężkie/rzadkie.
@@ -292,37 +307,41 @@ ciężkie nakładki i `echarts` poza bundlem czytnika.
   layoutem (skok przy nawigacji); TOC `<a href="#">` bez handlera mimo obiecanego
   „rail scroller" (`router.tsx:48-50`).
 
-### 4.3. Interakcje czytelnika z treścią — *zakres rozszerzony*
+### 4.3. Interakcje czytelnika z treścią — _zakres rozszerzony_
+
 **Cel:** zapisywanie, udostępnianie, prezent artykułu, obserwowanie, komentarze,
 feedback, TTS, pasek postępu.
 **Mocne strony:** `GiftArticleButton` wzorcowy (maszyna faz + retry + `role="alert"`
-+ licznik); `FloatingShareBar` dopracowany (pierścień postępu, scrollspy ToC z
-IntersectionObserver, focus trap, mobilny bottom sheet, `rafThrottle`);
-`useSaveArticle` trójpoziomowy (DB/localStorage/nudge) z TTL gościa i mergem po
-zalogowaniu; `profile.bookmarks` uczciwie pokazuje pozycje „niedostępne" zamiast
-cichego znikania; `FollowButton` z `aria-pressed` i pełnym pokryciem typów
-(autor/kategoria/tag/program).
-**Słabości/błędy:**
-- **[BUG P1]** Podwójne wysłanie edycji komentarza: `CommentComposer submitting={false}`
+
+- licznik); `FloatingShareBar` dopracowany (pierścień postępu, scrollspy ToC z
+  IntersectionObserver, focus trap, mobilny bottom sheet, `rafThrottle`);
+  `useSaveArticle` trójpoziomowy (DB/localStorage/nudge) z TTL gościa i mergem po
+  zalogowaniu; `profile.bookmarks` uczciwie pokazuje pozycje „niedostępne" zamiast
+  cichego znikania; `FollowButton` z `aria-pressed` i pełnym pokryciem typów
+  (autor/kategoria/tag/program).
+  **Słabości/błędy:**
+
+* **[BUG P1]** Podwójne wysłanie edycji komentarza: `CommentComposer submitting={false}`
   na sztywno (`CommentsSection.tsx:616-626`), `edit.isPending` nieprzekazane →
   „Zapisz zmiany" nie blokuje się.
-- **[DŁUG P1]** Duplikacja „zapisanych": `/reading-list` filtruje `entity_type ===
-  "post"` (`reading-list.tsx:216`) i **pomija zapisane strony**, a `/profile/bookmarks`
+* **[DŁUG P1]** Duplikacja „zapisanych": `/reading-list` filtruje `entity_type ===
+"post"` (`reading-list.tsx:216`) i **pomija zapisane strony**, a `/profile/bookmarks`
   pokazuje oba — ta sama tabela, dwa UI. Zunifikować.
-- **[DŁUG P2]** Brak optymistycznego update i stanu `pending` dla bookmark/follow/vote
+* **[DŁUG P2]** Brak optymistycznego update i stanu `pending` dla bookmark/follow/vote
   (`useBookmarks.ts:30-61`, `FollowButton.tsx:42-46`) → przyciski wyglądają na
   martwe przy wolnej sieci; kruche wykrywanie duplikatu po `message.includes("duplicate")`
   (`useBookmarks.ts:48`) vs poprawny `ignoreDuplicates` w `useFollows`.
-- **[DŁUG P2]** Trzy różne strategie i18n w sąsiednich akcjach (hardcoded `COPY` w
+* **[DŁUG P2]** Trzy różne strategie i18n w sąsiednich akcjach (hardcoded `COPY` w
   `FloatingShareBar:87-122`, `react-i18next` w gift, inline `t(pl,en)` w follow);
   niespójna obsługa błędu kopiowania (share cichy, gift `toast.error`).
-- **[RYZYKO P2]** Brak potwierdzenia/undo przy usuwaniu zakładki
+* **[RYZYKO P2]** Brak potwierdzenia/undo przy usuwaniu zakładki
   (`profile.bookmarks.tsx:190`) i komentarza (`CommentsSection.tsx:660-668`), mimo że
   reszta apki konsekwentnie potwierdza akcje nieodwracalne.
-- **[BRAK P2]** Brak `navigator.share` (Web Share API) na mobile; brak lekkiego
+* **[BRAK P2]** Brak `navigator.share` (Web Share API) na mobile; brak lekkiego
   systemu reakcji/oklasków (tylko binarne kciuki `PostFeedback`).
 
-### 4.4. Ekosystem i zarządzanie społecznością + interakcje user↔user — *zakres rozszerzony*
+### 4.4. Ekosystem i zarządzanie społecznością + interakcje user↔user — _zakres rozszerzony_
+
 **Cel:** połączenia, wiadomości/czat, Q&A, ankiety, wydarzenia, reputacja, profile,
 panele moderacji/konfiguracji.
 **Mocne strony:** `ConnectButton` to wzorzec (maszyna stanów + `AlertDialog` dla
@@ -333,6 +352,7 @@ bogaty (FTS, filtry `role=radiogroup`, `role=tablist` poprawnie, `ssr:false`);
 `author.$slug` spina Follow+Connect+DM+RequestIntroduction+Report;
 `/contributors` — leaderboard reputacji opt-in.
 **Słabości/błędy:**
+
 - **[RYZYKO P1]** `/messages` bez gate `chat_enabled` — patrz P1-10.
 - **[BUG/DŁUG P1]** Niespójne głosowanie Q&A vs ankiety: `PublicQaQuestion` bez flagi
   `my_vote` (`publicQueries.ts:298`), przycisk `qa.$slug.tsx:249-259` bez
@@ -361,6 +381,7 @@ bogaty (FTS, filtry `role=radiogroup`, `role=tablist` poprawnie, `ssr:false`);
   nowego członka.
 
 ### 4.5. Realtime i warstwa spójności (szyna zdarzeń domenowych)
+
 **Cel:** jedna szyna `domain_events` + współdzielone kanały zamiast nasłuchu tabel
 per moduł; liczniki, presence, idempotencja, workflowy.
 **Mocne strony:** parytet katalogu `DOMAIN_EVENT_TYPES` z emiterami się trzyma (brak
@@ -369,8 +390,9 @@ cleanupem we wszystkich hookach (**brak leaków websocketów** — celowana wery
 liczniki atomowe (`ON CONFLICT DO UPDATE SET value = GREATEST(0, value+delta)`);
 `pg_trigger_depth() > 8` chroni workflowy przed rekurencją.
 **Słabości/błędy:**
+
 - **[RYZYKO P2]** Wszystkie triggery bumpów liczników łykają błędy (`EXCEPTION WHEN
-  OTHERS`) → przejściowy błąd trwale rozjeżdża licznik; **brak okresowego
+OTHERS`) → przejściowy błąd trwale rozjeżdża licznik; **brak okresowego
   reconcile** (pg_cron). Dodać nocny reconcile (jest wzorzec `reconcile_engagement`).
 - **[DŁUG P2]** Podwójny cache „unread" (`useUnreadCount` vs
   `useUserCounter`) odświeżany różnymi ścieżkami → ryzyko chwilowego rozjazdu badge;
@@ -383,6 +405,7 @@ liczniki atomowe (`ON CONFLICT DO UPDATE SET value = GREATEST(0, value+delta)`);
   paginacji (hard `.limit(200/100/300)`).
 
 ### 4.6. Monetyzacja (billing, checkout, paywall, prezenty, kupony, organizacje)
+
 **Cel:** katalog cennika, checkout Stripe, paywall+metering, prezenty artykułów,
 kupony B2B, miejsca w organizacjach, zmiana planu z proracją.
 **Mocne strony:** **weryfikacja podpisu Stripe poprawna** (HMAC-SHA256,
@@ -393,6 +416,7 @@ zawężony do jednej subskrypcji; `org_add_seat` wzorcowa serializacja `FOR UPDA
 `redeem_b2b_coupon` atomowy; konwersja walut serwerowa z parytetem wymuszanym typami;
 metering/gift body wyłącznie `SECURITY DEFINER`.
 **Słabości/błędy:**
+
 - **[BUG P1]** Wyciek przychodu między tenantami w `monetization_dashboard` — P1-7.
 - **[BUG/RYZYKO P1]** Niespójna waluta audytu kuponu przy EUR:
   `redeem_b2b_coupon` zapisuje kwoty w PLN z etykietą `_currency='EUR'`
@@ -415,6 +439,7 @@ metering/gift body wyłącznie `SECURITY DEFINER`.
   mylący `GRANT … INSERT ON user_purchases` (INSERT martwy przez brak polityki).
 
 ### 4.7. Newsletter, CRM, workflowy, integracje, joby
+
 **Cel:** kampanie (EmailDoc), potwierdzenie/wypis (RFC-8058), CRM z lead-scoringiem,
 integracje wychodzące (webhook/Slack/HubSpot), cron.
 **Mocne strony:** atomowy `claimCampaign` z dzierżawą; idempotencja per odbiorca
@@ -428,6 +453,7 @@ CRM decay z poprawnym half-life i parytetem wag kod↔SQL; import CRM odporny na
 Nie stwierdzono defektu P0 (brak eksploatowalnego cross-tenant, masowej podwójnej
 wysyłki ani statycznego HMAC).
 **Słabości/błędy:**
+
 - **[RYZYKO P1]** HTML-mode kampanii może wysłać maile **bez unsubscribe/List-Unsubscribe**
   przy braku `origin` — guard `missing_site_origin` istnieje tylko dla `editor==="doc"`
   (`newsletter-campaigns.functions.ts:667`); dla `html` przy braku `PUBLIC_SITE_URL`
@@ -448,6 +474,7 @@ wysyłki ani statycznego HMAC).
   sekretu wysyła niepodpisany payload po cichu.
 
 ### 4.8. SEO, crawler, feedy, i18n, wyszukiwanie
+
 **Cel:** meta/JSON-LD/OG, sitemap/RSS/news-sitemap/llms.txt/robots (service role,
 fail-closed), i18n PL/EN, full-text search.
 **Mocne strony:** `safeJsonLd` (escape `</script>` + U+2028/9); **crawler fail-closed
@@ -456,12 +483,13 @@ per-request `cloneInstance`; **parytet kluczy PL/EN 1576:0** (zweryfikowany); se
 z sanityzacją `tsquery` serwerowo (fallback `plainto`), tenant tylko serwerowo,
 limity klampowane, fasety po pełnym zbiorze, rekurencja kategorii `depth<10`.
 **Słabości/błędy:**
+
 - **[BUG P1]** `/programs/$slug/rss.xml` — zła tabela — patrz P1-8.
 - **[RYZYKO P2]** `xmlEscape` nie usuwa znaków sterujących XML 1.0 (0x00–0x1F) →
   import WP z control char = niepoprawny feed; sitemap emituje hreflang pl+en
   **bezwarunkowo** także dla wpisów tylko-PL (`sitemap:345-349`) — niespójne z
   news-sitemap; podcast RSS bez wymaganych tagów iTunes (`itunes:category/explicit/
-  author/owner`) → Apple odrzuca feed.
+author/owner`) → Apple odrzuca feed.
 - **[RYZYKO P2]** Redirect matcher ufa `target_path` z bazy przy dopasowaniu
   (walidacja tylko przy zapisie) → potencjalny open-redirect przy zapisie z
   pominięciem panelu; `Cache-Control: no-store` na 301 (trwałe redirecty niecache'owane);
@@ -472,6 +500,7 @@ limity klampowane, fasety po pełnym zbiorze, rekurencja kategorii `depth<10`.
   `image`; `SITE_CANONICAL_ORIGIN` zaszyty na `neweustrategies.lovable.app`.
 
 ### 4.9. Media, podcast, audio, web-stories, eksperci, tracker, reklamy, import WP
+
 **Cel:** biblioteka mediów, TTS, katalog podcastów, huby ekspertów, tracker
 legislacyjny UE, reklamy, import WordPress.
 **Mocne strony:** **oba endpointy TTS wzorcowo zabezpieczone** (auth+is_staff,
@@ -480,6 +509,7 @@ allowlisty, rate-limit fail-closed, cache po hashu, paywall przed syntezą); a11
 element); tracker nie wycieka szkiców (defense-in-depth `!inner` + filtr statusu w
 JS); `safeCssColor` w AMP blokuje breakout z `<style amp-custom>`.
 **Słabości/błędy:**
+
 - **[BUG P0/P1]** LIKE-injection w folderach mediów — patrz P0/P1-4.
 - **[BUG P0]** AMP poster=wideo (`ampStory.ts:53-60`) — `resolvePosterPortrait`
   przy braku `cover_url` bierze `media_url` pierwszej strony, także wideo →
@@ -501,6 +531,7 @@ JS); `safeCssColor` w AMP blokuje breakout z `<style amp-custom>`.
   fallback bez escapowania (`wxr.ts:216,223,226`); hub eksperta ~20+ round-tripów.
 
 ### 4.10. Bezpieczeństwo, multi-tenant, RLS, PII
+
 **Cel:** uwierzytelnianie, role, izolacja tenantów, ochrona PII.
 **Mocne strony:** token przez `getClaims` (weryfikacja podpisu); `requireStaff` jako
 druga warstwa niezależna od RLS; step-up MFA (blokada `aal1`); self-provisioning
@@ -510,6 +541,7 @@ tylko anon content plane, staff pinowany `current_tenant_id`); `request_public_h
 parsuje JSON (brak SQLi); crawler fail-closed; sekrety w Vault; komplet nagłówków
 bezpieczeństwa; `.env.example` tylko placeholdery.
 **Słabości/błędy:**
+
 - **[BUG P1]** Table-wide `SELECT` na `profiles` dla `authenticated` — patrz P1-2.
 - **[BUG P1]** `crm_upsert_lead` bez autoryzacji — patrz P1-3.
 - **[BUG P2]** `profiles_public` zepsuty dla `anon` po łatce (security_invoker=on bez
@@ -523,6 +555,7 @@ bezpieczeństwa; `.env.example` tylko placeholdery.
   `Access-Control-Allow-Origin: *`; `require-staff` loguje pełne szczegóły PostgREST.
 
 ### 4.11. Admin, analityka, personalizacja, motyw, wydajność, MCP, RODO/cookies
+
 **Cel:** panele admina, ingest analityki, personalizacja, motyw runtime, obserwowalność,
 serwer MCP, zgody cookie.
 **Mocne strony:** ingest z twardą walidacją + rate-limit + redakcja PII
@@ -533,6 +566,7 @@ ochrona przed injekcją PostgREST; `hardenStyleCss` na każdym data-derived `<st
 wydajność — `echarts`/`tiptap` tylko admin (code-split), lucide tree-shake,
 FontAwesome lazy, trzy budżety bundla jako gate; `anonMerge` personalizacji dojrzały.
 **Słabości/błędy:**
+
 - **[RYZYKO P1 — RODO]** Web-vitals **bez teardown przy cofnięciu zgody**
   (`webVitals.ts:120-166` nie zwraca cleanup; `initObservability` usuwa tylko
   listenery błędów) → vitals beaconują dalej po cofnięciu zgody aż do przeładowania;
@@ -555,12 +589,14 @@ FontAwesome lazy, trzy budżety bundla jako gate; `anonMerge` personalizacji doj
 ## 5. Mapa rekomendacji (roadmap)
 
 ### P0 — natychmiast
+
 1. Rozwiązać kolizję timestampów migracji `20260723180000` i scalić
    `seed_pricing_defaults` (czat + katalog v5 dla nowych tenantów).
 2. Escapować `%`/`_` w ścieżkach folderów mediów przed `.like` (ryzyko utraty danych).
 3. `BuilderRenderer.tsx:185` → `device ?? "desktop"` (mismatch hydratacji/CLS mobile).
 
 ### P1 — pilne (bezpieczeństwo i integralność)
+
 4. `REVOKE SELECT ON public.profiles FROM authenticated` + grant kolumnowy; bramka
    CI z `profiles_pii_grant_test.sql`; lint przeciw table-wide grantom.
 5. `REVOKE EXECUTE ON crm_upsert_lead FROM authenticated` (lub guard w ciele).
@@ -579,6 +615,7 @@ FontAwesome lazy, trzy budżety bundla jako gate; `anonMerge` personalizacji doj
 17. RODO: teardown web-vitals przy cofnięciu zgody + bramkowanie beaconów ad/popup zgodą.
 
 ### P1 — funkcjonalne/UX
+
 18. Optimistic-lock (`updated_at`) w `updatePost`/`updatePage`; autosave stron.
 19. Spłaszczyć waterfall autora/współautorów; prefetch `customMetaDefs`; ograniczyć
     `RouteProgress` do nawigacji; uporządkować marnowany prerender; lazy-load ciężkich
@@ -587,6 +624,7 @@ FontAwesome lazy, trzy budżety bundla jako gate; `anonMerge` personalizacji doj
     Q&A; akcje masowe + akcje na sprawcy w moderacji.
 
 ### P2 — porządkowe (wybór)
+
 Reconcile liczników (pg_cron); usunięcie `recharts`; strip znaków sterujących w XML +
 warunkowe hreflang w sitemap + tagi iTunes; walidacja targetu redirectu przy match;
 parytet typów i18n core; indeks trigramowy pod fuzzy search; ujednolicenie strategii

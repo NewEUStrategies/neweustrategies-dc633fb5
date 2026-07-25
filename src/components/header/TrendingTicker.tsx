@@ -173,7 +173,13 @@ export function TrendingTicker({
           {kind === "scroll" ? (
             currentBatch.map((p, i) => (
               <div key={`${p.id}-${i}`} className="inline-flex items-center gap-6 shrink-0">
-                <TickerItem post={p} index={i} lang={lang} animation="none" showCounter={!isBadge} />
+                <TickerItem
+                  post={p}
+                  index={i}
+                  lang={lang}
+                  animation="none"
+                  showCounter={!isBadge}
+                />
                 {isBadge && i < currentBatch.length - 1 && (
                   <span
                     className="tt-dot inline-block w-1 h-1 rounded-full shrink-0"
@@ -186,7 +192,10 @@ export function TrendingTicker({
           ) : (
             <div className="flex-1 min-w-0 flex items-center gap-6" key={`batch-${batch}`}>
               {currentBatch.map((p, i) => (
-                <div key={`${p.id}-${batch}-${i}`} className="inline-flex items-center gap-6 shrink-0">
+                <div
+                  key={`${p.id}-${batch}-${i}`}
+                  className="inline-flex items-center gap-6 shrink-0"
+                >
                   <TickerItem
                     post={p}
                     index={batch * perView + i}
@@ -228,7 +237,14 @@ interface TickerItemProps {
   showCounter?: boolean;
 }
 
-function TickerItem({ post, index, lang, animation, delayMs = 0, showCounter = true }: TickerItemProps) {
+function TickerItem({
+  post,
+  index,
+  lang,
+  animation,
+  delayMs = 0,
+  showCounter = true,
+}: TickerItemProps) {
   const title =
     lang === "en" ? post.title_en || post.title_pl || "" : post.title_pl || post.title_en || "";
   const displayIdx = index + 1;

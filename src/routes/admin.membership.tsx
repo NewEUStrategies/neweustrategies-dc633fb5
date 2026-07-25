@@ -309,13 +309,8 @@ function AdminMembershipPage() {
                   >
                     <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-2.5">
                       <div className="flex min-w-0 items-center gap-2">
-                        <BadgeCheck
-                          className="h-4 w-4 shrink-0 text-primary"
-                          aria-hidden="true"
-                        />
-                        <span className="truncate font-mono text-sm font-semibold">
-                          {tier.key}
-                        </span>
+                        <BadgeCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span className="truncate font-mono text-sm font-semibold">{tier.key}</span>
                         <Badge variant="secondary" className="rounded-[6px] text-[10px]">
                           {tm("rankBadge")} {tier.rank}
                         </Badge>
@@ -340,9 +335,7 @@ function AdminMembershipPage() {
                           }
                         }}
                         disabled={deleteTier.isPending || tier.is_default}
-                        title={
-                          tier.is_default ? tm("deleteDefaultDisabled") : tm("deleteTitle")
-                        }
+                        title={tier.is_default ? tm("deleteDefaultDisabled") : tm("deleteTitle")}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
@@ -484,8 +477,8 @@ function AdminMembershipPage() {
                         <span className="ml-2 text-[11px] text-muted-foreground/80">
                           · EN:{" "}
                           {(
-                            convertToDisplayCurrency(plan.price_cents, plan.currency, "EUR")
-                              .cents / 100
+                            convertToDisplayCurrency(plan.price_cents, plan.currency, "EUR").cents /
+                            100
                           ).toFixed(2)}{" "}
                           EUR
                         </span>
