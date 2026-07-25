@@ -11170,6 +11170,10 @@ export type Database = {
         Args: { _avatar_url: string; _user_id: string }
         Returns: undefined
       }
+      analytics_semantic_snapshot: {
+        Args: { p_since: string; p_until: string }
+        Returns: Json
+      }
       apply_pricing_catalog_v3: {
         Args: { p_tenant: string }
         Returns: undefined
