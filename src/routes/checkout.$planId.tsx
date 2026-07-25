@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
 import { CouponInput } from "@/components/checkout/CouponInput";
+import { FxRateNotice } from "@/components/checkout/FxRateNotice";
 import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
@@ -208,6 +209,7 @@ function CheckoutPage() {
                         )
                       }
                     />
+                    <FxRateNotice displayCurrency={displayCurrency} />
                     <div className="border-t pt-4 space-y-1">
                       {coupon && coupon.discountCents > 0 && (
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
