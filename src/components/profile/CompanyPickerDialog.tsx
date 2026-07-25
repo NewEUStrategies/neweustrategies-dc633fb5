@@ -3,10 +3,15 @@
 // profile or create a new one - inline form, single dialog surface. The new
 // company also lands in the CRM (crm_companies) so the sales stack stays in
 // sync with what users declare on their profile.
+//
+// Search and creation go through SECURITY DEFINER RPCs instead of direct
+// table access: crm_companies read policy is staff-only, while members still
+// need to pick/link a company from their own tenant.
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Check, Loader2, Plus, Search } from "lucide-react";
+import { z } from "zod";
 
 import {
   Dialog,
@@ -25,6 +30,19 @@ import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { profileEditorKey } from "@/lib/profile/useProfileEditor";
+
+const companyRowSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  country: z.string().nullable(),
+  branch: z.string().nullable(),
+  city: z.string().nullable(),
+  address: z.string().nullable(),
+  postal_code: z.string().nullable(),
+  website: z.string().nullable(),
+  phone: z.string().nullable(),
+  domain: z.string().nullable(),
+});
 
 type CompanyRow = {
   id: string;
