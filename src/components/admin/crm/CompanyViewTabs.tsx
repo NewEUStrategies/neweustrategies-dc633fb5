@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { BUILTIN_COMPANY_VIEWS } from "@/lib/crm/companyViews";
+import {
+  BUILTIN_COMPANY_VIEWS,
+  parseCompanyViewConfig,
+} from "@/lib/crm/companyViews";
 import type { CompanyViewConfig } from "@/lib/crm/companyViews";
 
 export interface SavedViewRow {
