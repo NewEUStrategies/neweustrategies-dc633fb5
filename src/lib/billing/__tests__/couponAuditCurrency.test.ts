@@ -1,5 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { couponAuditInDisplayCurrency } from "../displayCurrency";
+import { setEurPlnRateForTests } from "../fxRate";
+
+// Testy weryfikują niezmiennik audytu, nie sam kurs - pinujemy parytet 1:2,
+// żeby oczekiwane kwoty pozostały deterministyczne niezależnie od NBP.
+beforeAll(() => setEurPlnRateForTests(2));
+
 
 describe("couponAuditInDisplayCurrency (parytet PLN/EUR + spójność audytu kuponu)", () => {
   it("PLN -> EUR: kwoty w EUR, niezmiennik original = final + discount", () => {
