@@ -113,8 +113,18 @@ export const createCrmTask = createServerFn({ method: "POST" })
   .validator((d) => CreateTaskInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
+    // Lead i zadanie muszą mieszkać w tym samym tenantcie; bierzemy tenant_id
+    // z leada, żeby nie polegać wyłącznie na domyślnej wartości kolumny.
+    const { data: lead } = await tbl(context, "crm_leads")
+      .select("tenant_id")
+      .eq("id", data.lead_id)
+      .maybeSingle();
+    const leadTenantId = (lead as { tenant_id?: string } | null)?.tenant_id;
+    if (!leadTenantId) throw new Error("lead_not_found");
+
     const insertTask = async () => {
       const { error } = await tbl(context, "crm_tasks").insert({
+        tenant_id: leadTenantId,
         lead_id: data.lead_id,
         title: data.title,
         note: data.note && data.note.length > 0 ? data.note : null,
