@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.messages_conv_created_idx;
