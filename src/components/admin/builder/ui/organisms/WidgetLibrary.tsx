@@ -429,11 +429,21 @@ export function WidgetLibrary({
                       <div
                         key={w.type}
                         draggable
+                        role="button"
+                        tabIndex={0}
+                        aria-label={wl("dragToSection", { label: w.label })}
                         onDragStart={(e) => {
                           e.dataTransfer.setData("application/x-widget-type", w.type);
                           e.dataTransfer.effectAllowed = "copy";
                         }}
-                        className="h-12 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none"
+                        onClick={() => onPickWidget?.(w.type)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onPickWidget?.(w.type);
+                          }
+                        }}
+                        className="h-12 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                         title={wl("dragToSection", { label: w.label })}
                       >
                         <Icon className="w-3.5 h-3.5 text-brand group-hover:text-brand" />
