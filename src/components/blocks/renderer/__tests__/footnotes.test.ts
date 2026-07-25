@@ -29,8 +29,11 @@ describe("renderer/footnotes engine", () => {
     expect(out).toContain('href="#fn-1"');
     expect(out).toContain('href="#fn-2"');
     expect(out).toContain('data-fn="1"');
+    expect(out).toContain('role="doc-noteref"');
     expect(out).toContain("[1]");
     expect(out).toContain("[2]");
+    // Regresja: styl w PostContentStyle - tu żadnych klas Tailwind.
+    expect(out).not.toContain("text-primary");
   });
 
   it("replaceFootnotes drops empty notes and escapes the title attribute", () => {

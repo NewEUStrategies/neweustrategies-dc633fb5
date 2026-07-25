@@ -1,18 +1,23 @@
-// Public renderer for the builder `text` widget's HTML body.
+// Publiczny renderer HTML dla widgetu `text` w builderze.
 //
-// Beyond sanitizing + injecting the stored HTML, it re-attaches interactive
-// footnote tooltips. Legacy article content migrated into a `text` widget bakes
-// its footnote references (`<a data-fn="N">`) and the footnotes list directly
-// into the HTML (see lib/builder/migrate/htmlToBuilder). The render-time
-// `[fn]` pipeline never sees that baked markup, so without this the migrated
-// content showed static refs + a bottom list but no hover/focus bubbles - the
-// "footnote bubbles not mounted" gap from the migration audit. Here we recover
-// the notes from the baked list and mount the SAME tooltip overlay used by the
-// HTML article path, scoped to this widget. Tooltips are a progressive
-// enhancement: the static refs + list render server-side with zero JS.
+// Dwa źródła przypisów, jedno wyjście:
+//   1) BAKED - starsze wpisy zaimportowane z WP mają już statyczne <sup> i listę
+//      w HTML (patrz lib/builder/migrate/htmlToBuilder). Odzyskujemy je z DOM,
+//      by zamontować interaktywne bąbelki (tooltips).
+//   2) LIVE - świeżo wpisane `[fn]tekst[/fn]` w polu widgetu. Redaktor musi to
+//      widzieć od razu w kanwie - bez tego autor widział surowy shortcode,
+//      a po publikacji ten sam wpis pokazywał [N] (desync z audytu przypisów).
+//
+// Silnik `expandFootnotes` jest ten sam, którego używa `/$slug` i `/preview`
+// - dzięki temu kanwa == podgląd == produkcja.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { parseBakedFootnotes, type Footnote } from "@/lib/footnotes";
+import {
+  createCounter,
+  expandFootnotes,
+  parseBakedFootnotes,
+  type Footnote,
+} from "@/lib/footnotes";
 import { FootnoteTooltips } from "@/components/Footnotes";
 
 interface Props {
@@ -23,17 +28,28 @@ interface Props {
 
 export function RichHtmlView({ html, className, style }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const safe = useMemo(() => sanitizeHtml(html), [html]);
-  const [notes, setNotes] = useState<Footnote[]>([]);
+  const [bakedNotes, setBakedNotes] = useState<Footnote[]>([]);
+
+  // Live [fn] → markery + kolektor przypisów. Jeśli w HTML nie ma shortcode'ów,
+  // wynik jest identyczny z sanitizeHtml(html), a `liveNotes` puste.
+  const { safe, liveNotes } = useMemo(() => {
+    const col = createCounter(1);
+    const expanded = expandFootnotes(html, col);
+    return { safe: sanitizeHtml(expanded), liveNotes: col.notes };
+  }, [html]);
 
   useEffect(() => {
     const root = ref.current;
     if (!root) {
-      setNotes([]);
+      setBakedNotes([]);
       return;
     }
-    setNotes(parseBakedFootnotes(root));
+    setBakedNotes(parseBakedFootnotes(root));
   }, [safe]);
+
+  // Live wygrywa nad baked: gdy autor sam wpisał [fn], to jego stan jest źródłem
+  // prawdy; baked pochodzi tylko z migracji WP i nie współistnieje z live.
+  const notes = liveNotes.length > 0 ? liveNotes : bakedNotes;
 
   return (
     <>
