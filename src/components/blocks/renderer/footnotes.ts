@@ -31,13 +31,17 @@ export function escapeHtml(s: string): string {
  * Emituje `data-fn="N"` na <a>, żeby zadziałał wspólny <FootnoteTooltips>.
  */
 export function replaceFootnotes(html: string, fn: FootnoteCollector): string {
+  // Wyjście MUSI byc zgodne z src/lib/footnotes.ts::expandFootnotes - to samo
+  // stylowanie (.fn-ref przez PostContentStyle), role doc-noteref i brak
+  // hard-codowanych klas Tailwind, żeby builder / blocks / html wyglądały
+  // identycznie.
   return html.replace(/\[fn\]([\s\S]*?)\[\/fn\]/g, (_m, content: string) => {
     const text = content.trim();
     if (!text) return "";
     fn.notes.push(text);
     const n = fn.notes.length;
     const safeTitle = escapeHtml(text.replace(/<[^>]+>/g, ""));
-    return `<sup class="fn-ref"><a href="#fn-${n}" id="fnref-${n}" data-fn="${n}" title="${safeTitle}" aria-describedby="footnotes-heading" class="text-primary no-underline hover:underline">[${n}]</a></sup>`;
+    return `<sup class="fn-ref"><a href="#fn-${n}" id="fnref-${n}" data-fn="${n}" title="${safeTitle}" aria-describedby="footnotes-heading" role="doc-noteref">[${n}]</a></sup>`;
   });
 }
 
