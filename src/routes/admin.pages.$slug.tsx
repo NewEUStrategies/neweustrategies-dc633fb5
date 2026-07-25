@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { updatePage, deletePage } from "@/lib/content.functions";
 import { isEditConflict } from "@/lib/content/saveConflict";
-import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useHistory } from "@/hooks/useHistory";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,7 +137,7 @@ function EditPage() {
 
   const id = page?.id;
 
-  const history = useUndoRedo<PageForm | null>(null);
+  const history = useHistory<PageForm | null>(null);
   const form = history.state;
   // Stabilna referencja do history.set dla saveFn (obiekt `history` zmienia
   // tozsamość co render, sam setter jest useCallback-owo stały).

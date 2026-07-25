@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   singlePageData,
   upsertMessageInCache,
+  seedMessageInCache,
   removeMessageFromCache,
   retrySendInput,
   canEditMessage,
@@ -121,6 +122,31 @@ describe("upsertMessageInCache", () => {
     const d = data([msg({ id: "b", created_at: t })]);
     const out = upsertMessageInCache(d, msg({ id: "a", created_at: t }));
     expect(out!.pages[0].rows.map((r) => r.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("seedMessageInCache", () => {
+  it("seeds a fresh single-page cache when there is none yet (new conversation race)", () => {
+    // A brand-new conversation's first send races the initial fetch: the
+    // cache is still undefined when onMutate/onSuccess run.
+    const out = seedMessageInCache(undefined, msg({ id: "pending-1", pending: true }));
+    expect(out.pages).toHaveLength(1);
+    expect(out.pages[0].rows.map((r) => r.id)).toEqual(["pending-1"]);
+  });
+
+  it("promotes the optimistic row to the server row once history exists", () => {
+    const seeded = seedMessageInCache(undefined, msg({ id: "pending-1", body: "hi", pending: true }));
+    const out = seedMessageInCache(seeded, msg({ id: "s1", body: "hi" }), {
+      replaceId: "pending-1",
+    });
+    expect(out.pages[0].rows.map((r) => r.id)).toEqual(["s1"]);
+    expect(out.pages[0].rows[0].pending).toBe(false);
+  });
+
+  it("merges into existing cached history like upsertMessageInCache", () => {
+    const d = data([msg({ id: "m1" })]);
+    const out = seedMessageInCache(d, msg({ id: "m2" }));
+    expect(out.pages[0].rows.map((r) => r.id)).toEqual(["m2", "m1"]);
   });
 });
 

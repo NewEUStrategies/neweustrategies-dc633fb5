@@ -15,7 +15,7 @@ import type {
   WidgetType,
   Device,
 } from "@/lib/builder/types";
-import type { History } from "@/lib/builder/useHistory";
+import type { History } from "@/hooks/useHistory";
 import * as ops from "@/lib/builder/operations";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
@@ -31,7 +31,7 @@ import type { Selection, SelectionKind } from "../organisms/builder/types";
 
 import { promptDialog } from "@/lib/appDialogs";
 interface Args {
-  history: History;
+  history: History<BuilderDocument>;
   doc: BuilderDocument;
   selection: Selection;
   setSelection: (s: Selection) => void;
@@ -52,7 +52,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
       mut(next);
       const normalized = safeParseBuilderDoc(next);
       docRef.current = normalized;
-      history.setDoc(normalized, opts);
+      history.set(normalized, opts);
     },
     [history],
   );
@@ -85,7 +85,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
       label: withTabs ? t("builder.ops.addedTabContainer") : t("builder.ops.addedContainer"),
     });
   const loadHomepage = useCallback(() => {
-    history.setDoc(buildHomepageDocument(), { label: t("builder.ops.loadedHomepage") });
+    history.set(buildHomepageDocument(), { label: t("builder.ops.loadedHomepage") });
   }, [history, t]);
   const insertTemplateSection = (tpl: SectionTemplate) =>
     update((d) => ops.insertSectionNode(d, ops.cloneSection(tpl.data)), {

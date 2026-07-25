@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { updatePost, deletePost } from "@/lib/content.functions";
 import { isEditConflict } from "@/lib/content/saveConflict";
-import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useHistory } from "@/hooks/useHistory";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { buildPublishChecklist, isPublishTransition } from "@/lib/content/publishChecklist";
@@ -38,7 +38,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   const update$ = useServerFn(updatePost);
   const delete$ = useServerFn(deletePost);
 
-  const history = useUndoRedo<PostForm | null>(null);
+  const history = useHistory<PostForm | null>(null);
   const form = history.state;
   // Stabilna referencja do history.set dla saveFn (obiekt `history` zmienia
   // tozsamość co render, sam setter jest useCallback-owo stały).

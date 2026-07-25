@@ -41,7 +41,7 @@ import type {
   NlSectionLayout,
 } from "@/lib/newsletter-builder/types";
 import { buildDefaultDoc, makeSection, makeWidget } from "@/lib/newsletter-builder/defaults";
-import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useHistory } from "@/hooks/useHistory";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { Button } from "@/components/ui/button";
 import {
@@ -126,7 +126,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     });
   }, [settings, variant]);
 
-  const history = useUndoRedo<NlDoc>({
+  const history = useHistory<NlDoc>({
     version: 1,
     variant,
     sections: [{ id: "s0", widgets: [] }],

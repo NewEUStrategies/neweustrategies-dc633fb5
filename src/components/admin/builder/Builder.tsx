@@ -34,7 +34,7 @@ import { BuilderModeProvider } from "@/lib/builder/modeContext";
 import { useTheme } from "@/components/ThemeProvider";
 import { findWidget, findSection, findColumn, findInner } from "@/lib/builder/operations";
 import * as ops from "@/lib/builder/operations";
-import { useHistory } from "@/lib/builder/useHistory";
+import { useHistory } from "@/hooks/useHistory";
 import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
 import { ColumnProperties } from "./ColumnProperties";
@@ -92,8 +92,12 @@ export function Builder({
   };
 
   const initial = useMemo(() => safeParseBuilderDoc(value ?? emptyDocument()), [value]);
-  const history = useHistory(initial, onChange);
-  const doc = safeParseBuilderDoc(history.doc);
+  const history = useHistory(initial, {
+    onChange,
+    syncExternal: true,
+    isEqual: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  });
+  const doc = safeParseBuilderDoc(history.state);
   // Undo/redo restores the DOCUMENT's typography — drop the live typography
   // broadcast first, or its injected <style> keeps shadowing the restored
   // values and the canvas looks like undo "did nothing".
@@ -233,7 +237,7 @@ export function Builder({
 
   // ---------- bulk actions on the multi-selection ----------
   // All bulk operations run in a SINGLE `update` so they land as one history
-  // entry (single Ctrl+Z undo) and side-step useHistory.setDoc's stale-closure
+  // entry (single Ctrl+Z undo) and side-step useHistory.set's stale-closure
   // issue when called N times synchronously in a loop.
   const bulkDuplicate = useCallback(() => {
     const ids = Array.from(multiSelection);

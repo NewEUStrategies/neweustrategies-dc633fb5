@@ -18,6 +18,15 @@ let channelKey: string | null = null;
 let refCount = 0;
 let onlineSnapshot: ReadonlySet<string> = new Set<string>();
 const listeners = new Set<() => void>();
+// Grace period before actually tearing the channel down once refCount hits
+// zero. Route/StrictMode remounts release then immediately re-acquire the
+// same key; without this delay the channel is destroyed and its snapshot
+// wiped to empty (a real "everyone offline" flicker), then rebuilt from
+// scratch on remount before the fresh presence sync arrives (another
+// flicker back to online). The delay lets a quick remount cancel the
+// teardown and keep reusing the live channel/snapshot untouched.
+const TEARDOWN_GRACE_MS = 2000;
+let teardownTimer: ReturnType<typeof setTimeout> | null = null;
 
 const EMPTY: ReadonlySet<string> = new Set<string>();
 
@@ -55,10 +64,17 @@ function syncFromChannel() {
 function acquire(tenantId: string, userId: string, trackSelf: boolean) {
   const key = `${tenantId}:${userId}:${trackSelf ? "on" : "off"}`;
   refCount += 1;
+  // A pending teardown from a just-released last consumer: cancel it, the
+  // channel (and its snapshot) is still valid and about to be reused.
+  if (teardownTimer) {
+    clearTimeout(teardownTimer);
+    teardownTimer = null;
+  }
   if (channel && channelKey === key) return;
   if (channel) {
     void supabase.removeChannel(channel);
     channel = null;
+    onlineSnapshot = new Set<string>();
   }
   channelKey = key;
   channel = supabase.channel(`chat-presence:${tenantId}`, {
@@ -80,11 +96,17 @@ function acquire(tenantId: string, userId: string, trackSelf: boolean) {
 function release() {
   refCount = Math.max(0, refCount - 1);
   if (refCount === 0 && channel) {
-    void supabase.removeChannel(channel);
-    channel = null;
-    channelKey = null;
-    onlineSnapshot = new Set<string>();
-    emit();
+    if (teardownTimer) clearTimeout(teardownTimer);
+    teardownTimer = setTimeout(() => {
+      teardownTimer = null;
+      // A late re-acquire may have happened right before this timer fired.
+      if (refCount > 0) return;
+      if (channel) void supabase.removeChannel(channel);
+      channel = null;
+      channelKey = null;
+      onlineSnapshot = new Set<string>();
+      emit();
+    }, TEARDOWN_GRACE_MS);
   }
 }
 
