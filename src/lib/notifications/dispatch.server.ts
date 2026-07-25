@@ -220,6 +220,7 @@ export async function processPushJobs(limit = 100): Promise<{ claimed: number; s
   if (!jobs || jobs.length === 0) return { claimed: 0, sent: 0 };
 
   const userIds = [...new Set(jobs.map((j) => j.user_id))];
+  const tenantIds = [...new Set(jobs.map((j) => j.tenant_id))];
   const [{ data: subs }, recipients] = await Promise.all([
     supabaseAdmin
       .from("push_subscriptions")
@@ -238,23 +239,13 @@ export async function processPushJobs(limit = 100): Promise<{ claimed: number; s
     devicesByRecipient.set(key, list);
   }
 
-  let sent = 0;
-  for (const job of jobs) {
-    const userSubs = subsByUser.get(job.user_id) ?? [];
-    if (userSubs.length === 0) {
-      await supabaseAdmin.rpc("report_push_job", { p_id: job.id, p_ok: false, p_dead: true });
-      continue;
-    }
-    const payload = (job.payload ?? {}) as PushJobPayload;
-    const lang = recipients.get(job.user_id)?.lang ?? "pl";
-    const title = pickDigestText(
-      { title_pl: payload.title_pl ?? null, title_en: payload.title_en ?? null },
-      lang,
-    );
-    const body =
-      (lang === "en"
-        ? (payload.body_en ?? payload.body_pl)
-        : (payload.body_pl ?? payload.body_en)) ?? "";
+  const locales = new Map<string, DigestLang>();
+  for (const [uid, prof] of recipients) locales.set(uid, prof.lang);
+
+  const { lanes, deviceCountByJob } = buildPushLanes(jobs, devicesByRecipient, locales);
+  const laneResults = await mapWithConcurrency(lanes, PUSH_CONCURRENCY, (lane) =>
+    drainPushLane(lane, vapid),
+  );
 
   // Agregacja per zadanie: dostarczenie na jakiekolwiek urządzenie wygrywa;
   // dead tylko gdy nic nie doszło i (payload nieprzechodzący albo wszystkie
