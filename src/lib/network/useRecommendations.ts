@@ -2,6 +2,16 @@
 // `write_recommendation`, `respond_recommendation`. Reguły biznesowe
 // (jedno-do-jednego przez zaakceptowaną znajomość, moderacja po stronie
 // odbiorcy, izolacja tenanta) trzymamy w bazie - klient tylko wywołuje RPC.
+//
+// KONTRAKT (jedno źródło prawdy: migracja 20260725090000). Trzy słowniki muszą
+// być identyczne po obu stronach, bo baza nie ma jak ich wynegocjować:
+//   * status:       pending | published | declined | hidden
+//   * akcja:        publish | hide | decline | delete
+//   * relationship: RECOMMENDATION_RELATIONSHIPS (domknięty CHECK kolumny)
+// Wcześniej klient używał `visible` (nigdy nie pasowało do `published`) oraz
+// `approve`/`delete` (baza je ignorowała, a mutacja kończyła się sukcesem - stąd
+// toast „Opublikowano" przy zerowej zmianie stanu). Nowe RPC odrzuca nieznany
+// czasownik wyjątkiem, więc taka rozbieżność nie może już przejść w ciszy.
 import {
   useMutation,
   useQuery,
@@ -12,16 +22,84 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
+/** Status moderacji rekomendacji (CHECK profile_recommendations.status). */
+export type RecommendationStatus = "pending" | "published" | "declined" | "hidden";
+
+/** Czasowniki akceptowane przez `respond_recommendation`. */
+export type RecommendationAction = "publish" | "hide" | "decline" | "delete";
+
+/**
+ * Domknięty słownik relacji autor -> odbiorca. Kolejność jest kolejnością
+ * prezentacji w formularzu (od najczęstszej), etykiety PL/EN w i18n-network
+ * pod `network.recommendations.relationshipOptions.*`.
+ */
+export const RECOMMENDATION_RELATIONSHIPS = [
+  "colleague",
+  "manager",
+  "report",
+  "client",
+  "mentor",
+  "partner",
+  "other",
+] as const;
+
+export type RecommendationRelationship = (typeof RECOMMENDATION_RELATIONSHIPS)[number];
+
+export function isRecommendationRelationship(v: string): v is RecommendationRelationship {
+  return (RECOMMENDATION_RELATIONSHIPS as readonly string[]).includes(v);
+}
+
+/** Granice tresci egzekwowane też przez bazę (CHECK + walidacja w RPC). */
+export const RECOMMENDATION_BODY_MIN = 40;
+export const RECOMMENDATION_BODY_MAX = 1200;
+
 export interface Recommendation {
   id: string;
   author_id: string;
   author_name: string;
   author_avatar: string | null;
   author_headline: string | null;
-  relationship: string | null;
+  relationship: RecommendationRelationship | null;
   body: string;
-  status: "pending" | "visible" | "hidden";
+  status: RecommendationStatus;
   created_at: string;
+}
+
+const STATUSES: readonly RecommendationStatus[] = ["pending", "published", "declined", "hidden"];
+
+function toStatus(raw: string | null): RecommendationStatus {
+  return STATUSES.includes(raw as RecommendationStatus) ? (raw as RecommendationStatus) : "pending";
+}
+
+/**
+ * Wiersz RPC -> model widoku. Mapujemy jawnie (bez rzutowania całego wiersza),
+ * żeby rozjazd nazw kolumn wyszedł na typach, a nie w runtime.
+ */
+type ListRow = {
+  id: string;
+  author_id: string;
+  author_name: string | null;
+  author_avatar: string | null;
+  author_headline: string | null;
+  relationship: string | null;
+  body: string | null;
+  status: string | null;
+  created_at: string;
+};
+
+function toRecommendation(row: ListRow): Recommendation {
+  const relationship = row.relationship ?? "";
+  return {
+    id: row.id,
+    author_id: row.author_id,
+    author_name: row.author_name ?? "",
+    author_avatar: row.author_avatar,
+    author_headline: row.author_headline,
+    relationship: isRecommendationRelationship(relationship) ? relationship : null,
+    body: row.body ?? "",
+    status: toStatus(row.status),
+    created_at: row.created_at,
+  };
 }
 
 const keys = {
@@ -41,14 +119,14 @@ export function useRecommendations(
         p_recipient: recipientId,
       });
       if (error) throw error;
-      return (data ?? []) as unknown as ReadonlyArray<Recommendation>;
+      return (data ?? []).map((row) => toRecommendation(row as ListRow));
     },
   });
 }
 
 export function useWriteRecommendation(
   recipientId: string,
-): UseMutationResult<string, Error, { body: string; relationship: string }> {
+): UseMutationResult<string, Error, { body: string; relationship: RecommendationRelationship }> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ body, relationship }) => {
@@ -67,14 +145,15 @@ export function useWriteRecommendation(
 }
 
 /**
- * Odbiorca decyduje o widoczności rekomendacji: approve = pokaż na profilu,
- * hide = ukryj, delete = usuń całkowicie. Autor nigdy nie widzi rejection -
- * pending zostaje pending, ukryta zostaje pending w jego widoku (prywatność).
+ * Odbiorca decyduje o widoczności rekomendacji: publish = pokaż na profilu,
+ * hide = ukryj, decline = odrzuć, delete = usuń całkowicie. Autor nigdy nie
+ * widzi odmowy - `list_recommendations` prezentuje mu hidden/declined jako
+ * pending (prywatność moderacji egzekwowana w bazie, nie w UI).
  */
 export function useRespondRecommendation(): UseMutationResult<
   void,
   Error,
-  { id: string; action: "approve" | "hide" | "delete"; recipientId: string }
+  { id: string; action: RecommendationAction; recipientId: string }
 > {
   const qc = useQueryClient();
   const { user } = useAuth();
