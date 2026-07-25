@@ -462,7 +462,7 @@ function CommentComposer({
         lang={lang}
       />
       <div className="flex items-center gap-2">
-        <Button type="submit" disabled={disabled}>
+        <Button type="submit" disabled={disabled} className="text-xs">
           {submitLabel ?? t("comments.submit")}
         </Button>
         {onCancel && (
