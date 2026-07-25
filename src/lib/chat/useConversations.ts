@@ -343,13 +343,44 @@ export function useSetConversationPinned() {
   });
 }
 
+// Archive optimistyczny: użytkownik często flipuje archiwum tuż przed
+// wysłaniem nowej wiadomości ("posprzątaj i napisz jeszcze raz"). Bez
+// optimisticu widok wątku miga między listami Active/Archived aż do
+// zakończenia invalidacji. Serwer i tak wygrywa (RPC atomowe, invalidate
+// przywraca prawdę), tu tylko wyprzedzamy round-trip.
 export function useSetConversationArchived() {
-  return useConversationSetting(async (args: { conversationId: string; archived: boolean }) => {
-    const { error } = await supabase.rpc("chat_set_archived", {
-      p_conversation_id: args.conversationId,
-      p_archived: args.archived,
-    });
-    if (error) throw error;
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (args: { conversationId: string; archived: boolean }) => {
+      const { error } = await supabase.rpc("chat_set_archived", {
+        p_conversation_id: args.conversationId,
+        p_archived: args.archived,
+      });
+      if (error) throw error;
+    },
+    onMutate: async (args) => {
+      if (!user?.id) return;
+      const key = chatKeys.conversations(user.id);
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<ConversationView[]>(key);
+      const nextArchivedAt = args.archived ? new Date().toISOString() : null;
+      qc.setQueryData<ConversationView[]>(key, (old) =>
+        old?.map((view) =>
+          view.conversation.id === args.conversationId
+            ? { ...view, me: { ...view.me, archived_at: nextArchivedAt } }
+            : view,
+        ),
+      );
+      return { previous };
+    },
+    onError: (_err, _args, ctx) => {
+      if (!user?.id || !ctx) return;
+      qc.setQueryData(chatKeys.conversations(user.id), ctx.previous);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations(user?.id) });
+    },
   });
 }
 
