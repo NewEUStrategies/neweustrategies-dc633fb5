@@ -24,6 +24,7 @@ import {
 } from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { mergeGlobalIntoInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
+import { processWidgetFootnotes } from "@/lib/footnotes";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 // Heavy, non-critical widgets are code-split via lazyWidgets so they never
