@@ -1,6 +1,6 @@
 // CRM follow-upy/zadania + wsadowy import leadów z CSV.
 //
-// Ta sama doktryna co crm.functions.ts: requireStaff (rola + step-up MFA)
+// Ta sama doktryna co crm.functions.ts: requireCrmStaff (rola + step-up MFA)
 // nad klientem user-scoped (RLS jest drugą warstwą egzekucji), głębokie
 // wyniki jako JSON string w `json` (serializer TanStacka), idempotencja
 // zapisu przez command_idempotency. Przypomnienia NIE żyją tutaj - robi je
@@ -8,7 +8,7 @@
 // jobs-tick / community-cron.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
@@ -55,7 +55,7 @@ export interface CrmDueTaskRow extends CrmTaskRow {
 const LeadTasksInput = z.object({ lead_id: z.string().uuid() });
 
 export const listCrmLeadTasks = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => LeadTasksInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await (tbl(context, "crm_tasks")
@@ -83,7 +83,7 @@ const DueTasksInput = z.object({
 });
 
 export const listCrmDueTasks = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => DueTasksInput.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const horizon = new Date(Date.now() + data.horizon_hours * 3_600_000).toISOString();
@@ -110,7 +110,7 @@ const CreateTaskInput = z.object({
 });
 
 export const createCrmTask = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => CreateTaskInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
@@ -159,7 +159,7 @@ const UpdateTaskInput = z.object({
 });
 
 export const updateCrmTask = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => UpdateTaskInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
@@ -173,7 +173,7 @@ export const updateCrmTask = createServerFn({ method: "POST" })
 const IdInput = z.object({ id: z.string().uuid() });
 
 export const deleteCrmTask = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const res = await (tbl(context, "crm_tasks").delete().eq("id", data.id) as unknown as Promise<{
@@ -233,12 +233,12 @@ function parseImportSummary(raw: unknown): CrmImportSummary {
 }
 
 export const importCrmLeads = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => ImportInput.parse(d))
   .handler(async ({ data, context }): Promise<CrmImportSummary> => {
     // Cała praca (dedup po email_norm, merge przez crm_upsert_from_form, unia
     // tagów) dzieje się w JEDNEJ transakcji RPC - guard is_staff + tenant
-    // w środku (obrona w głąb obok requireStaff).
+    // w środku (obrona w głąb obok requireCrmStaff).
     const rpc = context.supabase as unknown as {
       rpc: (
         fn: "crm_import_leads",

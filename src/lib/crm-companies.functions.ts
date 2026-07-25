@@ -1,10 +1,10 @@
 // CRM Companies server functions. Zwracamy dane w formie JSON string, aby
 // uniknąć problemów z serializacją Supabase (jsonb) — analogicznie do
-// crm.functions.ts. Wszystkie fetche jadą przez `requireStaff`, więc RLS
+// crm.functions.ts. Wszystkie fetche jadą przez `requireCrmStaff`, więc RLS
 // (tenant_id = current_tenant_id()) obowiązuje automatycznie.
 import { createServerFn } from "@tanstack/react-start";
 import {
-  requireStaff,
+  requireCrmStaff,
   requireAdmin,
   requireAdminEditor,
 } from "@/integrations/supabase/require-staff";
@@ -56,7 +56,7 @@ const ListInput = z.object({
 });
 
 export const listCrmCompanies = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     let q = tbl(context, "crm_companies")
@@ -125,7 +125,7 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
 const IdInput = z.object({ id: z.string().uuid() });
 
 export const getCrmCompany = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: company, error } = await tbl(context, "crm_companies")
@@ -177,7 +177,7 @@ const UpdateInput = z.object({
 });
 
 export const updateCrmCompany = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
@@ -227,11 +227,11 @@ const nullIfEmpty = (v: string | undefined): string | null => {
 };
 
 export const createCrmCompany = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => CreateCompanyInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
-    // Tenant z profilu bieżącego staffu (requireStaff nie przekazuje go dalej).
+    // Tenant z profilu bieżącego staffu (requireCrmStaff nie przekazuje go dalej).
     const { data: profile, error: profileError } = await tbl(context, "profiles")
       .select("tenant_id")
       .eq("id", userId)
@@ -299,7 +299,7 @@ const CreateContactInput = z.object({
 });
 
 export const createCrmContactForCompany = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => CreateContactInput.parse(d))
   .handler(async ({ data, context }) => {
     const supa = context.supabase as unknown as {
@@ -364,7 +364,7 @@ const NoteInput = z.object({
 });
 
 export const addCrmCompanyNote = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => NoteInput.parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await write(context, "audit_log").insert({
@@ -380,7 +380,7 @@ export const addCrmCompanyNote = createServerFn({ method: "POST" })
 
 // ---- Feed aktywności firmy (audit_log + notatki + leady) ----------------
 export const getCrmCompanyActivity = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: leadRows } = (await tbl(context, "crm_leads")
@@ -502,7 +502,7 @@ const BulkUpdateInput = z.object({
 });
 
 export const bulkUpdateCrmCompanies = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => BulkUpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { ids, ...patch } = data;
@@ -530,7 +530,7 @@ export const bulkUpdateCrmCompanies = createServerFn({ method: "POST" })
 const BulkDeleteInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(200) });
 
 export const bulkDeleteCrmCompanies = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => BulkDeleteInput.parse(d))
   .handler(async ({ data, context }) => {
     const rpc = (
