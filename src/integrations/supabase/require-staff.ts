@@ -89,6 +89,10 @@ function roleMiddleware(allowed: readonly AppRole[], label: string) {
 }
 
 export const requireStaff = roleMiddleware(STAFF_ROLES, "staff role (admin/editor/author)");
+export const requireCrmStaff = roleMiddleware(
+  CRM_STAFF_ROLES,
+  "CRM staff role (admin/editor)",
+);
 export const requireAdminEditor = roleMiddleware(
   ADMIN_EDITOR_ROLES,
   "admin/editor role",
