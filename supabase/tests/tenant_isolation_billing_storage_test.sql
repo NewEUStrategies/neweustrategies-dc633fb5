@@ -12,7 +12,7 @@
 -- Uruchamianie: `supabase test db` (razem z pozostałymi testami pgTAP).
 
 BEGIN;
-SELECT plan(18);
+SELECT plan(25);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -253,6 +253,73 @@ WITH upd AS (
 SELECT is((SELECT count(*)::int FROM upd), 0,
   'donations: UPDATE własnego rekordu też zablokowany dla authenticated (service_role-only)');
 
+-- ── Storage CV: INSERT (upload) i UPDATE (podgląd/metadata) ────────────────
+-- Kontekst nadal: authenticated jako shared user, aktywny tenant = B.
+-- Polityka "cv owner upload" (INSERT) wymaga ścieżki:
+--   <current_tenant_id()>/users/<auth.uid()>/<file>
+-- Wszelkie odchylenia (obcy tenant, obcy user, zła struktura) → 42501.
+-- Brak polityki UPDATE dla bucketu 'cv' ⇒ każdy UPDATE zwraca 0 wierszy,
+-- co blokuje m.in. rename/move/metadata-swap między tenantami.
+
+-- Cross-tenant upload: z kontekstu B próbujemy wgrać plik do folderu tenanta A.
+SELECT throws_ok(
+  $$INSERT INTO storage.objects (bucket_id, name, owner)
+    VALUES ('cv',
+            'c1111111-1111-1111-1111-1111111111c1/users/c0000000-0000-0000-0000-000000000cc1/cv-cross-a.pdf',
+            'c0000000-0000-0000-0000-000000000cc1')$$,
+  '42501',
+  NULL,
+  'storage cv: INSERT (upload) do folderu tenanta A z kontekstu B odrzucony przez RLS'
+);
+
+-- Upload pod obcy user_id w aktywnym tenancie B (podszywanie się).
+SELECT throws_ok(
+  $$INSERT INTO storage.objects (bucket_id, name, owner)
+    VALUES ('cv',
+            'c2222222-2222-2222-2222-2222222222c2/users/00000000-0000-0000-0000-0000000000ff/cv-hijack.pdf',
+            'c0000000-0000-0000-0000-000000000cc1')$$,
+  '42501',
+  NULL,
+  'storage cv: INSERT pod obcy user_id w aktywnym tenancie odrzucony przez RLS'
+);
+
+-- Kontrola pozytywna: upload własnego pliku w aktywnym tenancie B działa.
+INSERT INTO storage.objects (bucket_id, name, owner)
+VALUES ('cv',
+        'c2222222-2222-2222-2222-2222222222c2/users/c0000000-0000-0000-0000-000000000cc1/cv-b-2.pdf',
+        'c0000000-0000-0000-0000-000000000cc1');
+
+SELECT is(
+  (SELECT count(*)::int FROM storage.objects
+     WHERE bucket_id = 'cv'
+       AND name = 'c2222222-2222-2222-2222-2222222222c2/users/c0000000-0000-0000-0000-000000000cc1/cv-b-2.pdf'),
+  1,
+  'storage cv: własny upload w aktywnym tenancie widoczny przez SELECT tego samego usera'
+);
+
+-- Cross-tenant UPDATE (podgląd/rename pliku tenanta A z kontekstu B) → 0 wierszy.
+WITH upd AS (
+  UPDATE storage.objects
+     SET name = 'c2222222-2222-2222-2222-2222222222c2/users/c0000000-0000-0000-0000-000000000cc1/stolen.pdf'
+   WHERE bucket_id = 'cv'
+     AND name = 'c1111111-1111-1111-1111-1111111111c1/users/c0000000-0000-0000-0000-000000000cc1/cv-a.pdf'
+  RETURNING 1
+)
+SELECT is((SELECT count(*)::int FROM upd), 0,
+  'storage cv: UPDATE cross-tenant (rename pliku A z kontekstu B) nie modyfikuje wierszy');
+
+-- UPDATE własnego pliku w aktywnym tenancie: brak polityki UPDATE ⇒ 0 wierszy.
+WITH upd AS (
+  UPDATE storage.objects
+     SET owner = 'c0000000-0000-0000-0000-000000000cc1'
+   WHERE bucket_id = 'cv'
+     AND name = 'c2222222-2222-2222-2222-2222222222c2/users/c0000000-0000-0000-0000-000000000cc1/cv-b.pdf'
+  RETURNING 1
+)
+SELECT is((SELECT count(*)::int FROM upd), 0,
+  'storage cv: UPDATE własnego pliku w aktywnym tenancie zablokowany (brak polityki UPDATE)'
+);
+
 -- Sanity: rekordy w bazie pozostały nietknięte przez próby UPDATE powyżej.
 -- Sprawdzamy jako service (RESET ROLE), bo RLS użytkownika filtruje wynik.
 RESET ROLE;
@@ -261,6 +328,14 @@ SELECT is(
      WHERE id = 'd0000000-0000-0000-0000-00000000ad01'),
   10000,
   'billing_documents: kwota rekordu A niezmieniona po próbach UPDATE z sesji authenticated'
+);
+
+SELECT is(
+  (SELECT count(*)::int FROM storage.objects
+     WHERE bucket_id = 'cv'
+       AND name = 'c1111111-1111-1111-1111-1111111111c1/users/c0000000-0000-0000-0000-000000000cc1/cv-a.pdf'),
+  1,
+  'storage cv: oryginalny plik CV tenanta A niezmieniony po próbach cross-tenant UPDATE'
 );
 
 SELECT * FROM finish();
