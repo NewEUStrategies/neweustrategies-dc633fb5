@@ -4,7 +4,7 @@
 // builderow.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LayoutDashboard, Mail, Send, Users, Megaphone } from "lucide-react";
+import { LayoutDashboard, Mail, Send, ShieldCheck, Users, Megaphone } from "lucide-react";
 
 const tabs = [
   {
@@ -41,6 +41,13 @@ const tabs = [
     icon: Users,
     labelPl: "Subskrybenci",
     labelEn: "Subscribers",
+  },
+  {
+    to: "/admin/newsletter/deliverability",
+    key: "deliverability",
+    icon: ShieldCheck,
+    labelPl: "Dostarczalność",
+    labelEn: "Deliverability",
   },
 ] as const;
 

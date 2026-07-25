@@ -242,6 +242,21 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       .maybeSingle();
     if (existing?.status === "subscribed") return { ok: true, status: "exists" };
 
+    // Lista wykluczeń obowiązuje TAKŻE tutaj: e-mail potwierdzający zapis to
+    // pełnoprawna wysyłka na adres, który wcześniej twardo odbił albo zgłosił
+    // nas jako spam. Adres na trwałej blokadzie nie dostaje ani wiadomości,
+    // ani wiersza `pending` - inaczej formularz na stronie byłby obejściem
+    // całej higieny listy (i kanałem do odbudowy złej reputacji domeny).
+    // Blokady CZASOWE (soft bounce, wygasają w 1-8 dni) nie blokują zapisu:
+    // problem był chwilowy, a nowy zapis jest świeżym dowodem zgody.
+    {
+      const { fetchSuppressedEmails } = await import("@/lib/email/suppression.server");
+      const hits = await fetchSuppressedEmails(supabaseAdmin, tenantId, [email]);
+      if (hits.get(email)?.scope === "permanent") {
+        return { ok: false, error: "suppressed" };
+      }
+    }
+
     // Extract client IP + UA (best-effort; used for consent audit trail)
     let clientIp: string | null = null;
     let userAgent: string | null = null;

@@ -217,7 +217,9 @@ export function NewsletterForm({
         setErrMsg(
           res.error === "not_configured" || res.error === "disabled"
             ? t("newsletterForm.notConfigured")
-            : res.error,
+            : res.error === "suppressed"
+              ? t("newsletterForm.suppressed")
+              : res.error,
         );
         setState("err");
         return;

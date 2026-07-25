@@ -200,6 +200,7 @@ import { Route as AdminPagesSlugRouteImport } from './routes/admin.pages.$slug'
 import { Route as AdminOrganizationsNewRouteImport } from './routes/admin.organizations.new'
 import { Route as AdminOrganizationsIdRouteImport } from './routes/admin.organizations.$id'
 import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.newsletter.subscribers'
+import { Route as AdminNewsletterDeliverabilityRouteImport } from './routes/admin.newsletter.deliverability'
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
@@ -228,6 +229,7 @@ import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as AdminCrmFunnelIndexRouteImport } from './routes/admin.crm.funnel.index'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
+import { Route as ApiPublicWebhooksResendRouteImport } from './routes/api/public/webhooks.resend'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/public/hooks.refresh-og-image'
@@ -1192,6 +1194,12 @@ const AdminNewsletterSubscribersRoute =
     path: '/subscribers',
     getParentRoute: () => AdminNewsletterRoute,
   } as any)
+const AdminNewsletterDeliverabilityRoute =
+  AdminNewsletterDeliverabilityRouteImport.update({
+    id: '/deliverability',
+    path: '/deliverability',
+    getParentRoute: () => AdminNewsletterRoute,
+  } as any)
 const AdminNewsletterPopupRoute = AdminNewsletterPopupRouteImport.update({
   id: '/popup',
   path: '/popup',
@@ -1340,6 +1348,11 @@ const AdminCrmFunnelIndexRoute = AdminCrmFunnelIndexRouteImport.update({
 const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   id: '/api/public/webhooks/stripe',
   path: '/api/public/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicWebhooksResendRoute = ApiPublicWebhooksResendRouteImport.update({
+  id: '/api/public/webhooks/resend',
+  path: '/api/public/webhooks/resend',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicNewsletterUnsubscribeRoute =
@@ -1537,6 +1550,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/organizations/$id': typeof AdminOrganizationsIdRoute
   '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
@@ -1589,6 +1603,7 @@ export interface FileRoutesByFullPath {
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
+  '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -1752,6 +1767,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/organizations/$id': typeof AdminOrganizationsIdRoute
   '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
@@ -1804,6 +1820,7 @@ export interface FileRoutesByTo {
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
+  '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
   '/admin/crm/funnel': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -1978,6 +1995,7 @@ export interface FileRoutesById {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/organizations/$id': typeof AdminOrganizationsIdRoute
   '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
@@ -2030,6 +2048,7 @@ export interface FileRoutesById {
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
+  '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -2205,6 +2224,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/newsletter/deliverability'
     | '/admin/organizations/$id'
     | '/admin/organizations/new'
     | '/admin/pages/$slug'
@@ -2257,6 +2277,7 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
+    | '/api/public/webhooks/resend'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesByTo: FileRoutesByTo
@@ -2420,6 +2441,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/newsletter/deliverability'
     | '/admin/organizations/$id'
     | '/admin/organizations/new'
     | '/admin/pages/$slug'
@@ -2472,6 +2494,7 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
+    | '/api/public/webhooks/resend'
     | '/admin/crm/funnel'
     | '/admin/newsletter/campaigns'
   id:
@@ -2645,6 +2668,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/newsletter/deliverability'
     | '/admin/organizations/$id'
     | '/admin/organizations/new'
     | '/admin/pages/$slug'
@@ -2697,6 +2721,7 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/stripe'
+    | '/api/public/webhooks/resend'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesById: FileRoutesById
@@ -2780,6 +2805,7 @@ export interface RootRouteChildren {
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
   ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
+  ApiPublicWebhooksResendRoute: typeof ApiPublicWebhooksResendRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -4121,6 +4147,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterSubscribersRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/newsletter/deliverability': {
+      id: '/admin/newsletter/deliverability'
+      path: '/deliverability'
+      fullPath: '/admin/newsletter/deliverability'
+      preLoaderRoute: typeof AdminNewsletterDeliverabilityRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/newsletter/popup': {
       id: '/admin/newsletter/popup'
       path: '/popup'
@@ -4317,6 +4350,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhooksStripeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webhooks/resend': {
+      id: '/api/public/webhooks/resend'
+      path: '/api/public/webhooks/resend'
+      fullPath: '/api/public/webhooks/resend'
+      preLoaderRoute: typeof ApiPublicWebhooksResendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/newsletter/unsubscribe': {
       id: '/api/public/newsletter/unsubscribe'
       path: '/api/public/newsletter/unsubscribe'
@@ -4470,6 +4510,7 @@ interface AdminNewsletterRouteChildren {
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
   AdminNewsletterSubscribersRoute: typeof AdminNewsletterSubscribersRoute
+  AdminNewsletterDeliverabilityRoute: typeof AdminNewsletterDeliverabilityRoute
   AdminNewsletterIndexRoute: typeof AdminNewsletterIndexRoute
 }
 
@@ -4479,6 +4520,7 @@ const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
   AdminNewsletterSubscribersRoute: AdminNewsletterSubscribersRoute,
+  AdminNewsletterDeliverabilityRoute: AdminNewsletterDeliverabilityRoute,
   AdminNewsletterIndexRoute: AdminNewsletterIndexRoute,
 }
 
@@ -4951,6 +4993,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
   ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
+  ApiPublicWebhooksResendRoute: ApiPublicWebhooksResendRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

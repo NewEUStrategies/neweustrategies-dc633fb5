@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Send, Mail, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Save, Send, Mail, Users } from "lucide-react";
 import {
   getCampaign,
   getCampaignEngagement,
@@ -107,6 +107,10 @@ function CampaignEditor() {
   const [testEmail, setTestEmail] = useState("");
   const [testLang, setTestLang] = useState<"pl" | "en">("pl");
   const [previewLang, setPreviewLang] = useState<"pl" | "en">("pl");
+  // Powody, dla których bramka reputacji zatrzymała wysyłkę (kody z serwera:
+  // "reputation_blocked:complaint_rate,hard_bounce_rate"). Niepusta lista
+  // otwiera dialog świadomego potwierdzenia ryzyka.
+  const [gateReasons, setGateReasons] = useState<string[]>([]);
   const tiersQ = useMembershipTiers();
 
   useEffect(() => {
@@ -180,17 +184,20 @@ function CampaignEditor() {
     // kontynuuje aż done, odświeżając licznik między porcjami. Zamknięcie
     // karty NIE przerywa kampanii trwale: tick crona / ponowne wejście
     // podejmie ją dzięki oddanej dzierżawie.
-    mutationFn: async () => {
-      let res = await send({ data: { id } });
+    mutationFn: async (acknowledgeReputation: boolean) => {
+      let res = await send({ data: { id, acknowledgeReputation } });
       let guard = 0;
       while (!res.done && guard < 500) {
         guard++;
         qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
-        res = await send({ data: { id } });
+        // Kolejne porcje idą bez potwierdzenia: kampania jest już `sending`,
+        // więc bramka reputacji jej nie dotyczy (patrz sendCampaign).
+        res = await send({ data: { id, acknowledgeReputation: false } });
       }
       return res;
     },
     onSuccess: (res) => {
+      setGateReasons([]);
       toast.success(
         isPl
           ? `Wysłano: ${res.sent}, błędy: ${res.failed}`
@@ -198,7 +205,16 @@ function CampaignEditor() {
       );
       qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      // Bramka reputacji zwraca kod z powodami - zamiast surowego toasta
+      // pokazujemy dialog, w którym operator może świadomie potwierdzić ryzyko.
+      const blocked = err.message.match(/^reputation_blocked:?(.*)$/);
+      if (blocked) {
+        setGateReasons(blocked[1] ? blocked[1].split(",").filter(Boolean) : []);
+        return;
+      }
+      toast.error(err.message);
+    },
   });
 
   if (isLoading || !form) {
@@ -258,7 +274,7 @@ function CampaignEditor() {
             {isPl ? "Zapisz" : "Save"}
           </Button>
           {canResume && (
-            <Button variant="outline" onClick={() => sendMut.mutate()}>
+            <Button variant="outline" onClick={() => sendMut.mutate(false)}>
               <Send className="w-4 h-4 mr-2" />
               {isPl ? "Wznów wysyłkę" : "Resume sending"}
             </Button>
@@ -283,8 +299,57 @@ function CampaignEditor() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{isPl ? "Anuluj" : "Cancel"}</AlertDialogCancel>
-                <AlertDialogAction onClick={() => sendMut.mutate()}>
+                <AlertDialogAction onClick={() => sendMut.mutate(false)}>
                   {isPl ? "Wyślij" : "Send"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Bramka reputacji: wysyłka wstrzymana, dopóki operator nie
+              potwierdzi ryzyka. Osobny dialog (nie toast), bo to decyzja
+              o konsekwencjach dla całej domeny nadawczej. */}
+          <AlertDialog
+            open={gateReasons.length > 0}
+            onOpenChange={(open) => !open && setGateReasons([])}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="w-4 h-4" />
+                  {isPl ? "Wysyłka wstrzymana" : "Sending paused"}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {isPl
+                    ? "Wskaźniki dostarczalności przekroczyły próg bezpieczeństwa. Kolejna masowa wysyłka pogłębi problem z reputacją domeny."
+                    : "Deliverability rates crossed the safety threshold. Another bulk send will deepen the domain reputation problem."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <ul className="list-disc pl-5 text-sm text-destructive/90 space-y-1">
+                {gateReasons.map((code) => (
+                  <li key={code}>
+                    {code === "complaint_rate"
+                      ? isPl
+                        ? "Wskaźnik skarg osiągnął twardy limit Google (0,30%)."
+                        : "Complaint rate reached Google's hard limit (0.30%)."
+                      : isPl
+                        ? "Wskaźnik twardych odbić osiągnął poziom krytyczny (5%)."
+                        : "Hard bounce rate reached the critical level (5%)."}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                {isPl
+                  ? "Szczegóły i lista wykluczeń: Newsletter → Dostarczalność."
+                  : "Details and suppression list: Newsletter → Deliverability."}
+              </p>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{isPl ? "Anuluj" : "Cancel"}</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => sendMut.mutate(true)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isPl ? "Rozumiem ryzyko - wyślij" : "I understand the risk - send"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
