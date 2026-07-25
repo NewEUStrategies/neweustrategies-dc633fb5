@@ -312,19 +312,7 @@ export function useStartConversation() {
       if (user?.id && conversationId) {
         const key = chatKeys.conversations(user.id);
         qc.setQueryData<ConversationView[]>(key, (old) =>
-          old?.map((view) =>
-            view.conversation.id === conversationId && view.me.archived_at
-              ? {
-                  ...view,
-                  me: { ...view.me, archived_at: null },
-                  conversation: {
-                    ...view.conversation,
-                    last_message_at:
-                      view.conversation.last_message_at ?? new Date().toISOString(),
-                  },
-                }
-              : view,
-          ),
+          applyReopenToViews(old, conversationId),
         );
       }
       void qc.invalidateQueries({ queryKey: chatKeys.conversations(user?.id) });
