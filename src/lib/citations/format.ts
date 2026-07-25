@@ -372,6 +372,7 @@ export function formatBibtex(source: CitationSource): string {
 export function buildCitations(source: CitationSource): FormattedCitations {
   return {
     chicago: formatChicago(source),
+    chicagoPlain: formatChicagoPlain(source),
     apa: formatApa(source),
     bibtex: formatBibtex(source),
   };
