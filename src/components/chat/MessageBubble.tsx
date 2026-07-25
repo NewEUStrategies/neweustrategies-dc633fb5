@@ -203,7 +203,7 @@ function ReactionChips({
                 <span aria-hidden className="mr-1 text-[12px] align-middle">
                   {emoji}
                 </span>
-                {t("chat.reactions.reactorsTooltip")}
+                {t("chat.reactions.tooltip")}
               </div>
               <ul className="max-h-[180px] overflow-y-auto py-1">
                 {rows.map((r) => {
