@@ -59,12 +59,16 @@ interface NameParts {
  * danymi profili NES). Zwraca null dla pustych rekordów, które pomijamy.
  */
 function nameParts(author: CitationAuthor): NameParts | null {
-  const first = author.firstName?.trim() ?? "";
-  const last = author.lastName?.trim() ?? "";
-  if (last) return { given: first, family: last };
-  const display = author.displayName?.trim() ?? "";
+  const first = author.firstName?.trim().replace(/\s+/g, " ") ?? "";
+  const last = author.lastName?.trim().replace(/\s+/g, " ") ?? "";
+  if (first && last) return { given: first, family: last };
+  if (last) return { given: "", family: last };
+  // Fallback: samo imię bez nazwiska - traktujemy je jak family, aby autor
+  // nie zniknął z cytatu (np. konta z niepełnym profilem).
+  if (first) return { given: "", family: first };
+  const display = author.displayName?.trim().replace(/\s+/g, " ") ?? "";
   if (!display) return null;
-  const words = display.split(/\s+/);
+  const words = display.split(" ");
   if (words.length === 1) return { given: "", family: words[0] };
   return { given: words.slice(0, -1).join(" "), family: words[words.length - 1] };
 }
@@ -198,9 +202,13 @@ function buildChicagoParts(source: CitationSource): ChicagoParts {
   if (authors.length === 1) {
     authorSegment = naturalName(authors[0]);
   } else if (authors.length > 1) {
-    const names = authors.map(naturalName);
-    const lastName = names.pop();
-    authorSegment = `${names.join(", ")} ${and} ${lastName}`;
+    const names = authors.map(naturalName).filter((n) => n.length > 0);
+    if (names.length === 1) {
+      authorSegment = names[0];
+    } else if (names.length > 1) {
+      const lastName = names.pop() as string;
+      authorSegment = `${names.join(", ")} ${and} ${lastName}`;
+    }
   }
 
   const published = source.publishedAt ? dateParts(source.publishedAt) : null;
@@ -209,20 +217,26 @@ function buildChicagoParts(source: CitationSource): ChicagoParts {
 
   let accessedSegment: string | null = null;
   if (!published && accessed) {
-    // Chicago: data dostępu obowiązkowa tylko przy braku daty publikacji.
     accessedSegment =
       lang === "pl"
         ? `Udostępniono ${longDate(accessed, lang)}`
         : `Accessed ${longDate(accessed, lang)}`;
   }
 
+  // Fallback tytułu: pusty tytuł psułby kursywę i numerację przecinków;
+  // podajemy neutralny znacznik zgodny z językiem cytatu.
+  const rawTitle = source.title?.trim().replace(/\s+/g, " ") ?? "";
+  const title = rawTitle.length > 0 ? rawTitle : lang === "pl" ? "[bez tytułu]" : "[untitled]";
+  const siteName = source.siteName?.trim().replace(/\s+/g, " ") ?? "";
+  const url = source.url?.trim() ?? "";
+
   return {
-    authorSegment,
-    title: source.title,
-    siteName: source.siteName,
+    authorSegment: authorSegment && authorSegment.length > 0 ? authorSegment : null,
+    title,
+    siteName,
     dateSegment,
     accessedSegment,
-    url: source.url,
+    url,
   };
 }
 
@@ -238,12 +252,13 @@ export function formatChicago(source: CitationSource): string {
   if (parts.authorSegment) pieces.push(`${parts.authorSegment},`);
   pieces.push(`<em>${escapeHtml(parts.title)}</em>,`);
   if (parts.dateSegment) {
-    pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
+    if (parts.siteName) pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
+    else pieces.push(`${parts.dateSegment},`);
   } else {
-    pieces.push(`${parts.siteName},`);
+    if (parts.siteName) pieces.push(`${parts.siteName},`);
     if (parts.accessedSegment) pieces.push(`${parts.accessedSegment},`);
   }
-  pieces.push(`${parts.url},`);
+  if (parts.url) pieces.push(`${parts.url},`);
   return pieces.join(" ");
 }
 
@@ -257,12 +272,13 @@ export function formatChicagoPlain(source: CitationSource): string {
   if (parts.authorSegment) pieces.push(`${parts.authorSegment},`);
   pieces.push(`${parts.title},`);
   if (parts.dateSegment) {
-    pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
+    if (parts.siteName) pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
+    else pieces.push(`${parts.dateSegment},`);
   } else {
-    pieces.push(`${parts.siteName},`);
+    if (parts.siteName) pieces.push(`${parts.siteName},`);
     if (parts.accessedSegment) pieces.push(`${parts.accessedSegment},`);
   }
-  pieces.push(`${parts.url},`);
+  if (parts.url) pieces.push(`${parts.url},`);
   return pieces.join(" ");
 }
 
