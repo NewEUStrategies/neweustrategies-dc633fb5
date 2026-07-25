@@ -33,6 +33,7 @@ describe("global widget overlay footnotes", () => {
 
   it("expands footnotes in accordion items after overlay hydration", () => {
     const acc: WidgetNode = {
+      kind: "widget",
       id: "w-2",
       type: "accordion",
       content: {
@@ -41,7 +42,7 @@ describe("global widget overlay footnotes", () => {
           { title_pl: "Bez", content_pl: "Też[fn]c[/fn]" },
         ],
       },
-    } as WidgetNode;
+    } as unknown as WidgetNode;
 
     const { widget, notes } = processWidgetFootnotes(acc, "pl");
     const items = (widget.content as { items: Array<Record<string, string>> }).items;
