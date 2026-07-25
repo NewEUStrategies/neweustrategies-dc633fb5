@@ -391,13 +391,8 @@ export function useSetConversationArchived() {
       const key = chatKeys.conversations(user.id);
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<ConversationView[]>(key);
-      const nextArchivedAt = args.archived ? new Date().toISOString() : null;
       qc.setQueryData<ConversationView[]>(key, (old) =>
-        old?.map((view) =>
-          view.conversation.id === args.conversationId
-            ? { ...view, me: { ...view.me, archived_at: nextArchivedAt } }
-            : view,
-        ),
+        applyArchiveFlipToViews(old, args.conversationId, args.archived),
       );
       return { previous };
     },
