@@ -14,33 +14,57 @@
  *     lib/ssrSanitizeHtml. The `import.meta.env.SSR` branch is statically
  *     replaced per build target, so the client bundle tree-shakes the parser
  *     away and the worker bundle never calls DOMPurify.
+ *
+ * Obie ścieżki przeglądarkowe przechodzą przez KANARKA silnika
+ * (lib/sanitizeEngineGuard): przed pierwszym użyciem sprawdzamy, że DOMPurify w
+ * tym środowisku faktycznie usuwa `<script>` / `<style>` / `<iframe>`. Gdy nie
+ * usuwa (patrz udokumentowana regresja `nodeName` w dompurify >= 3.4.8 na
+ * silnikach DOM definiujących `nodeName` poza `Node.prototype`), degradujemy do
+ * zaescape'owanego tekstu, zamiast wypuścić niesanityzowany HTML do DOM-u.
+ * Dlatego `dompurify` jest w package.json PRZYPIĘTY dokładnie (bez `^`) - i
+ * dlatego samo przypięcie nie jest jedyną mitygacją.
  */
 import DOMPurify from "dompurify";
 
 import { ssrSanitizeHtml } from "./ssrSanitizeHtml";
+import { assertSanitizerEngine, escapeHtmlToText } from "./sanitizeEngineGuard";
 
 // ---------- HTML ----------
+
+/** Polityka HTML treści blokowych/builderowych (najostrzejsza). */
+const HTML_POLICY: Parameters<typeof DOMPurify.sanitize>[1] = {
+  USE_PROFILES: { html: true },
+  FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form"],
+  FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "style"],
+};
+
+/** Polityka HTML dla treści markdownowych (dopuszcza atrybut `style`). */
+const MARKDOWN_POLICY: Parameters<typeof DOMPurify.sanitize>[1] = {
+  USE_PROFILES: { html: true },
+  FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "style"],
+  FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover"],
+};
+
+const purifyWithHtmlPolicy = (dirty: string): string => DOMPurify.sanitize(dirty, HTML_POLICY);
+const purifyWithMarkdownPolicy = (dirty: string): string =>
+  DOMPurify.sanitize(dirty, MARKDOWN_POLICY);
 
 /** Sanitize a string of HTML, preserving safe markup only. */
 export function sanitizeHtml(dirty: string): string {
   if (!dirty) return "";
   if (import.meta.env.SSR) return ssrSanitizeHtml(dirty);
-  return DOMPurify.sanitize(dirty, {
-    USE_PROFILES: { html: true },
-    FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form"],
-    FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "style"],
-  });
+  if (assertSanitizerEngine(purifyWithHtmlPolicy) === "degraded") return escapeHtmlToText(dirty);
+  return purifyWithHtmlPolicy(dirty);
 }
 
 /** Sanitize markdown-rendered HTML. Allow more (figures, blockquotes). */
 export function sanitizeMarkdownHtml(dirty: string): string {
   if (!dirty) return "";
   if (import.meta.env.SSR) return ssrSanitizeHtml(dirty, { allowStyleAttr: true });
-  return DOMPurify.sanitize(dirty, {
-    USE_PROFILES: { html: true },
-    FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "style"],
-    FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover"],
-  });
+  // Kanarek jest wspólny dla obu polityk - degradacja silnika nie zależy od
+  // konfiguracji, tylko od kształtu DOM-u, a jedno badanie wystarczy.
+  if (assertSanitizerEngine(purifyWithHtmlPolicy) === "degraded") return escapeHtmlToText(dirty);
+  return purifyWithMarkdownPolicy(dirty);
 }
 
 // ---------- Plain text ----------

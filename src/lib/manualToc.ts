@@ -10,6 +10,7 @@
 //
 // Honors only the FIRST <!--TOC--> marker; subsequent markers are stripped
 // (multiple TOCs in the same article are an authoring mistake).
+import { createAnchorAllocator, slugifyAnchor } from "@/lib/content/anchorSlug";
 
 interface TocEntry {
   level: 2 | 3;
@@ -22,28 +23,13 @@ const HEADING_RE = /<h([23])([^>]*)>([\s\S]*?)<\/h\1>/gi;
 const ID_ATTR_RE = /\sid\s*=\s*"([^"]+)"/i;
 const TOC_MARKER_RE = /<!--\s*TOC\s*-->/i;
 
-const PL_MAP: Record<string, string> = {
-  ł: "l",
-  Ł: "L",
-  ø: "o",
-  Ø: "O",
-  đ: "d",
-  Đ: "D",
-  ß: "ss",
-};
-
-export function slugifyHeading(input: string): string {
-  return (
-    input
-      .replace(/[łŁøØđĐß]/g, (c) => PL_MAP[c] ?? c)
-      .toLowerCase()
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "")
-      .slice(0, 80) || "section"
-  );
-}
+/**
+ * Kotwica nagłówka. Deleguje do JEDNEGO kanonicznego slugifikatora
+ * (lib/content/anchorSlug) - dawniej ten moduł miał własną mapę transliteracji,
+ * a trzy pozostałe silniki własne (rozbieżne) pipeline'y. Re-eksport zostaje,
+ * bo to publiczne API modułu jest używane przez warstwę treści i testy.
+ */
+export const slugifyHeading = slugifyAnchor;
 
 export interface ProcessedToc {
   html: string;
@@ -61,7 +47,9 @@ export function processManualToc(html: string, lang: "pl" | "en"): ProcessedToc 
   if (!html) return { html: "", toc: [], hasMarker: false };
   const hasMarker = TOC_MARKER_RE.test(html);
   const toc: TocEntry[] = [];
-  const usedIds = new Set<string>();
+  // Wspólny alokator kotwic - jedna semantyka deduplikacji dla wszystkich
+  // silników (`tytul`, `tytul-2`, `tytul-3`).
+  const anchors = createAnchorAllocator();
 
   const withIds = html.replace(
     HEADING_RE,
@@ -70,14 +58,17 @@ export function processManualToc(html: string, lang: "pl" | "en"): ProcessedToc 
       const text = inner.replace(STRIP_TAGS_RE, "").trim();
       if (!text) return full;
       const existing = attrs.match(ID_ATTR_RE)?.[1];
-      let id = existing ?? slugifyHeading(text);
-      let n = 2;
-      while (usedIds.has(id)) {
-        id = `${slugifyHeading(text)}-${n++}`;
-      }
-      usedIds.add(id);
+      const id = anchors.allocate(text, existing);
       toc.push({ level, id, text });
-      const cleanedAttrs = existing ? attrs : `${attrs} id="${id}"`;
+      // Gdy autor powtórzył to samo `id` w źródle, alokator zwraca zdeduplikowany
+      // wariant - wtedy trzeba PODMIENIĆ atrybut, inaczej HTML nadal miałby dwa
+      // identyczne `id`, a spis treści linkowałby do nieistniejącej kotwicy.
+      const cleanedAttrs =
+        existing === undefined
+          ? `${attrs} id="${id}"`
+          : existing === id
+            ? attrs
+            : attrs.replace(ID_ATTR_RE, ` id="${id}"`);
       return `<h${level}${cleanedAttrs}>${inner}</h${level}>`;
     },
   );

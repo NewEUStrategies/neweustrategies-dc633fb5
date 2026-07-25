@@ -29,6 +29,10 @@ import type { ReadingPanelSettings, SocialKey } from "@/lib/sidebarBuilder/types
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
 import { AuthorBusinessCard } from "@/components/post/AuthorBusinessCard";
+// Skanowanie nagłówków + kotwice: wspólny moduł (components/share/anchorScan),
+// żeby pływający spis treści liczył identyfikatory tą samą funkcją co silniki
+// richtext i bloków - inaczej `#kotwica` z serwera i z klienta się rozjeżdżają.
+import { getArticleRoot, scanHeadings, type ScannedHeading } from "./anchorScan";
 
 type Lang = "pl" | "en";
 
@@ -78,11 +82,8 @@ interface Props {
   } | null;
 }
 
-interface TocItem {
-  id: string;
-  text: string;
-  level: 1 | 2 | 3 | 4 | 5;
-}
+/** Pozycja pływającego spisu treści - kształt zwracany przez `scanHeadings`. */
+type TocItem = ScannedHeading;
 
 const COPY = {
   pl: {
@@ -120,26 +121,6 @@ const COPY = {
     saved: "Saved",
   },
 } as const;
-
-function getArticleRoot(): HTMLElement | null {
-  return (
-    document.querySelector<HTMLElement>(".article-body") ??
-    document.querySelector<HTMLElement>("[data-cms-prose]") ??
-    document.querySelector<HTMLElement>("article")
-  );
-}
-
-function slugifyHeading(s: string): string {
-  return (
-    s
-      .toLowerCase()
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 64) || "section"
-  );
-}
 
 export function FloatingShareBar({
   title,
@@ -196,21 +177,7 @@ export function FloatingShareBar({
         setItems([]);
         return;
       }
-      const hs = Array.from(root.querySelectorAll("h1, h2, h3, h4, h5")) as HTMLHeadingElement[];
-      const seen = new Set<string>();
-      const next: TocItem[] = hs
-        .filter((h) => (h.textContent ?? "").trim().length > 0)
-        .map((h) => {
-          const text = (h.textContent ?? "").trim();
-          let id = h.id || slugifyHeading(text);
-          let n = 2;
-          while (seen.has(id)) id = `${id}-${n++}`;
-          seen.add(id);
-          if (!h.id) h.id = id;
-          const lvl = Number(h.tagName.substring(1)) as 1 | 2 | 3 | 4 | 5;
-          return { id, text, level: lvl };
-        });
-      setItems(next);
+      setItems(scanHeadings(root));
     };
     scan();
     // Re-scan if content lazy-mounts (related posts, ads, etc.).

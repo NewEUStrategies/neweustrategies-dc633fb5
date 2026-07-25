@@ -6,11 +6,13 @@
 import { useTranslation } from "react-i18next";
 import type { Block } from "@/lib/blocks/types";
 import type { TocColumns } from "@/lib/toc/settings";
-import { extractHeadingsFromBlocks } from "@/lib/toc/settings";
+import { extractHeadingsFromBlockList } from "@/lib/toc/settings";
 import "@/lib/i18n-public";
 
 interface Props {
-  blocks: Block[];
+  /** Płaska lista bloków dokumentu. `readonly`, żeby wywołujący mógł podać
+   *  STABILNĄ referencję (`allBlocks`) - derywacja kotwic jest po niej cache'owana. */
+  blocks: readonly Block[];
   title?: string;
   /** Minimalny poziom nagłówka (1 = H1, 2 = H2, ...). */
   minLevel?: number;
@@ -34,7 +36,7 @@ export function TocBlockView({
 }: Props) {
   const { t } = useTranslation();
   const L = t("blocksUi.tocTitle");
-  const items = extractHeadingsFromBlocks({ version: 1, blocks }).filter(
+  const items = extractHeadingsFromBlockList(blocks).filter(
     (h) => h.level >= minLevel && h.level <= maxLevel,
   );
 

@@ -5,6 +5,7 @@
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { slugifyAnchor } from "@/lib/content/anchorSlug";
 
 // ---------------------------------------------------------------------------
 // Otypowane czytniki Json (bez rzutowań na `any`)
@@ -104,12 +105,10 @@ export function sanitize(html: string): string {
   return sanitizeHtml(html);
 }
 
-/** Slug do kotwic nagłówków (deterministyczny, ASCII). */
-export function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+/**
+ * Slug do kotwic nagłówków. Deleguje do JEDNEGO kanonicznego slugifikatora
+ * (lib/content/anchorSlug); wcześniej ten moduł miał własny pipeline BEZ
+ * transliteracji liter atomowych, więc `<h2 id>` silnika bloków rozjeżdżał się
+ * z kotwicą tego samego nagłówka wyemitowaną przez silnik richtext.
+ */
+export const slugify = slugifyAnchor;

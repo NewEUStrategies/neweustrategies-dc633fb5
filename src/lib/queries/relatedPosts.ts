@@ -13,19 +13,28 @@ import type { BlogListItem } from "@/lib/queries/public";
 
 const RELATED_TTL = 5 * 60_000;
 
+/**
+ * Konfiguracja rekomendacji tenanta PRZEGLĄDANEGO (płaszczyzna publiczna).
+ *
+ * Czyta przez `get_related_posts_config()`, a nie przez `select().limit(1)`.
+ * Dlaczego: polityki SELECT na tabeli sumują się (OR) - publiczna po
+ * `public_tenant_id()` i edytorska po `current_tenant_id()`. Zalogowany
+ * admin/edytor tenanta A, który przegląda domenę tenanta B, spełniał OBIE, więc
+ * `limit(1)` mógł zwrócić wiersz TENANTA A i publiczna strona tenanta B
+ * renderowała się cudzą konfiguracją. Funkcja zwraca wyłącznie wiersz tenanta
+ * przeglądanego, więc odczyt jest deterministyczny i izolowany.
+ *
+ * Klucz zapytania celowo NIE zawiera tenanta - prefetch SSR i render kliencki
+ * muszą trafiać w ten sam wpis cache (patrz components/blocks/renderer/tenant.tsx).
+ */
 export const relatedPostsConfigQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "related-posts-config"] as const,
     queryFn: async (): Promise<RelatedPostsConfig> => {
-      const { data } = await supabase
-        .from("related_posts_config")
-        .select(
-          "enabled, position, after_paragraph, layout, columns, items_limit, source_strategy, show_excerpt, show_meta, show_cover, recency_boost_days, slider_autoplay, slider_interval_ms, title_pl, title_en, weight_categories, weight_tags, weight_author, weight_recency, weight_popularity, weight_dwell, weight_personalization, use_idf, min_score",
-        )
-        .limit(1)
-        .maybeSingle();
-      if (!data) return RELATED_POSTS_DEFAULTS;
-      return { ...RELATED_POSTS_DEFAULTS, ...(data as Partial<RelatedPostsConfig>) };
+      const { data } = await supabase.rpc("get_related_posts_config");
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row) return RELATED_POSTS_DEFAULTS;
+      return { ...RELATED_POSTS_DEFAULTS, ...(row as Partial<RelatedPostsConfig>) };
     },
     staleTime: RELATED_TTL,
   });

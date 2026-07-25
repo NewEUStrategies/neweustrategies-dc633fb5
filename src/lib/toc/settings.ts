@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { toJson } from "@/lib/builder/types";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import type { Block, BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
+import { resolveBlockAnchors } from "@/lib/blocks/anchors";
+import { slugifyAnchor } from "@/lib/content/anchorSlug";
 
 export const TOC_LAYOUTS = ["boxed", "inline", "sticky-sidebar"] as const;
 export type TocLayout = (typeof TOC_LAYOUTS)[number];
@@ -109,26 +111,44 @@ export interface HeadingCounts {
   total: number;
 }
 
-export function slugifyHeading(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+/**
+ * Kotwica nagłówka. Deleguje do JEDNEGO kanonicznego slugifikatora
+ * (lib/content/anchorSlug); wcześniej ten moduł miał własny pipeline BEZ
+ * transliteracji liter atomowych, więc spis treści linkował do `#…-ma-ych-…`,
+ * gdy silnik richtext wyemitował `#…-malych-…`.
+ */
+export const slugifyHeading = slugifyAnchor;
+
+/**
+ * Wyciąga nagłówki H1-H6 z dokumentu blockowego.
+ *
+ * Kotwice pochodzą z JEDNEJ derywacji dokumentu (lib/blocks/anchors), tej samej,
+ * z której korzysta renderer nagłówków - dzięki temu `href="#…"` w spisie treści
+ * i `id` w wyrenderowanym `<h2>` są identyczne również wtedy, gdy dokument
+ * zawiera dwa nagłówki o tej samej treści (deduplikacja `-2`, `-3`).
+ */
+export function extractHeadingsFromBlocks(doc: BlocksDoc | null | undefined): HeadingItem[] {
+  return extractHeadingsFromBlockList(doc?.blocks);
 }
 
-/** Wyciąga nagłówki H1-H6 z dokumentu blockowego. */
-export function extractHeadingsFromBlocks(doc: BlocksDoc | null | undefined): HeadingItem[] {
-  if (!doc?.blocks?.length) return [];
+/**
+ * Wariant przyjmujący płaską listę bloków. Pozwala wywołującemu podać STABILNĄ
+ * referencję (`allBlocks` renderera) - derywacja kotwic jest po niej cache'owana,
+ * więc spis treści nie przelicza mapy przy każdym renderze.
+ */
+export function extractHeadingsFromBlockList(
+  blocks: readonly Block[] | null | undefined,
+): HeadingItem[] {
+  if (!blocks?.length) return [];
+  const anchors = resolveBlockAnchors(blocks);
   const items: HeadingItem[] = [];
-  for (const b of doc.blocks as Block[]) {
+  for (const b of blocks) {
     if (b.type !== "heading") continue;
     const rawLevel = Number(b.data.level ?? 2);
     const level = Math.min(6, Math.max(1, rawLevel)) as HeadingItem["level"];
     const text = String(b.data.text ?? "").trim();
     if (!text) continue;
-    const anchor = String(b.data.anchor ?? "") || slugifyHeading(text);
+    const anchor = anchors.get(b.id)?.id ?? slugifyHeading(text);
     items.push({ level, text, anchor });
   }
   return items;

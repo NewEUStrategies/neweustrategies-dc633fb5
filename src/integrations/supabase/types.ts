@@ -12065,6 +12065,38 @@ export type Database = {
           title_pl: string
         }[]
       }
+      get_related_posts_config: {
+        Args: never
+        Returns: {
+          after_paragraph: number
+          columns: number
+          created_at: string
+          enabled: boolean
+          items_limit: number
+          layout: string
+          min_score: number
+          position: string
+          recency_boost_days: number
+          show_cover: boolean
+          show_excerpt: boolean
+          show_meta: boolean
+          slider_autoplay: boolean
+          slider_interval_ms: number
+          source_strategy: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          use_idf: boolean
+          weight_author: number
+          weight_categories: number
+          weight_dwell: number
+          weight_personalization: number
+          weight_popularity: number
+          weight_recency: number
+          weight_tags: number
+        }[]
+      }
       get_tracker_stats: { Args: never; Returns: Json }
       get_user_monthly_metering_count: {
         Args: { _user_id: string }
