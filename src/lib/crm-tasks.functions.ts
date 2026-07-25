@@ -19,6 +19,7 @@ type AnyQuery = {
   limit: (n: number) => AnyQuery;
   eq: (c: string, v: unknown) => AnyQuery;
   lte: (c: string, v: unknown) => AnyQuery;
+  maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
   insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
   update: (v: unknown) => AnyQuery;
   delete: () => AnyQuery;
