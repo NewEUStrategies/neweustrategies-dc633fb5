@@ -128,9 +128,7 @@ export function NewCompanyDialog({ lang, onCreated }: NewCompanyDialogProps) {
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="nc-name">
-              {t("Nazwa", "Name")} <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="nc-name">{t("Nazwa", "Name")}</Label>
             <Input
               id="nc-name"
               value={form.name}
