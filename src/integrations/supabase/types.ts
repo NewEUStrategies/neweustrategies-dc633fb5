@@ -2618,6 +2618,202 @@ export type Database = {
           },
         ]
       }
+      email_delivery_events: {
+        Row: {
+          bounce_class: string | null
+          campaign_id: string | null
+          created_at: string
+          diagnostic: string | null
+          email: string | null
+          email_norm: string | null
+          event_type: string
+          id: string
+          kind: string
+          occurred_at: string
+          payload: Json
+          provider: string
+          provider_event_id: string
+          provider_message_id: string | null
+          subscriber_id: string | null
+          tenant_id: string | null
+        }
+        Insert: {
+          bounce_class?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          diagnostic?: string | null
+          email?: string | null
+          email_norm?: string | null
+          event_type: string
+          id?: string
+          kind: string
+          occurred_at?: string
+          payload?: Json
+          provider?: string
+          provider_event_id: string
+          provider_message_id?: string | null
+          subscriber_id?: string | null
+          tenant_id?: string | null
+        }
+        Update: {
+          bounce_class?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          diagnostic?: string | null
+          email?: string | null
+          email_norm?: string | null
+          event_type?: string
+          id?: string
+          kind?: string
+          occurred_at?: string
+          payload?: Json
+          provider?: string
+          provider_event_id?: string
+          provider_message_id?: string | null
+          subscriber_id?: string | null
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_delivery_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_delivery_events_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_delivery_events_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_delivery_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_suppressions: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          created_by: string | null
+          diagnostic: string | null
+          email: string
+          email_norm: string | null
+          expires_at: string | null
+          first_seen_at: string
+          id: string
+          last_event_id: string | null
+          last_seen_at: string
+          meta: Json
+          note: string | null
+          occurrences: number
+          provider: string
+          provider_message_id: string | null
+          reason: string
+          released_at: string | null
+          released_by: string | null
+          scope: string
+          source: string
+          subscriber_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          diagnostic?: string | null
+          email: string
+          email_norm?: string | null
+          expires_at?: string | null
+          first_seen_at?: string
+          id?: string
+          last_event_id?: string | null
+          last_seen_at?: string
+          meta?: Json
+          note?: string | null
+          occurrences?: number
+          provider?: string
+          provider_message_id?: string | null
+          reason?: string
+          released_at?: string | null
+          released_by?: string | null
+          scope?: string
+          source?: string
+          subscriber_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          diagnostic?: string | null
+          email?: string
+          email_norm?: string | null
+          expires_at?: string | null
+          first_seen_at?: string
+          id?: string
+          last_event_id?: string | null
+          last_seen_at?: string
+          meta?: Json
+          note?: string | null
+          occurrences?: number
+          provider?: string
+          provider_message_id?: string | null
+          reason?: string
+          released_at?: string | null
+          released_by?: string | null
+          scope?: string
+          source?: string
+          subscriber_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_suppressions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_suppressions_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_suppressions_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_suppressions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eu_policy_follows: {
         Row: {
           created_at: string
@@ -4894,36 +5090,54 @@ export type Database = {
       }
       newsletter_campaign_recipients: {
         Row: {
+          bounce_class: string | null
+          bounced_at: string | null
           campaign_id: string
+          complained_at: string | null
           created_at: string
+          delivered_at: string | null
+          delivery_state: string
           email: string
           error: string | null
           id: string
           language: string
+          provider_message_id: string | null
           sent_at: string | null
           status: string
           subscriber_id: string | null
           tenant_id: string
         }
         Insert: {
+          bounce_class?: string | null
+          bounced_at?: string | null
           campaign_id: string
+          complained_at?: string | null
           created_at?: string
+          delivered_at?: string | null
+          delivery_state?: string
           email: string
           error?: string | null
           id?: string
           language?: string
+          provider_message_id?: string | null
           sent_at?: string | null
           status?: string
           subscriber_id?: string | null
           tenant_id?: string
         }
         Update: {
+          bounce_class?: string | null
+          bounced_at?: string | null
           campaign_id?: string
+          complained_at?: string | null
           created_at?: string
+          delivered_at?: string | null
+          delivery_state?: string
           email?: string
           error?: string | null
           id?: string
           language?: string
+          provider_message_id?: string | null
           sent_at?: string | null
           status?: string
           subscriber_id?: string | null
@@ -11319,6 +11533,69 @@ export type Database = {
       }
       current_tenant_id: { Args: never; Returns: string }
       current_tier_rank: { Args: never; Returns: number }
+      email_apply_delivery_event: {
+        Args: {
+          p_bounce_class?: string
+          p_campaign_hint?: string
+          p_diagnostic?: string
+          p_email: string
+          p_event_id: string
+          p_event_type: string
+          p_kind: string
+          p_occurred_at?: string
+          p_payload?: Json
+          p_provider: string
+          p_provider_message_id?: string
+          p_subscriber_hint?: string
+          p_tenant_hint?: string
+        }
+        Returns: Json
+      }
+      email_deliverability_counts: {
+        Args: { p_days?: number; p_tenant: string }
+        Returns: Json
+      }
+      email_filter_suppressed: {
+        Args: { p_emails: string[]; p_tenant: string }
+        Returns: {
+          email: string
+          expires_at: string
+          reason: string
+          scope: string
+        }[]
+      }
+      email_is_suppressed: {
+        Args: { p_email: string; p_tenant: string }
+        Returns: boolean
+      }
+      email_record_suppression: {
+        Args: {
+          p_campaign?: string
+          p_diagnostic?: string
+          p_email: string
+          p_event_id?: string
+          p_meta?: Json
+          p_provider?: string
+          p_provider_message_id?: string
+          p_reason: string
+          p_source?: string
+          p_subscriber?: string
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      email_suppression_add: {
+        Args: { p_email: string; p_note?: string; p_reason?: string }
+        Returns: Json
+      }
+      email_suppression_release: {
+        Args: { p_id: string; p_resubscribe?: boolean }
+        Returns: Json
+      }
+      email_suppression_severity: {
+        Args: { p_reason: string }
+        Returns: number
+      }
       emit_domain_event: {
         Args: {
           p_aggregate_id: string
@@ -12213,6 +12490,10 @@ export type Database = {
       nes_search_tsquery_adv: {
         Args: { _match?: string; _q: string }
         Returns: unknown
+      }
+      newsletter_deliverability_metrics: {
+        Args: { p_days?: number }
+        Returns: Json
       }
       newsletter_min_tier_emails: {
         Args: { p_min: number; p_tenant: string }
