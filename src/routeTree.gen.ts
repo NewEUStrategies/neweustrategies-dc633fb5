@@ -87,6 +87,7 @@ import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
+import { Route as ApiSttRouteImport } from './routes/api/stt'
 import { Route as AdminWorkflowsRouteImport } from './routes/admin.workflows'
 import { Route as AdminWebStoriesRouteImport } from './routes/admin.web-stories'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
@@ -623,6 +624,11 @@ const AuthorSlugRoute = AuthorSlugRouteImport.update({
 const ApiTtsRoute = ApiTtsRouteImport.update({
   id: '/api/tts',
   path: '/api/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSttRoute = ApiSttRouteImport.update({
+  id: '/api/stt',
+  path: '/api/stt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminWorkflowsRoute = AdminWorkflowsRouteImport.update({
@@ -1479,6 +1485,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/admin/workflows': typeof AdminWorkflowsRoute
+  '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
@@ -1697,6 +1704,7 @@ export interface FileRoutesByTo {
   '/admin/tracker-guide': typeof AdminTrackerGuideRoute
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/admin/workflows': typeof AdminWorkflowsRoute
+  '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
@@ -1924,6 +1932,7 @@ export interface FileRoutesById {
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/admin/workflows': typeof AdminWorkflowsRoute
+  '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
@@ -2153,6 +2162,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/web-stories'
     | '/admin/workflows'
+    | '/api/stt'
     | '/api/tts'
     | '/author/$slug'
     | '/category/$slug'
@@ -2371,6 +2381,7 @@ export interface FileRouteTypes {
     | '/admin/tracker-guide'
     | '/admin/web-stories'
     | '/admin/workflows'
+    | '/api/stt'
     | '/api/tts'
     | '/author/$slug'
     | '/category/$slug'
@@ -2597,6 +2608,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/web-stories'
     | '/admin/workflows'
+    | '/api/stt'
     | '/api/tts'
     | '/author/$slug'
     | '/category/$slug'
@@ -2762,6 +2774,7 @@ export interface RootRouteChildren {
   SupportRoute: typeof SupportRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ApiSttRoute: typeof ApiSttRoute
   ApiTtsRoute: typeof ApiTtsRoute
   AuthorSlugRoute: typeof AuthorSlugRoute
   CategorySlugRoute: typeof CategorySlugRouteWithChildren
@@ -3354,6 +3367,13 @@ declare module '@tanstack/react-router' {
       path: '/api/tts'
       fullPath: '/api/tts'
       preLoaderRoute: typeof ApiTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stt': {
+      id: '/api/stt'
+      path: '/api/stt'
+      fullPath: '/api/stt'
+      preLoaderRoute: typeof ApiSttRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/workflows': {
@@ -4950,6 +4970,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ApiSttRoute: ApiSttRoute,
   ApiTtsRoute: ApiTtsRoute,
   AuthorSlugRoute: AuthorSlugRoute,
   CategorySlugRoute: CategorySlugRouteWithChildren,
