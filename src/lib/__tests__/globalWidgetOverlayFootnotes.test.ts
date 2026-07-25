@@ -12,7 +12,7 @@ function makeTextWidget(html: string): WidgetNode {
     kind: "widget",
     id: "w-1",
     type: "text",
-    content: { html_pl: html, html_en: html },
+    content: { html_pl: html },
   } as unknown as WidgetNode;
 }
 
