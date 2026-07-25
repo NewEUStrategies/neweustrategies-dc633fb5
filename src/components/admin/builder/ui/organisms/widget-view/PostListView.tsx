@@ -176,7 +176,7 @@ export function PostListView({
       );
     }
     return (
-      <div className="w-full text-xs text-muted-foreground border border-dashed border-border rounded-md p-4 text-center">
+      <div className="cms-meta w-full border border-dashed border-border rounded-md p-4 text-center">
         {lang === "pl" ? "Brak wpisów spełniających kryteria." : "No posts match the criteria."}
       </div>
     );
@@ -311,9 +311,9 @@ export function PostListView({
                   {title(p)}
                 </h4>
                 {authorName(p) && (
-                  <div className="mt-2 text-[13px] text-muted-foreground">
+                  <div className="cms-meta mt-2">
                     <span className="opacity-70">{byLabel}</span>{" "}
-                    <span className="font-medium text-foreground">{authorName(p)}</span>
+                    <span className="text-foreground">{authorName(p)}</span>
                   </div>
                 )}
               </div>

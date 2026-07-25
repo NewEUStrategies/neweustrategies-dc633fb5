@@ -29,10 +29,10 @@ export function PodcastLatestView({ c, lang }: Props) {
 
   const { data, isLoading } = useQuery(latestPodcastsQueryOptions(limit));
 
-  if (isLoading) return <div className="text-sm text-muted-foreground">…</div>;
+  if (isLoading) return <div className="cms-meta">…</div>;
   if (!data?.length) {
     return (
-      <div className="text-sm text-muted-foreground">
+      <div className="cms-meta">
         {lang === "en" ? "No podcasts yet." : "Brak odcinków."}
       </div>
     );
@@ -54,7 +54,7 @@ export function PodcastLatestView({ c, lang }: Props) {
         )}
         <div className="p-6 flex flex-col gap-3 justify-center">
           {podcastEpisodeLabel(p, lang) && (
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+            <span className="cms-meta uppercase tracking-wider">
               {podcastEpisodeLabel(p, lang)}
             </span>
           )}
@@ -95,7 +95,7 @@ export function PodcastLatestView({ c, lang }: Props) {
             )}
             <div className="flex-1 min-w-0">
               {podcastEpisodeLabel(p, lang) && (
-                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                <div className="cms-meta uppercase tracking-wider">
                   {podcastEpisodeLabel(p, lang)}
                 </div>
               )}
@@ -142,7 +142,7 @@ export function PodcastLatestView({ c, lang }: Props) {
           )}
           <div className="p-4 space-y-2">
             {podcastEpisodeLabel(p, lang) && (
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              <div className="cms-meta uppercase tracking-wider">
                 {podcastEpisodeLabel(p, lang)}
               </div>
             )}

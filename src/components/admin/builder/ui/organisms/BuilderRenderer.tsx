@@ -6,9 +6,11 @@ import {
   createContext,
   lazy,
   memo,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -23,11 +25,8 @@ import type {
   Device,
   ResponsiveValue,
 } from "@/lib/builder/types";
-import {
-  WidgetView,
-  getWidgetFrameStyle,
-  hiddenOnDevice,
-} from "@/components/admin/builder/WidgetView";
+import { hiddenOnDevice } from "@/components/admin/builder/WidgetView";
+import { BuilderWidgetNode } from "@/components/admin/builder/ui/organisms/BuilderWidgetNode";
 import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
@@ -38,7 +37,6 @@ import {
   sanitizeCssClass,
   safeImageUrl,
   hardenStyleCss,
-  safeUrl,
 } from "@/lib/sanitize";
 import {
   sectionWrapperStyle,
@@ -720,12 +718,16 @@ const RenderColumn = memo(function RenderColumn({
   const accessCtx = useAccessContext();
   const inlineEdit = useInlineWidgetEdit();
 
-  const visibleChildren = (Array.isArray(column.children) ? column.children : []).filter(
-    (w): w is NonNullable<typeof w> =>
-      !!w &&
-      isKnownWidgetType(w.type) &&
-      !hiddenOnDevice(w.advanced, device) &&
-      evaluateAccess(w.advanced?.access, accessCtx),
+  const visibleChildren = useMemo(
+    () =>
+      (Array.isArray(column.children) ? column.children : []).filter(
+        (w): w is NonNullable<typeof w> =>
+          !!w &&
+          isKnownWidgetType(w.type) &&
+          !hiddenOnDevice(w.advanced, device) &&
+          evaluateAccess(w.advanced?.access, accessCtx),
+      ),
+    [column.children, device, accessCtx],
   );
   const isToolbar =
     visibleChildren.length > 1 &&
@@ -762,19 +764,30 @@ const RenderColumn = memo(function RenderColumn({
           : "justify-start";
 
   // Group consecutive widgets sharing inline flow into one row.
-  const groups: Array<{ inline: boolean; items: typeof visibleChildren }> = [];
-  if (isToolbar) {
-    groups.push({ inline: true, items: visibleChildren });
-  } else {
-    for (const w of visibleChildren) {
-      const inline = w.advanced?.layout === "inline";
-      const last = groups[groups.length - 1];
-      if (inline && last && last.inline) last.items.push(w);
-      else groups.push({ inline, items: [w] });
+  const groups = useMemo(() => {
+    const result: Array<{ inline: boolean; items: typeof visibleChildren }> = [];
+    if (isToolbar) {
+      result.push({ inline: true, items: visibleChildren });
+    } else {
+      for (const w of visibleChildren) {
+        const inline = w.advanced?.layout === "inline";
+        const last = result[result.length - 1];
+        if (inline && last && last.inline) last.items.push(w);
+        else result.push({ inline, items: [w] });
+      }
     }
-  }
+    return result;
+  }, [visibleChildren, isToolbar]);
   const onlyOneBlock =
     !isToolbar && groups.length === 1 && !groups[0].inline && groups[0].items.length === 1;
+
+  const handleWidgetContentChange = useCallback(
+    (widgetId: string, key: string, value: string | number) => {
+      inlineEdit?.(widgetId, key, value);
+    },
+    [inlineEdit],
+  );
+  const onContentChange = inlineEdit ? handleWidgetContentChange : undefined;
 
   return (
     <div
@@ -790,132 +803,41 @@ const RenderColumn = memo(function RenderColumn({
       }}
     >
       {groups.map((g, gi) => {
-        const renderItem = (w: (typeof visibleChildren)[number], inRow: boolean) => {
-          const adv = w.advanced as
-            | {
-                height?:
-                  | number
-                  | "auto"
-                  | { desktop?: unknown; tablet?: unknown; mobile?: unknown };
-              }
-            | undefined;
-          const responsiveHeight =
-            adv?.height && typeof adv.height === "object"
-              ? (adv.height[device] ?? adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile)
-              : adv?.height;
-          const hasExplicitHeight = typeof responsiveHeight === "number";
-          const shouldFillHeight =
-            onlyOneBlock &&
-            !hasExplicitHeight &&
-            !AUTO_SIZE_WIDGETS.has(w.type) &&
-            !COMPACT_WIDGET_TYPES.has(w.type);
-          const frameStyle = getWidgetFrameStyle(w, device);
-          // Section labels must visually sit ABOVE neighbouring widgets so their
-          // accent lines / ribbons are never covered by adjacent backgrounds.
-          const isSectionLabel = w.type === "section-label";
-          const stackCls = isSectionLabel ? " relative z-20" : "";
-          const itemClass = inRow
-            ? `flex flex-col items-stretch justify-center min-w-0 max-w-full overflow-visible${stackCls}`
-            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-visible${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
-          return (
-            <div
-              key={w.id}
-              data-widget-id={w.id}
-              data-widget-explicit-height={hasExplicitHeight ? "true" : undefined}
-              data-widget-layout={inRow ? "inline" : "block"}
-              data-widget-global={w.globalId ? "1" : undefined}
-              data-debug-type={w.type}
-              className={itemClass}
-              style={{
-                ...frameStyle,
-                ...(inRow
-                  ? null
-                  : {
-                      width: frameStyle.width === "auto" ? "100%" : frameStyle.width,
-                      maxWidth: "100%",
-                      alignSelf: "stretch",
-                      justifySelf: "stretch",
-                      // Unified vertical rhythm: column gap is the only source of vertical spacing
-                      // between widgets. Preserve "auto" margins (used by selfAlign center/start/end),
-                      // but always strip numeric per-widget top/bottom margins.
-                      marginTop: frameStyle.marginTop === "auto" ? "auto" : 0,
-                      marginBottom: frameStyle.marginBottom === "auto" ? "auto" : 0,
-                    }),
-                // When user picks a fixed pixel height, it must win over any
-                // flex-basis/flex-grow inherited from frameStyle (parent column
-                // is display:flex → flex-basis becomes the main-axis size and
-                // otherwise silently overrides `height`).
-                ...(hasExplicitHeight
-                  ? {
-                      height: responsiveHeight as number,
-                      minHeight: responsiveHeight as number,
-                      maxHeight: responsiveHeight as number,
-                      flexBasis: "auto",
-                      flexGrow: 0,
-                      flexShrink: 0,
-                    }
-                  : null),
-                boxSizing: "border-box",
-              }}
-            >
-              <RenderErrorBoundary label={`widget:${w.type}:${w.id}`}>
-                <div className="relative w-full h-full">
-                  {w.advanced?.link?.url && (
-                    <a
-                      href={safeUrl(w.advanced.link.url)}
-                      target={w.advanced.link.target ?? "_self"}
-                      rel={
-                        [
-                          w.advanced.link.target === "_blank" ? "noopener noreferrer" : "",
-                          w.advanced.link.nofollow ? "nofollow" : "",
-                          w.advanced.link.rel ?? "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ") || undefined
-                      }
-                      aria-label={w.advanced.link.ariaLabel ?? undefined}
-                      className="absolute inset-0 z-0"
-                      data-widget-link="1"
-                    >
-                      <span className="sr-only">
-                        {w.advanced.link.ariaLabel ??
-                          w.advanced.link.refLabel ??
-                          w.advanced.link.url}
-                      </span>
-                    </a>
-                  )}
-                  <div
-                    className={
-                      w.advanced?.link?.url
-                        ? "relative z-10 pointer-events-none [&_a,&_button,&_input,&_select,&_textarea,&_video,&_audio,&_iframe,&_[role=button],&_[tabindex]]:pointer-events-auto"
-                        : "contents"
-                    }
-                  >
-                    <WidgetView
-                      node={w}
-                      lang={lang}
-                      device={device}
-                      editable={!!inlineEdit}
-                      onContentChange={inlineEdit ? (k, v) => inlineEdit(w.id, k, v) : undefined}
-                    />
-                  </div>
-                </div>
-              </RenderErrorBoundary>
-            </div>
-          );
-        };
-
         if (g.inline) {
           return (
             <div
               key={gi}
               className={`flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full ${axisClass}`}
             >
-              {g.items.map((w) => renderItem(w, true))}
+              {g.items.map((w) => (
+                <BuilderWidgetNode
+                  key={w.id}
+                  widget={w}
+                  lang={lang}
+                  device={device}
+                  inRow
+                  onlyOneBlock={false}
+                  onContentChange={onContentChange}
+                />
+              ))}
             </div>
           );
         }
-        return <Fragment key={gi}>{g.items.map((w) => renderItem(w, false))}</Fragment>;
+        return (
+          <Fragment key={gi}>
+            {g.items.map((w) => (
+              <BuilderWidgetNode
+                key={w.id}
+                widget={w}
+                lang={lang}
+                device={device}
+                inRow={false}
+                onlyOneBlock={onlyOneBlock}
+                onContentChange={onContentChange}
+              />
+            ))}
+          </Fragment>
+        );
       })}
     </div>
   );

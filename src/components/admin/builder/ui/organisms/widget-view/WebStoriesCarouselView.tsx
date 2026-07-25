@@ -27,10 +27,10 @@ export function WebStoriesCarouselView({ c, lang }: Props) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery(latestWebStoriesQueryOptions(limit));
-  if (isLoading) return <div className="text-sm text-muted-foreground">…</div>;
+  if (isLoading) return <div className="cms-meta">…</div>;
   if (!data?.length) {
     return (
-      <div className="text-sm text-muted-foreground">
+      <div className="cms-meta">
         {lang === "en" ? "No web stories yet." : "Brak historii."}
       </div>
     );

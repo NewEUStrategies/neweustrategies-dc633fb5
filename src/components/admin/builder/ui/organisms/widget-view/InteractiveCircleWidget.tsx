@@ -106,13 +106,13 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
   return (
     <div className="w-full flex flex-col items-center text-center">
       {title && (
-        <h3 className="font-display font-bold text-2xl md:text-3xl mb-2 mt-0 text-foreground">
+        <h3 className="font-display mb-2 mt-0 text-foreground">
           {title}
         </h3>
       )}
       {desc && (
         <p
-          className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto mb-6"
+          className="cms-post-excerpt max-w-2xl mx-auto mb-6"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(desc) }}
         />
       )}
@@ -165,13 +165,13 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
           }}
         >
           {activeTitle && (
-            <h4 className="font-display font-bold text-xl md:text-2xl text-foreground m-0">
+            <h4 className="font-display text-foreground m-0">
               {activeTitle}
             </h4>
           )}
           {activeDesc && (
             <p
-              className="text-sm text-muted-foreground mt-2 mb-0"
+              className="cms-post-excerpt mt-2 mb-0"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(activeDesc) }}
             />
           )}
@@ -210,7 +210,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
             <>
               <Icon size={Math.round(itemSize * 0.32)} />
               <span
-                className="text-[11px] font-medium mt-1 leading-tight px-1 truncate max-w-full"
+                className="cms-meta mt-1 px-1 truncate max-w-full"
                 style={{ color: fg }}
               >
                 {label}

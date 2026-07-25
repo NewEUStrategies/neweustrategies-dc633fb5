@@ -118,7 +118,7 @@ export function ImageWidget({
       };
   if (!src && !srcDark) {
     return (
-      <div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">
+      <div className="cms-meta bg-muted rounded h-32 flex items-center justify-center">
         brak obrazka
       </div>
     );
@@ -230,7 +230,7 @@ export function ImageWidget({
         {linkedImg}
       </ResizableImageWrap>
       {caption && (
-        <figcaption className="text-xs text-muted-foreground text-center">{caption}</figcaption>
+        <figcaption className="cms-meta text-center">{caption}</figcaption>
       )}
     </figure>
   );

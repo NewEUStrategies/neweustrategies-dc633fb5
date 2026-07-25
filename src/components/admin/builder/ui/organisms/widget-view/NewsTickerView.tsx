@@ -73,14 +73,14 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
 
   if (isLoading && !rows.length) {
     return (
-      <div className="w-full overflow-hidden rounded-md bg-card border border-border px-3 py-2 text-xs text-muted-foreground">
+      <div className="cms-meta w-full overflow-hidden rounded-md bg-card border border-border px-3 py-2">
         {lang === "pl" ? "Ładowanie najnowszych…" : "Loading latest…"}
       </div>
     );
   }
   if (!rows.length) {
     return (
-      <div className="w-full overflow-hidden rounded-md bg-card border border-border px-3 py-2 text-xs text-muted-foreground">
+      <div className="cms-meta w-full overflow-hidden rounded-md bg-card border border-border px-3 py-2">
         {lang === "pl" ? "Brak wpisów do wyświetlenia." : "No posts to display."}
       </div>
     );

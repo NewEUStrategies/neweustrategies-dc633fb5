@@ -13,7 +13,7 @@ export function CategoriesView({ lang }: { lang: Lang }) {
   return (
     <div className="flex flex-wrap gap-2">
       {(data ?? []).map((c) => (
-        <span key={c.id} className="px-3 py-1 rounded-full border border-border text-sm">
+        <span key={c.id} className="cms-meta px-3 py-1 rounded-full border border-border">
           {lang === "pl" ? c.name_pl : c.name_en}
         </span>
       ))}
