@@ -41,3 +41,17 @@ export async function rateLimit({
   const row = Array.isArray(data) ? data[0] : (data as { allowed?: boolean } | null);
   return row?.allowed === true;
 }
+
+/**
+ * Wariant `rateLimit` który przy odmowie rzuca strukturalnym `RateLimitError`
+ * zamiast zwracać `false`. Klient (mapServerError) wtedy pokazuje przyjazny
+ * komunikat i18n zamiast surowego "Wystąpił błąd". Używaj w server-fn, w
+ * których odmowa ZAWSZE ma być błędem (a nie np. cichym pominięciem).
+ */
+export async function guardRateLimit(opts: CheckOpts, retryAfterSec?: number): Promise<void> {
+  const allowed = await rateLimit(opts);
+  if (!allowed) {
+    const { RateLimitError } = await import("@/lib/errors/serverErrors");
+    throw new RateLimitError(opts.scope, retryAfterSec);
+  }
+}

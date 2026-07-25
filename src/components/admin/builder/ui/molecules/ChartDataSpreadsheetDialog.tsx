@@ -3,7 +3,7 @@
 // side-by-side, keeping edits in local state and serialising back to the
 // widget's CSV textarea format ("; Series A; Series B\nRow; 12; 8") only on save.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Sheet as SheetIcon, Undo2 } from "lucide-react";
+import { Plus, Trash2, Sheet as SheetIcon, Undo2, Check, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -45,12 +45,14 @@ const L = {
     removeRow: "Usuń wiersz",
     removeSeries: "Usuń serię",
     reset: "Przywróć",
-    cancel: "Anuluj",
-    save: "Zapisz",
+    cancel: "Zamknij",
+    save: "Zapisz i zamknij",
     categoryCol: "Kategoria",
     empty: "Brak danych - dodaj wiersz aby zacząć.",
     preview: "Podgląd wykresu",
     limit: (n: number) => `Limit: ${n}`,
+    statusIdle: "Zsynchronizowano",
+    statusSyncing: "Synchronizacja…",
   },
   en: {
     open: "Open spreadsheet",
@@ -61,12 +63,14 @@ const L = {
     removeRow: "Remove row",
     removeSeries: "Remove series",
     reset: "Reset",
-    cancel: "Cancel",
-    save: "Save",
+    cancel: "Close",
+    save: "Save & close",
     categoryCol: "Category",
     empty: "No data - add a row to get started.",
     preview: "Chart preview",
     limit: (n: number) => `Limit: ${n}`,
+    statusIdle: "In sync",
+    statusSyncing: "Syncing…",
   },
 } as const;
 
@@ -113,12 +117,16 @@ export function ChartDataSpreadsheetDialog({
   const [open, setOpen] = useState(false);
   const [grid, setGrid] = useState<Grid>(() => csvToGrid(value));
   const initialRef = useRef<string>(value);
+  const lastSyncedRef = useRef<string>(value);
+  const [syncing, setSyncing] = useState(false);
 
   // Rehydrate when the dialog opens so external edits are not shadowed.
   useEffect(() => {
     if (open) {
       setGrid(csvToGrid(value));
       initialRef.current = value;
+      lastSyncedRef.current = value;
+      setSyncing(false);
     }
   }, [open, value]);
 
@@ -143,6 +151,23 @@ export function ChartDataSpreadsheetDialog({
       source: "",
     };
   }, [grid, chartKind, title, unit]);
+
+  // Live sync: propaguj CSV do parenta natychmiast po edycji, żeby wpisy
+  // trafiały do widget-config bez czekania na przycisk "Zapisz". Krótki
+  // debounce (150 ms) chroni przed cascadą re-renderów przy szybkim pisaniu;
+  // status "Synchronizacja…" znika po zakończeniu propagacji.
+  useEffect(() => {
+    if (!open) return;
+    const nextCsv = gridToCsv(grid);
+    if (nextCsv === lastSyncedRef.current) return;
+    setSyncing(true);
+    const handle = setTimeout(() => {
+      lastSyncedRef.current = nextCsv;
+      onChange(nextCsv);
+      setSyncing(false);
+    }, 150);
+    return () => clearTimeout(handle);
+  }, [grid, open, onChange]);
 
   const setCell = (row: number, col: number, v: string) => {
     setGrid((g) => {
@@ -216,7 +241,14 @@ export function ChartDataSpreadsheetDialog({
   const resetToInitial = () => setGrid(csvToGrid(initialRef.current));
 
   const save = () => {
-    onChange(gridToCsv(grid));
+    // Flush pending debounce od razu, żeby zamknięcie nigdy nie odrzuciło
+    // ostatniej edycji (edge case: user klika Zapisz w oknie debounce).
+    const nextCsv = gridToCsv(grid);
+    if (nextCsv !== lastSyncedRef.current) {
+      lastSyncedRef.current = nextCsv;
+      onChange(nextCsv);
+    }
+    setSyncing(false);
     setOpen(false);
   };
 
@@ -238,8 +270,29 @@ export function ChartDataSpreadsheetDialog({
       </DialogTrigger>
       <DialogContent className="max-w-6xl w-[95vw] p-0 gap-0 rounded-[6px] overflow-hidden">
         <DialogHeader className="px-5 py-4 border-b">
-          <DialogTitle className="text-base font-semibold">{t.title}</DialogTitle>
-          <p className="text-xs text-muted-foreground">{t.subtitle}</p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle className="text-base font-semibold">{t.title}</DialogTitle>
+              <p className="text-xs text-muted-foreground">{t.subtitle}</p>
+            </div>
+            <div
+              role="status"
+              aria-live="polite"
+              className={
+                "inline-flex items-center gap-1.5 rounded-[6px] border px-2 py-1 text-[11px] font-medium shrink-0 " +
+                (syncing
+                  ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200"
+                  : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-200")
+              }
+            >
+              {syncing ? (
+                <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+              ) : (
+                <Check className="w-3 h-3" aria-hidden="true" />
+              )}
+              <span>{syncing ? t.statusSyncing : t.statusIdle}</span>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-0 max-h-[70vh]">
