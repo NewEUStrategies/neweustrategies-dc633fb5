@@ -491,7 +491,11 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
         if (subCurrency !== "PLN" && subCurrency !== "EUR") {
           throw new Error("currency_mismatch");
         }
-        const { convertToDisplayCurrency } = await import("@/lib/billing/displayCurrency");
+        const [{ convertToDisplayCurrency }, { ensureFxRateLoaded }] = await Promise.all([
+          import("@/lib/billing/displayCurrency"),
+          import("@/lib/billing/fxRate"),
+        ]);
+        await ensureFxRateLoaded();
         const converted = convertToDisplayCurrency(unitAmount, currency, subCurrency);
         if (converted.currency.toUpperCase() !== subCurrency) {
           throw new Error("currency_mismatch");
