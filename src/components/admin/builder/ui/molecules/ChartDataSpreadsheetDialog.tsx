@@ -152,6 +152,23 @@ export function ChartDataSpreadsheetDialog({
     };
   }, [grid, chartKind, title, unit]);
 
+  // Live sync: propaguj CSV do parenta natychmiast po edycji, żeby wpisy
+  // trafiały do widget-config bez czekania na przycisk "Zapisz". Krótki
+  // debounce (150 ms) chroni przed cascadą re-renderów przy szybkim pisaniu;
+  // status "Synchronizacja…" znika po zakończeniu propagacji.
+  useEffect(() => {
+    if (!open) return;
+    const nextCsv = gridToCsv(grid);
+    if (nextCsv === lastSyncedRef.current) return;
+    setSyncing(true);
+    const handle = setTimeout(() => {
+      lastSyncedRef.current = nextCsv;
+      onChange(nextCsv);
+      setSyncing(false);
+    }, 150);
+    return () => clearTimeout(handle);
+  }, [grid, open, onChange]);
+
   const setCell = (row: number, col: number, v: string) => {
     setGrid((g) => {
       const cells = g.cells.map((r) => r.slice());
