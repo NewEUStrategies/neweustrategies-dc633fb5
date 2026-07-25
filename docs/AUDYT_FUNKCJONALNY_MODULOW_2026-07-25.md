@@ -33,10 +33,14 @@ się nie zainstalowała). Po odtworzeniu instalacji zgodnie ze sztuczką z `.git
 
 ## Tabela zbiorcza ustaleń
 
+Status wdrożenia: **§1 i §2 są zamknięte** - patrz
+`WDROZENIE_KRYTYCZNE_MONETYZACJA_2026-07-25.md`. Opisy poniżej zachowano w formie
+diagnozy (stan przed poprawką), bo dokumentują mechanizm defektu.
+
 | #   | Moduł                              | Ustalenie                                                                                             | Waga          |
 | --- | ---------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------- |
-| 1   | Monetyzacja - checkout/subskrypcje | `grantEntitlement` gubi błędy zapisu - opłacony klient bez dostępu, bez retry                         | **Krytyczna** |
-| 2   | Monetyzacja - webhook Stripe       | 12 zapisów bez kontroli błędu; anulowanie i refund mogą cicho nie zadziałać                           | **Krytyczna** |
+| 1   | Monetyzacja - checkout/subskrypcje | `grantEntitlement` gubi błędy zapisu - opłacony klient bez dostępu, bez retry ✅ **wdrożone**         | **Krytyczna** |
+| 2   | Monetyzacja - webhook Stripe       | 12 zapisów bez kontroli błędu; anulowanie i refund mogą cicho nie zadziałać ✅ **wdrożone**           | **Krytyczna** |
 | 3   | Wpisy - powiązane wpisy            | Zapis konfiguracji to cichy no-op dla tenantów bez zasianego wiersza                                  | **Wysoka**    |
 | 4   | Wpisy - spis treści / kotwice      | 4 implementacje slugify, 3 zachowania - polskie `ł` daje inne id per silnik                           | **Średnia**   |
 | 5   | Silniki treści / platforma         | Zakres `^3.4.7` dopuszcza `dompurify@3.4.12`, pod którym sanityzacja w przeglądarce przestaje działać | **Średnia**   |

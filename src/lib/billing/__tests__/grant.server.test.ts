@@ -10,8 +10,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const h = vi.hoisted(() => {
   const state: {
     maybeSingleQueue: { data: unknown; error: unknown }[];
+    /** Wynik awaitowanego zapisu (`insert`/`update`/`upsert`). */
+    writeResult: { data: unknown; error: unknown };
     calls: { method: string; args: unknown[] }[];
-  } = { maybeSingleQueue: [], calls: [] };
+  } = { maybeSingleQueue: [], writeResult: { data: null, error: null }, calls: [] };
   const chain: any = {};
   for (const m of ["from", "update", "insert", "upsert", "select", "eq", "neq", "in"]) {
     chain[m] = (...args: unknown[]) => {
@@ -24,7 +26,7 @@ const h = vi.hoisted(() => {
       state.maybeSingleQueue.length ? state.maybeSingleQueue.shift()! : { data: null, error: null },
     );
   chain.single = chain.maybeSingle;
-  chain.then = (onF: any, onR: any) => Promise.resolve({ data: null, error: null }).then(onF, onR);
+  chain.then = (onF: any, onR: any) => Promise.resolve(state.writeResult).then(onF, onR);
   return { state, chain };
 });
 
@@ -64,6 +66,7 @@ describe("grantEntitlement", () => {
   beforeEach(() => {
     h.state.calls = [];
     h.state.maybeSingleQueue = [];
+    h.state.writeResult = { data: null, error: null };
   });
 
   it("inserts an active subscription when none exists for the external ref", async () => {
@@ -208,5 +211,69 @@ describe("grantEntitlement", () => {
     const incomplete: GrantableOrder = { ...subOrder, plan_id: null };
     await grantEntitlement(incomplete, "x");
     expect(h.state.calls).toHaveLength(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // Kontrakt: KAŻDA porażka bazy musi rzucić. Webhook Stripe opiera na tym
+  // zabezpieczenie "grant-before-flip" - wyjątek staje się odpowiedzią 500,
+  // po której Stripe ponawia dostawę. Gdyby grant tylko zgubił `error`,
+  // handler zaksięgowałby zamówienie jako `paid` i odpowiedział 200: klient
+  // obciążony, bez uprawnienia i bez ponowienia.
+  // -------------------------------------------------------------------------
+  describe("propagacja błędów bazy", () => {
+    const dbErr = { message: "rls_denied" };
+
+    it("rzuca, gdy lookup planu ZAWIÓDŁ (w odróżnieniu od braku wiersza)", async () => {
+      h.state.maybeSingleQueue = [{ data: null, error: dbErr }];
+      await expect(grantEntitlement(subOrder, "sub_e1")).rejects.toThrow(/access_plans/);
+      // Nic nie zostało zapisane - brak zgadywania okresu rozliczeniowego.
+      expect(find("insert")).toBeFalsy();
+      expect(find("update")).toBeFalsy();
+    });
+
+    it("rzuca, gdy sprawdzenie istniejącej subskrypcji ZAWIODŁO", async () => {
+      // Gdyby to przemilczeć, `existing` byłoby null i kod poszedłby w INSERT,
+      // który przy unikalnym `external_ref` też by padł - grant przepadłby cały.
+      h.state.maybeSingleQueue = [
+        { data: { interval: "month" }, error: null },
+        { data: null, error: dbErr },
+      ];
+      await expect(grantEntitlement(subOrder, "sub_e2")).rejects.toThrow(/user_subscriptions/);
+      expect(find("insert")).toBeFalsy();
+    });
+
+    it("rzuca, gdy odświeżenie istniejącej subskrypcji padło", async () => {
+      h.state.maybeSingleQueue = [
+        { data: { interval: "month" }, error: null },
+        { data: { id: "sub_row_9" }, error: null },
+      ];
+      h.state.writeResult = { data: null, error: dbErr };
+      await expect(grantEntitlement(subOrder, "sub_e3")).rejects.toThrow(/refresh failed/);
+    });
+
+    it("rzuca, gdy INSERT subskrypcji padł", async () => {
+      h.state.maybeSingleQueue = [
+        { data: { interval: "month" }, error: null },
+        { data: null, error: null },
+      ];
+      h.state.writeResult = { data: null, error: dbErr };
+      await expect(grantEntitlement(subOrder, "sub_e4")).rejects.toThrow(/insert failed/);
+    });
+
+    it("rzuca, gdy UPSERT zakupu jednorazowego padł", async () => {
+      h.state.writeResult = { data: null, error: dbErr };
+      await expect(grantEntitlement(oneTimeOrder, "ord_e5")).rejects.toThrow(/user_purchases/);
+    });
+
+    it("komunikat błędu niesie identyfikator, po którym da się odtworzyć grant", async () => {
+      h.state.maybeSingleQueue = [
+        { data: { interval: "month" }, error: null },
+        { data: null, error: null },
+      ];
+      h.state.writeResult = { data: null, error: dbErr };
+      await expect(grantEntitlement(subOrder, "sub_traceable")).rejects.toThrow(
+        /sub_traceable.*rls_denied/,
+      );
+    });
   });
 });
