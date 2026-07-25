@@ -57,7 +57,7 @@ export function PostFeedback({ postId, lang }: { postId: string; lang: "pl" | "e
 
   return (
     <div
-      className="no-print border-t border-border pt-6 flex flex-wrap items-center gap-3"
+      className="no-print border-t border-orange-500 pt-6 flex flex-wrap items-center gap-3"
       aria-live="polite"
     >
       {state === "done" ? (
