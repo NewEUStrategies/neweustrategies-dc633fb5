@@ -492,7 +492,6 @@ export function CompanyPickerDialog({
 
 function FieldRow({
   label,
-  required,
   children,
 }: {
   label: string;
@@ -503,7 +502,6 @@ function FieldRow({
     <div className="space-y-1">
       <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
-        {required && <span className="ml-0.5 text-primary">*</span>}
       </Label>
       {children}
     </div>
