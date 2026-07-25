@@ -471,6 +471,15 @@ const pl = {
     headTitle: "Finalizacja zamówienia · Checkout",
     successHeadTitle: "Dziękujemy za zakup · Payment success",
     cancelHeadTitle: "Płatność anulowana · Payment canceled",
+    fx: {
+      freshTitle: "Aktualny kurs NBP (tabela A)",
+      staleTitle: "Kurs NBP przeterminowany",
+      fallbackTitle: "Kurs awaryjny (ostatnia znana kotwica)",
+      rate: "1 EUR = {{rate}} PLN",
+      tableA: "tabela A z {{date}}",
+      fetchedAt: "Pobrano: {{when}}",
+      reason: "Powód: {{reason}}",
+    },
   },
   coupon: {
     title: "Kupon B2B",
@@ -962,6 +971,15 @@ const en: typeof pl = {
     headTitle: "Checkout · Finalizacja zamówienia",
     successHeadTitle: "Payment success · Dziękujemy za zakup",
     cancelHeadTitle: "Payment canceled · Płatność anulowana",
+    fx: {
+      freshTitle: "Live NBP rate (Table A)",
+      staleTitle: "NBP rate is stale",
+      fallbackTitle: "Fallback rate (last known anchor)",
+      rate: "1 EUR = {{rate}} PLN",
+      tableA: "Table A dated {{date}}",
+      fetchedAt: "Fetched: {{when}}",
+      reason: "Reason: {{reason}}",
+    },
   },
   coupon: {
     title: "B2B coupon",
