@@ -139,6 +139,7 @@ export const pl = {
     stay: "Zostań",
     nav: {
       dashboard: "Kokpit",
+      analyticsReconciliation: "Uzgodnienie",
       posts: "Wpisy",
       pages: "Strony",
       categories: "Kategorie",

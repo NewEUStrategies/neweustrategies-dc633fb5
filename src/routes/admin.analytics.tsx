@@ -14,6 +14,7 @@ import {
   ExternalLink,
   RefreshCw,
   Users,
+  Scale,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -56,6 +57,13 @@ const AudienceSegmentsDashboard = lazy(() =>
   import("@/components/admin/analytics/AudienceSegmentsDashboard").then((m) => ({
     default: m.AudienceSegmentsDashboard,
   })),
+);
+// Warstwa semantyczna: jedna definicja metryki, jedno okno, jedna liczba do
+// raportu plus werdykt uzgodnienia dla pozostałych strumieni.
+const SemanticReconciliationPanel = lazy(() =>
+  import("@/components/admin/analytics/semantic/organisms/SemanticReconciliationPanel").then(
+    (m) => ({ default: m.SemanticReconciliationPanel }),
+  ),
 );
 
 function DashboardFallback() {
@@ -623,6 +631,9 @@ function AnalyticsPage() {
           <TabsTrigger value="audience">
             <Users className="w-3.5 h-3.5 mr-2" /> Audytorium
           </TabsTrigger>
+          <TabsTrigger value="semantic">
+            <Scale className="w-3.5 h-3.5 mr-2" /> {t("admin.nav.analyticsReconciliation")}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
@@ -662,6 +673,12 @@ function AnalyticsPage() {
         <TabsContent value="audience" className="mt-4">
           <Suspense fallback={<DashboardFallback />}>
             <AudienceSegmentsDashboard />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="semantic" className="mt-4">
+          <Suspense fallback={<DashboardFallback />}>
+            <SemanticReconciliationPanel />
           </Suspense>
         </TabsContent>
       </Tabs>

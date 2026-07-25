@@ -7,6 +7,17 @@
  * surface. Falls back to a friendly message when GA4 is not configured or the
  * report handler returns `error`.
  *
+ * OKNO CZASOWE pochodzi z kanonicznego resolwera warstwy semantycznej
+ * (`@/lib/analytics/semantic`), nie z napisów `NdaysAgo`. Dwa powody:
+ *   1. `[28daysAgo, today]` vs `[56daysAgo, 28daysAgo]` DZIELIŁY dzień graniczny
+ *      (oba przedziały GA4 są domknięte), więc baza porównawcza była zawyżona o
+ *      jeden dzień i każda delta % - systematycznie zaniżona,
+ *   2. `today` to dzień jeszcze niedomknięty przez ingestię GA4, więc ostatni
+ *      punkt trendu zawsze zaniżał, a liczby nie dawały się uzgodnić z
+ *      naszymi strumieniami first-party.
+ * Resolwer zwraca pełne dni UTC, rozłączne okno poprzednie i listę zastrzeżeń,
+ * które `WindowProvenance` pokazuje adminowi wprost.
+ *
  * Charts:
  *   1. KPI row: sesje, aktywni użytkownicy, odsłony, wskaźnik zaangażowania
  *   2. Trend area: sesje vs użytkownicy vs odsłony
@@ -19,6 +30,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-analytics";
+import "@/lib/i18n-admin-semantic";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueries } from "@tanstack/react-query";
 import { Loader2, RefreshCw, BarChart3 } from "lucide-react";
@@ -33,6 +45,8 @@ import {
 } from "@/components/ui/select";
 import type { EChartsCoreOption } from "echarts/core";
 import { runGa4Report, type Ga4Report } from "@/lib/analytics/ga4.functions";
+import { previousWindow, resolveWindow, type WindowPresetId } from "@/lib/analytics/semantic";
+import { WindowProvenance } from "./semantic/molecules/WindowProvenance";
 import { ChartCard } from "./ChartCard";
 import type { ChartClickParams, ChartDrillDetail } from "./ChartDrillDialog";
 import { KpiTile } from "./KpiTile";
@@ -41,6 +55,18 @@ import { buildGa4Insights } from "./ga4Insights";
 
 const CORE_METRICS = ["sessions", "activeUsers", "screenPageViews", "engagementRate"] as const;
 type CoreMetric = (typeof CORE_METRICS)[number];
+
+// Presety okna dostępne w tym dashboardzie. Identyfikatory pochodzą z warstwy
+// semantycznej, więc „28 dni” tutaj znaczy dokładnie to samo, co na pozostałych
+// zakładkach i w migawce serwerowej.
+const WINDOW_PRESETS = [
+  { id: "7d", labelKey: "adminAnalytics.timeRange.preset7d" },
+  { id: "14d", labelKey: "adminAnalytics.timeRange.preset14d" },
+  { id: "28d", labelKey: "adminAnalytics.timeRange.preset28d" },
+  { id: "90d", labelKey: "adminAnalytics.timeRange.preset90d" },
+] as const satisfies ReadonlyArray<{ id: WindowPresetId; labelKey: string }>;
+
+type Ga4PresetId = (typeof WINDOW_PRESETS)[number]["id"];
 
 function parseNumber(v: string | undefined): number {
   if (v === undefined) return 0;
@@ -67,11 +93,18 @@ export function Ga4BiDashboard({
 }) {
   const { t } = useTranslation();
   const fetchReport = useServerFn(runGa4Report);
-  const [days, setDays] = useState<number>(28);
+  const [presetId, setPresetId] = useState<Ga4PresetId>("28d");
 
-  const start = `${days}daysAgo`;
-  const prevStart = `${days * 2}daysAgo`;
-  const prevEnd = `${days}daysAgo`;
+  // Jedno okno kanoniczne na render presetu: pełne dni UTC, bez dnia otwartego.
+  // Okno poprzednie jest z niego wyprowadzone i ROZŁĄCZNE - dzień graniczny nie
+  // wpada już do obu przedziałów.
+  const canonicalWindow = useMemo(() => resolveWindow({ presetId }), [presetId]);
+  const prevWindow = useMemo(() => previousWindow(canonicalWindow), [canonicalWindow]);
+  const days = canonicalWindow.days;
+  const start = canonicalWindow.ga4.startDate;
+  const end = canonicalWindow.ga4.endDate;
+  const prevStart = prevWindow.ga4.startDate;
+  const prevEnd = prevWindow.ga4.endDate;
 
   const requests: Array<{
     key: string;
@@ -84,7 +117,7 @@ export function Ga4BiDashboard({
       key: "date",
       dims: ["date"],
       metrics: [...CORE_METRICS],
-      range: [start, "today"],
+      range: [start, end],
       limit: 400,
     },
     {
@@ -98,28 +131,28 @@ export function Ga4BiDashboard({
       key: "source",
       dims: ["sessionSource"],
       metrics: ["sessions"],
-      range: [start, "today"],
+      range: [start, end],
       limit: 20,
     },
     {
       key: "country",
       dims: ["country"],
       metrics: ["sessions"],
-      range: [start, "today"],
+      range: [start, end],
       limit: 30,
     },
     {
       key: "device",
       dims: ["deviceCategory"],
       metrics: ["sessions"],
-      range: [start, "today"],
+      range: [start, end],
       limit: 10,
     },
     {
       key: "page",
       dims: ["pagePath"],
       metrics: ["screenPageViews", "engagementRate"],
-      range: [start, "today"],
+      range: [start, end],
       limit: 20,
     },
     {
@@ -132,14 +165,14 @@ export function Ga4BiDashboard({
         "bounceRate",
         "eventCount",
       ],
-      range: [start, "today"],
+      range: [start, end],
       limit: 1,
     },
   ];
 
   const queries = useQueries({
     queries: requests.map((r) => ({
-      queryKey: ["ga4-bi", days, r.key],
+      queryKey: ["ga4-bi", presetId, start, end, r.key],
       queryFn: () =>
         fetchReport({
           data: {
@@ -437,15 +470,16 @@ export function Ga4BiDashboard({
           <label className="text-xs text-muted-foreground block mb-1">
             {t("adminAnalytics.ga4.window")}
           </label>
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
+          <Select value={presetId} onValueChange={(v) => setPresetId(v as Ga4PresetId)}>
             <SelectTrigger className="h-9 text-sm w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7">{t("adminAnalytics.timeRange.preset7d")}</SelectItem>
-              <SelectItem value="14">{t("adminAnalytics.timeRange.preset14d")}</SelectItem>
-              <SelectItem value="28">{t("adminAnalytics.timeRange.preset28d")}</SelectItem>
-              <SelectItem value="90">{t("adminAnalytics.timeRange.preset90d")}</SelectItem>
+              {WINDOW_PRESETS.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {t(p.labelKey)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -467,6 +501,11 @@ export function Ga4BiDashboard({
           </span>
         ) : null}
       </div>
+
+      {/* Granice okna wprost: interfejs Google domyślnie dolicza dzień bieżący,
+          my go pomijamy, żeby liczby dały się uzgodnić z pozostałymi strumieniami.
+          Bez tej linii różnica wobec GA4 wyglądałaby jak błąd panelu. */}
+      <WindowProvenance window={canonicalWindow} previous={prevWindow} compact />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiTile

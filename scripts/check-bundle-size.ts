@@ -78,8 +78,23 @@ const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2518); // gzipped JS inc
 // builder/editor organisms and admin-only drag-and-drop by component
 // ("Builder-", "PostBlockEditor", "ThemeOptionsPane", "AdminShell", "sidebar",
 // "vendor-dnd"). Keep this in sync with the manualChunks split in vite.config.ts.
+// 2026-07-25: dochodzą chunki warstwy semantycznej analityki -
+// `SemanticReconciliationPanel` (lazy panel zakładki „Uzgodnienie"),
+// `MetricDictionary`, `WindowProvenance` (dzielony z dashboardem GA4) oraz
+// `i18n-admin-semantic` (jej ciągi PL/EN, wydzielone z bundla analityki właśnie
+// po to, by nie dopisywać się do chunku ładowanego przez pozostałe dashboardy).
+// Wszystkie są osiągalne WYŁĄCZNIE z trasy /admin/analytics, więc rozliczamy je w
+// OVERALL jak pozostały kod CMS - inaczej kod adminowy obciążałby budżet
+// wydajności czytelników, którzy nigdy go nie pobiorą.
+//
+// Świadomie NIE wymuszamy dla nich `manualChunks` w vite.config.ts: nazwany chunk
+// dla kodu aplikacji przyciągnął przy próbie inne współdzielone moduły (chunk
+// urósł 19 -> 37 KB i zaczęły go statycznie importować trasy publiczne
+// `profile.index`, `search`, `people`), czyli dokładnie odwrotnie do celu.
+// Nazwanie chunków tutaj jest tym samym wzorcem, co `EChartClient` i
+// `ThemeOptionsPane` powyżej.
 const ADMIN_ONLY =
-  /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-|EChartClient)/;
+  /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-|EChartClient|SemanticReconciliationPanel|MetricDictionary|WindowProvenance|i18n-admin-semantic)/;
 function isAdminOnly(file: string): boolean {
   return ADMIN_ONLY.test(basename(file));
 }
