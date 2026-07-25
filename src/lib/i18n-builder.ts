@@ -358,6 +358,8 @@ const pl = {
       item: "Pozycja #{{n}}",
       question: "Pytanie ({{lang}})",
       answer: "Odpowiedź HTML ({{lang}})",
+      defaultQuestion: "Nowe pytanie",
+      defaultAnswer: "Odpowiedź…",
     },
     tabsEditor: {
       title: "Zakładki",
