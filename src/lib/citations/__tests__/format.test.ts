@@ -58,7 +58,7 @@ describe("formatChicago", () => {
 
   it("pomija segment autora, gdy brak autorów", () => {
     const source: CitationSource = { ...base, authors: [] };
-    expect(formatChicago(source)).toMatch(/^<i>Bezpieczeństwo/);
+    expect(formatChicago(source)).toMatch(/^<em>Bezpieczeństwo/);
   });
 });
 
