@@ -1,9 +1,10 @@
 // Konwersja waluty wyłącznie na potrzeby prezentacji + checkoutu w wersji EN.
-// Reguła: dla języka angielskiego ceny w PLN wyświetlamy i rozliczamy w EUR,
-// przyjmując parytet 1 EUR = 2 PLN (spójne z /support i cennikiem darowizn).
-// Konwersja jest deterministyczna i tożsama na FE i BE, więc UI cennika,
-// koszyk oraz panel admina pokazują tę samą kwotę.
+// Reguła: dla języka angielskiego ceny w PLN wyświetlamy i rozliczamy w EUR
+// po aktualnym kursie NBP (tabela A) - pobieranym przez `fxRate.ts`. UI cennika,
+// koszyk i panel admina korzystają z tej samej sync funkcji, więc widzą tę samą
+// kwotę; server functions billingu przed użyciem robią `ensureFxRateLoaded()`.
 import { formatMoney, formatMoneyWhole } from "@/lib/billing/types";
+import { getEurPlnRate } from "@/lib/billing/fxRate";
 
 export type DisplayCurrency = "PLN" | "EUR";
 
@@ -19,11 +20,12 @@ export function convertToDisplayCurrency(
 ): { cents: number; currency: DisplayCurrency } {
   const src = currency.toUpperCase();
   if (src === target) return { cents, currency: target };
+  const rate = getEurPlnRate(); // PLN za 1 EUR (NBP tabela A)
   if (src === "PLN" && target === "EUR") {
-    return { cents: Math.round(cents / 2), currency: "EUR" };
+    return { cents: Math.round(cents / rate), currency: "EUR" };
   }
   if (src === "EUR" && target === "PLN") {
-    return { cents: Math.round(cents * 2), currency: "PLN" };
+    return { cents: Math.round(cents * rate), currency: "PLN" };
   }
   return { cents, currency: src as DisplayCurrency };
 }
