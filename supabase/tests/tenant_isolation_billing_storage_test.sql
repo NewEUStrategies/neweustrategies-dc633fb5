@@ -158,5 +158,111 @@ SELECT is(
   'donations: rekord tenanta A niewidoczny po przełączeniu do tenanta B'
 );
 
+-- ── INSERT cross-tenant (billing_documents / donations) ────────────────────
+-- Kontekst nadal: authenticated jako shared user, aktywny tenant = B.
+-- Zapisy do billing_documents / donations są service_role-only (brak
+-- polityk INSERT/UPDATE dla authenticated), więc KAŻDY INSERT z sesji
+-- authenticated musi zostać odrzucony przez RLS - w szczególności próba
+-- podszycia się pod obcy tenant.
+
+-- Cross-tenant: user w kontekście B próbuje wstawić dokument tenanta A.
+SELECT throws_ok(
+  $$INSERT INTO public.billing_documents
+      (tenant_id, user_id, provider_document_id, amount_cents, currency)
+    VALUES ('c1111111-1111-1111-1111-1111111111c1',
+            'c0000000-0000-0000-0000-000000000cc1',
+            'inv_cross_a', 999, 'PLN')$$,
+  '42501',
+  NULL,
+  'billing_documents: INSERT cross-tenant (A z kontekstu B) odrzucony przez RLS'
+);
+
+-- Own-tenant: nawet zapis do aktywnego tenanta jest zablokowany dla
+-- authenticated (brak polityki INSERT → operacja tylko przez service_role).
+SELECT throws_ok(
+  $$INSERT INTO public.billing_documents
+      (tenant_id, user_id, provider_document_id, amount_cents, currency)
+    VALUES ('c2222222-2222-2222-2222-2222222222c2',
+            'c0000000-0000-0000-0000-000000000cc1',
+            'inv_own_b', 111, 'EUR')$$,
+  '42501',
+  NULL,
+  'billing_documents: INSERT z sesji authenticated zablokowany także w aktywnym tenancie (service_role-only)'
+);
+
+SELECT throws_ok(
+  $$INSERT INTO public.donations
+      (tenant_id, user_id, provider_session_id, amount_cents, currency)
+    VALUES ('c1111111-1111-1111-1111-1111111111c1',
+            'c0000000-0000-0000-0000-000000000cc1',
+            'sess_cross_a', 100, 'PLN')$$,
+  '42501',
+  NULL,
+  'donations: INSERT cross-tenant (A z kontekstu B) odrzucony przez RLS'
+);
+
+SELECT throws_ok(
+  $$INSERT INTO public.donations
+      (tenant_id, user_id, provider_session_id, amount_cents, currency)
+    VALUES ('c2222222-2222-2222-2222-2222222222c2',
+            'c0000000-0000-0000-0000-000000000cc1',
+            'sess_own_b', 100, 'EUR')$$,
+  '42501',
+  NULL,
+  'donations: INSERT z sesji authenticated zablokowany także w aktywnym tenancie (service_role-only)'
+);
+
+-- ── UPDATE cross-tenant / own-tenant ───────────────────────────────────────
+-- Brak polityki UPDATE ⇒ 0 zaktualizowanych wierszy (bez błędu). Rekord
+-- obcego tenanta jest dodatkowo niewidoczny dla SELECT-during-UPDATE, więc
+-- cross-tenant UPDATE nie może nawet odnaleźć wiersza-celu.
+
+WITH upd AS (
+  UPDATE public.billing_documents
+     SET amount_cents = amount_cents + 1
+   WHERE id = 'd0000000-0000-0000-0000-00000000ad01'  -- rekord tenanta A
+  RETURNING 1
+)
+SELECT is((SELECT count(*)::int FROM upd), 0,
+  'billing_documents: UPDATE cross-tenant (rekord A z kontekstu B) nie modyfikuje wierszy');
+
+WITH upd AS (
+  UPDATE public.billing_documents
+     SET amount_cents = amount_cents + 1
+   WHERE id = 'd0000000-0000-0000-0000-00000000bd01'  -- rekord aktywnego tenanta B
+  RETURNING 1
+)
+SELECT is((SELECT count(*)::int FROM upd), 0,
+  'billing_documents: UPDATE własnego rekordu też zablokowany dla authenticated (service_role-only)');
+
+WITH upd AS (
+  UPDATE public.donations
+     SET amount_cents = amount_cents + 1
+   WHERE id = 'e0000000-0000-0000-0000-00000000ae01'  -- rekord tenanta A
+  RETURNING 1
+)
+SELECT is((SELECT count(*)::int FROM upd), 0,
+  'donations: UPDATE cross-tenant (rekord A z kontekstu B) nie modyfikuje wierszy');
+
+WITH upd AS (
+  UPDATE public.donations
+     SET amount_cents = amount_cents + 1
+   WHERE id = 'e0000000-0000-0000-0000-00000000be01'  -- rekord aktywnego tenanta B
+  RETURNING 1
+)
+SELECT is((SELECT count(*)::int FROM upd), 0,
+  'donations: UPDATE własnego rekordu też zablokowany dla authenticated (service_role-only)');
+
+-- Sanity: rekordy w bazie pozostały nietknięte przez próby UPDATE powyżej.
+-- Sprawdzamy jako service (RESET ROLE), bo RLS użytkownika filtruje wynik.
+RESET ROLE;
+SELECT is(
+  (SELECT amount_cents FROM public.billing_documents
+     WHERE id = 'd0000000-0000-0000-0000-00000000ad01'),
+  10000,
+  'billing_documents: kwota rekordu A niezmieniona po próbach UPDATE z sesji authenticated'
+);
+
 SELECT * FROM finish();
 ROLLBACK;
+
