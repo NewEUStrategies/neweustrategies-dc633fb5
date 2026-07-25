@@ -19,11 +19,18 @@ export function AccordionEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
   const items = itemsOf(c, "items");
   const update = (next: Item[]) => setContent("items", toJson(next));
+  const addItem = () => {
+    // Seed placeholders in BOTH languages using the active locale's keys, so a
+    // freshly added item is not hard-coded to one language.
+    const q = t("builder.accordionEditor.defaultQuestion");
+    const a = t("builder.accordionEditor.defaultAnswer");
+    update([...items, { [`q_${lang}`]: q, [`a_${lang}`]: a }]);
+  };
   return (
     <ListShell
       title={t("builder.accordionEditor.title")}
       items={items}
-      onAdd={() => update([...items, { q_pl: "Nowe pytanie", a_pl: "Odpowiedź…" }])}
+      onAdd={addItem}
     >
       <div className="space-y-2">
         {items.map((it, i) => (
