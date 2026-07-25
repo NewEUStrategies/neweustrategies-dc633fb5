@@ -130,6 +130,20 @@ const STAGE_STYLE: Record<Stage, string> = {
 };
 const STAGES: Stage[] = ["new", "contacted", "qualified", "proposal", "won", "lost", "archived"];
 
+const stageLabel = (s: Stage, lang: "pl" | "en") => {
+  const map: Record<Stage, [string, string]> = {
+    new: ["Nowy", "New"],
+    contacted: ["Skontaktowany", "Contacted"],
+    qualified: ["Kwalifikowany", "Qualified"],
+    proposal: ["Oferta", "Proposal"],
+    won: ["Wygrany", "Won"],
+    lost: ["Przegrany", "Lost"],
+    archived: ["Zarchiwizowany", "Archived"],
+  };
+  const [pl, en] = map[s];
+  return lang === "pl" ? pl : en;
+};
+
 export const Route = createFileRoute("/admin/crm/$id")({
   head: () => ({
     meta: [{ title: "CRM: kontakt | Admin" }, { name: "robots", content: "noindex" }],
