@@ -99,8 +99,8 @@ describe("global widget overlay footnotes - widget-type coverage", () => {
     const { widget: out, notes } = processWidgetFootnotes(raw, "pl");
     const items = (out.content as { items: Array<Record<string, string>> }).items;
 
-    expect(notes.map((n) => n.id)).toEqual([1, 2, 3, 4, 5]);
-    expect(notes.map((n) => n.html)).toEqual(["r1-t", "r1-d", "r2-t", "r3-d"].concat([]));
+    expect(notes.map((n) => n.id)).toEqual([1, 2, 3, 4]);
+    expect(notes.map((n) => n.html)).toEqual(["r1-t", "r1-d", "r2-t", "r3-d"]);
     // Sanity: numeracja odpowiada kolejności title→description w wierszu.
     expect(items[0].title_pl).toMatch(/data-fn="1"/);
     expect(items[0].description_pl).toMatch(/data-fn="2"/);
