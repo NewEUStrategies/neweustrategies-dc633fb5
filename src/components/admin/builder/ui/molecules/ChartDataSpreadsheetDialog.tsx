@@ -117,12 +117,16 @@ export function ChartDataSpreadsheetDialog({
   const [open, setOpen] = useState(false);
   const [grid, setGrid] = useState<Grid>(() => csvToGrid(value));
   const initialRef = useRef<string>(value);
+  const lastSyncedRef = useRef<string>(value);
+  const [syncing, setSyncing] = useState(false);
 
   // Rehydrate when the dialog opens so external edits are not shadowed.
   useEffect(() => {
     if (open) {
       setGrid(csvToGrid(value));
       initialRef.current = value;
+      lastSyncedRef.current = value;
+      setSyncing(false);
     }
   }, [open, value]);
 
