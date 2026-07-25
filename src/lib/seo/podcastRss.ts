@@ -1,8 +1,38 @@
-// Pure RSS 2.0 + iTunes builder for the podcast feed (/podcast/rss.xml).
-// Unlike the site feed, podcast items carry an <enclosure> (the audio file) and
-// the iTunes namespace tags that Apple/Spotify require to ingest a show.
-// Framework-free and unit-testable; the route only assembles input + headers.
+// Pure RSS 2.0 + iTunes builder for the podcast feeds (/podcast/rss.xml and
+// /podcasts/{show}/rss.xml). Unlike the site feed, podcast items carry an
+// <enclosure> (the audio file) and the iTunes namespace tags Apple/Spotify
+// require to ingest a show. Framework-free and unit-testable; the route only
+// assembles input + headers.
+//
+// APPLE PODCASTS CONNECT - wymagania kanalu. Wersja sprzed 2026-07-25 emitowala
+// z listy wymaganych tagow tylko <title>, <description> i <language>, wiec kanal
+// NIE PRZECHODZIL walidacji przy zgloszeniu:
+//   * <itunes:category>  - brakowalo calkowicie (twardy wymog),
+//   * <itunes:explicit>  - brakowalo calkowicie (twardy wymog),
+//   * <itunes:image>     - pole bylo opcjonalne w builderze, a trasa
+//                          /podcast/rss.xml nie podawala go WCALE,
+//   * <itunes:owner>     - brak e-maila = brak mozliwosci weryfikacji
+//                          wlasnosci kanalu w Podcasts Connect,
+//   * <itunes:author>    - brak nazwy wydawcy w katalogu.
+// Na poziomie <item> brakowalo <itunes:explicit>, <itunes:episodeType>
+// i <itunes:title>.
+//
+// Builder jest teraz FAIL-SAFE: kategoria i explicit mają wartości domyślne, a
+// obrazek kanału degraduje do pierwszej dostępnej okładki, więc feed nigdy nie
+// wychodzi bez tagu, którego Apple wymaga. Braki, których nie da się wypełnić
+// sensownym domyślnym (e-mail właściciela), raportuje `podcastFeedReadiness`
+// (osobny moduł, bo woła go PANEL) - /admin/podcasts pokazuje je redakcji
+// ZANIM zgłosi kanał do Apple.
 import { xmlEscape, plainText, rfc822Date } from "./rss";
+import {
+  DEFAULT_APPLE_CATEGORY,
+  DEFAULT_APPLE_SUBCATEGORY,
+  normalizeAppleCategory,
+} from "./applePodcastCategories";
+
+// Typy słownikowe żyją w `@/lib/podcast/types` (używa ich też panel).
+export type { PodcastEpisodeType, PodcastShowType } from "@/lib/podcast/types";
+import type { PodcastEpisodeType, PodcastShowType } from "@/lib/podcast/types";
 
 export interface PodcastRssItem {
   /** Absolute episode page URL (also the guid). */
@@ -21,6 +51,10 @@ export interface PodcastRssItem {
   season?: number | null;
   episodeNumber?: number | null;
   imageUrl?: string | null;
+  /** <itunes:explicit> na odcinku; brak = wartość kanału. */
+  explicit?: boolean | null;
+  /** <itunes:episodeType>; brak = "full". */
+  episodeType?: PodcastEpisodeType | null;
 }
 
 export interface PodcastRssChannelInput {
@@ -31,6 +65,21 @@ export interface PodcastRssChannelInput {
   language: string;
   copyright?: string | null;
   imageUrl?: string | null;
+  /** <itunes:author> - wydawca prezentowany w katalogu. */
+  author?: string | null;
+  /** <itunes:owner> - nazwa właściciela kanału. */
+  ownerName?: string | null;
+  /** <itunes:owner><itunes:email> - adres weryfikacyjny Podcasts Connect. */
+  ownerEmail?: string | null;
+  /** Kategoria z taksonomii Apple; nieznana degraduje do domyślnej. */
+  category?: string | null;
+  subcategory?: string | null;
+  /** <itunes:explicit> kanału; brak = false. */
+  explicit?: boolean | null;
+  /** <itunes:type>; brak = "episodic". */
+  showType?: PodcastShowType | null;
+  /** <itunes:complete> - program zakończony. */
+  complete?: boolean | null;
   items: readonly PodcastRssItem[];
 }
 
@@ -69,13 +118,27 @@ function itunesDuration(totalSeconds: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
 }
 
+const yesNo = (v: boolean): string => (v ? "yes" : "no");
+
 export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
   const newest = input.items.map((i) => rfc822Date(i.publishedAt)).find((d) => d !== null);
+  const channelExplicit = input.explicit === true;
+  const { category, subcategory } = normalizeAppleCategory(input.category, input.subcategory);
+  // Okładka kanału jest WYMAGANA - gdy nie podano jej wprost, bierzemy pierwszą
+  // okładkę odcinka, żeby feed nie wyszedł bez <itunes:image>.
+  const channelImage =
+    input.imageUrl?.trim() || input.items.find((i) => i.imageUrl?.trim())?.imageUrl?.trim() || "";
+  const author = input.author?.trim() || "";
+  const ownerName = input.ownerName?.trim() || author;
+  const ownerEmail = input.ownerEmail?.trim() || "";
 
   const itemXml = input.items.map((item) => {
     const lines = [
       "    <item>",
       `      <title>${xmlEscape(item.title)}</title>`,
+      // <itunes:title> jest tytułem prezentowanym w aplikacji Apple (bez
+      // prefiksów typu "S2E14", które lubią siedzieć w <title>).
+      `      <itunes:title>${xmlEscape(item.title)}</itunes:title>`,
       `      <link>${xmlEscape(item.url)}</link>`,
       `      <guid isPermaLink="true">${xmlEscape(item.url)}</guid>`,
     ];
@@ -100,6 +163,14 @@ export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
         `      <itunes:duration>${itunesDuration(item.durationSeconds)}</itunes:duration>`,
       );
     }
+    // Apple traktuje brak <itunes:explicit> na odcinku jako dziedziczenie z
+    // kanału; emitujemy jawnie, żeby wpis nie zależał od interpretacji.
+    lines.push(
+      `      <itunes:explicit>${yesNo(item.explicit ?? channelExplicit)}</itunes:explicit>`,
+    );
+    lines.push(
+      `      <itunes:episodeType>${xmlEscape(item.episodeType ?? "full")}</itunes:episodeType>`,
+    );
     if (item.season != null) lines.push(`      <itunes:season>${item.season}</itunes:season>`);
     if (item.episodeNumber != null) {
       lines.push(`      <itunes:episode>${item.episodeNumber}</itunes:episode>`);
@@ -107,6 +178,7 @@ export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
     if (item.imageUrl?.trim()) {
       lines.push(`      <itunes:image href="${xmlEscape(item.imageUrl.trim())}"/>`);
     }
+    if (author) lines.push(`      <itunes:author>${xmlEscape(author)}</itunes:author>`);
     lines.push("    </item>");
     return lines.join("\n");
   });
@@ -121,10 +193,38 @@ export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
     `    <language>${xmlEscape(input.language)}</language>`,
     `    <itunes:summary>${xmlEscape(input.description)}</itunes:summary>`,
     `    <atom:link href="${xmlEscape(input.feedUrl)}" rel="self" type="application/rss+xml"/>`,
-    ...(input.imageUrl?.trim()
-      ? [`    <itunes:image href="${xmlEscape(input.imageUrl.trim())}"/>`]
+    // ── Tagi WYMAGANE przez Apple Podcasts Connect ─────────────────────────
+    `    <itunes:explicit>${yesNo(channelExplicit)}</itunes:explicit>`,
+    `    <itunes:type>${xmlEscape(input.showType ?? "episodic")}</itunes:type>`,
+    ...(subcategory
+      ? [
+          `    <itunes:category text="${xmlEscape(category)}">`,
+          `      <itunes:category text="${xmlEscape(subcategory)}"/>`,
+          `    </itunes:category>`,
+        ]
+      : [`    <itunes:category text="${xmlEscape(category)}"/>`]),
+    ...(channelImage ? [`    <itunes:image href="${xmlEscape(channelImage)}"/>`] : []),
+    // ── Zalecane / potrzebne do weryfikacji własności ───────────────────────
+    ...(author ? [`    <itunes:author>${xmlEscape(author)}</itunes:author>`] : []),
+    ...(ownerName || ownerEmail
+      ? [
+          `    <itunes:owner>`,
+          ...(ownerName ? [`      <itunes:name>${xmlEscape(ownerName)}</itunes:name>`] : []),
+          ...(ownerEmail ? [`      <itunes:email>${xmlEscape(ownerEmail)}</itunes:email>`] : []),
+          `    </itunes:owner>`,
+        ]
       : []),
-    ...(newest ? [`    <lastBuildDate>${newest}</lastBuildDate>`] : []),
+    // managingEditor/webMaster to standardowe pola RSS 2.0 czytane przez
+    // walidatory katalogów - używamy tego samego adresu kontaktowego.
+    ...(ownerEmail
+      ? [
+          `    <managingEditor>${xmlEscape(ownerEmail)}${ownerName ? ` (${xmlEscape(ownerName)})` : ""}</managingEditor>`,
+        ]
+      : []),
+    ...(input.complete ? [`    <itunes:complete>yes</itunes:complete>`] : []),
+    ...(newest
+      ? [`    <lastBuildDate>${newest}</lastBuildDate>`, `    <pubDate>${newest}</pubDate>`]
+      : []),
     ...(input.copyright ? [`    <copyright>${xmlEscape(input.copyright)}</copyright>`] : []),
     `    <ttl>60</ttl>`,
     ...itemXml,
@@ -132,3 +232,5 @@ export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
     `</rss>`,
   ].join("\n");
 }
+
+export { DEFAULT_APPLE_CATEGORY, DEFAULT_APPLE_SUBCATEGORY };

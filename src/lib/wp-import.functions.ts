@@ -19,6 +19,11 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { toJson } from "@/lib/builder/types";
 import { convertHtmlToBuilder, type ConversionResult } from "@/lib/blocks/convert";
+import {
+  buildPageFromHtmlPair,
+  type BuiltPage,
+  type EnBodyOutcome,
+} from "@/lib/wp-import/buildPage";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/wordpress_com";
 
@@ -272,8 +277,16 @@ interface ImportResultRow {
   pageId?: string;
   message?: string;
   mediaMirrored?: number;
+  /** Los treści EN - raportowany zawsze, żeby jej brak nie był cichy. */
+  enBody?: EnBodyOutcome;
 }
 
+/**
+ * Ścieżka konektora WP.com. Dzieli obsługę pary PL/EN z importem WXR
+ * (`buildPageFromHtmlPair`), więc treść EN jest konwertowana, mirrorowana i
+ * zapisywana dokładnie tak samo - wcześniej ta gałąź brała z EN tylko tytuł i
+ * zapowiedź, a całe `wpEn.content` przepadało bez śladu w wyniku importu.
+ */
 async function buildPageFromWp(
   supabase: SupabaseClient<Database>,
   tenantId: string,
@@ -282,60 +295,27 @@ async function buildPageFromWp(
   wpEn: WpFullPage | null,
   mirror: boolean,
   includeExternal: boolean,
-): Promise<{
-  builderDoc: BuilderDocument;
-  title_pl: string;
-  title_en: string;
-  excerpt_pl: string | null;
-  excerpt_en: string | null;
-  cover_image_url: string | null;
-  mediaMirrored: number;
-  warnings: string[];
-}> {
-  const conv = convertHtmlToBuilder(wp.content ?? "");
-  const warnings = [...conv.warnings];
-
-  let mediaMirrored = 0;
-  let builderDoc = conv.doc;
-  let cover = wp.featured_image ?? null;
-
-  if (mirror) {
-    const { mirrorWpMedia, rewriteBuilderDoc, rewriteHtml } =
-      await import("@/lib/server/wp-media.server");
-    const {
-      map,
-      warnings: mw,
-      mirroredCount,
-      reusedCount,
-    } = await mirrorWpMedia({
-      html: conv.cleanedHtml,
-      extraUrls: cover ? [cover] : [],
-      tenantId,
-      userId,
-      supabase,
-      includeExternal,
-    });
-    mediaMirrored = mirroredCount + reusedCount;
-    warnings.push(...mw);
-    builderDoc = rewriteBuilderDoc(builderDoc, map);
-    if (cover) cover = rewriteHtml(cover, map);
-  }
-
-  const title_pl = (wp.title ?? "").replace(/<[^>]+>/g, "").trim();
-  const excerpt_pl = ((wp.excerpt ?? "").replace(/<[^>]+>/g, "").trim() || null) as string | null;
-  const title_en = wpEn ? (wpEn.title ?? "").replace(/<[^>]+>/g, "").trim() : "";
-  const excerpt_en = wpEn ? (wpEn.excerpt ?? "").replace(/<[^>]+>/g, "").trim() || null : null;
-
-  return {
-    builderDoc,
-    title_pl,
-    title_en,
-    excerpt_pl,
-    excerpt_en,
-    cover_image_url: cover,
-    mediaMirrored,
-    warnings,
-  };
+): Promise<BuiltPage> {
+  return buildPageFromHtmlPair(
+    supabase,
+    tenantId,
+    userId,
+    {
+      title: wp.title ?? "",
+      contentHtml: wp.content ?? "",
+      excerpt: wp.excerpt ?? "",
+      cover: wp.featured_image ?? null,
+    },
+    wpEn
+      ? {
+          title: wpEn.title ?? "",
+          contentHtml: wpEn.content ?? "",
+          excerpt: wpEn.excerpt ?? "",
+        }
+      : null,
+    mirror,
+    includeExternal,
+  );
 }
 
 export const wpImportPages = createServerFn({ method: "POST" })
@@ -424,6 +404,8 @@ export const wpImportPages = createServerFn({ method: "POST" })
               cover_image_url: built.cover_image_url ?? current.cover_image_url,
               excerpt_pl: built.excerpt_pl ?? current.excerpt_pl,
               excerpt_en: built.excerpt_en ?? current.excerpt_en,
+              content_pl: built.content_pl ?? current.content_pl,
+              content_en: built.content_en ?? current.content_en,
             })
             .eq("id", current.id)
             .eq("tenant_id", tenantId);
@@ -443,6 +425,7 @@ export const wpImportPages = createServerFn({ method: "POST" })
             slug: finalSlug,
             pageId: current.id,
             mediaMirrored: built.mediaMirrored,
+            enBody: built.enBody,
             message: built.warnings.slice(0, 2).join(" · ") || undefined,
           });
           continue;
@@ -463,6 +446,8 @@ export const wpImportPages = createServerFn({ method: "POST" })
             cover_image_url: built.cover_image_url,
             excerpt_pl: built.excerpt_pl,
             excerpt_en: built.excerpt_en,
+            content_pl: built.content_pl,
+            content_en: built.content_en,
           })
           .select("id")
           .single();
@@ -482,6 +467,7 @@ export const wpImportPages = createServerFn({ method: "POST" })
           slug,
           pageId: inserted?.id,
           mediaMirrored: built.mediaMirrored,
+          enBody: built.enBody,
           message: built.warnings.slice(0, 2).join(" · ") || undefined,
         });
       } catch (e) {
@@ -528,81 +514,6 @@ const wxrImportInput = z.object({
   includeExternalMedia: z.boolean().default(false),
 });
 
-async function buildFromHtmlPair(
-  supabase: SupabaseClient<Database>,
-  tenantId: string,
-  userId: string,
-  pl: { title: string; contentHtml: string; excerpt: string; cover: string | null },
-  en: { title: string; contentHtml: string; excerpt: string } | null,
-  mirror: boolean,
-  includeExternal: boolean,
-): Promise<{
-  builderDoc: BuilderDocument;
-  title_pl: string;
-  title_en: string;
-  excerpt_pl: string | null;
-  excerpt_en: string | null;
-  cover_image_url: string | null;
-  mediaMirrored: number;
-  warnings: string[];
-  source: ConversionResult["source"];
-}> {
-  const conv = convertHtmlToBuilder(pl.contentHtml ?? "");
-  const warnings = [...conv.warnings];
-
-  let builderDoc = conv.doc;
-  let cover = pl.cover ?? null;
-  let mediaMirrored = 0;
-
-  if (mirror) {
-    const { mirrorWpMedia, rewriteBuilderDoc, rewriteHtml } =
-      await import("@/lib/server/wp-media.server");
-    const combinedHtml = `${conv.cleanedHtml}\n${en?.contentHtml ?? ""}`;
-    const extraUrls: string[] = [];
-    if (cover) extraUrls.push(cover);
-    const {
-      map,
-      warnings: mw,
-      mirroredCount,
-      reusedCount,
-    } = await mirrorWpMedia({
-      html: combinedHtml,
-      extraUrls,
-      tenantId,
-      userId,
-      supabase,
-      includeExternal,
-    });
-    mediaMirrored = mirroredCount + reusedCount;
-    warnings.push(...mw);
-    builderDoc = rewriteBuilderDoc(builderDoc, map);
-    if (cover) cover = rewriteHtml(cover, map);
-    // en HTML mirror'ujemy dopiero w konwersji poniżej - te same URL-e w mapie zostaną przepisane.
-    if (en) {
-      const convEn = convertHtmlToBuilder(rewriteHtml(en.contentHtml, map));
-      // Nie łączymy z pl doc - pole content_en w bazie i tak trzymamy jako HTML,
-      // ale builder EN nie istnieje w schemacie pages; zachowujemy zgodność z wpImportPages
-      // (tam też EN idzie tylko jako title/excerpt). En content HTML zapisujemy do content_en.
-      warnings.push(...convEn.warnings);
-      void convEn;
-    }
-  }
-
-  const stripTags = (s: string): string => s.replace(/<[^>]+>/g, "").trim();
-
-  return {
-    builderDoc,
-    title_pl: stripTags(pl.title || ""),
-    title_en: en ? stripTags(en.title || "") : "",
-    excerpt_pl: (stripTags(pl.excerpt || "") || null) as string | null,
-    excerpt_en: en ? ((stripTags(en.excerpt || "") || null) as string | null) : null,
-    cover_image_url: cover,
-    mediaMirrored,
-    warnings,
-    source: conv.source,
-  };
-}
-
 interface WxrImportResultRow {
   clientId: number;
   status: "imported" | "overwritten" | "skipped" | "error";
@@ -611,6 +522,8 @@ interface WxrImportResultRow {
   message?: string;
   mediaMirrored?: number;
   source?: ConversionResult["source"];
+  /** Los treści EN - raportowany zawsze, żeby jej brak nie był cichy. */
+  enBody?: EnBodyOutcome;
 }
 
 export const wpImportFromWxr = createServerFn({ method: "POST" })
@@ -634,7 +547,7 @@ export const wpImportFromWxr = createServerFn({ method: "POST" })
           continue;
         }
 
-        const built = await buildFromHtmlPair(
+        const built = await buildPageFromHtmlPair(
           supabase,
           tenantId,
           userId,
@@ -703,6 +616,13 @@ export const wpImportFromWxr = createServerFn({ method: "POST" })
               cover_image_url: built.cover_image_url ?? current.cover_image_url,
               excerpt_pl: built.excerpt_pl ?? current.excerpt_pl,
               excerpt_en: built.excerpt_en ?? current.excerpt_en,
+              // Treść w obu językach zapisujemy zawsze (dotąd EN był
+              // konwertowany i wyrzucany). Builder pozostaje kanonicznym
+              // układem strony; content_pl/content_en to źródło językowe -
+              // czyta je silnik `html`, skan użycia mediów, kontrola linków
+              // i przepływ tłumaczeń w edytorze.
+              content_pl: built.content_pl ?? current.content_pl,
+              content_en: built.content_en ?? current.content_en,
             })
             .eq("id", current.id)
             .eq("tenant_id", tenantId);
@@ -717,6 +637,7 @@ export const wpImportFromWxr = createServerFn({ method: "POST" })
             pageId: current.id,
             mediaMirrored: built.mediaMirrored,
             source: built.source,
+            enBody: built.enBody,
             message: built.warnings.slice(0, 2).join(" · ") || undefined,
           });
           continue;
@@ -736,6 +657,8 @@ export const wpImportFromWxr = createServerFn({ method: "POST" })
             cover_image_url: built.cover_image_url,
             excerpt_pl: built.excerpt_pl,
             excerpt_en: built.excerpt_en,
+            content_pl: built.content_pl,
+            content_en: built.content_en,
           })
           .select("id")
           .single();
@@ -750,6 +673,7 @@ export const wpImportFromWxr = createServerFn({ method: "POST" })
           pageId: inserted?.id,
           mediaMirrored: built.mediaMirrored,
           source: built.source,
+          enBody: built.enBody,
           message: built.warnings.slice(0, 2).join(" · ") || undefined,
         });
       } catch (e) {

@@ -7,6 +7,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { IMAGE_MIME, VIDEO_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Upload, X, AlertCircle, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -36,20 +37,16 @@ interface Props {
 // Obsługiwane formaty tła:
 // - statyczne obrazy: JPG, PNG, WEBP, AVIF
 // - animowane obrazy: GIF, animowany WEBP, APNG
-// - wektor (może zawierać <animate>/SMIL/CSS): SVG
 // - wideo w tle (autoplay, muted, loop): MP4 (H.264), WEBM (VP9/AV1)
 // - Lottie/JSON renderowany jest osobnym playerem, nie przez <img>, więc tu nie jest wgrywany.
-const ALLOWED_MIME = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/avif",
-  "image/gif",
-  "image/apng",
-  "image/svg+xml",
-  "video/mp4",
-  "video/webm",
-];
+//
+// SVG NIE jest na liście: bucket `media` jest publiczny i serwuje bajty
+// bezpośrednio, więc osadzony `<script>` wykonałby się w kontekście domeny.
+// Serwerowa allowlista (`registerMediaUpload`) odrzuca ten typ od 23.07 - lista
+// klienta zapraszała jednak do wgrania pliku, który i tak nie miał szans
+// przejść, a przy niesprzątającej ścieżce uploadu zostawał żywy w storage.
+// Źródłem prawdy jest teraz `@/lib/media/upload` (jedna lista dla całego UI).
+const ALLOWED_MIME: readonly string[] = [...IMAGE_MIME, ...VIDEO_MIME];
 /** Returns null when the URL is acceptable, otherwise a localized error. */
 function validateUrl(raw: string, t: TFunction): string | null {
   const v = raw.trim();
@@ -101,42 +98,23 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
       if (authErr) throw authErr;
       const uid = sess.session?.user?.id;
       if (!uid) throw new Error(t("builder.imageSlot.noUser"));
-      const ext = file.name.split(".").pop()?.toLowerCase() || "png";
-      const path = `${tenantId}/${uid}/widgets/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("media").upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type,
+      // Wspólna ścieżka uploadu: walidacja -> storage -> rejestr w bibliotece
+      // (audyt + tenant + MIME po stronie serwera), a przy odrzuconej
+      // rejestracji OBOWIĄZKOWE sprzątnięcie obiektu ze storage.
+      const uploaded = await uploadAndRegisterMedia({
+        file,
+        tenantId,
+        userId: uid,
+        registerMedia: registerUpload,
+        allowedMime: ALLOWED_MIME,
+        subfolder: "widgets",
       });
-      if (upErr) throw upErr;
-      const { data } = supabase.storage.from("media").getPublicUrl(path);
-      if (!data?.publicUrl) throw new Error(t("builder.imageSlot.noPublicUrl"));
-      // Rejestr w bibliotece mediów (walidacja tenant/mime/rozmiar po stronie
-      // serwera + audyt). Nieudana rejestracja = sprzątamy plik ze storage,
-      // żeby builder nie zostawiał sierot niewidocznych dla cleanupu.
-      try {
-        const registered = await registerUpload({
-          data: {
-            storagePath: path,
-            filename: file.name,
-            mimeType: file.type,
-            sizeBytes: file.size,
-            publicUrl: data.publicUrl,
-          },
-        });
-        if (!widgetsFolderEnsured) {
-          await ensureFolder({ data: { path: WIDGETS_FOLDER } });
-          widgetsFolderEnsured = true;
-        }
-        await updateMeta({ data: { mediaId: registered.id, folderPath: WIDGETS_FOLDER } });
-      } catch (regErr) {
-        await supabase.storage
-          .from("media")
-          .remove([path])
-          .catch(() => undefined);
-        throw regErr;
+      if (!widgetsFolderEnsured) {
+        await ensureFolder({ data: { path: WIDGETS_FOLDER } });
+        widgetsFolderEnsured = true;
       }
-      onChange(data.publicUrl);
+      await updateMeta({ data: { mediaId: uploaded.mediaId, folderPath: WIDGETS_FOLDER } });
+      onChange(uploaded.publicUrl);
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("builder.imageSlot.unknownError");
       setError(t("builder.imageSlot.uploadError", { msg }));
@@ -179,7 +157,7 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
       <input
         ref={fileRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/apng,image/svg+xml,video/mp4,video/webm"
+        accept={ALLOWED_MIME.join(",")}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];

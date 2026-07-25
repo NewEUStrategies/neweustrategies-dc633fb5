@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { grantEntitlement } from "@/lib/billing/grant.server";
+import { applyCouponEffectsForOrder } from "@/lib/billing/couponEffects.server";
 
 // Stripe webhook endpoint.
 // Receives Checkout / Subscription events, verifies signature, and reconciles
@@ -288,6 +289,13 @@ async function handle(request: Request): Promise<Response> {
           .update(updates)
           .eq("id", order.id)
           .neq("status", "paid");
+
+        // Efekty kuponu B2B (warstwa członkowska + CRM) DOPIERO po zaksięgowaniu
+        // płatności - `apply_b2b_coupon_effects` fail-closed wymaga
+        // `status='paid'`, więc kolejność jest tu istotna. Idempotencja siedzi w
+        // bazie (zatrzask `effects_applied_at`), więc wywołanie przy każdej
+        // dostawie jest bezpieczne i samonaprawiające po nieudanej próbie.
+        await applyCouponEffectsForOrder(order.id);
         break;
       }
 

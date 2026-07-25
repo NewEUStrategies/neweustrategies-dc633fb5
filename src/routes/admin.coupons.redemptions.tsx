@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
+import { couponPaidCents, sumCouponTotals } from "@/lib/billing/couponMoney";
 
 export const Route = createFileRoute("/admin/coupons/redemptions")({
   component: RedemptionsPage,
@@ -19,10 +20,21 @@ interface RedRow {
   coupon_id: string;
   user_id: string | null;
   order_id: string | null;
+  /**
+   * RABAT zastosowany przy realizacji - NIE kwota zapłacona (pisarzem jest
+   * `redeem_b2b_coupon(_applied_cents := couponDiscountCents)`).
+   * Niezmiennik i obliczenia: `@/lib/billing/couponMoney`.
+   */
   applied_cents: number;
   original_cents: number;
   currency: string;
   created_at: string;
+  /**
+   * Znacznik zastosowania efektów kuponu (warstwa + CRM) - ustawiany przez
+   * `apply_b2b_coupon_effects` PO potwierdzonej płatności. NULL przy kuponie
+   * nadającym plan oznacza, że zamówienie nie zostało (jeszcze) opłacone.
+   */
+  effects_applied_at: string | null;
   b2b_coupons: { code: string; name: string | null; grants_tier_key: string | null } | null;
 }
 
@@ -47,7 +59,7 @@ function RedemptionsPage() {
       let qy = supabase
         .from("b2b_coupon_redemptions")
         .select(
-          "id, coupon_id, user_id, order_id, applied_cents, original_cents, currency, created_at, b2b_coupons(code, name, grants_tier_key)",
+          "id, coupon_id, user_id, order_id, applied_cents, original_cents, currency, created_at, effects_applied_at, b2b_coupons(code, name, grants_tier_key)",
         )
         .order("created_at", { ascending: false })
         .limit(500);
@@ -59,21 +71,20 @@ function RedemptionsPage() {
     },
   });
 
-  const rows = q.data ?? [];
-  const totals = useMemo(() => {
-    const revenue = rows.reduce((s, r) => s + r.applied_cents, 0);
-    const discount = rows.reduce((s, r) => s + (r.original_cents - r.applied_cents), 0);
-    return { count: rows.length, revenue, discount };
-  }, [rows]);
+  const rows = useMemo<RedRow[]>(() => q.data ?? [], [q.data]);
+  const totals = useMemo(() => sumCouponTotals(rows), [rows]);
 
   const exportCsv = () => {
-    const header = "date;code;user_id;order_id;original;applied;discount;currency";
+    // Nagłówek nazywa kolumny po znaczeniu: `discount` to applied_cents,
+    // `paid` to original - applied. Poprzedni „applied" sugerował kwotę
+    // zapłaconą i utrwalał inwersję w każdym wyeksportowanym arkuszu.
+    const header = "date;code;user_id;order_id;original;discount;paid;currency";
     const body = rows
       .map(
         (r) =>
           `${r.created_at};${r.b2b_coupons?.code ?? ""};${r.user_id ?? ""};${r.order_id ?? ""};${
             r.original_cents / 100
-          };${r.applied_cents / 100};${(r.original_cents - r.applied_cents) / 100};${r.currency}`,
+          };${r.applied_cents / 100};${couponPaidCents(r) / 100};${r.currency}`,
       )
       .join("\n");
     const blob = new Blob([`${header}\n${body}`], { type: "text/csv;charset=utf-8" });
@@ -100,10 +111,13 @@ function RedemptionsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Stat label={L("Realizacje", "Redemptions")} value={String(totals.count)} />
-        <Stat label={L("Przychód", "Revenue")} value={`${(totals.revenue / 100).toFixed(2)}`} />
+        <Stat
+          label={L("Przychód netto", "Net revenue")}
+          value={`${(totals.revenueCents / 100).toFixed(2)}`}
+        />
         <Stat
           label={L("Rabat udzielony", "Discount granted")}
-          value={`${(totals.discount / 100).toFixed(2)}`}
+          value={`${(totals.discountCents / 100).toFixed(2)}`}
         />
       </div>
 
@@ -129,8 +143,9 @@ function RedemptionsPage() {
                     <th className="text-left py-2 pr-3">{L("Data", "Date")}</th>
                     <th className="text-left py-2 pr-3">{L("Kod", "Code")}</th>
                     <th className="text-left py-2 pr-3">{L("Użytkownik", "User")}</th>
-                    <th className="text-left py-2 pr-3">{L("Wartość", "Amount")}</th>
+                    <th className="text-left py-2 pr-3">{L("Przed rabatem", "Before discount")}</th>
                     <th className="text-left py-2 pr-3">{L("Rabat", "Discount")}</th>
+                    <th className="text-left py-2 pr-3">{L("Zapłacono", "Paid")}</th>
                     <th className="text-left py-2 pr-3">{L("Plan", "Plan")}</th>
                   </tr>
                 </thead>
@@ -142,26 +157,46 @@ function RedemptionsPage() {
                       </td>
                       <td className="py-3 pr-3">
                         <code className="font-mono font-semibold text-sm">
-                          {r.b2b_coupons?.code ?? "—"}
+                          {r.b2b_coupons?.code ?? "-"}
                         </code>
                         {r.b2b_coupons?.name && (
                           <div className="text-xs text-muted-foreground">{r.b2b_coupons.name}</div>
                         )}
                       </td>
                       <td className="py-3 pr-3 text-xs font-mono">
-                        {r.user_id ? r.user_id.slice(0, 8) : "—"}
+                        {r.user_id ? r.user_id.slice(0, 8) : "-"}
                       </td>
-                      <td className="py-3 pr-3">
-                        {(r.applied_cents / 100).toFixed(2)} {r.currency}
+                      <td className="py-3 pr-3 text-muted-foreground">
+                        {(r.original_cents / 100).toFixed(2)} {r.currency}
                       </td>
                       <td className="py-3 pr-3 text-emerald-600">
-                        -{((r.original_cents - r.applied_cents) / 100).toFixed(2)} {r.currency}
+                        -{(r.applied_cents / 100).toFixed(2)} {r.currency}
+                      </td>
+                      <td className="py-3 pr-3 font-medium">
+                        {(couponPaidCents(r) / 100).toFixed(2)} {r.currency}
                       </td>
                       <td className="py-3 pr-3">
                         {r.b2b_coupons?.grants_tier_key ? (
-                          <Badge variant="outline">{r.b2b_coupons.grants_tier_key}</Badge>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge variant="outline">{r.b2b_coupons.grants_tier_key}</Badge>
+                            {r.effects_applied_at ? (
+                              <Badge
+                                variant="secondary"
+                                title={new Date(r.effects_applied_at).toLocaleString(lang)}
+                              >
+                                {L("nadano", "granted")}
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-amber-600 border-amber-500/50"
+                              >
+                                {L("czeka na płatność", "awaiting payment")}
+                              </Badge>
+                            )}
+                          </div>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </td>
                     </tr>
