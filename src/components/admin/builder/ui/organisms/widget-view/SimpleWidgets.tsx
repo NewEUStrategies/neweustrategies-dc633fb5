@@ -1091,9 +1091,7 @@ export function renderSimpleWidget(
             <LucideIcons.Quote className="absolute left-0 top-0 w-7 h-7 text-brand/40" />
           )}
           {stars}
-          <blockquote
-            className={`${variant === "centered" ? "text-lg" : "text-base"} italic leading-relaxed`}
-          >
+          <blockquote className="cms-post-excerpt italic">
             "{quote}"
           </blockquote>
           <figcaption
@@ -1101,8 +1099,8 @@ export function renderSimpleWidget(
           >
             {avatar && <img src={avatar} alt="" className="w-10 h-10 rounded-full object-cover" />}
             <div>
-              <div className="font-medium text-sm">{author}</div>
-              {role && <div className="text-xs text-muted-foreground">{role}</div>}
+              <div className="cms-meta font-medium">{author}</div>
+              {role && <div className="cms-meta text-muted-foreground">{role}</div>}
             </div>
           </figcaption>
         </figure>
@@ -1138,12 +1136,13 @@ export function renderSimpleWidget(
                 <h3 className="cms-post-title mb-2">{name}</h3>
                 <div className="flex items-baseline gap-1 mb-4">
                   <span className="text-3xl font-bold">{price}</span>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="cms-meta text-muted-foreground">
                     {currency}
                     {period}
                   </span>
                 </div>
-                <ul className="space-y-2 mb-6 flex-1 text-sm">
+                <ul className="cms-post-excerpt space-y-2 mb-6 flex-1">
+
                   {features.map((f, j) => (
                     <li key={j} className="flex items-start gap-2">
                       <span className="text-brand mt-0.5">✓</span>
