@@ -59,12 +59,16 @@ interface NameParts {
  * danymi profili NES). Zwraca null dla pustych rekordów, które pomijamy.
  */
 function nameParts(author: CitationAuthor): NameParts | null {
-  const first = author.firstName?.trim() ?? "";
-  const last = author.lastName?.trim() ?? "";
-  if (last) return { given: first, family: last };
-  const display = author.displayName?.trim() ?? "";
+  const first = author.firstName?.trim().replace(/\s+/g, " ") ?? "";
+  const last = author.lastName?.trim().replace(/\s+/g, " ") ?? "";
+  if (first && last) return { given: first, family: last };
+  if (last) return { given: "", family: last };
+  // Fallback: samo imię bez nazwiska - traktujemy je jak family, aby autor
+  // nie zniknął z cytatu (np. konta z niepełnym profilem).
+  if (first) return { given: "", family: first };
+  const display = author.displayName?.trim().replace(/\s+/g, " ") ?? "";
   if (!display) return null;
-  const words = display.split(/\s+/);
+  const words = display.split(" ");
   if (words.length === 1) return { given: "", family: words[0] };
   return { given: words.slice(0, -1).join(" "), family: words[words.length - 1] };
 }
