@@ -89,7 +89,10 @@ describe("splitArchived", () => {
     const { active, archived } = splitArchived([a, b, c]);
     expect(active.map((v) => v.conversation.id)).toEqual(["conv-a", "conv-c"]);
     expect(archived.map((v) => v.conversation.id)).toEqual(["conv-b"]);
+  });
 });
+
+
 
 describe("applyReopenToViews", () => {
   it("clears the caller's archived_at on the reopened conversation only", () => {
