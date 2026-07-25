@@ -44,8 +44,6 @@ export function WidgetLibrary({
   onPickGlobal,
   onPickContainer,
 }: Props) {
-  void onPickStructure;
-  void onPickTemplate;
   const { t } = useTranslation();
   const wl = (k: string, o?: Record<string, unknown>) => t(`builder.widgetLibrary.${k}`, o);
   const [search, setSearch] = useState("");
