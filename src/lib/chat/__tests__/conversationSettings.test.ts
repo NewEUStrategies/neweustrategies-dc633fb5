@@ -1,7 +1,14 @@
 // Pure conversation-list math: archive split, mute parsing ('infinity' from
-// PostgREST) - the hazards a UI click-through would not catch.
+// PostgREST), reopen semantics (archived -> active flip on open) - the
+// hazards a UI click-through would not catch.
 import { describe, it, expect } from "vitest";
-import { isMuted, mutedUntilMs, splitArchived } from "../useConversations";
+import {
+  applyArchiveFlipToViews,
+  applyReopenToViews,
+  isMuted,
+  mutedUntilMs,
+  splitArchived,
+} from "../useConversations";
 import type { ConversationView, ParticipantRow } from "../types";
 
 function participant(overrides: Partial<ParticipantRow>): ParticipantRow {
