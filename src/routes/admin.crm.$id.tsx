@@ -450,7 +450,7 @@ function AdminCrmDetailPage() {
                 <SelectContent>
                   {STAGES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {stageLabel(s, lang)}
                     </SelectItem>
                   ))}
                 </SelectContent>
