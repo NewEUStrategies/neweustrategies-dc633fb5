@@ -147,16 +147,18 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // walutę wybraną przez klienta.
     //
     // WAŻNE (spójność walutowa audytu kuponu): kwoty zapisywane w redemption
-    // (_applied_cents/_original_cents) ORAZ w metadanych zamówienia MUSZĄ być
-    // w tej samej walucie co etykieta (_currency/currency). Wcześniej finalna
-    // kwota była konwertowana do EUR, a rabat/oryginał zostawały w PLN z
-    // etykietą EUR - dashboard sumował applied_cents mieszając grosze PLN i EUR.
-    // Konwertujemy parytetowo (1 EUR = 2 PLN) oryginał i finał, a RABAT
+    // Konwertujemy po AKTUALNYM kursie NBP (tabela A) - `ensureFxRateLoaded()`
+    // odświeża cache w tle, zanim `couponAuditInDisplayCurrency` zejdzie
+    // do sync `getEurPlnRate()`. Oryginał i finał konwertujemy razem, a RABAT
     // wyprowadzamy z ich RÓŻNICY, dzięki czemu niezmiennik
     // `original = final + discount` trzyma się dokładnie w walucie docelowej
     // (bez dryfu zaokrągleń między osobno konwertowanymi wartościami).
     if (data.display_currency) {
-      const { couponAuditInDisplayCurrency } = await import("@/lib/billing/displayCurrency");
+      const [{ couponAuditInDisplayCurrency }, { ensureFxRateLoaded }] = await Promise.all([
+        import("@/lib/billing/displayCurrency"),
+        import("@/lib/billing/fxRate"),
+      ]);
+      await ensureFxRateLoaded();
       const conv = couponAuditInDisplayCurrency(
         originalCents,
         amountCents,
