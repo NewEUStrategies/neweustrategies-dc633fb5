@@ -197,8 +197,27 @@ w minifikacji):
 | public total     | ~1472 KB                  | 1546,5 KB    | 1475 KB |
 | overall total    | ~2513 KB                  | 2617,1 KB    | 2518 KB |
 
+Atrybucja zmierzona, nie wywnioskowana: baseline zbudowany w osobnym worktree
+na commicie bazowym gałęzi (`c5bfb24`, przed jakąkolwiek zmianą z tej pracy)
+daje **największy chunk 379,0 KB** (bajt w bajt tyle samo), public 1546,0 KB,
+overall 2616,6 KB. Cała ta gałąź dokłada **0,5 KB gzip** (try/catch plus
+komentarze w jednym widgecie), a największy chunk się nie ruszył - gate był
+czerwony przed nią i o dokładnie tyle samo.
+
 Budżety były ustawione „tuż nad bieżącym śladem", więc te ~30-100 KB narosły
-funkcjami mergowanymi na `main`. Dwie drogi: realne code-splitting wejścia
-klienta (praca perf, nie kosmetyka) albo re-flooring budżetów z udokumentowanym
-pomiarem. **Podniesienie budżetu wydajnościowego to decyzja produktowa** (1,5 MB
-publicznego JS-a płaci czytelnik), więc nie ruszam go bez Twojej zgody.
+funkcjami mergowanymi na `main`. Dwie drogi:
+
+1. **Realny code-splitting** wejścia klienta (379 KB to `index-*.js`: wszystko
+   z `node_modules` niedopasowane do reguł `manualChunks` plus cały niebędący
+   lazy kod aplikacji). To praca perf z ostrzeżeniem: komentarz w
+   `vite.config.ts` opisuje incydent P0 z 2026-07-20, gdzie odcięcie pakietu od
+   domknięcia jego zależności dało cykl chunków i **martwą hydratację na każdej
+   stronie** - bez błędu widocznego dla użytkownika, niewykrywalne w dev ani
+   w testach jednostkowych. Każdy nowy chunk vendorowy wymaga przejścia
+   `check:chunks` ORAZ boot-testu przeglądarkowego (`vite.smoke.config.ts`).
+2. **Re-flooring budżetów** do zmierzonego śladu z uzasadnieniem w komentarzu
+   (tak samo, jak zrobiono z progami pokrycia w `vitest.config.ts`).
+
+**Podniesienie budżetu wydajnościowego to decyzja produktowa** (1,5 MB
+publicznego JS-a płaci czytelnik przy pierwszym wejściu), a droga 1 to osobna
+praca z realnym ryzykiem regresji bootu - dlatego nie ruszam tego bez decyzji.
