@@ -108,19 +108,97 @@ Pokrycie globalne rośnie: statements 20,73% → **20,98%**, branches 17,13% →
 **17,21%**, functions 14,97% → **15,13%**, lines 21,15% → **21,42%** (progi:
 19,5 / 15,75 / 13 / 20). Liczba testów: 2607 → 2639.
 
-## 6. Długi ISTNIEJĄCE PRZED tą zmianą (nietknięte, do osobnej pracy)
+## 6. Długi zastane - domknięte w tej samej gałęzi
 
-Zweryfikowane pomiarem na czystej gałęzi (przed i po - identyczne):
+Trzy czerwone gate'y odziedziczone po `main` (zmierzone jako identyczne przed i
+po zmianie z sekcji 1-5) zostały naprawione, plus dwa znalezione po drodze.
 
-- `bun run lint`: **302 błędy + 111 ostrzeżeń** w plikach niezwiązanych z tą
-  zmianą. Lock pinuje `prettier@3.8.3`, a repo było formatowane starszym
-  wydaniem - stąd masowe różnice `prettier/prettier`. Zmienione tu pliki są
-  czyste (`eslint` zielony), ale gate `Lint` w CI jest czerwony niezależnie od
-  tej zmiany. Naprawa = repo-wide `bun run format` w osobnym commicie.
-- `test:coverage`: 5 progów per-ścieżka nie domyka się na
-  `widget-view/**` (lines 94,03% < 94,5%; statements 92,78% < 93%) i
-  `webhooks.stripe.ts` (lines 88,81% < 90%; statements 87,84% < 90%;
-  branches 69,02% < 75%). Wartości identyczne przed i po zmianie.
-- `SearchButtonWidget.test.tsx` zgłasza nieobsłużony błąd (zapytanie
-  `profiles_public` w efekcie React) - test przechodzi, ale Vitest kończy się
-  kodem 1. Też identycznie przed zmianą.
+### 6.1 `Lint`: 296 błędów → 0
+
+- Repo-wide `bun run format`: **61 plików** (38 tsx, 15 ts, 6 md, css, json).
+  Lock pinuje `prettier@3.8.3`, a repo było formatowane starszym wydaniem -
+  z tego dryfu brało się 295 błędów `prettier/prettier`.
+- `prefer-const` w `useSiteSettingsRevisions.ts:34` (`authors` nigdy nie jest
+  reassignowane).
+- Trzy martwe dyrektywy `eslint-disable` (SiteMenu, `lib/mcp/index.ts`,
+  `admin.users.index.tsx`) - reguły nie zgłaszały już nic, a wyciszenie zostało.
+- `.prettierignore` dostaje `coverage` i pliki generowane przez platformę
+  Lovable (`.lovable`, `src/routes/mcp.ts`, `list-tools`, `invoke-tool`,
+  `oauth-protected-resource`) - to samo, co ESLint ignoruje od dawna, więc
+  `prettier --check .` nie łapie już szumu z generatora.
+
+Zostaje **108 ostrzeżeń** (0 błędów, gate przechodzi): 73
+`react-refresh/only-export-components` i 35 `react-hooks/exhaustive-deps`.
+Świadomie nietknięte - każde to decyzja projektowa (przenoszenie eksportów
+między plikami / zmiana tablic zależności), a hurtowa „naprawa" tablic
+zależności to najkrótsza droga do pętli renderów.
+
+### 6.2 `Test + coverage`: 5 progów per-ścieżka → wszystkie zielone
+
+Podniesione **realnym pokryciem**, nie obniżką progu (zgodnie z regułą
+ratchetu z `vitest.config.ts`):
+
+| Ścieżka                         | Było   | Jest       | Próg |
+| ------------------------------- | ------ | ---------- | ---- |
+| `widget-view/**` statements     | 92,78% | **94,52%** | 93   |
+| `widget-view/**` lines          | 94,03% | **95,8%**  | 94,5 |
+| `webhooks.stripe.ts` statements | 87,84% | **98,90%** | 90   |
+| `webhooks.stripe.ts` branches   | 69,02% | **90,22%** | 75   |
+| `webhooks.stripe.ts` functions  | 88,89% | 88,89%     | 85   |
+
+Nowe testy webhooka Stripe (28 → 39) pokrywają ścieżki, które w produkcji
+przychodzą od operatora, a nie miały ani jednego testu: paragon płatności dla
+sesji bez faktury (i jego porażka), padnięty zapis dokumentu (best-effort),
+faktura `void` bez linku, błąd odczytu zamówienia → **500 zamiast cichego 200**
+(bez tego Stripe przestaje ponawiać utracone zdarzenie), faktura jednorazowa
+wiązana po `payment_intent`, faktura bez właściciela, `charge.refunded` bez
+`payment_intent`, wygaśnięcie sesji bez `order_id` (fallback po sesji),
+darowizna z błędem zapisu. Harness stracił przy okazji `any` (typowany
+`Chain` + kolejka wyników lookupów).
+
+Testy widgetu wyszukiwarki (10 → 19): wstawianie operatora w miejsce karetki i
+na zaznaczenie, lupa z frazą i bez, zawężanie po kubełku, czyszczenie historii,
+fraza < 2 znaków, batch awatarów (sukces i porażka).
+
+### 6.3 Nieobsłużony błąd w `SearchButtonWidget` (Vitest kończył kodem 1)
+
+Batch awatarów autorów (`from("profiles_public")`) nie miał żadnej obsługi
+błędu. W teście brakowało mocka `from`, więc zapytanie rzucało w efekcie
+Reacta - nieobsłużone odrzucenie ubijało kod wyjścia całego runu, a ciało
+batcha nigdy się nie wykonywało (stąd też dziura w pokryciu). Dwie naprawy:
+`try/catch` w komponencie (przy porażce zostają inicjały, wpisy i tak trafiają
+do cache'u jako `null` - bez pętli ponowień) i pełny mock w teście. Ta sama
+awaria zdarzała się w produkcji przy offline/braku grantu.
+
+### 6.4 Znalezione po drodze: `SQL tenant-scope` fałszywie czerwony
+
+Gate `check:sql-tenant-scope` failował na **5 poprawnych** funkcjach
+SECURITY DEFINER z migracji `20260724100000`. Przyczyna: detekcja szukała
+`public_tenant_id()` w całym ciele funkcji, a migracja dokumentuje swoją własną
+naprawę zdaniami `-- FIX: był public_tenant_id()`. Gate świecił czerwono na
+**prozie**, czyli nie chronił niczego - prawdziwa regresja byłaby nieodróżnialna
+od tego szumu. Naprawa: `stripSqlComments()` przed detekcją (komentarze
+liniowe, blokowe i zagnieżdżone → spacje, literały w apostrofach nietknięte) -
+ten sam powód, dla którego skrypt już wcześniej liczył atrybuty bez treści
+ciała. Zweryfikowane w dwie strony: czyste drzewo przechodzi (430 funkcji, 3
+uzasadnione ścieżki publiczne, brak ostrzeżenia o nieaktualnej allowliście =
+detekcja nadal działa na kodzie), a podrzucona funkcja łamiąca inwariant
+(skalowanie po nagłówku + `has_role`) jest wyłapywana i nazywana po imieniu.
+
+### 6.5 Znalezione po drodze, NIE naprawione: budżet bundle'a
+
+`check:bundle` jest czerwony i **nie z winy tej zmiany** (diff kliencki to
+kilkanaście linii w jednym widgecie plus samo formatowanie, które ginie
+w minifikacji):
+
+| Metryka          | Ślad z komentarza skryptu | Pomiar teraz | Budżet  |
+| ---------------- | ------------------------- | ------------ | ------- |
+| największy chunk | ~348 KB                   | 379,0 KB     | 350 KB  |
+| public total     | ~1472 KB                  | 1546,5 KB    | 1475 KB |
+| overall total    | ~2513 KB                  | 2617,1 KB    | 2518 KB |
+
+Budżety były ustawione „tuż nad bieżącym śladem", więc te ~30-100 KB narosły
+funkcjami mergowanymi na `main`. Dwie drogi: realne code-splitting wejścia
+klienta (praca perf, nie kosmetyka) albo re-flooring budżetów z udokumentowanym
+pomiarem. **Podniesienie budżetu wydajnościowego to decyzja produktowa** (1,5 MB
+publicznego JS-a płaci czytelnik), więc nie ruszam go bez Twojej zgody.

@@ -52,6 +52,87 @@ const PUBLIC_PATH_ALLOWLIST: Readonly<Record<string, string>> = {
     "wyniki ankiety spolecznosci; podglad stafowy zwiazany z v_poll.tenant_id = current_tenant_id()",
 };
 
+/**
+ * Usuwa komentarze SQL (`-- do konca linii`, `/* blok *\/`, blok zagniezdzony)
+ * podmieniajac je na spacje - dlugosc tekstu i numeracja linii zostaja.
+ *
+ * Detekcja MUSI patrzec na kod, nie na proze. Migracja
+ * 20260724100000_fix_definer_header_tenant_scope.sql dokumentuje swoja wlasna
+ * naprawe zdaniami "-- FIX: byl public_tenant_id()", wiec bez tego kroku gate
+ * failowal na 5 funkcjach, ktore SA poprawne - falszywy alarm, ktory maskowal
+ * prawdziwe regresje (czerwony gate przestaje cokolwiek chronic). To ten sam
+ * powod, dla ktorego atrybuty licza sie bez tresci ciala.
+ *
+ * Literaly w apostrofach zostaja nietkniete - moga zawierac dynamiczny SQL,
+ * ktory nadal chcemy badac.
+ */
+function stripSqlComments(sql: string): string {
+  let out = "";
+  let i = 0;
+  let inString = false;
+  let blockDepth = 0;
+
+  while (i < sql.length) {
+    const two = sql.slice(i, i + 2);
+
+    if (blockDepth > 0) {
+      if (two === "/*") {
+        blockDepth += 1;
+        out += "  ";
+        i += 2;
+      } else if (two === "*/") {
+        blockDepth -= 1;
+        out += "  ";
+        i += 2;
+      } else {
+        out += sql[i] === "\n" ? "\n" : " ";
+        i += 1;
+      }
+      continue;
+    }
+
+    if (inString) {
+      out += sql[i];
+      if (sql[i] === "'") {
+        // '' w srodku literalu to zaescapowany apostrof, nie koniec.
+        if (sql[i + 1] === "'") {
+          out += "'";
+          i += 2;
+          continue;
+        }
+        inString = false;
+      }
+      i += 1;
+      continue;
+    }
+
+    if (sql[i] === "'") {
+      inString = true;
+      out += "'";
+      i += 1;
+      continue;
+    }
+    if (two === "--") {
+      while (i < sql.length && sql[i] !== "\n") {
+        out += " ";
+        i += 1;
+      }
+      continue;
+    }
+    if (two === "/*") {
+      blockDepth = 1;
+      out += "  ";
+      i += 2;
+      continue;
+    }
+
+    out += sql[i];
+    i += 1;
+  }
+
+  return out;
+}
+
 function splitTopLevel(list: string): string[] {
   const out: string[] = [];
   let depth = 0;
@@ -116,10 +197,11 @@ function extractLatestDefinitions(): Map<string, FnDef> {
       const afterBody = sql.slice(bodyClose + tag.length);
       const semi = afterBody.indexOf(";");
       const postamble = semi < 0 ? afterBody : afterBody.slice(0, semi);
-      const attrs = `${preamble} ${postamble}`;
+      // Komentarze lecą z ciała I z atrybutów - inwariant dotyczy kodu.
+      const attrs = stripSqlComments(`${preamble} ${postamble}`);
 
       const key = `${name}/${arity}`;
-      latest.set(key, { key, name, arity, file, body, attrs });
+      latest.set(key, { key, name, arity, file, body: stripSqlComments(body), attrs });
     }
   }
   return latest;

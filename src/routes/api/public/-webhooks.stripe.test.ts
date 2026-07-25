@@ -50,23 +50,62 @@ const h = vi.hoisted(() => {
   // is awaitable (thenable) for `.eq(...)`-terminated writes, and exposes
   // maybeSingle()/single() resolving to a configurable result for the
   // `.select().maybeSingle()` order lookup.
+  interface QueryResult {
+    data: unknown;
+    error: unknown;
+  }
   const state: {
-    result: { data: unknown; error: unknown };
+    /** Wynik `maybeSingle()/single()`, gdy `resultQueue` jest pusta. */
+    result: QueryResult;
+    /** Kolejne wyniki `maybeSingle()` - dla ścieżek z dwoma lookupami. */
+    resultQueue: QueryResult[];
+    /** Wynik awaitowanego zapisu (`update`/`upsert` bez `maybeSingle`). */
+    writeResult: QueryResult;
     calls: { method: string; args: unknown[] }[];
   } = {
     result: { data: null, error: null },
+    resultQueue: [],
+    writeResult: { data: null, error: null },
     calls: [],
   };
-  const chain: any = {};
-  for (const m of ["from", "update", "insert", "upsert", "select", "eq", "neq", "in"]) {
-    chain[m] = (...args: unknown[]) => {
-      state.calls.push({ method: m, args });
+
+  interface Chain extends PromiseLike<QueryResult> {
+    from: (...args: unknown[]) => Chain;
+    update: (...args: unknown[]) => Chain;
+    insert: (...args: unknown[]) => Chain;
+    upsert: (...args: unknown[]) => Chain;
+    select: (...args: unknown[]) => Chain;
+    eq: (...args: unknown[]) => Chain;
+    neq: (...args: unknown[]) => Chain;
+    in: (...args: unknown[]) => Chain;
+    maybeSingle: () => Promise<QueryResult>;
+    single: () => Promise<QueryResult>;
+  }
+
+  const record =
+    (method: string) =>
+    (...args: unknown[]): Chain => {
+      state.calls.push({ method, args });
       return chain;
     };
-  }
-  chain.maybeSingle = () => Promise.resolve(state.result);
-  chain.single = () => Promise.resolve(state.result);
-  chain.then = (onF: any, onR: any) => Promise.resolve({ data: null, error: null }).then(onF, onR);
+  const lookup = (): Promise<QueryResult> =>
+    Promise.resolve(state.resultQueue.length > 0 ? state.resultQueue.shift()! : state.result);
+
+  const chain: Chain = {
+    from: record("from"),
+    update: record("update"),
+    insert: record("insert"),
+    upsert: record("upsert"),
+    select: record("select"),
+    eq: record("eq"),
+    neq: record("neq"),
+    in: record("in"),
+    maybeSingle: lookup,
+    single: lookup,
+    then: (onFulfilled, onRejected) =>
+      Promise.resolve(state.writeResult).then(onFulfilled, onRejected),
+  };
+
   const grant = vi.fn(async (..._args: unknown[]) => {});
   return { state, chain, grant };
 });
@@ -124,6 +163,8 @@ describe("stripe webhook handler", () => {
     process.env.STRIPE_WEBHOOK_SECRET = SECRET;
     h.state.calls = [];
     h.state.result = { data: null, error: null };
+    h.state.resultQueue = [];
+    h.state.writeResult = { data: null, error: null };
     h.grant.mockClear();
   });
   afterEach(() => {
@@ -623,5 +664,363 @@ describe("stripe webhook handler", () => {
     expect(res.status).toBe(200);
     expect(h.state.calls).toHaveLength(0);
     expect(h.grant).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Ścieżki paragonu, awarii i fallbacków. Każdy z tych przypadków przychodzi
+  // od Stripe w produkcji (sesja bez faktury, padnięte API operatora, zdarzenie
+  // bez identyfikatora zamówienia), a błąd w nich albo gubi dokument w profilu,
+  // albo - przy braku 500 - każe Stripe'owi przestać ponawiać utracone zdarzenie.
+  // -------------------------------------------------------------------------
+
+  it("sesja bez faktury dokleja PARAGON płatności do rejestru dokumentów", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_1";
+    h.state.result = {
+      data: {
+        id: "ord_rec",
+        user_id: "u_rec",
+        tenant_id: "ten_1",
+        kind: "one_time",
+        entity_type: "post",
+        entity_id: "post_1",
+        amount_cents: 1500,
+        currency: "PLN",
+      },
+      error: null,
+    };
+    const payload = JSON.stringify({
+      id: "evt_receipt",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_rec_1",
+          client_reference_id: "ord_rec",
+          payment_intent: "pi_rec",
+          amount_total: 1500,
+          currency: "pln",
+        },
+      },
+    });
+
+    const invoiceCallsBefore = invoiceMock.fn.mock.calls.length;
+    const res = await handle(req(payload));
+    delete process.env.STRIPE_SECRET_KEY;
+
+    expect(res.status).toBe(200);
+    expect(invoiceMock.receipt).toHaveBeenCalledWith("pi_rec", "sk_test_1");
+    // Brak faktury w sesji = zero strzałów o fakturę (mocki żyją przez cały plik).
+    expect(invoiceMock.fn.mock.calls.length).toBe(invoiceCallsBefore);
+    const docUpsert = h.state.calls.find(
+      (c) => c.method === "upsert" && (c.args[0] as { kind?: string })?.kind === "receipt",
+    );
+    const doc = docUpsert?.args[0] as {
+      provider_document_id?: string;
+      hosted_url?: string | null;
+      status?: string;
+      order_id?: string;
+      amount_cents?: number;
+      currency?: string;
+    };
+    expect(doc.provider_document_id).toBe("pi_rec");
+    expect(doc.hosted_url).toBe("https://stripe.example/receipt_1");
+    expect(doc.status).toBe("paid");
+    expect(doc.order_id).toBe("ord_rec");
+    expect(doc.amount_cents).toBe(1500);
+    expect(doc.currency).toBe("PLN");
+  });
+
+  it("nieudane pobranie paragonu nie blokuje księgowania (bez dokumentu)", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_1";
+    invoiceMock.receipt.mockResolvedValueOnce({
+      ok: false,
+      receiptUrl: null,
+      error: "stripe_502",
+    });
+    h.state.result = {
+      data: {
+        id: "ord_rec2",
+        user_id: "u_rec2",
+        tenant_id: "ten_1",
+        kind: "subscription",
+        entity_type: null,
+        amount_cents: 4900,
+        currency: "PLN",
+      },
+      error: null,
+    };
+    const payload = JSON.stringify({
+      id: "evt_receipt_fail",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_rec_2",
+          client_reference_id: "ord_rec2",
+          payment_intent: "pi_rec2",
+          subscription: "sub_rec2",
+          amount_total: 4900,
+          currency: "pln",
+        },
+      },
+    });
+
+    const res = await handle(req(payload));
+    delete process.env.STRIPE_SECRET_KEY;
+
+    expect(res.status).toBe(200);
+    // Zamówienie nadal zaksięgowane i uprawnienie nadane.
+    expect((call("update")?.args[0] as { status?: string }).status).toBe("paid");
+    expect(h.grant).toHaveBeenCalledTimes(1);
+    expect(h.state.calls.some((c) => c.method === "upsert")).toBe(false);
+  });
+
+  it("padnięty zapis dokumentu nie wywraca księgowania płatności (best-effort)", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_1";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Każdy awaitowany zapis zwraca błąd - w tym upsert dokumentu.
+    h.state.writeResult = { data: null, error: { message: "rls_denied" } };
+    h.state.result = {
+      data: {
+        id: "ord_doc_err",
+        user_id: "u1",
+        tenant_id: "ten_1",
+        kind: "subscription",
+        entity_type: null,
+        amount_cents: 4900,
+        currency: "PLN",
+      },
+      error: null,
+    };
+    const payload = JSON.stringify({
+      id: "evt_doc_err",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_doc_err",
+          client_reference_id: "ord_doc_err",
+          subscription: "sub_doc_err",
+          invoice: "in_doc_err",
+          amount_total: 4900,
+          currency: "pln",
+        },
+      },
+    });
+
+    const res = await handle(req(payload));
+    delete process.env.STRIPE_SECRET_KEY;
+
+    expect(res.status).toBe(200);
+    expect(warn).toHaveBeenCalledWith(
+      "[stripe-webhook] billing document upsert failed",
+      "in_doc_err",
+      { message: "rls_denied" },
+    );
+    warn.mockRestore();
+  });
+
+  it("faktura ze statusem void trafia do rejestru jako void, bez linku", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_1";
+    invoiceMock.fn.mockResolvedValueOnce({
+      ok: true,
+      invoice: {
+        hostedUrl: null,
+        pdfUrl: null,
+        number: null,
+        status: "void",
+        amountPaidCents: null,
+        currency: null,
+        createdAt: null,
+      },
+      error: undefined,
+    });
+    h.state.result = {
+      data: {
+        id: "ord_void",
+        user_id: "u1",
+        tenant_id: "ten_1",
+        kind: "subscription",
+        entity_type: null,
+        amount_cents: 4900,
+        currency: "PLN",
+      },
+      error: null,
+    };
+    const payload = JSON.stringify({
+      id: "evt_void",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_void",
+          client_reference_id: "ord_void",
+          subscription: "sub_void",
+          invoice: "in_void",
+        },
+      },
+    });
+
+    const res = await handle(req(payload));
+    delete process.env.STRIPE_SECRET_KEY;
+
+    expect(res.status).toBe(200);
+    const docUpsert = h.state.calls.find(
+      (c) => c.method === "upsert" && (c.args[0] as { kind?: string })?.kind === "invoice",
+    );
+    const doc = docUpsert?.args[0] as {
+      status?: string;
+      amount_cents?: number;
+      currency?: string;
+      hosted_url?: string | null;
+    };
+    expect(doc.status).toBe("void");
+    // Bez danych z faktury spadamy na kwotę i walutę zamówienia.
+    expect(doc.amount_cents).toBe(4900);
+    expect(doc.currency).toBe("PLN");
+    expect(doc.hosted_url).toBeNull();
+    // Brak linku = brak invoice_url w zamówieniu (nie nadpisujemy pustym).
+    const orderUpdate = h.state.calls.find(
+      (c) => c.method === "update" && "status" in (c.args[0] as Record<string, unknown>),
+    );
+    expect((orderUpdate?.args[0] as { invoice_url?: string }).invoice_url).toBeUndefined();
+  });
+
+  it("błąd odczytu zamówienia zwraca 500, żeby Stripe ponowił zdarzenie", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.state.result = { data: null, error: { message: "db_down" } };
+    const payload = JSON.stringify({
+      id: "evt_db_down",
+      type: "checkout.session.completed",
+      data: { object: { id: "cs_db_down", client_reference_id: "ord_x" } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(500);
+    expect(await res.text()).toBe("handler_error");
+    expect(error).toHaveBeenCalled();
+    expect(h.grant).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("sesja bez order_id i bez id jest no-opem (nie ma czego księgować)", async () => {
+    const payload = JSON.stringify({
+      id: "evt_no_ref",
+      type: "checkout.session.completed",
+      data: { object: { amount_total: 4900, currency: "pln" } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(200);
+    expect(h.state.calls).toHaveLength(0);
+    expect(h.grant).not.toHaveBeenCalled();
+  });
+
+  it("faktura jednorazowa (bez subskrypcji) wiąże dokument z zamówieniem po payment_intent", async () => {
+    h.state.result = {
+      data: { id: "ord_inv_once", user_id: "u_once", tenant_id: "ten_1" },
+      error: null,
+    };
+    const payload = JSON.stringify({
+      id: "evt_inv_once",
+      type: "invoice.payment_succeeded",
+      data: {
+        object: {
+          id: "in_once",
+          payment_intent: "pi_once",
+          amount_paid: 1500,
+          currency: "pln",
+          number: "F/2026/07/009",
+          hosted_invoice_url: "https://stripe.example/in_once",
+          invoice_pdf: "https://stripe.example/in_once.pdf",
+          created: 1_780_000_000,
+        },
+      },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(200);
+    // Właściciela wskazuje zamówienie, nie subskrypcja.
+    expect(h.state.calls.some((c) => c.method === "eq" && c.args[0] === "provider_intent_id")).toBe(
+      true,
+    );
+    const doc = h.state.calls.find((c) => c.method === "upsert")?.args[0] as {
+      order_id?: string;
+      subscription_id?: string;
+      user_id?: string;
+      amount_cents?: number;
+      currency?: string;
+      issued_at?: string;
+    };
+    expect(doc.order_id).toBe("ord_inv_once");
+    expect(doc.subscription_id).toBeUndefined();
+    expect(doc.user_id).toBe("u_once");
+    expect(doc.amount_cents).toBe(1500);
+    expect(doc.currency).toBe("PLN");
+    expect(doc.issued_at).toBe(new Date(1_780_000_000 * 1000).toISOString());
+  });
+
+  it("faktura bez rozpoznanego właściciela nie zapisuje dokumentu", async () => {
+    h.state.result = { data: null, error: null };
+    const payload = JSON.stringify({
+      id: "evt_inv_orphan",
+      type: "invoice.payment_succeeded",
+      data: { object: { id: "in_orphan", subscription: "sub_unknown", period_end: 1_780_000_000 } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(200);
+    expect(h.state.calls.some((c) => c.method === "upsert")).toBe(false);
+  });
+
+  it("charge.refunded bez payment_intent nie rusza bazy", async () => {
+    const payload = JSON.stringify({
+      id: "evt_refund_no_pi",
+      type: "charge.refunded",
+      data: { object: { id: "ch_1" } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(200);
+    expect(h.state.calls).toHaveLength(0);
+  });
+
+  it("checkout.session.expired bez order_id spada na dopasowanie po sesji", async () => {
+    const payload = JSON.stringify({
+      id: "evt_exp_fallback",
+      type: "checkout.session.expired",
+      data: { object: { id: "cs_exp_fallback" } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(200);
+    expect((call("update")?.args[0] as { status?: string }).status).toBe("canceled");
+    expect(call("eq")?.args).toEqual(["provider_session_id", "cs_exp_fallback"]);
+  });
+
+  it("darowizna z błędem zapisu zwraca 500 (płatność nie może zniknąć bez śladu)", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.state.writeResult = { data: null, error: { message: "donations_rls" } };
+    const payload = JSON.stringify({
+      id: "evt_don_err",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_don_err",
+          payment_intent: "pi_don_err",
+          amount_total: 5000,
+          currency: "pln",
+          metadata: { kind: "donation" },
+        },
+      },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(500);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 });
