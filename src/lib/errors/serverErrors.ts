@@ -71,7 +71,14 @@ export function mapServerError(err: unknown, lang: AppLang = "pl"): FriendlyMess
     };
   }
 
-  const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  const msg =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : typeof (err as { message?: unknown }).message === "string"
+          ? ((err as { message: string }).message)
+          : "";
   const status = (err as { status?: number; statusCode?: number }).status ??
     (err as { statusCode?: number }).statusCode;
 
