@@ -136,6 +136,7 @@ export const en = {
     stay: "Stay",
     nav: {
       dashboard: "Dashboard",
+      analyticsReconciliation: "Reconciliation",
       posts: "Posts",
       pages: "Pages",
       categories: "Categories",
