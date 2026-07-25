@@ -1,8 +1,13 @@
 // Kotwica cenowa: równowartość miesięczna planu rocznego jako czysta,
 // przybliżona (w dół) kwota bez ułamka - „≈49 zł" zamiast „49,17 zł".
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { formatApproxDisplayMoney } from "@/lib/billing/displayCurrency";
 import { formatMoneyWhole } from "@/lib/billing/types";
+import { setEurPlnRateForTests } from "@/lib/billing/fxRate";
+
+// Kurs w testach pinujemy do 1 EUR = 2 PLN - weryfikujemy zaokrąglenia
+// kotwicy, nie samą wartość kursu NBP.
+beforeAll(() => setEurPlnRateForTests(2));
 
 describe("formatApproxDisplayMoney (kotwica równowartości miesięcznej)", () => {
   it("PL: równowartość Plus (59000/12 = 49,17 zł) schodzi w dół do 49 zł, bez ułamka", () => {
