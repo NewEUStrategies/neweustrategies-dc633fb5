@@ -9,10 +9,11 @@ import type { WidgetNode } from "@/lib/builder/types";
 
 function makeTextWidget(html: string): WidgetNode {
   return {
+    kind: "widget",
     id: "w-1",
     type: "text",
     content: { html_pl: html, html_en: html },
-  } as WidgetNode;
+  } as unknown as WidgetNode;
 }
 
 describe("global widget overlay footnotes", () => {
