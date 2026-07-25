@@ -1,0 +1,1 @@
+DELETE FROM public.profile_experiences WHERE id = 'de21053b-bbf6-4483-87dd-ad1ebdce4724';
