@@ -3,6 +3,7 @@
 // (service role + twarda walidacja tokenu i expiry); trasa renderuje
 // uproszczony widok czytelniczy (bez reklam, komentarzy, related) z wyraźnym
 // banerem embarga i pełnym noindex.
+import { useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { EyeOff } from "lucide-react";
@@ -12,6 +13,8 @@ import { parseBuilderDoc } from "@/lib/builder/parse";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { prepareContentForRender } from "@/lib/content/prepareContent";
+import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 
 const COPY = {
   pl: {
