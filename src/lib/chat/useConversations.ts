@@ -126,6 +126,45 @@ export function splitArchived(views: ConversationView[]): {
   return { active, archived };
 }
 
+/**
+ * Optimistic cache transform for reopen: gdy caller świadomie otwiera wątek,
+ * jego archived_at spada do NULL i wątek trafia na górę Active. Pure, żeby
+ * test regresyjny nie potrzebował QueryClienta.
+ */
+export function applyReopenToViews(
+  views: ConversationView[] | undefined,
+  conversationId: string,
+  nowIso: string = new Date().toISOString(),
+): ConversationView[] | undefined {
+  return views?.map((view) =>
+    view.conversation.id === conversationId && view.me.archived_at
+      ? {
+          ...view,
+          me: { ...view.me, archived_at: null },
+          conversation: {
+            ...view.conversation,
+            last_message_at: view.conversation.last_message_at ?? nowIso,
+          },
+        }
+      : view,
+  );
+}
+
+/** Optimistic archive/unarchive flip - identyczna pure-postać dla testu. */
+export function applyArchiveFlipToViews(
+  views: ConversationView[] | undefined,
+  conversationId: string,
+  archived: boolean,
+  nowIso: string = new Date().toISOString(),
+): ConversationView[] | undefined {
+  const nextArchivedAt = archived ? nowIso : null;
+  return views?.map((view) =>
+    view.conversation.id === conversationId
+      ? { ...view, me: { ...view.me, archived_at: nextArchivedAt } }
+      : view,
+  );
+}
+
 /** PostgREST serializes `'infinity'::timestamptz` as the literal string. */
 export function mutedUntilMs(raw: string | null): number | null {
   if (!raw) return null;
@@ -264,7 +303,18 @@ export function useStartConversation() {
       }
       return data;
     },
-    onSuccess: () => {
+    // Reopen-optimistic: serwer zeruje archived_at przy zwracaniu istniejącej
+    // konwersacji (patrz get_or_create_direct_conversation). Klient robi to
+    // samo w cache, żeby wątek natychmiast przeskoczył z Archived do Active
+    // i pierwsza nowa wiadomość (optimistic insert w useMessages) trafiła do
+    // widocznej listy - bez czekania na round-trip invalidacji.
+    onSuccess: (conversationId) => {
+      if (user?.id && conversationId) {
+        const key = chatKeys.conversations(user.id);
+        qc.setQueryData<ConversationView[]>(key, (old) =>
+          applyReopenToViews(old, conversationId),
+        );
+      }
       void qc.invalidateQueries({ queryKey: chatKeys.conversations(user?.id) });
     },
   });
@@ -320,13 +370,39 @@ export function useSetConversationPinned() {
   });
 }
 
+// Archive optimistyczny: użytkownik często flipuje archiwum tuż przed
+// wysłaniem nowej wiadomości ("posprzątaj i napisz jeszcze raz"). Bez
+// optimisticu widok wątku miga między listami Active/Archived aż do
+// zakończenia invalidacji. Serwer i tak wygrywa (RPC atomowe, invalidate
+// przywraca prawdę), tu tylko wyprzedzamy round-trip.
 export function useSetConversationArchived() {
-  return useConversationSetting(async (args: { conversationId: string; archived: boolean }) => {
-    const { error } = await supabase.rpc("chat_set_archived", {
-      p_conversation_id: args.conversationId,
-      p_archived: args.archived,
-    });
-    if (error) throw error;
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (args: { conversationId: string; archived: boolean }) => {
+      const { error } = await supabase.rpc("chat_set_archived", {
+        p_conversation_id: args.conversationId,
+        p_archived: args.archived,
+      });
+      if (error) throw error;
+    },
+    onMutate: async (args) => {
+      if (!user?.id) return;
+      const key = chatKeys.conversations(user.id);
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<ConversationView[]>(key);
+      qc.setQueryData<ConversationView[]>(key, (old) =>
+        applyArchiveFlipToViews(old, args.conversationId, args.archived),
+      );
+      return { previous };
+    },
+    onError: (_err, _args, ctx) => {
+      if (!user?.id || !ctx) return;
+      qc.setQueryData(chatKeys.conversations(user.id), ctx.previous);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations(user?.id) });
+    },
   });
 }
 
