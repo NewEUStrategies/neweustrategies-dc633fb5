@@ -84,6 +84,26 @@ funkcji trzeba potwierdzić dostarczanie na żywych usługach push:
    endpointy 404/410 dostają `failed_at` (subskrypcja martwa - urządzenie
    musi włączyć push ponownie).
 
+Inwarianty doręczania (`src/lib/notifications/dispatch.server.ts`), przydatne
+przy diagnozie:
+
+- **Kolejka per urządzenie**: wysyłki do jednego endpointu idą po kolei
+  (kolejność powiadomień na urządzeniu zachowana), a 8 urządzeń naraz. Pierwsze
+  404/410 ucina resztę kolejki tego endpointu bez ruchu sieciowego.
+- **Filtr tenanta**: subskrypcje są dobierane po `(tenant_id, user_id)` zadania.
+  To samo konto zapisane na dwóch domenach NIE dostaje powiadomień obcego
+  tenanta - nie usuwać `.in("tenant_id", …)` z zapytania o `push_subscriptions`
+  (rola serwisowa omija RLS, ten filtr jest jedyną granicą).
+- **Budżet 4096 B** (RFC 8030): jawny JSON ma limit 3993 B, dispatcher przycina
+  najpierw treść, potem tytuł (na granicy znaku UTF-8, więc polskie diakrytyki
+  nie pękają). Payload ponad budżet dostaje `dead` od razu, bez 8 retry.
+- **Kolaps wątku**: nagłówek `Topic` + `tag` w payloadzie = skrót
+  (`kind`, `href`). Urządzenie po dniu offline budzi się jednym powiadomieniem
+  na wątek. Powtarzające się powiadomienie o tym samym celu jest oczekiwane
+  jako podmiana, nie jako brak dostawy.
+- **`Retry-After`** z 429/503 leci do logu (`push throttled`) - rosnące wpisy
+  oznaczają, że partie są za duże dla usługi push, nie że krypto jest zepsute.
+
 ## 4. Wydarzenia, Q&A, ankiety - inwarianty operacyjne
 
 - **Zapisy wyłącznie przez RPC** (`rsvp_event`, `ask_qa_question`,
