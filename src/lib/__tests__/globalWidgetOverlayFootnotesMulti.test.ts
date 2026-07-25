@@ -121,7 +121,8 @@ describe("global widget overlay footnotes - multi + rehydration", () => {
 
     expect(serialize(second.widget)).toBe(serialize(first.widget));
     expect(serialize(third.widget)).toBe(serialize(first.widget));
-    expect(second.notes).toEqual(first.notes);
-    expect(third.notes).toEqual(first.notes);
+    // Rehydratacja rozwiniętego payloadu nie dokłada duplikatów do kolektora.
+    expect(second.notes).toEqual([]);
+    expect(third.notes).toEqual([]);
   });
 });
