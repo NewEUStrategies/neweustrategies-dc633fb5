@@ -81,35 +81,42 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
     const list = rows ?? [];
     const ids = list.map((r) => r.id);
 
-    // Aggregacja leadów i profili po stronie serwera (jednorazowe pobrania).
-    // const: mapy są mutowane indeksowo (agg[key] = ...), nigdy nie reassignowane.
+    // Jedno wywołanie RPC agreguje leady + kontakty po stronie bazy
+    // (zamiast pobierania do 5000 wierszy z crm_leads i profiles).
     const leadsAgg: Record<string, { total: number; lastActivity: string | null }> = {};
     const contactsAgg: Record<string, number> = {};
     if (ids.length > 0) {
-      const { data: leadRows } = (await tbl(context, "crm_leads")
-        .select("company_id, last_activity_at")
-        .in("company_id", ids)
-        .limit(5000)) as unknown as {
-        data: Array<{ company_id: string | null; last_activity_at: string | null }> | null;
-      };
-      for (const r of leadRows ?? []) {
-        if (!r.company_id) continue;
-        const agg = leadsAgg[r.company_id] ?? { total: 0, lastActivity: null };
-        agg.total += 1;
-        if (r.last_activity_at && (!agg.lastActivity || r.last_activity_at > agg.lastActivity)) {
-          agg.lastActivity = r.last_activity_at;
+      const { data: aggRows, error: aggError } = (await (
+        context.supabase as {
+          rpc: (
+            n: string,
+            p: Record<string, unknown>,
+          ) => Promise<{
+            data: Array<{
+              company_id: string;
+              leads_count: number | string;
+              last_lead_activity_at: string | null;
+              contacts_count: number | string;
+            }> | null;
+            error: { message: string } | null;
+          }>;
         }
-        leadsAgg[r.company_id] = agg;
-      }
-      const { data: profileRows } = (await tbl(context, "profiles")
-        .select("current_company_id")
-        .in("current_company_id", ids)
-        .limit(5000)) as unknown as {
-        data: Array<{ current_company_id: string | null }> | null;
+      ).rpc("crm_companies_aggregates", { _company_ids: ids })) as {
+        data: Array<{
+          company_id: string;
+          leads_count: number | string;
+          last_lead_activity_at: string | null;
+          contacts_count: number | string;
+        }> | null;
+        error: { message: string } | null;
       };
-      for (const r of profileRows ?? []) {
-        if (!r.current_company_id) continue;
-        contactsAgg[r.current_company_id] = (contactsAgg[r.current_company_id] ?? 0) + 1;
+      if (aggError) throw new Error(aggError.message);
+      for (const r of aggRows ?? []) {
+        leadsAgg[r.company_id] = {
+          total: Number(r.leads_count) || 0,
+          lastActivity: r.last_lead_activity_at,
+        };
+        contactsAgg[r.company_id] = Number(r.contacts_count) || 0;
       }
     }
 
