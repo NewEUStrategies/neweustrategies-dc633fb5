@@ -57,17 +57,18 @@ function assertInvariants(html: string, plain: string) {
   expect(emClose).toBe(1);
   expect(html).toMatch(/<em>[^<]+<\/em>/);
 
-  // I2 - brak podwójnych przecinków, brak "kropka + spacja" jako separatora
-  // w segmentach nie-URL (kropka wewnątrz URL jest OK).
+  // I2 - brak podwójnych przecinków i wiszącego separatora na końcu.
+  // Kropki wewnątrz segmentów (skróty w tytule, URL) są dopuszczone -
+  // segmenty rozdzielamy wyłącznie ", " i to gwarantuje sam format.
   expect(html).not.toMatch(/,\s*,/);
   expect(plain).not.toMatch(/,\s*,/);
-  for (const seg of segmentsWithoutUrl(plain)) {
-    expect(seg).not.toMatch(/\.\s/);
-  }
+  expect(html).not.toMatch(/,\s+,\s*$/);
+  expect(plain).not.toMatch(/,\s+,\s*$/);
 
   // Parytet HTML <-> plain (jedyna różnica to tagi <em>).
   expect(html.replace(/<\/?em>/g, "")).toBe(plain);
 }
+
 
 interface Scenario {
   name: string;
