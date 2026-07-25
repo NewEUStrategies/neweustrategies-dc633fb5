@@ -11464,6 +11464,15 @@ export type Database = {
           subscribers_synced: number
         }[]
       }
+      crm_companies_aggregates: {
+        Args: { _company_ids: string[] }
+        Returns: {
+          company_id: string
+          contacts_count: number
+          last_lead_activity_at: string
+          leads_count: number
+        }[]
+      }
       crm_get_merydian_secrets: {
         Args: { _tenant?: string }
         Returns: {
