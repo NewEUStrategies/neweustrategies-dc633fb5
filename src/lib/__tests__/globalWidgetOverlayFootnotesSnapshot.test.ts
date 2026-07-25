@@ -108,6 +108,14 @@ describe("footnote tooltip snapshots - hydration parity", () => {
       {
         "notesTail": [
           {
+            "html": "a1",
+            "id": 1,
+          },
+          {
+            "html": "a2",
+            "id": 2,
+          },
+          {
             "html": "b1",
             "id": 3,
           },
