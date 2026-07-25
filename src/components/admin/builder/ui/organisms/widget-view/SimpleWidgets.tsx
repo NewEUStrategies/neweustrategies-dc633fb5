@@ -1136,12 +1136,13 @@ export function renderSimpleWidget(
                 <h3 className="cms-post-title mb-2">{name}</h3>
                 <div className="flex items-baseline gap-1 mb-4">
                   <span className="text-3xl font-bold">{price}</span>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="cms-meta text-muted-foreground">
                     {currency}
                     {period}
                   </span>
                 </div>
-                <ul className="space-y-2 mb-6 flex-1 text-sm">
+                <ul className="cms-post-excerpt space-y-2 mb-6 flex-1">
+
                   {features.map((f, j) => (
                     <li key={j} className="flex items-start gap-2">
                       <span className="text-brand mt-0.5">✓</span>
