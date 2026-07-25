@@ -208,13 +208,13 @@ export function CompanyPickerDialog({
     try {
       const { data: companyId, error } = await supabase.rpc("create_company_self_service", {
         _name: name,
-        _country: form.country.trim() || null,
-        _branch: form.branch.trim() || null,
-        _city: form.city.trim() || null,
-        _address: form.address.trim() || null,
-        _postal_code: form.postal_code.trim() || null,
-        _website: form.website.trim() || null,
-        _phone: form.phone.trim() || null,
+        _country: form.country.trim() || undefined,
+        _branch: form.branch.trim() || undefined,
+        _city: form.city.trim() || undefined,
+        _address: form.address.trim() || undefined,
+        _postal_code: form.postal_code.trim() || undefined,
+        _website: form.website.trim() || undefined,
+        _phone: form.phone.trim() || undefined,
       });
       if (error) throw error;
       if (!companyId) throw new Error("empty_response");
