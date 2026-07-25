@@ -19,6 +19,11 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 const STAFF_ROLES: readonly AppRole[] = ["admin", "editor", "author"];
 const ADMIN_EDITOR_ROLES: readonly AppRole[] = ["admin", "editor", "super_admin"];
 const ADMIN_ROLES: readonly AppRole[] = ["admin", "super_admin"];
+// CRM to modul sprzedazowo-operacyjny - autorzy contentu nie powinni mieć wglądu
+// w leady/firmy/pipeline. Trzymamy się tego samego zestawu co RLS na tabelach
+// crm_* (admin/editor/super_admin), żeby middleware nie wpuszczał autorów do
+// handlerów, które i tak odbije baza.
+const CRM_STAFF_ROLES: readonly AppRole[] = ["admin", "editor", "super_admin"];
 
 function roleMiddleware(allowed: readonly AppRole[], label: string) {
   return createMiddleware({ type: "function" })
