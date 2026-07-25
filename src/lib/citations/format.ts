@@ -252,12 +252,13 @@ export function formatChicago(source: CitationSource): string {
   if (parts.authorSegment) pieces.push(`${parts.authorSegment},`);
   pieces.push(`<em>${escapeHtml(parts.title)}</em>,`);
   if (parts.dateSegment) {
-    pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
+    if (parts.siteName) pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
+    else pieces.push(`${parts.dateSegment},`);
   } else {
-    pieces.push(`${parts.siteName},`);
+    if (parts.siteName) pieces.push(`${parts.siteName},`);
     if (parts.accessedSegment) pieces.push(`${parts.accessedSegment},`);
   }
-  pieces.push(`${parts.url},`);
+  if (parts.url) pieces.push(`${parts.url},`);
   return pieces.join(" ");
 }
 
@@ -271,12 +272,13 @@ export function formatChicagoPlain(source: CitationSource): string {
   if (parts.authorSegment) pieces.push(`${parts.authorSegment},`);
   pieces.push(`${parts.title},`);
   if (parts.dateSegment) {
-    pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
+    if (parts.siteName) pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
+    else pieces.push(`${parts.dateSegment},`);
   } else {
-    pieces.push(`${parts.siteName},`);
+    if (parts.siteName) pieces.push(`${parts.siteName},`);
     if (parts.accessedSegment) pieces.push(`${parts.accessedSegment},`);
   }
-  pieces.push(`${parts.url},`);
+  if (parts.url) pieces.push(`${parts.url},`);
   return pieces.join(" ");
 }
 
