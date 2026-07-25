@@ -19,7 +19,7 @@ const base: CitationSource = {
 describe("formatChicago", () => {
   it("formatuje pojedynczego autora po polsku (szyk naturalny, kursywa, przecinki)", () => {
     expect(formatChicago(base)).toBe(
-      "Anna Kowalska, <i>Bezpieczeństwo energetyczne Europy Środkowej</i>, " +
+      "Anna Kowalska, <em>Bezpieczeństwo energetyczne Europy Środkowej</em>, " +
         "New European Strategies, 20 lipca 2026, " +
         "https://neweuropeanstrategies.com/analizy/bezpieczenstwo-energetyczne,",
     );
@@ -37,7 +37,7 @@ describe("formatChicago", () => {
       ],
     };
     expect(formatChicago(source)).toBe(
-      "Anna Kowalska, Jan Nowak and Eva Marsh, <i>Energy Security in Central Europe</i>, " +
+      "Anna Kowalska, Jan Nowak and Eva Marsh, <em>Energy Security in Central Europe</em>, " +
         "New European Strategies, July 20, 2026, " +
         "https://neweuropeanstrategies.com/analizy/bezpieczenstwo-energetyczne,",
     );
@@ -58,7 +58,7 @@ describe("formatChicago", () => {
 
   it("pomija segment autora, gdy brak autorów", () => {
     const source: CitationSource = { ...base, authors: [] };
-    expect(formatChicago(source)).toMatch(/^<i>Bezpieczeństwo/);
+    expect(formatChicago(source)).toMatch(/^<em>Bezpieczeństwo/);
   });
 });
 

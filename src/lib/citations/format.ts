@@ -174,7 +174,7 @@ function escapeHtml(text: string): string {
 
 /**
  * Chicago 17, wpis bibliograficzny dla treści online (wariant NES):
- *   Anna Kowalska, <i>Tytuł</i>, New European Strategies,
+ *   Anna Kowalska, <em>Tytuł</em>, New European Strategies,
  *   20 lipca 2026, https://...
  * Autorzy w szyku naturalnym, tytuł w kursywie, separatory to przecinki.
  */
@@ -192,7 +192,7 @@ export function formatChicago(source: CitationSource): string {
     authorSegment = `${names.join(", ")} ${and} ${lastName}`;
   }
 
-  const italicTitle = `<i>${escapeHtml(source.title)}</i>,`;
+  const italicTitle = `<em>${escapeHtml(source.title)}</em>,`;
   const published = source.publishedAt ? dateParts(source.publishedAt) : null;
   const dateSegment = published ? longDate(published, lang) : null;
   const accessed = source.accessedOn ? dateParts(source.accessedOn) : null;
