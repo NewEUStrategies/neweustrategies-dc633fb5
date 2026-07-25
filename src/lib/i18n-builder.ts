@@ -1592,6 +1592,8 @@ const en: typeof pl = {
       item: "Item #{{n}}",
       question: "Question ({{lang}})",
       answer: "Answer HTML ({{lang}})",
+      defaultQuestion: "New question",
+      defaultAnswer: "Answer…",
     },
     tabsEditor: {
       title: "Tabs",
