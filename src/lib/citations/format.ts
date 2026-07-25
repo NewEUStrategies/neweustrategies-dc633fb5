@@ -172,6 +172,60 @@ function escapeHtml(text: string): string {
     .replace(/'/g, "&#039;");
 }
 
+interface ChicagoParts {
+  authorSegment: string | null;
+  title: string;
+  siteName: string;
+  dateSegment: string | null;
+  accessedSegment: string | null;
+  url: string;
+}
+
+/**
+ * Wspólny rdzeń formatu Chicago 17 (wariant NES):
+ *   Anna Kowalska, Tytuł, New European Strategies, 20 lipca 2026, https://...
+ * Autorzy w szyku naturalnym, separatory to przecinki. Funkcja zwraca surowe
+ * segmenty, które formatChicago opakuje w <em>, a formatChicagoPlain złoży
+ * bez znaczników HTML - dzięki czemu obie wersje są zawsze identyczne poza
+ * samym tytułem.
+ */
+function buildChicagoParts(source: CitationSource): ChicagoParts {
+  const authors = resolveAuthors(source);
+  const lang = source.lang;
+  const and = lang === "pl" ? "i" : "and";
+
+  let authorSegment: string | null = null;
+  if (authors.length === 1) {
+    authorSegment = naturalName(authors[0]);
+  } else if (authors.length > 1) {
+    const names = authors.map(naturalName);
+    const lastName = names.pop();
+    authorSegment = `${names.join(", ")} ${and} ${lastName}`;
+  }
+
+  const published = source.publishedAt ? dateParts(source.publishedAt) : null;
+  const dateSegment = published ? longDate(published, lang) : null;
+  const accessed = source.accessedOn ? dateParts(source.accessedOn) : null;
+
+  let accessedSegment: string | null = null;
+  if (!published && accessed) {
+    // Chicago: data dostępu obowiązkowa tylko przy braku daty publikacji.
+    accessedSegment =
+      lang === "pl"
+        ? `Udostępniono ${longDate(accessed, lang)}`
+        : `Accessed ${longDate(accessed, lang)}`;
+  }
+
+  return {
+    authorSegment,
+    title: source.title,
+    siteName: source.siteName,
+    dateSegment,
+    accessedSegment,
+    url: source.url,
+  };
+}
+
 /**
  * Chicago 17, wpis bibliograficzny dla treści online (wariant NES):
  *   Anna Kowalska, <em>Tytuł</em>, New European Strategies,
@@ -179,85 +233,39 @@ function escapeHtml(text: string): string {
  * Autorzy w szyku naturalnym, tytuł w kursywie, separatory to przecinki.
  */
 export function formatChicago(source: CitationSource): string {
-  const authors = resolveAuthors(source);
-  const lang = source.lang;
-  const and = lang === "pl" ? "i" : "and";
-
-  let authorSegment = "";
-  if (authors.length === 1) {
-    authorSegment = naturalName(authors[0]);
-  } else if (authors.length > 1) {
-    const names = authors.map(naturalName);
-    const lastName = names.pop();
-    authorSegment = `${names.join(", ")} ${and} ${lastName}`;
-  }
-
-  const italicTitle = `<em>${escapeHtml(source.title)}</em>,`;
-  const published = source.publishedAt ? dateParts(source.publishedAt) : null;
-  const dateSegment = published ? longDate(published, lang) : null;
-  const accessed = source.accessedOn ? dateParts(source.accessedOn) : null;
-
+  const parts = buildChicagoParts(source);
   const pieces: string[] = [];
-  if (authorSegment) pieces.push(`${authorSegment},`);
-  pieces.push(italicTitle);
-  if (dateSegment) {
-    pieces.push(`${source.siteName}, ${dateSegment},`);
+  if (parts.authorSegment) pieces.push(`${parts.authorSegment},`);
+  pieces.push(`<em>${escapeHtml(parts.title)}</em>,`);
+  if (parts.dateSegment) {
+    pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
   } else {
-    pieces.push(`${source.siteName},`);
-    // Chicago: data dostępu obowiązkowa tylko przy braku daty publikacji.
-    if (accessed) {
-      pieces.push(
-        lang === "pl"
-          ? `Udostępniono ${longDate(accessed, lang)},`
-          : `Accessed ${longDate(accessed, lang)},`,
-      );
-    }
+    pieces.push(`${parts.siteName},`);
+    if (parts.accessedSegment) pieces.push(`${parts.accessedSegment},`);
   }
-  pieces.push(`${source.url},`);
+  pieces.push(`${parts.url},`);
   return pieces.join(" ");
 }
 
 /**
  * Wersja plain-text formatu Chicago (do schowka) - identyczna składnia,
- * ale bez znaczników HTML wokół tytułu.
+ * kolejność autorów i separatory, ale bez znaczników HTML wokół tytułu.
  */
 export function formatChicagoPlain(source: CitationSource): string {
-  const authors = resolveAuthors(source);
-  const lang = source.lang;
-  const and = lang === "pl" ? "i" : "and";
-
-  let authorSegment = "";
-  if (authors.length === 1) {
-    authorSegment = naturalName(authors[0]);
-  } else if (authors.length > 1) {
-    const names = authors.map(naturalName);
-    const lastName = names.pop();
-    authorSegment = `${names.join(", ")} ${and} ${lastName}`;
-  }
-
-  const titleSegment = `${source.title},`;
-  const published = source.publishedAt ? dateParts(source.publishedAt) : null;
-  const dateSegment = published ? longDate(published, lang) : null;
-  const accessed = source.accessedOn ? dateParts(source.accessedOn) : null;
-
+  const parts = buildChicagoParts(source);
   const pieces: string[] = [];
-  if (authorSegment) pieces.push(`${authorSegment},`);
-  pieces.push(titleSegment);
-  if (dateSegment) {
-    pieces.push(`${source.siteName}, ${dateSegment},`);
+  if (parts.authorSegment) pieces.push(`${parts.authorSegment},`);
+  pieces.push(`${parts.title},`);
+  if (parts.dateSegment) {
+    pieces.push(`${parts.siteName}, ${parts.dateSegment},`);
   } else {
-    pieces.push(`${source.siteName},`);
-    if (accessed) {
-      pieces.push(
-        lang === "pl"
-          ? `Udostępniono ${longDate(accessed, lang)},`
-          : `Accessed ${longDate(accessed, lang)},`,
-      );
-    }
+    pieces.push(`${parts.siteName},`);
+    if (parts.accessedSegment) pieces.push(`${parts.accessedSegment},`);
   }
-  pieces.push(`${source.url},`);
+  pieces.push(`${parts.url},`);
   return pieces.join(" ");
 }
+
 
 /**
  * APA 7, strona internetowa:

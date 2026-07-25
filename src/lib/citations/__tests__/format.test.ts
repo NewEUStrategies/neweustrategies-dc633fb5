@@ -4,8 +4,15 @@ import {
   formatApa,
   formatBibtex,
   formatChicago,
+  formatChicagoPlain,
   type CitationSource,
 } from "../format";
+
+/** Usuwa znacznik <em> z wersji HTML, aby porównać ją z wersją plain. */
+function stripEm(html: string): string {
+  return html.replace(/<em>([^<]*)<\/em>/g, "$1");
+}
+
 
 const base: CitationSource = {
   authors: [{ firstName: "Anna", lastName: "Kowalska", displayName: null }],
@@ -65,11 +72,24 @@ describe("formatChicago", () => {
 describe("formatChicagoPlain", () => {
   it("zwraca Chicago bez znaczników HTML", () => {
     const plain = buildCitations(base).chicagoPlain;
+    expect(plain).not.toContain("<em>");
     expect(plain).not.toContain("<i>");
     expect(plain).toContain("Bezpieczeństwo energetyczne Europy Środkowej,");
     expect(plain).toContain("Anna Kowalska,");
   });
+
+  it("ma identyczną kolejność autorów, separatory i daty jak wersja HTML", () => {
+    const html = formatChicago(base);
+    const plain = formatChicagoPlain(base);
+    expect(stripEm(html)).toBe(plain);
+  });
+
+  it("zachowuje identyczność przy braku daty publikacji i segmencie dostępu", () => {
+    const source: CitationSource = { ...base, publishedAt: null, accessedOn: "2026-07-21" };
+    expect(stripEm(formatChicago(source))).toBe(formatChicagoPlain(source));
+  });
 });
+
 
 describe("formatApa", () => {
   it("formatuje inicjały i datę dzienną po polsku", () => {
