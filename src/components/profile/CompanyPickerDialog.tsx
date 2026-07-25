@@ -3,10 +3,15 @@
 // profile or create a new one - inline form, single dialog surface. The new
 // company also lands in the CRM (crm_companies) so the sales stack stays in
 // sync with what users declare on their profile.
+//
+// Search and creation go through SECURITY DEFINER RPCs instead of direct
+// table access: crm_companies read policy is staff-only, while members still
+// need to pick/link a company from their own tenant.
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Check, Loader2, Plus, Search } from "lucide-react";
+import { z } from "zod";
 
 import {
   Dialog,
@@ -25,6 +30,19 @@ import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { profileEditorKey } from "@/lib/profile/useProfileEditor";
+
+const companyRowSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  country: z.string().nullable(),
+  branch: z.string().nullable(),
+  city: z.string().nullable(),
+  address: z.string().nullable(),
+  postal_code: z.string().nullable(),
+  website: z.string().nullable(),
+  phone: z.string().nullable(),
+  domain: z.string().nullable(),
+});
 
 type CompanyRow = {
   id: string;
@@ -95,14 +113,17 @@ export function CompanyPickerDialog({
     enabled: open && !!tenantId,
     staleTime: 30_000,
     queryFn: async (): Promise<CompanyRow[]> => {
-      const q = supabase
-        .from("crm_companies")
-        .select("id, name, country, branch, city, address, postal_code, website, phone, domain")
-        .order("name", { ascending: true })
-        .limit(12);
-      const { data, error } = trimmed.length > 0 ? await q.ilike("name", `%${trimmed}%`) : await q;
+      const { data, error } = await supabase.rpc("search_companies_public", {
+        _query: trimmed,
+        _limit: 12,
+      });
       if (error) throw error;
-      return (data ?? []) as CompanyRow[];
+      const parsed = z.array(companyRowSchema).safeParse(data ?? []);
+      if (!parsed.success) {
+        console.error("search_companies_public parse error", parsed.error);
+        return [];
+      }
+      return parsed.data;
     },
   });
 
@@ -185,25 +206,19 @@ export function CompanyPickerDialog({
     }
     setSaving(true);
     try {
-      const payload = {
-        tenant_id: tenantId,
-        created_by: user.id,
-        name,
-        country: form.country.trim() || null,
-        branch: form.branch.trim() || null,
-        city: form.city.trim() || null,
-        address: form.address.trim() || null,
-        postal_code: form.postal_code.trim() || null,
-        website: form.website.trim() || null,
-        phone: form.phone.trim() || null,
-      };
-      const { data, error } = await supabase
-        .from("crm_companies")
-        .insert(payload)
-        .select("id")
-        .single();
+      const { data: companyId, error } = await supabase.rpc("create_company_self_service", {
+        _name: name,
+        _country: form.country.trim() || undefined,
+        _branch: form.branch.trim() || undefined,
+        _city: form.city.trim() || undefined,
+        _address: form.address.trim() || undefined,
+        _postal_code: form.postal_code.trim() || undefined,
+        _website: form.website.trim() || undefined,
+        _phone: form.phone.trim() || undefined,
+      });
       if (error) throw error;
-      await supabase.rpc("link_current_company", { _company_id: data.id });
+      if (!companyId) throw new Error("empty_response");
+      await supabase.rpc("link_current_company", { _company_id: companyId });
       void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
       invalidateProfile();
       toast.success(t("company.toast.created", { defaultValue: "Firma dodana" }));
@@ -477,7 +492,6 @@ export function CompanyPickerDialog({
 
 function FieldRow({
   label,
-  required,
   children,
 }: {
   label: string;
@@ -488,7 +502,6 @@ function FieldRow({
     <div className="space-y-1">
       <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
-        {required && <span className="ml-0.5 text-primary">*</span>}
       </Label>
       {children}
     </div>

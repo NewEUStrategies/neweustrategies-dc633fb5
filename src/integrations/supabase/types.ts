@@ -11429,6 +11429,19 @@ export type Database = {
           user_id: string
         }[]
       }
+      create_company_self_service: {
+        Args: {
+          _address?: string
+          _branch?: string
+          _city?: string
+          _country?: string
+          _name: string
+          _phone?: string
+          _postal_code?: string
+          _website?: string
+        }
+        Returns: string
+      }
       create_event_group: { Args: { p_event_id: string }; Returns: string }
       create_gift_link: {
         Args: { _post_id: string }
@@ -12787,6 +12800,21 @@ export type Database = {
           parent_page_id: string
           score: number
           slug: string
+        }[]
+      }
+      search_companies_public: {
+        Args: { _limit?: number; _query: string }
+        Returns: {
+          address: string
+          branch: string
+          city: string
+          country: string
+          domain: string
+          id: string
+          name: string
+          phone: string
+          postal_code: string
+          website: string
         }[]
       }
       search_facets: {

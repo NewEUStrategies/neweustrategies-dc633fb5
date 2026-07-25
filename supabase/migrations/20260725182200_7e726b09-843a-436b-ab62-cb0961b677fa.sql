@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.crm_normalize_lead() FROM PUBLIC, anon, authenticated;

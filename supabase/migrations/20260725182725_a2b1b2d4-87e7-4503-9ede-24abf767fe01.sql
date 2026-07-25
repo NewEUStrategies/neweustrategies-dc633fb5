@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.search_companies_public(text, integer) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.create_company_self_service(text, text, text, text, text, text, text, text) FROM PUBLIC, anon;

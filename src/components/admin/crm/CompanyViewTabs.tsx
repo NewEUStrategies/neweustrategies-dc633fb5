@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { BUILTIN_COMPANY_VIEWS } from "@/lib/crm/companyViews";
+import {
+  BUILTIN_COMPANY_VIEWS,
+  parseCompanyViewConfig,
+} from "@/lib/crm/companyViews";
 import type { CompanyViewConfig } from "@/lib/crm/companyViews";
 
 export interface SavedViewRow {
@@ -77,7 +80,7 @@ export function CompanyViewTabs({
             <button
               type="button"
               onClick={() => {
-                const cfg = v.config as CompanyViewConfig;
+                const cfg = parseCompanyViewConfig(v.config);
                 onSelect(v.id, cfg);
               }}
               className={`flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium whitespace-nowrap transition-colors ${

@@ -3,7 +3,11 @@
 // crm.functions.ts. Wszystkie fetche jadą przez `requireStaff`, więc RLS
 // (tenant_id = current_tenant_id()) obowiązuje automatycznie.
 import { createServerFn } from "@tanstack/react-start";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+import {
+  requireStaff,
+  requireAdmin,
+  requireAdminEditor,
+} from "@/integrations/supabase/require-staff";
 import { z } from "zod";
 
 type AnyQuery = {
@@ -310,16 +314,28 @@ export const createCrmContactForCompany = createServerFn({ method: "POST" })
         };
       };
     };
+    // Resolve the company's tenant so the lead lands in the same tenant as the
+    // parent company (the crm_leads RLS requires tenant_id = current_tenant_id()).
+    const { data: company } = await tbl(context, "crm_companies")
+      .select("tenant_id")
+      .eq("id", data.company_id)
+      .maybeSingle();
+    const companyTenantId = (company as { tenant_id?: string } | null)?.tenant_id;
+    if (!companyTenantId) throw new Error("company_not_found");
+
     const { data: row, error } = await supa
       .from("crm_leads")
       .insert({
+        tenant_id: companyTenantId,
         company_id: data.company_id,
         email: data.email,
+        email_norm: data.email,
         first_name: data.first_name ?? null,
         last_name: data.last_name ?? null,
         phone: data.phone ?? null,
         position: data.position ?? null,
         stage: "new",
+        source_type: "manual",
       })
       .select("id")
       .single();
