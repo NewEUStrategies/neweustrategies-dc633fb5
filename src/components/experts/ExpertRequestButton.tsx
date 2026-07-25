@@ -49,9 +49,28 @@ export function ExpertRequestButton({
   if (!expertRequestGateOpen({ globalEnabled: modules.expert_requests_enabled, recipientEnabled }))
     return null;
 
-  // Anon / własny profil / jeszcze nie znamy puli -> nie serwujemy przycisku.
+  // Anon / własny profil -> nie serwujemy przycisku.
   if (!user || user.id === expertId) return null;
-  if (quotaQ.isPending) return null;
+  // Podczas ładowania puli pokazujemy stabilny, disabled placeholder zamiast
+  // znikać - w przeciwnym razie na wolniejszej sieci CTA "wskakuje" po chwili,
+  // co czyta się jako layout shift (mirror wzorca z DirectMessageButton).
+  if (quotaQ.isPending) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size={compact ? "sm" : "default"}
+        disabled
+        aria-hidden
+        className={cn("h-8 gap-1.5 opacity-60 pointer-events-none", className)}
+      >
+        <MessageSquareQuote className="h-3.5 w-3.5" aria-hidden />
+        <span className={cn(compact && "hidden sm:inline")}>
+          {compact ? t("expertRequest.ctaShort") : t("expertRequest.cta")}
+        </span>
+      </Button>
+    );
+  }
 
   const quota = quotaQ.data;
   // Progi bezpośrednie piszą zwykłą wiadomością (ConnectButton) - bez zapytania.
