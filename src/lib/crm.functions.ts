@@ -210,7 +210,29 @@ export const updateCrmLead = createServerFn({ method: "POST" })
   .validator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
-    const res = await (tbl(context, "crm_leads").update(patch).eq("id", id) as unknown as Promise<{
+
+    // Tenant isolation: read the lead first, then restrict the update to that
+    // tenant. Also validate any company_id change belongs to the same tenant.
+    const { data: lead } = (await tbl(context, "crm_leads")
+      .select("id, tenant_id")
+      .eq("id", id)
+      .maybeSingle()) as { data: { id: string; tenant_id: string } | null };
+    if (!lead) throw new Error("lead_not_found");
+
+    if (patch.company_id) {
+      const { data: company } = (await tbl(context, "crm_companies")
+        .select("id, tenant_id")
+        .eq("id", patch.company_id)
+        .maybeSingle()) as { data: { id: string; tenant_id: string } | null };
+      if (!company || company.tenant_id !== lead.tenant_id) {
+        throw new Error("company_tenant_mismatch");
+      }
+    }
+
+    const res = await (tbl(context, "crm_leads")
+      .update({ ...patch, tenant_id: lead.tenant_id })
+      .eq("id", id)
+      .eq("tenant_id", lead.tenant_id) as unknown as Promise<{
       error: { message: string } | null;
     }>);
     if (res.error) throw new Error(res.error.message);
