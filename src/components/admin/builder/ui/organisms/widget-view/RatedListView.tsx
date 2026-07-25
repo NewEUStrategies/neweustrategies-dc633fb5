@@ -483,7 +483,7 @@ export function RatedListView({
                 </div>
                 {showExcerpt && it.excerpt && (
                   <p
-                    className="rl-exc cms-post-excerpt text-muted-foreground mt-2"
+                    className="rl-exc cms-post-excerpt mt-2"
                     style={{
                       display: "-webkit-box",
                       WebkitLineClamp: excerptLines,
@@ -519,7 +519,7 @@ export function RatedListView({
                 )}
                 {(showAuthor && it.author) || (showDate && it.date) ? (
                   <p
-                    className="rl-meta mt-2 text-muted-foreground"
+                    className="rl-meta cms-meta mt-2"
                     style={{ fontSize: `${metaSize}px` }}
                   >
                     {showAuthor && it.author && (

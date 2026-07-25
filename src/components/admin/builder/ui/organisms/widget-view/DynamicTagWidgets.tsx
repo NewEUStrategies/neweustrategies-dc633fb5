@@ -89,7 +89,7 @@ function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
     ) : (
       title
     );
-  return createElement(tag, { className: "cms-post-title leading-tight" }, inner);
+  return createElement(tag, { className: "cms-post-title" }, inner);
 }
 
 function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
@@ -148,7 +148,7 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
     );
   }
   return (
-    <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-muted-foreground">
+    <div className="cms-meta flex flex-wrap items-center gap-x-1 gap-y-1">
       {parts.map((p, i) => (
         <span key={i} className="inline-flex items-center">
           {i > 0 && (
@@ -199,7 +199,7 @@ function PostTagsDynWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
     : null;
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {label && <span className="text-sm font-semibold text-muted-foreground">{label}</span>}
+      {label && <span className="cms-meta">{label}</span>}
       <PillList items={items} base="tag" />
     </div>
   );
@@ -235,7 +235,7 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
+        <div className="cms-meta uppercase tracking-wider mb-1">
           {lang === "en" ? "Author" : "Autor"}
         </div>
         <div className="cms-post-title">
@@ -248,7 +248,7 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
           )}
         </div>
         {getBool(c, "showBio", true) && bio && (
-          <p className="text-sm text-muted-foreground mt-1.5">{bio}</p>
+          <p className="cms-post-excerpt mt-1.5">{bio}</p>
         )}
       </div>
     </aside>
@@ -271,7 +271,7 @@ function PostBreadcrumbsWidget({ node, lang }: { node: WidgetNode; lang: Lang })
       ]
     : items;
   return (
-    <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
+    <nav aria-label="Breadcrumb" className="cms-meta">
       <ol className="flex flex-wrap items-center gap-1.5 list-none p-0 m-0">
         {list.map((b, i) => {
           const isLast = i === list.length - 1;
@@ -292,7 +292,7 @@ function PostBreadcrumbsWidget({ node, lang }: { node: WidgetNode; lang: Lang })
               ) : (
                 <span
                   aria-current={isLast ? "page" : undefined}
-                  className={isLast ? "text-foreground font-medium" : ""}
+                  className={isLast ? "text-foreground" : ""}
                 >
                   {b.label}
                 </span>
@@ -331,7 +331,7 @@ function PostExcerptWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const raw = pickLocalized(ctx, lang, "excerpt");
   if (!raw) return null;
   const text = max > 0 && raw.length > max ? raw.slice(0, max).trimEnd() + "…" : raw;
-  return <p className="cms-post-excerpt text-muted-foreground">{text}</p>;
+  return <p className="cms-post-excerpt">{text}</p>;
 }
 
 function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
@@ -360,7 +360,7 @@ function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
         <p className="text-muted-foreground max-w-2xl">{a.description}</p>
       )}
       {getBool(c, "showCount", true) && typeof a.count === "number" && (
-        <div className="text-sm text-muted-foreground">
+        <div className="cms-meta">
           {a.count} {lang === "en" ? "posts" : "wpisów"}
         </div>
       )}

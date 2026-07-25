@@ -16,7 +16,7 @@ export function TabsBlock({
   const [active, setActive] = useState(0);
   if (!tabs.length)
     return (
-      <div className="text-xs text-muted-foreground">
+      <div className="cms-meta">
         {lang === "pl" ? "Brak zakładek" : "No tabs"}
       </div>
     );

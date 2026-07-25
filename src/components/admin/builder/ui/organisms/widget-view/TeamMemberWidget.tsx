@@ -221,15 +221,15 @@ export function TeamMemberWidget({
             </div>
             <div className="flex flex-col gap-4 p-6">
               <header>
-                <h2 className="cms-post-title text-2xl font-bold text-foreground">{name}</h2>
-                {position && <p className="mt-1 text-sm text-muted-foreground">{position}</p>}
+                <h2 className="cms-block-heading text-foreground">{name}</h2>
+                {position && <p className="cms-meta mt-1">{position}</p>}
               </header>
 
               {(phone || email) && (
                 <dl className="grid gap-2 text-sm">
                   {phone && (
                     <div className="flex items-center gap-3">
-                      <dt className="w-16 font-medium text-muted-foreground">
+                      <dt className="cms-meta w-16">
                         {lang === "pl" ? "Telefon" : "Phone"}:
                       </dt>
                       <dd>
@@ -241,7 +241,7 @@ export function TeamMemberWidget({
                   )}
                   {email && (
                     <div className="flex items-center gap-3">
-                      <dt className="w-16 font-medium text-muted-foreground">Email:</dt>
+                      <dt className="cms-meta w-16">Email:</dt>
                       <dd>
                         <a href={`mailto:${email}`} className="hover:text-[color:var(--brand)]">
                           {email}
@@ -279,7 +279,7 @@ export function TeamMemberWidget({
 
               {bio && (
                 <div
-                  className="cms-post-content prose prose-sm max-w-none text-sm leading-relaxed text-foreground/90"
+                  className="cms-post-content prose prose-sm max-w-none text-foreground/90"
                   dangerouslySetInnerHTML={{ __html: bio }}
                 />
               )}
