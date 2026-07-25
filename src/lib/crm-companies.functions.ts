@@ -87,7 +87,7 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
     const contactsAgg: Record<string, number> = {};
     if (ids.length > 0) {
       const { data: aggRows, error: aggError } = (await (
-        context.supabase as {
+        context.supabase as unknown as {
           rpc: (
             n: string,
             p: Record<string, unknown>,
@@ -101,15 +101,7 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
             error: { message: string } | null;
           }>;
         }
-      ).rpc("crm_companies_aggregates", { _company_ids: ids })) as {
-        data: Array<{
-          company_id: string;
-          leads_count: number | string;
-          last_lead_activity_at: string | null;
-          contacts_count: number | string;
-        }> | null;
-        error: { message: string } | null;
-      };
+      ).rpc("crm_companies_aggregates", { _company_ids: ids }));
       if (aggError) throw new Error(aggError.message);
       for (const r of aggRows ?? []) {
         leadsAgg[r.company_id] = {
