@@ -18,15 +18,8 @@ import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { resolveContentEngine } from "@/lib/content/contentEngine";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
-// processManualToc / processHtmlFootnotes / processDocFootnotes są teraz
-// wywoływane przez prepareContentForRender - zostawiamy importy pod ewentualne
-// specjalne przypadki, ale bez dublowania pipeline'u.
-import { processManualToc } from "@/lib/manualToc";
-import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { parseBuilderDoc } from "@/lib/builder/parse";
-import { processManualToc } from "@/lib/manualToc";
-import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 import { PostSidebarRenderer } from "@/components/post/PostSidebarRenderer";
 import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
