@@ -12,7 +12,7 @@
 -- Uruchamianie: `supabase test db` (razem z pozostałymi testami pgTAP).
 
 BEGIN;
-SELECT plan(18);
+SELECT plan(25);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
