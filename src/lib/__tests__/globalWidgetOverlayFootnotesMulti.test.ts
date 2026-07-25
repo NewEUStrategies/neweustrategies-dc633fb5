@@ -50,7 +50,9 @@ describe("global widget overlay footnotes - multi + rehydration", () => {
       const stepHtml = String((step.widget.content as Record<string, unknown>).html_pl);
       // Payload nie może rosnąć ani zmieniać numeracji przy stabilnym wejściu.
       expect(stepHtml).toBe(firstHtml);
-      expect(step.notes).toEqual(first.notes);
+      // Rehydratacja już rozwiniętego HTML nie odkrywa nowych przypisów -
+      // markery [1..3] pozostają, ale kolektor nie dostaje kolejnych wpisów.
+      expect(step.notes).toEqual([]);
       // Nie ma nowych markerów [4], [5], … przy rehydratacji.
       expect(stepHtml).not.toMatch(/data-fn="4"/);
       current = step.widget;
