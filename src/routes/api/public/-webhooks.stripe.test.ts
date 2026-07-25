@@ -61,11 +61,19 @@ const h = vi.hoisted(() => {
     resultQueue: QueryResult[];
     /** Wynik awaitowanego zapisu (`update`/`upsert` bez `maybeSingle`). */
     writeResult: QueryResult;
+    /**
+     * Kolejne wyniki awaitowanych zapisów - pozwala uszkodzić DOKŁADNIE jeden
+     * zapis w przepływie. Potrzebne, bo polityka błędów nie jest jednolita:
+     * rejestr `billing_documents` jest best-effort, a zapisy stanu
+     * pieniędzy/uprawnienia muszą rzucać (Stripe nie ponawia po 200).
+     */
+    writeQueue: QueryResult[];
     calls: { method: string; args: unknown[] }[];
   } = {
     result: { data: null, error: null },
     resultQueue: [],
     writeResult: { data: null, error: null },
+    writeQueue: [],
     calls: [],
   };
 
@@ -103,7 +111,9 @@ const h = vi.hoisted(() => {
     maybeSingle: lookup,
     single: lookup,
     then: (onFulfilled, onRejected) =>
-      Promise.resolve(state.writeResult).then(onFulfilled, onRejected),
+      Promise.resolve(
+        state.writeQueue.length > 0 ? state.writeQueue.shift()! : state.writeResult,
+      ).then(onFulfilled, onRejected),
   };
 
   const grant = vi.fn(async (..._args: unknown[]) => {});
@@ -172,6 +182,7 @@ describe("stripe webhook handler", () => {
     h.state.result = { data: null, error: null };
     h.state.resultQueue = [];
     h.state.writeResult = { data: null, error: null };
+    h.state.writeQueue = [];
     h.grant.mockClear();
     h.couponEffects.mockClear();
   });
@@ -792,8 +803,11 @@ describe("stripe webhook handler", () => {
   it("padnięty zapis dokumentu nie wywraca księgowania płatności (best-effort)", async () => {
     process.env.STRIPE_SECRET_KEY = "sk_test_1";
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // Każdy awaitowany zapis zwraca błąd - w tym upsert dokumentu.
-    h.state.writeResult = { data: null, error: { message: "rls_denied" } };
+    // Pada DOKŁADNIE pierwszy zapis (upsert dokumentu faktury); kolejny -
+    // księgowanie zamówienia na `paid` - przechodzi. Wcześniej test psuł
+    // wszystkie zapisy naraz, co po uszczelnieniu ścieżki pieniężnej mieszałoby
+    // dwie różne polityki błędów w jednej asercji.
+    h.state.writeQueue = [{ data: null, error: { message: "rls_denied" } }];
     h.state.result = {
       data: {
         id: "ord_doc_err",
@@ -830,6 +844,8 @@ describe("stripe webhook handler", () => {
       "in_doc_err",
       { message: "rls_denied" },
     );
+    // Sedno best-effort: dokument padł, a płatność mimo to jest zaksięgowana.
+    expect((call("update")?.args[0] as { status?: string }).status).toBe("paid");
     warn.mockRestore();
   });
 
@@ -1037,6 +1053,174 @@ describe("stripe webhook handler", () => {
 
     expect(res.status).toBe(500);
     expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  // -------------------------------------------------------------------------
+  // Kontrakt retry: każdy zapis stanu pieniędzy/uprawnienia musi zamieniać błąd
+  // bazy na 500, bo Stripe po 200 nie ponawia dostawy i rozjazd stanu zostaje
+  // na zawsze. Poniższe testy pilnują tego per zdarzenie - dotąd te zapisy
+  // gubiły `error` i handler odpowiadał 200 przy zerowej zmianie stanu.
+  // -------------------------------------------------------------------------
+  const paidOrderRow = {
+    id: "ord_err",
+    user_id: "u_err",
+    tenant_id: "ten_err",
+    kind: "subscription" as const,
+    entity_type: null,
+    entity_id: null,
+    amount_cents: 4900,
+    currency: "PLN",
+    provider_session_id: "cs_err",
+    provider_subscription_id: "sub_err",
+  };
+
+  it("nieudane księgowanie na `paid` zwraca 500 i NIE odpala efektów kuponu", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.state.result = { data: paidOrderRow, error: null };
+    h.state.writeResult = { data: null, error: { message: "orders_rls" } };
+    const payload = JSON.stringify({
+      id: "evt_flip_err",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_flip_err",
+          client_reference_id: "ord_err",
+          subscription: "sub_err",
+          amount_total: 4900,
+          currency: "pln",
+        },
+      },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(500);
+    // Kolejność jest istotna: grant leci przed flipem (idempotentny), ale
+    // `apply_b2b_coupon_effects` jest fail-closed na `status='paid'`, więc przy
+    // nieudanym flipie NIE wolno go wołać - inaczej cicho nic nie zrobi.
+    expect(h.grant).toHaveBeenCalledTimes(1);
+    expect(h.couponEffects).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("nieudane anulowanie subskrypcji zwraca 500 (inaczej dostęp po rezygnacji)", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.state.writeResult = { data: null, error: { message: "subs_rls" } };
+    const payload = JSON.stringify({
+      id: "evt_del_err",
+      type: "customer.subscription.deleted",
+      data: { object: { id: "sub_del_err" } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(500);
+    error.mockRestore();
+  });
+
+  it("nieudane odnowienie z faktury zwraca 500 (inaczej dostęp wygasa mimo zapłaty)", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.state.writeResult = { data: null, error: { message: "subs_rls" } };
+    const payload = JSON.stringify({
+      id: "evt_inv_err",
+      type: "invoice.payment_succeeded",
+      data: {
+        object: {
+          id: "in_err",
+          subscription: "sub_inv_err",
+          period_end: Math.floor(Date.now() / 1000) + 86_400 * 30,
+        },
+      },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(500);
+    error.mockRestore();
+  });
+
+  it("nieudane odbranie uprawnienia przy zwrocie zwraca 500", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.state.result = { data: paidOrderRow, error: null };
+    // Zapisy po kolei: donations refund OK, payment_orders refund OK, dwa
+    // dokumenty best-effort OK, a dopiero odbranie subskrypcji pada.
+    h.state.writeQueue = [
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: { message: "revoke_rls" } },
+    ];
+    const payload = JSON.stringify({
+      id: "evt_ref_err",
+      type: "charge.refunded",
+      data: { object: { payment_intent: "pi_ref_err" } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(500);
+    error.mockRestore();
+  });
+
+  it("nieudany odczyt zamówienia przy zwrocie zwraca 500, nie cichy no-op", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Odczyt pada. Dotąd `order` było wtedy null i handler robił `break`,
+    // czyli zwrot pieniędzy nie odbierał dostępu - przy odpowiedzi 200.
+    h.state.result = { data: null, error: { message: "orders_read_rls" } };
+    const payload = JSON.stringify({
+      id: "evt_ref_read_err",
+      type: "charge.refunded",
+      data: { object: { payment_intent: "pi_ref_read_err" } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(500);
+    error.mockRestore();
+  });
+
+  it("padnięty zapis dokumentu NIE blokuje odbrania dostępu przy zwrocie", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.state.result = { data: { ...paidOrderRow, kind: "one_time", entity_id: null }, error: null };
+    // donations OK, payment_orders OK, oba dokumenty padają, revoke OK.
+    h.state.writeQueue = [
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: { message: "docs_rls" } },
+      { data: null, error: { message: "docs_rls" } },
+      { data: null, error: null },
+    ];
+    const payload = JSON.stringify({
+      id: "evt_ref_doc",
+      type: "charge.refunded",
+      data: { object: { payment_intent: "pi_ref_doc" } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(200);
+    expect(warn).toHaveBeenCalledWith(
+      "[stripe-webhook] billing document refund failed",
+      `order ${paidOrderRow.id}`,
+      { message: "docs_rls" },
+    );
+    warn.mockRestore();
+  });
+
+  it("nieudane oznaczenie wygasłej sesji zwraca 500", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.state.writeResult = { data: null, error: { message: "orders_rls" } };
+    const payload = JSON.stringify({
+      id: "evt_exp_err",
+      type: "checkout.session.expired",
+      data: { object: { id: "cs_exp_err", metadata: { order_id: "ord_exp_err" } } },
+    });
+
+    const res = await handle(req(payload));
+
+    expect(res.status).toBe(500);
     error.mockRestore();
   });
 });

@@ -84,6 +84,26 @@ interface BillingDocumentUpsert {
   issued_at?: string;
 }
 
+type WriteResult = { error: { message: string } | null };
+
+// Zapis stanu pieniędzy/uprawnienia MUSI rzucać.
+//
+// Handler zwraca 200 dla wszystkiego, co nie rzuciło (`:ok` na końcu), a Stripe
+// po 200 nie ponawia dostawy. `supabase-js` nie rzuca przy błędzie zapisu -
+// oddaje go w `error`. Zapis bez kontroli `error` daje więc TRWAŁY rozjazd
+// stanu: subskrypcja anulowana u Stripe zostaje `active` u nas, zwrot nie
+// odbiera dostępu, zamówienie nie księguje się na `paid`. Ten helper zamienia
+// błąd zapisu w wyjątek, który `catch` handlera tłumaczy na 500 - wtedy Stripe
+// ponawia i stan się dogania.
+//
+// Wyjątek od reguły: rejestr `billing_documents` jest świadomie best-effort
+// (patrz `upsertBillingDocument`) - dokument nie może wywrócić księgowania,
+// więc tam logujemy ostrzeżenie zamiast rzucać.
+async function mustWrite(op: PromiseLike<WriteResult>, what: string): Promise<void> {
+  const { error } = await op;
+  if (error) throw new Error(`${what}: ${error.message}`);
+}
+
 // Rejestr dokumentów rozliczeniowych: idempotentnie po (provider, dokument).
 // Best-effort - dokument nigdy nie może wywrócić księgowania płatności;
 // klucze pominięte w payloadzie nie nadpisują wartości z drugiej ścieżki
@@ -284,11 +304,16 @@ async function handle(request: Request): Promise<Response> {
           }
         }
 
-        await supabaseAdmin
-          .from("payment_orders")
-          .update(updates)
-          .eq("id", order.id)
-          .neq("status", "paid");
+        // Musi rzucać: `apply_b2b_coupon_effects` poniżej jest fail-closed na
+        // `status='paid'`, więc nieudany flip cicho pomija efekty kuponu B2B.
+        await mustWrite(
+          supabaseAdmin
+            .from("payment_orders")
+            .update(updates)
+            .eq("id", order.id)
+            .neq("status", "paid"),
+          `payment_orders paid flip (${order.id})`,
+        );
 
         // Efekty kuponu B2B (warstwa członkowska + CRM) DOPIERO po zaksięgowaniu
         // płatności - `apply_b2b_coupon_effects` fail-closed wymaga
@@ -311,11 +336,14 @@ async function handle(request: Request): Promise<Response> {
           // Stripe nie gwarantuje kolejności zdarzeń: spóźniona faktura nie
           // może reanimować subskrypcji już anulowanej przez
           // customer.subscription.deleted.
-          await supabaseAdmin
-            .from("user_subscriptions")
-            .update({ status: "active", current_period_end: periodEnd.toISOString() })
-            .eq("external_ref", subscriptionId)
-            .neq("status", "canceled");
+          await mustWrite(
+            supabaseAdmin
+              .from("user_subscriptions")
+              .update({ status: "active", current_period_end: periodEnd.toISOString() })
+              .eq("external_ref", subscriptionId)
+              .neq("status", "canceled"),
+            `user_subscriptions renewal (${subscriptionId})`,
+          );
         }
 
         // Rejestr dokumentów: payload faktury niesie komplet metadanych, więc
@@ -419,7 +447,10 @@ async function handle(request: Request): Promise<Response> {
           // UI stops showing "cancels at".
           updates.canceled_at = cancelAtPeriodEnd ? new Date().toISOString() : null;
         }
-        await supabaseAdmin.from("user_subscriptions").update(updates).eq("external_ref", subId);
+        await mustWrite(
+          supabaseAdmin.from("user_subscriptions").update(updates).eq("external_ref", subId),
+          `user_subscriptions mirror (${subId})`,
+        );
         break;
       }
 
@@ -427,10 +458,15 @@ async function handle(request: Request): Promise<Response> {
         const sub = event.data.object;
         const subId = str(sub, "id");
         if (subId) {
-          await supabaseAdmin
-            .from("user_subscriptions")
-            .update({ status: "canceled", canceled_at: new Date().toISOString() })
-            .eq("external_ref", subId);
+          // Musi rzucać: cicha porażka zostawia anulowaną subskrypcję jako
+          // `active`, czyli dostęp płatny po rezygnacji.
+          await mustWrite(
+            supabaseAdmin
+              .from("user_subscriptions")
+              .update({ status: "canceled", canceled_at: new Date().toISOString() })
+              .eq("external_ref", subId),
+            `user_subscriptions cancel (${subId})`,
+          );
         }
         break;
       }
@@ -446,36 +482,58 @@ async function handle(request: Request): Promise<Response> {
 
         // Darowizny: refund oznacza wiersz donations (nie ma payment_order).
         // Dla zwykłych płatności dopasowanie trafia w zero wierszy - no-op.
-        await supabaseAdmin
-          .from("donations")
-          .update({ status: "refunded" })
-          .eq("provider_intent_id", paymentIntent);
+        // Zero dopasowanych wierszy to poprawny wynik (zwykła płatność nie ma
+        // wiersza donations) - błąd zapytania to inna sprawa i musi rzucać.
+        await mustWrite(
+          supabaseAdmin
+            .from("donations")
+            .update({ status: "refunded" })
+            .eq("provider_intent_id", paymentIntent),
+          `donations refund (${paymentIntent})`,
+        );
 
-        const { data: order } = await supabaseAdmin
+        const { data: order, error: orderErr } = await supabaseAdmin
           .from("payment_orders")
           .select(
             "id, user_id, kind, entity_type, entity_id, provider_session_id, provider_subscription_id",
           )
           .eq("provider_intent_id", paymentIntent)
           .maybeSingle();
+        // Nieudany odczyt nie może udawać „brak zamówienia" - to by cicho
+        // porzuciło cały zwrot razem z odbraniem uprawnienia.
+        if (orderErr) throw orderErr;
         if (!order) break;
 
-        await supabaseAdmin
-          .from("payment_orders")
-          .update({ status: "refunded" })
-          .eq("id", order.id);
+        await mustWrite(
+          supabaseAdmin.from("payment_orders").update({ status: "refunded" }).eq("id", order.id),
+          `payment_orders refund (${order.id})`,
+        );
 
         // Rejestr dokumentów: dokumenty tego zamówienia i paragon płatności
         // dostają status refunded (podgląd w profilu pokazuje prawdę).
-        await supabaseAdmin
-          .from("billing_documents")
-          .update({ status: "refunded" })
-          .eq("order_id", order.id);
-        await supabaseAdmin
-          .from("billing_documents")
-          .update({ status: "refunded" })
-          .eq("provider", "stripe")
-          .eq("provider_document_id", paymentIntent);
+        // Best-effort jak reszta rejestru - nie może wywrócić odebrania dostępu.
+        for (const [label, op] of [
+          [
+            `order ${order.id}`,
+            supabaseAdmin
+              .from("billing_documents")
+              .update({ status: "refunded" })
+              .eq("order_id", order.id),
+          ],
+          [
+            `receipt ${paymentIntent}`,
+            supabaseAdmin
+              .from("billing_documents")
+              .update({ status: "refunded" })
+              .eq("provider", "stripe")
+              .eq("provider_document_id", paymentIntent),
+          ],
+        ] as const) {
+          const { error } = await op;
+          if (error) {
+            console.warn("[stripe-webhook] billing document refund failed", label, error);
+          }
+        }
 
         // A one-time PURCHASE grants a user_purchases row; everything else
         // (recurring subscription OR one-time lifetime-plan) grants a
@@ -483,28 +541,34 @@ async function handle(request: Request): Promise<Response> {
         const isEntityPurchase = order.kind === "one_time" && !!order.entity_id;
 
         if (isEntityPurchase) {
-          await supabaseAdmin
-            .from("user_purchases")
-            .update({ status: "refunded" })
-            .eq("user_id", order.user_id)
-            .eq("entity_type", order.entity_type!)
-            .eq("entity_id", order.entity_id!);
+          await mustWrite(
+            supabaseAdmin
+              .from("user_purchases")
+              .update({ status: "refunded" })
+              .eq("user_id", order.user_id)
+              .eq("entity_type", order.entity_type!)
+              .eq("entity_id", order.entity_id!),
+            `user_purchases refund (${order.id})`,
+          );
         } else {
           // Revoke ONLY the subscription this order paid for - matched by the
           // external_ref we stored (subscription id, or session id fallback).
           // The old code cancelled EVERY active subscription of the user.
           const ref = order.provider_subscription_id ?? order.provider_session_id;
           if (ref) {
-            await supabaseAdmin
-              .from("user_subscriptions")
-              .update({
-                status: "canceled",
-                canceled_at: new Date().toISOString(),
-                current_period_end: new Date().toISOString(),
-              })
-              .eq("user_id", order.user_id)
-              .eq("external_ref", ref)
-              .eq("status", "active");
+            await mustWrite(
+              supabaseAdmin
+                .from("user_subscriptions")
+                .update({
+                  status: "canceled",
+                  canceled_at: new Date().toISOString(),
+                  current_period_end: new Date().toISOString(),
+                })
+                .eq("user_id", order.user_id)
+                .eq("external_ref", ref)
+                .eq("status", "active"),
+              `user_subscriptions refund revoke (${ref})`,
+            );
           }
         }
         break;
@@ -519,12 +583,18 @@ async function handle(request: Request): Promise<Response> {
         const sessionId = str(obj, "id");
         const status = event.type === "checkout.session.expired" ? "canceled" : "failed";
         if (orderId) {
-          await supabaseAdmin.from("payment_orders").update({ status }).eq("id", orderId);
+          await mustWrite(
+            supabaseAdmin.from("payment_orders").update({ status }).eq("id", orderId),
+            `payment_orders ${status} (${orderId})`,
+          );
         } else if (sessionId) {
-          await supabaseAdmin
-            .from("payment_orders")
-            .update({ status })
-            .eq("provider_session_id", sessionId);
+          await mustWrite(
+            supabaseAdmin
+              .from("payment_orders")
+              .update({ status })
+              .eq("provider_session_id", sessionId),
+            `payment_orders ${status} (session ${sessionId})`,
+          );
         }
         break;
       }
