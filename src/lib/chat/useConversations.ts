@@ -126,6 +126,45 @@ export function splitArchived(views: ConversationView[]): {
   return { active, archived };
 }
 
+/**
+ * Optimistic cache transform for reopen: gdy caller świadomie otwiera wątek,
+ * jego archived_at spada do NULL i wątek trafia na górę Active. Pure, żeby
+ * test regresyjny nie potrzebował QueryClienta.
+ */
+export function applyReopenToViews(
+  views: ConversationView[] | undefined,
+  conversationId: string,
+  nowIso: string = new Date().toISOString(),
+): ConversationView[] | undefined {
+  return views?.map((view) =>
+    view.conversation.id === conversationId && view.me.archived_at
+      ? {
+          ...view,
+          me: { ...view.me, archived_at: null },
+          conversation: {
+            ...view.conversation,
+            last_message_at: view.conversation.last_message_at ?? nowIso,
+          },
+        }
+      : view,
+  );
+}
+
+/** Optimistic archive/unarchive flip - identyczna pure-postać dla testu. */
+export function applyArchiveFlipToViews(
+  views: ConversationView[] | undefined,
+  conversationId: string,
+  archived: boolean,
+  nowIso: string = new Date().toISOString(),
+): ConversationView[] | undefined {
+  const nextArchivedAt = archived ? nowIso : null;
+  return views?.map((view) =>
+    view.conversation.id === conversationId
+      ? { ...view, me: { ...view.me, archived_at: nextArchivedAt } }
+      : view,
+  );
+}
+
 /** PostgREST serializes `'infinity'::timestamptz` as the literal string. */
 export function mutedUntilMs(raw: string | null): number | null {
   if (!raw) return null;
