@@ -4,10 +4,10 @@
 // `crm_funnel_view` łączy tabelę `newsletter_subscribers` z `profiles` oraz
 // `crm_leads`, dodając flagi `is_registered` / `is_contact`. Dostęp do widoku
 // pilnuje `security_invoker=true` + RLS na tabeli subskrybentów (staff-only
-// w ramach tenanta). Dodatkowo używamy `requireStaff`, żeby wymusić zalogowaną
+// w ramach tenanta). Dodatkowo używamy `requireCrmStaff`, żeby wymusić zalogowaną
 // rolę pracownika po stronie serwera.
 import { createServerFn } from "@tanstack/react-start";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { z } from "zod";
 
 type AnyQuery = {
@@ -69,7 +69,7 @@ const ListInput = z.object({
 });
 
 export const listFunnelSubscribers = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     let q = tbl(context, "crm_funnel_view")
@@ -112,7 +112,7 @@ export const listFunnelSubscribers = createServerFn({ method: "POST" })
   });
 
 export const getFunnelSubscriber = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: row, error } = await tbl(context, "crm_funnel_view")
@@ -125,7 +125,7 @@ export const getFunnelSubscriber = createServerFn({ method: "POST" })
   });
 
 export const funnelStats = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .handler(async ({ context }) => {
     const { data: rows, error } = await tbl(context, "crm_funnel_view").select(
       "status,is_registered,is_contact",
@@ -154,7 +154,7 @@ const BulkInput = z.object({
 });
 
 export const bulkUnsubscribeFunnel = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => BulkInput.parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await tbl(context, "newsletter_subscribers")
@@ -173,7 +173,7 @@ const ConvertInput = z.object({
  * unique (tenant_id, email_norm) — nie duplikuje istniejących kontaktów.
  */
 export const convertFunnelToContacts = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => ConvertInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: subs, error } = await tbl(context, "newsletter_subscribers")
@@ -217,7 +217,7 @@ const TagInput = z.object({
 });
 
 export const updateFunnelStatus = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => TagInput.parse(d))
   .handler(async ({ data, context }) => {
     const patch: Record<string, unknown> = { status: data.status };

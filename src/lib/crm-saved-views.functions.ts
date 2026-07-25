@@ -4,7 +4,7 @@
 // użytkownik widzi/modyfikuje wyłącznie własne widoki w swoim tenancie.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 
 const ENTITY = z.enum(["company", "lead", "contact"]);
 
@@ -52,7 +52,7 @@ interface SupaClient {
 }
 
 export const listSavedViews = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const supa = context.supabase as unknown as SupaClient;
@@ -74,7 +74,7 @@ const UpsertInput = z.object({
 });
 
 export const upsertSavedView = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => UpsertInput.parse(d))
   .handler(async ({ data, context }) => {
     const supa = context.supabase as unknown as SupaClient;
@@ -103,7 +103,7 @@ export const upsertSavedView = createServerFn({ method: "POST" })
 const DeleteInput = z.object({ id: z.string().uuid() });
 
 export const deleteSavedView = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => DeleteInput.parse(d))
   .handler(async ({ data, context }) => {
     const supa = context.supabase as unknown as SupaClient;

@@ -2,7 +2,7 @@
 // rejecting Supabase `unknown` (inet/jsonb) columns, deep results are returned
 // as a JSON string in `json` and parsed on the client (see lib/crm.client.ts).
 import { createServerFn } from "@tanstack/react-start";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
 import { z } from "zod";
@@ -70,7 +70,7 @@ const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
 export const listCrmLeads = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
@@ -108,7 +108,7 @@ export const listCrmLeads = createServerFn({ method: "POST" })
 const IdInput = z.object({ id: z.string().uuid() });
 
 export const getCrmLead = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead, error } = await tbl(context, "crm_leads")
@@ -206,7 +206,7 @@ const UpdateInput = z.object({
 });
 
 export const updateCrmLead = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
@@ -241,9 +241,9 @@ export const updateCrmLead = createServerFn({ method: "POST" })
 
 // Metering: ile bezpłatnych artykułów zużył użytkownik powiązany z leadem
 // w bieżącym miesiącu kalendarzowym. Dopasowanie po e-mailu (email/contact_email)
-// w obrębie tenanta. Widoczne wyłącznie dla staff (requireStaff).
+// w obrębie tenanta. Widoczne wyłącznie dla staff (requireCrmStaff).
 export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead } = (await tbl(context, "crm_leads")
@@ -310,7 +310,7 @@ export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
 // Sprzedaż widzi przy leadzie realny status członkowski - jedno źródło prawdy
 // z /pricing i profilem, bez osobnej kolumny do desynchronizacji.
 export const getCrmLeadMembership = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead } = (await tbl(context, "crm_leads")
@@ -416,10 +416,10 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
 // Profile sync: dopasowuje lead → profil po e-mailu (email/contact_email),
 // zwraca podstawowe dane profilu + doświadczenie, umiejętności, wynik Big5,
 // aktualne CV, nagrody i wykształcenie. RLS personality/experiences/skills
-// jest owner-only, więc staff (po requireStaff) używa admina.
+// jest owner-only, więc staff (po requireCrmStaff) używa admina.
 const ProfileSyncInput = z.object({ lead_id: z.string().uuid() });
 export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => ProfileSyncInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead } = (await tbl(context, "crm_leads")
@@ -521,7 +521,7 @@ const NoteInput = z.object({
 });
 
 export const addCrmNote = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => NoteInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
@@ -549,7 +549,7 @@ export const addCrmNote = createServerFn({ method: "POST" })
   });
 
 export const deleteCrmNote = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const res = await (tbl(context, "crm_lead_notes")
@@ -560,7 +560,7 @@ export const deleteCrmNote = createServerFn({ method: "POST" })
   });
 
 export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
@@ -628,7 +628,7 @@ const IntegrationsInput = z.object({
 });
 
 export const getCrmIntegrations = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .handler(async ({ context }) => {
     const { data, error } = await tbl(context, "crm_integrations").select("*").maybeSingle();
     if (error) throw new Error(error.message);
@@ -646,7 +646,7 @@ export const getCrmIntegrations = createServerFn({ method: "GET" })
   });
 
 export const upsertCrmIntegrations = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IntegrationsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
@@ -697,7 +697,7 @@ export const upsertCrmIntegrations = createServerFn({ method: "POST" })
 const PushInput = z.object({ lead_id: z.string().uuid() });
 
 export const pushLeadToMerydian = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => PushInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
@@ -914,7 +914,7 @@ async function buildLeadTimeline(
 }
 
 export const getCrmLeadTimeline = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const r = await buildLeadTimeline(context, data.id);
@@ -922,7 +922,7 @@ export const getCrmLeadTimeline = createServerFn({ method: "POST" })
   });
 
 export const exportCrmLeadTimelineCsv = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { lead, events } = await buildLeadTimeline(context, data.id);
@@ -1132,10 +1132,10 @@ const rpcOf = (context: unknown): RpcFn =>
     (context as { supabase: { rpc: RpcFn } }).supabase,
   );
 
-// Scoring to konfiguracja/akcje sztabowe - wymuszamy requireStaff (rola +
+// Scoring to konfiguracja/akcje sztabowe - wymuszamy requireCrmStaff (rola +
 // step-up MFA) obok backstopu w RPC/RLS (dwie niezależne warstwy, doktryna repo).
 export const getCrmScoringSettings = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .handler(async ({ context }) => {
     // RLS: staff czyta wiersz swojego tenanta; brak wiersza = domyślne.
     const { data: row, error } = await tbl(context, "crm_scoring_settings")
@@ -1146,7 +1146,7 @@ export const getCrmScoringSettings = createServerFn({ method: "GET" })
   });
 
 export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => ScoringSettingsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
@@ -1190,7 +1190,7 @@ export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
   });
 
 export const recomputeLeadScore = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const rpc = rpcOf(context);
@@ -1208,7 +1208,7 @@ const RecomputeAllInput = z.object({
 });
 
 export const recomputeAllLeadScores = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => RecomputeAllInput.parse(d))
   .handler(
     async ({
@@ -1246,7 +1246,7 @@ const BulkUpdateInput = z.object({
 // operujemy na tagach per rekord (add_tags/remove_tags). Wartości poza
 // tagami idą jednym UPDATE ... IN (...) dla wydajności.
 export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => BulkUpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { ids, add_tags: addTags, remove_tags: removeTags, owner_id: ownerId, ...rest } = data;
@@ -1316,7 +1316,7 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
 const BulkDeleteInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(200) });
 
 export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .validator((d) => BulkDeleteInput.parse(d))
   .handler(async ({ data, context }) => {
     // Delete zarezerwowane dla adminów - staff bez roli admin/super_admin
@@ -1355,7 +1355,7 @@ export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
 // admin/super_admin/editor/moderator w bieżącym tenancie. Używamy admina
 // (RLS user_roles jest owner-only). Zwracamy minimalny zestaw pól.
 export const listStaffUsers = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
+  .middleware([requireCrmStaff])
   .handler(async ({ context }) => {
     const claims = (context as { claims: { tenant_id?: string } }).claims;
     const tenantId = claims?.tenant_id ?? null;
