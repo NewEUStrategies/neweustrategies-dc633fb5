@@ -264,7 +264,30 @@ export function useStartConversation() {
       }
       return data;
     },
-    onSuccess: () => {
+    // Reopen-optimistic: serwer zeruje archived_at przy zwracaniu istniejącej
+    // konwersacji (patrz get_or_create_direct_conversation). Klient robi to
+    // samo w cache, żeby wątek natychmiast przeskoczył z Archived do Active
+    // i pierwsza nowa wiadomość (optimistic insert w useMessages) trafiła do
+    // widocznej listy - bez czekania na round-trip invalidacji.
+    onSuccess: (conversationId) => {
+      if (user?.id && conversationId) {
+        const key = chatKeys.conversations(user.id);
+        qc.setQueryData<ConversationView[]>(key, (old) =>
+          old?.map((view) =>
+            view.conversation.id === conversationId && view.me.archived_at
+              ? {
+                  ...view,
+                  me: { ...view.me, archived_at: null },
+                  conversation: {
+                    ...view.conversation,
+                    last_message_at:
+                      view.conversation.last_message_at ?? new Date().toISOString(),
+                  },
+                }
+              : view,
+          ),
+        );
+      }
       void qc.invalidateQueries({ queryKey: chatKeys.conversations(user?.id) });
     },
   });
