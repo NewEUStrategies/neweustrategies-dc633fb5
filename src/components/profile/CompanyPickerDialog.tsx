@@ -206,25 +206,19 @@ export function CompanyPickerDialog({
     }
     setSaving(true);
     try {
-      const payload = {
-        tenant_id: tenantId,
-        created_by: user.id,
-        name,
-        country: form.country.trim() || null,
-        branch: form.branch.trim() || null,
-        city: form.city.trim() || null,
-        address: form.address.trim() || null,
-        postal_code: form.postal_code.trim() || null,
-        website: form.website.trim() || null,
-        phone: form.phone.trim() || null,
-      };
-      const { data, error } = await supabase
-        .from("crm_companies")
-        .insert(payload)
-        .select("id")
-        .single();
+      const { data: companyId, error } = await supabase.rpc("create_company_self_service", {
+        _name: name,
+        _country: form.country.trim() || null,
+        _branch: form.branch.trim() || null,
+        _city: form.city.trim() || null,
+        _address: form.address.trim() || null,
+        _postal_code: form.postal_code.trim() || null,
+        _website: form.website.trim() || null,
+        _phone: form.phone.trim() || null,
+      });
       if (error) throw error;
-      await supabase.rpc("link_current_company", { _company_id: data.id });
+      if (!companyId) throw new Error("empty_response");
+      await supabase.rpc("link_current_company", { _company_id: companyId });
       void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
       invalidateProfile();
       toast.success(t("company.toast.created", { defaultValue: "Firma dodana" }));
