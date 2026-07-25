@@ -241,7 +241,14 @@ export function ChartDataSpreadsheetDialog({
   const resetToInitial = () => setGrid(csvToGrid(initialRef.current));
 
   const save = () => {
-    onChange(gridToCsv(grid));
+    // Flush pending debounce od razu, żeby zamknięcie nigdy nie odrzuciło
+    // ostatniej edycji (edge case: user klika Zapisz w oknie debounce).
+    const nextCsv = gridToCsv(grid);
+    if (nextCsv !== lastSyncedRef.current) {
+      lastSyncedRef.current = nextCsv;
+      onChange(nextCsv);
+    }
+    setSyncing(false);
     setOpen(false);
   };
 
