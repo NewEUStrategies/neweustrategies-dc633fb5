@@ -42,6 +42,8 @@ export interface CitationSource {
 
 export interface FormattedCitations {
   chicago: string;
+  /** Wersja Chicago bez znaczników HTML - przeznaczona do schowka. */
+  chicagoPlain: string;
   apa: string;
   bibtex: string;
 }
@@ -161,11 +163,20 @@ function endSentence(text: string): string {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 /**
- * Chicago 17, wpis bibliograficzny dla treści online:
- *   Kowalska, Anna, i Jan Nowak. "Tytuł". New European Strategies,
- *   20 lipca 2026. https://...
- * EN używa "and"/cudzysłowów typograficznych angielskich, PL "i"/polskich.
+ * Chicago 17, wpis bibliograficzny dla treści online (wariant NES):
+ *   Anna Kowalska, <i>Tytuł</i>, New European Strategies,
+ *   20 lipca 2026, https://...
+ * Autorzy w szyku naturalnym, tytuł w kursywie, separatory to przecinki.
  */
 export function formatChicago(source: CitationSource): string {
   const authors = resolveAuthors(source);
@@ -174,39 +185,77 @@ export function formatChicago(source: CitationSource): string {
 
   let authorSegment = "";
   if (authors.length === 1) {
-    authorSegment = invertedName(authors[0]);
+    authorSegment = naturalName(authors[0]);
   } else if (authors.length > 1) {
-    // Chicago: tylko pierwszy autor w inwersji, kolejni w szyku naturalnym.
-    const rest = authors.slice(1).map(naturalName);
-    const lastName = rest.pop();
-    const head = [invertedName(authors[0]), ...rest].join(", ");
-    authorSegment = lang === "pl" ? `${head} ${and} ${lastName}` : `${head}, ${and} ${lastName}`;
+    const names = authors.map(naturalName);
+    const lastName = names.pop();
+    authorSegment = `${names.join(", ")} ${and} ${lastName}`;
   }
 
-  // Kropka po tytule: konwencja amerykańska (EN) trzyma ją WEWNĄTRZ
-  // cudzysłowu, polska na zewnątrz - stąd dwa warianty, nie jeden szablon.
-  const quotedTitle = lang === "pl" ? `„${source.title}”.` : `“${source.title}.”`;
+  const italicTitle = `<i>${escapeHtml(source.title)}</i>,`;
   const published = source.publishedAt ? dateParts(source.publishedAt) : null;
   const dateSegment = published ? longDate(published, lang) : null;
   const accessed = source.accessedOn ? dateParts(source.accessedOn) : null;
 
   const pieces: string[] = [];
-  if (authorSegment) pieces.push(endSentence(authorSegment));
-  pieces.push(quotedTitle);
+  if (authorSegment) pieces.push(`${authorSegment},`);
+  pieces.push(italicTitle);
   if (dateSegment) {
-    pieces.push(`${source.siteName}, ${dateSegment}.`);
+    pieces.push(`${source.siteName}, ${dateSegment},`);
   } else {
-    pieces.push(`${source.siteName}.`);
+    pieces.push(`${source.siteName},`);
     // Chicago: data dostępu obowiązkowa tylko przy braku daty publikacji.
     if (accessed) {
       pieces.push(
         lang === "pl"
-          ? `Udostępniono ${longDate(accessed, lang)}.`
-          : `Accessed ${longDate(accessed, lang)}.`,
+          ? `Udostępniono ${longDate(accessed, lang)},`
+          : `Accessed ${longDate(accessed, lang)},`,
       );
     }
   }
-  pieces.push(`${source.url}.`);
+  pieces.push(`${source.url},`);
+  return pieces.join(" ");
+}
+
+/**
+ * Wersja plain-text formatu Chicago (do schowka) - identyczna składnia,
+ * ale bez znaczników HTML wokół tytułu.
+ */
+export function formatChicagoPlain(source: CitationSource): string {
+  const authors = resolveAuthors(source);
+  const lang = source.lang;
+  const and = lang === "pl" ? "i" : "and";
+
+  let authorSegment = "";
+  if (authors.length === 1) {
+    authorSegment = naturalName(authors[0]);
+  } else if (authors.length > 1) {
+    const names = authors.map(naturalName);
+    const lastName = names.pop();
+    authorSegment = `${names.join(", ")} ${and} ${lastName}`;
+  }
+
+  const titleSegment = `${source.title},`;
+  const published = source.publishedAt ? dateParts(source.publishedAt) : null;
+  const dateSegment = published ? longDate(published, lang) : null;
+  const accessed = source.accessedOn ? dateParts(source.accessedOn) : null;
+
+  const pieces: string[] = [];
+  if (authorSegment) pieces.push(`${authorSegment},`);
+  pieces.push(titleSegment);
+  if (dateSegment) {
+    pieces.push(`${source.siteName}, ${dateSegment},`);
+  } else {
+    pieces.push(`${source.siteName},`);
+    if (accessed) {
+      pieces.push(
+        lang === "pl"
+          ? `Udostępniono ${longDate(accessed, lang)},`
+          : `Accessed ${longDate(accessed, lang)},`,
+      );
+    }
+  }
+  pieces.push(`${source.url},`);
   return pieces.join(" ");
 }
 
@@ -323,6 +372,7 @@ export function formatBibtex(source: CitationSource): string {
 export function buildCitations(source: CitationSource): FormattedCitations {
   return {
     chicago: formatChicago(source),
+    chicagoPlain: formatChicagoPlain(source),
     apa: formatApa(source),
     bibtex: formatBibtex(source),
   };

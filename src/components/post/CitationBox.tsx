@@ -95,7 +95,8 @@ export function CitationBox({
 
   const onCopy = async (key: CitationFormatKey): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(citations[key]);
+      const text = key === "chicago" ? citations.chicagoPlain : citations[key];
+      await navigator.clipboard.writeText(text);
       setCopiedKey(key);
       if (copyResetTimer.current !== null) window.clearTimeout(copyResetTimer.current);
       copyResetTimer.current = window.setTimeout(() => setCopiedKey(null), 2000);
@@ -128,6 +129,11 @@ export function CitationBox({
                 <pre className="text-xs font-mono leading-relaxed overflow-x-auto whitespace-pre">
                   {citations[key]}
                 </pre>
+              ) : key === "chicago" ? (
+                <p
+                  className="text-sm leading-relaxed break-words"
+                  dangerouslySetInnerHTML={{ __html: citations.chicago }}
+                />
               ) : (
                 <p className="text-sm leading-relaxed break-words">{citations[key]}</p>
               )}

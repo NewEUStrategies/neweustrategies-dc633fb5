@@ -17,15 +17,15 @@ const base: CitationSource = {
 };
 
 describe("formatChicago", () => {
-  it("formatuje pojedynczego autora po polsku (inwersja, polskie cudzysłowy)", () => {
+  it("formatuje pojedynczego autora po polsku (szyk naturalny, kursywa, przecinki)", () => {
     expect(formatChicago(base)).toBe(
-      "Kowalska, Anna. „Bezpieczeństwo energetyczne Europy Środkowej”. " +
-        "New European Strategies, 20 lipca 2026. " +
-        "https://neweuropeanstrategies.com/analizy/bezpieczenstwo-energetyczne.",
+      "Anna Kowalska, <i>Bezpieczeństwo energetyczne Europy Środkowej</i>, " +
+        "New European Strategies, 20 lipca 2026, " +
+        "https://neweuropeanstrategies.com/analizy/bezpieczenstwo-energetyczne,",
     );
   });
 
-  it("formatuje wielu autorów po angielsku (pierwszy w inwersji, Oxford comma)", () => {
+  it("formatuje wielu autorów po angielsku (szyk naturalny, przecinki)", () => {
     const source: CitationSource = {
       ...base,
       lang: "en",
@@ -37,15 +37,15 @@ describe("formatChicago", () => {
       ],
     };
     expect(formatChicago(source)).toBe(
-      "Kowalska, Anna, Jan Nowak, and Eva Marsh. “Energy Security in Central Europe.” " +
-        "New European Strategies, July 20, 2026. " +
-        "https://neweuropeanstrategies.com/analizy/bezpieczenstwo-energetyczne.",
+      "Anna Kowalska, Jan Nowak and Eva Marsh, <i>Energy Security in Central Europe</i>, " +
+        "New European Strategies, July 20, 2026, " +
+        "https://neweuropeanstrategies.com/analizy/bezpieczenstwo-energetyczne,",
     );
   });
 
   it("bez daty publikacji podaje datę dostępu", () => {
     const source: CitationSource = { ...base, publishedAt: null, accessedOn: "2026-07-21" };
-    expect(formatChicago(source)).toContain("Udostępniono 21 lipca 2026.");
+    expect(formatChicago(source)).toContain("Udostępniono 21 lipca 2026,");
   });
 
   it("radzi sobie z autorem tylko z displayName", () => {
@@ -53,12 +53,21 @@ describe("formatChicago", () => {
       ...base,
       authors: [{ firstName: null, lastName: null, displayName: "Zespół NES" }],
     };
-    expect(formatChicago(source)).toMatch(/^NES, Zespół\./);
+    expect(formatChicago(source)).toMatch(/^Zespół NES,/);
   });
 
   it("pomija segment autora, gdy brak autorów", () => {
     const source: CitationSource = { ...base, authors: [] };
-    expect(formatChicago(source)).toMatch(/^„Bezpieczeństwo/);
+    expect(formatChicago(source)).toMatch(/^<i>Bezpieczeństwo/);
+  });
+});
+
+describe("formatChicagoPlain", () => {
+  it("zwraca Chicago bez znaczników HTML", () => {
+    const plain = buildCitations(base).chicagoPlain;
+    expect(plain).not.toContain("<i>");
+    expect(plain).toContain("Bezpieczeństwo energetyczne Europy Środkowej,");
+    expect(plain).toContain("Anna Kowalska,");
   });
 });
 
