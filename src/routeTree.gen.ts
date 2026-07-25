@@ -174,6 +174,7 @@ import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/pop
 import { Route as ApiPublicNlOpenRouteImport } from './routes/api/public/nl-open'
 import { Route as ApiPublicNlClickRouteImport } from './routes/api/public/nl-click'
 import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs-tick'
+import { Route as ApiPublicFxRateRouteImport } from './routes/api/public/fx-rate'
 import { Route as ApiPublicCommunityCronRouteImport } from './routes/api/public/community-cron'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as ApiPublicAdEventRouteImport } from './routes/api/public/ad-event'
@@ -1059,6 +1060,11 @@ const ApiPublicJobsTickRoute = ApiPublicJobsTickRouteImport.update({
   path: '/api/public/jobs-tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicFxRateRoute = ApiPublicFxRateRouteImport.update({
+  id: '/api/public/fx-rate',
+  path: '/api/public/fx-rate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCommunityCronRoute = ApiPublicCommunityCronRouteImport.update({
   id: '/api/public/community-cron',
   path: '/api/public/community-cron',
@@ -1555,6 +1561,7 @@ export interface FileRoutesByFullPath {
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
@@ -1769,6 +1776,7 @@ export interface FileRoutesByTo {
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
@@ -1994,6 +2002,7 @@ export interface FileRoutesById {
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
@@ -2220,6 +2229,7 @@ export interface FileRouteTypes {
     | '/api/public/ad-event'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
@@ -2434,6 +2444,7 @@ export interface FileRouteTypes {
     | '/api/public/ad-event'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
@@ -2658,6 +2669,7 @@ export interface FileRouteTypes {
     | '/api/public/ad-event'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
     | '/api/public/nl-click'
     | '/api/public/nl-open'
@@ -2754,6 +2766,7 @@ export interface RootRouteChildren {
   ApiPublicAdEventRoute: typeof ApiPublicAdEventRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
   ApiPublicCommunityCronRoute: typeof ApiPublicCommunityCronRoute
+  ApiPublicFxRateRoute: typeof ApiPublicFxRateRoute
   ApiPublicJobsTickRoute: typeof ApiPublicJobsTickRoute
   ApiPublicNlClickRoute: typeof ApiPublicNlClickRoute
   ApiPublicNlOpenRoute: typeof ApiPublicNlOpenRoute
@@ -3926,6 +3939,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/fx-rate': {
+      id: '/api/public/fx-rate'
+      path: '/api/public/fx-rate'
+      fullPath: '/api/public/fx-rate'
+      preLoaderRoute: typeof ApiPublicFxRateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/community-cron': {
       id: '/api/public/community-cron'
       path: '/api/public/community-cron'
@@ -4917,6 +4937,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAdEventRoute: ApiPublicAdEventRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
   ApiPublicCommunityCronRoute: ApiPublicCommunityCronRoute,
+  ApiPublicFxRateRoute: ApiPublicFxRateRoute,
   ApiPublicJobsTickRoute: ApiPublicJobsTickRoute,
   ApiPublicNlClickRoute: ApiPublicNlClickRoute,
   ApiPublicNlOpenRoute: ApiPublicNlOpenRoute,
