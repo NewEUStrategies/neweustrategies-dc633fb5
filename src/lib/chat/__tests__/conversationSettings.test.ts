@@ -89,5 +89,43 @@ describe("splitArchived", () => {
     const { active, archived } = splitArchived([a, b, c]);
     expect(active.map((v) => v.conversation.id)).toEqual(["conv-a", "conv-c"]);
     expect(archived.map((v) => v.conversation.id)).toEqual(["conv-b"]);
+});
+
+describe("applyReopenToViews", () => {
+  it("clears the caller's archived_at on the reopened conversation only", () => {
+    const a = view({ archived_at: "2026-01-01T09:00:00.000Z" }, "conv-a");
+    const b = view({ archived_at: "2026-01-01T09:00:00.000Z" }, "conv-b");
+    const next = applyReopenToViews([a, b], "conv-a", "2026-01-01T10:00:00.000Z");
+    expect(next?.[0]?.me.archived_at).toBeNull();
+    expect(next?.[1]?.me.archived_at).toBe("2026-01-01T09:00:00.000Z");
+  });
+  it("bumps last_message_at when null so the reopened thread sorts to the top", () => {
+    const a = view({ archived_at: "2026-01-01T09:00:00.000Z" }, "conv-a");
+    const next = applyReopenToViews([a], "conv-a", "2026-01-01T10:00:00.000Z");
+    expect(next?.[0]?.conversation.last_message_at).toBe("2026-01-01T10:00:00.000Z");
+  });
+  it("is a no-op for a conversation that was not archived (idempotent)", () => {
+    const a = view({}, "conv-a");
+    const next = applyReopenToViews([a], "conv-a", "2026-01-01T10:00:00.000Z");
+    expect(next?.[0]).toBe(a);
+  });
+  it("passes undefined through (no cache seeded yet)", () => {
+    expect(applyReopenToViews(undefined, "conv-a")).toBeUndefined();
+  });
+});
+
+describe("applyArchiveFlipToViews", () => {
+  it("archives with a timestamp and un-archives with null", () => {
+    const a = view({}, "conv-a");
+    const archived = applyArchiveFlipToViews([a], "conv-a", true, "2026-01-01T10:00:00.000Z");
+    expect(archived?.[0]?.me.archived_at).toBe("2026-01-01T10:00:00.000Z");
+    const restored = applyArchiveFlipToViews(archived, "conv-a", false);
+    expect(restored?.[0]?.me.archived_at).toBeNull();
+  });
+  it("touches only the target conversation", () => {
+    const a = view({}, "conv-a");
+    const b = view({}, "conv-b");
+    const next = applyArchiveFlipToViews([a, b], "conv-a", true, "2026-01-01T10:00:00.000Z");
+    expect(next?.[1]).toBe(b);
   });
 });
