@@ -105,6 +105,22 @@ function processStringField(v: Json | undefined, col: FootnoteCounter): Json | u
   return expandFootnotes(v, col);
 }
 
+/**
+ * Rozwija [fn] w polach tekstowych POJEDYNCZEGO widgetu według mapy
+ * WIDGET_TEXT_FIELDS. Używane m.in. przez overlay globalnych widgetów w
+ * WidgetView - live payload z bazy zawiera surowe shortcody, które muszą
+ * zostać przetworzone tak samo jak snapshot w dokumencie, inaczej reader
+ * widzi dosłowne `[fn]…[/fn]`.
+ */
+export function processWidgetFootnotes(
+  w: WidgetNode,
+  lang: "pl" | "en",
+  col: FootnoteCounter = createCounter(1),
+): { widget: WidgetNode; notes: Footnote[] } {
+  const widget = processWidget(w, lang, col);
+  return { widget, notes: col.notes };
+}
+
 function processWidget(w: WidgetNode, lang: "pl" | "en", col: FootnoteCounter): WidgetNode {
   const spec = WIDGET_TEXT_FIELDS[w.type];
   if (!spec) return w;
