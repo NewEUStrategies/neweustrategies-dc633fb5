@@ -22,8 +22,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { chatKeys } from "./keys";
 import type { ChatMessage, MessageRow, ReactionRow } from "./types";
 import {
-  singlePageData,
   upsertMessageInCache,
+  seedMessageInCache,
   removeMessageFromCache,
   type MessagesCursor,
   type MessagesPage,
@@ -121,13 +121,13 @@ export function useSendMessage() {
     onMutate: async (input) => {
       if (!user || !tenantId) return { tempId: "", conversationId: input.conversationId };
       const key = chatKeys.messages(user.id, input.conversationId);
-      // No cached history yet (first send raced the initial fetch): leave the
-      // in-flight fetch alone - cancelling it and seeding a one-message cache
-      // would blank the whole thread until the next refetch. onSuccess/realtime
-      // will surface the message once the history lands.
-      if (!qc.getQueryData<MessagesData>(key)) {
-        return { tempId: "", conversationId: input.conversationId };
-      }
+      // Cancel any in-flight fetch (initial history load or a background
+      // refetch) BEFORE seeding the optimistic row. A brand-new conversation
+      // has no cached history yet, so its first send races the initial
+      // fetch: without this cancel, that fetch would resolve afterwards with
+      // pre-insert (empty) rows and silently overwrite the optimistic /
+      // server message the moment it lands - the bug that dropped the first
+      // message of a freshly created thread.
       await qc.cancelQueries({ queryKey: key });
       const tempId = `pending-${crypto.randomUUID()}`;
       const optimistic: ChatMessage = {
@@ -152,20 +152,15 @@ export function useSendMessage() {
         created_at: new Date().toISOString(),
         pending: true,
       };
-      qc.setQueryData<MessagesData>(key, (old) => upsertMessageInCache(old, optimistic));
+      qc.setQueryData<MessagesData>(key, (old) => seedMessageInCache(old, optimistic));
       return { tempId, conversationId: input.conversationId };
     },
     onSuccess: (row, _input, ctx) => {
       if (!user || !ctx) return;
       const key = chatKeys.messages(user.id, ctx.conversationId);
-      const existing = qc.getQueryData<MessagesData>(key);
-      if (existing) {
-        qc.setQueryData<MessagesData>(key, (old) =>
-          upsertMessageInCache(old, row, { replaceId: ctx.tempId || undefined }),
-        );
-      } else {
-        qc.setQueryData<MessagesData>(key, singlePageData(row));
-      }
+      qc.setQueryData<MessagesData>(key, (old) =>
+        seedMessageInCache(old, row, { replaceId: ctx.tempId || undefined }),
+      );
       void qc.invalidateQueries({ queryKey: chatKeys.conversations(user.id) });
     },
     onError: (err, _input, ctx) => {

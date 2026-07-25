@@ -116,6 +116,23 @@ export interface RetrySendInput {
   forwarded?: boolean;
 }
 
+/**
+ * Seed or merge an optimistic (or server) message into the cache, handling
+ * the "no cached history yet" case uniformly: a brand-new conversation whose
+ * first send races the initial fetch must not be skipped, or the in-flight
+ * fetch's later resolution would silently overwrite the optimistic row with
+ * a stale (pre-insert) empty page. Callers MUST cancel any in-flight query
+ * for the same key before calling this, so that resolution can never happen.
+ */
+export function seedMessageInCache(
+  data: MessagesData | undefined,
+  message: ChatMessage,
+  options: { replaceId?: string; insertIfMissing?: boolean } = {},
+): MessagesData {
+  if (!data) return singlePageData(message);
+  return upsertMessageInCache(data, message, options) ?? singlePageData(message);
+}
+
 export function retrySendInput(message: ChatMessage): RetrySendInput | null {
   if (!message.failed || message.deleted_at) return null;
   const kind = message.kind as RetrySendInput["kind"];
