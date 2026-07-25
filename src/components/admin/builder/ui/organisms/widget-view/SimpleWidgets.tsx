@@ -6,8 +6,7 @@ import * as LucideIcons from "@/lib/lucide-shim";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import {
   SectionLabelRender,
-  resolveAccentColor,
-  type SectionLabelVariant,
+  readSectionLabelProps,
 } from "@/lib/builder/sectionLabelVariants";
 // Type-only z ciężkich modułów wariantów - runtime dociera lazy przez
 // lazyWidgets (slider ~53 KB i animowane nagłówki nie obciążają stron,
@@ -1163,27 +1162,12 @@ export function renderSimpleWidget(
       );
     }
     case "section-label": {
-      const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Sekcja";
-      const action = getStr(c, `action_${lang}`) || getStr(c, "action_pl");
-      const href = safeUrl(getStr(c, "href"));
-      const variant = (getStr(c, "variant") || "left-bar") as SectionLabelVariant;
-      const customAccent = getStr(c, "accentColor");
-      const color = customAccent || getStr(c, "color") || "brand";
-      const accent = resolveAccentColor(theme === "dark" ? autoInvertColor(color, "dark") : color);
-      return (
-        <SectionLabelRender
-          label={label}
-          action={action || undefined}
-          href={href || undefined}
-          accent={accent}
-          variant={variant}
-          labelColor={getStr(c, "labelColor") || undefined}
-          labelSize={getStr(c, "labelSize") || undefined}
-          actionColor={getStr(c, "actionColor") || undefined}
-          actionSize={getStr(c, "actionSize") || undefined}
-        />
-      );
+      const props = readSectionLabelProps(c, lang, {
+        theme: theme === "dark" ? "dark" : "light",
+      });
+      return <SectionLabelRender {...props} />;
     }
+
 
     case "hot-topic-bar": {
       const badge = getStr(c, `badge_${lang}`) || getStr(c, "badge_pl") || "Hot topic";

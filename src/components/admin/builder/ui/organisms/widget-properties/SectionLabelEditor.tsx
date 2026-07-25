@@ -68,7 +68,7 @@ function PxSizeInput({
 import {
   SECTION_LABEL_VARIANTS,
   SectionLabelRender,
-  resolveAccentColor,
+  readSectionLabelProps,
   type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
 
@@ -92,20 +92,25 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
   const labelKey = `label_${lang}`;
   const actionKey = `action_${lang}`;
+  // Jedno źródło prawdy z runtime - te same mapowania content -> props.
+  // Preview zostaje w jasnym trybie: picker wariantów nie zależy od theme'u
+  // canvasa, żeby akcent był porównywalny między kafelkami.
+  const derived = readSectionLabelProps(c, lang, {
+    labelFallback: t("builder.sectionLabelEditor.previewLabel"),
+  });
   const label = (typeof c[labelKey] === "string" ? c[labelKey] : "") as string;
   const action = (typeof c[actionKey] === "string" ? c[actionKey] : "") as string;
   const href = (typeof c.href === "string" ? c.href : "") as string;
-  const variant = ((typeof c.variant === "string" && c.variant) ||
-    "left-bar") as SectionLabelVariant;
+  const variant = derived.variant;
   const customAccent = (typeof c.accentColor === "string" ? c.accentColor : "") as string;
   const colorPreset = (typeof c.color === "string" ? c.color : "brand") as string;
-  const accent = resolveAccentColor(customAccent || colorPreset);
-  const labelColor = (typeof c.labelColor === "string" ? c.labelColor : "") as string;
-  const labelSize = (typeof c.labelSize === "string" ? c.labelSize : "") as string;
-  const actionColor = (typeof c.actionColor === "string" ? c.actionColor : "") as string;
-  const actionSize = (typeof c.actionSize === "string" ? c.actionSize : "") as string;
+  const accent = derived.accent;
+  const labelColor = derived.labelColor ?? "";
+  const labelSize = derived.labelSize ?? "";
+  const actionColor = derived.actionColor ?? "";
+  const actionSize = derived.actionSize ?? "";
 
-  const previewLabel = label || t("builder.sectionLabelEditor.previewLabel");
+  const previewLabel = derived.label;
 
   return (
     <div className="space-y-3">

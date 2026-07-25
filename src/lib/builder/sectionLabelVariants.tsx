@@ -2,6 +2,8 @@
 // Used by both the live renderer (WidgetView) and the visual picker (WidgetProperties).
 import * as React from "react";
 import { AppLink } from "@/components/atoms/AppLink";
+import { autoInvertColor } from "@/lib/builder/autoInvertColor";
+import type { WidgetNode } from "@/lib/builder/types";
 
 export type SectionLabelVariant =
   | "left-bar"
@@ -66,6 +68,54 @@ export function resolveAccentColor(color?: string): string {
       return "#FA9346";
   }
 }
+// Content -> render props. Jedno źródło prawdy dla runtime (SimpleWidgets)
+// i preview (SectionLabelEditor / tile w wariancie picker). Runtime podaje
+// `theme` żeby akcent auto-inwertował się w dark; preview zostawia jasny.
+// `overrides` pozwala nadpisać etykietę i akcję (preview używa "Sekcja" /
+// tłumaczenia "więcej" gdy content jest pusty).
+export interface SectionLabelContentProps {
+  label: string;
+  action?: string;
+  href?: string;
+  accent: string;
+  variant: SectionLabelVariant;
+  labelColor?: string;
+  labelSize?: string;
+  actionColor?: string;
+  actionSize?: string;
+}
+
+export function readSectionLabelProps(
+  c: WidgetNode["content"],
+  lang: "pl" | "en",
+  opts: { theme?: "light" | "dark"; labelFallback?: string; actionFallback?: string } = {},
+): SectionLabelContentProps {
+  const str = (k: string): string => {
+    const v = c[k];
+    return typeof v === "string" ? v : "";
+  };
+  const label = str(`label_${lang}`) || str("label_pl") || opts.labelFallback || "Sekcja";
+  const actionRaw = str(`action_${lang}`) || str("action_pl") || opts.actionFallback || "";
+  const href = str("href");
+  const variant = (str("variant") || "left-bar") as SectionLabelVariant;
+  const customAccent = str("accentColor");
+  const colorBase = customAccent || str("color") || "brand";
+  const accent = resolveAccentColor(
+    opts.theme === "dark" ? autoInvertColor(colorBase, "dark") : colorBase,
+  );
+  return {
+    label,
+    action: actionRaw || undefined,
+    href: href || undefined,
+    accent,
+    variant,
+    labelColor: str("labelColor") || undefined,
+    labelSize: str("labelSize") || undefined,
+    actionColor: str("actionColor") || undefined,
+    actionSize: str("actionSize") || undefined,
+  };
+}
+
 
 interface RenderProps {
   label: string;
