@@ -6,8 +6,7 @@ import * as LucideIcons from "@/lib/lucide-shim";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import {
   SectionLabelRender,
-  resolveAccentColor,
-  type SectionLabelVariant,
+  readSectionLabelProps,
 } from "@/lib/builder/sectionLabelVariants";
 // Type-only z ciężkich modułów wariantów - runtime dociera lazy przez
 // lazyWidgets (slider ~53 KB i animowane nagłówki nie obciążają stron,
