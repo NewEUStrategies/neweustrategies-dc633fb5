@@ -95,7 +95,8 @@ export function CitationBox({
 
   const onCopy = async (key: CitationFormatKey): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(citations[key]);
+      const text = key === "chicago" ? citations.chicagoPlain : citations[key];
+      await navigator.clipboard.writeText(text);
       setCopiedKey(key);
       if (copyResetTimer.current !== null) window.clearTimeout(copyResetTimer.current);
       copyResetTimer.current = window.setTimeout(() => setCopiedKey(null), 2000);
