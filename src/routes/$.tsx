@@ -593,19 +593,20 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     ? (blocksData[lang] ?? blocksData.pl ?? blocksData.en ?? null)
     : null;
 
-  const { doc, notes: builderNotes } = processDocFootnotes(rawDoc, lang);
-  const { html: footnoteHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
-  // Manual <!--TOC--> marker -> inline auto-generated table of contents;
-  // also assigns stable IDs to h2/h3 so deep links work.
-  const { html: processedHtml } = processManualToc(footnoteHtml, lang);
-  // Single source of truth for the rendering engine (builder | blocks | html).
-  const engine = resolveContentEngine({ editor: it.editor, builderDoc: doc, blocksDoc });
-  // Blocks render their own footnotes section + inline [n] tooltips inside
-  // BlocksRenderer, so the page-level FootnotesList / FootnoteTooltips below must
-  // stay empty for the blocks engine. Otherwise a legacy content_pl/en field that
-  // still contains [fn] markers would emit a SECOND, mismatched footnotes list
-  // with duplicate #fn-/#footnotes-heading ids.
-  const notes = engine === "builder" ? builderNotes : engine === "html" ? htmlNotes : [];
+  // Jedno wejście: builder + html rozwijane pod wspólnym licznikiem, manualny
+  // <!--TOC--> generowany po drodze. Ta sama funkcja zasila /preview i homepage,
+  // więc redaktor widzi to samo w każdym miejscu.
+  const prepared = prepareContentForRender({
+    editor: it.editor,
+    builderDoc: rawDoc,
+    blocksDoc,
+    rawHtml: rawHtml ?? "",
+    lang,
+  });
+  const doc = prepared.builderDoc;
+  const processedHtml = prepared.html;
+  const engine = prepared.engine;
+  const notes = prepared.footnotes;
   const articleRef = useRef<HTMLDivElement>(null);
 
   // Custom meta definitions (publicly readable, cached).
