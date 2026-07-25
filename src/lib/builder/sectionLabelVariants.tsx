@@ -2,6 +2,8 @@
 // Used by both the live renderer (WidgetView) and the visual picker (WidgetProperties).
 import * as React from "react";
 import { AppLink } from "@/components/atoms/AppLink";
+import { autoInvertColor } from "@/lib/builder/autoInvertColor";
+import type { WidgetNode } from "@/lib/builder/types";
 
 export type SectionLabelVariant =
   | "left-bar"
