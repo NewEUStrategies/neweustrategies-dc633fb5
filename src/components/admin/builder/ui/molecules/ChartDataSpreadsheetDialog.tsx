@@ -263,8 +263,29 @@ export function ChartDataSpreadsheetDialog({
       </DialogTrigger>
       <DialogContent className="max-w-6xl w-[95vw] p-0 gap-0 rounded-[6px] overflow-hidden">
         <DialogHeader className="px-5 py-4 border-b">
-          <DialogTitle className="text-base font-semibold">{t.title}</DialogTitle>
-          <p className="text-xs text-muted-foreground">{t.subtitle}</p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle className="text-base font-semibold">{t.title}</DialogTitle>
+              <p className="text-xs text-muted-foreground">{t.subtitle}</p>
+            </div>
+            <div
+              role="status"
+              aria-live="polite"
+              className={
+                "inline-flex items-center gap-1.5 rounded-[6px] border px-2 py-1 text-[11px] font-medium shrink-0 " +
+                (syncing
+                  ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200"
+                  : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-200")
+              }
+            >
+              {syncing ? (
+                <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+              ) : (
+                <Check className="w-3 h-3" aria-hidden="true" />
+              )}
+              <span>{syncing ? t.statusSyncing : t.statusIdle}</span>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-0 max-h-[70vh]">
