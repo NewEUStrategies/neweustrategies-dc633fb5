@@ -113,14 +113,17 @@ export function CompanyPickerDialog({
     enabled: open && !!tenantId,
     staleTime: 30_000,
     queryFn: async (): Promise<CompanyRow[]> => {
-      const q = supabase
-        .from("crm_companies")
-        .select("id, name, country, branch, city, address, postal_code, website, phone, domain")
-        .order("name", { ascending: true })
-        .limit(12);
-      const { data, error } = trimmed.length > 0 ? await q.ilike("name", `%${trimmed}%`) : await q;
+      const { data, error } = await supabase.rpc("search_companies_public", {
+        _query: trimmed,
+        _limit: 12,
+      });
       if (error) throw error;
-      return (data ?? []) as CompanyRow[];
+      const parsed = z.array(companyRowSchema).safeParse(data ?? []);
+      if (!parsed.success) {
+        console.error("search_companies_public parse error", parsed.error);
+        return [];
+      }
+      return parsed.data;
     },
   });
 
