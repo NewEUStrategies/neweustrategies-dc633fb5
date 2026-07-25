@@ -112,10 +112,20 @@ export const WidgetView = memo(function WidgetView({
   // the embedded snapshot is only the SSR / first-paint fallback. The hook is a
   // no-op (disabled query) for regular widgets, so hook order stays stable.
   const globalData = useGlobalWidgetNode(instanceNode.globalId);
-  const node =
+  const overlaid =
     instanceNode.globalId && globalData
       ? mergeGlobalIntoInstance(instanceNode, globalData)
       : instanceNode;
+  // Overlay stomps the pre-processed snapshot with the raw live record, więc
+  // [fn]…[/fn] w globalnym widgecie znika po hydratacji jeśli tu nie
+  // przepuścimy tego przez ten sam silnik przypisów, którego używa
+  // prepareContentForRender. Numeracja jest per-widget (globalne widgety są
+  // reużywalne między stronami, więc nie mogą uczestniczyć w licznikach
+  // dokumentowych) - marker + tooltip w atrybucie title wystarczy do UX.
+  const node = useMemo(
+    () => (instanceNode.globalId && globalData ? processWidgetFootnotes(overlaid, lang).widget : overlaid),
+    [overlaid, instanceNode.globalId, globalData, lang],
+  );
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
   const effectiveMode = builderMode ?? theme;
