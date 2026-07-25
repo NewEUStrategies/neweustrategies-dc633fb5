@@ -32,6 +32,24 @@ export function RequestIntroductionButton({ userId, displayName }: RequestIntrod
   const introsQ = useMyIntroductions("requester");
 
   if (!enabled) return null;
+  // Podczas ladowania statusu pokazujemy stabilny, disabled placeholder zamiast
+  // znikac - w przeciwnym razie CTA "wskakuje" po chwili (layout shift), mirror
+  // wzorca z ExpertRequestButton/DirectMessageButton.
+  if (statusesQ.isPending) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled
+        aria-hidden
+        className="h-8 gap-1.5 opacity-60 pointer-events-none"
+      >
+        <UsersRound className="h-3.5 w-3.5" aria-hidden />
+        {t("network.introductions.requestCta")}
+      </Button>
+    );
+  }
   if (!state) return null;
   if (state.status === "connected") return null;
   if (state.mutualCount === 0) return null;
