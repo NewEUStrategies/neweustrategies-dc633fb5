@@ -57,7 +57,7 @@ function ensureHeadingIds(container: HTMLElement, skipText: string): TocItem[] {
   return out;
 }
 
-function useTocItems(manual: TocItem[]): TocItem[] {
+function useTocItems(manual: TocItem[], skipText: string): TocItem[] {
   const [auto, setAuto] = useState<TocItem[]>([]);
   useEffect(() => {
     if (manual.length > 0) return;
@@ -69,7 +69,7 @@ function useTocItems(manual: TocItem[]): TocItem[] {
         document.querySelector<HTMLElement>("main") ||
         document.body;
       if (!root) return;
-      const items = ensureHeadingIds(root);
+      const items = ensureHeadingIds(root, skipText);
       setAuto(items);
     };
     const raf = requestAnimationFrame(scan);
@@ -80,7 +80,7 @@ function useTocItems(manual: TocItem[]): TocItem[] {
       window.clearTimeout(t);
       window.clearTimeout(t2);
     };
-  }, [manual.length]);
+  }, [manual.length, skipText]);
   return manual.length > 0 ? manual : auto;
 }
 
