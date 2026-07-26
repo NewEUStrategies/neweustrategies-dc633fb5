@@ -522,7 +522,7 @@ export const searchQueryOptions = (
 // ---------- AUTOSUGGEST ----------------------------------------------------
 
 export interface AutosuggestItem {
-  kind: "author" | "post" | "company" | FacetDim;
+  kind: "author" | "post" | "page" | "company" | FacetDim;
   id: string | null;
   slug: string | null;
   label_pl: string;

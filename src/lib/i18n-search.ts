@@ -190,6 +190,7 @@ const pl = {
       kbd_close: "zamknij",
       kind: {
         post: "Publikacja",
+        page: "Strona",
         author: "Autor",
         organization: "Organizacja",
         company: "Firma",
@@ -386,6 +387,7 @@ const en = {
       kbd_close: "close",
       kind: {
         post: "Article",
+        page: "Page",
         author: "Author",
         organization: "Organization",
         company: "Company",
