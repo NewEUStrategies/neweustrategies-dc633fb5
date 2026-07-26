@@ -35,6 +35,7 @@ export const WIDGET_TYPES = [
   "button",
   "divider",
   "spacer",
+  "counter",
   // Media
   "video",
   "gallery",
