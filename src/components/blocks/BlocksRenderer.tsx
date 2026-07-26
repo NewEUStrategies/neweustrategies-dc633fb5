@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import "@/lib/i18n-public";
 import { FootnoteTooltips } from "@/components/Footnotes";
-import type { Footnote } from "@/lib/footnotes";
+import { createCounter, type Footnote } from "@/lib/footnotes";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 import {
@@ -48,10 +48,13 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
   // sekcja przypisów była znana od pierwszego malowania / w SSR. Wcześniej
   // kolektor był mutowany podczas renderu dziecka, więc rodzic widział
   // `fn.notes.length === 0` i sekcja nigdy się nie pojawiała.
-  const fn: FootnoteCollector = { notes: [] };
+  // Kolektor wspólny z silnikiem builder/html (lib/footnotes), więc numeracja
+  // pochodzi z jednego miejsca, a `id` przypisu jest jawne - nie wyprowadzane
+  // z indeksu tablicy w widoku.
+  const fn: FootnoteCollector = createCounter(1);
   const fnHtml = new Map<string, string>();
   precomputeFootnotes(safe.blocks, fn, fnHtml);
-  const tooltipNotes: Footnote[] = fn.notes.map((html, i) => ({ id: i + 1, html }));
+  const tooltipNotes: Footnote[] = fn.notes;
   const L = { title: t("blocksUi.footnotesTitle"), back: t("blocksUi.footnotesBack") };
   return (
     <BlocksTenantProvider host={tenantHost}>
@@ -117,14 +120,14 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
               {L.title}
             </h2>
             <ol data-footnotes-list className="space-y-2 pl-5 list-decimal">
-              {fn.notes.map((n, i) => (
-                <li key={i} id={`fn-${i + 1}`}>
+              {fn.notes.map((n) => (
+                <li key={n.id} id={`fn-${n.id}`}>
                   <span data-fn-marker className="sr-only">
-                    [{i + 1}]
+                    [{n.id}]
                   </span>
-                  <span dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(n) }} />{" "}
+                  <span dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(n.html) }} />{" "}
                   <a
-                    href={`#fnref-${i + 1}`}
+                    href={`#fnref-${n.id}`}
                     data-footnote-backlink
                     className="text-muted-foreground hover:text-primary"
                     aria-label={L.back}

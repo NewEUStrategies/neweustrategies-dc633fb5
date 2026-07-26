@@ -484,10 +484,12 @@ export const renderProsCons: BlockRenderer = ({ block, cls, t }) => {
   );
 };
 
-/** Spoiler / rozwijany blok HTML. */
-export const renderSpoiler: BlockRenderer = ({ block, cls, t }) => {
+/** Spoiler / rozwijany blok HTML (treść może nieść przypisy). */
+export const renderSpoiler: BlockRenderer = ({ block, fnHtml, cls, t }) => {
   const summary = str(block.data, "summary");
-  const inner = sanitize(str(block.data, "html"));
+  // Pre-pass sanityzuje i rozwija `[fn]`; fallback zachowuje sanityzację, gdy
+  // mapa nie ma wpisu (np. blok dodany poza pre-passem w testach).
+  const inner = fnHtml.get(block.id) ?? sanitize(str(block.data, "html"));
   const open = bool(block.data, "defaultOpen", false);
   if (!inner) return null;
   return (

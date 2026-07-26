@@ -1,16 +1,13 @@
 import { describe, it, expect } from "vitest";
 import type { Block } from "@/lib/blocks/types";
-import {
-  escapeHtml,
-  hasFn,
-  precomputeFootnotes,
-  replaceFootnotes,
-  type FootnoteCollector,
-} from "../footnotes";
+import { createCounter, escapeAttr } from "@/lib/footnotes";
+import { hasFn, precomputeFootnotes, replaceFootnotes, type FootnoteCollector } from "../footnotes";
 
 describe("renderer/footnotes engine", () => {
-  it("escapeHtml neutralises markup-significant characters", () => {
-    expect(escapeHtml(`<a href="x">&'</a>`)).toBe(
+  // Escapowanie żyje teraz w JEDNYM miejscu (lib/footnotes::escapeAttr) - warstwa
+  // bloków nie ma własnej kopii, więc nie ma czego rozjechać.
+  it("escapeAttr neutralises markup-significant characters", () => {
+    expect(escapeAttr(`<a href="x">&'</a>`)).toBe(
       "&lt;a href=&quot;x&quot;&gt;&amp;&#39;&lt;/a&gt;",
     );
   });
@@ -23,9 +20,12 @@ describe("renderer/footnotes engine", () => {
   });
 
   it("replaceFootnotes numbers sequentially and collects note text", () => {
-    const fn: FootnoteCollector = { notes: [] };
+    const fn: FootnoteCollector = createCounter(1);
     const out = replaceFootnotes("First[fn]alpha[/fn] second[fn]beta[/fn]", fn);
-    expect(fn.notes).toEqual(["alpha", "beta"]);
+    expect(fn.notes).toEqual([
+      { id: 1, html: "alpha" },
+      { id: 2, html: "beta" },
+    ]);
     expect(out).toContain('href="#fn-1"');
     expect(out).toContain('href="#fn-2"');
     expect(out).toContain('data-fn="1"');
@@ -37,10 +37,10 @@ describe("renderer/footnotes engine", () => {
   });
 
   it("replaceFootnotes drops empty notes and escapes the title attribute", () => {
-    const fn: FootnoteCollector = { notes: [] };
+    const fn: FootnoteCollector = createCounter(1);
     const out = replaceFootnotes("A[fn]  [/fn]B[fn]<b>x</b> & y[/fn]", fn);
     // The empty note is dropped; only the real one is collected.
-    expect(fn.notes).toEqual(["<b>x</b> & y"]);
+    expect(fn.notes).toEqual([{ id: 1, html: "<b>x</b> & y" }]);
     // Title strips inner tags then HTML-escapes.
     expect(out).toContain('title="x &amp; y"');
   });
@@ -62,7 +62,7 @@ describe("renderer/footnotes engine", () => {
         },
       },
     ];
-    const fn: FootnoteCollector = { notes: [] };
+    const fn: FootnoteCollector = createCounter(1);
     const out = new Map<string, string>();
     precomputeFootnotes(blocks, fn, out);
 
@@ -77,7 +77,32 @@ describe("renderer/footnotes engine", () => {
     expect(out.has("t:cell:1:0")).toBe(true);
 
     // Document-order numbering across all fields.
-    expect(fn.notes).toEqual(["p-note", "h-note", "l-note", "q-text", "q-cite", "t-note"]);
+    expect(fn.notes.map((n) => n.html)).toEqual([
+      "p-note",
+      "h-note",
+      "l-note",
+      "q-text",
+      "q-cite",
+      "t-note",
+    ]);
+    // Numeracja jawna, z kolektora - nie z indeksu tablicy w widoku.
+    expect(fn.notes.map((n) => n.id)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("precomputeFootnotes obejmuje blok spoiler (też renderuje HTML)", () => {
+    // `spoiler` wstawia `data.html` przez dangerouslySetInnerHTML dokładnie jak
+    // paragraph/html, więc należy do tej samej rodziny. Wcześniej wypadał z
+    // pre-passu i pokazywał dosłowny shortcode.
+    const blocks: Block[] = [
+      { id: "s", type: "spoiler", data: { summary: "Więcej", html: "Ukryte[fn]s-note[/fn]" } },
+    ];
+    const fn: FootnoteCollector = createCounter(1);
+    const out = new Map<string, string>();
+    precomputeFootnotes(blocks, fn, out);
+
+    expect(out.has("s")).toBe(true);
+    expect(out.get("s")).toContain('data-fn="1"');
+    expect(fn.notes).toEqual([{ id: 1, html: "s-note" }]);
   });
 
   it("precomputeFootnotes recurses into columns (left then right) and containers", () => {
@@ -96,10 +121,10 @@ describe("renderer/footnotes engine", () => {
         data: { children: [{ id: "gc", type: "paragraph", data: { html: "G[fn]grouped[/fn]" } }] },
       },
     ];
-    const fn: FootnoteCollector = { notes: [] };
+    const fn: FootnoteCollector = createCounter(1);
     const out = new Map<string, string>();
     precomputeFootnotes(blocks, fn, out);
-    expect(fn.notes).toEqual(["left", "right", "grouped"]);
+    expect(fn.notes.map((n) => n.html)).toEqual(["left", "right", "grouped"]);
     expect(out.has("cl")).toBe(true);
     expect(out.has("cr")).toBe(true);
     expect(out.has("gc")).toBe(true);

@@ -41,17 +41,35 @@ export function prepareContentForRender(input: PrepareContentInput): PreparedCon
   const { editor, builderDoc, blocksDoc, rawHtml, lang } = input;
   const engine = resolveContentEngine({ editor, builderDoc, blocksDoc });
 
-  // Wspólny licznik: builder + html renderowane na tej samej stronie mają
-  // ciągłą numerację, a marker `[fn]` w jednym silniku nie koliduje z drugim.
-  const col = createCounter(1);
-  const { doc: preparedDoc, notes: builderNotes } = processDocFootnotes(builderDoc, lang, col);
-  const expandedHtml = expandFootnotes(rawHtml ?? "", col);
-  const htmlNotes = col.notes.slice(builderNotes.length);
+  // OSOBNY licznik per silnik - NIE wspólny.
+  //
+  // `ContentRenderer` renderuje dokładnie JEDEN silnik (builder ⊕ blocks ⊕ html),
+  // więc "ciągła numeracja między silnikami" nie ma odbiorcy, a wspólny licznik
+  // aktywnie szkodził na dwa sposoby:
+  //
+  //  1. `processDocFootnotes` zwraca `notes: col.notes` - TĘ SAMĄ tablicę co
+  //     kolektor. Przy wspólnym liczniku pass HTML dopisywał do niej, więc
+  //     `col.notes.slice(builderNotes.length)` liczyło od końca i dawało ZAWSZE
+  //     pustą listę: wpis richtext/markdown pokazywał markery [1], [2] i ani
+  //     jednego przypisu w sekcji końcowej (odsyłacze w nikąd).
+  //  2. Zaległe `content_pl/en` z `[fn]` w rekordzie renderowanym builderem
+  //     dopisywało swoje noty do listy buildera - przypisy-widma bez odsyłacza
+  //     w treści.
+  //
+  // Dwa liczniki zamykają oba przypadki i dodatkowo gwarantują, że renderowany
+  // silnik zawsze numeruje od [1], niezależnie od zaległych danych drugiego.
+  const { doc: preparedDoc, notes: builderNotes } = processDocFootnotes(
+    builderDoc,
+    lang,
+    createCounter(1),
+  );
+  const htmlCol = createCounter(1);
+  const expandedHtml = expandFootnotes(rawHtml ?? "", htmlCol);
+  const htmlNotes = htmlCol.notes;
   const { html: withToc, hasMarker } = processManualToc(expandedHtml, lang);
 
   // Blocks trzyma własną sekcję przypisów (BlocksRenderer) - nie dublujemy.
-  const footnotes =
-    engine === "builder" ? builderNotes : engine === "html" ? htmlNotes : [];
+  const footnotes = engine === "builder" ? builderNotes : engine === "html" ? htmlNotes : [];
 
   return {
     engine,

@@ -1,48 +1,37 @@
-// Silnik przypisów bloków. Wydzielony z BlocksRenderer, bo to samodzielny,
-// czysto tekstowy problem: znajdź `[fn]…[/fn]` w kolejności renderu, ponumeruj,
-// zamień na <sup> z tooltipem i zbierz treści do sekcji końcowej.
+// Pre-pass przypisów dla silnika bloków.
 //
-// Pre-pass zbiera przypisy PRZED renderem, dlatego sekcja przypisów jest znana
-// na pierwszym malowaniu / w SSR (wcześniej kolektor był mutowany w trakcie
-// renderu dziecka, więc rodzic czytał `notes.length === 0` i sekcja się nie
-// pojawiała). Render staje się wtedy czystym odczytem po id bloku, a numeracja
-// odpowiada kolejności renderu.
+// Ten moduł NIE ma własnej implementacji rozwijania `[fn]…[/fn]` - deleguje do
+// `src/lib/footnotes.ts::expandFootnotes`, wspólnego dla wszystkich trzech
+// silników treści (blocks / builder / html). Wcześniej istniała tu druga,
+// równoległa kopia, utrzymywana w zgodzie z pierwszą KOMENTARZEM, nie kodem -
+// czyli dwa miejsca do zmiany przy każdej modyfikacji kontraktu markera i stała
+// możliwość cichego rozjazdu (dokładnie taki rozjazd - `title` i klasy Tailwind
+// tylko po stronie bloków - opisał audyt z 2026-07-25).
+//
+// Rola tego modułu jest teraz węższa i czysto blokowa: przejść drzewo bloków w
+// kolejności renderu i zebrać przekształcone HTML-e do mapy kluczowanej polami.
+// Sam pre-pass jest istotny: sekcja przypisów musi być znana PRZED renderem,
+// żeby istniała na pierwszym malowaniu i w SSR (wcześniej kolektor był mutowany
+// w trakcie renderu dziecka, więc rodzic czytał `notes.length === 0`).
 
 import type { Block } from "@/lib/blocks/types";
+import { expandFootnotes, type FootnoteCounter } from "@/lib/footnotes";
 import { readBlocksArray, sanitize } from "./data";
 
-/** Globalny stan przypisów: zbiera [fn]…[/fn] w kolejności wystąpienia. */
-export interface FootnoteCollector {
-  notes: string[];
-}
-
-/** Escape HTML w treści przypisu (atrybut title + sekcja końcowa). */
-export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+/**
+ * Kolektor przypisów. Alias na wspólny `FootnoteCounter`, żeby oba silniki
+ * niosły JEDEN typ stanu - numeracja pochodzi z `counter`, a nie z długości
+ * tablicy, więc identyfikatory są jawne i nie zależą od indeksu w widoku.
+ */
+export type FootnoteCollector = FootnoteCounter;
 
 /**
- * Zamienia [fn]treść[/fn] na <sup> z tooltipem; treści dopisuje do kolektora.
- * Emituje `data-fn="N"` na <a>, żeby zadziałał wspólny <FootnoteTooltips>.
+ * Zamienia `[fn]treść[/fn]` na marker i dopisuje treści do kolektora.
+ * Cienki alias na wspólny silnik - zachowany, bo nazwa jest zadomowiona w
+ * warstwie bloków i czyta się lepiej w kontekście pre-passu.
  */
 export function replaceFootnotes(html: string, fn: FootnoteCollector): string {
-  // Wyjście MUSI byc zgodne z src/lib/footnotes.ts::expandFootnotes - to samo
-  // stylowanie (.fn-ref przez PostContentStyle), role doc-noteref i brak
-  // hard-codowanych klas Tailwind, żeby builder / blocks / html wyglądały
-  // identycznie.
-  return html.replace(/\[fn\]([\s\S]*?)\[\/fn\]/g, (_m, content: string) => {
-    const text = content.trim();
-    if (!text) return "";
-    fn.notes.push(text);
-    const n = fn.notes.length;
-    const safeTitle = escapeHtml(text.replace(/<[^>]+>/g, ""));
-    return `<sup class="fn-ref"><a href="#fn-${n}" id="fnref-${n}" data-fn="${n}" title="${safeTitle}" aria-describedby="footnotes-heading" role="doc-noteref">[${n}]</a></sup>`;
-  });
+  return expandFootnotes(html, fn);
 }
 
 /** Czy dany string zawiera choć jeden shortcode [fn]…[/fn]. */
@@ -57,15 +46,22 @@ export function renderFootnoteHtml(text: string): string {
 
 /**
  * Przechodzi bloki w kolejności renderu (kolumny: lewa, potem prawa),
- * przekształcając shortcody przypisów w blokach paragraph/html/heading/quote/
- * list/table dokładnie raz i zbierając treści.
+ * przekształcając shortcody przypisów dokładnie raz i zbierając treści.
+ *
+ * ZASIĘG - świadomie ograniczony do pól renderowanych jako HTML.
+ * Marker przypisu to znacznik (`<sup class="fn-ref">…`), więc pole wstawiane
+ * jako węzeł tekstowy React pokazałoby go DOSŁOWNIE. W rendererze bloków
+ * `dangerouslySetInnerHTML` na treści występuje wyłącznie w blokach poniżej -
+ * pozostałe typy renderują tekst i dlatego NIE są tu obsługiwane (to nie jest
+ * przeoczenie; ta sama zasada rządzi mapą `WIDGET_TEXT_FIELDS` po stronie
+ * buildera).
  *
  * Konwencja kluczy pól (płaska, żeby jedna Mapa obsłużyła każdy blok):
- *   paragraph/html:  `${id}`
- *   heading:         `${id}:text`
- *   quote:           `${id}:text`, `${id}:cite`
- *   list:            `${id}:item:${i}`
- *   table:           `${id}:cell:${r}:${c}`
+ *   paragraph/html/spoiler:  `${id}`
+ *   heading:                 `${id}:text`
+ *   quote:                   `${id}:text`, `${id}:cite`
+ *   list:                    `${id}:item:${i}`
+ *   table:                   `${id}:cell:${r}:${c}`
  */
 export function precomputeFootnotes(
   blocks: readonly Block[],
@@ -77,7 +73,9 @@ export function precomputeFootnotes(
     return replaceFootnotes(sanitize(raw), fn);
   };
   for (const b of blocks) {
-    if (b.type === "paragraph" || b.type === "html") {
+    if (b.type === "paragraph" || b.type === "html" || b.type === "spoiler") {
+      // `spoiler` też wstawia `data.html` przez dangerouslySetInnerHTML
+      // (molecules.tsx::renderSpoiler), więc należy do tej samej rodziny.
       out.set(b.id, replaceFootnotes(sanitize(String(b.data.html ?? "")), fn));
     } else if (b.type === "heading") {
       const v = process(b.data.text);
