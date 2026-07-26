@@ -71,7 +71,7 @@ function useShareUrl() {
   };
 }
 
-function QuizShareSidebar() {
+function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const share = useShareUrl();
@@ -80,9 +80,10 @@ function QuizShareSidebar() {
     try {
       await navigator.clipboard.writeText(share.url);
       setCopied(true);
+      toast.success(t("quiz.share.copiedToast"));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback: select input
+      toast.error(t("common.retry"));
     }
   };
 
@@ -137,33 +138,43 @@ function QuizShareSidebar() {
 
   return (
     <aside
-      className="flex shrink-0 flex-col gap-1 rounded-[6px] border border-border bg-card p-1.5 shadow-sm"
+      className={cn(
+        "flex shrink-0 flex-col gap-1 rounded-[6px] border border-border bg-card shadow-sm",
+        compact ? "gap-0.5 p-1" : "gap-1 p-1.5"
+      )}
       aria-label={t("quiz.share.title")}
     >
-      <div className="mb-1 flex items-center gap-1.5 px-1">
-        <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="hidden text-[11px] font-medium text-foreground lg:inline">
-          {t("quiz.share.title")}
-        </span>
-      </div>
+      {!compact && (
+        <div className="mb-1 flex items-center gap-1.5 px-1">
+          <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="hidden text-[11px] font-medium text-foreground lg:inline">
+            {t("quiz.share.title")}
+          </span>
+        </div>
+      )}
 
       {items.map((item) => {
         const Icon = item.icon;
         const content = (
           <>
             <Icon
-              className={`h-4 w-4 transition-colors ${
+              className={cn(
+                "h-4 w-4 shrink-0 transition-colors",
                 item.active ? "text-emerald-500" : "text-foreground"
-              }`}
+              )}
             />
-            <span className="hidden text-[11px] font-medium lg:inline">
-              {item.label}
-            </span>
+            {!compact && (
+              <span className="hidden text-[11px] font-medium lg:inline">
+                {item.label}
+              </span>
+            )}
           </>
         );
 
-        const baseClasses =
-          "flex items-center justify-center gap-2 rounded-[6px] px-2 py-1.5 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:justify-start";
+        const baseClasses = cn(
+          "flex items-center justify-center rounded-[6px] transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          compact ? "h-8 w-8 p-0" : "gap-2 px-2 py-1.5 lg:justify-start"
+        );
 
         return item.href ? (
           <a
