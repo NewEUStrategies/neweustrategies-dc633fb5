@@ -20,6 +20,7 @@ import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { LucideIconPicker } from "./LucideIconPicker";
 import { PageUrlAutocomplete } from "./PageUrlAutocomplete";
+import { RichHtmlField } from "./RichHtmlField";
 import { Image as ImageIcon, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
