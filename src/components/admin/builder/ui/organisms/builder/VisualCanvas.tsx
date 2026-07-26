@@ -304,6 +304,8 @@ export function VisualCanvas({
       if (
         t?.closest("[data-section-inserter]") ||
         t?.closest("[data-builder-chrome]") ||
+        t?.closest("[data-builder-interactive]") ||
+        t?.closest('[role="tab"]') ||
         t?.closest("[data-empty-container-picker]")
       )
         return;
