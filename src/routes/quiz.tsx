@@ -21,8 +21,7 @@ import quizFansBg from "@/assets/quiz-fans-bg.png.asset.json";
 
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
-  // ale zamiast standardowego <main> wklejamy pełnoekranowy, niescrollujący
-  // obszar z iframe'em oraz kompaktowy pasek powrotu.
+  // a pod nim rozbudowany obszar z dużym iframe'em quizu oraz paskiem powrotu.
   staticData: { ownChrome: true },
   head: () => ({
     meta: [
