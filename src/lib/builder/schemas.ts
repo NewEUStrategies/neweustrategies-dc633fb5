@@ -352,6 +352,29 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
   ],
   spacer: [{ key: "height", type: "number", label: "Wysokość (px)", min: 1, max: 800 }],
+  counter: [
+    { key: "value", type: "number", label: "Wartość docelowa", min: 0, max: 1000000 },
+    { key: "from", type: "number", label: "Wartość początkowa", min: 0, max: 1000000 },
+    { key: "durationMs", type: "number", label: "Czas animacji (ms)", min: 200, max: 10000 },
+    { key: "prefix", type: "text", label: "Prefiks" },
+    { key: "suffix", type: "text", label: "Sufiks" },
+    { key: "delimiter", type: "text", label: "Separator tysięcy" },
+    { key: "label_pl", type: "text", label: "Etykieta (PL)" },
+    { key: "label_en", type: "text", label: "Etykieta (EN)" },
+    {
+      key: "align",
+      type: "select",
+      label: "Wyrównanie",
+      options: [
+        { value: "left", label: "Lewa" },
+        { value: "center", label: "Środek" },
+        { value: "right", label: "Prawa" },
+      ],
+    },
+    { key: "accentColor", type: "text", label: "Kolor liczby (hex)" },
+    { key: "numberSize", type: "number", label: "Rozmiar liczby (px)", min: 20, max: 200 },
+    { key: "labelSize", type: "number", label: "Rozmiar etykiety (px)", min: 10, max: 40 },
+  ],
   video: [
     { key: "url", type: "url", label: "URL (YouTube lub MP4)" },
     {

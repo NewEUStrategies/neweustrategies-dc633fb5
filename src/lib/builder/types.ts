@@ -351,6 +351,7 @@ export type WidgetType =
   | "button"
   | "divider"
   | "spacer"
+  | "counter"
   // Media
   | "video"
   | "gallery"
