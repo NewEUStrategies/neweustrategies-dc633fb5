@@ -14,15 +14,30 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import lightMobileAsset from "@/assets/quiz/quiz-bg-light-mobile.jpg.asset.json";
-import lightDesktopAsset from "@/assets/quiz/quiz-bg-light-desktop.jpg.asset.json";
-import darkMobileAsset from "@/assets/quiz/quiz-bg-dark-mobile.jpg.asset.json";
-import darkDesktopAsset from "@/assets/quiz/quiz-bg-dark-desktop.jpg.asset.json";
+import lightMobileJpg from "@/assets/quiz/quiz-bg-light-mobile.jpg.asset.json";
+import lightDesktopJpg from "@/assets/quiz/quiz-bg-light-desktop.jpg.asset.json";
+import darkMobileJpg from "@/assets/quiz/quiz-bg-dark-mobile.jpg.asset.json";
+import darkDesktopJpg from "@/assets/quiz/quiz-bg-dark-desktop.jpg.asset.json";
+import lightMobileWebp from "@/assets/quiz/quiz-bg-light-mobile.webp.asset.json";
+import lightDesktopWebp from "@/assets/quiz/quiz-bg-light-desktop.webp.asset.json";
+import darkMobileWebp from "@/assets/quiz/quiz-bg-dark-mobile.webp.asset.json";
+import darkDesktopWebp from "@/assets/quiz/quiz-bg-dark-desktop.webp.asset.json";
+import lightMobileAvif from "@/assets/quiz/quiz-bg-light-mobile.avif.asset.json";
+import lightDesktopAvif from "@/assets/quiz/quiz-bg-light-desktop.avif.asset.json";
+import darkMobileAvif from "@/assets/quiz/quiz-bg-dark-mobile.avif.asset.json";
+import darkDesktopAvif from "@/assets/quiz/quiz-bg-dark-desktop.avif.asset.json";
 
-const LIGHT_MOBILE = lightMobileAsset.url;
-const LIGHT_DESKTOP = lightDesktopAsset.url;
-const DARK_MOBILE = darkMobileAsset.url;
-const DARK_DESKTOP = darkDesktopAsset.url;
+// Formaty w kolejności negocjacji: AVIF > WebP > JPG (fallback dla <img src>).
+const BG = {
+  light: {
+    mobile: { avif: lightMobileAvif.url, webp: lightMobileWebp.url, jpg: lightMobileJpg.url },
+    desktop: { avif: lightDesktopAvif.url, webp: lightDesktopWebp.url, jpg: lightDesktopJpg.url },
+  },
+  dark: {
+    mobile: { avif: darkMobileAvif.url, webp: darkMobileWebp.url, jpg: darkMobileJpg.url },
+    desktop: { avif: darkDesktopAvif.url, webp: darkDesktopWebp.url, jpg: darkDesktopJpg.url },
+  },
+} as const;
 
 const CROWD_FACTOR = 0.18;
 const OVERLAY_FACTOR = 0.08;
@@ -32,6 +47,34 @@ type Mode = "light" | "dark";
 function readMode(): Mode {
   if (typeof document === "undefined") return "light";
   return document.documentElement.classList.contains("dark") ? "dark" : "light";
+}
+
+type BgVariant = (typeof BG)["light"];
+
+function BgPicture({ variant }: { variant: BgVariant }) {
+  return (
+    <picture
+      className="absolute inset-0 -z-20 block transition-opacity duration-500 ease-out will-change-transform"
+      style={{ transform: "translate3d(0, var(--quiz-parallax-crowd, 0px), 0)" }}
+    >
+      {/* AVIF — najlżejszy, najnowsze przeglądarki. Mobile+desktop breakpointy. */}
+      <source type="image/avif" media="(max-width: 767px)" srcSet={variant.mobile.avif} />
+      <source type="image/avif" media="(min-width: 768px)" srcSet={variant.desktop.avif} />
+      {/* WebP — szeroka kompatybilność, mniejsze niż JPG. */}
+      <source type="image/webp" media="(max-width: 767px)" srcSet={variant.mobile.webp} />
+      <source type="image/webp" media="(min-width: 768px)" srcSet={variant.desktop.webp} />
+      {/* JPG — fallback dla najstarszych klientów. */}
+      <source media="(max-width: 767px)" srcSet={variant.mobile.jpg} />
+      <source media="(min-width: 768px)" srcSet={variant.desktop.jpg} />
+      <img
+        src={variant.desktop.jpg}
+        alt=""
+        decoding="async"
+        fetchPriority="high"
+        className="h-full w-full object-cover object-bottom"
+      />
+    </picture>
+  );
 }
 
 export function QuizBackground() {
@@ -85,42 +128,9 @@ export function QuizBackground() {
       className="pointer-events-none absolute inset-0"
       aria-hidden="true"
     >
-      {/* LIGHT — montowana tylko w trybie jasnym, więc DARK nigdy nie pobiera się dla light users */}
-      {!isDark && (
-        <picture
-          className="absolute inset-0 -z-20 block transition-opacity duration-500 ease-out will-change-transform"
-          style={{ transform: "translate3d(0, var(--quiz-parallax-crowd, 0px), 0)" }}
-        >
-          <source media="(max-width: 767px)" srcSet={LIGHT_MOBILE} />
-          <source media="(min-width: 768px)" srcSet={LIGHT_DESKTOP} />
-          <img
-            src={LIGHT_DESKTOP}
-            alt=""
-            decoding="async"
-            fetchPriority="high"
-            className="h-full w-full object-cover object-bottom"
-          />
-        </picture>
-      )}
-
-      {/* DARK — montowana dopiero, gdy realnie potrzebna. Preload w head() dostarcza
-          hint z wysokim priorytetem, więc render nie czeka na osobne żądanie. */}
-      {isDark && (
-        <picture
-          className="absolute inset-0 -z-20 block transition-opacity duration-500 ease-out will-change-transform"
-          style={{ transform: "translate3d(0, var(--quiz-parallax-crowd, 0px), 0)" }}
-        >
-          <source media="(max-width: 767px)" srcSet={DARK_MOBILE} />
-          <source media="(min-width: 768px)" srcSet={DARK_DESKTOP} />
-          <img
-            src={DARK_DESKTOP}
-            alt=""
-            decoding="async"
-            fetchPriority="high"
-            className="h-full w-full object-cover object-bottom"
-          />
-        </picture>
-      )}
+      {/* Warstwa aktywnego motywu — druga wariacja nigdy nie trafia do DOM,
+          więc opposite-theme nie generuje żadnych żądań sieciowych. */}
+      {isDark ? <BgPicture variant={BG.dark} /> : <BgPicture variant={BG.light} />}
 
       {/* Overlay LIGHT */}
       <div
@@ -136,39 +146,40 @@ export function QuizBackground() {
   );
 }
 
-/** Preload dla LCP tła — tylko wariant LIGHT (domyślny SSR-owy render).
- *  DARK jest lazy: preloaduje się dopiero, gdy inline-script wykryje motyw
- *  (patrz QUIZ_BG_PRELOAD_SCRIPT poniżej). Przeglądarka respektuje media,
- *  więc każdy breakpoint pobiera jeden plik. */
+/** Preload dla LCP tła — wariant LIGHT (SSR default) w formacie AVIF (najlżejszy).
+ *  Przeglądarki bez wsparcia AVIF zignorują preload i pobiorą JPG przez <picture>
+ *  fallback — bez blokowania renderu. DARK preloaduje inline-script tylko dla
+ *  użytkowników z aktywnym trybem ciemnym. */
 export const QUIZ_BG_PRELOAD_LINKS = [
   {
     rel: "preload",
     as: "image",
-    href: LIGHT_MOBILE,
+    href: BG.light.mobile.avif,
+    type: "image/avif",
     media: "(max-width: 767px)",
     fetchpriority: "high",
   },
   {
     rel: "preload",
     as: "image",
-    href: LIGHT_DESKTOP,
+    href: BG.light.desktop.avif,
+    type: "image/avif",
     media: "(min-width: 768px)",
     fetchpriority: "high",
   },
 ] as const;
 
 /** Inline-script wstawiany do <head> trasy /quiz. Uruchamia się przed
- *  hydracją, odczytuje motyw (localStorage 'theme' → mediaQuery fallback)
- *  i tylko dla trybu DARK dokłada <link rel="preload"> właściwego wariantu.
- *  Dzięki temu light-mode users nie pobierają DARK w ogóle, a dark-mode
- *  users dostają high-priority hint zanim ruszy React. */
+ *  hydracją, odczytuje motyw i tylko dla trybu DARK dokłada
+ *  <link rel="preload"> właściwego wariantu AVIF. */
 export const QUIZ_BG_PRELOAD_SCRIPT = `(function(){try{
 var s=localStorage.getItem('theme');
 var isDark=s==='dark'||(s!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
 if(!isDark)return;
 var isMobile=window.matchMedia&&window.matchMedia('(max-width: 767px)').matches;
-var href=isMobile?${JSON.stringify(DARK_MOBILE)}:${JSON.stringify(DARK_DESKTOP)};
+var href=isMobile?${JSON.stringify(BG.dark.mobile.avif)}:${JSON.stringify(BG.dark.desktop.avif)};
 var l=document.createElement('link');
-l.rel='preload';l.as='image';l.href=href;l.setAttribute('fetchpriority','high');
+l.rel='preload';l.as='image';l.href=href;l.type='image/avif';l.setAttribute('fetchpriority','high');
 document.head.appendChild(l);
 }catch(e){}})();`;
+
