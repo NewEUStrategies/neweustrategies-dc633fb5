@@ -302,6 +302,7 @@ function QuizPage() {
                 src="https://nes-quiz.com/embed"
                 className="h-full w-full border-0"
                 style={{ overflow: "hidden" }}
+                scrolling="no"
                 allow="clipboard-write"
                 loading="eager"
                 title="EuroChallenge Quiz"
