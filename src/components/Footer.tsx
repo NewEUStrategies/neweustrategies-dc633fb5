@@ -39,6 +39,14 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
   const chrome = FooterChromeSchema.safeParse({ ...defaultFooterChrome(), ...(cfg.chrome ?? {}) });
   const chromeCfg = chrome.success ? chrome.data : defaultFooterChrome();
 
+  if (compact) {
+    return (
+      <footer className="shrink-0 border-t border-border bg-card">
+        <CopyrightBar chrome={chromeCfg} lang={isPl ? "pl" : "en"} />
+      </footer>
+    );
+  }
+
   if (!doc?.sections?.length) {
     return chromeCfg.back_to_top ? (
       <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} />
