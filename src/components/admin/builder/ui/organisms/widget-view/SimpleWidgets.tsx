@@ -41,6 +41,7 @@ import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
 import { AccountMenuWidget, type AccountMenuConfig } from "./AccountMenuWidget";
 import { TeamMemberWidget } from "./TeamMemberWidget";
 import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
+import { CounterWidget } from "./CounterWidget";
 export { ResizableBox } from "./resizeWrappers";
 
 const compactRowStyle: CSSProperties = {
