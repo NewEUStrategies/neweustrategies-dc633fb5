@@ -254,11 +254,34 @@ function QuizPage() {
           </div>
         </main>
 
-        {/* Sidebar udostępniania — pionowy na desktopie, poziomy na mobile */}
-        <div className="shrink-0 border-l border-border bg-background/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-3 lg:w-auto">
-          <div className="flex h-full flex-row items-center gap-2 lg:flex-col lg:items-stretch">
+        {/* Sidebar udostępniania — zawsze widoczny na desktopie, zwijany na mobile */}
+        <div className="hidden shrink-0 border-l border-border bg-background/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-3 lg:block">
+          <div className="flex h-full flex-col items-stretch">
             <QuizShareSidebar />
           </div>
+        </div>
+
+        {/* Mobile: zwijany panel udostępniania */}
+        <div
+          className={cn(
+            "flex shrink-0 flex-col items-center gap-2 border-l border-border bg-background/95 p-1.5 backdrop-blur transition-all duration-300 ease-out supports-[backdrop-filter]:bg-background/60 lg:hidden",
+            shareOpen ? "w-auto" : "w-11"
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => setShareOpen((v) => !v)}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
+            title={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
+          >
+            {shareOpen ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <Share2 className="h-4 w-4" />
+            )}
+          </button>
+          {shareOpen && <QuizShareSidebar compact />}
         </div>
       </div>
 
