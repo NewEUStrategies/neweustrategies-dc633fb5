@@ -1349,11 +1349,44 @@ function ContentFields({
       </div>
     );
   }
+  // Group fields by their `group` label, preserving declaration order.
+  const groups: Array<{ name: string | null; fields: typeof schema }> = [];
+  for (const f of schema) {
+    const gname = f.group ?? null;
+    const last = groups[groups.length - 1];
+    if (last && last.name === gname) last.fields = [...last.fields, f];
+    else groups.push({ name: gname, fields: [f] });
+  }
   return (
     <>
-      {schema.map((f) => (
-        <SchemaFieldControl key={f.key} field={f} lang={lang} content={c} setContent={setContent} />
-      ))}
+      {groups.map((g, gi) => {
+        const body = (
+          <div className="space-y-2">
+            {g.fields.map((f) => (
+              <SchemaFieldControl
+                key={f.key}
+                field={f}
+                lang={lang}
+                content={c}
+                setContent={setContent}
+              />
+            ))}
+          </div>
+        );
+        if (!g.name) return <div key={`g-${gi}`}>{body}</div>;
+        return (
+          <section
+            key={`g-${gi}`}
+            className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-2"
+          >
+            <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              {g.name}
+            </h4>
+            {body}
+          </section>
+        );
+      })}
+
       {widget.type === "heading" ? (
         <HeadingFallbackPreview
           titleWeight={typeof c.titleWeight === "string" ? c.titleWeight : ""}
