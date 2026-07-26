@@ -1,0 +1,1 @@
+UPDATE public.pages SET builder_data = '{"version":1,"sections":[]}'::jsonb, updated_at = now() WHERE id = '2d7776f2-d1ad-437e-8607-62b39c2b37a2';
