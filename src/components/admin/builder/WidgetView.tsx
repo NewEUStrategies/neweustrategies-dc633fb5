@@ -573,7 +573,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           : variant === "ghost"
             ? "hover:bg-muted"
             : variant === "gradient"
-              ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground hover:opacity-90"
+              ? "bg-gradient-brand text-white hover:opacity-90"
               : variant === "soft"
                 ? "bg-brand/10 text-brand hover:bg-brand/20"
                 : variant === "link"
