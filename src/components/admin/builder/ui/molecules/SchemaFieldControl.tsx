@@ -92,7 +92,19 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
 
 
+    case "icon":
+      return (
+        <PropField label={field.label} hint={field.hint}>
+          <LucideIconPicker
+            value={asString(content[field.key])}
+            onChange={(v) => setContent(field.key, v ?? "")}
+            placeholder={field.placeholder}
+          />
+        </PropField>
+      );
+
     case "image":
+
       return (
         <ImageSlot
           label={field.label}
