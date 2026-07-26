@@ -11,8 +11,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const MAX_RECORDING_MS = 30_000; // twardy sufit, żeby użytkownik nie „zapomniał" mikrofonu
-const SILENCE_STOP_MS = 1500; // auto-stop po ciszy
-const SILENCE_RMS = 0.012;
+const SILENCE_AFTER_SPEECH_MS = 1100; // auto-stop po ciszy, gdy juz coś powiedziano
+const NO_SPEECH_TIMEOUT_MS = 6000; // gdy nic nie wykryto - zamykamy szybciej niż hard cap
+const CALIBRATION_MS = 400; // pierwsze ~400ms - pomiar szumu tła
+const MIN_SPEECH_MS = 250; // ile mowy musi się nazbierać, żeby uznać nagranie za sensowne
+const NOISE_MULT = 2.2; // próg mowy = max(baseFloor, noiseFloor * NOISE_MULT)
+const BASE_FLOOR = 0.008; // minimalny próg RMS, gdy tło jest bardzo ciche
+const SPEECH_HANGOVER_MS = 180; // krótkie „przytrzymanie" po detekcji mowy - stabilizuje VAD
 
 interface SpeechRecognitionAlternativeLike {
   transcript: string;
