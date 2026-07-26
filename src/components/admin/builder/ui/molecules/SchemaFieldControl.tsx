@@ -18,8 +18,10 @@ import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
+import { LucideIconPicker } from "./LucideIconPicker";
 import { Image as ImageIcon, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
+
 
 
 interface Props {
@@ -90,7 +92,19 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
 
 
+    case "icon":
+      return (
+        <PropField label={field.label} hint={field.hint}>
+          <LucideIconPicker
+            value={asString(content[field.key])}
+            onChange={(v) => setContent(field.key, v ?? "")}
+            placeholder={field.placeholder}
+          />
+        </PropField>
+      );
+
     case "image":
+
       return (
         <ImageSlot
           label={field.label}

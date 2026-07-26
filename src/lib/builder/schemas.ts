@@ -9,12 +9,14 @@ type FieldType =
   | "i18nHtml" // textarea HTML, separate PL/EN values
   | "url"
   | "image" // URL input + file upload to storage
+  | "icon" // Lucide icon picker (searchable library)
   | "number"
   | "select"
   | "color" // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
   | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
   | "stringArray"; // textarea with one item per line
+
 
 export interface SchemaField {
   /** Storage key for non-i18n fields, OR base key (without `_pl|_en`) for i18n fields. */
@@ -131,7 +133,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     {
       key: "iconName",
-      type: "text",
+      type: "icon",
       label: "Ikona (opcjonalna)",
       placeholder: "Star, Sparkles, ArrowRight…",
       hint: "Nazwa ikony Lucide. Zostaw puste, aby ukryć.",
@@ -252,7 +254,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "lg", label: "duży" },
       ],
     },
-    { key: "iconName", type: "text", label: "Ikona (Lucide)", placeholder: "ArrowRight…" },
+    { key: "iconName", type: "icon", label: "Ikona (Lucide)", placeholder: "ArrowRight…" },
     {
       key: "iconPosition",
       type: "select",
@@ -291,7 +293,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     {
       key: "iconName",
-      type: "text",
+      type: "icon",
       label: "Ikona (dla wariantu z ikoną)",
       visibleWhen: (c) => c.variant === "icon",
     },
@@ -420,7 +422,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
   ],
   icon: [
-    { key: "name", type: "text", label: "Nazwa ikony", placeholder: "Star, Heart, Mail..." },
+    { key: "name", type: "icon", label: "Nazwa ikony", placeholder: "Star, Heart, Mail..." },
     { key: "size", type: "number", label: "Rozmiar (px)", min: 8, max: 256 },
     {
       key: "variant",
@@ -908,7 +910,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     {
       key: "iconName",
-      type: "text",
+      type: "icon",
       label: "Ikona (Lucide)",
       placeholder: "Mail, Send, BellRing, Inbox…",
       hint: "Nazwa ikony Lucide. Domyślnie: Mail.",
@@ -1064,7 +1066,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     {
       key: "iconName",
-      type: "text",
+      type: "icon",
       label: "Ikona (opcjonalna)",
       placeholder: "ChevronRight, ExternalLink…",
       hint: "Nazwa ikony Lucide. Zostaw puste, aby ukryć.",
@@ -1181,7 +1183,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "href", type: "url", label: "Link (opcjonalny)" },
     {
       key: "iconName",
-      type: "text",
+      type: "icon",
       label: "Ikona (Lucide)",
       placeholder: "Flame, Zap, AlertTriangle…",
       hint: "Nazwa ikony Lucide. Domyślnie: Flame.",
