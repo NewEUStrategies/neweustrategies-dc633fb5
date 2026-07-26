@@ -258,13 +258,11 @@ function QuizPage() {
               <span className="hidden sm:inline">{t("common.back")}</span>
             </Link>
 
-            <div className="relative w-full max-w-5xl overflow-y-auto rounded-[6px] border border-border bg-black shadow-lg">
-              <iframe
+            <div className="relative w-full max-w-5xl overflow-y-auto rounded-[6px] border border-border bg-black shadow-lg h-[clamp(800px,95vh,1000px)] sm:h-[clamp(880px,93vh,1200px)] md:h-[clamp(960px,90vh,1350px)] lg:h-[clamp(1040px,88vh,1550px)] xl:h-[clamp(1120px,86vh,1700px)]">
+              <LazyQuizIframe
                 src="https://nes-quiz.com/embed"
-                className="w-full border-0 h-[clamp(800px,95vh,1000px)] sm:h-[clamp(880px,93vh,1200px)] md:h-[clamp(960px,90vh,1350px)] lg:h-[clamp(1040px,88vh,1550px)] xl:h-[clamp(1120px,86vh,1700px)]"
-                allow="clipboard-write"
-                loading="eager"
                 title="EuroChallenge Quiz"
+                className="h-full w-full border-0"
               />
             </div>
           </main>
