@@ -222,8 +222,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
   ],
   button: [
-    { key: "label", type: "i18nText", label: "Etykieta" },
-    { key: "href", type: "url", label: "Link" },
+    { key: "label", type: "i18nText", label: "Etykieta", group: "Treść" },
+    { key: "href", type: "url", label: "Link (docelowy URL)", group: "Treść" },
     {
       key: "target",
       type: "select",
@@ -232,6 +232,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "self", label: "tym samym oknie" },
         { value: "blank", label: "nowej karcie" },
       ],
+      group: "Treść",
     },
     {
       key: "variant",
@@ -245,6 +246,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "soft", label: "soft" },
         { value: "link", label: "link" },
       ],
+      group: "Wygląd",
     },
     {
       key: "size",
@@ -255,17 +257,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "md", label: "średni" },
         { value: "lg", label: "duży" },
       ],
-    },
-    { key: "iconName", type: "icon", label: "Ikona (Lucide)", placeholder: "ArrowRight…" },
-    {
-      key: "iconPosition",
-      type: "select",
-      label: "Pozycja ikony",
-      options: [
-        { value: "left", label: "po lewej" },
-        { value: "right", label: "po prawej" },
-      ],
-      visibleWhen: (c) => typeof c.iconName === "string" && c.iconName.length > 0,
+      group: "Wygląd",
     },
     {
       key: "fullWidth",
@@ -275,8 +267,28 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "auto", label: "automatyczna" },
         { value: "full", label: "100%" },
       ],
+      group: "Wygląd",
+    },
+    {
+      key: "iconName",
+      type: "icon",
+      label: "Ikona (Lucide)",
+      placeholder: "ArrowRight…",
+      group: "Ikona",
+    },
+    {
+      key: "iconPosition",
+      type: "select",
+      label: "Pozycja ikony",
+      options: [
+        { value: "left", label: "po lewej" },
+        { value: "right", label: "po prawej" },
+      ],
+      visibleWhen: (c) => typeof c.iconName === "string" && c.iconName.length > 0,
+      group: "Ikona",
     },
   ],
+
   divider: [
     {
       key: "variant",
