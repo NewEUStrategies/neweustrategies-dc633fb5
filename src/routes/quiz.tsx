@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Check,
+  ChevronRight,
   Copy,
   Facebook,
   Linkedin,
@@ -10,9 +11,11 @@ import {
   MessageCircle,
   Share2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
