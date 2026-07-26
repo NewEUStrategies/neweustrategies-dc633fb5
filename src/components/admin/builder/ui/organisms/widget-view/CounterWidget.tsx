@@ -21,7 +21,7 @@ function formatNumber(value: number, delimiter: string): string {
   return String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, delimiter);
 }
 
-export function CounterWidget({ content, lang }: CounterWidgetProps): JSX.Element {
+export function CounterWidget({ content, lang }: CounterWidgetProps): ReactElement {
   const target = Math.max(0, getNum(content, "value", 0));
   const from = Math.max(0, getNum(content, "from", 0));
   const duration = Math.max(200, getNum(content, "durationMs", 2000));
