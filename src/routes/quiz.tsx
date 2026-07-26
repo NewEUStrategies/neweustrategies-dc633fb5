@@ -250,7 +250,7 @@ function QuizPage() {
           to="/"
           className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-secondary px-2 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
+          <BrandIcon name="arrow-left" fallback={ArrowLeft} className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{t("common.back")}</span>
         </Link>
       </div>
