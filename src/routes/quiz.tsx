@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -223,11 +223,43 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
 function QuizPage() {
   const { t } = useTranslation();
   const [shareOpen, setShareOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const html = document.documentElement;
+    const body = document.body;
+
+    const prevRootOverflow = root.style.getPropertyValue("overflow");
+    const prevRootOverscroll = root.style.getPropertyValue("overscroll-behavior");
+    const prevRootTouchAction = root.style.getPropertyValue("touch-action");
+    const prevHtmlOverflow = html.style.getPropertyValue("overflow");
+    const prevBodyOverflow = body.style.getPropertyValue("overflow");
+
+    root.style.setProperty("overflow", "hidden", "important");
+    root.style.setProperty("overscroll-behavior", "none", "important");
+    root.style.setProperty("touch-action", "none", "important");
+    html.style.setProperty("overflow", "hidden", "important");
+    body.style.setProperty("overflow", "hidden", "important");
+
+    return () => {
+      root.style.setProperty("overflow", prevRootOverflow);
+      root.style.setProperty("overscroll-behavior", prevRootOverscroll);
+      root.style.setProperty("touch-action", prevRootTouchAction);
+      html.style.setProperty("overflow", prevHtmlOverflow);
+      body.style.setProperty("overflow", prevBodyOverflow);
+    };
+  }, []);
 
   return (
     <div
-      className="relative flex h-screen max-h-screen flex-col overflow-hidden overscroll-none supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh]"
+      ref={rootRef}
+      className="relative flex flex-col overscroll-none"
       style={{
+        position: "fixed",
+        inset: 0,
+        overflow: "hidden",
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
@@ -269,6 +301,8 @@ function QuizPage() {
               <iframe
                 src="https://nes-quiz.com/embed"
                 className="h-full w-full border-0"
+                style={{ overflow: "hidden" }}
+                scrolling="no"
                 allow="clipboard-write"
                 loading="eager"
                 title="EuroChallenge Quiz"
