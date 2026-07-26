@@ -24,6 +24,7 @@ export const Route = createFileRoute("/quiz")({
   staticData: { ownChrome: true },
   head: () => ({
     meta: [
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "EuroChallenge Quiz — New European Strategies" },
       {
         name: "description",
@@ -211,7 +212,11 @@ function QuizPage() {
 
   return (
     <div
-      className="flex min-h-[100dvh] flex-col overflow-y-auto bg-background"
+      className="flex h-screen flex-col overflow-hidden bg-background supports-[height:100dvh]:h-[100dvh]"
+      style={{
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
       aria-label="EuroChallenge Quiz"
     >
       {/* Globalny header New European Strategies */}
@@ -242,11 +247,11 @@ function QuizPage() {
         {/* Obszar quizu: responsywnie dopasowuje się do pozostałej wysokości
             viewportu. Na dużych ekranach centrujemy i ograniczamy szerokość,
             aby quiz nie rozciągał się nieproporcjonalnie. */}
-        <main className="relative flex flex-1 min-w-0 items-center justify-center p-2 sm:p-3 lg:p-4">
-          <div className="relative h-full min-h-[85dvh] w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg md:min-h-[88dvh]">
+        <main className="relative flex flex-1 min-h-0 min-w-0 items-center justify-center p-2 sm:p-3 lg:p-4">
+          <div className="relative h-full w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg">
             <iframe
               src="https://nes-quiz.com/embed"
-              className="absolute inset-0 h-full w-full border-0"
+              className="h-full w-full border-0"
               allow="clipboard-write"
               loading="eager"
               title="EuroChallenge Quiz"
