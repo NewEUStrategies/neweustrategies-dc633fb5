@@ -17,7 +17,7 @@ import { Footer } from "@/components/Footer";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
-import { QuizBackground, QUIZ_BG_PRELOAD_LINKS } from "@/components/quiz/QuizBackground";
+import { QuizBackground, QUIZ_BG_PRELOAD_LINKS, QUIZ_BG_PRELOAD_SCRIPT } from "@/components/quiz/QuizBackground";
 
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
@@ -44,10 +44,10 @@ export const Route = createFileRoute("/quiz")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
-    // Preload wariantów tła (mobile+desktop, light+dark) — przeglądarka
-    // pobierze wyłącznie warianty pasujące do media query, więc żaden
-    // użytkownik nie płaci za oba tryby naraz.
+    // Preload wariantu LIGHT (SSR default). DARK preloaduje inline-script
+    // poniżej, tylko dla użytkowników z aktywnym trybem ciemnym.
     links: [...QUIZ_BG_PRELOAD_LINKS],
+    scripts: [{ children: QUIZ_BG_PRELOAD_SCRIPT }],
   }),
   component: QuizPage,
 });
