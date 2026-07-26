@@ -42,7 +42,11 @@ function FlagSvg({ code }: { code: FlagCode }) {
 export function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n, t } = useTranslation();
   const router = useRouter({ warn: false });
-  const current: AppLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const routerPath = router?.state?.location?.pathname ?? "/";
+  const pathLang = stripLangPrefix(routerPath).lang;
+  const current: AppLang =
+    pathLang ?? ((i18n.language ?? "pl").startsWith("en") ? "en" : "pl");
+
 
   const switchTo = (target: AppLang) => {
     if (target === current) return;
