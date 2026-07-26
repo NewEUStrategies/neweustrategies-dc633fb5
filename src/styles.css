@@ -5269,6 +5269,34 @@ textarea.input {
    Bazuje na semantycznych tokenach --brand / --brand-foreground, więc
    automatycznie wspiera light + dark mode.
    ========================================================================= */
+/* =========================================================================
+   Gradienty marki (nagłówki / CTA / przyciski, variant="gradient").
+   Automatycznie zmieniają stopy w dark mode przez --gradient-* tokeny.
+   ========================================================================= */
+@utility text-gradient-brand {
+  background-image: linear-gradient(
+    90deg,
+    var(--gradient-heading-stop-1),
+    var(--gradient-heading-stop-2)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Bezpieczny fallback dla druku / wysokiego kontrastu / print-color-adjust. */
+  @supports not ((background-clip: text) or (-webkit-background-clip: text)) {
+    color: var(--brand-ink);
+    background-image: none;
+  }
+}
+
+@utility bg-gradient-brand {
+  background-image: var(--gradient-brand);
+}
+
+@utility bg-gradient-brand-soft {
+  background-image: var(--gradient-brand-soft);
+}
+
 @utility btn-bubbly {
   position: relative;
   display: inline-flex;
