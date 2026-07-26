@@ -11,8 +11,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const MAX_RECORDING_MS = 30_000; // twardy sufit, żeby użytkownik nie „zapomniał" mikrofonu
-const SILENCE_STOP_MS = 1500; // auto-stop po ciszy
-const SILENCE_RMS = 0.012;
+const SILENCE_AFTER_SPEECH_MS = 1100; // auto-stop po ciszy, gdy juz coś powiedziano
+const NO_SPEECH_TIMEOUT_MS = 6000; // gdy nic nie wykryto - zamykamy szybciej niż hard cap
+const CALIBRATION_MS = 400; // pierwsze ~400ms - pomiar szumu tła
+const MIN_SPEECH_MS = 250; // ile mowy musi się nazbierać, żeby uznać nagranie za sensowne
+const NOISE_MULT = 2.2; // próg mowy = max(baseFloor, noiseFloor * NOISE_MULT)
+const BASE_FLOOR = 0.008; // minimalny próg RMS, gdy tło jest bardzo ciche
+const SPEECH_HANGOVER_MS = 180; // krótkie „przytrzymanie" po detekcji mowy - stabilizuje VAD
 
 interface SpeechRecognitionAlternativeLike {
   transcript: string;
@@ -250,28 +255,69 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
       }
     };
 
-    // Auto-stop na ciszę - unika sytuacji „zapomnianego" mikrofonu
+    // Adaptacyjny VAD: kalibrujemy szum tła w pierwszych ~400 ms, potem próg mowy
+    // = max(BASE_FLOOR, noiseFloor * NOISE_MULT). Auto-stop dopiero po tym, jak
+    // usłyszymy realną mowę (>=250 ms), z krótką „hangover" po ostatniej sylabie.
+    // Highpass 90 Hz odcina buczenie klimatyzacji/wiatru, a smoothing EMA tłumi
+    // pojedyncze piki (klaśnięcie, uderzenie w klawiaturę).
     try {
       const ctx = new (window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       audioCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
+      const highpass = ctx.createBiquadFilter();
+      highpass.type = "highpass";
+      highpass.frequency.value = 90;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 1024;
-      source.connect(analyser);
+      analyser.smoothingTimeConstant = 0.2;
+      source.connect(highpass);
+      highpass.connect(analyser);
       const buf = new Float32Array(analyser.fftSize);
+      const startedAt = performance.now();
+      let noiseFloor = BASE_FLOOR;
+      let noiseSamples = 0;
+      let ema = 0;
+      let speechMs = 0;
+      let lastVoiceAt = 0;
+      let lastTick = startedAt;
       const tick = () => {
         analyser.getFloatTimeDomainData(buf);
         let sum = 0;
         for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
         const rms = Math.sqrt(sum / buf.length);
-        if (rms < SILENCE_RMS) {
-          if (silenceTimerRef.current == null) {
-            silenceTimerRef.current = window.setTimeout(() => stopRecording(), SILENCE_STOP_MS);
+        ema = ema === 0 ? rms : ema * 0.7 + rms * 0.3;
+        const now = performance.now();
+        const dt = now - lastTick;
+        lastTick = now;
+        const elapsed = now - startedAt;
+
+        if (elapsed < CALIBRATION_MS) {
+          noiseSamples += 1;
+          noiseFloor = noiseFloor + (ema - noiseFloor) / noiseSamples;
+          analyserRafRef.current = requestAnimationFrame(tick);
+          return;
+        }
+
+        const threshold = Math.max(BASE_FLOOR, noiseFloor * NOISE_MULT);
+        const isVoice = ema > threshold;
+        if (isVoice) {
+          speechMs += dt;
+          lastVoiceAt = now;
+          if (silenceTimerRef.current != null) {
+            window.clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
           }
-        } else if (silenceTimerRef.current != null) {
-          window.clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
+        } else if (speechMs >= MIN_SPEECH_MS) {
+          const sinceVoice = now - lastVoiceAt;
+          if (sinceVoice > SPEECH_HANGOVER_MS && silenceTimerRef.current == null) {
+            const wait = Math.max(0, SILENCE_AFTER_SPEECH_MS - (sinceVoice - SPEECH_HANGOVER_MS));
+            silenceTimerRef.current = window.setTimeout(() => stopRecording(), wait);
+          }
+        } else if (elapsed > NO_SPEECH_TIMEOUT_MS) {
+          // Nic sensownego się nie pojawiło - kończymy, żeby nie palić czasu ani kredytów.
+          stopRecording();
+          return;
         }
         analyserRafRef.current = requestAnimationFrame(tick);
       };
