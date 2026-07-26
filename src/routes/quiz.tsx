@@ -162,10 +162,12 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
       )}
 
       {items.map((item) => {
-        const Icon = item.icon;
+        const Fallback = item.fallback;
         const content = (
           <>
-            <Icon
+            <BrandIcon
+              name={item.iconName}
+              fallback={Fallback}
               className={cn(
                 "h-4 w-4 shrink-0 transition-colors",
                 item.active ? "text-emerald-500" : "text-foreground"
