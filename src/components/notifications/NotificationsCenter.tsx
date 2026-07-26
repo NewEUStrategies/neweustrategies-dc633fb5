@@ -309,6 +309,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   // Kanały doręczeń: push wymaga zgody przeglądarki + zapisu subskrypcji,
   // więc przełącznik ma własny stan zajętości zamiast updatePrefs.isPending.
   const { user } = useAuth();
+  const actorProfiles = useNotificationActorProfiles(items, !!user);
   const [pushBusy, setPushBusy] = useState(false);
   const pushAvailable = isPushSupported() && !!vapidPublicKey();
   const handlePushToggle = async (enabled: boolean) => {
