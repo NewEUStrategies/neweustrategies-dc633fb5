@@ -212,7 +212,11 @@ function QuizPage() {
 
   return (
     <div
-      className="flex min-h-[100dvh] flex-col overflow-y-auto bg-background"
+      className="flex h-screen flex-col overflow-hidden bg-background supports-[height:100dvh]:h-[100dvh]"
+      style={{
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
       aria-label="EuroChallenge Quiz"
     >
       {/* Globalny header New European Strategies */}
