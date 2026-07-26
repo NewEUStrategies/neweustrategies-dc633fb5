@@ -18,7 +18,11 @@ type FooterSettings = {
   chrome?: Partial<FooterChrome>;
 };
 
-export const Footer = memo(function Footer() {
+interface FooterProps {
+  compact?: boolean;
+}
+
+export const Footer = memo(function Footer({ compact }: FooterProps) {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
 
