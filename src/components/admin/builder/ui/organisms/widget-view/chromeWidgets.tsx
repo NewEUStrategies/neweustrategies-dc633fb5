@@ -90,7 +90,7 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       <div
         className="lang__thumb absolute top-[2px] left-[2px] w-14 h-6 rounded-[6px] bg-white border border-black/[0.08] transition-transform duration-[340ms] ease-[cubic-bezier(.32,.72,0,1)] will-change-transform dark:bg-[#18181b] dark:border-white/[0.08]"
         style={{
-          transform: isLastActive ? "translateX(56px)" : "translateX(0)",
+          transform: isLastActive ? "translateX(32px)" : "translateX(0)",
         }}
       />
       {options.map(({ lang, flag, name }) => {
@@ -108,7 +108,9 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
             aria-label={name}
             aria-pressed={active}
             title={name}
-            className={`lang__opt relative z-[1] w-14 h-6 inline-flex items-center justify-center gap-1.5 text-[11px] font-medium leading-none transition-colors duration-[280ms] ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)] focus-visible:rounded-[6px] motion-reduce:duration-[1ms] ${
+            className={`lang__opt relative z-[1] h-6 inline-flex items-center justify-center gap-1.5 text-[11px] font-medium leading-none transition-[width,color] duration-[280ms] ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)] focus-visible:rounded-[6px] motion-reduce:duration-[1ms] ${
+              active ? "w-14" : "w-8"
+            } ${
               active
                 ? "is-active text-[#111] dark:text-[#f4f4f2]"
                 : "text-[#8a8a85] hover:text-[#444] dark:hover:text-[#d4d4d8]"
@@ -117,17 +119,10 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
             <span className="lang__flag block w-[18px] h-3 rounded-[2px] overflow-hidden border border-black/12 dark:border-white/15">
               <FlagSvg code={flag} />
             </span>
-            <span
-              className={`uppercase transition-opacity duration-200 ${
-                active ? "opacity-100" : "opacity-0"
-              }`}
-              aria-hidden={!active}
-            >
-              {lang}
-            </span>
-
+            {active && <span className="uppercase">{lang}</span>}
           </button>
         );
+
       })}
     </div>
   );
