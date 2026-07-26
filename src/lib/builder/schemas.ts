@@ -1214,6 +1214,54 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "action", type: "i18nText", label: "Tekst linku (opcjonalny)", placeholder: "więcej" },
     { key: "href", type: "url", label: "URL linku (opcjonalny)", placeholder: "/kategoria/..." },
   ],
+  "toc": [
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "list", label: "Lista pionowa (klasyczna)" },
+        { value: "grid", label: "Grid dwukolumnowy" },
+        { value: "sidebar", label: "Sidebar (kompaktowy)" },
+      ],
+    },
+    { key: "title", type: "i18nText", label: "Tytuł", placeholder: "Spis treści" },
+    {
+      key: "showNumbers",
+      type: "select",
+      label: "Numeracja",
+      options: [
+        { value: "1", label: "Pokaż" },
+        { value: "0", label: "Ukryj" },
+      ],
+    },
+    {
+      key: "showProgress",
+      type: "select",
+      label: "Pasek postępu czytania",
+      options: [
+        { value: "0", label: "Ukryj" },
+        { value: "1", label: "Pokaż" },
+      ],
+    },
+    {
+      key: "sticky",
+      type: "select",
+      label: "Sticky (desktop)",
+      options: [
+        { value: "0", label: "Nie" },
+        { value: "1", label: "Tak (trzyma się przy scrollu)" },
+      ],
+      hint: "Zalecane przy układzie sidebarowym / w wąskiej kolumnie bocznej.",
+    },
+    {
+      key: "items",
+      type: "stringArray",
+      label: "Pozycje (opcjonalne)",
+      hint:
+        "Zostaw puste, aby TOC zaczytał się automatycznie z nagłówków H2/H3 strony. Ręcznie: jedna pozycja per linia. Format: `Tekst` (H2) lub `-- Tekst` (H3). Opcjonalny id: `#moj-id | Tekst`.",
+    },
+  ],
   "hot-topic-bar": [
     { key: "badge", type: "i18nText", label: "Etykieta (badge)" },
     { key: "title", type: "i18nText", label: "Tytuł" },

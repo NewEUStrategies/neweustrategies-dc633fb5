@@ -113,6 +113,7 @@ export function WidgetLibrary({
     "rated-list": "content",
     pricing: "marketing",
     "hot-topic-bar": "marketing",
+    toc: "content",
     "logo-cloud": "marketing",
     "ad-slot": "marketing",
     timeline: "timeline",
