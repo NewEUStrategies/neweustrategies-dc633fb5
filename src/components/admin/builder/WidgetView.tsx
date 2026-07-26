@@ -511,7 +511,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const html = getStr(c, key) || getStr(c, "html_pl");
       const cols = getNum(c, "columns", 1);
       const dropCap = getStr(c, "dropCap") === "on";
-      const proseCls = `prose prose-sm max-w-none [&_*]:text-inherit ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
+      // Explicit list/blockquote/heading rules — Tailwind Preflight strips
+      // ul/ol markers and the project does not ship @tailwindcss/typography,
+      // so `.prose` alone would leave bullets/numbers invisible. Mirror the
+      // authoring toolbar (RichHtmlField) 1:1 so canvas == public output.
+      const proseCls = `prose prose-sm max-w-none [&_*]:text-inherit [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_li]:my-1 [&_li>ul]:list-[circle] [&_li>ul]:pl-5 [&_li>ol]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:my-2 [&_h2]:font-semibold [&_h3]:font-semibold [&_a]:underline ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
       const colStyle =
         cols > 1 ? ({ columnCount: cols, columnGap: "1.5rem" } as CSSProperties) : undefined;
       const singleColumnCompactStyle =
