@@ -262,12 +262,11 @@ function QuizPage() {
               <span className="hidden sm:inline">{t("common.back")}</span>
             </Link>
 
-            <div className="relative w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg">
+            <div className="relative w-full max-w-5xl overflow-y-auto rounded-[6px] border border-border bg-black shadow-lg">
               <iframe
                 src="https://nes-quiz.com/embed"
                 className="w-full border-0"
-                style={{ height: "clamp(720px, 85vh, 1100px)", overflow: "hidden" }}
-                scrolling="no"
+                style={{ height: "clamp(720px, 85vh, 1100px)" }}
                 allow="clipboard-write"
                 loading="eager"
                 title="EuroChallenge Quiz"
