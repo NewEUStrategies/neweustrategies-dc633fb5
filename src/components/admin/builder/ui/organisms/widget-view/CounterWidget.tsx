@@ -2,11 +2,12 @@
 // wartości docelowej w czasie trwania animacji przy pierwszym wejściu w
 // viewport. Respektuje prefers-reduced-motion (statyczna wartość) oraz
 // i18n etykiety (label_pl/label_en).
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import type { WidgetContent } from "@/lib/builder/types";
 import { getStr, getNum, type Lang } from "./frame";
 
 interface CounterWidgetProps {
-  content: Record<string, unknown>;
+  content: WidgetContent;
   lang: Lang;
 }
 
