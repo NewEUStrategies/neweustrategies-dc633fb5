@@ -18,7 +18,11 @@ type FooterSettings = {
   chrome?: Partial<FooterChrome>;
 };
 
-export const Footer = memo(function Footer() {
+interface FooterProps {
+  compact?: boolean;
+}
+
+export const Footer = memo(function Footer({ compact }: FooterProps) {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
 
@@ -34,6 +38,14 @@ export const Footer = memo(function Footer() {
 
   const chrome = FooterChromeSchema.safeParse({ ...defaultFooterChrome(), ...(cfg.chrome ?? {}) });
   const chromeCfg = chrome.success ? chrome.data : defaultFooterChrome();
+
+  if (compact) {
+    return (
+      <footer className="shrink-0 border-t border-border bg-card">
+        <CopyrightBar chrome={chromeCfg} lang={isPl ? "pl" : "en"} />
+      </footer>
+    );
+  }
 
   if (!doc?.sections?.length) {
     return chromeCfg.back_to_top ? (
