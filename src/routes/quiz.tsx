@@ -24,6 +24,7 @@ export const Route = createFileRoute("/quiz")({
   staticData: { ownChrome: true },
   head: () => ({
     meta: [
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "EuroChallenge Quiz — New European Strategies" },
       {
         name: "description",
