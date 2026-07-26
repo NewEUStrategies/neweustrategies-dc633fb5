@@ -76,7 +76,7 @@ function ProfileLayout() {
                           <UserCircle className="h-4 w-4" />
                         </span>
                         <div className="min-w-0">
-                          <h1 className="truncate text-[15px] font-extrabold italic tracking-tight text-foreground">
+                          <h1 className="truncate text-[15px] font-extrabold tracking-tight text-foreground">
                             {t("profile.title")}
                           </h1>
                           <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
