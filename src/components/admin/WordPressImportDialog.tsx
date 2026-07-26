@@ -115,8 +115,28 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
     return { create, overwrite, paired };
   }, [selected, rows]);
 
+  const normalizeDomain = (raw: string): string => {
+    let v = raw.trim();
+    if (!v) return "";
+    // Akceptuj wklejone URL-e: `https://example.com/foo`, `www.example.com`, itd.
+    try {
+      if (/^https?:\/\//i.test(v)) v = new URL(v).host;
+    } catch {
+      /* fallthrough do ręcznego czyszczenia */
+    }
+    v = v
+      .replace(/^https?:\/\//i, "")
+      .replace(/^www\./i, "")
+      .split("/")[0]
+      .split("?")[0]
+      .trim();
+    return v.toLowerCase();
+  };
+
   const fetchList = async () => {
-    if (!/^[a-z0-9._-]+$/i.test(domain)) {
+    const clean = normalizeDomain(domain);
+    if (clean !== domain) setDomain(clean);
+    if (!/^[a-z0-9._-]+$/i.test(clean)) {
       toast.error(
         lang === "pl"
           ? "Podaj domenę WordPress.com (np. mojasite.wordpress.com)"
@@ -128,8 +148,8 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
     setSelected(new Set());
     setRows({});
     try {
-      window.localStorage.setItem("wp_import_domain", domain);
-      const { pages: got } = await listFn({ data: { siteDomain: domain } });
+      window.localStorage.setItem("wp_import_domain", clean);
+      const { pages: got } = await listFn({ data: { siteDomain: clean } });
       setPages(got);
       if (got.length === 0) {
         toast.info(lang === "pl" ? "Brak stron w tej witrynie." : "No pages found.");
