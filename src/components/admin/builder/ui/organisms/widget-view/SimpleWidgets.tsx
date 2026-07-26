@@ -1263,6 +1263,8 @@ export function renderSimpleWidget(
       return <DynamicTagWidget node={node} lang={lang} />;
     case "contact-form":
       return <ContactFormView data={(node.content ?? {}) as Record<string, unknown>} lang={lang} />;
+    case "counter":
+      return wrap(<CounterWidget content={c} lang={lang} />);
     default:
       return undefined;
   }
