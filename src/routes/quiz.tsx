@@ -252,7 +252,7 @@ function QuizPage() {
         {/* Główny obszar: iframe quizu + sidebar udostępniania */}
         <div className="flex flex-1">
           {/* Obszar quizu: znacznie wyższy iframe, strona może scrollować */}
-          <main className="relative flex flex-1 min-w-0 items-center justify-center p-2 sm:p-3">
+          <main className="relative flex flex-1 min-w-0 items-center justify-center p-2 pb-8 sm:p-3 sm:pb-10 md:pb-12 lg:pb-16">
             {/* Floating back button — minimal overlay, does not steal height from iframe */}
             <Link
               to="/"
