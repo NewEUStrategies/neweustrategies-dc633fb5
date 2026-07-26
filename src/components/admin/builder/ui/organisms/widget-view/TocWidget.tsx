@@ -31,15 +31,17 @@ const slugify = (input: string): string =>
     .replace(/(^-|-$)/g, "")
     .slice(0, 80) || "section";
 
-function ensureHeadingIds(container: HTMLElement): TocItem[] {
+function ensureHeadingIds(container: HTMLElement, skipText: string): TocItem[] {
   const seen = new Set<string>();
   const nodes = container.querySelectorAll<HTMLElement>("h2, h3");
   const out: TocItem[] = [];
+  const skip = skipText.trim().toLowerCase();
   nodes.forEach((node) => {
-    // Ignoruj nagłówki wewnątrz samego widgetu TOC.
     if (node.closest("[data-widget-toc]")) return;
     const text = node.textContent?.trim() ?? "";
     if (!text) return;
+    // Skip a duplicate "Spis treści" heading that mirrors the widget title.
+    if (skip && text.toLowerCase() === skip) return;
     let id = node.id?.trim();
     if (!id) {
       id = slugify(text);
