@@ -1033,7 +1033,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const align = getStr(c, "align") || "between";
       const containerCls =
         variant === "gradient"
-          ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground rounded-xl p-8"
+          ? "bg-gradient-brand text-white rounded-xl p-8"
           : variant === "bar"
             ? "bg-brand text-brand-foreground rounded-md py-3 px-5"
             : variant === "card"
