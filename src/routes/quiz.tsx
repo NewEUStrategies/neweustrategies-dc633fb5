@@ -301,6 +301,7 @@ function QuizPage() {
               <iframe
                 src="https://nes-quiz.com/embed"
                 className="h-full w-full border-0"
+                style={{ overflow: "hidden" }}
                 allow="clipboard-write"
                 loading="eager"
                 title="EuroChallenge Quiz"
