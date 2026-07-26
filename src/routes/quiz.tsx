@@ -16,6 +16,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
@@ -91,32 +92,37 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
   const items = [
     {
       key: "copy",
-      icon: copied ? Check : Copy,
+      iconName: copied ? "check" : "copy",
+      fallback: copied ? Check : Copy,
       label: copied ? t("quiz.share.copied") : t("quiz.share.copy"),
       onClick: handleCopy,
       active: copied,
     },
     {
       key: "linkedin",
-      icon: Linkedin,
+      iconName: "linkedin",
+      fallback: Linkedin,
       label: t("quiz.share.linkedin"),
       href: `https://www.linkedin.com/sharing/share-offsite/?url=${share.encodedUrl}`,
     },
     {
       key: "facebook",
-      icon: Facebook,
+      iconName: "facebook",
+      fallback: Facebook,
       label: t("quiz.share.facebook"),
       href: `https://www.facebook.com/sharer/sharer.php?u=${share.encodedUrl}`,
     },
     {
       key: "messenger",
-      icon: MessageCircle,
+      iconName: "messenger",
+      fallback: MessageCircle,
       label: t("quiz.share.messenger"),
       href: `https://www.facebook.com/dialog/send?link=${share.encodedUrl}&app_id=145634995501895&redirect_uri=${share.encodedUrl}`,
     },
     {
       key: "whatsapp",
-      icon: () => (
+      iconName: "whatsapp",
+      fallback: () => (
         <svg
           viewBox="0 0 24 24"
           fill="currentColor"
@@ -131,7 +137,8 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
     },
     {
       key: "email",
-      icon: Mail,
+      iconName: "email",
+      fallback: Mail,
       label: t("quiz.share.email"),
       href: `mailto:?subject=${share.subject}&body=${share.body}`,
     },
@@ -147,7 +154,11 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
     >
       {!compact && (
         <div className="mb-1 flex items-center gap-1.5 px-1">
-          <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <BrandIcon
+            name="share"
+            fallback={Share2}
+            className="h-3.5 w-3.5 text-muted-foreground"
+          />
           <span className="hidden text-[11px] font-medium text-foreground lg:inline">
             {t("quiz.share.title")}
           </span>
@@ -155,10 +166,12 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
       )}
 
       {items.map((item) => {
-        const Icon = item.icon;
+        const Fallback = item.fallback;
         const content = (
           <>
-            <Icon
+            <BrandIcon
+              name={item.iconName}
+              fallback={Fallback}
               className={cn(
                 "h-4 w-4 shrink-0 transition-colors",
                 item.active ? "text-emerald-500" : "text-foreground"
@@ -237,7 +250,7 @@ function QuizPage() {
           to="/"
           className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-secondary px-2 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
+          <BrandIcon name="arrow-left" fallback={ArrowLeft} className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{t("common.back")}</span>
         </Link>
       </div>
@@ -282,9 +295,9 @@ function QuizPage() {
             title={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
           >
             {shareOpen ? (
-              <ChevronRight className="h-4 w-4" />
+              <BrandIcon name="chevron-right" fallback={ChevronRight} className="h-4 w-4" />
             ) : (
-              <Share2 className="h-4 w-4" />
+              <BrandIcon name="share" fallback={Share2} className="h-4 w-4" />
             )}
           </button>
           {shareOpen && <QuizShareSidebar compact />}
