@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Check,
+  ChevronRight,
   Copy,
   Facebook,
   Linkedin,
@@ -10,9 +11,11 @@ import {
   MessageCircle,
   Share2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
@@ -68,7 +71,7 @@ function useShareUrl() {
   };
 }
 
-function QuizShareSidebar() {
+function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const share = useShareUrl();
@@ -77,9 +80,10 @@ function QuizShareSidebar() {
     try {
       await navigator.clipboard.writeText(share.url);
       setCopied(true);
+      toast.success(t("quiz.share.copiedToast"));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback: select input
+      toast.error(t("common.retry"));
     }
   };
 
@@ -134,33 +138,43 @@ function QuizShareSidebar() {
 
   return (
     <aside
-      className="flex shrink-0 flex-col gap-1 rounded-[6px] border border-border bg-card p-1.5 shadow-sm"
+      className={cn(
+        "flex shrink-0 flex-col gap-1 rounded-[6px] border border-border bg-card shadow-sm",
+        compact ? "gap-0.5 p-1" : "gap-1 p-1.5"
+      )}
       aria-label={t("quiz.share.title")}
     >
-      <div className="mb-1 flex items-center gap-1.5 px-1">
-        <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="hidden text-[11px] font-medium text-foreground lg:inline">
-          {t("quiz.share.title")}
-        </span>
-      </div>
+      {!compact && (
+        <div className="mb-1 flex items-center gap-1.5 px-1">
+          <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="hidden text-[11px] font-medium text-foreground lg:inline">
+            {t("quiz.share.title")}
+          </span>
+        </div>
+      )}
 
       {items.map((item) => {
         const Icon = item.icon;
         const content = (
           <>
             <Icon
-              className={`h-4 w-4 transition-colors ${
+              className={cn(
+                "h-4 w-4 shrink-0 transition-colors",
                 item.active ? "text-emerald-500" : "text-foreground"
-              }`}
+              )}
             />
-            <span className="hidden text-[11px] font-medium lg:inline">
-              {item.label}
-            </span>
+            {!compact && (
+              <span className="hidden text-[11px] font-medium lg:inline">
+                {item.label}
+              </span>
+            )}
           </>
         );
 
-        const baseClasses =
-          "flex items-center justify-center gap-2 rounded-[6px] px-2 py-1.5 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:justify-start";
+        const baseClasses = cn(
+          "flex items-center justify-center rounded-[6px] transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          compact ? "h-8 w-8 p-0" : "gap-2 px-2 py-1.5 lg:justify-start"
+        );
 
         return item.href ? (
           <a
@@ -193,6 +207,7 @@ function QuizShareSidebar() {
 
 function QuizPage() {
   const { t } = useTranslation();
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <div
@@ -239,11 +254,35 @@ function QuizPage() {
           </div>
         </main>
 
-        {/* Sidebar udostępniania — pionowy na desktopie, poziomy na mobile */}
-        <div className="shrink-0 border-l border-border bg-background/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-3 lg:w-auto">
-          <div className="flex h-full flex-row items-center gap-2 lg:flex-col lg:items-stretch">
+        {/* Sidebar udostępniania — zawsze widoczny na desktopie, zwijany na mobile */}
+        <div className="hidden shrink-0 border-l border-border bg-background/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-3 lg:block">
+          <div className="flex h-full flex-col items-stretch">
             <QuizShareSidebar />
           </div>
+        </div>
+
+        {/* Mobile: zwijany panel udostępniania */}
+        <div
+          className={cn(
+            "flex shrink-0 flex-col items-center gap-2 border-l border-border bg-background/95 p-1.5 backdrop-blur transition-all duration-300 ease-out supports-[backdrop-filter]:bg-background/60 lg:hidden",
+            shareOpen ? "w-auto" : "w-11"
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => setShareOpen((v) => !v)}
+            aria-expanded={shareOpen}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
+            title={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
+          >
+            {shareOpen ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <Share2 className="h-4 w-4" />
+            )}
+          </button>
+          {shareOpen && <QuizShareSidebar compact />}
         </div>
       </div>
 
