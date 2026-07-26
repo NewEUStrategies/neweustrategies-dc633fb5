@@ -17,6 +17,7 @@ import { Route as RssDotxmlRouteImport } from './routes/rss[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
+import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as QaRouteImport } from './routes/qa'
 import { Route as PublicationsRouteImport } from './routes/publications'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -274,6 +275,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const ReadingListRoute = ReadingListRouteImport.update({
   id: '/reading-list',
   path: '/reading-list',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuizRoute = QuizRouteImport.update({
+  id: '/quiz',
+  path: '/quiz',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QaRoute = QaRouteImport.update({
@@ -1412,6 +1418,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRouteWithChildren
   '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
+  '/quiz': typeof QuizRoute
   '/reading-list': typeof ReadingListRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -1638,6 +1645,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
+  '/quiz': typeof QuizRoute
   '/reading-list': typeof ReadingListRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -1859,6 +1867,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRouteWithChildren
   '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
+  '/quiz': typeof QuizRoute
   '/reading-list': typeof ReadingListRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -2089,6 +2098,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/publications'
     | '/qa'
+    | '/quiz'
     | '/reading-list'
     | '/reset-password'
     | '/robots.txt'
@@ -2315,6 +2325,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/publications'
     | '/qa'
+    | '/quiz'
     | '/reading-list'
     | '/reset-password'
     | '/robots.txt'
@@ -2535,6 +2546,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/publications'
     | '/qa'
+    | '/quiz'
     | '/reading-list'
     | '/reset-password'
     | '/robots.txt'
@@ -2764,6 +2776,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRouteWithChildren
   PublicationsRoute: typeof PublicationsRoute
   QaRoute: typeof QaRouteWithChildren
+  QuizRoute: typeof QuizRoute
   ReadingListRoute: typeof ReadingListRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
@@ -2877,6 +2890,13 @@ declare module '@tanstack/react-router' {
       path: '/reading-list'
       fullPath: '/reading-list'
       preLoaderRoute: typeof ReadingListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz': {
+      id: '/quiz'
+      path: '/quiz'
+      fullPath: '/quiz'
+      preLoaderRoute: typeof QuizRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/qa': {
@@ -4959,6 +4979,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRouteWithChildren,
   PublicationsRoute: PublicationsRoute,
   QaRoute: QaRouteWithChildren,
+  QuizRoute: QuizRoute,
   ReadingListRoute: ReadingListRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
