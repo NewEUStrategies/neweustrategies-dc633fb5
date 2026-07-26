@@ -82,8 +82,8 @@ export function CounterWidget({ content, lang }: CounterWidgetProps): ReactEleme
   return (
     <div ref={ref} className="w-full py-4" style={style}>
       <div
-        className="font-serif font-bold leading-none tabular-nums"
-        style={{ fontSize: `${numberSize}px`, color: accent || undefined }}
+        className="font-bold leading-none tabular-nums"
+        style={{ fontSize: `${numberSize}px`, color: accent || undefined, fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif' }}
         aria-label={`${prefix}${target}${suffix}${label ? ` ${label}` : ""}`}
       >
         {prefix}
@@ -93,7 +93,7 @@ export function CounterWidget({ content, lang }: CounterWidgetProps): ReactEleme
       {label ? (
         <div
           className="mt-2 uppercase tracking-wider text-muted-foreground"
-          style={{ fontSize: `${labelSize}px` }}
+          style={{ fontSize: `${labelSize}px`, fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif' }}
         >
           {label}
         </div>
