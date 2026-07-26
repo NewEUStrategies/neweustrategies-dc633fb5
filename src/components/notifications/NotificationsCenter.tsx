@@ -275,6 +275,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   // Spłaszczamy strony do jednej tablicy - komponent renderuje ciągłą listę,
   // a `fetchNextPage()` domawia kolejne strony pod tym samym queryKey.
   const items: NotificationRow[] = useMemo(() => listQ.data?.pages.flat() ?? [], [listQ.data]);
+  const actorProfiles = useNotificationActorProfiles(items, !!user);
   const canLoadMore = !!listQ.hasNextPage;
 
   const filteredItems = useMemo(() => {
