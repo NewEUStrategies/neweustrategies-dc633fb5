@@ -21,6 +21,7 @@ import {
   Send,
   Megaphone,
   List,
+  ListOrdered,
   PanelLeft,
   Quote,
   Check,
