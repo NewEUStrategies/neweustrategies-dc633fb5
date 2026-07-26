@@ -42,6 +42,7 @@ import { AccountMenuWidget, type AccountMenuConfig } from "./AccountMenuWidget";
 import { TeamMemberWidget } from "./TeamMemberWidget";
 import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
 import { CounterWidget } from "./CounterWidget";
+import { TocWidget } from "./TocWidget";
 export { ResizableBox } from "./resizeWrappers";
 
 const compactRowStyle: CSSProperties = {
