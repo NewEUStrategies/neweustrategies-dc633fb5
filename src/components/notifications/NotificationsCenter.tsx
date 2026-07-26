@@ -551,14 +551,12 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                 </span>
                               )}
                               {g.unreadCount > 0 && (
-                                <span
-                                  className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-[6px] bg-primary px-1 text-[9px] font-semibold text-primary-foreground"
-                                  aria-label={t("notifications.unread", {
-                                    count: g.unreadCount,
-                                  })}
-                                >
-                                  {g.unreadCount > 99 ? "99+" : g.unreadCount}
-                                </span>
+                                <UnreadBadge
+                                  count={g.unreadCount}
+                                  size="sm"
+                                  className="rounded-[6px]"
+                                  labelKey="notifications.unread"
+                                />
                               )}
                             </div>
                             {pickBody(n, lang) && (
