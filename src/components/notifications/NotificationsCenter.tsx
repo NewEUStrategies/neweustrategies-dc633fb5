@@ -498,19 +498,45 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                       const allIds = g.items.map((i) => i.id);
                       const unreadIds = g.items.filter((i) => !i.read_at).map((i) => i.id);
                       const href = n.href;
+                      const actorId = notificationActorId(n.href);
+                      const actor = actorId ? actorProfiles.get(actorId) : undefined;
+                      const initials = (actor?.display_name ?? pickTitle(n, lang))
+                        .split(/\s+/)
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((w) => w[0]?.toUpperCase() ?? "")
+                        .join("") || "•";
                       return (
                         <li key={g.key} className="py-3 flex items-start gap-3">
-                          <div
+                          <Avatar
                             className={cn(
-                              "mt-0.5 shrink-0 rounded-full p-2",
-                              isUnread
-                                ? "bg-primary/15 text-primary"
-                                : "bg-muted text-muted-foreground",
+                              "mt-0.5 h-9 w-9 shrink-0 rounded-[6px] border border-border/60",
+                              isUnread ? "ring-1 ring-primary/40" : "",
                             )}
-                            aria-hidden
                           >
-                            <NotificationIcon name={n.icon} className="h-4 w-4" />
-                          </div>
+                            {actor?.avatar_url ? (
+                              <AvatarImage
+                                src={actor.avatar_url}
+                                alt={actor.display_name ?? pickTitle(n, lang)}
+                                className="rounded-[6px] object-cover"
+                              />
+                            ) : null}
+                            <AvatarFallback
+                              className={cn(
+                                "rounded-[6px] text-[11px] font-semibold",
+                                isUnread
+                                  ? "bg-primary/15 text-primary"
+                                  : "bg-muted text-muted-foreground",
+                              )}
+                              aria-hidden={!actor}
+                            >
+                              {actor ? (
+                                initials
+                              ) : (
+                                <NotificationIcon name={n.icon} className="h-4 w-4" />
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               {href && isInternalHref(href) ? (
