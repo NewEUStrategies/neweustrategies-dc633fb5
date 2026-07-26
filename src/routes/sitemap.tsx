@@ -18,7 +18,7 @@ import { activeLang } from "@/lib/seo/head";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 
-const COPY = {
+export const COPY = {
   pl: {
     title: "Mapa strony",
     description: "Pełna mapa serwisu: wszystkie strony, kategorie i najnowsze artykuły.",
