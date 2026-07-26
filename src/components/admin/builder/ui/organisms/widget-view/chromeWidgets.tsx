@@ -117,7 +117,15 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
             <span className="lang__flag block w-[18px] h-3 rounded-[2px] overflow-hidden border border-black/12 dark:border-white/15">
               <FlagSvg code={flag} />
             </span>
-            <span className="uppercase">{lang}</span>
+            <span
+              className={`uppercase transition-opacity duration-200 ${
+                active ? "opacity-100" : "opacity-0"
+              }`}
+              aria-hidden={!active}
+            >
+              {lang}
+            </span>
+
           </button>
         );
       })}
