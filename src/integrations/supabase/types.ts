@@ -11228,6 +11228,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      can_access_entity_presence: {
+        Args: { _entity_id: string; _entity_type: string }
+        Returns: boolean
+      }
       can_gift_articles: { Args: never; Returns: boolean }
       can_publish_content: { Args: { _user_id?: string }; Returns: boolean }
       change_user_role: {
