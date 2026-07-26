@@ -1,13 +1,24 @@
 // Silnik przypisów `[fn]…[/fn]` - JEDYNE źródło prawdy dla całej aplikacji.
 // Obsługuje trzy silniki treści (builder / blocks / html) i widok kanwy admina.
 //
-// Kontrakt wyjścia (identyczny wszędzie):
-//   <sup class="fn-ref"><a href="#fn-N" id="fnref-N" data-fn="N"
-//        title="…" aria-describedby="footnotes-heading">[N]</a></sup>
+// Kontrakt wyjścia - dwa warianty tego samego markera:
+//
+//   KOTWICZONY (domyślny; treść dokumentu, która MA sekcję końcową):
+//     <sup class="fn-ref"><a href="#fn-N" id="fnref-N" data-fn="N"
+//          title="…" aria-describedby="footnotes-heading" role="doc-noteref">[N]</a></sup>
+//
+//   SAMODZIELNY (`anchored: false`; treść BEZ dokumentowej sekcji końcowej -
+//   dziś globalne widgety, numerowane per-widget):
+//     <sup class="fn-ref"><span title="…" role="note">[N]</span></sup>
+//
+// Rozdzielenie jest celowe: samodzielny marker nie może nieść `id`/`href`/`data-fn`,
+// bo dublowałby id dokumentu i linkował do cudzego przypisu (patrz `ExpandOptions`).
 //
 // Reguły:
 // - `[fn]  [/fn]` (pusto po trim) → drop bez zużycia numeru.
-// - numeracja globalna dla dokumentu (kolektor niesie counter między wywołaniami).
+// - jeden kolektor = jedna ciągła numeracja; osobny kolektor = numeracja od nowa.
+//   `prepareContentForRender` daje builderowi i HTML-owi OSOBNE kolektory, bo
+//   renderowany jest zawsze dokładnie jeden silnik.
 // - `title` zawiera treść przypisu bez tagów, HTML-escapowaną.
 // - sanityzacja treści przypisu happens przy renderze `<FootnotesList>`, nie tu.
 
@@ -48,18 +59,44 @@ export function createCounter(start = 1): FootnoteCounter {
   return { counter: start, notes: [] };
 }
 
+export interface ExpandOptions {
+  /**
+   * `true` (domyślnie) - marker jest odsyłaczem do sekcji końcowej: `href`,
+   * `id` i `data-fn` wiążą go z wpisem w `<FootnotesList>` i z bąbelkiem
+   * `<FootnoteTooltips>`.
+   *
+   * `false` - marker SAMODZIELNY: bez `href`, `id` i `data-fn`. Dla treści,
+   * której przypisy NIE trafiają do dokumentowej sekcji końcowej (dziś:
+   * globalne widgety, patrz `processWidgetFootnotes`). Kotwiczenie takiego
+   * markera byłoby aktywnie szkodliwe: numeracja jest tam per-widget, więc
+   * `id="fnref-1"` dublowałby id dokumentu (niepoprawny HTML), `href="#fn-1"`
+   * skakałby do CUDZEGO przypisu, a `data-fn="1"` kazałby tooltipowi pokazać
+   * treść cudzej noty. Treść zostaje w `title` (natywny tooltip), co jest
+   * poprawne i wystarczające.
+   */
+  anchored?: boolean;
+}
+
 /**
- * Rozwija `[fn]…[/fn]` w stringu do markera `<sup><a data-fn>` i dopisuje
- * przypisy do wspólnego kolektora. Puste (po trim) przypisy są cicho pomijane
- * i nie zużywają numeru - dzięki temu numeracja jest stabilna między silnikami.
+ * Rozwija `[fn]…[/fn]` w stringu do markera i dopisuje przypisy do kolektora.
+ * Puste (po trim) przypisy są cicho pomijane i nie zużywają numeru - dzięki
+ * temu numeracja jest stabilna między silnikami.
  */
-export function expandFootnotes(html: string, col: FootnoteCounter): string {
+export function expandFootnotes(
+  html: string,
+  col: FootnoteCounter,
+  opts: ExpandOptions = {},
+): string {
+  const anchored = opts.anchored ?? true;
   return html.replace(FN_RE, (_m, inner: string) => {
     const text = String(inner ?? "").trim();
     if (!text) return "";
     const id = col.counter++;
     col.notes.push({ id, html: text });
     const title = escapeAttr(text.replace(/<[^>]+>/g, ""));
+    if (!anchored) {
+      return `<sup class="fn-ref"><span title="${title}" role="note">[${id}]</span></sup>`;
+    }
     return `<sup class="fn-ref"><a href="#fn-${id}" id="fnref-${id}" data-fn="${id}" title="${title}" aria-describedby="footnotes-heading" role="doc-noteref">[${id}]</a></sup>`;
   });
 }
@@ -100,9 +137,13 @@ export function parseBakedFootnotes(root: ParentNode): Footnote[] {
 
 // -------------------- Builder document walker --------------------
 
-function processStringField(v: Json | undefined, col: FootnoteCounter): Json | undefined {
+function processStringField(
+  v: Json | undefined,
+  col: FootnoteCounter,
+  opts?: ExpandOptions,
+): Json | undefined {
   if (typeof v !== "string" || !v.includes("[fn]")) return v;
-  return expandFootnotes(v, col);
+  return expandFootnotes(v, col, opts);
 }
 
 /**
@@ -116,12 +157,21 @@ export function processWidgetFootnotes(
   w: WidgetNode,
   lang: "pl" | "en",
   col: FootnoteCounter = createCounter(1),
+  // Domyślnie SAMODZIELNY marker: ta ścieżka obsługuje globalne widgety, których
+  // przypisy nie wchodzą do dokumentowej sekcji końcowej (numeracja per-widget),
+  // więc kotwiczenie dublowałoby id i linkowało do cudzych przypisów.
+  opts: ExpandOptions = { anchored: false },
 ): { widget: WidgetNode; notes: Footnote[] } {
-  const widget = processWidget(w, lang, col);
+  const widget = processWidget(w, lang, col, opts);
   return { widget, notes: col.notes };
 }
 
-function processWidget(w: WidgetNode, lang: "pl" | "en", col: FootnoteCounter): WidgetNode {
+function processWidget(
+  w: WidgetNode,
+  lang: "pl" | "en",
+  col: FootnoteCounter,
+  opts?: ExpandOptions,
+): WidgetNode {
   const spec = WIDGET_TEXT_FIELDS[w.type];
   if (!spec) return w;
   let changed = false;
@@ -132,7 +182,7 @@ function processWidget(w: WidgetNode, lang: "pl" | "en", col: FootnoteCounter): 
     for (const key of localizedKeys(base, lang)) {
       if (key in next) {
         const before = next[key];
-        const after = processStringField(before, col);
+        const after = processStringField(before, col, opts);
         if (after !== before) {
           next[key] = after as Json;
           changed = true;
@@ -154,7 +204,7 @@ function processWidget(w: WidgetNode, lang: "pl" | "en", col: FootnoteCounter): 
         for (const key of localizedKeys(base, lang)) {
           if (key in nextEntry) {
             const before = nextEntry[key];
-            const after = processStringField(before, col);
+            const after = processStringField(before, col, opts);
             if (after !== before) {
               nextEntry[key] = after as Json;
               itemChanged = true;
