@@ -171,6 +171,15 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   --cat-cyber: oklch(0.6 0.18 320);
   --hot: #fa9346;
 
+  /* ---- Semantyczne gradienty marki (light) ----
+     Używane przez nagłówki/CTA/przyciski z variant="gradient".
+     Light: jasny brand -> głęboki brand-ink (WCAG AA na tekście, brak
+     mętnego przejścia w czerń). */
+  --gradient-brand: linear-gradient(90deg, #fbaa6d 0%, #b85410 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #fed7b5 0%, #fa9346 100%);
+  --gradient-heading-stop-1: #ed6d1f;
+  --gradient-heading-stop-2: #b85410;
+
   /* ---- Wykresy (silnik SVG - src/components/charts) ----
      Paleta kategoryczna 8 slotów o STAŁEJ kolejności (mechanizm bezpieczeństwa
      CVD - kolejność maksymalizuje separację sąsiadów dla daltonizmu; zwalidowana
