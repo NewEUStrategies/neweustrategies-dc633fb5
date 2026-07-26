@@ -226,7 +226,7 @@ function QuizPage() {
 
   return (
     <div
-      className="relative flex h-screen flex-col overflow-hidden supports-[height:100dvh]:h-[100dvh]"
+      className="relative flex h-screen max-h-screen flex-col overflow-hidden overscroll-none supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh]"
       style={{
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
@@ -250,32 +250,21 @@ function QuizPage() {
         {/* Globalny header New European Strategies */}
         <Header adPageType="all" />
 
-        {/* Kompaktowy pasek powrotu i tytułu quizu */}
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 py-1.5 sm:px-4">
-          <div className="min-w-0">
-            <h1 className="truncate font-display text-sm font-semibold leading-tight text-foreground sm:text-base">
-              EuroChallenge Quiz
-            </h1>
-            <p className="truncate text-[11px] leading-tight text-muted-foreground sm:text-xs">
-              Sprawdź swoją wiedzę o Europie, gospodarce i polityce
-              międzynarodowej.
-            </p>
-          </div>
-          <Link
-            to="/"
-            className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
-          >
-            <BrandIcon name="arrow-left" fallback={ArrowLeft} className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{t("common.back")}</span>
-          </Link>
-        </div>
-
         {/* Główny obszar: iframe quizu + sidebar udostępniania */}
         <div className="flex flex-1 min-h-0">
-          {/* Obszar quizu: responsywnie dopasowuje się do pozostałej wysokości
-              viewportu. Na dużych ekranach centrujemy i ograniczamy szerokość,
+          {/* Obszar quizu: wypełnia całą pozostałą wysokość viewportu.
+              Na dużych ekranach centrujemy i ograniczamy szerokość,
               aby quiz nie rozciągał się nieproporcjonalnie. */}
-          <main className="relative flex flex-1 min-h-0 min-w-0 items-center justify-center p-1 sm:p-2 lg:p-3">
+          <main className="relative flex flex-1 min-h-0 min-w-0 items-center justify-center p-1">
+            {/* Floating back button — minimal overlay, does not steal height from iframe */}
+            <Link
+              to="/"
+              className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-[6px] bg-background/90 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:left-3 sm:top-3"
+            >
+              <BrandIcon name="arrow-left" fallback={ArrowLeft} className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t("common.back")}</span>
+            </Link>
+
             <div className="relative h-full w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg">
               <iframe
                 src="https://nes-quiz.com/embed"
@@ -288,7 +277,7 @@ function QuizPage() {
           </main>
 
           {/* Sidebar udostępniania — zawsze widoczny na desktopie, zwijany na mobile */}
-          <div className="hidden shrink-0 border-l border-border bg-background/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-2 lg:block">
+          <div className="hidden shrink-0 border-l border-border bg-background/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-1.5 lg:block">
             <div className="flex h-full flex-col items-stretch">
               <QuizShareSidebar />
             </div>
@@ -297,8 +286,8 @@ function QuizPage() {
           {/* Mobile: zwijany panel udostępniania */}
           <div
             className={cn(
-              "flex shrink-0 flex-col items-center gap-2 border-l border-border bg-background/95 p-1 backdrop-blur transition-all duration-300 ease-out supports-[backdrop-filter]:bg-background/60 lg:hidden",
-              shareOpen ? "w-auto" : "w-11"
+              "flex shrink-0 flex-col items-center gap-1 border-l border-border bg-background/95 p-1 backdrop-blur transition-all duration-300 ease-out supports-[backdrop-filter]:bg-background/60 lg:hidden",
+              shareOpen ? "w-auto" : "w-10"
             )}
           >
             <button
