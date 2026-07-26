@@ -20,6 +20,7 @@ import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { LucideIconPicker } from "./LucideIconPicker";
 import { PageUrlAutocomplete } from "./PageUrlAutocomplete";
+import { RichHtmlField } from "./RichHtmlField";
 import { Image as ImageIcon, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -132,11 +133,11 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
     case "i18nHtml":
       return (
         <PropField label={`${field.label} (${langSuffix})`} hint={field.hint}>
-          <Textarea
-            rows={field.rows ?? 4}
+          <RichHtmlField
             value={asString(content[i18nKey])}
-            onChange={(e) => setContent(i18nKey, e.target.value)}
-            className="text-xs font-mono"
+            onChange={(html: string) => setContent(i18nKey, html)}
+            rows={field.rows ?? 4}
+            ariaLabel={`${field.label} (${langSuffix})`}
           />
         </PropField>
       );
