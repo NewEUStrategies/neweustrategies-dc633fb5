@@ -1,7 +1,9 @@
-// Tło strony /quiz — warianty light/dark z srcSet + media queries wg
-// `docs/WYTYCZNE_TLO_QUIZ.md`. Renderujemy <picture> pod całą zawartością
-// (absolute inset-0 -z-20) + overlay gradientowy, który utrzymuje czytelność
-// headera i iframe'u quizu w OBU trybach (nie polegamy już na `dark:invert`).
+// Tło strony /quiz — warianty light/dark reagujące na motyw PLATFORMY
+// (klasa `.dark` na <html>), nie na `prefers-color-scheme` OS.
+// Wg `docs/WYTYCZNE_TLO_QUIZ.md`. Dwie warstwy <img> nakładane na siebie,
+// przełączane opacity przez wariant `dark:` — dzięki temu przełącznik motywu
+// w aplikacji faktycznie zmienia tło. Overlay gradientowy dostrojony osobno
+// dla obu trybów.
 
 import lightMobileAsset from "@/assets/quiz/quiz-bg-light-mobile.jpg.asset.json";
 import lightDesktopAsset from "@/assets/quiz/quiz-bg-light-desktop.jpg.asset.json";
@@ -16,23 +18,13 @@ const DARK_DESKTOP = darkDesktopAsset.url;
 export function QuizBackground() {
   return (
     <>
+      {/* Warstwa LIGHT — widoczna w trybie jasnym, znika w .dark */}
       <picture
-        className="pointer-events-none absolute inset-0 -z-20 block"
+        className="pointer-events-none absolute inset-0 -z-20 block transition-opacity duration-500 ease-out dark:opacity-0"
         aria-hidden="true"
       >
-        {/* Dark — pierwsze wygrywa, więc dark leci przed light */}
-        <source
-          media="(prefers-color-scheme: dark) and (max-width: 767px)"
-          srcSet={DARK_MOBILE}
-        />
-        <source
-          media="(prefers-color-scheme: dark)"
-          srcSet={DARK_DESKTOP}
-        />
-        {/* Light */}
         <source media="(max-width: 767px)" srcSet={LIGHT_MOBILE} />
         <source media="(min-width: 768px)" srcSet={LIGHT_DESKTOP} />
-
         <img
           src={LIGHT_DESKTOP}
           alt=""
@@ -42,44 +34,63 @@ export function QuizBackground() {
         />
       </picture>
 
-      {/* Overlay gradientowy — osobne krzywe dla light i dark, żeby header
-          i iframe pozostały czytelne bez `dark:invert`. */}
+      {/* Warstwa DARK — domyślnie ukryta, pełne opacity w .dark */}
+      <picture
+        className="pointer-events-none absolute inset-0 -z-20 block opacity-0 transition-opacity duration-500 ease-out dark:opacity-100"
+        aria-hidden="true"
+      >
+        <source media="(max-width: 767px)" srcSet={DARK_MOBILE} />
+        <source media="(min-width: 768px)" srcSet={DARK_DESKTOP} />
+        <img
+          src={DARK_DESKTOP}
+          alt=""
+          decoding="async"
+          className="h-full w-full object-cover object-bottom"
+        />
+      </picture>
+
+      {/* Overlay LIGHT — delikatny, ciepły, żeby sylwety nie dominowały nad iframe */}
       <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_top,hsl(var(--background)/0.62),hsl(var(--background)/0.82)_45%,hsl(var(--background)/0.94))] dark:bg-[linear-gradient(to_top,hsl(var(--background)/0.68),hsl(var(--background)/0.86)_45%,hsl(var(--background)/0.96))]"
+        className="pointer-events-none absolute inset-0 -z-10 transition-opacity duration-500 ease-out dark:opacity-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--background)/0.95)_0%,hsl(var(--background)/0.75)_35%,hsl(var(--background)/0.55)_65%,hsl(var(--background)/0.72)_100%)]"
+        aria-hidden="true"
+      />
+      {/* Overlay DARK — głębszy, chłodny; utrzymuje kontrast headera i quizu */}
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-500 ease-out dark:opacity-100 bg-[radial-gradient(ellipse_at_top,hsl(var(--background)/0.96)_0%,hsl(var(--background)/0.82)_35%,hsl(var(--background)/0.68)_65%,hsl(var(--background)/0.85)_100%)]"
         aria-hidden="true"
       />
     </>
   );
 }
 
-/** Preload dla LCP tła. Wpinane w head() trasy /quiz. */
+/** Preload dla LCP tła. Wpinane w head() trasy /quiz.
+ *  Motyw platformy nie jest znany na etapie SSR head, więc preloadujemy
+ *  wariant LIGHT (domyślny) per breakpoint; DARK dociągnie się przy hydracji. */
 export const QUIZ_BG_PRELOAD_LINKS = [
   {
     rel: "preload",
     as: "image",
     href: LIGHT_MOBILE,
-    media: "(prefers-color-scheme: light) and (max-width: 767px)",
-    fetchpriority: "high",
-  },
-  {
-    rel: "preload",
-    as: "image",
-    href: DARK_MOBILE,
-    media: "(prefers-color-scheme: dark) and (max-width: 767px)",
+    media: "(max-width: 767px)",
     fetchpriority: "high",
   },
   {
     rel: "preload",
     as: "image",
     href: LIGHT_DESKTOP,
-    media: "(prefers-color-scheme: light) and (min-width: 768px)",
+    media: "(min-width: 768px)",
     fetchpriority: "high",
   },
   {
-    rel: "preload",
+    rel: "prefetch",
+    as: "image",
+    href: DARK_MOBILE,
+    media: "(max-width: 767px)",
+  },
+  {
+    rel: "prefetch",
     as: "image",
     href: DARK_DESKTOP,
-    media: "(prefers-color-scheme: dark) and (min-width: 768px)",
-    fetchpriority: "high",
+    media: "(min-width: 768px)",
   },
 ] as const;
