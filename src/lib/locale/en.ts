@@ -43,6 +43,18 @@ export const en = {
     newsletter: "Newsletter",
     skipToContent: "Skip to content",
   },
+  quiz: {
+    share: {
+      title: "Share quiz",
+      copy: "Copy link",
+      copied: "Copied!",
+      linkedin: "LinkedIn",
+      facebook: "Facebook",
+      messenger: "Messenger",
+      whatsapp: "WhatsApp",
+      email: "E-mail",
+    },
+  },
   hero: {
     by: "By",
   },
