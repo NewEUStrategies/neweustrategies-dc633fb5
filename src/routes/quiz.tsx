@@ -223,50 +223,18 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
 function QuizPage() {
   const { t } = useTranslation();
   const [shareOpen, setShareOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const html = document.documentElement;
-    const body = document.body;
-
-    const prevRootOverflow = root.style.getPropertyValue("overflow");
-    const prevRootOverscroll = root.style.getPropertyValue("overscroll-behavior");
-    const prevRootTouchAction = root.style.getPropertyValue("touch-action");
-    const prevHtmlOverflow = html.style.getPropertyValue("overflow");
-    const prevBodyOverflow = body.style.getPropertyValue("overflow");
-
-    root.style.setProperty("overflow", "hidden", "important");
-    root.style.setProperty("overscroll-behavior", "none", "important");
-    root.style.setProperty("touch-action", "none", "important");
-    html.style.setProperty("overflow", "hidden", "important");
-    body.style.setProperty("overflow", "hidden", "important");
-
-    return () => {
-      root.style.setProperty("overflow", prevRootOverflow);
-      root.style.setProperty("overscroll-behavior", prevRootOverscroll);
-      root.style.setProperty("touch-action", prevRootTouchAction);
-      html.style.setProperty("overflow", prevHtmlOverflow);
-      body.style.setProperty("overflow", prevBodyOverflow);
-    };
-  }, []);
 
   return (
     <div
-      ref={rootRef}
-      className="relative flex flex-col overscroll-none"
+      className="relative flex min-h-screen flex-col"
       style={{
-        position: "fixed",
-        inset: 0,
-        overflow: "hidden",
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
       aria-label="EuroChallenge Quiz"
     >
       {/* Background + overlay cover only the area above the footer */}
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="relative flex flex-1 flex-col">
         {/* Responsive background: cheering fans silhouette */}
         <div
           className="pointer-events-none absolute inset-0 -z-20 bg-cover bg-bottom bg-no-repeat dark:invert"
@@ -283,25 +251,23 @@ function QuizPage() {
         <Header adPageType="all" />
 
         {/* Główny obszar: iframe quizu + sidebar udostępniania */}
-        <div className="flex flex-1 min-h-0">
-          {/* Obszar quizu: wypełnia całą pozostałą wysokość viewportu.
-              Na dużych ekranach centrujemy i ograniczamy szerokość,
-              aby quiz nie rozciągał się nieproporcjonalnie. */}
-          <main className="relative flex flex-1 min-h-0 min-w-0 items-center justify-center p-1">
+        <div className="flex flex-1">
+          {/* Obszar quizu: znacznie wyższy iframe, strona może scrollować */}
+          <main className="relative flex flex-1 min-w-0 items-center justify-center p-2 sm:p-3">
             {/* Floating back button — minimal overlay, does not steal height from iframe */}
             <Link
               to="/"
-              className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-[6px] bg-background/90 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:left-3 sm:top-3"
+              className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-[6px] bg-background/90 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:left-4 sm:top-4"
             >
               <BrandIcon name="arrow-left" fallback={ArrowLeft} className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">{t("common.back")}</span>
             </Link>
 
-            <div className="relative h-full w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg">
+            <div className="relative w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg">
               <iframe
                 src="https://nes-quiz.com/embed"
-                className="h-full w-full border-0"
-                style={{ overflow: "hidden" }}
+                className="w-full border-0"
+                style={{ height: "clamp(720px, 85vh, 1100px)", overflow: "hidden" }}
                 scrolling="no"
                 allow="clipboard-write"
                 loading="eager"
