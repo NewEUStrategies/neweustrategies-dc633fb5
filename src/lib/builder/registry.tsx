@@ -1183,6 +1183,22 @@ export const WIDGETS: WidgetDef[] = [
     }),
   },
   {
+    type: "toc",
+    label: "Spis treści (TOC)",
+    category: "blocks",
+    icon: ListOrdered,
+    defaults: () => ({
+      variant: "list",
+      title_pl: "Spis treści",
+      title_en: "Table of contents",
+      showNumbers: "1",
+      showProgress: "0",
+      sticky: "0",
+      items_pl: [],
+      items_en: [],
+    }),
+  },
+  {
     type: "rated-list",
     label: "Lista z oceną",
     category: "blocks",
