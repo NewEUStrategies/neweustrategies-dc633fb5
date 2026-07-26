@@ -414,7 +414,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
                   : "text-3xl";
       const variantCls =
         variant === "gradient"
-          ? "bg-gradient-to-r from-brand to-foreground bg-clip-text text-transparent"
+          ? "text-gradient-brand"
           : variant === "outlined"
             ? "[-webkit-text-stroke:1px_currentColor] text-transparent"
             : variant === "highlight"
