@@ -233,87 +233,90 @@ function QuizPage() {
       }}
       aria-label="EuroChallenge Quiz"
     >
-      {/* Responsive background: cheering fans silhouette */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-20 bg-cover bg-bottom bg-no-repeat dark:invert"
-        style={{ backgroundImage: `url(${quizFansBg.url})` }}
-        aria-hidden="true"
-      />
-      {/* Overlay keeps header, iframe and footer readable */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-t from-background/60 via-background/85 to-background/95"
-        aria-hidden="true"
-      />
-
-      {/* Globalny header New European Strategies */}
-      <Header adPageType="all" />
-
-      {/* Kompaktowy pasek powrotu i tytułu quizu */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 py-1.5 sm:px-4">
-        <div className="min-w-0">
-          <h1 className="truncate font-display text-sm font-semibold leading-tight text-foreground sm:text-base">
-            EuroChallenge Quiz
-          </h1>
-          <p className="truncate text-[11px] leading-tight text-muted-foreground sm:text-xs">
-            Sprawdź swoją wiedzę o Europie, gospodarce i polityce
-            międzynarodowej.
-          </p>
-        </div>
-        <Link
-          to="/"
-          className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
-        >
-          <BrandIcon name="arrow-left" fallback={ArrowLeft} className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{t("common.back")}</span>
-        </Link>
-      </div>
-
-      {/* Główny obszar: iframe quizu + sidebar udostępniania */}
-      <div className="flex flex-1 min-h-0">
-        {/* Obszar quizu: responsywnie dopasowuje się do pozostałej wysokości
-            viewportu. Na dużych ekranach centrujemy i ograniczamy szerokość,
-            aby quiz nie rozciągał się nieproporcjonalnie. */}
-        <main className="relative flex flex-1 min-h-0 min-w-0 items-center justify-center p-1 sm:p-2 lg:p-3">
-          <div className="relative h-full w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg">
-            <iframe
-              src="https://nes-quiz.com/embed"
-              className="h-full w-full border-0"
-              allow="clipboard-write"
-              loading="eager"
-              title="EuroChallenge Quiz"
-            />
-          </div>
-        </main>
-
-        {/* Sidebar udostępniania — zawsze widoczny na desktopie, zwijany na mobile */}
-        <div className="hidden shrink-0 border-l border-border bg-background/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-2 lg:block">
-          <div className="flex h-full flex-col items-stretch">
-            <QuizShareSidebar />
-          </div>
-        </div>
-
-        {/* Mobile: zwijany panel udostępniania */}
+      {/* Background + overlay cover only the area above the footer */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* Responsive background: cheering fans silhouette */}
         <div
-          className={cn(
-            "flex shrink-0 flex-col items-center gap-2 border-l border-border bg-background/95 p-1 backdrop-blur transition-all duration-300 ease-out supports-[backdrop-filter]:bg-background/60 lg:hidden",
-            shareOpen ? "w-auto" : "w-11"
-          )}
-        >
-          <button
-            type="button"
-            onClick={() => setShareOpen((v) => !v)}
-            aria-expanded={shareOpen}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
-            title={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
+          className="pointer-events-none absolute inset-0 -z-20 bg-cover bg-bottom bg-no-repeat dark:invert"
+          style={{ backgroundImage: `url(${quizFansBg.url})` }}
+          aria-hidden="true"
+        />
+        {/* Overlay keeps header and iframe readable */}
+        <div
+          className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-t from-background/60 via-background/85 to-background/95"
+          aria-hidden="true"
+        />
+
+        {/* Globalny header New European Strategies */}
+        <Header adPageType="all" />
+
+        {/* Kompaktowy pasek powrotu i tytułu quizu */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 py-1.5 sm:px-4">
+          <div className="min-w-0">
+            <h1 className="truncate font-display text-sm font-semibold leading-tight text-foreground sm:text-base">
+              EuroChallenge Quiz
+            </h1>
+            <p className="truncate text-[11px] leading-tight text-muted-foreground sm:text-xs">
+              Sprawdź swoją wiedzę o Europie, gospodarce i polityce
+              międzynarodowej.
+            </p>
+          </div>
+          <Link
+            to="/"
+            className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
           >
-            {shareOpen ? (
-              <BrandIcon name="chevron-right" fallback={ChevronRight} className="h-4 w-4" />
-            ) : (
-              <BrandIcon name="share" fallback={Share2} className="h-4 w-4" />
+            <BrandIcon name="arrow-left" fallback={ArrowLeft} className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{t("common.back")}</span>
+          </Link>
+        </div>
+
+        {/* Główny obszar: iframe quizu + sidebar udostępniania */}
+        <div className="flex flex-1 min-h-0">
+          {/* Obszar quizu: responsywnie dopasowuje się do pozostałej wysokości
+              viewportu. Na dużych ekranach centrujemy i ograniczamy szerokość,
+              aby quiz nie rozciągał się nieproporcjonalnie. */}
+          <main className="relative flex flex-1 min-h-0 min-w-0 items-center justify-center p-1 sm:p-2 lg:p-3">
+            <div className="relative h-full w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg">
+              <iframe
+                src="https://nes-quiz.com/embed"
+                className="h-full w-full border-0"
+                allow="clipboard-write"
+                loading="eager"
+                title="EuroChallenge Quiz"
+              />
+            </div>
+          </main>
+
+          {/* Sidebar udostępniania — zawsze widoczny na desktopie, zwijany na mobile */}
+          <div className="hidden shrink-0 border-l border-border bg-background/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-2 lg:block">
+            <div className="flex h-full flex-col items-stretch">
+              <QuizShareSidebar />
+            </div>
+          </div>
+
+          {/* Mobile: zwijany panel udostępniania */}
+          <div
+            className={cn(
+              "flex shrink-0 flex-col items-center gap-2 border-l border-border bg-background/95 p-1 backdrop-blur transition-all duration-300 ease-out supports-[backdrop-filter]:bg-background/60 lg:hidden",
+              shareOpen ? "w-auto" : "w-11"
             )}
-          </button>
-          {shareOpen && <QuizShareSidebar compact />}
+          >
+            <button
+              type="button"
+              onClick={() => setShareOpen((v) => !v)}
+              aria-expanded={shareOpen}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
+              title={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
+            >
+              {shareOpen ? (
+                <BrandIcon name="chevron-right" fallback={ChevronRight} className="h-4 w-4" />
+              ) : (
+                <BrandIcon name="share" fallback={Share2} className="h-4 w-4" />
+              )}
+            </button>
+            {shareOpen && <QuizShareSidebar compact />}
+          </div>
         </div>
       </div>
 
