@@ -61,7 +61,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
     case "url":
       return (
         <PropField label={field.label} hint={field.hint}>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <PageUrlAutocomplete
               value={asString(content[field.key])}
               onChange={(v) => setContent(field.key, v)}
