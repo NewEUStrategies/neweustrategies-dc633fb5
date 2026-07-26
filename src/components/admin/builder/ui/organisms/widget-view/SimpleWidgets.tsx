@@ -19,6 +19,7 @@ import type {
   AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
 import { SliderRender, AnimatedHeadingRender } from "./lazyWidgets";
+import { TextRotate } from "@/components/ui/text-rotate";
 import {
   COMPACT_ICON_BOX_SIZE,
   COMPACT_WIDGET_MIN_HEIGHT,
