@@ -458,10 +458,7 @@ function CustomFieldRender({
             className="mt-0.5"
             aria-required={field.required || undefined}
           />
-          <span>
-            {label}
-            {null}
-          </span>
+          <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(label) }} />
         </label>
         {err && <span className="block text-[11px] text-destructive">{err}</span>}
       </div>
