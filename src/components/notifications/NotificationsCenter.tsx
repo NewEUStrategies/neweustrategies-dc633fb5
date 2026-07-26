@@ -552,7 +552,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                               )}
                               {g.unreadCount > 0 && (
                                 <span
-                                  className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+                                  className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-[6px] bg-primary px-1 text-[9px] font-semibold text-primary-foreground"
                                   aria-label={t("notifications.unread", {
                                     count: g.unreadCount,
                                   })}
