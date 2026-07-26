@@ -44,6 +44,10 @@ export const Route = createFileRoute("/quiz")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
+    // Preload wariantów tła (mobile+desktop, light+dark) — przeglądarka
+    // pobierze wyłącznie warianty pasujące do media query, więc żaden
+    // użytkownik nie płaci za oba tryby naraz.
+    links: [...QUIZ_BG_PRELOAD_LINKS],
   }),
   component: QuizPage,
 });
