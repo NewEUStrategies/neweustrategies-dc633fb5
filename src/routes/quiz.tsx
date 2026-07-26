@@ -226,8 +226,11 @@ function QuizPage() {
 
   return (
     <div
-      className="relative flex h-screen max-h-screen flex-col overflow-hidden overscroll-none supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh]"
+      className="relative flex flex-col overscroll-none"
       style={{
+        position: "fixed",
+        inset: 0,
+        overflow: "hidden",
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
