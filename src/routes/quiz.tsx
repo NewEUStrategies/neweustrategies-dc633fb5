@@ -17,7 +17,7 @@ import { Footer } from "@/components/Footer";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
-import quizFansBg from "@/assets/quiz-fans-bg.png.asset.json";
+import { QuizBackground, QUIZ_BG_PRELOAD_LINKS } from "@/components/quiz/QuizBackground";
 
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
@@ -44,6 +44,10 @@ export const Route = createFileRoute("/quiz")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
+    // Preload wariantów tła (mobile+desktop, light+dark) — przeglądarka
+    // pobierze wyłącznie warianty pasujące do media query, więc żaden
+    // użytkownik nie płaci za oba tryby naraz.
+    links: [...QUIZ_BG_PRELOAD_LINKS],
   }),
   component: QuizPage,
 });
@@ -234,17 +238,9 @@ function QuizPage() {
     >
       {/* Background + overlay cover only the area above the footer */}
       <div className="relative flex flex-1 flex-col">
-        {/* Responsive background: cheering fans silhouette */}
-        <div
-          className="pointer-events-none absolute inset-0 -z-20 bg-cover bg-bottom bg-no-repeat dark:invert"
-          style={{ backgroundImage: `url(${quizFansBg.url})` }}
-          aria-hidden="true"
-        />
-        {/* Overlay keeps header and iframe readable */}
-        <div
-          className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-t from-background/60 via-background/85 to-background/95"
-          aria-hidden="true"
-        />
+        {/* Responsive background: warianty light/dark + overlay w środku */}
+        <QuizBackground />
+
 
         {/* Globalny header New European Strategies */}
         <Header adPageType="all" />
