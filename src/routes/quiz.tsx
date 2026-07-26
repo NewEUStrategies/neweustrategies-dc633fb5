@@ -295,9 +295,9 @@ function QuizPage() {
             title={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
           >
             {shareOpen ? (
-              <ChevronRight className="h-4 w-4" />
+              <BrandIcon name="chevron-right" fallback={ChevronRight} className="h-4 w-4" />
             ) : (
-              <Share2 className="h-4 w-4" />
+              <BrandIcon name="share" fallback={Share2} className="h-4 w-4" />
             )}
           </button>
           {shareOpen && <QuizShareSidebar compact />}
