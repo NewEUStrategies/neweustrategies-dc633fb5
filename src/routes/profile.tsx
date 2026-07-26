@@ -62,13 +62,27 @@ function ProfileLayout() {
               {!hideSidebar && (
                 <aside className="w-full shrink-0 border-b border-border bg-muted/40 p-5 md:w-72 md:border-b-0 md:border-r">
                   <div className="flex h-full flex-col gap-6">
-                    <div className="px-2">
-                      <h1 className="text-xl font-extrabold uppercase italic tracking-tight text-foreground">
-                        {t("profile.title")}
-                      </h1>
-                      <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        {t("profile.subtitle", { defaultValue: "Centrum zarządzania" })}
-                      </p>
+                    <div className="relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-br from-primary/[0.08] via-background to-background px-3 py-3">
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-l-[6px] bg-gradient-to-b from-primary via-primary/70 to-primary/30"
+                      />
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          aria-hidden
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-primary ring-1 ring-primary/15"
+                        >
+                          <UserCircle className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <h1 className="truncate text-[15px] font-extrabold italic tracking-tight text-foreground">
+                            {t("profile.title")}
+                          </h1>
+                          <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                            {t("profile.subtitle", { defaultValue: "Centrum zarządzania" })}
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                     <ProfileNav />
