@@ -96,16 +96,15 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
             aria-label={name}
             aria-pressed={active}
             title={name}
-            className={`lang-tile block overflow-hidden transition-[filter,opacity,transform] duration-300 ease-out motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)] ${
+            className={`lang-tile block overflow-hidden border border-black/15 dark:border-white/20 transition-[filter,opacity,transform] duration-300 ease-out motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)] ${
               active
                 ? "opacity-100 scale-105"
                 : "opacity-45 grayscale hover:opacity-75"
             }`}
             style={{
-              width: 30,
-              height: 20,
+              width: 28,
+              height: 18,
               borderRadius: 6,
-              boxShadow: "inset 0 0 0 1px rgba(0,0,0,.14)",
             }}
           >
             <FlagSvg code={flag} />
