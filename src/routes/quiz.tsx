@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { QuizBackground, QUIZ_BG_PRELOAD_LINKS, QUIZ_BG_PRELOAD_SCRIPT } from "@/components/quiz/QuizBackground";
+import { LazyQuizIframe } from "@/components/quiz/LazyQuizIframe";
 
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
