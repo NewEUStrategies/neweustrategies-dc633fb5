@@ -273,7 +273,7 @@ function QuizPage() {
         {/* Obszar quizu: responsywnie dopasowuje się do pozostałej wysokości
             viewportu. Na dużych ekranach centrujemy i ograniczamy szerokość,
             aby quiz nie rozciągał się nieproporcjonalnie. */}
-        <main className="relative flex flex-1 min-h-0 min-w-0 items-center justify-center p-2 sm:p-3 lg:p-4">
+        <main className="relative flex flex-1 min-h-0 min-w-0 items-center justify-center p-1 sm:p-2 lg:p-3">
           <div className="relative h-full w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg">
             <iframe
               src="https://nes-quiz.com/embed"
@@ -286,7 +286,7 @@ function QuizPage() {
         </main>
 
         {/* Sidebar udostępniania — zawsze widoczny na desktopie, zwijany na mobile */}
-        <div className="hidden shrink-0 border-l border-border bg-background/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-3 lg:block">
+        <div className="hidden shrink-0 border-l border-border bg-background/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-2 lg:block">
           <div className="flex h-full flex-col items-stretch">
             <QuizShareSidebar />
           </div>
@@ -295,7 +295,7 @@ function QuizPage() {
         {/* Mobile: zwijany panel udostępniania */}
         <div
           className={cn(
-            "flex shrink-0 flex-col items-center gap-2 border-l border-border bg-background/95 p-1.5 backdrop-blur transition-all duration-300 ease-out supports-[backdrop-filter]:bg-background/60 lg:hidden",
+            "flex shrink-0 flex-col items-center gap-2 border-l border-border bg-background/95 p-1 backdrop-blur transition-all duration-300 ease-out supports-[backdrop-filter]:bg-background/60 lg:hidden",
             shareOpen ? "w-auto" : "w-11"
           )}
         >
@@ -317,20 +317,7 @@ function QuizPage() {
         </div>
       </div>
 
-      <p className="shrink-0 px-3 py-1.5 text-center text-[10px] leading-tight text-muted-foreground/80 sm:text-xs">
-        Quiz dostarczany przez zewnętrzną platformę{" "}
-        <a
-          href="https://nes-quiz.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-foreground"
-        >
-          nes-quiz.com
-        </a>
-        .
-      </p>
-
-      <Footer />
+      <Footer compact />
     </div>
   );
 }
