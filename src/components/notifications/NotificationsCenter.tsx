@@ -549,7 +549,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                     void router.navigate({ href });
                                   }}
                                   className={cn(
-                                    "text-sm truncate hover:underline",
+                                    "text-[15px] truncate hover:underline",
                                     isUnread ? "font-semibold" : "font-medium",
                                   )}
                                 >
@@ -564,7 +564,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                     if (unreadIds.length > 0) markMany.mutate(unreadIds);
                                   }}
                                   className={cn(
-                                    "text-sm truncate hover:underline",
+                                    "text-[15px] truncate hover:underline",
                                     isUnread ? "font-semibold" : "font-medium",
                                   )}
                                 >
@@ -573,7 +573,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                               ) : (
                                 <span
                                   className={cn(
-                                    "text-sm truncate",
+                                    "text-[15px] truncate",
                                     isUnread ? "font-semibold" : "font-medium",
                                   )}
                                 >
