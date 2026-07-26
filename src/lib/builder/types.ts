@@ -444,7 +444,8 @@ export type WidgetType =
   | "post-excerpt"
   | "archive-title"
   | "search-form"
-  | "contact-form";
+  | "contact-form"
+  | "toc";
 
 // JSON-safe primitives that may live inside a widget's content map.
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
