@@ -169,7 +169,7 @@ export function TocWidget({ content, lang }: Props) {
     ? getStrArr(content, `items_${lang}`)
     : getStrArr(content, "items_pl");
   const manual = useMemo(() => parseManualItems(manualRaw), [manualRaw]);
-  const items = useTocItems(manual);
+  const items = useTocItems(manual, title);
   const active = useActiveHeading(items);
   const progress = useReadingProgress();
   const [open, setOpen] = useState(false);
