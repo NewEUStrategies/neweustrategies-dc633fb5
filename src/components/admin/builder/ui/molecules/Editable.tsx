@@ -71,7 +71,8 @@ export function Editable({
     if (!el) return;
     if (document.activeElement === el) return;
     if (html) {
-      if (el.innerHTML !== value) el.innerHTML = value;
+      const normalized = normalizeBuilderRichHtml(value);
+      if (el.innerHTML !== normalized) el.innerHTML = normalized;
     } else if (el.textContent !== value) {
       el.textContent = value;
     }
@@ -112,7 +113,7 @@ export function Editable({
       e.preventDefault();
       const el = ref.current;
       if (el) {
-        if (html) el.innerHTML = value;
+        if (html) el.innerHTML = normalizeBuilderRichHtml(value);
         else el.textContent = value;
       }
       (e.target as HTMLElement).blur();

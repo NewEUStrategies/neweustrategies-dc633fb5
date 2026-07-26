@@ -48,8 +48,9 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (value !== lastEmitted.current && value !== el.innerHTML) {
-      const normalized = normalizeBuilderRichHtml(value ?? "");
+    if (document.activeElement === el) return;
+    const normalized = normalizeBuilderRichHtml(value ?? "");
+    if (normalized !== el.innerHTML) {
       el.innerHTML = normalized;
       lastEmitted.current = normalized;
     }
