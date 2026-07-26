@@ -349,6 +349,60 @@ export function renderSimpleWidget(
       };
 
       const linkStyle = compactIconBoxStyle(box);
+      const layout = getStr(c, "layout") || "row";
+
+      if (layout === "list") {
+        const defaultCta: Record<string, string> = {
+          facebook: "Like",
+          x: "Follow",
+          youtube: "Subscribe",
+          instagram: "Follow",
+          linkedin: "Follow",
+        };
+        const rows = items
+          .map(({ k, altKeys, Cmp, label }) => {
+            const href =
+              getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
+            if (!href && !showEmpty) return null;
+            const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+            const cta = getStr(c, ctaKey) || defaultCta[k] || "";
+            const color = href ? resolveColor(k) : undefined;
+            return (
+              <AppLink
+                key={k}
+                href={href ? safeUrl(href) : "#"}
+                aria-label={label}
+                className={`group flex items-center gap-3 border-b border-border/60 py-2.5 transition-colors last:border-b-0 hover:bg-muted/40 ${!href ? "pointer-events-none opacity-40" : ""}`}
+              >
+                <span
+                  className={`inline-flex items-center justify-center ${radiusCls} shrink-0`}
+                  style={{ ...linkStyle, color }}
+                >
+                  <Cmp size={size} />
+                </span>
+                <span
+                  className="mx-1 h-4 w-px shrink-0 bg-border/70"
+                  aria-hidden="true"
+                />
+                <span className="flex-1 truncate text-sm font-medium">{label}</span>
+                {cta && (
+                  <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground group-hover:text-foreground">
+                    {cta}
+                  </span>
+                )}
+              </AppLink>
+            );
+          })
+          .filter(Boolean);
+        return (
+          <div
+            className={`flex flex-col w-full text-foreground ${themeCls}`}
+            style={compactRowStyle}
+          >
+            {rows}
+          </div>
+        );
+      }
 
       return (
         <div

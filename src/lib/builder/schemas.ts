@@ -1353,6 +1353,51 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
       hint: "Jak ikony mają się zachowywać w dark / light mode.",
     },
+    {
+      key: "layout",
+      type: "select",
+      label: "Układ",
+      options: [
+        { value: "row", label: "Ikony w rzędzie" },
+        { value: "list", label: "Lista (ikona + nazwa + CTA)" },
+      ],
+      hint: "Lista renderuje każdą platformę jako osobny wiersz z etykietą i CTA (Like / Follow / Subscribe).",
+    },
+    {
+      key: "ctaFacebook",
+      type: "text",
+      label: "CTA Facebook",
+      placeholder: "Like",
+      visibleWhen: (c) => c.layout === "list",
+    },
+    {
+      key: "ctaX",
+      type: "text",
+      label: "CTA X",
+      placeholder: "Follow",
+      visibleWhen: (c) => c.layout === "list",
+    },
+    {
+      key: "ctaYoutube",
+      type: "text",
+      label: "CTA YouTube",
+      placeholder: "Subscribe",
+      visibleWhen: (c) => c.layout === "list",
+    },
+    {
+      key: "ctaInstagram",
+      type: "text",
+      label: "CTA Instagram",
+      placeholder: "Follow",
+      visibleWhen: (c) => c.layout === "list",
+    },
+    {
+      key: "ctaLinkedin",
+      type: "text",
+      label: "CTA LinkedIn",
+      placeholder: "Follow",
+      visibleWhen: (c) => c.layout === "list",
+    },
   ],
   // `rated-list` has its own custom list editor in WidgetProperties.tsx.
   "news-ticker": [
