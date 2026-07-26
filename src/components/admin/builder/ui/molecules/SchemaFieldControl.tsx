@@ -1,5 +1,6 @@
 // Molecule: renders a single content field based on its declarative schema entry.
 // Used by ContentFields to drive simple widget editors from `WIDGET_SCHEMAS`.
+import { useState } from "react";
 import { toJson } from "@/lib/builder/types";
 import type { Json } from "@/lib/builder/types";
 import type { SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
@@ -16,7 +17,10 @@ import {
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
-import { Image as ImageIcon } from "lucide-react";
+import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
+import { Image as ImageIcon, FolderOpen } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
 
 interface Props {
   field: SchemaFieldDef;
