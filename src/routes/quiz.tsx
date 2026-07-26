@@ -207,6 +207,7 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
 
 function QuizPage() {
   const { t } = useTranslation();
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <div
