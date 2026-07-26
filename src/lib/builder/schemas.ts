@@ -38,6 +38,8 @@ export interface SchemaField {
   hint?: string;
   /** Show only when this predicate returns true (against full content object). */
   visibleWhen?: (content: Record<string, unknown>) => boolean;
+  /** Optional group label to visually cluster related fields in the editor. */
+  group?: string;
 }
 
 // Empty schemas mean "use the custom editor branch" or "no editable fields".
