@@ -135,7 +135,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         <PropField label={`${field.label} (${langSuffix})`} hint={field.hint}>
           <RichHtmlField
             value={asString(content[i18nKey])}
-            onChange={(html) => setContent(i18nKey, html)}
+            onChange={(html: string) => setContent(i18nKey, html)}
             rows={field.rows ?? 4}
             ariaLabel={`${field.label} (${langSuffix})`}
           />
