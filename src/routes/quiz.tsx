@@ -223,9 +223,38 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
 function QuizPage() {
   const { t } = useTranslation();
   const [shareOpen, setShareOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const html = document.documentElement;
+    const body = document.body;
+
+    const prevRootOverflow = root.style.getPropertyValue("overflow");
+    const prevRootOverscroll = root.style.getPropertyValue("overscroll-behavior");
+    const prevRootTouchAction = root.style.getPropertyValue("touch-action");
+    const prevHtmlOverflow = html.style.getPropertyValue("overflow");
+    const prevBodyOverflow = body.style.getPropertyValue("overflow");
+
+    root.style.setProperty("overflow", "hidden", "important");
+    root.style.setProperty("overscroll-behavior", "none", "important");
+    root.style.setProperty("touch-action", "none", "important");
+    html.style.setProperty("overflow", "hidden", "important");
+    body.style.setProperty("overflow", "hidden", "important");
+
+    return () => {
+      root.style.setProperty("overflow", prevRootOverflow);
+      root.style.setProperty("overscroll-behavior", prevRootOverscroll);
+      root.style.setProperty("touch-action", prevRootTouchAction);
+      html.style.setProperty("overflow", prevHtmlOverflow);
+      body.style.setProperty("overflow", prevBodyOverflow);
+    };
+  }, []);
 
   return (
     <div
+      ref={rootRef}
       className="relative flex flex-col overscroll-none"
       style={{
         position: "fixed",
