@@ -11,6 +11,7 @@ import {
   Share2,
 } from "lucide-react";
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/quiz")({
@@ -195,7 +196,7 @@ function QuizPage() {
 
   return (
     <div
-      className="flex h-[100dvh] flex-col overflow-hidden bg-background"
+      className="flex min-h-[100dvh] flex-col overflow-y-auto bg-background"
       aria-label="EuroChallenge Quiz"
     >
       {/* Globalny header New European Strategies */}
@@ -222,10 +223,10 @@ function QuizPage() {
       </div>
 
       {/* Główny obszar: iframe quizu + sidebar udostępniania */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0">
         {/* Obszar quizu: responsywnie dopasowuje się do pozostałej wysokości
-            viewportu, nie wymaga scrollowania. Na dużych ekranach centrujemy
-            i ograniczamy szerokość, aby quiz nie rozciągał się nieproporcjonalnie. */}
+            viewportu. Na dużych ekranach centrujemy i ograniczamy szerokość,
+            aby quiz nie rozciągał się nieproporcjonalnie. */}
         <main className="relative flex flex-1 min-w-0 items-center justify-center p-2 sm:p-3 lg:p-4">
           <div className="relative h-full w-full max-w-5xl overflow-hidden rounded-[6px] border border-border bg-black shadow-lg">
             <iframe
@@ -258,6 +259,8 @@ function QuizPage() {
         </a>
         .
       </p>
+
+      <Footer />
     </div>
   );
 }
