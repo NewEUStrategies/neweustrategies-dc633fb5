@@ -1,5 +1,6 @@
 // Molecule: renders a single content field based on its declarative schema entry.
 // Used by ContentFields to drive simple widget editors from `WIDGET_SCHEMAS`.
+import { useState } from "react";
 import { toJson } from "@/lib/builder/types";
 import type { Json } from "@/lib/builder/types";
 import type { SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
@@ -16,7 +17,10 @@ import {
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
-import { Image as ImageIcon } from "lucide-react";
+import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
+import { Image as ImageIcon, FolderOpen } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
 
 interface Props {
   field: SchemaFieldDef;
@@ -31,6 +35,8 @@ const asStringArray = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 
 export function SchemaFieldControl({ field, lang, content, setContent }: Props) {
+  const { t } = useTranslation();
+  const [urlPickerOpen, setUrlPickerOpen] = useState(false);
   if (field.visibleWhen && !field.visibleWhen(content)) return null;
 
   const langSuffix = lang.toUpperCase();
@@ -38,7 +44,6 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
   switch (field.type) {
     case "text":
-    case "url":
       return (
         <PropField label={field.label} hint={field.hint}>
           <Input
@@ -49,6 +54,41 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
           />
         </PropField>
       );
+
+    case "url":
+      return (
+        <PropField label={field.label} hint={field.hint}>
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={asString(content[field.key])}
+              placeholder={field.placeholder}
+              onChange={(e) => setContent(field.key, e.target.value)}
+              className="h-8 text-xs flex-1"
+            />
+            <button
+              type="button"
+              onClick={() => setUrlPickerOpen(true)}
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-border px-2 text-[11px] text-muted-foreground hover:border-brand hover:bg-muted/30 hover:text-foreground"
+              title={t("builder.imageSlot.pickFromLibrary", { defaultValue: "Wybierz z biblioteki" })}
+              aria-label={t("builder.imageSlot.pickFromLibrary", { defaultValue: "Wybierz z biblioteki" })}
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t("builder.imageSlot.mediaLibrary", { defaultValue: "Biblioteka" })}</span>
+            </button>
+          </div>
+          <MediaPickerDialog
+            open={urlPickerOpen}
+            onOpenChange={setUrlPickerOpen}
+            onPick={(url) => {
+              setContent(field.key, url);
+              setUrlPickerOpen(false);
+            }}
+            title={t("builder.imageSlot.pickFromLibrary", { defaultValue: "Wybierz z biblioteki" })}
+          />
+        </PropField>
+      );
+
+
 
     case "image":
       return (
