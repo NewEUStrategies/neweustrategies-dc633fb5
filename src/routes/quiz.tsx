@@ -238,7 +238,7 @@ function QuizPage() {
       aria-label="EuroChallenge Quiz"
     >
       {/* Background + overlay cover only the area above the footer */}
-      <div className="relative flex flex-1 flex-col">
+      <div className="relative flex flex-1 flex-col overflow-hidden">
         {/* Responsive background: warianty light/dark + overlay w środku */}
         <QuizBackground />
 
@@ -301,7 +301,10 @@ function QuizPage() {
         </div>
       </div>
 
-      <Footer />
+      <div className="relative z-10 bg-background">
+        <Footer />
+      </div>
+
     </div>
   );
 }
