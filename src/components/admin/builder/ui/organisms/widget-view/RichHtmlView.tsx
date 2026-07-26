@@ -19,6 +19,7 @@ import {
   type Footnote,
 } from "@/lib/footnotes";
 import { FootnoteTooltips } from "@/components/Footnotes";
+import { normalizeBuilderRichHtml } from "@/lib/builder/normalizeRichHtml";
 
 interface Props {
   html: string;
@@ -34,7 +35,7 @@ export function RichHtmlView({ html, className, style }: Props) {
   // wynik jest identyczny z sanitizeHtml(html), a `liveNotes` puste.
   const { safe, liveNotes } = useMemo(() => {
     const col = createCounter(1);
-    const expanded = expandFootnotes(html, col);
+    const expanded = expandFootnotes(normalizeBuilderRichHtml(html), col);
     return { safe: sanitizeHtml(expanded), liveNotes: col.notes };
   }, [html]);
 
