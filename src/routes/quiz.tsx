@@ -2,6 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/quiz")({
+  // Wyłączamy globalny SiteChrome (header/footer), aby quiz był pełnoekranowy
+  // i nie wymagał scrollowania na żadnym urządzeniu.
+  staticData: { ownChrome: true },
   head: () => ({
     meta: [
       { title: "EuroChallenge Quiz — New European Strategies" },
@@ -28,7 +31,7 @@ export const Route = createFileRoute("/quiz")({
 
 function QuizPage() {
   return (
-    <section className="flex h-full flex-col" aria-label="EuroChallenge Quiz">
+    <div className="flex h-[100dvh] flex-col bg-background" aria-label="EuroChallenge Quiz">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 py-2 sm:px-4">
         <div className="min-w-0">
           <h1 className="truncate font-display text-sm font-semibold leading-tight text-foreground sm:text-base">
@@ -47,7 +50,7 @@ function QuizPage() {
         </Link>
       </header>
 
-      <div className="relative flex-1 min-h-0 bg-background">
+      <div className="relative flex-1 min-h-0 overflow-hidden">
         <iframe
           src="https://nes-quiz.com/embed"
           className="absolute inset-0 h-full w-full border-0"
@@ -69,6 +72,6 @@ function QuizPage() {
         </a>
         .
       </p>
-    </section>
+    </div>
   );
 }
