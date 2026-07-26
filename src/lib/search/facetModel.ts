@@ -311,7 +311,7 @@ export const SUGGEST_BUCKET_ORDER: readonly SuggestBucket[] = [
 ] as const;
 
 export function suggestBucketOf(kind: AutosuggestItem["kind"]): SuggestBucket {
-  if (kind === "post") return "titles";
+  if (kind === "post" || kind === "page") return "titles";
   if (kind === "author" || kind === "organization" || kind === "company") return "peopleOrg";
   if (kind === "format" || kind === "pub_type" || kind === "access" || kind === "lang") {
     return "contentTypes";
