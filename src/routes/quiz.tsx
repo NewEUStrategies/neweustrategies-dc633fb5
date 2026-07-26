@@ -301,7 +301,10 @@ function QuizPage() {
         </div>
       </div>
 
-      <Footer />
+      <div className="relative z-10 bg-background">
+        <Footer />
+      </div>
+
     </div>
   );
 }
