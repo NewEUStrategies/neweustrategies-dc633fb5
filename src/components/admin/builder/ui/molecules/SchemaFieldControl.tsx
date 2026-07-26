@@ -19,6 +19,7 @@ import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { LucideIconPicker } from "./LucideIconPicker";
+import { PageUrlAutocomplete } from "./PageUrlAutocomplete";
 import { Image as ImageIcon, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
