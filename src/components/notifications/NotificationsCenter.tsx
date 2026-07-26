@@ -59,6 +59,8 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { UnreadBadge } from "@/components/atoms/UnreadBadge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useNotificationActorProfiles, notificationActorId } from "@/lib/notifications/useActorProfiles";
 import { ConsentsPanel } from "./ConsentsPanel";
 
 type Lang = "pl" | "en";
