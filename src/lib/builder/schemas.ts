@@ -9,12 +9,14 @@ type FieldType =
   | "i18nHtml" // textarea HTML, separate PL/EN values
   | "url"
   | "image" // URL input + file upload to storage
+  | "icon" // Lucide icon picker (searchable library)
   | "number"
   | "select"
   | "color" // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
   | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
   | "stringArray"; // textarea with one item per line
+
 
 export interface SchemaField {
   /** Storage key for non-i18n fields, OR base key (without `_pl|_en`) for i18n fields. */
