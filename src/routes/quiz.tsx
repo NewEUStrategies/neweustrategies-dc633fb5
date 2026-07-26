@@ -92,32 +92,37 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
   const items = [
     {
       key: "copy",
-      icon: copied ? Check : Copy,
+      iconName: copied ? "check" : "copy",
+      fallback: copied ? Check : Copy,
       label: copied ? t("quiz.share.copied") : t("quiz.share.copy"),
       onClick: handleCopy,
       active: copied,
     },
     {
       key: "linkedin",
-      icon: Linkedin,
+      iconName: "linkedin",
+      fallback: Linkedin,
       label: t("quiz.share.linkedin"),
       href: `https://www.linkedin.com/sharing/share-offsite/?url=${share.encodedUrl}`,
     },
     {
       key: "facebook",
-      icon: Facebook,
+      iconName: "facebook",
+      fallback: Facebook,
       label: t("quiz.share.facebook"),
       href: `https://www.facebook.com/sharer/sharer.php?u=${share.encodedUrl}`,
     },
     {
       key: "messenger",
-      icon: MessageCircle,
+      iconName: "messenger",
+      fallback: MessageCircle,
       label: t("quiz.share.messenger"),
       href: `https://www.facebook.com/dialog/send?link=${share.encodedUrl}&app_id=145634995501895&redirect_uri=${share.encodedUrl}`,
     },
     {
       key: "whatsapp",
-      icon: () => (
+      iconName: "whatsapp",
+      fallback: () => (
         <svg
           viewBox="0 0 24 24"
           fill="currentColor"
@@ -132,7 +137,8 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
     },
     {
       key: "email",
-      icon: Mail,
+      iconName: "email",
+      fallback: Mail,
       label: t("quiz.share.email"),
       href: `mailto:?subject=${share.subject}&body=${share.body}`,
     },
