@@ -19,6 +19,7 @@ import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { LucideIconPicker } from "./LucideIconPicker";
+import { PageUrlAutocomplete } from "./PageUrlAutocomplete";
 import { Image as ImageIcon, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -61,12 +62,13 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       return (
         <PropField label={field.label} hint={field.hint}>
           <div className="flex items-center gap-1.5">
-            <Input
+            <PageUrlAutocomplete
               value={asString(content[field.key])}
+              onChange={(v) => setContent(field.key, v)}
               placeholder={field.placeholder}
-              onChange={(e) => setContent(field.key, e.target.value)}
-              className="h-8 text-xs flex-1"
+              lang={lang}
             />
+
             <button
               type="button"
               onClick={() => setUrlPickerOpen(true)}
