@@ -1321,6 +1321,8 @@ export function renderSimpleWidget(
       return <ContactFormView data={(node.content ?? {}) as Record<string, unknown>} lang={lang} />;
     case "counter":
       return <CounterWidget content={c} lang={lang} />;
+    case "toc":
+      return <TocWidget content={c} lang={lang} />;
     default:
       return undefined;
   }
