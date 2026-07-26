@@ -58,6 +58,7 @@ import {
 } from "@/lib/notifications/push";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { ConsentsPanel } from "./ConsentsPanel";
 
 type Lang = "pl" | "en";
