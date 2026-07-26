@@ -343,7 +343,7 @@ function QuizPage() {
         </div>
       </div>
 
-      <Footer compact />
+      <Footer />
     </div>
   );
 }
