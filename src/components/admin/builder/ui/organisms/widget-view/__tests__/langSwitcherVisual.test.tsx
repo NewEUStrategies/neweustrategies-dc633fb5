@@ -77,7 +77,7 @@ describe("LangSwitcherDropdown — visual regression", () => {
     expect(normalize(container.innerHTML)).toMatchSnapshot();
   });
 
-  it("light + EN aktywne: thumb translateX(64px), aria-pressed na EN", async () => {
+  it("light + EN aktywne: thumb translateX(56px), aria-pressed na EN", async () => {
     await setLang("en");
     const { container } = render(
       <ThemeProvider>
@@ -86,7 +86,7 @@ describe("LangSwitcherDropdown — visual regression", () => {
     );
     const thumb = container.querySelector(".lang__thumb") as HTMLElement;
     const [plBtn, enBtn] = Array.from(container.querySelectorAll("button"));
-    expect(thumb.style.transform).toBe("translateX(64px)");
+    expect(thumb.style.transform).toBe("translateX(56px)");
     expect(plBtn.getAttribute("aria-pressed")).toBe("false");
     expect(enBtn.getAttribute("aria-pressed")).toBe("true");
     expect(normalize(container.innerHTML)).toMatchSnapshot();
@@ -123,7 +123,7 @@ describe("LangSwitcherDropdown — visual regression", () => {
     for (const btn of buttons) {
       expect(btn.className).toMatch(/motion-reduce:duration-\[1ms\]/);
       // Kolor/typografia muszą pozostać niezmienne przy reduced motion.
-      expect(btn.className).toMatch(/text-\[13px\]/);
+      expect(btn.className).toMatch(/text-\[11px\]/);
       expect(btn.className).toMatch(/font-medium/);
     }
     expect(normalize(container.innerHTML)).toMatchSnapshot();
