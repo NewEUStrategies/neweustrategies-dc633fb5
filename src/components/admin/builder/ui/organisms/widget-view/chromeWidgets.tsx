@@ -79,12 +79,12 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
 
   return (
     <div
-      className="lang relative inline-flex p-[3px] rounded-full border border-black/10 bg-[#f4f4f2] dark:border-white/10 dark:bg-[#27272a]"
+      className="lang relative inline-flex p-[3px] rounded-[6px] border border-black/10 bg-[#f4f4f2] dark:border-white/10 dark:bg-[#27272a]"
       role="group"
       aria-label={label}
     >
       <div
-        className="lang__thumb absolute top-[3px] left-[3px] w-16 h-7 rounded-full bg-white border border-black/[0.08] transition-transform duration-[340ms] ease-[cubic-bezier(.32,.72,0,1)] will-change-transform dark:bg-[#18181b] dark:border-white/[0.08]"
+        className="lang__thumb absolute top-[3px] left-[3px] w-16 h-7 rounded-[6px] bg-white border border-black/[0.08] transition-transform duration-[340ms] ease-[cubic-bezier(.32,.72,0,1)] will-change-transform dark:bg-[#18181b] dark:border-white/[0.08]"
         style={{
           transform: isLastActive ? "translateX(64px)" : "translateX(0)",
         }}
@@ -104,7 +104,7 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
             aria-label={name}
             aria-pressed={active}
             title={name}
-            className={`lang__opt relative z-[1] w-16 h-7 inline-flex items-center justify-center gap-[7px] text-[13px] font-medium leading-none transition-colors duration-[280ms] ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)] focus-visible:rounded-full motion-reduce:duration-[1ms] ${
+            className={`lang__opt relative z-[1] w-16 h-7 inline-flex items-center justify-center gap-[7px] text-[13px] font-medium leading-none transition-colors duration-[280ms] ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)] focus-visible:rounded-[6px] motion-reduce:duration-[1ms] ${
               active
                 ? "is-active text-[#111] dark:text-[#f4f4f2]"
                 : "text-[#8a8a85] hover:text-[#444] dark:hover:text-[#d4d4d8]"
