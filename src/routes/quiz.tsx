@@ -271,6 +271,7 @@ function QuizPage() {
           <button
             type="button"
             onClick={() => setShareOpen((v) => !v)}
+            aria-expanded={shareOpen}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
             title={shareOpen ? t("quiz.share.collapse") : t("quiz.share.expand")}
