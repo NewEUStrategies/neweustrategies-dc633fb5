@@ -1,6 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/quiz")({
+  // Wyłączamy globalny SiteChrome (header/footer), aby quiz był pełnoekranowy
+  // i nie wymagał scrollowania na żadnym urządzeniu.
+  staticData: { ownChrome: true },
   head: () => ({
     meta: [
       { title: "EuroChallenge Quiz — New European Strategies" },
@@ -27,37 +31,47 @@ export const Route = createFileRoute("/quiz")({
 
 function QuizPage() {
   return (
-    <main className="min-h-screen bg-background py-12 md:py-16">
-      <div className="container mx-auto px-4">
-        <div className="mx-auto max-w-4xl">
-          <header className="mb-8 text-center">
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-              EuroChallenge Quiz
-            </h1>
-            <p className="mt-3 text-[15px] text-muted-foreground">
-              Sprawdź swoją wiedzę o Europie, gospodarce i polityce
-              międzynarodowej.
-            </p>
-          </header>
-
-          <div className="overflow-hidden rounded-[6px] border border-border bg-card shadow-sm">
-            <iframe
-              src="https://nes-quiz.com/embed"
-              width="100%"
-              height="700px"
-              style={{ border: 0 }}
-              allow="clipboard-write"
-              loading="lazy"
-              title="EuroChallenge Quiz"
-              className="block min-h-[500px] w-full md:min-h-[700px]"
-            />
-          </div>
-
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            Quiz dostarczany przez zewnętrzną platformę nes-quiz.com.
+    <div className="flex h-[100dvh] flex-col bg-background" aria-label="EuroChallenge Quiz">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 py-2 sm:px-4">
+        <div className="min-w-0">
+          <h1 className="truncate font-display text-sm font-semibold leading-tight text-foreground sm:text-base">
+            EuroChallenge Quiz
+          </h1>
+          <p className="truncate text-[11px] leading-tight text-muted-foreground sm:text-xs">
+            Sprawdź swoją wiedzę o Europie, gospodarce i polityce międzynarodowej.
           </p>
         </div>
+        <Link
+          to="/"
+          className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-secondary px-2 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Powrót</span>
+        </Link>
+      </header>
+
+      <div className="relative flex-1 min-h-0 overflow-hidden">
+        <iframe
+          src="https://nes-quiz.com/embed"
+          className="absolute inset-0 h-full w-full border-0"
+          allow="clipboard-write"
+          loading="lazy"
+          title="EuroChallenge Quiz"
+        />
       </div>
-    </main>
+
+      <p className="shrink-0 px-3 py-1.5 text-center text-[10px] leading-tight text-muted-foreground/80 sm:text-xs">
+        Quiz dostarczany przez zewnętrzną platformę{" "}
+        <a
+          href="https://nes-quiz.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-foreground"
+        >
+          nes-quiz.com
+        </a>
+        .
+      </p>
+    </div>
   );
 }
