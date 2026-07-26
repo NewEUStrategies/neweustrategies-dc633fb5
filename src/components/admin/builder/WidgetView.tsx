@@ -414,7 +414,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
                   : "text-3xl";
       const variantCls =
         variant === "gradient"
-          ? "bg-gradient-to-r from-brand to-foreground bg-clip-text text-transparent"
+          ? "text-gradient-brand"
           : variant === "outlined"
             ? "[-webkit-text-stroke:1px_currentColor] text-transparent"
             : variant === "highlight"
@@ -573,7 +573,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           : variant === "ghost"
             ? "hover:bg-muted"
             : variant === "gradient"
-              ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground hover:opacity-90"
+              ? "bg-gradient-brand text-white hover:opacity-90"
               : variant === "soft"
                 ? "bg-brand/10 text-brand hover:bg-brand/20"
                 : variant === "link"
@@ -1033,7 +1033,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const align = getStr(c, "align") || "between";
       const containerCls =
         variant === "gradient"
-          ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground rounded-xl p-8"
+          ? "bg-gradient-brand text-white rounded-xl p-8"
           : variant === "bar"
             ? "bg-brand text-brand-foreground rounded-md py-3 px-5"
             : variant === "card"

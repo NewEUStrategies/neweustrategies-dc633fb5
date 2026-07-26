@@ -171,6 +171,15 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   --cat-cyber: oklch(0.6 0.18 320);
   --hot: #fa9346;
 
+  /* ---- Semantyczne gradienty marki (light) ----
+     Używane przez nagłówki/CTA/przyciski z variant="gradient".
+     Light: jasny brand -> głęboki brand-ink (WCAG AA na tekście, brak
+     mętnego przejścia w czerń). */
+  --gradient-brand: linear-gradient(90deg, #fbaa6d 0%, #b85410 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #fed7b5 0%, #fa9346 100%);
+  --gradient-heading-stop-1: #ed6d1f;
+  --gradient-heading-stop-2: #b85410;
+
   /* ---- Wykresy (silnik SVG - src/components/charts) ----
      Paleta kategoryczna 8 slotów o STAŁEJ kolejności (mechanizm bezpieczeństwa
      CVD - kolejność maksymalizuje separację sąsiadów dla daltonizmu; zwalidowana
@@ -237,6 +246,14 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   --cat-diplomacy: #fa9346;
   --cat-cyber: oklch(0.65 0.18 320);
   --hot: #fa9346;
+
+  /* ---- Semantyczne gradienty marki (dark) ----
+     Ciemny motyw: cieplejszy, bardziej świetlisty przebieg tak, by na tle
+     #141414 zachować żywość i kontrast >= 4.5:1. */
+  --gradient-brand: linear-gradient(90deg, #ffc79a 0%, #f8934a 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #7a3410 0%, #fa9346 100%);
+  --gradient-heading-stop-1: #ffc79a;
+  --gradient-heading-stop-2: #f8934a;
 
   /* Wykresy - te same odcienie przeskalowane do ciemnej powierzchni --card
      (#0f0f0f) i zwalidowane jako zestaw (pasmo OKLCH 0.48-0.67, kontrast >=3:1). */
@@ -5252,6 +5269,34 @@ textarea.input {
    Bazuje na semantycznych tokenach --brand / --brand-foreground, więc
    automatycznie wspiera light + dark mode.
    ========================================================================= */
+/* =========================================================================
+   Gradienty marki (nagłówki / CTA / przyciski, variant="gradient").
+   Automatycznie zmieniają stopy w dark mode przez --gradient-* tokeny.
+   ========================================================================= */
+@utility text-gradient-brand {
+  background-image: linear-gradient(
+    90deg,
+    var(--gradient-heading-stop-1),
+    var(--gradient-heading-stop-2)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Bezpieczny fallback dla druku / wysokiego kontrastu / print-color-adjust. */
+  @supports not ((background-clip: text) or (-webkit-background-clip: text)) {
+    color: var(--brand-ink);
+    background-image: none;
+  }
+}
+
+@utility bg-gradient-brand {
+  background-image: var(--gradient-brand);
+}
+
+@utility bg-gradient-brand-soft {
+  background-image: var(--gradient-brand-soft);
+}
+
 @utility btn-bubbly {
   position: relative;
   display: inline-flex;
