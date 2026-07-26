@@ -40,7 +40,7 @@ function FlagSvg({ code }: { code: FlagCode }) {
 }
 
 export function LangSwitcherDropdown({ label }: { label: string }) {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const router = useRouter({ warn: false });
   const current: AppLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
 
@@ -70,18 +70,26 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
     if (typeof window !== "undefined") window.location.href = href;
   };
 
-  const tiles: ReadonlyArray<{ lang: AppLang; flag: FlagCode; name: string }> = [
-    { lang: "pl", flag: "pl", name: "Polski" },
-    { lang: "en", flag: "gb", name: "English" },
+  const options: ReadonlyArray<{ lang: AppLang; flag: FlagCode; name: string }> = [
+    { lang: "pl", flag: "pl", name: t("common.lang.pl", "Polski") },
+    { lang: "en", flag: "gb", name: t("common.lang.en", "English") },
   ];
+
+  const isLastActive = current === "en";
 
   return (
     <div
-      className="lang-switch-tiles inline-flex items-center gap-2"
+      className="lang relative inline-flex p-[3px] rounded-full border border-black/10 bg-[#f4f4f2] dark:border-white/10 dark:bg-[#27272a]"
       role="group"
       aria-label={label}
     >
-      {tiles.map(({ lang, flag, name }) => {
+      <div
+        className="lang__thumb absolute top-[3px] left-[3px] w-16 h-7 rounded-full bg-white border border-black/[0.08] transition-transform duration-[340ms] ease-[cubic-bezier(.32,.72,0,1)] will-change-transform dark:bg-[#18181b] dark:border-white/[0.08]"
+        style={{
+          transform: isLastActive ? "translateX(64px)" : "translateX(0)",
+        }}
+      />
+      {options.map(({ lang, flag, name }) => {
         const active = current === lang;
         return (
           <button
@@ -96,18 +104,16 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
             aria-label={name}
             aria-pressed={active}
             title={name}
-            className={`lang-tile block overflow-hidden border border-black/15 dark:border-white/20 transition-[filter,opacity,transform] duration-300 ease-out motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)] ${
+            className={`lang__opt relative z-[1] w-16 h-7 inline-flex items-center justify-center gap-[7px] text-[13px] font-medium leading-none transition-colors duration-[280ms] ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)] focus-visible:rounded-full motion-reduce:duration-[1ms] ${
               active
-                ? "opacity-100 scale-105"
-                : "opacity-45 grayscale hover:opacity-75"
+                ? "is-active text-[#111] dark:text-[#f4f4f2]"
+                : "text-[#8a8a85] hover:text-[#444] dark:hover:text-[#d4d4d8]"
             }`}
-            style={{
-              width: 28,
-              height: 18,
-              borderRadius: 6,
-            }}
           >
-            <FlagSvg code={flag} />
+            <span className="lang__flag block w-5 h-[14px] rounded-[2px] overflow-hidden border border-black/12 dark:border-white/15">
+              <FlagSvg code={flag} />
+            </span>
+            <span className="uppercase">{lang}</span>
           </button>
         );
       })}
