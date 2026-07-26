@@ -95,6 +95,29 @@ describe("prepareContentForRender - przypisy", () => {
     expect(r.footnotes).toEqual([{ id: 1, html: "realne źródło" }]);
   });
 
+  it("strona główna (builder bez rawHtml) dostaje rozwinięte markery i sekcję", () => {
+    // Dokładny kształt wywołania z routes/index.tsx: dokument buildera, zero
+    // legacy HTML. Dotąd homepage renderowała shortcode dosłownie, bo w ogóle
+    // nie przechodziła przez ten helper.
+    const r = prepareContentForRender({
+      editor: "builder",
+      builderDoc: docWithText("<p>Teza homepage[fn] źródło [/fn]</p>"),
+      blocksDoc: null,
+      rawHtml: "",
+      lang: "pl",
+    });
+
+    expect(r.engine).toBe("builder");
+    expect(r.footnotes).toEqual([{ id: 1, html: "źródło" }]);
+    const w = (
+      r.builderDoc.sections[0] as unknown as {
+        children: [{ children: Array<{ content: { html_pl: string } }> }];
+      }
+    ).children[0].children[0];
+    expect(w.content.html_pl).toContain('class="fn-ref"');
+    expect(w.content.html_pl).not.toContain("[fn]");
+  });
+
   it("blocks: helper nie zwraca przypisów (BlocksRenderer ma własną sekcję)", () => {
     const blocksDoc = {
       blocks: [{ id: "p1", type: "paragraph", data: { html: "A[fn] nota [/fn]" } }],

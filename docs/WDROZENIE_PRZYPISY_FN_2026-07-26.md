@@ -163,17 +163,126 @@ B) builder   sekcja: ["z buildera"]              ← bez widma z legacy HTML
 C) globalny  kotwice: BRAK                       | title="nota globalna"
 ```
 
-## Pozostaje otwarte
+---
 
-- **Strona główna** (`src/routes/index.tsx:303`) nadal woła `BuilderRenderer` bez
-  `prepareContentForRender`, więc `[fn]` w widgecie tekstowym homepage renderuje
-  się dosłownie. To dług **sprzed** unifikacji (§2.3 audytu), nie regresja -
-  dlatego nie mieszam go do tej zmiany. Poprawka to przepuszczenie dokumentu
-  homepage przez ten sam helper.
-- **Blocks ma nadal własną implementację** (`components/blocks/renderer/footnotes.ts`),
-  utrzymywaną w zgodzie z `lib/footnotes.ts` komentarzem, nie kodem. Wyjście jest
-  dziś identyczne, ale to nadal dwa miejsca do zmiany przy każdej modyfikacji
-  kontraktu. Docelowo warto, żeby blocks wołało `expandFootnotes`.
-- **Zasięg**: 19 z 73 widgetów i 6 z 100 typów bloków. Jeśli przypisy mają
-  działać wszędzie, trzeba rozszerzyć mapę i listę typów; jeśli nie - warto to
-  napisać w podpowiedzi przycisku na pasku narzędzi.
+# Domknięcie trzech pozostałych punktów
+
+Po wdrożeniu A-C zostały trzy punkty; ten rozdział zamyka wszystkie.
+
+## D. Strona główna przechodzi przez wspólny helper
+
+`src/routes/index.tsx`
+
+Homepage to zwykły dokument buildera, ale renderowała `BuilderRenderer`
+bezpośrednio, więc `[fn]` w widgecie tekstowym trafiał do publicznego obiegu
+dosłownie. Teraz przechodzi przez `prepareContentForRender` i renderuje
+`FootnotesList` + `FootnoteTooltips` - identycznie jak wpis i podgląd roboczy.
+Tym samym **wszystkie trzy trasy renderujące treść** (wpis/strona, podgląd,
+homepage) mają jedno wejście; tabela z §1 audytu jest w całości zamknięta.
+
+Dwie rzeczy przy okazji, bo to najczęściej odwiedzana trasa serwisu:
+
+- parsowanie i pre-pass siedzą w **jednym** `useMemo` kluczowanym surowym
+  `builder_data`. Trzymanie `parseBuilderDoc()` poza memo unieważniałoby je w
+  każdym renderze (funkcja zwraca nowy obiekt), czyli pre-pass biegłby bez
+  potrzeby przy każdym renderze homepage,
+- sekcja przypisów siedzi w kontenerze `max-w-[1400px] mx-auto px-4 lg:px-8`,
+  czyli tej samej siatce co reszta strony (spójna responsywność).
+
+Poprawiono też dwie pauzy „—" na dywiz w tekstach pustego stanu (reguła projektu).
+
+## E. Blocks nie ma już własnej implementacji
+
+`src/components/blocks/renderer/footnotes.ts`, `src/components/blocks/BlocksRenderer.tsx`
+
+Warstwa bloków niosła **drugą** kopię rozwijania `[fn]`, utrzymywaną w zgodzie z
+`lib/footnotes.ts` komentarzem, nie kodem - dwa miejsca do zmiany przy każdej
+modyfikacji kontraktu i stała możliwość cichego rozjazdu (dokładnie taki rozjazd
+
+- `title` i klasy Tailwind tylko po stronie bloków - opisał audyt).
+
+Teraz `replaceFootnotes` to cienki alias na `expandFootnotes`, a `FootnoteCollector`
+to alias na wspólny `FootnoteCounter`. Skutki uboczne, wszystkie na plus:
+
+| Było                                               | Jest                                      |
+| -------------------------------------------------- | ----------------------------------------- |
+| własny `escapeHtml` w warstwie bloków              | jedno `escapeAttr` w `lib/footnotes`      |
+| numeracja z `fn.notes.length` (długość tablicy)    | jawne `id` z kolektora                    |
+| `<li id={`fn-${i+1}`}>` - numer z indeksu w widoku | `<li id={`fn-${n.id}`}>` - numer z danych |
+| `tooltipNotes` mapowane ze stringów na obiekty     | kolektor od razu niesie `Footnote[]`      |
+
+Zniknięcie mapowania indeksów jest istotne: id przypisu nie zależy już od tego,
+w jakiej kolejności widok iteruje tablicę.
+
+## F. Zasięg - naprawiony niezmiennik, nie zwiększona liczba
+
+Tu wniosek z analizy jest inny niż „dodać brakujące 54 widgety i 94 bloki", i
+warto to zapisać, bo liczby z audytu mogą mylić.
+
+**Marker przypisu jest znacznikiem HTML** (`<sup class="fn-ref">…`). Pole
+renderowane jako węzeł tekstowy React (`{label}`) pokaże go **dosłownie** -
+czytelnik zobaczy `<sup class="fn-ref"><span title="…">[1]</span></sup>` jako
+tekst na stronie. To gorsze niż nierozwinięty shortcode. Przypisy mogą więc
+działać **wyłącznie** w polach wstawianych przez `dangerouslySetInnerHTML`.
+
+Przegląd wszystkich takich miejsc dał twardą listę:
+
+| Warstwa | Pola renderowane jako HTML                                                                                               |
+| ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| blocks  | `paragraph`, `html`, **`spoiler`**, `heading:text`, `quote:text/cite`, `list:item`, `table:cell`                         |
+| builder | `text.html`, `tabs.items[].html`, `accordion.items[].a`, `interactive-circle.desc` (widget + element), `team-member.bio` |
+
+Na tej podstawie:
+
+- **dodano `spoiler`** do pre-passu bloków i podpięto `renderSpoiler` do mapy
+  `fnHtml` - jedyny blok renderujący HTML, który wypadał z pre-passu,
+- **poprawiono mapę widgetów**, która była błędna **w obie strony**:
+
+| Problem                      | Przykład                                                                                   | Skutek                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| obejmowała pola **tekstowe** | `button.label`, `team-member.name`, `image.caption`, `heading.title`, `timeline`, `cta`, … | widoczne `<sup class="fn-ref">…` jako tekst na stronie |
+| **złe nazwy** pól            | `accordion.items[].{title,content,body}` - renderer czyta `a_*`                            | przypisy w akordeonie nie działały mimo „pokrycia"     |
+| **brakowało** pól HTML       | `tabs.items[].html`, `accordion.items[].a`, `interactive-circle.desc`, `team-member.bio`   | przypisy tam nie działały                              |
+
+Efekt netto: liczba wpisów zmalała z 19 do 5 widgetów, ale liczba pól, w których
+przypisy **realnie działają**, wzrosła - a zniknęło ryzyko widocznego tag soup.
+Odtworzone zachowanie:
+
+```
+text.html_pl                ROZWINIETE (pole HTML)      notes=1
+team-member.bio_pl          ROZWINIETE (pole HTML)      notes=1
+team-member.name_pl         NIETKNIETE (pole tekstowe)  notes=0
+interactive-circle.desc_pl  ROZWINIETE (pole HTML)      notes=1
+tabs.items[].html_pl        ROZWINIETE (pole HTML)      notes=1
+tabs.items[].label_pl       NIETKNIETE (pole tekstowe)  notes=0
+accordion.items[].a_pl      ROZWINIETE (pole HTML)      notes=1
+accordion.items[].q_pl      NIETKNIETE (pole tekstowe)  notes=0
+button.label_pl             NIETKNIETE (pole tekstowe)  notes=0
+image.caption_pl            NIETKNIETE (pole tekstowe)  notes=0
+```
+
+Niezmiennik jest teraz **egzekwowany testem**
+(`src/lib/builder/__tests__/widgetTextFields.test.ts`): lista widgetów jest
+zamrożona wprost, a osobne przypadki sprawdzają, że pole tekstowe zostaje
+nietknięte, a pole HTML zostaje rozwinięte. Dopisanie widgetu wymaga świadomej
+zmiany testu razem z odsyłaczem do miejsca renderu - mapa nie rozjedzie się po
+cichu drugi raz.
+
+## Weryfikacja domknięcia (D-F)
+
+| Sprawdzenie                                   | Wynik  |
+| --------------------------------------------- | ------ |
+| `tsc --noEmit`                                | czysto |
+| `eslint` (8 plików)                           | czysto |
+| `prettier --check`                            | czysto |
+| `bun run test:coverage` (pełny suite + progi) | exit 0 |
+
+## Pozostaje otwarte (świadomie)
+
+- **Widget `heading` buildera** renderuje tytuł jako tekst, więc przypisy tam nie
+  działają - inaczej niż w bloku `heading`, który ma gałąź HTML. Zrównanie
+  wymagałoby zmiany semantyki renderu widgetu (tytuł jako HTML), co jest decyzją
+  produktową, nie poprawką błędu.
+- **Podpowiedź na pasku narzędzi** (`WordStyleToolbar.tsx`) mówi tylko „Wstaw
+  przypis [fn]…[/fn]" i nie sygnalizuje, że shortcode działa w treści bogatej,
+  a nie w etykietach. Warto to dopisać, gdy dotykamy tego panelu.

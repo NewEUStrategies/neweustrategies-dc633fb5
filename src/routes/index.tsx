@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
@@ -8,6 +8,8 @@ import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { PostListCard } from "@/components/molecules/PostListCard";
 import { parseBuilderDoc } from "@/lib/builder/parse";
+import { prepareContentForRender } from "@/lib/content/prepareContent";
+import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import {
   blogListQueryOptions,
@@ -273,11 +275,36 @@ function Index() {
   const { data: homePage } = useSuspenseQuery(homePageQueryOptions());
   const { data: homeMode } = useSuspenseQuery(homepageModeQueryOptions());
 
+  const articleRef = useRef<HTMLDivElement>(null);
+
   const isLatestPosts = homeMode === "latest_posts";
-  const doc =
-    !isLatestPosts && homePage && homePage.editor === "builder"
-      ? parseBuilderDoc(homePage.builder_data)
-      : null;
+  const isBuilderHome = !isLatestPosts && homePage?.editor === "builder";
+  const builderData = isBuilderHome ? homePage.builder_data : null;
+
+  // Strona główna to zwykły dokument buildera, więc przypisy `[fn]…[/fn]`
+  // przechodzą przez TEN SAM helper co wpis i podgląd roboczy. Bez tego
+  // shortcode w widgecie tekstowym homepage trafiał do publicznego obiegu
+  // dosłownie (ustalenie §2.3 audytu z 2026-07-25).
+  //
+  // Parsowanie i pre-pass siedzą w JEDNYM `useMemo` kluczowanym surowym
+  // `builder_data`: `parseBuilderDoc` zwraca nowy obiekt przy każdym wywołaniu,
+  // więc trzymanie go poza memo unieważniałoby je w każdym renderze - a to
+  // najczęściej odwiedzana trasa serwisu.
+  const prepared = useMemo(
+    () =>
+      builderData
+        ? prepareContentForRender({
+            editor: "builder",
+            builderDoc: parseBuilderDoc(builderData),
+            blocksDoc: null,
+            rawHtml: "",
+            lang,
+          })
+        : null,
+    [builderData, lang],
+  );
+  const doc = prepared?.builderDoc ?? null;
+  const footnotes = prepared?.footnotes ?? [];
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -300,13 +327,21 @@ function Index() {
           // corrupt the inline $_TSR.router bootstrap script and force React to
           // rebuild the whole page client-side (visible SSR flash + refetch).
           // Rendering eagerly keeps SSR HTML and client hydration in lockstep.
-          <BuilderRenderer doc={doc} lang={lang} />
+          <div ref={articleRef}>
+            <BuilderRenderer doc={doc} lang={lang} />
+            {footnotes.length > 0 && (
+              <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
+                <FootnotesList notes={footnotes} lang={lang} />
+                <FootnoteTooltips notes={footnotes} containerRef={articleRef} />
+              </div>
+            )}
+          </div>
         ) : (
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-24 text-center text-muted-foreground">
             <p className="text-sm">
               {lang === "en"
-                ? "There's nothing here yet — please check back soon."
-                : "Nie ma tu jeszcze treści — zajrzyj wkrótce."}
+                ? "There's nothing here yet - please check back soon."
+                : "Nie ma tu jeszcze treści - zajrzyj wkrótce."}
             </p>
           </div>
         )}
