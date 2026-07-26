@@ -154,7 +154,11 @@ function QuizShareSidebar({ compact = false }: { compact?: boolean }) {
     >
       {!compact && (
         <div className="mb-1 flex items-center gap-1.5 px-1">
-          <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <BrandIcon
+            name="share"
+            fallback={Share2}
+            className="h-3.5 w-3.5 text-muted-foreground"
+          />
           <span className="hidden text-[11px] font-medium text-foreground lg:inline">
             {t("quiz.share.title")}
           </span>
