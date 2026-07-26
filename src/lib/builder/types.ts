@@ -416,6 +416,7 @@ export type WidgetType =
   | "slider"
   // Animated heading
   | "animated-heading"
+  | "text-rotate"
   // Advertising
   | "ad-slot"
   // Donations / patronage (public aggregate stats + CTA)

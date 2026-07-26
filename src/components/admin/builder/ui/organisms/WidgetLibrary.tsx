@@ -95,6 +95,7 @@ export function WidgetLibrary({
     // basic
     heading: "typography",
     "animated-heading": "typography",
+    "text-rotate": "typography",
     text: "typography",
     image: "visual",
     button: "actions",

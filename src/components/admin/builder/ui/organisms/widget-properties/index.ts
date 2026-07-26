@@ -9,6 +9,7 @@ export { ImageEditor } from "./ImageEditor";
 export { SectionLabelEditor } from "./SectionLabelEditor";
 export { SliderEditor } from "./SliderEditor";
 export { AnimatedHeadingEditor } from "./AnimatedHeadingEditor";
+export { TextRotateEditor } from "./TextRotateEditor";
 export { PostListEditor } from "./PostListEditor";
 export { MegaMenuEditor } from "./MegaMenuEditor";
 export { RichTextEditor } from "./RichTextEditor";

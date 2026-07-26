@@ -96,6 +96,8 @@ export const WIDGET_TYPES = [
   "slider",
   // Animated heading
   "animated-heading",
+  // Rotating text (stagger by chars/words/lines)
+  "text-rotate",
   // Advertising
   "ad-slot",
   // Donations / patronage

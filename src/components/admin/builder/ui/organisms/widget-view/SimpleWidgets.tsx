@@ -842,6 +842,52 @@ export function renderSimpleWidget(
       };
       return <AnimatedHeadingRender config={ahCfg} />;
     }
+    case "text-rotate": {
+      const rawTexts = c[`texts_${lang}`] ?? c.texts_pl;
+      const texts = Array.isArray(rawTexts)
+        ? rawTexts.filter((x): x is string => typeof x === "string")
+        : typeof rawTexts === "string"
+          ? rawTexts.split("\n").map((s) => s.trim()).filter(Boolean)
+          : [];
+      const trTag = (getStr(c, "tag") || "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "span";
+      const trAlign = (getStr(c, "align") || "left") as "left" | "center" | "right";
+      const splitBy = (getStr(c, "splitBy") || "characters") as "characters" | "words" | "lines";
+      const staggerFrom = (getStr(c, "staggerFrom") || "first") as "first" | "last" | "center";
+      const before = getStr(c, `before_${lang}`) || getStr(c, "before_pl");
+      const after = getStr(c, `after_${lang}`) || getStr(c, "after_pl");
+      const rawColor = getStr(c, "color") || undefined;
+      const rawAccent = getStr(c, "accentColor") || undefined;
+      const isDark = theme === "dark";
+      const color = isDark && rawColor ? autoInvertColor(rawColor, "dark") : rawColor;
+      const accent = isDark && rawAccent ? autoInvertColor(rawAccent, "dark") : rawAccent;
+      const interval = getNum(c, "rotationInterval", 2200);
+      const stagger = getNum(c, "staggerDurationMs", 30);
+      const transitionMs = getNum(c, "transitionMs", 450);
+      const loop = c.loop !== false;
+      const auto = c.auto !== false;
+      const Tag = trTag;
+      const alignCls =
+        trAlign === "center" ? "text-center" : trAlign === "right" ? "text-right" : "text-left";
+      const safeTexts = texts.length ? texts : [""];
+      return (
+        <Tag className={`m-0 font-semibold ${alignCls}`} style={color ? { color } : undefined}>
+          {before && <span className="mr-1">{before}</span>}
+          <span style={accent ? { color: accent } : undefined} className="inline-block">
+            <TextRotate
+              texts={safeTexts}
+              splitBy={splitBy}
+              rotationInterval={interval}
+              staggerDurationMs={stagger}
+              transitionMs={transitionMs}
+              loop={loop}
+              auto={auto}
+              staggerFrom={staggerFrom}
+            />
+          </span>
+          {after && <span className="ml-1">{after}</span>}
+        </Tag>
+      );
+    }
     case "contact":
       // Legacy alias: delegate to the full-featured contact-form renderer.
       return <ContactFormView data={(node.content ?? {}) as Record<string, unknown>} lang={lang} />;
