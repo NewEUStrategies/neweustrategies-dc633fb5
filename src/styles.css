@@ -3299,6 +3299,33 @@ input.icon-input-with-action {
   justify-content: var(--widget-row-justify);
 }
 
+/* Elementor-style rich text lists. One source of truth for the properties
+   panel, canvas and public PL/EN output. The marker owns a single 1.25rem
+   gutter; list items never add a second padding layer. Genuine sublists get
+   one additional level, while malformed import shells are removed by
+   normalizeBuilderRichHtml before rendering. */
+.cms-elementor-richtext :where(ul, ol) {
+  margin-block: 0.5rem;
+  padding-inline-start: 1.25rem;
+  list-style-position: outside;
+}
+.cms-elementor-richtext ul {
+  list-style-type: disc;
+}
+.cms-elementor-richtext ol {
+  list-style-type: decimal;
+}
+.cms-elementor-richtext :where(li) {
+  margin-block: 0.25rem;
+  padding-inline-start: 0;
+}
+.cms-elementor-richtext li > ul {
+  list-style-type: circle;
+}
+.cms-elementor-richtext li > ol {
+  list-style-type: lower-alpha;
+}
+
 /* Chrome autofill: kill the blue/yellow background + inner shadow that some
    themes paint on inputs after the browser fills in credentials. */
 :where(input):-webkit-autofill,

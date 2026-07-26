@@ -17,6 +17,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { normalizeBuilderRichHtml } from "@/lib/builder/normalizeRichHtml";
 import "@/lib/i18n-builder";
 
 interface Props {
@@ -79,7 +80,9 @@ export function Editable({
   const commit = () => {
     const el = ref.current;
     if (!el) return;
-    const next = html ? sanitizeHtml(el.innerHTML) : (el.textContent ?? "");
+    const next = html
+      ? sanitizeHtml(normalizeBuilderRichHtml(el.innerHTML))
+      : (el.textContent ?? "");
     if (next !== value) onCommit(next);
   };
 

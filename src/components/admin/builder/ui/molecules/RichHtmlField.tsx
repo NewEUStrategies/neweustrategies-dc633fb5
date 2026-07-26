@@ -18,6 +18,7 @@ import {
   Undo2,
   Redo2,
 } from "lucide-react";
+import { normalizeBuilderRichHtml } from "@/lib/builder/normalizeRichHtml";
 
 interface Props {
   value: string;
@@ -48,15 +49,17 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
     const el = ref.current;
     if (!el) return;
     if (value !== lastEmitted.current && value !== el.innerHTML) {
-      el.innerHTML = value ?? "";
-      lastEmitted.current = value ?? "";
+      const normalized = normalizeBuilderRichHtml(value ?? "");
+      el.innerHTML = normalized;
+      lastEmitted.current = normalized;
     }
   }, [value]);
 
   const emit = () => {
     const el = ref.current;
     if (!el) return;
-    const html = el.innerHTML;
+    const html = normalizeBuilderRichHtml(el.innerHTML);
+    if (html !== el.innerHTML) el.innerHTML = html;
     lastEmitted.current = html;
     onChange(html);
   };
@@ -137,7 +140,7 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
           const text = e.clipboardData.getData("text/plain");
           exec("insertText", text);
         }}
-        className="cms-richhtml-field prose prose-sm dark:prose-invert max-w-none px-2 py-2 text-xs leading-relaxed focus:outline-none [&_ul]:list-disc [&_ul]:list-outside [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:list-outside [&_ol]:pl-5 [&_li]:pl-0 [&_li>ul]:list-[circle] [&_li>ol]:list-[lower-alpha] [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2 [&_blockquote]:italic [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_a]:text-brand [&_a]:underline"
+        className="cms-richhtml-field cms-elementor-richtext prose prose-sm dark:prose-invert max-w-none px-2 py-2 text-xs leading-relaxed focus:outline-none [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2 [&_blockquote]:italic [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_a]:text-brand [&_a]:underline"
         style={{ minHeight }}
       />
     </div>
