@@ -238,17 +238,9 @@ function QuizPage() {
     >
       {/* Background + overlay cover only the area above the footer */}
       <div className="relative flex flex-1 flex-col">
-        {/* Responsive background: cheering fans silhouette */}
-        <div
-          className="pointer-events-none absolute inset-0 -z-20 bg-cover bg-bottom bg-no-repeat dark:invert"
-          style={{ backgroundImage: `url(${quizFansBg.url})` }}
-          aria-hidden="true"
-        />
-        {/* Overlay keeps header and iframe readable */}
-        <div
-          className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-t from-background/60 via-background/85 to-background/95"
-          aria-hidden="true"
-        />
+        {/* Responsive background: warianty light/dark + overlay w środku */}
+        <QuizBackground />
+
 
         {/* Globalny header New European Strategies */}
         <Header adPageType="all" />
