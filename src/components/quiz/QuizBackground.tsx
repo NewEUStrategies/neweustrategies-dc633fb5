@@ -14,18 +14,30 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import lightMobileAsset from "@/assets/quiz/quiz-bg-light-mobile.jpg.asset.json";
-import lightDesktopAsset from "@/assets/quiz/quiz-bg-light-desktop.jpg.asset.json";
-import darkMobileAsset from "@/assets/quiz/quiz-bg-dark-mobile.jpg.asset.json";
-import darkDesktopAsset from "@/assets/quiz/quiz-bg-dark-desktop.jpg.asset.json";
+import lightMobileJpg from "@/assets/quiz/quiz-bg-light-mobile.jpg.asset.json";
+import lightDesktopJpg from "@/assets/quiz/quiz-bg-light-desktop.jpg.asset.json";
+import darkMobileJpg from "@/assets/quiz/quiz-bg-dark-mobile.jpg.asset.json";
+import darkDesktopJpg from "@/assets/quiz/quiz-bg-dark-desktop.jpg.asset.json";
+import lightMobileWebp from "@/assets/quiz/quiz-bg-light-mobile.webp.asset.json";
+import lightDesktopWebp from "@/assets/quiz/quiz-bg-light-desktop.webp.asset.json";
+import darkMobileWebp from "@/assets/quiz/quiz-bg-dark-mobile.webp.asset.json";
+import darkDesktopWebp from "@/assets/quiz/quiz-bg-dark-desktop.webp.asset.json";
+import lightMobileAvif from "@/assets/quiz/quiz-bg-light-mobile.avif.asset.json";
+import lightDesktopAvif from "@/assets/quiz/quiz-bg-light-desktop.avif.asset.json";
+import darkMobileAvif from "@/assets/quiz/quiz-bg-dark-mobile.avif.asset.json";
+import darkDesktopAvif from "@/assets/quiz/quiz-bg-dark-desktop.avif.asset.json";
 
-const LIGHT_MOBILE = lightMobileAsset.url;
-const LIGHT_DESKTOP = lightDesktopAsset.url;
-const DARK_MOBILE = darkMobileAsset.url;
-const DARK_DESKTOP = darkDesktopAsset.url;
-
-const CROWD_FACTOR = 0.18;
-const OVERLAY_FACTOR = 0.08;
+// Formaty w kolejności negocjacji: AVIF > WebP > JPG (fallback dla <img src>).
+const BG = {
+  light: {
+    mobile: { avif: lightMobileAvif.url, webp: lightMobileWebp.url, jpg: lightMobileJpg.url },
+    desktop: { avif: lightDesktopAvif.url, webp: lightDesktopWebp.url, jpg: lightDesktopJpg.url },
+  },
+  dark: {
+    mobile: { avif: darkMobileAvif.url, webp: darkMobileWebp.url, jpg: darkMobileJpg.url },
+    desktop: { avif: darkDesktopAvif.url, webp: darkDesktopWebp.url, jpg: darkDesktopJpg.url },
+  },
+} as const;
 
 type Mode = "light" | "dark";
 
