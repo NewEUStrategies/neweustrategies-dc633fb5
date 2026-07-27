@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Users,
   Scale,
+  MousePointerClick,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
