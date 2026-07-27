@@ -92,18 +92,15 @@ export function MegaPanelView({
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
         {/* Nav columns */}
         <div
-          className="grid gap-x-3 gap-y-0 p-3 sm:gap-x-5 sm:p-4"
+          className="flex flex-col p-3 sm:p-4"
           style={
             showFeatured
-              ? {
-                  gridTemplateColumns: `repeat(${Math.min(cols.length || 1, 2)}, minmax(0, 1fr))`,
-                  gridColumn: "span 8 / span 8",
-                }
-              : { gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, gridColumn: "1 / -1" }
+              ? { gridColumn: "span 8 / span 8" }
+              : { gridColumn: "1 / -1" }
           }
         >
           {parentLabel && parentHref ? (
-            <div style={{ gridColumn: "1 / -1" }} className="-mb-2 h-5 leading-none">
+            <div className="mb-1 h-5 leading-none">
               <AppLink
                 href={safeUrl(parentHref) || "#"}
                 className="group -mx-1.5 inline-flex h-5 items-center gap-2 rounded-sm px-1.5 text-xs font-bold text-brand hover:bg-muted/60 hover:opacity-90"
@@ -118,6 +115,15 @@ export function MegaPanelView({
               </AppLink>
             </div>
           ) : null}
+          <div
+            className="grid gap-x-3 sm:gap-x-5"
+            style={{
+              gridTemplateColumns: showFeatured
+                ? `repeat(${Math.min(cols.length || 1, 2)}, minmax(0, 1fr))`
+                : `repeat(${gridCols}, minmax(0, 1fr))`,
+            }}
+          >
+
           {cols.map((col, i) => {
             const title = pickLocalized(col.title_pl, col.title_en, lang);
             return (
@@ -191,7 +197,9 @@ export function MegaPanelView({
               </div>
             );
           })}
+          </div>
         </div>
+
 
         {/* Featured column */}
         {showFeatured && featured ? (
