@@ -198,15 +198,27 @@ describe("spacer", () => {
     expect(ed.textContent).toContain("48px");
   });
 
-  it("keeps the editable spacer full-width even when widget text is aligned", () => {
-    renderNode("spacer", { height: 32 }, {
+  it("keeps the editable spacer at its configured width even when widget text is aligned", () => {
+    renderNode("spacer", { height: 32, widthPct: 100 }, {
       editable: true,
       style: { align: { desktop: "center" } },
     });
 
-    const spacer = screen.getByLabelText("Spacer");
-    expect(spacer.className).toContain("w-full");
+    const spacer = screen.getByLabelText("Odstęp");
+    expect(spacer.style.width).toBe("100%");
     expect(spacer.parentElement?.style.width).not.toBe("auto");
+  });
+
+  it("applies responsive height overrides via scoped style tag", () => {
+    const { container } = renderNode(
+      "spacer",
+      { height: 40, heightTablet: 24, heightMobile: 12 },
+      { editable: true },
+    );
+    const style = container.querySelector("style");
+    expect(style?.textContent).toContain("max-width:1023px");
+    expect(style?.textContent).toContain("24px");
+    expect(style?.textContent).toContain("12px");
   });
 });
 
