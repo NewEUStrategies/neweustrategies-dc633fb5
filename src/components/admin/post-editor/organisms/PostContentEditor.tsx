@@ -10,6 +10,7 @@ import { PostEditor } from "@/components/admin/PostEditor";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
 import { LayoutScaffold } from "@/components/admin/blocks/LayoutScaffold";
+import { AutoFootnotesPreview } from "@/components/admin/blocks/AutoFootnotesPreview";
 import { mergeOverrides, pickLayoutId } from "@/lib/postLayouts";
 import type { LayoutOverrides, PostFormat, PostLayoutSettings } from "@/lib/postLayouts";
 import { promptDialog } from "@/lib/appDialogs";
@@ -79,6 +80,7 @@ export function PostContentEditor({
                 coverImageUrl={form.cover_image_url}
               >
                 {canvas}
+                <AutoFootnotesPreview doc={(form.blocks_data ?? { pl: null, en: null })[lang]} />
               </LayoutScaffold>
             );
           }}
