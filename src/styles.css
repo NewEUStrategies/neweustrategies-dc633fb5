@@ -5531,13 +5531,13 @@ textarea.input {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 4px 6px;
   border-radius: 6px;
   color: color-mix(in oklab, var(--foreground) 62%, transparent);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.15;
   transition:
     background-color 0.22s ease-out,
     color 0.22s ease-out,
@@ -5552,10 +5552,10 @@ textarea.input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: color-mix(in oklab, var(--foreground) 55%, transparent);
   transition:
@@ -5584,12 +5584,12 @@ textarea.input {
 
 .menu-card-item__badge {
   margin-left: auto;
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 999px;
   border: 1px solid color-mix(in oklab, var(--brand) 40%, transparent);
   background: color-mix(in oklab, var(--background) 60%, transparent);
   color: var(--brand);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
