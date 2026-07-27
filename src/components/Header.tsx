@@ -271,7 +271,7 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
       style={{ viewTransitionName: "site-header" }}
     >
       <Suspense fallback={<HeaderSkeleton />}>
-        <HeaderInner adPageType={adPageType} />
+        <HeaderInner adPageType={adPageType} isHome={isHome} />
       </Suspense>
     </header>
   );
