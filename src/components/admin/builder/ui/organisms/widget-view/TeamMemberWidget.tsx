@@ -99,7 +99,7 @@ export function TeamMemberWidget({
         type="button"
         onClick={openModal}
         aria-label={name || "Team member"}
-        className="cms-team-member group relative block w-full overflow-hidden rounded-xl border border-border/40 bg-[color:var(--surface-2,#0b1220)] text-white text-left aspect-[3/4] transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[color:var(--brand)]/60"
+        className="cms-team-member group relative block w-full overflow-hidden rounded-xl border border-border/40 bg-[color:var(--surface-2,#0b1220)] text-white text-left aspect-[3/4] transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60"
         style={cardStyle}
         data-team-member-id={node.id}
       >
