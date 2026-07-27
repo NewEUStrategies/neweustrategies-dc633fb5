@@ -19,7 +19,7 @@ import {
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { promptDialog } from "@/lib/appDialogs";
-import type { Block } from "@/lib/blocks/types";
+import type { Block, Json } from "@/lib/blocks/types";
 
 type MediaKind = "image" | "video" | "audio";
 
