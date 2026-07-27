@@ -139,18 +139,23 @@ export function renderSimpleWidget(
       const widthStyle: CSSProperties = { width: `${widthPct}%`, ...alignStyle };
 
       if (variant === "gradient") {
-        const grad = color
-          ? `linear-gradient(to right, transparent, ${color}, transparent)`
-          : undefined;
+        const gradFrom = getStr(c, "gradientFrom");
+        const gradTo = getStr(c, "gradientTo");
+        const customGrad =
+          gradFrom && gradTo
+            ? `linear-gradient(to right, transparent, ${gradFrom}, ${gradTo}, transparent)`
+            : color
+              ? `linear-gradient(to right, transparent, ${color}, transparent)`
+              : undefined;
         return wrap(
           <div
             style={{
               height: `${effThickness}px`,
               ...widthStyle,
-              ...(grad ? { backgroundImage: grad } : {}),
+              ...(customGrad ? { backgroundImage: customGrad } : {}),
             }}
             className={
-              grad
+              customGrad
                 ? ""
                 : editable
                   ? "bg-gradient-to-r from-transparent via-foreground/60 to-transparent"
