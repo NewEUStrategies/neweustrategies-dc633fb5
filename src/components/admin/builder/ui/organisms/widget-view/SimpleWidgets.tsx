@@ -48,6 +48,27 @@ import { CounterWidget } from "./CounterWidget";
 import { TocWidget } from "./TocWidget";
 export { ResizableBox } from "./resizeWrappers";
 
+// Wraps AnimatedHeadingRender with dynamic-token resolution. Runs on every
+// render so `{post.title}` / `{author.name}` reflect the current post context
+// (or the placeholder ctx in the admin canvas via PLACEHOLDER_POST_CTX).
+function AnimatedHeadingWithDynamicText({
+  config,
+  lang,
+}: {
+  config: AnimatedHeadingConfig;
+  lang: Lang;
+}) {
+  const ctx = useCurrentPostCtx();
+  const resolved: AnimatedHeadingConfig = {
+    ...config,
+    textBefore: resolveDynamicText(config.textBefore, ctx, lang),
+    textAfter: resolveDynamicText(config.textAfter, ctx, lang),
+    highlight: resolveDynamicText(config.highlight, ctx, lang),
+    rotateWords: resolveDynamicList(config.rotateWords, ctx, lang),
+  };
+  return <AnimatedHeadingRender config={resolved} />;
+}
+
 const compactRowStyle: CSSProperties = {
   minHeight: COMPACT_WIDGET_MIN_HEIGHT,
   boxSizing: "border-box",
