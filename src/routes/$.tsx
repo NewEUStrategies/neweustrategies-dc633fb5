@@ -171,13 +171,17 @@ export const Route = createFileRoute("/$")({
   loader: async ({ params, context }) => {
     const splat = (params as { _splat?: string })._splat ?? "";
     const segments = splatToSegments(splat);
-    if (segments.length === 0) throw notFound();
+    if (segments.length === 0) {
+      setCacheControlHeader(NO_STORE);
+      throw notFound();
+    }
     // Legacy hierarchical taxonomy URLs like `/category/region/afryka` or
     // `/tag/foo/bar`. Category/tag slugs are globally unique, so the last
     // segment always resolves the correct archive - collapse to the flat form.
     if (segments.length >= 2 && (segments[0] === "category" || segments[0] === "tag")) {
       const last = segments[segments.length - 1];
       const to = segments[0] === "category" ? "/category/$slug" : "/tag/$slug";
+      setCacheControlHeader(NO_STORE);
       throw redirect({ to, params: { slug: last }, replace: true });
     }
     const data = await context.queryClient.ensureQueryData(resolvedContentQueryOptions(segments));
@@ -191,11 +195,16 @@ export const Route = createFileRoute("/$")({
           supabase.from("categories").select("slug").eq("slug", slug).maybeSingle(),
           supabase.from("tags").select("slug").eq("slug", slug).maybeSingle(),
         ]);
-        if (cat?.slug)
+        if (cat?.slug) {
+          setCacheControlHeader(NO_STORE);
           throw redirect({ to: "/category/$slug", params: { slug: cat.slug }, replace: true });
-        if (tag?.slug)
+        }
+        if (tag?.slug) {
+          setCacheControlHeader(NO_STORE);
           throw redirect({ to: "/tag/$slug", params: { slug: tag.slug }, replace: true });
+        }
       }
+      setCacheControlHeader(NO_STORE);
       throw notFound();
     }
     // ISR-like edge caching: the public SSR is the anonymous shell (gated bodies
@@ -215,40 +224,46 @@ export const Route = createFileRoute("/$")({
     const blocksDoc: BlocksDoc | null = localizedBlocks
       ? (localizedBlocks[lang] ?? localizedBlocks.pl ?? localizedBlocks.en ?? null)
       : null;
-    await Promise.allSettled([
-      data.kind === "post"
-        ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
-        : Promise.resolve(),
-      doc.sections.length > 0
-        ? // Public pages/posts are edge-cached. Block the SSR response only on the
-          // above-the-fold sections; below-the-fold sections Suspense-stream as
-          // their data settles (see BuilderRenderer `stream`). Net effect: a cold
-          // (cache-miss) render's TTFB tracks the hero, not the whole document,
-          // while the streamed body stays complete for the CDN and crawlers.
-          prefetchAboveFoldQueries(context.queryClient, doc, lang)
-        : Promise.resolve(),
-      blocksDoc && blocksDoc.blocks.length > 0
-        ? prefetchBlockQueries(context.queryClient, blocksDoc, lang, {
-            postId: data.kind === "post" ? data.item.id : null,
-            publishedAt: data.item.published_at,
-            // Mirror the client's useCurrentPostCtx-derived key exactly, or the
-            // SSR-warmed related/more/author-bio entries miss on hydration and
-            // crawlers see the wrong (category-agnostic) lists.
-            authorId:
-              data.kind === "post"
-                ? ((data as { author?: { id: string } | null }).author?.id ?? null)
-                : null,
-            categorySlugs:
-              data.kind === "post"
-                ? ((data as { categories?: Array<{ slug: string }> }).categories ?? []).map(
-                    (c) => c.slug,
-                  )
-                : [],
-            tagSlugs: data.kind === "post" ? (data.tags ?? []).map((t) => t.slug) : [],
-          })
-        : Promise.resolve(),
-      context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
-    ]);
+    // Secondary prefetches are best-effort and wall-clock-bounded. A slow
+    // upstream (blocks_data / related config) must never abort the SSR stream
+    // - views fall back to their own client fetch.
+    await withBudget(
+      Promise.allSettled([
+        data.kind === "post"
+          ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
+          : Promise.resolve(),
+        doc.sections.length > 0
+          ? // Public pages/posts are edge-cached. Block the SSR response only on the
+            // above-the-fold sections; below-the-fold sections Suspense-stream as
+            // their data settles (see BuilderRenderer `stream`). Net effect: a cold
+            // (cache-miss) render's TTFB tracks the hero, not the whole document,
+            // while the streamed body stays complete for the CDN and crawlers.
+            prefetchAboveFoldQueries(context.queryClient, doc, lang)
+          : Promise.resolve(),
+        blocksDoc && blocksDoc.blocks.length > 0
+          ? prefetchBlockQueries(context.queryClient, blocksDoc, lang, {
+              postId: data.kind === "post" ? data.item.id : null,
+              publishedAt: data.item.published_at,
+              // Mirror the client's useCurrentPostCtx-derived key exactly, or the
+              // SSR-warmed related/more/author-bio entries miss on hydration and
+              // crawlers see the wrong (category-agnostic) lists.
+              authorId:
+                data.kind === "post"
+                  ? ((data as { author?: { id: string } | null }).author?.id ?? null)
+                  : null,
+              categorySlugs:
+                data.kind === "post"
+                  ? ((data as { categories?: Array<{ slug: string }> }).categories ?? []).map(
+                      (c) => c.slug,
+                    )
+                  : [],
+              tagSlugs: data.kind === "post" ? (data.tags ?? []).map((t) => t.slug) : [],
+            })
+          : Promise.resolve(),
+        context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
+      ]),
+      SECONDARY_PREFETCH_BUDGET_MS,
+    );
     // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
     // logo). The root loader warms the same bulk query, so this resolves from
     // cache; head() is synchronous and cannot fetch on its own.
