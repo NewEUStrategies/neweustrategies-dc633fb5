@@ -20,6 +20,7 @@ import { buildRootHead, feedDiscoveryLinks } from "../lib/seo/meta";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
 import { afterPrerendering } from "../lib/prerender";
 import { getOrigin } from "../lib/seo/request";
+import { enforceCanonicalHost } from "../lib/http/canonicalRedirect";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
 import { supabasePublicConfigScript } from "../lib/supabasePublicConfig";
@@ -194,6 +195,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // round-trip on the edge hydrates every layout chunk so chrome renders
   // in lockstep with the route body instead of popping in after hydration.
   loader: async ({ context, location }) => {
+    // 301 legacy Lovable hosts (`*.lovable.app`, `<uuid>.lovableproject.com`)
+    // to https://neweuropeanstrategies.com preserving path + query. Runs
+    // server-side only; editor preview (id-preview--*, *.lovable.dev) and
+    // localhost are excluded so the builder iframe keeps working.
+    enforceCanonicalHost();
     await syncI18nToRequest().catch(() => undefined);
     // Warm site_settings + design tokens / global colors / post-layout so
     // <DesignTokensStyle />, <ContentAreaStyle /> and friends render their
