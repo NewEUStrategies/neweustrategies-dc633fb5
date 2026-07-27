@@ -795,7 +795,7 @@ export function WidgetProperties({
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.widgetWidth")}
             </h4>
-            <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("builder.widgetProps.widgetWidth")}>
+            <div className="wp-seg wp-seg-grid" role="group" aria-label={t("builder.widgetProps.widgetWidth")}>
               {(
                 [
                   ["full", t("builder.widgetProps.widthFull")],
@@ -804,17 +804,15 @@ export function WidgetProperties({
                   ["wrapped", t("builder.widgetProps.widthWrapped")],
                 ] as const
               ).map(([value, label]) => (
-                <Button
+                <button
                   key={value}
                   type="button"
-                  variant={widgetWidthMode === value ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 justify-start px-2 text-[11px]"
+                  data-active={widgetWidthMode === value}
                   onClick={() => setWidgetWidthMode(value)}
                   aria-pressed={widgetWidthMode === value}
                 >
                   {label}
-                </Button>
+                </button>
               ))}
             </div>
             {(widgetWidthMode === "percent" || widgetWidthMode === "px") && (
