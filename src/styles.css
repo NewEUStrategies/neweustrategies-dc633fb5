@@ -5945,10 +5945,12 @@ header[data-site-header][data-scrolled="true"].site-header-shrink > * {
 }
 
 /* Trending ticker ("na czasie") zwija się płynnie zamiast znikać natychmiast.
-   Grid-template-rows 1fr -> 0fr animuje rzeczywistą wysokość elementu. */
+   Grid-template-rows minmax(0,1fr) -> minmax(0,0fr) animuje rzeczywistą
+   wysokość elementu, ponieważ minmax(0, ...) usuwa domyślne ograniczenie
+   min-content, które blokuje zwijanie do zera. */
 header[data-site-header].site-header-shrink .cms-trending {
   display: grid;
-  grid-template-rows: 1fr;
+  grid-template-rows: minmax(0, 1fr);
   opacity: 1;
   transition:
     grid-template-rows 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
@@ -5959,7 +5961,7 @@ header[data-site-header].site-header-shrink .cms-trending > div {
   min-height: 0;
 }
 header[data-site-header][data-scrolled="true"].site-header-shrink .cms-trending {
-  grid-template-rows: 0fr;
+  grid-template-rows: minmax(0, 0fr);
   opacity: 0;
 }
 
