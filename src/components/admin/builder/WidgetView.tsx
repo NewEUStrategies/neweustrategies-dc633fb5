@@ -601,11 +601,31 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
             ? "px-7 py-3 text-base"
             : "px-3.5 py-2 text-xs";
       const cls = `inline-flex items-center justify-center gap-2 rounded-md font-medium leading-none transition w-full h-full ${sizeCls} ${variantCls} ${fullWidth ? "justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
+      const btnGradFrom = getStr(c, "gradientFrom");
+      const btnGradTo = getStr(c, "gradientTo");
+      const btnGradAngle = getNum(c, "gradientAngle", 90);
+      const btnBgColor = getStr(c, "btnBgColor");
+      const btnTextColor = getStr(c, "btnTextColor");
+      const btnBorderColor = getStr(c, "btnBorderColor");
+      const btnStyle: React.CSSProperties = {};
+      if (variant === "gradient" && btnGradFrom && btnGradTo) {
+        btnStyle.backgroundImage = `linear-gradient(${btnGradAngle}deg, ${btnGradFrom}, ${btnGradTo})`;
+      }
+      if (btnBgColor && (variant === "primary" || variant === "soft" || variant === "outline")) {
+        btnStyle.backgroundColor = btnBgColor;
+      }
+      if (btnTextColor && variant !== "gradient") {
+        btnStyle.color = btnTextColor;
+      }
+      if (btnBorderColor && variant === "outline") {
+        btnStyle.borderColor = btnBorderColor;
+      }
+      const hasBtnStyle = Object.keys(btnStyle).length > 0;
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Icon = iconName ? (reg[iconName] ?? null) : null;
       const inner = canEdit ? (
-        <span className={cls}>
+        <span className={cls} style={hasBtnStyle ? btnStyle : undefined}>
           {Icon && <Icon size={14} />}
           <Editable
             as="span"
@@ -620,6 +640,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           target={target}
           rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined}
           className={cls}
+          style={hasBtnStyle ? btnStyle : undefined}
         >
           {Icon && <Icon size={14} />}
           {label}
