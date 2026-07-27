@@ -100,7 +100,7 @@ export function TailoredMustReadsView({
 }) {
   const { t } = useTranslation();
   const firstName = useCurrentUserFirstName();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const limit = Math.min(Math.max(getNum(c, "limit", 3), 1), 9);
   const columns = Math.min(Math.max(getNum(c, "columns", 3), 1), 4);
@@ -119,15 +119,22 @@ export function TailoredMustReadsView({
     (lang === "pl" ? FALLBACK_LABEL_PL : FALLBACK_LABEL_EN);
 
   const heading = useMemo(() => {
-    if (!user) return fallbackNoUser;
     const rendered = renderLabel(template, firstName, lang);
     return rendered || fallbackNoUser;
-  }, [template, firstName, lang, user, fallbackNoUser]);
+  }, [template, firstName, lang, fallbackNoUser]);
 
-  const { data: posts = [], isLoading } = useRecommendedPosts(limit);
+  const { data: posts = [], isLoading } = useRecommendedPosts(limit, {
+    enabled: !!user,
+  });
   const { data: authorsMap = {} } = useAuthorsMap(
     posts.map((p) => p.author_id).filter((id): id is string => !!id),
   );
+
+  // Widget dostępny wyłącznie dla zalogowanych - dla gości nie renderujemy nic
+  // (żeby nie zostawiać pustego bloku w layoucie strony).
+  if (authLoading) return null;
+  if (!user) return null;
+
 
   const gridCols =
     columns === 1
