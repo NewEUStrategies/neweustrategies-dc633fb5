@@ -247,7 +247,7 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
           <PropField
             label={l("Tryb doładowywania", "Load-more mode")}
             hint={l(
-              "„Przycisk" = ręczne kliknięcie. „Scroll" = auto-doładowanie przy przewijaniu.",
+              "Przycisk = ręczne kliknięcie. Scroll = auto-doładowanie przy przewijaniu.",
               "Button = manual click. Scroll = auto-load on scroll.",
             )}
           >
@@ -259,8 +259,12 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="button">{l("Przycisk „Pokaż więcej"", "Load more button")}</SelectItem>
-                <SelectItem value="scroll">{l("Wczytaj przy scrollu", "Load on scroll")}</SelectItem>
+                <SelectItem value="button">
+                  {l("Przycisk Pokaż więcej", "Load more button")}
+                </SelectItem>
+                <SelectItem value="scroll">
+                  {l("Wczytaj przy scrollu", "Load on scroll")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </PropField>
