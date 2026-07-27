@@ -87,11 +87,33 @@ export function SortableBlockItem(props: Props) {
     };
   }, [props.active]);
 
+  // Ciągły pomiar szerokosci x wysokosci bloku (bez zaokrąglania w dół do 0,
+  // gdy element jeszcze się nie zamountował). Aktualizacja przez
+  // ResizeObserver - badge zawsze zna aktualne rozmiary renderu.
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setSize({ w: Math.round(r.width), h: Math.round(r.height) });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.45 : 1,
   };
+
+  const badgeText =
+    (props.typeLabel ? props.typeLabel.toUpperCase() : t("blocks.actions.block", { defaultValue: "BLOK" })) +
+    (size.w && size.h ? ` · ${size.w}×${size.h}px` : "");
+
 
   return (
     <div
