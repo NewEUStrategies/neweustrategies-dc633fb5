@@ -156,11 +156,11 @@ export function MegaPanelView({
                         >
                           {lnk.icon ? (
                             <span className="menu-card-item__icon" aria-hidden>
-                              <DynamicIcon name={lnk.icon} size={16} strokeWidth={1.75} />
+                              <DynamicIcon name={lnk.icon} size={13} strokeWidth={1.75} />
                             </span>
                           ) : null}
                           <span className="menu-card-item__label">{label}</span>
-                          <ArrowRight size={14} className="menu-card-item__chevron" aria-hidden />
+                          <ArrowRight size={12} className="menu-card-item__chevron" aria-hidden />
                         </AppLink>
                       </li>
                     );
