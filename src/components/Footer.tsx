@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
 import { memo, useEffect, useRef } from "react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
@@ -14,6 +13,7 @@ import { BackToTop } from "@/components/footer/BackToTop";
 import { CopyrightBar } from "@/components/footer/CopyrightBar";
 import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
 import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
+import { currentLang } from "@/lib/i18n/localeRuntime";
 
 type FooterSettings = {
   builder_data?: BuilderDocument | null;
@@ -25,21 +25,30 @@ interface FooterProps {
 }
 
 export const Footer = memo(function Footer({ compact }: FooterProps) {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  // SSR-correct language: derived from the request URL on the server and from
+  // the URL on hydration, so the footer's PL/EN content matches the rendered
+  // HTML on first paint (i18next's async language switch would flash the wrong
+  // language during SSR/hydration).
+  const lang = currentLang();
+  const isPl = lang === "pl";
 
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<FooterSettings>(settingsMap, "footer", {});
 
+  // While settings are loading (should be rare - __root prefetches them via
+  // ensureQueryData), render the built-in default footer instead of a blank
+  // gap. This keeps SSR HTML stable and avoids a "no footer -> real footer"
+  // layout shift after hydration.
   const doc =
     cfg.builder_data && cfg.builder_data.sections?.length
       ? cfg.builder_data
       : isLoading
-        ? null
+        ? defaultDocFor("footer")
         : defaultDocFor("footer");
 
   const chrome = FooterChromeSchema.safeParse({ ...defaultFooterChrome(), ...(cfg.chrome ?? {}) });
   const chromeCfg = chrome.success ? chrome.data : defaultFooterChrome();
+
 
   const footerRef = useRef<HTMLElement | null>(null);
 
