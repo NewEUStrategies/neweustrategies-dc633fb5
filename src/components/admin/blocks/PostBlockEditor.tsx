@@ -13,7 +13,7 @@ import { BlockCanvas } from "./BlockCanvas";
 import { BlockSidebar } from "./BlockSidebar";
 import { useLocalizedBlocksHistory } from "./hooks/useLocalizedBlocksHistory";
 import { IconButton } from "./atoms/IconButton";
-import { Undo, Redo, PanelLeft } from "@/lib/lucide-shim";
+import { Undo, Redo, PanelLeft, Eye } from "@/lib/lucide-shim";
 import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
 import { BLOCK_TOUR_STEPS } from "@/lib/onboarding/tours";
@@ -24,9 +24,11 @@ interface Props {
   documentPane: React.ReactNode;
   /** Owija kanwę bloków (np. wireframem layoutu wpisu). Otrzymuje aktywny język. */
   canvasWrap?: (canvas: React.ReactNode, lang: "pl" | "en") => React.ReactNode;
+  /** Opcjonalny URL podglądu wpisu (otwiera się w nowej karcie). */
+  previewHref?: string;
 }
 
-export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: Props) {
+export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, previewHref }: Props) {
   const { t } = useTranslation();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -121,26 +123,40 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
               <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div
-            data-tour="blocks-history"
-            className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-1"
-          >
-            <IconButton
-              onClick={history.undo}
-              disabled={!history.canUndo}
-              title={`${t("blocks.actions.undo")} (Ctrl+Z)`}
-              aria-label={t("blocks.actions.undo")}
+          <div className="flex items-center gap-2">
+            {previewHref ? (
+              <a
+                href={previewHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                title={t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>{t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}</span>
+              </a>
+            ) : null}
+            <div
+              data-tour="blocks-history"
+              className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-1"
             >
-              <Undo className="w-3.5 h-3.5" />
-            </IconButton>
-            <IconButton
-              onClick={history.redo}
-              disabled={!history.canRedo}
-              title={`${t("blocks.actions.redo")} (Ctrl+Shift+Z)`}
-              aria-label={t("blocks.actions.redo")}
-            >
-              <Redo className="w-3.5 h-3.5" />
-            </IconButton>
+              <IconButton
+                onClick={history.undo}
+                disabled={!history.canUndo}
+                title={`${t("blocks.actions.undo")} (Ctrl+Z)`}
+                aria-label={t("blocks.actions.undo")}
+              >
+                <Undo className="w-3.5 h-3.5" />
+              </IconButton>
+              <IconButton
+                onClick={history.redo}
+                disabled={!history.canRedo}
+                title={`${t("blocks.actions.redo")} (Ctrl+Shift+Z)`}
+                aria-label={t("blocks.actions.redo")}
+              >
+                <Redo className="w-3.5 h-3.5" />
+              </IconButton>
+            </div>
           </div>
         </div>
 

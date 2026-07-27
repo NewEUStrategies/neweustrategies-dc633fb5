@@ -61,6 +61,7 @@ export function PostContentEditor({
         <PostBlockEditor
           value={form.blocks_data ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC }}
           onChange={(v) => set("blocks_data", v)}
+          previewHref={routeSlug && routeSlug !== "new" ? `/${routeSlug}` : undefined}
           canvasWrap={(canvas, lang) => {
             if (!globalLayout) return canvas;
             const effective = mergeOverrides(globalLayout, ov);
