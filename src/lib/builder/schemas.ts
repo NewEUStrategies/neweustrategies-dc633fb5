@@ -1092,7 +1092,42 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "list", label: "lista" },
       ],
     },
+    {
+      key: "showAuthorAvatar",
+      type: "select",
+      label: "Pokaż zdjęcie autora (wariant ranked)",
+      hint: "Miniatura 20×20 px, zaokrąglenie 5px, pobrana z profilu autora.",
+      options: [
+        { value: "1", label: "Tak" },
+        { value: "0", label: "Nie" },
+      ],
+      default: "1",
+      visibleWhen: (c) => c.variant === "ranked",
+      group: "Autor",
+    },
+    {
+      key: "showAuthorLabel",
+      type: "select",
+      label: 'Pokaż etykietę (np. „Autor")',
+      options: [
+        { value: "1", label: "Tak" },
+        { value: "0", label: "Nie" },
+      ],
+      default: "1",
+      visibleWhen: (c) => c.variant === "ranked",
+      group: "Autor",
+    },
+    {
+      key: "authorLabel",
+      type: "i18nText",
+      label: "Etykieta autora (i18n)",
+      hint: 'Puste = domyślnie „Autor" (PL) / „By" (EN). Wpisz własne słowo, np. „Pisze", „Rozmawia", „Words by".',
+
+      visibleWhen: (c) => c.variant === "ranked" && c.showAuthorLabel !== "0",
+      group: "Autor",
+    },
   ],
+
   carousel: [
     { key: "limit", type: "number", label: "Limit", min: 1, max: 50 },
     {
