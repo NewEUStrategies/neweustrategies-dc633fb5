@@ -128,6 +128,14 @@ import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
+import { withBudget } from "@/lib/asyncBudget";
+
+// Wall-clock cap on secondary prefetches (blocks data, related config). The
+// primary content query is already awaited; these warmers are best-effort and
+// must never hang the SSR response - views fall back to their client fetch.
+const SECONDARY_PREFETCH_BUDGET_MS = 3000;
+// Non-2xx / redirect responses must never be CDN-cached as the content itself.
+const NO_STORE = contentCacheControl({ preview: true });
 
 interface CoverPreload {
   href: string;
