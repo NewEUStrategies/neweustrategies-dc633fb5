@@ -92,7 +92,7 @@ export function MegaPanelView({
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
         {/* Nav columns */}
         <div
-          className="flex flex-col p-3 sm:p-4"
+          className="flex flex-col p-4 sm:p-5"
           style={
             showFeatured
               ? { gridColumn: "span 8 / span 8" }
@@ -116,7 +116,7 @@ export function MegaPanelView({
             </div>
           ) : null}
           <div
-            className="grid gap-x-3 sm:gap-x-5"
+            className="grid gap-x-4 sm:gap-x-6"
             style={{
               gridTemplateColumns: showFeatured
                 ? `repeat(${Math.min(cols.length || 1, 2)}, minmax(0, 1fr))`
@@ -132,31 +132,31 @@ export function MegaPanelView({
                   col.href ? (
                     <AppLink
                       href={safeUrl(col.href) || "#"}
-                      className="-mx-1.5 mb-0.5 flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 transition-colors hover:bg-muted/60"
+                      className="-mx-1.5 mb-1 flex items-center gap-1.5 rounded-sm px-1.5 py-1 transition-colors hover:bg-muted/60"
                     >
                       <span
                         aria-hidden
                         className="inline-block h-3 w-1 shrink-0 rounded-sm"
                         style={{ background: "var(--brand)" }}
                       />
-                      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground group-hover:text-foreground">
+                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground group-hover:text-foreground">
                         {title}
                       </span>
                     </AppLink>
                   ) : (
-                    <div className="-mx-1.5 mb-0.5 flex items-center gap-1.5 px-1.5 py-0.5">
+                    <div className="-mx-1.5 mb-1 flex items-center gap-1.5 px-1.5 py-1">
                       <span
                         aria-hidden
                         className="inline-block h-3 w-1 shrink-0 rounded-sm"
                         style={{ background: "var(--brand)" }}
                       />
-                      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                         {title}
                       </span>
                     </div>
                   )
                 ) : null}
-                <ul className="flex flex-col gap-0.5">
+                <ul className="flex flex-col gap-1">
                   {(col.links ?? []).map((lnk, j) => {
                     const label = pickLocalized(lnk.label_pl, lnk.label_en, lang);
                     if (!label) return null;
@@ -169,11 +169,11 @@ export function MegaPanelView({
                         >
                           {lnk.icon ? (
                             <span className="menu-card-item__icon" aria-hidden>
-                              <DynamicIcon name={lnk.icon} size={13} strokeWidth={1.75} />
+                              <DynamicIcon name={lnk.icon} size={14} strokeWidth={1.75} />
                             </span>
                           ) : null}
                           <span className="menu-card-item__label">{label}</span>
-                          <ArrowRight size={12} className="menu-card-item__chevron" aria-hidden />
+                          <ArrowRight size={13} className="menu-card-item__chevron" aria-hidden />
                         </AppLink>
                       </li>
                     );
