@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRecommendedPosts } from "@/hooks/useRecommendedPosts";
 import { supabase } from "@/integrations/supabase/client";
 import { toPlVocative } from "@/lib/i18n/plVocative";
-import { toLocalePath } from "@/lib/i18n/localePath";
+import { localizedPath } from "@/lib/i18n/localePath";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getNum, getStr } from "./frame";
 
