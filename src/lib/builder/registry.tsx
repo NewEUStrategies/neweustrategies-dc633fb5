@@ -526,6 +526,7 @@ export const WIDGETS: WidgetDef[] = [
       kicker_en: "Recommended for you",
       showKicker: "1",
       showExcerpt: "1",
+      showAuthor: "1",
     }),
   },
   // Forms
