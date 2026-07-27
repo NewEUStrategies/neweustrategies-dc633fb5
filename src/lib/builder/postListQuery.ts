@@ -20,7 +20,12 @@ export interface PostRow {
    *  numbered), so author names ship with the SSR prefetch instead of popping
    *  in via a separate client-side query after hydration. */
   author_display_name?: string | null;
+  /** Author avatar (5px rounded thumb) rendered by the ranked byline. */
+  author_avatar_url?: string | null;
+  /** Slug for linking the byline to the author profile page. */
+  author_slug?: string | null;
 }
+
 
 interface PostListInput {
   variant: string;
