@@ -92,7 +92,7 @@ export function MegaPanelView({
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
         {/* Nav columns */}
         <div
-          className="p-3 sm:p-4 grid gap-x-3 gap-y-1 sm:gap-x-5 sm:gap-y-1.5"
+          className="grid gap-x-3 gap-y-0 p-3 sm:gap-x-5 sm:p-4"
           style={
             showFeatured
               ? {
@@ -103,10 +103,10 @@ export function MegaPanelView({
           }
         >
           {parentLabel && parentHref ? (
-            <div style={{ gridColumn: "1 / -1" }} className="-mb-1">
+            <div style={{ gridColumn: "1 / -1" }} className="-mb-2 h-5 leading-none">
               <AppLink
                 href={safeUrl(parentHref) || "#"}
-                className="group inline-flex items-center gap-2 rounded-sm px-1.5 py-1 -mx-1.5 text-xs font-bold text-brand hover:bg-muted/60 hover:opacity-90"
+                className="group -mx-1.5 inline-flex h-5 items-center gap-2 rounded-sm px-1.5 text-xs font-bold text-brand hover:bg-muted/60 hover:opacity-90"
               >
                 <span className="text-muted-foreground">{goToPage}:</span>
                 <span className="font-black uppercase tracking-[0.12em]">{parentLabel}</span>
@@ -126,7 +126,7 @@ export function MegaPanelView({
                   col.href ? (
                     <AppLink
                       href={safeUrl(col.href) || "#"}
-                      className="mb-1 -mx-1.5 flex items-center gap-1.5 rounded-sm px-1.5 py-1 transition-colors hover:bg-muted/60"
+                      className="-mx-1.5 mb-0.5 flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 transition-colors hover:bg-muted/60"
                     >
                       <span
                         aria-hidden
@@ -138,7 +138,7 @@ export function MegaPanelView({
                       </span>
                     </AppLink>
                   ) : (
-                    <div className="mb-1 flex items-center gap-1.5 px-1.5 py-1 -mx-1.5">
+                    <div className="-mx-1.5 mb-0.5 flex items-center gap-1.5 px-1.5 py-0.5">
                       <span
                         aria-hidden
                         className="inline-block h-3 w-1 shrink-0 rounded-sm"
