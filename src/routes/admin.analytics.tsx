@@ -641,6 +641,9 @@ function AnalyticsPage() {
           <TabsTrigger value="semantic">
             <Scale className="w-3.5 h-3.5 mr-2" /> {t("admin.nav.analyticsReconciliation")}
           </TabsTrigger>
+          <TabsTrigger value="footer">
+            <MousePointerClick className="w-3.5 h-3.5 mr-2" /> Stopka
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
