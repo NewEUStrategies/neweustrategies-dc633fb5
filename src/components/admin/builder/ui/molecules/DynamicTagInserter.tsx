@@ -4,7 +4,7 @@
 // wraps shadcn `Popover` primitives + shared `DYNAMIC_TAG_GROUPS` catalog.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Braces } from "@/lib/lucide-shim";
+import { Wand2 } from "@/lib/lucide-shim";
 import {
   Popover,
   PopoverContent,
