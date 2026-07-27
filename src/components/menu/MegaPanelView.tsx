@@ -275,16 +275,16 @@ export function MegaPanelView({
               : null}
             <AppLink href={safeUrl(`/${featured.slug}`) || "#"} className="group block">
               {featuredExcerpt ? (
-                <p className="mt-2.5 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
+                <p className="mt-2 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
                   {featuredExcerpt}
                 </p>
               ) : null}
-              <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em]">
+              <div className="mt-2 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.14em]">
                 <span className="text-brand">{featuredEyebrow}</span>
                 <span className="opacity-30">|</span>
                 <span className="text-muted-foreground">{readMore}</span>
                 <ArrowRight
-                  size={12}
+                  size={11}
                   className="text-muted-foreground transition-transform group-hover:translate-x-0.5"
                   aria-hidden
                 />
