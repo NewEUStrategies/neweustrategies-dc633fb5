@@ -218,7 +218,7 @@ export function MegaPanelView({
               role="menuitem"
             >
               {featured.cover_image_url ? (
-                <div className="mb-2 aspect-[16/10] w-full overflow-hidden rounded-sm ring-1 ring-border/60 shadow-sm">
+                <div className="mb-2 aspect-[16/10] w-full overflow-hidden rounded-sm ring-1 ring-border/60">
                   <img
                     src={featured.cover_image_url}
                     alt=""
