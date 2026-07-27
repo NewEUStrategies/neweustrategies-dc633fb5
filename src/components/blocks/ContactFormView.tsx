@@ -677,16 +677,15 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
         {(requireConsent || showNewsletter) && (
           <div className="mt-3 space-y-1.5">
             {requireConsent && (
-              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80">
-                <input type="checkbox" name="consent" className="mt-0.5" />
+              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80 cursor-pointer">
+                <Checkbox name="consent" className="mt-0.5 shrink-0" />
                 <span>{renderConsentText(consentTextRaw)}</span>
-                {null}
               </label>
             )}
 
             {showNewsletter && (
-              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80">
-                <input type="checkbox" name="newsletter_optin" className="mt-0.5" />
+              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80 cursor-pointer">
+                <Checkbox name="newsletter_optin" className="mt-0.5 shrink-0" />
                 <span>{newsletterLabel}</span>
               </label>
             )}
