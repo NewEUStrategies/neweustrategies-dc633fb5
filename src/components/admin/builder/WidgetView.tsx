@@ -303,6 +303,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   // own `width:100%` resolve against a shrink-to-content box (often 0 px).
   // Keep their renderer attached directly to the full-width widget shell.
   const isStructuralWidthWidget = node.type === "divider" || node.type === "spacer";
+  const allowsFloatingChrome = node.type === "account-link";
   const needsAlignShrinkWrap =
     Boolean(styleAlignItems) && !innerShellStyle && !isStructuralWidthWidget;
   const alignShrinkWrapStyle: CSSProperties | undefined = needsAlignShrinkWrap
@@ -335,7 +336,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         height: isMedia && !fillsExplicitFrameHeight ? "auto" : "100%",
         maxWidth: isImage ? "none" : "100%",
         boxSizing: "border-box",
-        overflow: isImage ? "visible" : isMedia ? "visible" : "hidden",
+        overflow: isImage || isMedia || allowsFloatingChrome ? "visible" : "hidden",
+        position: allowsFloatingChrome ? "relative" : undefined,
+        zIndex: allowsFloatingChrome ? 30 : undefined,
         ...(typeof activeGapPx === "number"
           ? ({ "--cms-title-description-gap": `${activeGapPx}px` } as CSSProperties)
           : {}),
