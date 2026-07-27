@@ -67,11 +67,27 @@ export function PostListView({
 }) {
   const { t } = useTranslation();
   const authorLabelOverride = getStr(c, `authorLabel_${lang}`).trim();
-  const showAuthorLabel = getStr(c, "showAuthorLabel") !== "0";
-  const showAuthorAvatar = getStr(c, "showAuthorAvatar") !== "0";
+  // Unified author display dropdown (new). Backward compat: derive from the
+  // legacy showAuthorAvatar/showAuthorLabel booleans when authorDisplay is unset.
+  const rawAuthorDisplay = getStr(c, "authorDisplay");
+  const legacyAvatar = getStr(c, "showAuthorAvatar");
+  const legacyLabel = getStr(c, "showAuthorLabel");
+  const authorDisplay: "avatar" | "label" | "none" =
+    rawAuthorDisplay === "avatar" || rawAuthorDisplay === "label" || rawAuthorDisplay === "none"
+      ? rawAuthorDisplay
+      : legacyAvatar === "0" && legacyLabel === "0"
+        ? "none"
+        : legacyAvatar === "0"
+          ? "label"
+          : "avatar";
+  const showAuthorAny = authorDisplay !== "none";
   const byLabel =
     authorLabelOverride ||
     t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
+  // Global display toggles — apply to every variant.
+  const showCover = getStr(c, "showCover") !== "0";
+  const showTitleGlobal = getStr(c, "showTitle") !== "0";
+  const showExcerptGlobal = getStr(c, "showExcerpt") !== "0";
 
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
@@ -138,9 +154,10 @@ export function PostListView({
   const visibleRows = uniqueOnPage
     ? dedupeAndSlice(data ?? [], excludeIds, limit)
     : (data ?? []).slice(0, limit);
-  const rows = visibleRows.map((p) =>
-    overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p,
-  );
+  const rows = visibleRows.map((p) => {
+    const withOverride = overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p;
+    return showCover ? withOverride : { ...withOverride, cover_image_url: null };
+  });
 
   // Register the IDs this widget actually DISPLAYS (not the over-fetched extras)
   // so later uniqueOnPage widgets exclude exactly what the reader saw. Keyed on
@@ -188,12 +205,19 @@ export function PostListView({
     );
   }
 
-  const title = (p: PostRow) =>
-    (lang === "pl" ? p.title_pl : p.title_en) ||
-    p.title_pl ||
-    p.title_en ||
-    (lang === "pl" ? "(bez tytułu)" : "(untitled)");
-  const excerpt = (p: PostRow) => (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
+  const title = (p: PostRow) => {
+    if (!showTitleGlobal) return "";
+    return (
+      (lang === "pl" ? p.title_pl : p.title_en) ||
+      p.title_pl ||
+      p.title_en ||
+      (lang === "pl" ? "(bez tytułu)" : "(untitled)")
+    );
+  };
+  const excerpt = (p: PostRow) => {
+    if (!showExcerptGlobal) return "";
+    return (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
+  };
 
   if (carousel) {
     return (
@@ -316,27 +340,29 @@ export function PostListView({
                 <h4 className="cms-post-title line-clamp-3" style={tStyle}>
                   {title(p)}
                 </h4>
-                {authorName(p) && (
+                {showAuthorAny && authorName(p) && (
                   <div className="cms-meta mt-2 flex items-center gap-2 min-w-0">
-                    {showAuthorAvatar && p.author_avatar_url ? (
-                      <img
-                        src={p.author_avatar_url}
-                        alt=""
-                        width={20}
-                        height={20}
-                        loading="lazy"
-                        className="h-5 w-5 shrink-0 object-cover"
-                        style={{ borderRadius: 5 }}
-                      />
-                    ) : showAuthorAvatar ? (
-                      <span
-                        aria-hidden
-                        className="h-5 w-5 shrink-0 bg-muted"
-                        style={{ borderRadius: 5 }}
-                      />
+                    {authorDisplay === "avatar" ? (
+                      p.author_avatar_url ? (
+                        <img
+                          src={p.author_avatar_url}
+                          alt=""
+                          width={20}
+                          height={20}
+                          loading="lazy"
+                          className="h-5 w-5 shrink-0 object-cover"
+                          style={{ borderRadius: 5 }}
+                        />
+                      ) : (
+                        <span
+                          aria-hidden
+                          className="h-5 w-5 shrink-0 bg-muted"
+                          style={{ borderRadius: 5 }}
+                        />
+                      )
                     ) : null}
-                    {showAuthorLabel && byLabel && !(showAuthorAvatar && p.author_avatar_url) ? (
-                      <span className="opacity-70">{byLabel}</span>
+                    {authorDisplay === "label" && byLabel ? (
+                      <span className="opacity-70">{byLabel}:</span>
                     ) : null}
                     <span className="text-foreground truncate">{authorName(p)}</span>
                   </div>
