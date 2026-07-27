@@ -254,11 +254,19 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           </ul>
         </div>
       ) : (
-        <div className="px-5 py-8 text-center">
-          <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-md bg-muted/50">
-            <Search className="h-4 w-4 text-muted-foreground" />
+        <div className="px-5 py-10 text-center sm:py-8">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 sm:mb-2 sm:h-9 sm:w-9 sm:rounded-md">
+            <Search className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
           </div>
-          <p className="text-[10px] text-muted-foreground">{t("searchOverlay.startTyping")}</p>
+          <p className="text-[13px] font-medium text-foreground sm:text-[10px] sm:font-normal sm:text-muted-foreground">
+            {t("searchOverlay.startTyping")}
+          </p>
+          <p className="mx-auto mt-1.5 max-w-xs text-[11px] leading-relaxed text-muted-foreground sm:hidden">
+            {t("searchOverlay.hint", {
+              defaultValue:
+                "Wpisz frazę - użyj cudzysłowów dla dokładnej frazy lub „-" aby wykluczyć słowo.",
+            }) as string}
+          </p>
         </div>
       )}
 
