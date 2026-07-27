@@ -153,91 +153,93 @@ export function SortableBlockItem(props: Props) {
       </span>
 
 
-      {props.active && (
-        <div
-          ref={toolbarRef}
-          style={{ left: toolbarPos.left, top: toolbarPos.top }}
-          className="absolute flex items-center gap-1 z-20 bg-popover border border-border rounded-md shadow-sm px-1 py-0.5"
-        >
-          {props.variants && props.variants.length > 1 && props.onVariantChange && (
-            <>
-              <div
-                className="flex items-center gap-0.5"
-                role="group"
-                aria-label={t("blocks.actions.variant", { defaultValue: "Wariant" })}
-              >
-                {props.variants.map((v) => {
-                  const isCurrent = v.key === props.currentVariant;
-                  return (
-                    <button
-                      key={v.key}
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!isCurrent) props.onVariantChange!(v.key);
-                      }}
-                      aria-pressed={isCurrent}
-                      title={v.label}
-                      className={`px-2 h-6 text-[11px] font-medium rounded transition-colors ${
-                        isCurrent
-                          ? "bg-foreground text-background"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                      }`}
-                    >
-                      {v.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <span aria-hidden className="mx-1 h-4 w-px bg-border" />
-            </>
-          )}
+      <div
+        ref={toolbarRef}
+        style={{ left: toolbarPos.left, top: toolbarPos.top }}
+        onClick={(e) => e.stopPropagation()}
+        className={`absolute flex items-center gap-1 z-20 bg-popover border border-border rounded-md shadow-sm px-1 py-0.5 transition-opacity ${
+          props.active ? "opacity-100" : "opacity-60 hover:opacity-100 group-hover:opacity-100"
+        }`}
+      >
+        {props.variants && props.variants.length > 1 && props.onVariantChange && (
+          <>
+            <div
+              className="flex items-center gap-0.5"
+              role="group"
+              aria-label={t("blocks.actions.variant", { defaultValue: "Wariant" })}
+            >
+              {props.variants.map((v) => {
+                const isCurrent = v.key === props.currentVariant;
+                return (
+                  <button
+                    key={v.key}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isCurrent) props.onVariantChange!(v.key);
+                    }}
+                    aria-pressed={isCurrent}
+                    title={v.label}
+                    className={`px-2 h-6 text-[11px] font-medium rounded transition-colors ${
+                      isCurrent
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    }`}
+                  >
+                    {v.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+          </>
+        )}
 
-          <IconButton
-            disabled={props.index === 0}
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onMove(-1);
-            }}
-            title={t("blocks.actions.up")}
-            aria-label={t("blocks.actions.up")}
-          >
-            <ChevronUp className="w-3 h-3" />
-          </IconButton>
-          <IconButton
-            disabled={props.index === props.total - 1}
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onMove(1);
-            }}
-            title={t("blocks.actions.down")}
-            aria-label={t("blocks.actions.down")}
-          >
-            <ChevronDown className="w-3 h-3" />
-          </IconButton>
-          <IconButton
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onDuplicate();
-            }}
-            title={t("blocks.actions.duplicate")}
-            aria-label={t("blocks.actions.duplicate")}
-          >
-            <Copy className="w-3 h-3" />
-          </IconButton>
-          <IconButton
-            danger
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onRemove();
-            }}
-            title={t("blocks.actions.remove")}
-            aria-label={t("blocks.actions.remove")}
-          >
-            <Trash2 className="w-3 h-3" />
-          </IconButton>
-        </div>
-      )}
+        <IconButton
+          disabled={props.index === 0}
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onMove(-1);
+          }}
+          title={t("blocks.actions.up")}
+          aria-label={t("blocks.actions.up")}
+        >
+          <ChevronUp className="w-3 h-3" />
+        </IconButton>
+        <IconButton
+          disabled={props.index === props.total - 1}
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onMove(1);
+          }}
+          title={t("blocks.actions.down")}
+          aria-label={t("blocks.actions.down")}
+        >
+          <ChevronDown className="w-3 h-3" />
+        </IconButton>
+        <IconButton
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onDuplicate();
+          }}
+          title={t("blocks.actions.duplicate")}
+          aria-label={t("blocks.actions.duplicate")}
+        >
+          <Copy className="w-3 h-3" />
+        </IconButton>
+        <IconButton
+          danger
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onRemove();
+          }}
+          title={t("blocks.actions.remove")}
+          aria-label={t("blocks.actions.remove")}
+        >
+          <Trash2 className="w-3 h-3" />
+        </IconButton>
+      </div>
+
 
       {props.children}
     </div>
