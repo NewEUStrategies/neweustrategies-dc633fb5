@@ -376,8 +376,18 @@ function PagesList() {
     });
   };
 
+  // Filtr językowy z toolbara steruje językiem wyświetlanych tytułów i wersją,
+  // w której otwiera się edytor. Bez filtra - język UI.
+  const viewLang: "pl" | "en" =
+    langFilter === "has_en" || langFilter === "en_only"
+      ? "en"
+      : langFilter === "has_pl" || langFilter === "pl_only"
+        ? "pl"
+        : lang.startsWith("en")
+          ? "en"
+          : "pl";
   const titleOf = (p: { title_pl: string | null; title_en: string | null; slug: string }) =>
-    (lang === "en" ? p.title_en : p.title_pl) || p.slug;
+    (viewLang === "en" ? p.title_en : p.title_pl) || p.slug;
 
   return (
     <div>
