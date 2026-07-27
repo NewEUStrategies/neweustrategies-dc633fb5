@@ -5991,7 +5991,7 @@ header[data-scrolled="true"]
     transition: none !important;
   }
   header[data-site-header][data-scrolled="true"].site-header-shrink .cms-trending {
-    grid-template-rows: 0fr;
+    grid-template-rows: minmax(0, 0fr);
     opacity: 0;
   }
 }
