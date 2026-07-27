@@ -53,12 +53,32 @@ export function alternateLinks(loc: string): string[] {
   return lines;
 }
 
-function requestContext(): { origin: string; host: string } {
+const CANONICAL_ORIGIN = "https://neweuropeanstrategies.com";
+const CANONICAL_HOSTS = new Set(["neweuropeanstrategies.com", "www.neweuropeanstrategies.com"]);
+function isLegacyPublicHost(host: string): boolean {
+  if (!host || CANONICAL_HOSTS.has(host)) return false;
+  return (
+    host.endsWith(".lovable.app") ||
+    host.endsWith(".lovableproject.com") ||
+    host.endsWith(".pages.dev") ||
+    host.endsWith(".workers.dev")
+  );
+}
+
+function requestContext(): { origin: string; host: string; legacy: boolean } {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = requestPublicHost(req) ?? "";
-  return { origin: host ? `${proto}://${host}` : "", host };
+  const legacy = isLegacyPublicHost(host);
+  // Legacy / canonical brand hosts always emit URLs on the canonical origin
+  // so search engines converge on neweuropeanstrategies.com regardless of
+  // which alias served the sitemap request.
+  const origin = legacy || CANONICAL_HOSTS.has(host)
+    ? CANONICAL_ORIGIN
+    : host ? `${proto}://${host}` : "";
+  return { origin, host, legacy };
 }
+
 
 // Paths of ALL published pages (a noindex page still parents indexable posts,
 // so it stays in the path map) + the set of page ids excluded from their own
