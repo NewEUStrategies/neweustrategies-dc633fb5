@@ -376,8 +376,18 @@ function PagesList() {
     });
   };
 
+  // Filtr językowy z toolbara steruje językiem wyświetlanych tytułów i wersją,
+  // w której otwiera się edytor. Bez filtra - język UI.
+  const viewLang: "pl" | "en" =
+    langFilter === "has_en" || langFilter === "en_only"
+      ? "en"
+      : langFilter === "has_pl" || langFilter === "pl_only"
+        ? "pl"
+        : lang.startsWith("en")
+          ? "en"
+          : "pl";
   const titleOf = (p: { title_pl: string | null; title_en: string | null; slug: string }) =>
-    (lang === "en" ? p.title_en : p.title_pl) || p.slug;
+    (viewLang === "en" ? p.title_en : p.title_pl) || p.slug;
 
   return (
     <div>
@@ -555,8 +565,8 @@ function PagesList() {
                         <div className="flex items-center gap-2">
                           {isTrash ? (
                             <div className="font-medium text-[13px] truncate max-w-[360px]">
-                              {(lang === "en" ? p.title_en : p.title_pl) ||
-                                (lang === "en" ? p.title_pl : p.title_en) || (
+                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
+                                (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
                                     - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
                                   </span>
@@ -565,11 +575,11 @@ function PagesList() {
                           ) : (
                             <Link
                               to="/admin/pages/$slug"
-                              params={{ slug: p.slug }}
+                              params={{ slug: p.slug }} search={{ lang: viewLang }}
                               className="font-medium text-[13px] truncate max-w-[360px] text-[#231f20] dark:text-[#F8F6F4] hover:text-[#FDB078] hover:underline"
                             >
-                              {(lang === "en" ? p.title_en : p.title_pl) ||
-                                (lang === "en" ? p.title_pl : p.title_en) || (
+                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
+                                (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
                                     - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
                                   </span>
@@ -590,7 +600,7 @@ function PagesList() {
                         ) : (
                           <Link
                             to="/admin/pages/$slug"
-                            params={{ slug: p.slug }}
+                            params={{ slug: p.slug }} search={{ lang: viewLang }}
                             className="block text-[10px] text-[#231f20] dark:text-[#F8F6F4] truncate max-w-[360px] hover:text-[#FDB078] hover:underline"
                           >
                             /{p.slug}
@@ -674,7 +684,7 @@ function PagesList() {
                                 onClick={() =>
                                   setAsHome(
                                     p.slug,
-                                    (lang === "en" ? p.title_en : p.title_pl) ?? p.slug,
+                                    (viewLang === "en" ? p.title_en : p.title_pl) ?? p.slug,
                                   )
                                 }
                               >
@@ -682,7 +692,7 @@ function PagesList() {
                                   className={`w-3.5 h-3.5 ${currentHome === p.slug ? "text-primary" : ""}`}
                                 />
                               </Button>
-                              <Link to="/admin/pages/$slug" params={{ slug: p.slug }}>
+                              <Link to="/admin/pages/$slug" params={{ slug: p.slug }} search={{ lang: viewLang }}>
                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>

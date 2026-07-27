@@ -248,8 +248,19 @@ function PostsList() {
     qc.invalidateQueries({ queryKey: ["admin-posts-view-count"] });
   };
 
+  // Widoczny język listy zależy od filtra językowego: gdy użytkownik wybierze
+  // "Angielski" / "Tylko EN", tytuły oraz otwierana wersja edytora przełączają
+  // się na EN. Analogicznie dla PL. Bez filtra - język UI.
+  const viewLang: "pl" | "en" =
+    langFilter === "has_en" || langFilter === "en_only"
+      ? "en"
+      : langFilter === "has_pl" || langFilter === "pl_only"
+        ? "pl"
+        : lang.startsWith("en")
+          ? "en"
+          : "pl";
   const titleOf = (p: { title_pl: string | null; title_en: string | null; slug: string }) =>
-    (lang === "en" ? p.title_en : p.title_pl) || p.slug;
+    (viewLang === "en" ? p.title_en : p.title_pl) || p.slug;
 
   // Duplikat -> szkic-kopia; od razu otwieramy edytor kopii (skraca pętlę
   // "powiel i popraw" dla powtarzalnych formatów).
@@ -619,8 +630,8 @@ function PostsList() {
                         {isTrash ? (
                           <>
                             <div className="font-medium text-[13px] truncate max-w-[420px]">
-                              {(lang === "en" ? p.title_en : p.title_pl) ||
-                                (lang === "en" ? p.title_pl : p.title_en) || (
+                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
+                                (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
                                     - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
                                   </span>
@@ -633,12 +644,12 @@ function PostsList() {
                         ) : (
                           <Link
                             to="/admin/posts/$slug"
-                            params={{ slug: p.slug }}
+                            params={{ slug: p.slug }} search={{ lang: viewLang }}
                             className="block group"
                           >
                             <div className="font-medium text-[13px] truncate max-w-[420px] text-[#231f20] dark:text-[#F8F6F4] group-hover:text-[#FDB078] group-hover:underline underline-offset-2">
-                              {(lang === "en" ? p.title_en : p.title_pl) ||
-                                (lang === "en" ? p.title_pl : p.title_en) || (
+                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
+                                (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
                                     - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
                                   </span>
@@ -717,7 +728,7 @@ function PostsList() {
                             </>
                           ) : (
                             <>
-                              <Link to="/admin/posts/$slug" params={{ slug: p.slug }}>
+                              <Link to="/admin/posts/$slug" params={{ slug: p.slug }} search={{ lang: viewLang }}>
                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
