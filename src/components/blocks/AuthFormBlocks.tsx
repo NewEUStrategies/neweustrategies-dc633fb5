@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import "@/lib/i18n-public";
 import { Button } from "@/components/ui/button";
+import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Loader2, User, KeyRound, ShieldCheck, LogIn } from "lucide-react";
@@ -223,14 +224,12 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
             <span />
           )}
           {data.showForgot !== false && (
-            <Link to={data.forgotHref || "?mode=reset"} className="text-primary hover:underline">
+            <Link to={data.forgotHref || "?mode=reset"} className="form-link">
               {L.forgot}
             </Link>
           )}
         </div>
-        <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}
-        </Button>
+        <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">{submitLabel}</SubscribeButton>
         {data.showOAuthGoogle && (
           <>
             <div className="relative my-2 text-center text-xs text-muted-foreground">
@@ -250,7 +249,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
         )}
         {data.showRegister !== false && (
           <p className="text-center text-sm text-muted-foreground m-0">
-            <Link to={data.registerHref || "?mode=signup"} className="text-primary hover:underline">
+            <Link to={data.registerHref || "?mode=signup"} className="form-link">
               {L.register}
             </Link>
           </p>
@@ -428,11 +427,9 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
             <span className="flex-1 min-w-0">{consentLabel || t("authForms.consentDefault")}</span>
           </label>
         )}
-        <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}
-        </Button>
+        <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">{submitLabel}</SubscribeButton>
         <p className="text-center text-sm text-muted-foreground m-0">
-          <Link to={data.loginHref || "?mode=signin"} className="text-primary hover:underline">
+          <Link to={data.loginHref || "?mode=signin"} className="form-link">
             {L.login}
           </Link>
         </p>
@@ -524,11 +521,9 @@ export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; l
             label={L.email}
           />
 
-          <Button type="submit" className="w-full" disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}
-          </Button>
+          <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">{submitLabel}</SubscribeButton>
           <p className="text-center text-sm text-muted-foreground m-0">
-            <Link to={data.loginHref || "?mode=signin"} className="text-primary hover:underline">
+            <Link to={data.loginHref || "?mode=signin"} className="form-link">
               {L.login}
             </Link>
           </p>
@@ -645,9 +640,7 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
             />
           )}
 
-          <Button type="submit" className="w-full" disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel}
-          </Button>
+          <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">{submitLabel}</SubscribeButton>
         </form>
       )}
     </>,
