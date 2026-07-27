@@ -139,6 +139,12 @@ export const getWidgetFrameStyle = (
 
   const isInline = adv?.layout === "inline";
   const shouldAlwaysFillColumn = node.type === "post-list" || node.type === "carousel";
+  // Structural widgets (divider/spacer) describe horizontal space in the
+  // column and must always visualise their intrinsic width regardless of the
+  // widget's horizontal anchor / inline layout. Otherwise centering a divider
+  // collapses the outer frame to shrink-to-content and the rendered widget
+  // ends up ~70px wide instead of the section's real width.
+  const isStructuralWidthWidget = node.type === "divider" || node.type === "spacer";
 
   const style: CSSProperties = {
     width: "100%",
@@ -151,13 +157,18 @@ export const getWidgetFrameStyle = (
   const saRaw = node.style?.selfAlign;
   // Default: no per-widget vertical anchor - column-level verticalAlign decides.
   const sa = !saRaw || saRaw === "auto" ? undefined : saRaw;
-  const horizontalAnchored = sj && sj !== "auto";
+  const horizontalAnchored = !isStructuralWidthWidget && sj && sj !== "auto";
 
   // When user anchors the widget horizontally OR opted into inline flow, it
   // must shrink to its content so siblings can sit next to it.
   // Exception: the search widget always fills the full column width.
   const isSearch = node.type === "search-button";
-  const shrinkToContent = !isSearch && !shouldAlwaysFillColumn && (horizontalAnchored || isInline);
+  const shrinkToContent =
+    !isSearch &&
+    !shouldAlwaysFillColumn &&
+    !isStructuralWidthWidget &&
+    (horizontalAnchored || isInline);
+
   const sliderShouldFill =
     node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !shrinkToContent;
   const searchShouldFill = isSearch && wRaw === undefined;
