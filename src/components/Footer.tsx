@@ -55,9 +55,46 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
     ) : null;
   }
 
+  const footerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const el = footerRef.current;
+    if (!el) return;
+    const onClick = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement | null;
+      const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") ?? "";
+      if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
+        return;
+      }
+      const isExternal = /^https?:\/\//i.test(href) && !href.includes(window.location.host);
+      const registry = FOOTER_LINKS.find((l) => l.href === href);
+      const group: FooterLinkGroup | "unknown" = registry?.group ?? "unknown";
+      const label = anchor.textContent?.trim() || href;
+      trackFooterLink({ href, label, group, external: isExternal });
+    };
+    const onSubmit = (ev: SubmitEvent) => {
+      const form = ev.target as HTMLFormElement | null;
+      if (!form) return;
+      const isNewsletter =
+        form.matches("[data-newsletter-form]") ||
+        form.querySelector("input[type='email']") != null;
+      if (!isNewsletter) return;
+      trackFooterNewsletterSubmit("success", { form_id: form.id || undefined });
+    };
+    el.addEventListener("click", onClick, { capture: true });
+    el.addEventListener("submit", onSubmit, { capture: true });
+    return () => {
+      el.removeEventListener("click", onClick, { capture: true } as EventListenerOptions);
+      el.removeEventListener("submit", onSubmit, { capture: true } as EventListenerOptions);
+    };
+  }, []);
+
   return (
     <>
       <footer
+        ref={footerRef}
         data-site-footer
         data-footer-layout={chromeCfg.layout}
         // cv-auto: the footer is below the fold on load - skipping its
