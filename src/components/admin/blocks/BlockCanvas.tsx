@@ -260,16 +260,18 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                     replaceBlock(b.id, { ...b, data: { ...b.data, variant: v } })
                   }
                 >
-                  <BlockRenderer
-                    block={b}
-                    isActive={b.id === activeId}
-                    onChange={(n) => replaceBlock(b.id, n)}
-                    onTransform={(replacement) => replaceWith(b.id, replacement)}
-                    onInsertAfter={(blk) => insertAt(idx + 1, blk)}
-                    onDeleteEmpty={() => {
-                      if (blocks.length > 1) remove(idx);
-                    }}
-                  />
+                  <BlockWithToolbar block={b} isActive={b.id === activeId} onChange={(n) => replaceBlock(b.id, n)}>
+                    <BlockRenderer
+                      block={b}
+                      isActive={b.id === activeId}
+                      onChange={(n) => replaceBlock(b.id, n)}
+                      onTransform={(replacement) => replaceWith(b.id, replacement)}
+                      onInsertAfter={(blk) => insertAt(idx + 1, blk)}
+                      onDeleteEmpty={() => {
+                        if (blocks.length > 1) remove(idx);
+                      }}
+                    />
+                  </BlockWithToolbar>
                 </SortableBlockItem>
                 <BlockInserter onInsert={(blk) => insertAt(idx + 1, blk)} />
               </div>
