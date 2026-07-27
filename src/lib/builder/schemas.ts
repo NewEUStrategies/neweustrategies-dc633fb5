@@ -458,7 +458,20 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       group: "Kolory wariantu",
     },
   ],
-  spacer: [{ key: "height", type: "number", label: "Wysokość (px)", min: 1, max: 800 }],
+  spacer: [
+    { key: "height", type: "number", label: "Wysokość (px)", min: 1, max: 800 },
+    { key: "widthPct", type: "number", label: "Szerokość (%)", min: 10, max: 100 },
+    {
+      key: "align",
+      type: "select",
+      label: "Wyrównanie",
+      options: [
+        { value: "left", label: "Lewo" },
+        { value: "center", label: "Środek" },
+        { value: "right", label: "Prawo" },
+      ],
+    },
+  ],
   counter: [
     { key: "value", type: "number", label: "Wartość docelowa", min: 0, max: 1000000 },
     { key: "from", type: "number", label: "Wartość początkowa", min: 0, max: 1000000 },
