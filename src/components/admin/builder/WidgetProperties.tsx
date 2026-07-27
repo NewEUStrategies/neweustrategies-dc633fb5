@@ -261,8 +261,8 @@ export function WidgetProperties({
     const next = t && Object.keys(t).length ? t : undefined;
     broadcastWidgetTypography(widget.id, next);
     setStyle((s) => {
-      const prev = s.typography as Themed<WidgetTypography> | undefined;
-      s.typography = setThemedMode<WidgetTypography>(prev, mode, next);
+      const prev = s.typography as unknown as Themed<WidgetTypography> | undefined;
+      s.typography = setThemedMode<WidgetTypography>(prev, mode, next) as unknown as WidgetTypography | undefined;
     });
   };
 
