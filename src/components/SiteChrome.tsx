@@ -83,13 +83,21 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     );
   }
 
+  // Wszystkie strony poza główną dostają domyślny 15px odstęp góra/dół
+  // między treścią a header/footer. Homepage zachowuje edge-to-edge hero.
+  const isHome = pathname === "/" || pathname === "/en" || pathname === "/en/";
+  const mainStyle: React.CSSProperties = {
+    viewTransitionName: "site-main",
+    ...(isHome ? null : { paddingTop: 15, paddingBottom: 15 }),
+  };
+
   return (
     <div className="flex min-h-screen flex-col">
       <SkipToContentLink />
       <ImpersonationBanner />
       <RouteProgress />
       <Header adPageType={adPageTypeForLocation(pathname, contentKind)} />
-      <main id="main-content" className="flex-1" style={{ viewTransitionName: "site-main" }}>
+      <main id="main-content" className="flex-1" style={mainStyle}>
         {children}
       </main>
       <Footer />
