@@ -207,12 +207,19 @@ export function PostListView({
     );
   }
 
-  const title = (p: PostRow) =>
-    (lang === "pl" ? p.title_pl : p.title_en) ||
-    p.title_pl ||
-    p.title_en ||
-    (lang === "pl" ? "(bez tytułu)" : "(untitled)");
-  const excerpt = (p: PostRow) => (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
+  const title = (p: PostRow) => {
+    if (!showTitleGlobal) return "";
+    return (
+      (lang === "pl" ? p.title_pl : p.title_en) ||
+      p.title_pl ||
+      p.title_en ||
+      (lang === "pl" ? "(bez tytułu)" : "(untitled)")
+    );
+  };
+  const excerpt = (p: PostRow) => {
+    if (!showExcerptGlobal) return "";
+    return (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
+  };
 
   if (carousel) {
     return (
