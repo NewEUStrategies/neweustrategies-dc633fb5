@@ -84,15 +84,26 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
     setContent(`rotateWords_${lang}`, toJson(arr));
   };
 
+  const appendToken = (field: string, current: string, token: string) => {
+    const sep = current.length === 0 || current.endsWith(" ") ? "" : " ";
+    setContent(field, `${current}${sep}${token}`);
+  };
+  const appendRotateToken = (token: string) => {
+    setContent(`rotateWords_${lang}`, toJson([...rotateWords, token]));
+  };
+
+  // Live preview resolves dynamic tokens against the placeholder post ctx so
+  // the author sees realistic values (title, author name, date, …) instead
+  // of the raw `{post.title}` string.
   const previewCfg: AnimatedHeadingConfig = {
     mode,
     shape,
     tag,
     align,
-    textBefore,
-    textAfter,
-    highlight,
-    rotateWords,
+    textBefore: resolveDynamicText(textBefore, PLACEHOLDER_POST_CTX, lang),
+    textAfter: resolveDynamicText(textAfter, PLACEHOLDER_POST_CTX, lang),
+    highlight: resolveDynamicText(highlight, PLACEHOLDER_POST_CTX, lang),
+    rotateWords: resolveDynamicList(rotateWords, PLACEHOLDER_POST_CTX, lang),
     color: color || undefined,
     accentColor,
     durationMs,
