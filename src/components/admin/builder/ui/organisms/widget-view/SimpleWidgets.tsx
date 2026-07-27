@@ -117,8 +117,8 @@ export function renderSimpleWidget(
       // dividers (thickness 1, default subtle colors) aren't invisible.
       const effThickness = editable && variant !== "space" ? Math.max(thickness, 2) : thickness;
       const wrapCls = editable
-        ? "py-2 px-1 rounded-[6px] border border-dashed border-foreground/15 bg-foreground/[0.02] relative flex items-center"
-        : "";
+        ? "w-full py-2 px-1 rounded-[6px] border border-dashed border-foreground/15 bg-foreground/[0.02] relative flex items-center"
+        : "w-full";
       const spacerLabel =
         variant === "space"
           ? lang === "pl"
