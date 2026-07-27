@@ -155,22 +155,21 @@ export function TailoredMustReadsView({
             const title = (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en;
             const excerpt =
               (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || p.excerpt_pl || p.excerpt_en;
-            const href = toLocalePath(`/post/${p.slug}`, lang);
+            const href = localizedPath(`/post/${p.slug}`, lang);
             const reason = Array.isArray(p.reasons) && p.reasons.length ? p.reasons[0] : "fresh";
             return (
               <li key={p.id} className="group flex flex-col gap-3">
                 <AppLink
                   href={href}
-                  className="relative block aspect-[16/9] w-full overflow-hidden rounded-md bg-muted"
+                  className="relative block w-full overflow-hidden rounded-md"
                 >
-                  {p.cover_image_url ? (
-                    <WidgetMediaImage
-                      src={p.cover_image_url}
-                      alt={title ?? ""}
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    />
-                  ) : null}
+                  <WidgetMediaImage
+                    src={p.cover_image_url}
+                    alt={title ?? ""}
+                    frameClassName="relative block aspect-[16/9] w-full overflow-hidden bg-muted"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    foregroundClassName="absolute inset-0 block h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                  />
                 </AppLink>
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
