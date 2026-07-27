@@ -254,32 +254,67 @@ export function renderSimpleWidget(
       return wrap(<div role="separator" aria-orientation="horizontal" style={dividerStyle} />);
     }
     case "spacer": {
-      const h = getNum(c, "height", 32);
-      const widthPct = Math.max(10, Math.min(100, getNum(c, "widthPct", 100)));
+      // Fresh spacer implementation - responsive height, controlled width,
+      // optional background, editor label toggle. Keeps DOM minimal so the
+      // widget behaves like a real layout primitive rather than a card.
+      const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+      const hDesktop = clamp(getNum(c, "height", 32), 1, 800);
+      const hTabletRaw = getNum(c, "heightTablet", 0);
+      const hMobileRaw = getNum(c, "heightMobile", 0);
+      const hTablet = hTabletRaw > 0 ? clamp(hTabletRaw, 1, 800) : hDesktop;
+      const hMobile = hMobileRaw > 0 ? clamp(hMobileRaw, 1, 800) : hTablet;
+      const widthPct = clamp(getNum(c, "widthPct", 100), 10, 100);
       const alignRaw = getStr(c, "align") || "left";
       const align: "left" | "center" | "right" =
         alignRaw === "center" ? "center" : alignRaw === "right" ? "right" : "left";
-      const alignStyle: CSSProperties =
-        align === "center"
-          ? { marginLeft: "auto", marginRight: "auto" }
-          : align === "right"
-            ? { marginLeft: "auto", marginRight: 0 }
-            : { marginLeft: 0, marginRight: "auto" };
-      const widthStyle: CSSProperties = { width: `${widthPct}%`, ...alignStyle };
+      const margin =
+        align === "center" ? "0 auto" : align === "right" ? "0 0 0 auto" : "0 auto 0 0";
+      const bgRaw = getStr(c, "bgColor");
+      const bg = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(bgRaw) ? bgRaw : "";
+      const showLabel = getStr(c, "showLabel") !== "hide";
+
+      const uid = `sp-${(node.id || "x").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 10) || "x"}`;
+      const needsResponsive = hTablet !== hDesktop || hMobile !== hTablet;
+      const responsiveCss = needsResponsive
+        ? `@media (max-width:1023px){.${uid}{height:${hTablet}px !important;}}` +
+          `@media (max-width:640px){.${uid}{height:${hMobile}px !important;}}`
+        : "";
+
+      const baseStyle: CSSProperties = {
+        height: `${hDesktop}px`,
+        width: `${widthPct}%`,
+        margin,
+        ...(bg ? { backgroundColor: bg } : {}),
+      };
+
       if (editable) {
         return (
-          <div
-            className="flex items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground/70 border border-dashed border-border/70 rounded-sm bg-muted/30"
-            style={{ height: `${h}px`, minHeight: `${h}px`, ...widthStyle }}
-            aria-label="Spacer"
-          >
-            <span>
-              ↕ {h}px · {widthPct}%
-            </span>
-          </div>
+          <>
+            {responsiveCss ? <style>{responsiveCss}</style> : null}
+            <div
+              className={`${uid} relative flex items-center justify-center rounded-[6px] border border-dashed border-border/70 bg-muted/25`}
+              style={baseStyle}
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label={lang === "pl" ? "Odstęp" : "Spacer"}
+            >
+              {showLabel ? (
+                <span className="pointer-events-none select-none text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                  ↕ {hDesktop}px · {widthPct}%
+                  {align !== "left" ? ` · ${align}` : ""}
+                  {needsResponsive ? ` · ↔ ${hTablet}/${hMobile}` : ""}
+                </span>
+              ) : null}
+            </div>
+          </>
         );
       }
-      return <div style={{ height: `${h}px`, ...widthStyle }} />;
+      return (
+        <>
+          {responsiveCss ? <style>{responsiveCss}</style> : null}
+          <div className={uid} aria-hidden="true" style={baseStyle} />
+        </>
+      );
     }
     case "social-icons": {
       const size = getNum(c, "size", 14);
