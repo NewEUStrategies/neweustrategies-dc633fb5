@@ -14,6 +14,10 @@ import { localizedPath } from "@/lib/i18n/localePath";
 import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { contentCacheControl } from "@/lib/http/cachePolicy";
+
+const NO_STORE = contentCacheControl({ preview: true });
 
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 
