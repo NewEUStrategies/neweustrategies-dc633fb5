@@ -98,9 +98,12 @@ export function SeoPanel(props: SeoPanelProps) {
   const headingIssues = useMemo<HeadingIssue[]>(() => {
     const blocks = props.contentBlocks;
     const html = props.contentHtml;
+    // Both post and page layouts render the primary title as <h1> outside the
+    // block editor, so we treat body H1s as duplicates rather than missing.
+    const opts = { rendersTitleAsH1: true };
     return [
-      ...validateHeadings("pl", { html: html?.pl ?? null, blocks }),
-      ...validateHeadings("en", { html: html?.en ?? null, blocks }),
+      ...validateHeadings("pl", { html: html?.pl ?? null, blocks }, opts),
+      ...validateHeadings("en", { html: html?.en ?? null, blocks }, opts),
     ];
   }, [props.contentBlocks, props.contentHtml]);
 
