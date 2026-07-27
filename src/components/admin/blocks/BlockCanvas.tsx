@@ -22,6 +22,7 @@ import { newBlockId } from "@/lib/blocks/types";
 import { BlockInserter } from "./BlockInserter";
 import { SortableBlockItem } from "./molecules/SortableBlockItem";
 import { getBlockVariants } from "@/lib/blocks/variants";
+import { BLOCK_SPECS } from "@/lib/blocks/registry";
 import { ParagraphBlock } from "./edit/Paragraph";
 import { HeadingBlock } from "./edit/Heading";
 import { ImageBlock } from "./edit/Image";
@@ -247,6 +248,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                   index={idx}
                   total={blocks.length}
                   active={b.id === activeId}
+                  typeLabel={BLOCK_SPECS[b.type]?.label ?? b.type}
                   onSelect={() => onSelect(b.id)}
                   onMove={(dir) => move(idx, dir)}
                   onDuplicate={() => duplicate(idx)}

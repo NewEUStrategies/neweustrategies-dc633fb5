@@ -1,7 +1,10 @@
 // Sortable wrapper for a block row. Uses @dnd-kit/sortable.
-// Owns: drag handle, hover toolbar (move/duplicate/remove), selection styling.
+// Owns: drag handle, hover toolbar (move/duplicate/remove), selection styling,
+// and a permanent "size badge" (jak `TREŚĆ - MAX 960PX` w LayoutScaffold) który
+// pokazuje typ bloku oraz zmierzoną szerokość x wysokość - dostępny dla każdego
+// bloku w CMS builderze wpisów.
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
@@ -15,6 +18,8 @@ interface Props {
   index: number;
   total: number;
   active: boolean;
+  /** Etykieta typu bloku widoczna w stałym badge'u (np. "AKAPIT", "OBRAZ"). */
+  typeLabel?: string;
   onSelect: () => void;
   onMove: (dir: -1 | 1) => void;
   onDuplicate: () => void;
@@ -24,6 +29,7 @@ interface Props {
   onVariantChange?: (v: string) => void;
   children: ReactNode;
 }
+
 
 export function SortableBlockItem(props: Props) {
   const { t } = useTranslation();
@@ -81,11 +87,33 @@ export function SortableBlockItem(props: Props) {
     };
   }, [props.active]);
 
+  // Ciągły pomiar szerokosci x wysokosci bloku (bez zaokrąglania w dół do 0,
+  // gdy element jeszcze się nie zamountował). Aktualizacja przez
+  // ResizeObserver - badge zawsze zna aktualne rozmiary renderu.
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setSize({ w: Math.round(r.width), h: Math.round(r.height) });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.45 : 1,
   };
+
+  const badgeText =
+    (props.typeLabel ? props.typeLabel.toUpperCase() : t("blocks.actions.block", { defaultValue: "BLOK" })) +
+    (size.w && size.h ? ` · ${size.w}×${size.h}px` : "");
+
 
   return (
     <div
@@ -93,7 +121,7 @@ export function SortableBlockItem(props: Props) {
       style={style}
       data-block-id={props.id}
       onClick={props.onSelect}
-      className={`group relative pl-8 pr-3 py-1 scroll-mt-24 ${
+      className={`group relative pl-8 pr-3 pt-6 pb-2 scroll-mt-24 ${
         props.active
           ? "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:bg-foreground before:rounded"
           : ""
@@ -113,6 +141,17 @@ export function SortableBlockItem(props: Props) {
       >
         <GripVertical className="w-3.5 h-3.5" />
       </button>
+
+      {/* Stały badge z etykietą typu bloku i zmierzonymi rozmiarami. */}
+      <span
+        className={`pointer-events-none absolute top-1 left-8 z-10 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-background/90 border border-border/60 shadow-sm ${
+          props.active ? "text-foreground" : "text-muted-foreground/80"
+        }`}
+        aria-hidden="true"
+      >
+        {badgeText}
+      </span>
+
 
       {props.active && (
         <div
