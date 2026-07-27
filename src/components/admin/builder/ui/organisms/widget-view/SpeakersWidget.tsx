@@ -1,13 +1,19 @@
-// Widget "Speakers" - kartowa siatka prelegentów z filtrem kategorii,
-// wyszukiwarką, sortowaniem (ocena/wystąpienia/opinie) i paginacją "load more".
-// Wzorzec UI zainspirowany designem "mentors-section" (portret + rola + ocena
-// + opis), zaadaptowany do naszej typografii (.cms-*), tokenów Theme Design
-// i dark/light modes. Każdy speaker ma pola i18n (rola/kategoria/opis) oraz
-// opcjonalny link `href` (np. do profilu eksperta).
+// Widget "Speakers" - premium siatka prelegentów w stylu "mentors-section":
+// portret 4:3 z overlay-bookmark (zapamiętywany w localStorage per tenant),
+// filtry kategorii jako pigułki z accentem, opcjonalna wyszukiwarka i
+// sortowanie, paginacja "load more" lub infinite scroll. Renderer jest w pełni
+// deterministyczny podczas SSR (bookmarki hydratują dopiero po mount), używa
+// tokenów Theme Design i wspiera dark/light. Kompatybilny z istniejącym
+// SpeakersEditor - żadne pole danych nie zostało zmienione.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
-import { Star, User as UserIcon, Search as SearchIcon } from "@/lib/lucide-shim";
+import {
+  Star,
+  User as UserIcon,
+  Search as SearchIcon,
+  Bookmark as BookmarkIcon,
+} from "@/lib/lucide-shim";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { getStr, type Lang } from "./frame";
@@ -16,6 +22,7 @@ type SpeakerItem = Record<string, unknown>;
 type SortKey = "default" | "rating" | "gigs" | "reviews";
 
 const ALL_KEY = "__all__";
+const BOOKMARK_STORAGE_KEY = "cms:speakers:bookmarks";
 
 function loc(item: SpeakerItem, base: string, lang: Lang): string {
   const v =
@@ -34,15 +41,15 @@ function numOf(v: unknown, fallback = 0): number {
 function StarRow({ rating }: { rating: number }) {
   const rounded = Math.round(rating);
   return (
-    <span aria-hidden className="inline-flex items-center gap-[1px]">
+    <span aria-hidden className="inline-flex items-center gap-[2px]">
       {[0, 1, 2, 3, 4].map((i) => (
         <Star
           key={i}
           className={
             "h-3 w-3 " +
             (i < rounded
-              ? "fill-[color:var(--brand)] text-[color:var(--brand)]"
-              : "text-muted-foreground/40")
+              ? "fill-[color:var(--speakers-accent)] text-[color:var(--speakers-accent)]"
+              : "text-muted-foreground/30")
           }
         />
       ))}
@@ -87,6 +94,36 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("default");
   const [visibleCount, setVisibleCount] = useState<number>(pageSize > 0 ? pageSize : 0);
+  const [bookmarks, setBookmarks] = useState<Set<string>>(() => new Set());
+
+  // Hydrate bookmarks after mount to keep SSR output deterministic.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(BOOKMARK_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setBookmarks(new Set(parsed.filter((x): x is string => typeof x === "string")));
+      }
+    } catch {
+      /* corrupted storage - ignore */
+    }
+  }, []);
+
+  const toggleBookmark = (id: string) => {
+    setBookmarks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        window.localStorage.setItem(BOOKMARK_STORAGE_KEY, JSON.stringify([...next]));
+      } catch {
+        /* quota/private mode - ignore */
+      }
+      return next;
+    });
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -154,8 +191,12 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
 
   return (
     <section className="cms-speakers space-y-6" style={accentStyle}>
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        {heading ? <h2 className="cms-block-heading text-foreground">{heading}</h2> : <span />}
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        {heading ? (
+          <h2 className="cms-block-heading text-foreground tracking-tight">{heading}</h2>
+        ) : (
+          <span />
+        )}
         {(categories.length > 0 || speakers.length > 0) && (
           <div
             role="tablist"
@@ -236,11 +277,20 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
 
       <div
         key={`${active}-${sort}-${query}`}
-        className={`grid animate-in fade-in-0 duration-200 grid-cols-1 ${gridClass} gap-4 sm:gap-5`}
+        className={`grid animate-in fade-in-0 slide-in-from-bottom-1 duration-300 grid-cols-1 ${gridClass} gap-4 sm:gap-5`}
       >
-        {paginated.map((s, i) => (
-          <SpeakerCard key={(s.id as string) ?? i} item={s} lang={lang} />
-        ))}
+        {paginated.map((s, i) => {
+          const id = (s.id as string) ?? `sp-${i}`;
+          return (
+            <SpeakerCard
+              key={id}
+              item={s}
+              lang={lang}
+              bookmarked={bookmarks.has(id)}
+              onToggleBookmark={() => toggleBookmark(id)}
+            />
+          );
+        })}
         {paginated.length === 0 && (
           <p className="cms-meta col-span-full text-center italic text-muted-foreground">
             {query
@@ -300,10 +350,10 @@ function FilterChip({
       aria-selected={active}
       onClick={onClick}
       className={
-        "rounded-[6px] px-3 py-1.5 text-xs font-medium transition-colors " +
+        "rounded-[6px] px-3.5 py-1.5 text-xs font-medium transition-all duration-200 " +
         (active
-          ? "bg-[color:var(--speakers-accent)] text-white shadow-sm"
-          : "bg-muted text-muted-foreground hover:bg-muted/70")
+          ? "bg-[color:var(--speakers-accent)] text-white shadow-sm shadow-[color:var(--speakers-accent)]/25 scale-[1.02]"
+          : "bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground")
       }
     >
       {label}
@@ -311,7 +361,17 @@ function FilterChip({
   );
 }
 
-function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
+function SpeakerCard({
+  item,
+  lang,
+  bookmarked,
+  onToggleBookmark,
+}: {
+  item: SpeakerItem;
+  lang: Lang;
+  bookmarked: boolean;
+  onToggleBookmark: () => void;
+}) {
   const photo = safeImageUrl(
     getStr(item as WidgetContent, "photo") || getStr(item as WidgetContent, "image"),
   );
@@ -324,12 +384,45 @@ function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
   const rawHref = getStr(item as WidgetContent, "href");
   const href = rawHref ? safeUrl(rawHref, "") : "";
 
+  const bookmarkLabel = bookmarked
+    ? lang === "pl"
+      ? "Usuń z zakładek"
+      : "Remove bookmark"
+    : lang === "pl"
+      ? "Dodaj do zakładek"
+      : "Add bookmark";
+
+  const bookmarkBtn = (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggleBookmark();
+      }}
+      aria-label={bookmarkLabel}
+      aria-pressed={bookmarked}
+      title={bookmarkLabel}
+      className={
+        "absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-md transition-all duration-200 " +
+        (bookmarked
+          ? "bg-[color:var(--speakers-accent)] text-white shadow-md"
+          : "bg-background/80 text-foreground/80 hover:bg-background hover:text-[color:var(--speakers-accent)]")
+      }
+    >
+      <BookmarkIcon
+        className={"h-4 w-4 " + (bookmarked ? "fill-current" : "")}
+        aria-hidden
+      />
+    </button>
+  );
+
   const body = (
     <article
       className={
-        "group relative flex h-full flex-col overflow-hidden rounded-[10px] border border-border/60 bg-card text-card-foreground shadow-sm transition-all duration-300 " +
+        "group relative flex h-full flex-col overflow-hidden rounded-[12px] border border-border/60 bg-card text-card-foreground shadow-sm transition-all duration-300 " +
         (href
-          ? "hover:-translate-y-0.5 hover:shadow-md hover:border-[color:var(--speakers-accent)]/40"
+          ? "hover:-translate-y-1 hover:shadow-lg hover:shadow-[color:var(--speakers-accent)]/10 hover:border-[color:var(--speakers-accent)]/40"
           : "")
       }
     >
@@ -340,7 +433,7 @@ function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
             alt={name || ""}
             responsive
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
           />
         ) : (
           <span
@@ -350,11 +443,12 @@ function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
             <UserIcon className="h-12 w-12" />
           </span>
         )}
+        {bookmarkBtn}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
+      <div className="flex flex-1 flex-col gap-1.5 p-4">
         {name && (
-          <h3 className="text-base font-semibold leading-tight text-foreground">{name}</h3>
+          <h3 className="text-[15px] font-semibold leading-tight text-foreground">{name}</h3>
         )}
         {(role || gigs > 0) && (
           <p className="cms-meta">
@@ -387,7 +481,7 @@ function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
     return (
       <AppLink
         href={href}
-        className="block h-full rounded-[10px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/60"
+        className="block h-full rounded-[12px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/60"
         aria-label={name || undefined}
       >
         {body}
