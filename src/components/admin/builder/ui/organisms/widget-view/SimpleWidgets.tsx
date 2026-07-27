@@ -884,7 +884,7 @@ export function renderSimpleWidget(
         delayMs: getNum(c, "delayMs", 200),
         loop: c.loop !== false,
       };
-      return <AnimatedHeadingRender config={ahCfg} />;
+      return <AnimatedHeadingWithDynamicText config={ahCfg} lang={lang} />;
     }
     case "text-rotate": {
       const rawTexts = c[`texts_${lang}`] ?? c.texts_pl;
