@@ -24,9 +24,11 @@ interface Props {
   documentPane: React.ReactNode;
   /** Owija kanwę bloków (np. wireframem layoutu wpisu). Otrzymuje aktywny język. */
   canvasWrap?: (canvas: React.ReactNode, lang: "pl" | "en") => React.ReactNode;
+  /** Opcjonalny URL podglądu wpisu (otwiera się w nowej karcie). */
+  previewHref?: string;
 }
 
-export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: Props) {
+export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, previewHref }: Props) {
   const { t } = useTranslation();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
