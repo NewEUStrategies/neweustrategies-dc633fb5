@@ -53,7 +53,6 @@ export default defineConfig({
       },
     },
   ],
-  },
   vite: {
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
