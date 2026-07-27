@@ -5,6 +5,7 @@
 import { memo, useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { WidgetNode, Device, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import {
   sanitizeHtmlId,
   sanitizeCssClass,
