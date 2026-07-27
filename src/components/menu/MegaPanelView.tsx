@@ -167,14 +167,14 @@ export function MegaPanelView({
                   })}
                 </ul>
                 {col.href ? (
-                  <div className="mt-5 border-t border-border/60 pt-3">
+                  <div className="mt-3 border-t border-border/60 pt-2">
                     <AppLink
                       href={safeUrl(col.href) || "#"}
-                      className="group inline-flex items-center gap-1.5 text-[11px] font-bold text-brand hover:opacity-80"
+                      className="group inline-flex items-center gap-1 text-[10px] font-bold text-brand hover:opacity-80"
                     >
                       {browseAll}
                       <ArrowRight
-                        size={12}
+                        size={11}
                         className="transition-transform group-hover:translate-x-0.5"
                         aria-hidden
                       />
