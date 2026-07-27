@@ -1078,18 +1078,41 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           : `flex flex-col sm:flex-row gap-4 ${align === "left" ? "items-start sm:items-center" : align === "center" ? "items-center justify-center text-center" : "items-center justify-between"}`;
       const ctaWidthPx = getNum(c, "ctaWidthPx", 0);
       const ctaHeightPx = getNum(c, "ctaHeightPx", 0);
+      const ctaBgFrom = getStr(c, "ctaBgFrom");
+      const ctaBgTo = getStr(c, "ctaBgTo");
+      const ctaGradientAngle = getNum(c, "ctaGradientAngle", 135);
+      const ctaBgColor = getStr(c, "ctaBgColor");
+      const ctaTextColor = getStr(c, "ctaTextColor");
+      const ctaBtnBg = getStr(c, "ctaBtnBg");
+      const ctaBtnText = getStr(c, "ctaBtnText");
+      const containerStyle: React.CSSProperties = {};
+      if (variant === "gradient" && ctaBgFrom && ctaBgTo) {
+        containerStyle.backgroundImage = `linear-gradient(${ctaGradientAngle}deg, ${ctaBgFrom}, ${ctaBgTo})`;
+      }
+      if (variant !== "gradient" && ctaBgColor) containerStyle.backgroundColor = ctaBgColor;
+      if (ctaTextColor) containerStyle.color = ctaTextColor;
+      const hasContainerStyle = Object.keys(containerStyle).length > 0;
       const ctaBtnCls =
         "inline-flex items-center justify-center w-full h-full bg-brand-foreground text-brand px-3.5 py-2 rounded font-medium text-xs leading-none";
+      const ctaBtnStyle: React.CSSProperties = {};
+      if (ctaBtnBg) ctaBtnStyle.backgroundColor = ctaBtnBg;
+      if (ctaBtnText) ctaBtnStyle.color = ctaBtnText;
+      const hasBtnStyle = Object.keys(ctaBtnStyle).length > 0;
       const ctaInner = canEdit ? (
         <Editable
           as="span"
           value={cta}
           onCommit={(v) => commit(cKey, v)}
           className={ctaBtnCls}
+          style={hasBtnStyle ? ctaBtnStyle : undefined}
           placeholder="Etykieta…"
         />
       ) : (
-        <AppLink href={href} className={`${ctaBtnCls} hover:opacity-90 transition`}>
+        <AppLink
+          href={href}
+          className={`${ctaBtnCls} hover:opacity-90 transition`}
+          style={hasBtnStyle ? ctaBtnStyle : undefined}
+        >
           {cta}
         </AppLink>
       );
@@ -1107,7 +1130,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         </ResizableBox>
       );
       return wrap(
-        <div className={containerCls}>
+        <div className={containerCls} style={hasContainerStyle ? containerStyle : undefined}>
           <div className={layoutCls}>
             <div className="space-y-1">
               {canEdit ? (
