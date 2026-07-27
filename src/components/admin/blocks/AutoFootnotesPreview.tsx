@@ -224,11 +224,23 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                   </div>
                 </div>
               ) : (
-                <div className={cn("flex items-start gap-2", canEdit && "cursor-text")}>
-                  <span
-                    className="flex-1"
-                    dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(e.html) }}
-                  />
+                <div className={cn("flex items-start gap-2")}>
+                  <button
+                    type="button"
+                    onClick={() => scrollToOrigin(e.origin.path)}
+                    className="flex-1 text-left rounded hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/40 px-1 -mx-1"
+                    title={t("admin.autoFootnotes.jumpHint", {
+                      defaultValue: "Przejdź do miejsca [fn] w kanwie",
+                    })}
+                    aria-label={t("admin.autoFootnotes.jumpAria", {
+                      defaultValue: "Przejdź do przypisu nr {{n}} w treści",
+                      n: e.id,
+                    })}
+                  >
+                    <span
+                      dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(e.html) }}
+                    />
+                  </button>
                   {canEdit ? (
                     <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5">
                       <button
