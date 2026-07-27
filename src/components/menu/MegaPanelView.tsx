@@ -86,13 +86,13 @@ export function MegaPanelView({
     <div
       role="menu"
       className={containerClass}
-      style={variant === "live" ? { width: "min(1120px, calc(100vw - 32px))" } : undefined}
+      style={variant === "live" ? { width: "min(980px, calc(100vw - 32px))" } : undefined}
       onMouseLeave={onMouseLeave}
     >
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
         {/* Nav columns */}
         <div
-          className="p-5 sm:p-6 grid gap-6 sm:gap-8"
+          className="p-3 sm:p-4 grid gap-3 sm:gap-5"
           style={
             showFeatured
               ? {
@@ -122,28 +122,28 @@ export function MegaPanelView({
             const title = pickLocalized(col.title_pl, col.title_en, lang);
             return (
                 <div key={i} className="flex min-w-0 flex-col">
-                <div className="mb-3 flex items-center gap-2">
+                <div className="mb-1.5 flex items-center gap-1.5">
                   <span
                     aria-hidden
-                    className="inline-block h-4 w-1 rounded-sm"
+                    className="inline-block h-3 w-1 rounded-sm"
                     style={{ background: "var(--brand)" }}
                   />
                   {title ? (
                     col.href ? (
                       <AppLink
                         href={safeUrl(col.href) || "#"}
-                        className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
+                        className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:text-foreground"
                       >
                         {title}
                       </AppLink>
                     ) : (
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                         {title}
                       </span>
                     )
                   ) : null}
                 </div>
-                <ul className="flex flex-col gap-1.5">
+                <ul className="flex flex-col gap-0.5">
                   {(col.links ?? []).map((lnk, j) => {
                     const label = pickLocalized(lnk.label_pl, lnk.label_en, lang);
                     if (!label) return null;
@@ -156,25 +156,25 @@ export function MegaPanelView({
                         >
                           {lnk.icon ? (
                             <span className="menu-card-item__icon" aria-hidden>
-                              <DynamicIcon name={lnk.icon} size={16} strokeWidth={1.75} />
+                              <DynamicIcon name={lnk.icon} size={13} strokeWidth={1.75} />
                             </span>
                           ) : null}
                           <span className="menu-card-item__label">{label}</span>
-                          <ArrowRight size={14} className="menu-card-item__chevron" aria-hidden />
+                          <ArrowRight size={12} className="menu-card-item__chevron" aria-hidden />
                         </AppLink>
                       </li>
                     );
                   })}
                 </ul>
                 {col.href ? (
-                  <div className="mt-5 border-t border-border/60 pt-3">
+                  <div className="mt-3 border-t border-border/60 pt-2">
                     <AppLink
                       href={safeUrl(col.href) || "#"}
-                      className="group inline-flex items-center gap-1.5 text-[11px] font-bold text-brand hover:opacity-80"
+                      className="group inline-flex items-center gap-1 text-[10px] font-bold text-brand hover:opacity-80"
                     >
                       {browseAll}
                       <ArrowRight
-                        size={12}
+                        size={11}
                         className="transition-transform group-hover:translate-x-0.5"
                         aria-hidden
                       />
@@ -189,11 +189,11 @@ export function MegaPanelView({
         {/* Featured column */}
         {showFeatured && featured ? (
           <div
-            className="border-l border-border/60 bg-muted/40 p-5 sm:p-6"
+            className="border-l border-border/60 bg-muted/40 p-3 sm:p-4"
             style={{ gridColumn: "span 4 / span 4" }}
           >
-            <div className="mb-3">
-              <span className="inline-block bg-brand px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-white">
+            <div className="mb-2">
+              <span className="inline-block bg-brand px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-white">
                 {eyebrowFallback}
               </span>
             </div>
@@ -203,7 +203,7 @@ export function MegaPanelView({
               role="menuitem"
             >
               {featured.cover_image_url ? (
-                <div className="mb-3 aspect-[16/10] w-full overflow-hidden rounded-sm ring-1 ring-border/60 shadow-sm">
+                <div className="mb-2 aspect-[16/10] w-full overflow-hidden rounded-sm ring-1 ring-border/60 shadow-sm">
                   <img
                     src={featured.cover_image_url}
                     alt=""
@@ -214,7 +214,7 @@ export function MegaPanelView({
                 </div>
               ) : null}
               {featuredTitle ? (
-                <h4 className="mb-1 text-[15px] font-black leading-tight text-foreground transition-colors group-hover:text-brand">
+                <h4 className="mb-1 text-[13px] font-black leading-tight text-foreground transition-colors group-hover:text-brand">
                   {featuredTitle}
                 </h4>
               ) : null}
@@ -275,16 +275,16 @@ export function MegaPanelView({
               : null}
             <AppLink href={safeUrl(`/${featured.slug}`) || "#"} className="group block">
               {featuredExcerpt ? (
-                <p className="mt-2.5 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
+                <p className="mt-2 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
                   {featuredExcerpt}
                 </p>
               ) : null}
-              <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em]">
+              <div className="mt-2 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.14em]">
                 <span className="text-brand">{featuredEyebrow}</span>
                 <span className="opacity-30">|</span>
                 <span className="text-muted-foreground">{readMore}</span>
                 <ArrowRight
-                  size={12}
+                  size={11}
                   className="text-muted-foreground transition-transform group-hover:translate-x-0.5"
                   aria-hidden
                 />
