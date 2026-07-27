@@ -203,7 +203,7 @@ describe("social-icons", () => {
   it("renders active links and respects showEmpty/official colors", () => {
     renderNode("social-icons", {
       facebook: "https://facebook.com/nes",
-      email: "hi@nes.eu",
+      spotify: "https://open.spotify.com/artist/nes",
       colorMode: "official",
       bgMode: "official",
       shape: "full",
@@ -211,7 +211,7 @@ describe("social-icons", () => {
       showEmpty: "show",
     });
     expect(screen.getByLabelText("Facebook").getAttribute("href")).toContain("facebook.com");
-    expect(screen.getByLabelText("Email").getAttribute("href")).toBe("mailto:hi@nes.eu");
+    expect(screen.getByLabelText("Spotify").getAttribute("href")).toContain("spotify.com");
   });
 });
 

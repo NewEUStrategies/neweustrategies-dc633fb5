@@ -371,6 +371,17 @@ export const renderButtons: BlockRenderer = ({ block, cls }) => {
   );
 };
 
+const SpotifyIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424a.622.622 0 0 1-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.623.623 0 0 1-.276-1.215c3.809-.88 7.076-.502 9.712 1.115a.623.623 0 0 1 .206.857zm1.223-2.722a.78.78 0 0 1-1.072.257c-2.686-1.652-6.785-2.131-9.965-1.165a.781.781 0 0 1-.348-1.525c3.626-1.08 8.12-.543 11.128 1.305a.78.78 0 0 1 .257 1.128zm.105-2.835c-3.223-1.914-8.54-2.09-11.618-1.156a.937.937 0 1 1-.543-1.793c3.53-1.072 9.405-.865 13.115 1.338a.938.938 0 0 1-.954 1.611z" />
+  </svg>
+);
+
 const SOCIAL_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
   facebook: Facebook,
   x: XIcon,
@@ -378,6 +389,7 @@ const SOCIAL_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
   instagram: Instagram,
   youtube: Youtube,
   linkedin: Linkedin,
+  spotify: SpotifyIcon,
   tiktok: TikTokIcon,
   github: Github,
   mail: Mail,

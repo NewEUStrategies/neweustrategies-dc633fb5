@@ -1305,7 +1305,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       label: "Facebook URL",
       placeholder: "https://facebook.com/...",
     },
-    { key: "x", type: "url", label: "X (dawniej Twitter) URL", placeholder: "https://x.com/..." },
+    { key: "twitter", type: "url", label: "X (dawniej Twitter) URL", placeholder: "https://x.com/..." },
     { key: "youtube", type: "url", label: "YouTube URL", placeholder: "https://youtube.com/..." },
     {
       key: "instagram",
@@ -1319,7 +1319,12 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       label: "LinkedIn URL",
       placeholder: "https://linkedin.com/in/...",
     },
-    { key: "email", type: "text", label: "Email", placeholder: "kontakt@..." },
+    {
+      key: "spotify",
+      type: "url",
+      label: "Spotify URL",
+      placeholder: "https://open.spotify.com/...",
+    },
     {
       key: "showEmpty",
       type: "select",

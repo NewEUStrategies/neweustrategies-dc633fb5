@@ -124,11 +124,11 @@ describe("social-icons (color/bg/shape permutations)", () => {
       for (const bgMode of bgModes) {
         const { container } = renderNode("social-icons", {
           facebook: "https://facebook.com/x",
-          x: "https://x.com/y",
+          twitter: "https://x.com/y",
           youtube: "https://youtube.com/z",
           instagram: "https://instagram.com/i",
           linkedin: "https://linkedin.com/l",
-          email: "a@b.co",
+          spotify: "https://open.spotify.com/artist/x",
           colorMode,
           bgMode,
           customColor: "#123456",
@@ -158,7 +158,7 @@ describe("social-icons (color/bg/shape permutations)", () => {
     }
     for (const themeAdapt of ["auto", "force-light", "force-dark"]) {
       expect(() =>
-        renderNode("social-icons", { email: "a@b.co", themeAdapt, colorMode: "dark" }),
+        renderNode("social-icons", { spotify: "https://open.spotify.com/artist/x", themeAdapt, colorMode: "dark" }),
       ).not.toThrow();
     }
   });

@@ -257,7 +257,7 @@ export function renderSimpleWidget(
         youtube: "#FF0000",
         instagram: "#E4405F",
         linkedin: "#0A66C2",
-        email: "#6B7280",
+        spotify: "#1DB954",
       };
 
       const mkIcon =
@@ -296,8 +296,8 @@ export function renderSimpleWidget(
       const LinkedinIcon = mkIcon(
         "M4.98 3.5a2.5 2.5 0 11-.02 5.02A2.5 2.5 0 014.98 3.5zM3 9h4v12H3V9zm7.5 0h3.8v1.7h.1c.5-.9 1.8-1.9 3.7-1.9 4 0 4.7 2.6 4.7 6V21h-4v-5.4c0-1.3 0-3-1.8-3s-2.1 1.4-2.1 2.9V21h-4V9z",
       );
-      const MailIcon = mkIcon(
-        "M3 5h18a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1zm9 8.2L3.8 7H20.2L12 13.2z",
+      const SpotifyIcon = mkIcon(
+        "M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424a.622.622 0 0 1-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.623.623 0 0 1-.276-1.215c3.809-.88 7.076-.502 9.712 1.115a.623.623 0 0 1 .206.857zm1.223-2.722a.78.78 0 0 1-1.072.257c-2.686-1.652-6.785-2.131-9.965-1.165a.781.781 0 0 1-.348-1.525c3.626-1.08 8.12-.543 11.128 1.305a.78.78 0 0 1 .257 1.128zm.105-2.835c-3.223-1.914-8.54-2.09-11.618-1.156a.937.937 0 1 1-.543-1.793c3.53-1.072 9.405-.865 13.115 1.338a.938.938 0 0 1-.954 1.611z",
       );
 
       type IconCmp = (props: { size?: number }) => ReactElement;
@@ -307,8 +307,8 @@ export function renderSimpleWidget(
         { k: "youtube", Cmp: YoutubeIcon, label: "YouTube" },
         { k: "instagram", Cmp: InstagramIcon, label: "Instagram" },
         { k: "linkedin", Cmp: LinkedinIcon, label: "LinkedIn" },
+        { k: "spotify", Cmp: SpotifyIcon, label: "Spotify" },
       ];
-      const email = getStr(c, "email");
 
       const radiusCls =
         shape === "none"
@@ -360,6 +360,7 @@ export function renderSimpleWidget(
           youtube: "Subscribe",
           instagram: "Follow",
           linkedin: "Follow",
+          spotify: "Follow",
         };
         const rows = items
           .map(({ k, altKeys, Cmp, label }) => {
@@ -441,29 +442,6 @@ export function renderSimpleWidget(
               </span>
             );
           })}
-          {(email || showEmpty) &&
-            (() => {
-              const active = !!email;
-              const color = active ? resolveColor("email") : undefined;
-              const bg = resolveBg("email", active);
-              const onContrast = bgMode === "official" && active;
-              const style: CSSProperties = {
-                ...linkStyle,
-                color: onContrast ? "#fff" : color,
-                backgroundColor: bg,
-                opacity: active ? 1 : 0.35,
-              };
-              const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
-              return active ? (
-                <AppLink href={`mailto:${email}`} aria-label="Email" className={cls} style={style}>
-                  <MailIcon size={size} />
-                </AppLink>
-              ) : (
-                <span aria-label="Email (brak)" className={cls} style={style}>
-                  <MailIcon size={size} />
-                </span>
-              );
-            })()}
         </div>
       );
     }
