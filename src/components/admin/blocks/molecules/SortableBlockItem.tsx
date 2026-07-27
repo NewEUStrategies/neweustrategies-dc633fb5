@@ -142,6 +142,17 @@ export function SortableBlockItem(props: Props) {
         <GripVertical className="w-3.5 h-3.5" />
       </button>
 
+      {/* Stały badge z etykietą typu bloku i zmierzonymi rozmiarami. */}
+      <span
+        className={`pointer-events-none absolute top-1 left-8 z-10 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-background/90 border border-border/60 shadow-sm ${
+          props.active ? "text-foreground" : "text-muted-foreground/80"
+        }`}
+        aria-hidden="true"
+      >
+        {badgeText}
+      </span>
+
+
       {props.active && (
         <div
           ref={toolbarRef}
