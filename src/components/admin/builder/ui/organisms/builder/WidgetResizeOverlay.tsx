@@ -25,7 +25,7 @@ interface CanvasScale {
   y: number;
 }
 
-const MIN_H = 40;
+const MIN_H = 8;
 const MAX_H = 4000;
 
 function escapeSelectorValue(value: string): string {
