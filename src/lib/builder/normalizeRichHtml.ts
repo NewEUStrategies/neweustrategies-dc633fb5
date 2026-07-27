@@ -73,6 +73,24 @@ export function normalizeBuilderRichHtml(html: string): string {
       list.replaceWith(nestedList.toString());
       changed = true;
     }
+
+    // 4) Tag icon-only anchor lists (WP social row) so CSS can drop the bullet
+    //    and lay them out horizontally. We do NOT delete them — the anchor URL
+    //    is the actual value; only the bullet is noise.
+    const anchorLists = root.querySelectorAll("ul, ol");
+    for (const list of anchorLists) {
+      const cls = list.getAttribute("class") ?? "";
+      if (cls.includes("cms-social-list")) continue;
+      const lis = list.querySelectorAll("li");
+      if (lis.length === 0) continue;
+      const allAnchorOnly = lis.every((li) => {
+        if (li.text.replace(/\u00a0/g, "").trim().length > 0) return false;
+        return li.querySelectorAll("a[href]").length > 0;
+      });
+      if (!allAnchorOnly) continue;
+      list.setAttribute("class", `${cls} cms-social-list`.trim());
+      changed = true;
+    }
   }
 
   return root.innerHTML;
