@@ -238,6 +238,30 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
       >
         <span className="text-[10px] leading-none font-bold">═</span>
       </div>
+      {/* Move handle (right-middle) - stable grip for HTML5 drag-and-drop
+          repositioning of the widget. Carries data-widget-id so the canvas'
+          native dragstart listener treats it identically to a drag that
+          began on the widget body. */}
+      <div
+        data-widget-id={widgetId}
+        data-builder-chrome
+        draggable
+        role="button"
+        aria-label="Przeciągnij, aby przenieść widget"
+        title="Przeciągnij, aby przenieść widget"
+        className={`${handleBase} cursor-grab active:cursor-grabbing`}
+        style={{
+          left: rect.left + rect.width - 6,
+          top: rect.top + rect.height / 2 - 22,
+          width: 12,
+          height: 44,
+          writingMode: "vertical-rl",
+        }}
+      >
+        <span className="text-[11px] leading-none font-bold select-none tracking-tighter">
+          ⋮⋮
+        </span>
+      </div>
       {dragging && (
         <div
           className="absolute pointer-events-none rounded bg-[color:var(--brand,#ff6a00)] text-white text-[11px] font-semibold px-2 py-0.5 shadow-md"
