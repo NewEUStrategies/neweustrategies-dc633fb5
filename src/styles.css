@@ -2973,22 +2973,29 @@ textarea::placeholder {
   height: 148px !important;
   gap: 6px;
 }
+.admin-color-picker-canvas--lg .react-colorful {
+  height: 240px !important;
+  gap: 10px;
+}
 .admin-color-picker-canvas .react-colorful__saturation {
-  border-radius: 5px;
+  border-radius: 6px;
   border-bottom: none;
 }
 .admin-color-picker-canvas .react-colorful__hue {
-  height: 8px !important;
+  height: 10px !important;
   border-radius: 999px;
 }
+.admin-color-picker-canvas--lg .react-colorful__hue {
+  height: 12px !important;
+}
 .admin-color-picker-canvas .react-colorful__pointer {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-width: 2px;
 }
 .admin-color-picker-canvas .react-colorful__saturation-pointer {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 /* ============================================================
