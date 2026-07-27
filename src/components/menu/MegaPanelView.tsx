@@ -197,7 +197,9 @@ export function MegaPanelView({
               </div>
             );
           })}
+          </div>
         </div>
+
 
         {/* Featured column */}
         {showFeatured && featured ? (
