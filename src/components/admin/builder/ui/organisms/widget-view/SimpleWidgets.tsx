@@ -30,6 +30,8 @@ import {
 } from "./frame";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
+import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
 import { ContactFormView, AuthFormWidget } from "./lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
@@ -45,6 +47,27 @@ import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
 import { CounterWidget } from "./CounterWidget";
 import { TocWidget } from "./TocWidget";
 export { ResizableBox } from "./resizeWrappers";
+
+// Wraps AnimatedHeadingRender with dynamic-token resolution. Runs on every
+// render so `{post.title}` / `{author.name}` reflect the current post context
+// (or the placeholder ctx in the admin canvas via PLACEHOLDER_POST_CTX).
+function AnimatedHeadingWithDynamicText({
+  config,
+  lang,
+}: {
+  config: AnimatedHeadingConfig;
+  lang: Lang;
+}) {
+  const ctx = useCurrentPostCtx();
+  const resolved: AnimatedHeadingConfig = {
+    ...config,
+    textBefore: resolveDynamicText(config.textBefore, ctx, lang),
+    textAfter: resolveDynamicText(config.textAfter, ctx, lang),
+    highlight: resolveDynamicText(config.highlight, ctx, lang),
+    rotateWords: resolveDynamicList(config.rotateWords, ctx, lang),
+  };
+  return <AnimatedHeadingRender config={resolved} />;
+}
 
 const compactRowStyle: CSSProperties = {
   minHeight: COMPACT_WIDGET_MIN_HEIGHT,
@@ -882,7 +905,7 @@ export function renderSimpleWidget(
         delayMs: getNum(c, "delayMs", 200),
         loop: c.loop !== false,
       };
-      return <AnimatedHeadingRender config={ahCfg} />;
+      return <AnimatedHeadingWithDynamicText config={ahCfg} lang={lang} />;
     }
     case "text-rotate": {
       const rawTexts = c[`texts_${lang}`] ?? c.texts_pl;
