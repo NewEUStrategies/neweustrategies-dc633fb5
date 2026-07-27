@@ -393,7 +393,7 @@ export function NewsletterForm({
       {state === "err" && errMsg && <p className="text-xs text-destructive mt-2">{errMsg}</p>}
       {policy && (
         <p
-          className="text-xs text-muted-foreground mt-3"
+          className="nl-consent text-xs text-muted-foreground mt-3"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(policy) }}
         />
       )}
