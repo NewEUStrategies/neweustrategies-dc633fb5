@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { memo, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { memo, useEffect, useRef } from "react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
@@ -14,8 +13,7 @@ import { BackToTop } from "@/components/footer/BackToTop";
 import { CopyrightBar } from "@/components/footer/CopyrightBar";
 import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
 import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
-import { currentLang } from "@/lib/i18n/localeRuntime";
-import type { AppLang } from "@/lib/i18n/localePath";
+import { useLang } from "@/lib/i18n/useLang";
 
 type FooterSettings = {
   builder_data?: BuilderDocument | null;
@@ -27,34 +25,11 @@ interface FooterProps {
 }
 
 export const Footer = memo(function Footer({ compact }: FooterProps) {
-  // SSR-safe seed: currentLang() reads the request URL on the server and the
-  // live client ref during hydration, so the first render matches the HTML the
-  // browser received. We deliberately DO NOT call sync() at effect-mount:
-  // reading i18n.language during hydration can return the previous locale
-  // (i18next.changeLanguage is async) and would flip the footer to the wrong
-  // language for one frame, causing a visible text flicker. Instead we only
-  // subscribe to future `languageChanged` events - and even then we prefer the
-  // event payload / URL-derived value over i18n's internal state to stay in
-  // lockstep with the router's path prefix.
-  const { i18n } = useTranslation();
-  const [lang, setLang] = useState<AppLang>(() => currentLang());
-  useEffect(() => {
-    const sync = (nextRaw?: string) => {
-      const fromEvent: AppLang | undefined = nextRaw
-        ? nextRaw.startsWith("en")
-          ? "en"
-          : "pl"
-        : undefined;
-      // URL is authoritative (matches the router's `output` rewrite / SSR).
-      const next: AppLang = fromEvent ?? currentLang();
-      setLang((prev) => (prev === next ? prev : next));
-    };
-    i18n.on("languageChanged", sync);
-    return () => {
-      i18n.off("languageChanged", sync);
-    };
-  }, [i18n]);
+  // URL-seeded language: SSR-safe first render + synchronous re-render on
+  // language switch, without the i18n.language hydration-flicker window.
+  const lang = useLang();
   const isPl = lang === "pl";
+
 
 
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
