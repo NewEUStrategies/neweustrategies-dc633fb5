@@ -175,7 +175,15 @@ export const WIDGETS: WidgetDef[] = [
     label: "Odstępnik",
     category: "basic",
     icon: MoveVertical,
-    defaults: () => ({ height: 32 }),
+    defaults: () => ({
+      height: 32,
+      heightTablet: 0,
+      heightMobile: 0,
+      widthPct: 100,
+      align: "left",
+      bgColor: "",
+      showLabel: "show",
+    }),
   },
   // Media
   { type: "video", label: "Wideo", category: "media", icon: Video, defaults: () => ({ url: "" }) },
