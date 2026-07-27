@@ -18,7 +18,14 @@ export type StatusFilter =
   | "pending_review"
   | "scheduled"
   | "archived";
-export type LangFilter = "all" | "pl_only" | "en_only" | "missing_any" | "complete";
+export type LangFilter =
+  | "all"
+  | "has_pl"
+  | "has_en"
+  | "pl_only"
+  | "en_only"
+  | "missing_any"
+  | "complete";
 
 export interface AdminListToolbarProps {
   search: string;
@@ -124,17 +131,23 @@ export function AdminListToolbar({
             <SelectItem value="all">
               {t("admin.list.lang.all", { defaultValue: "Wszystkie języki" })}
             </SelectItem>
-            <SelectItem value="complete">
-              {t("admin.list.lang.complete", { defaultValue: "PL + EN" })}
+            <SelectItem value="has_pl">
+              {t("admin.list.lang.hasPl", { defaultValue: "Polski (PL)" })}
             </SelectItem>
-            <SelectItem value="missing_any">
-              {t("admin.list.lang.missingAny", { defaultValue: "Brak tłumaczenia" })}
+            <SelectItem value="has_en">
+              {t("admin.list.lang.hasEn", { defaultValue: "Angielski (EN)" })}
+            </SelectItem>
+            <SelectItem value="complete">
+              {t("admin.list.lang.complete", { defaultValue: "PL i EN" })}
             </SelectItem>
             <SelectItem value="pl_only">
               {t("admin.list.lang.plOnly", { defaultValue: "Tylko PL" })}
             </SelectItem>
             <SelectItem value="en_only">
               {t("admin.list.lang.enOnly", { defaultValue: "Tylko EN" })}
+            </SelectItem>
+            <SelectItem value="missing_any">
+              {t("admin.list.lang.missingAny", { defaultValue: "Brak tłumaczenia" })}
             </SelectItem>
           </SelectContent>
         </Select>
