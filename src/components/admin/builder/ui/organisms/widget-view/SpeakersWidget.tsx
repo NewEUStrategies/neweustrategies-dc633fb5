@@ -135,6 +135,23 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
 
   const resetPagination = () => setVisibleCount(pageSize > 0 ? pageSize : 0);
 
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (pageMode !== "scroll" || !canLoadMore) return;
+    const el = sentinelRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((x) => x.isIntersecting)) {
+          setVisibleCount((n) => n + (pageSize > 0 ? pageSize : filtered.length));
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [pageMode, canLoadMore, pageSize, filtered.length]);
+
   return (
     <section className="cms-speakers space-y-6" style={accentStyle}>
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
