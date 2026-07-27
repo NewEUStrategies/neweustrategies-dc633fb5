@@ -67,11 +67,29 @@ export function PostListView({
 }) {
   const { t } = useTranslation();
   const authorLabelOverride = getStr(c, `authorLabel_${lang}`).trim();
-  const showAuthorLabel = getStr(c, "showAuthorLabel") !== "0";
-  const showAuthorAvatar = getStr(c, "showAuthorAvatar") !== "0";
+  // Unified author display dropdown (new). Backward compat: derive from the
+  // legacy showAuthorAvatar/showAuthorLabel booleans when authorDisplay is unset.
+  const rawAuthorDisplay = getStr(c, "authorDisplay");
+  const legacyAvatar = getStr(c, "showAuthorAvatar");
+  const legacyLabel = getStr(c, "showAuthorLabel");
+  const authorDisplay: "avatar" | "label" | "none" =
+    rawAuthorDisplay === "avatar" || rawAuthorDisplay === "label" || rawAuthorDisplay === "none"
+      ? rawAuthorDisplay
+      : legacyAvatar === "0" && legacyLabel === "0"
+        ? "none"
+        : legacyAvatar === "0"
+          ? "label"
+          : "avatar";
+  const showAuthorAvatar = authorDisplay === "avatar";
+  const showAuthorLabel = authorDisplay === "label";
+  const showAuthorAny = authorDisplay !== "none";
   const byLabel =
     authorLabelOverride ||
     t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
+  // Global display toggles — apply to every variant.
+  const showCover = getStr(c, "showCover") !== "0";
+  const showTitleGlobal = getStr(c, "showTitle") !== "0";
+  const showExcerptGlobal = getStr(c, "showExcerpt") !== "0";
 
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
