@@ -80,8 +80,6 @@ export function PostListView({
         : legacyAvatar === "0"
           ? "label"
           : "avatar";
-  const showAuthorAvatar = authorDisplay === "avatar";
-  const showAuthorLabel = authorDisplay === "label";
   const showAuthorAny = authorDisplay !== "none";
   const byLabel =
     authorLabelOverride ||
