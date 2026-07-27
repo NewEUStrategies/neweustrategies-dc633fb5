@@ -333,19 +333,27 @@ async function attachAuthorNames(rows: PostRow[], variant: string): Promise<Post
   if (authorIds.length === 0) return rows;
   const { data: profs } = await supabase
     .from("profiles_public")
-    .select("id, display_name")
+    .select("id, display_name, avatar_url, slug")
     .in("id", authorIds);
-  const names = new Map(
-    ((profs ?? []) as Array<{ id: string; display_name: string | null }>).map((p) => [
-      p.id,
-      p.display_name,
-    ]),
+  const map = new Map(
+    ((profs ?? []) as Array<{
+      id: string;
+      display_name: string | null;
+      avatar_url: string | null;
+      slug: string | null;
+    }>).map((p) => [p.id, p]),
   );
-  return rows.map((r) => ({
-    ...r,
-    author_display_name: r.author_id ? (names.get(r.author_id) ?? null) : null,
-  }));
+  return rows.map((r) => {
+    const p = r.author_id ? map.get(r.author_id) : undefined;
+    return {
+      ...r,
+      author_display_name: p?.display_name ?? null,
+      author_avatar_url: p?.avatar_url ?? null,
+      author_slug: p?.slug ?? null,
+    };
+  });
 }
+
 
 export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
   const input = postListInput(c, lang);
