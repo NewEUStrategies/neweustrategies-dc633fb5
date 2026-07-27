@@ -14,7 +14,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Check, X, Trash2 } from "lucide-react";
+import { Pencil, Check, X, Trash2, AlertTriangle } from "lucide-react";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import { renderFootnoteHtml } from "@/components/blocks/renderer";
@@ -23,6 +23,10 @@ import {
   updateFootnoteAtOrigin,
   type FootnoteEntry,
 } from "@/lib/blocks/footnoteOrigins";
+import {
+  validateFootnotes,
+  type FootnoteIssue,
+} from "@/lib/blocks/footnoteValidation";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-public";
