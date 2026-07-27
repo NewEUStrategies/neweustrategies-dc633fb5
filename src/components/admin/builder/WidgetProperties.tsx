@@ -849,27 +849,27 @@ export function WidgetProperties({
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.positionRelative")}
             </h4>
-            <div className="flex gap-1">
+            <div className="wp-seg" role="group">
               <button
                 type="button"
+                data-active={(widget.advanced?.layout ?? "block") === "block"}
                 onClick={() =>
                   setAdvanced((a) => {
                     a.layout = undefined;
                   })
                 }
-                className={`flex-1 h-8 px-2 text-xs rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
                 title={t("builder.widgetProps.blockLayoutTitle")}
               >
                 {t("builder.widgetProps.blockFull")}
               </button>
               <button
                 type="button"
+                data-active={widget.advanced?.layout === "inline"}
                 onClick={() =>
                   setAdvanced((a) => {
                     a.layout = "inline";
                   })
                 }
-                className={`flex-1 h-8 px-2 text-xs rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
                 title={t("builder.widgetProps.inlineLayoutTitle")}
               >
                 {t("builder.widgetProps.inlineRow")}
