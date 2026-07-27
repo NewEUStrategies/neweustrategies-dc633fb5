@@ -171,6 +171,25 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
             </button>
           ),
         )}
+        <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
+        <select
+          title="Rozmiar czcionki"
+          aria-label="Rozmiar czcionki"
+          defaultValue=""
+          onMouseDown={(e) => e.preventDefault()}
+          onChange={(e) => {
+            const v = e.target.value;
+            applyFontSize(v);
+            e.currentTarget.selectedIndex = 0;
+          }}
+          className="h-6 rounded border border-border bg-background px-1 text-[11px] text-muted-foreground transition hover:text-foreground focus:outline-none"
+        >
+          {FONT_SIZES.map((s) => (
+            <option key={s.value || "reset"} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
       </div>
       <div
         ref={ref}
