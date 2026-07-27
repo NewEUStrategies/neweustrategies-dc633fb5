@@ -523,15 +523,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const proseCls = `cms-elementor-richtext prose prose-sm max-w-none [&_*]:text-inherit [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:my-2 [&_h2]:font-semibold [&_h3]:font-semibold [&_a]:underline ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
       const colStyle =
         cols > 1 ? ({ columnCount: cols, columnGap: "1.5rem" } as CSSProperties) : undefined;
-      const singleColumnCompactStyle =
-        cols <= 1
-          ? ({
-              ...compactRowStyle,
-              display: "flex",
-              alignItems: "center",
-              width: "100%",
-            } satisfies CSSProperties)
-          : undefined;
+      // Multi-paragraph HTML (po Enterze pojawia się kolejny <p>) MUSI zachować
+      // pionowy przepływ w bloku - poprzednie `display:flex` na kontenerze
+      // rozpychało kolejne akapity poziomo, przez co treść wyglądała jak
+      // pocięte kolumny mimo `columns=1`.
       if (canEdit) {
         return wrap(
           <Editable
@@ -541,7 +536,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
             value={html}
             onCommit={(v) => commit(key, v)}
             className={proseCls}
-            style={singleColumnCompactStyle}
+            style={colStyle}
             placeholder="Wpisz tekst…"
           />,
         );
@@ -552,7 +547,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         <RichHtmlView
           html={html}
           className={proseCls}
-          style={{ ...colStyle, ...singleColumnCompactStyle }}
+          style={colStyle}
         />,
       );
     }
