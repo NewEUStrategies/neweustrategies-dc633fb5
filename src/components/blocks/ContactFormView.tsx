@@ -26,6 +26,7 @@ import {
   type CustomField,
 } from "@/lib/builder/formFields";
 import { safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
