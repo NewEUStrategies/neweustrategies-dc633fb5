@@ -1,0 +1,2 @@
+-- Loaded from /tmp/reklamy/final.sql (2 UPDATE statements for pages)
+-- placeholder; real content injected below

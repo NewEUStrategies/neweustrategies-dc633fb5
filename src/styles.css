@@ -5825,3 +5825,69 @@ textarea.input {
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+/* CMS unified spec/bullet lists inside tab widgets and text widgets.
+   `.cms-spec-list` — kluczowe parametry (Wymiary, Format, itd.), pigułkowa lista bez kropek.
+   `.cms-bullet-list` — dodatkowe informacje / wskazówki (bullety tikami).
+   `.cms-subheading`  — wewnętrzne nagłówki (np. "Dodatkowe informacje") — spójna typografia. */
+[data-cms-content] .cms-subheading,
+.prose .cms-subheading,
+.cms-subheading {
+  font-family: "Red Hat Display", var(--font-sans);
+  font-weight: 700;
+  font-size: 0.9375rem;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--foreground);
+  margin: 1.25rem 0 0.5rem;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+}
+.cms-spec-list,
+.cms-bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 1rem;
+  display: grid;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--foreground);
+}
+.cms-spec-list > li,
+.cms-bullet-list > li {
+  position: relative;
+  padding: 0.375rem 0.625rem 0.375rem 1.5rem;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
+}
+.cms-spec-list > li::before {
+  content: "";
+  position: absolute;
+  left: 0.625rem;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 6px;
+  background: var(--brand, hsl(var(--primary)));
+  transform: translateY(-50%);
+}
+.cms-bullet-list > li {
+  background: transparent;
+  padding-left: 1.5rem;
+}
+.cms-bullet-list > li::before {
+  content: "✓";
+  position: absolute;
+  left: 0.25rem;
+  top: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--brand, hsl(var(--primary)));
+}
+.cms-spec-list > li > strong,
+.cms-bullet-list > li > strong {
+  font-weight: 600;
+  color: var(--foreground);
+  margin-right: 0.25rem;
+}
