@@ -1,0 +1,176 @@
+// Floating toolbar dla nagłówków (H2/H3/H4) w CMS Builderze wpisów.
+// Zawsze widoczny nad blokiem - pozwala szybko zmienić poziom, wyrównanie,
+// dodać anchor/ID oraz ustawić kolor akcentu. PL/EN i18n przez useBlocksI18n().
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Hash,
+  Bold,
+  Italic,
+  Trash2,
+  Anchor,
+} from "lucide-react";
+import type { Editor } from "@tiptap/react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
+import "@/lib/i18n-admin-blocks";
+import { promptDialog } from "@/lib/appDialogs";
+import type { Block, Json } from "@/lib/blocks/types";
+
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+  editor?: Editor | null;
+}
+
+function TBtn({
+  onClick,
+  active,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  active?: boolean;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className={[
+        "inline-flex h-7 min-w-7 px-1.5 items-center justify-center rounded-sm border border-transparent",
+        "text-foreground hover:bg-foreground/5 transition-colors",
+        active ? "bg-foreground/10 border-foreground/20" : "",
+      ].join(" ")}
+      title={title}
+      aria-label={title}
+      aria-pressed={active ? true : undefined}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Divider() {
+  return <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />;
+}
+
+export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
+  const i18n = useBlocksI18n();
+  const [, force] = useState(0);
+  useEffect(() => force((n) => n + 1), [block.data]);
+
+  const d = block.data as Record<string, Json>;
+  const level = Number(d.level ?? 2);
+  const align = String(d.align ?? "left");
+  const set = (patch: Record<string, Json>) =>
+    onChange({ ...block, data: { ...block.data, ...patch } });
+
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  return (
+    <div
+      ref={rootRef}
+      className="absolute -top-[38px] left-0 z-30 flex items-center gap-0.5 rounded-md border border-border bg-popover px-1.5 py-1 shadow-md"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Poziom nagłówka */}
+      {[1, 2, 3, 4].map((lvl) => (
+        <TBtn
+          key={lvl}
+          title={`H${lvl}`}
+          active={level === lvl}
+          onClick={() => set({ level: lvl })}
+        >
+          <span className="text-[11px] font-bold leading-none">H{lvl}</span>
+        </TBtn>
+      ))}
+
+      <Divider />
+
+      {/* Formatowanie inline (jeśli edytor dostępny) */}
+      {editor && (
+        <>
+          <TBtn
+            title={i18n.t("blocks.toolbar.bold", { defaultValue: "Pogrubienie" })}
+            active={editor.isActive("bold")}
+            onClick={() => editor.chain().focus().toggleBold().run()}
+          >
+            <Bold className="h-3.5 w-3.5" />
+          </TBtn>
+          <TBtn
+            title={i18n.t("blocks.toolbar.italic", { defaultValue: "Kursywa" })}
+            active={editor.isActive("italic")}
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+          >
+            <Italic className="h-3.5 w-3.5" />
+          </TBtn>
+          <Divider />
+        </>
+      )}
+
+      {/* Wyrównanie */}
+      <TBtn
+        title={i18n.t("blocks.toolbar.alignLeft", { defaultValue: "Do lewej" })}
+        active={align === "left"}
+        onClick={() => set({ align: "left" })}
+      >
+        <AlignLeft className="h-3.5 w-3.5" />
+      </TBtn>
+      <TBtn
+        title={i18n.t("blocks.toolbar.alignCenter", { defaultValue: "Wyśrodkuj" })}
+        active={align === "center"}
+        onClick={() => set({ align: "center" })}
+      >
+        <AlignCenter className="h-3.5 w-3.5" />
+      </TBtn>
+      <TBtn
+        title={i18n.t("blocks.toolbar.alignRight", { defaultValue: "Do prawej" })}
+        active={align === "right"}
+        onClick={() => set({ align: "right" })}
+      >
+        <AlignRight className="h-3.5 w-3.5" />
+      </TBtn>
+
+      <Divider />
+
+      {/* Anchor / ID */}
+      <TBtn
+        title={i18n.t("blocks.toolbar.anchor", { defaultValue: "Kotwica (ID)" })}
+        active={Boolean(d.anchor)}
+        onClick={async () => {
+          const v = await promptDialog({
+            title: i18n.t("blocks.toolbar.anchor", { defaultValue: "Kotwica (ID)" }),
+            label: "slug-nagłówka",
+            defaultValue: String(d.anchor ?? ""),
+            confirmLabel: i18n.t("blocks.toolbar.apply", { defaultValue: "Zastosuj" }),
+          });
+          if (v === null) return;
+          set({ anchor: v.trim().replace(/\s+/g, "-").toLowerCase() });
+        }}
+      >
+        <Anchor className="h-3.5 w-3.5" />
+      </TBtn>
+      <TBtn
+        title={i18n.t("blocks.toolbar.toc", { defaultValue: "W spisie treści" })}
+        active={d.inToc !== false}
+        onClick={() => set({ inToc: d.inToc === false })}
+      >
+        <Hash className="h-3.5 w-3.5" />
+      </TBtn>
+
+      <Divider />
+
+      <TBtn
+        title={i18n.t("blocks.toolbar.clear", { defaultValue: "Wyczyść" })}
+        onClick={() => set({ text: "" })}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </TBtn>
+    </div>
+  );
+}
