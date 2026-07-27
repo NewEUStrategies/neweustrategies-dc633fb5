@@ -66,7 +66,13 @@ export function PostListView({
   typography?: import("@/lib/builder/types").WidgetTypography;
 }) {
   const { t } = useTranslation();
-  const byLabel = t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
+  const authorLabelOverride = getStr(c, `authorLabel_${lang}`).trim();
+  const showAuthorLabel = getStr(c, "showAuthorLabel") !== "0";
+  const showAuthorAvatar = getStr(c, "showAuthorAvatar") !== "0";
+  const byLabel =
+    authorLabelOverride ||
+    t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
+
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
   const gapPx = normalizeTypographyGapPx(typography?.titleDescriptionGapPx);
