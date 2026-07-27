@@ -80,7 +80,14 @@ export function PostContentEditor({
                 coverImageUrl={form.cover_image_url}
               >
                 {canvas}
-                <AutoFootnotesPreview doc={(form.blocks_data ?? { pl: null, en: null })[lang]} />
+                <AutoFootnotesPreview
+                  doc={(form.blocks_data ?? { pl: null, en: null })[lang]}
+                  onChange={(nextDoc) => {
+                    const cur = form.blocks_data ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC };
+                    set("blocks_data", { ...cur, [lang]: nextDoc });
+                  }}
+                />
+
               </LayoutScaffold>
             );
           }}
