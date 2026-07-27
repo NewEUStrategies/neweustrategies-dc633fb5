@@ -45,9 +45,11 @@ interface HeaderProps {
    * bez niego baner emituje wyłącznie placementy z page_type="all".
    */
   adPageType?: AdPageType;
+  /** Czy header renderuje się na stronie głównej (wpływa na efekty scroll). */
+  isHome?: boolean;
 }
 
-function HeaderInner({ adPageType = "all" }: HeaderProps) {
+function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   const { i18n, t } = useTranslation();
   const lang = i18n.language ?? "pl";
   const isPl = lang.startsWith("pl");
