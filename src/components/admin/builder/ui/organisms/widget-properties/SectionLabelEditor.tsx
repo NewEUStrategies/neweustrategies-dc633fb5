@@ -130,7 +130,7 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {t("builder.sectionLabelEditor.accentColor")}
         </div>
-        <div className="grid grid-cols-7 gap-1.5">
+        <div className="grid grid-cols-5 gap-1.5">
           {PRESET_COLORS.map((p) => {
             const isActive = !customAccent && colorPreset === p.value;
             return (
