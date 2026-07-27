@@ -644,7 +644,7 @@ function PostsList() {
                         ) : (
                           <Link
                             to="/admin/posts/$slug"
-                            params={{ slug: p.slug }}
+                            params={{ slug: p.slug }} search={{ lang: viewLang }}
                             className="block group"
                           >
                             <div className="font-medium text-[13px] truncate max-w-[420px] text-[#231f20] dark:text-[#F8F6F4] group-hover:text-[#FDB078] group-hover:underline underline-offset-2">
@@ -728,7 +728,7 @@ function PostsList() {
                             </>
                           ) : (
                             <>
-                              <Link to="/admin/posts/$slug" params={{ slug: p.slug }}>
+                              <Link to="/admin/posts/$slug" params={{ slug: p.slug }} search={{ lang: viewLang }}>
                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
