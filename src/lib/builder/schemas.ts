@@ -1108,7 +1108,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     {
       key: "showAuthorLabel",
       type: "select",
-      label: "Pokaż etykietę (np. „Autor")",
+      label: 'Pokaż etykietę (np. „Autor")',
       options: [
         { value: "1", label: "Tak" },
         { value: "0", label: "Nie" },
@@ -1121,7 +1121,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       key: "authorLabel",
       type: "i18nText",
       label: "Etykieta autora (i18n)",
-      hint: "Puste = domyślnie „Autor" (PL) / „By" (EN). Wpisz własne słowo, np. „Pisze", „Rozmawia", „Words by".",
+      hint: 'Puste = domyślnie „Autor" (PL) / „By" (EN). Wpisz własne słowo, np. „Pisze", „Rozmawia", „Words by".',
+
       visibleWhen: (c) => c.variant === "ranked" && c.showAuthorLabel !== "0",
       group: "Autor",
     },
