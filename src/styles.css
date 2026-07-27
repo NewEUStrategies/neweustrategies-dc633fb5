@@ -5953,3 +5953,24 @@ header[data-scrolled="true"]
   > div:nth-of-type(2) {
   transform: scale(1.12);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Fluid desktop scaling (auto-detect viewport width, preserve proportions).
+
+   Cały layout aplikacji jest budowany na jednostkach `rem`, więc płynne
+   skalowanie root font-size pomiędzy 1280 a 1920 CSS px automatycznie
+   skaluje typografię, odstępy, siatki i komponenty — bez efektu „zoom in”
+   widocznego przy stałym 16px na wąskim podglądzie i bez rozjazdów na
+   szerokich monitorach 2K/4K. Poniżej 1024px (tablet/mobile) pozostaje
+   domyślne 16px, aby nie zaburzać czytelności na małych ekranach.
+
+   Krzywa: 15px @ 1280px  →  16px @ 1493px  →  18px @ 1920px
+   (slope 3px na 640px viewport = 0.46875vw, offset 9px).
+   Powyżej 1920px stabilizuje się na 18px, żeby na 4K nie skalować
+   proporcjonalnie do rozmiarów fizycznych ekranu. */
+@media (min-width: 1024px) {
+  :root {
+    font-size: clamp(15px, calc(9px + 0.46875vw), 18px);
+  }
+}
+
