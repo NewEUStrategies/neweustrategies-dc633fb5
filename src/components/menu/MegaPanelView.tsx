@@ -86,7 +86,7 @@ export function MegaPanelView({
     <div
       role="menu"
       className={containerClass}
-      style={variant === "live" ? { width: "min(1120px, calc(100vw - 32px))" } : undefined}
+      style={variant === "live" ? { width: "min(980px, calc(100vw - 32px))" } : undefined}
       onMouseLeave={onMouseLeave}
     >
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
