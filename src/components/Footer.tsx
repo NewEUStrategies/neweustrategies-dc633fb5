@@ -29,19 +29,26 @@ interface FooterProps {
 export const Footer = memo(function Footer({ compact }: FooterProps) {
   // SSR-safe seed: currentLang() reads the request URL on the server and the
   // live client ref during hydration, so the first render matches the HTML the
-  // browser received. After hydration we subscribe to i18next's
-  // `languageChanged` event and mirror i18n.language into state so the footer
-  // re-renders synchronously whenever the user flips the switcher - even when
-  // the router navigation is deferred or the memoized wrapper would otherwise
-  // bail out on identical props.
+  // browser received. We deliberately DO NOT call sync() at effect-mount:
+  // reading i18n.language during hydration can return the previous locale
+  // (i18next.changeLanguage is async) and would flip the footer to the wrong
+  // language for one frame, causing a visible text flicker. Instead we only
+  // subscribe to future `languageChanged` events - and even then we prefer the
+  // event payload / URL-derived value over i18n's internal state to stay in
+  // lockstep with the router's path prefix.
   const { i18n } = useTranslation();
   const [lang, setLang] = useState<AppLang>(() => currentLang());
   useEffect(() => {
-    const sync = () => {
-      const next: AppLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+    const sync = (nextRaw?: string) => {
+      const fromEvent: AppLang | undefined = nextRaw
+        ? nextRaw.startsWith("en")
+          ? "en"
+          : "pl"
+        : undefined;
+      // URL is authoritative (matches the router's `output` rewrite / SSR).
+      const next: AppLang = fromEvent ?? currentLang();
       setLang((prev) => (prev === next ? prev : next));
     };
-    sync();
     i18n.on("languageChanged", sync);
     return () => {
       i18n.off("languageChanged", sync);
