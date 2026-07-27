@@ -2730,4 +2730,17 @@ pushLabelsFor("contact-form", [
     ],
     default: "3",
   },
+  {
+    key: "audience",
+    type: "select",
+    label: "Widoczność (dla kogo)",
+    hint: "Domyślnie widget wyświetla się wyłącznie zalogowanym użytkownikom - rekomendacje bazują na ich zainteresowaniach, obserwacjach i historii czytania.",
+    options: [
+      { value: "auth", label: "Tylko zalogowani (zalecane)" },
+      { value: "all", label: "Wszyscy (goście widzą generyczny nagłówek)" },
+      { value: "guest", label: "Tylko niezalogowani" },
+    ],
+    default: "auth",
+  },
 ];
+
