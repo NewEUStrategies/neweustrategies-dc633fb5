@@ -5918,3 +5918,20 @@ textarea.input {
 .cms-social-list > li::marker {
   content: none;
 }
+
+/* Site header shrink-on-scroll: po przewinięciu header zmniejsza się do
+   połowy wysokości, a jego zawartość skaluje się proporcjonalnie (zoom),
+   dzięki czemu wszystkie elementy (logo, menu, ticker) dopasowują się. */
+header[data-site-header].site-header-shrink {
+  transition: box-shadow 300ms ease;
+}
+header[data-site-header].site-header-shrink > * {
+  transition: zoom 300ms ease, transform 300ms ease;
+  transform-origin: top left;
+}
+header[data-site-header][data-scrolled="true"].site-header-shrink {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+header[data-site-header][data-scrolled="true"].site-header-shrink > * {
+  zoom: 0.5;
+}
