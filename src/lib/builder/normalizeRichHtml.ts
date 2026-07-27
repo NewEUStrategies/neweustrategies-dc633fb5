@@ -33,12 +33,14 @@ export function normalizeBuilderRichHtml(html: string): string {
 
     // 1) Remove empty <li> (whitespace, <br>, &nbsp; only) — silent bullets
     //    from WP/Elementor imports and accidental Enter presses in the editor.
+    //    Preserve list items that carry a link or media (social icon lists,
+    //    nested lists, embeds), even when their visible text is empty.
     const items = root.querySelectorAll("li");
     for (const item of items) {
       const text = item.text.replace(/\u00a0/g, "").trim();
       if (text.length > 0) continue;
-      const hasMedia = item.querySelectorAll("ul, ol, img, iframe, video, audio").length > 0;
-      if (hasMedia) continue;
+      const hasKeeper = item.querySelectorAll("a[href], ul, ol, img, iframe, video, audio, button").length > 0;
+      if (hasKeeper) continue;
       item.remove();
       changed = true;
     }
