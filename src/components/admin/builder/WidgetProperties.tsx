@@ -312,6 +312,7 @@ export function WidgetProperties({
     <div className="wp-compact">
       <style>{`.cms-preview-field-focus{outline:2px solid var(--brand) !important;outline-offset:3px;border-radius:4px;box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 25%, transparent);transition:outline-color .15s, box-shadow .15s;}
 .cms-panel-field-focus{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;transition:outline-color .2s;}`}</style>
+      <WidgetLivePreview widget={widget} lang={lang} device={device} mode={mode} />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="mb-1.5 px-0.5">
           <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
