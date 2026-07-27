@@ -31,29 +31,6 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    plugins: [
-      // Dev-only: wyłącz HMR na trasie głównej (`src/routes/__root.tsx`).
-      // Gdy Vite próbuje partial-HMR-em podmienić root layout w trakcie
-      // strumienia SSR, TanStack anuluje zapytania w locie (`CancelledError`
-      // na `menu-with-items:main`), a przeglądarka zostaje z połowicznym
-      // HTML-em i zawiesza się do twardego reloadu. Zamiast partial HMR
-      // wymuszamy pełny reload przez WS - strumień domyka się czysto,
-      // klient startuje od nowa. Nie dotyczy buildu produkcyjnego.
-      {
-        name: "lovable-disable-hmr-on-root-route",
-        apply: "serve" as const,
-        handleHotUpdate(ctx: {
-          file: string;
-          server: { ws: { send: (payload: { type: string; path?: string }) => void } };
-        }) {
-          if (ctx.file.endsWith("/src/routes/__root.tsx")) {
-            ctx.server.ws.send({ type: "full-reload", path: "*" });
-            return [];
-          }
-          return undefined;
-        },
-      },
-    ],
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
     // FIRST page load - "new dependencies optimized: ... reloading" then forces
