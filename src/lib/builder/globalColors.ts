@@ -868,7 +868,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(.rl-wrap .rl-format){color:var(--gc-highlight, currentColor);}
     :where(.rl-wrap .rl-bookmark){color:var(--gc-bookmark-hover, currentColor);}
     :where(.rl-wrap .rl-read-more){color:var(--gc-highlight, currentColor);}
-    :where(.article-body a, .prose a, [data-cms-prose] a){color:var(--gc-highlight, inherit);}
+    :where(.article-body a:not(.btn):not([class*="button"]):not([class*="bg-brand"]):not([class*="bg-gradient"]), .prose a:not(.btn):not([class*="button"]):not([class*="bg-brand"]):not([class*="bg-gradient"]), [data-cms-prose] a:not(.btn):not([class*="button"]):not([class*="bg-brand"]):not([class*="bg-gradient"])){color:var(--gc-highlight, inherit);}
     :where(.review-star-bg){background:var(--gc-review-bg, transparent);}
     :where(.review-star-icon){color:var(--gc-review-icon, currentColor);}
     :where(.sponsor-label){color:var(--gc-sponsor-label, currentColor);font-family:var(--gc-sponsor-label-font, inherit);font-size:var(--gc-sponsor-label-size, inherit);font-weight:var(--gc-sponsor-label-weight, inherit);font-style:var(--gc-sponsor-label-style, inherit);text-decoration:var(--gc-sponsor-label-decoration, inherit);}
