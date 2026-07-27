@@ -3,6 +3,7 @@
 // pełny color picker oraz przycisk przywracania domyślnych wartości.
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import type { TFunction } from "i18next";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import "@/lib/i18n-admin-global-colors-editor";
@@ -107,6 +108,7 @@ const THEME_OPTS_DEFAULTS: ThemeOptsLite = {
 
 function SidebarStylePicker() {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const { query, save } = useSettings<ThemeOptsLite>("theme_options", THEME_OPTS_DEFAULTS);
   const current: SidebarStyle =
     (query.data?.sidebars?.style as SidebarStyle | undefined) ?? "style-1";
@@ -149,14 +151,14 @@ function SidebarStylePicker() {
               }`}
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-medium">{label}</div>
+                <div className="text-sm font-medium">{bl(label)}</div>
                 {isActive && (
                   <span className="text-[10px] uppercase tracking-wider font-bold text-brand">
                     {t("adminGCEditor.active")}
                   </span>
                 )}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5 mb-3">{hint}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5 mb-3">{bl(hint)}</div>
               <SidebarStylePreview style={id} />
             </button>
           );
@@ -169,8 +171,8 @@ function SidebarStylePicker() {
             className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3"
           >
             <div>
-              <Label className="text-sm font-semibold">{field.label}</Label>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{field.hint}</p>
+              <Label className="text-sm font-semibold">{bl(field.label)}</Label>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{bl(field.hint)}</p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <ImageSlot
@@ -217,6 +219,7 @@ function SidebarStylePicker() {
 
 export function GlobalColorsEditor() {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const { data, isLoading } = useGlobalColors();
   const save = useSaveGlobalColors();
   const [draft, setDraft] = useState<GlobalColorsValue | null>(null);
@@ -419,7 +422,7 @@ export function GlobalColorsEditor() {
             return (
               <div key={cat.id} className="space-y-1">
                 <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground px-2 pt-1">
-                  {cat.label}
+                  {bl(cat.label)}
                 </div>
                 <div className="grid grid-cols-2 gap-1">
                   {groupsInCat.map((group) => (
@@ -428,7 +431,7 @@ export function GlobalColorsEditor() {
                       value={group.id}
                       className="text-xs justify-start w-full"
                     >
-                      {group.label}
+                      {bl(group.label)}
                     </TabsTrigger>
                   ))}
                 </div>
@@ -443,7 +446,7 @@ export function GlobalColorsEditor() {
                   value={group.id}
                   className="text-xs justify-start w-full"
                 >
-                  {group.label}
+                  {bl(group.label)}
                 </TabsTrigger>
               ))}
             </div>
@@ -457,7 +460,7 @@ export function GlobalColorsEditor() {
                 className="rounded-t-lg text-white text-xs font-semibold px-3 py-2"
                 style={{ background: "#FA9346" }}
               >
-                {group.label}
+                {bl(group.label)}
               </div>
               <div className="p-4 space-y-5">
                 {group.id === "sidebar" && <SidebarStylePicker />}
@@ -467,9 +470,9 @@ export function GlobalColorsEditor() {
                     <div key={slot.key} className="space-y-2">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <Label className="text-base font-bold">{slot.label}</Label>
+                          <Label className="text-base font-bold">{bl(slot.label)}</Label>
                           <p className="text-[10px] font-normal text-muted-foreground mt-0.5">
-                            {slot.description}
+                            {bl(slot.description)}
                           </p>
                         </div>
                         {(slot.defaultLight || slot.defaultDark) && (

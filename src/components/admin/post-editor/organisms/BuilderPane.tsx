@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
+import { useAdminLang } from "@/lib/builder/labelsEn";
 
 export function BuilderPane({
   form,
@@ -11,7 +12,10 @@ export function BuilderPane({
   form: { builder_data: BuilderDocument | null };
   set: (k: "builder_data", v: BuilderDocument) => void;
 }) {
-  const [lang, setLang] = useState<"pl" | "en">("pl");
+  // Seed the canvas language from the admin UI language so an English admin
+  // does not land on the Polish content tab (and Polish editor chrome).
+  const adminLang = useAdminLang();
+  const [lang, setLang] = useState<"pl" | "en">(adminLang);
   return (
     <Builder
       value={form.builder_data}

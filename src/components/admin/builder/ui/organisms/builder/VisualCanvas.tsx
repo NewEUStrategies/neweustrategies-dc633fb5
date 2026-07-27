@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { BuilderDocument, Device, WidgetType } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
 import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
@@ -9,6 +10,7 @@ import { WidgetResizeOverlay } from "./WidgetResizeOverlay";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
+import "@/lib/i18n-builder";
 
 /** Drag payload for a global-widget instance dragged from the palette. */
 export interface GlobalDragPayload {
@@ -115,6 +117,7 @@ export function VisualCanvas({
   /** Persist a new pixel height for a widget on the given breakpoint (drag-to-resize). */
   onWidgetResize?: (widgetId: string, heightPx: number, device: Device) => void;
 }) {
+  const { t } = useTranslation();
   const safeDoc = safeParseBuilderDoc(doc);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ kind: "widget" | "section"; id: string } | null>(null);
@@ -752,6 +755,9 @@ export function VisualCanvas({
     onInsertContainer,
   ]);
 
+  // Canvas affordance labels are painted through CSS `content:`; escape the
+  // translated text so it can never terminate the CSS string.
+  const cssText = (value: string) => JSON.stringify(value);
   const ringCss = `
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
     [data-visual-canvas] [data-widget-id]:hover{outline-color:color-mix(in oklab, var(--brand) 50%, transparent)}
@@ -773,7 +779,7 @@ export function VisualCanvas({
       overflow:visible !important;
     }
     [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"]::after{
-      content:"odstęp: " var(--cms-title-description-gap, "0px");
+      content:${cssText(t("builder.canvas.gapWithValue"))} var(--cms-title-description-gap, "0px");
       position:absolute;
       top:4px;
       right:4px;
@@ -808,7 +814,7 @@ export function VisualCanvas({
       opacity:.95;
     }
     [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"] :is([data-typography-gap-target],.cms-post-excerpt,[data-description-root])::after{
-      content:"odstęp";
+      content:${cssText(t("builder.canvas.gap"))};
       position:absolute;
       top:calc(-1 * var(--cms-title-description-gap, 0px) - 7px);
       left:50%;
@@ -849,7 +855,7 @@ export function VisualCanvas({
     [data-visual-canvas] [data-widget-id]:active::before{cursor:grabbing}
     [data-visual-canvas] [data-sec-id]{position:relative}
     [data-visual-canvas] [data-sec-id]:not([data-ab-variant])::before{
-      content:"⋮⋮ Sekcja";
+      content:${cssText("⋮⋮ " + t("builder.canvas.section"))};
       position:absolute;top:-12px;left:8px;z-index:44;
       padding:2px 8px;border-radius:999px;
       background:color-mix(in oklab, var(--brand) 92%, black 8%);
@@ -878,7 +884,7 @@ export function VisualCanvas({
     }
     [data-visual-canvas] [data-col-id]:hover{outline-color:color-mix(in oklab, var(--brand) 55%, transparent)}
     [data-visual-canvas] [data-col-id]:empty::before{
-      content:"Pusta kolumna";
+      content:${cssText(t("builder.canvas.emptyColumn"))};
       position:absolute;inset:0;
       display:flex;align-items:center;justify-content:center;
       font-size:10px;letter-spacing:.06em;text-transform:uppercase;

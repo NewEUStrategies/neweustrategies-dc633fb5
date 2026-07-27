@@ -66,6 +66,7 @@ import { WidgetLivePreview } from "./ui/organisms/WidgetLivePreview";
 import { LinkPicker } from "./ui/molecules/LinkPicker";
 
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import {
   EDIT_TARGET_META,
   FOCUS_SIZE_FIELD_EVENT,
@@ -113,6 +114,7 @@ export function WidgetProperties({
   onChange,
 }: Props) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const md = () =>
     mode === "dark" ? t("builder.widgetProps.modeDark") : t("builder.widgetProps.modeLight");
   const setContent = (k: string, v: Json) =>
@@ -310,7 +312,8 @@ export function WidgetProperties({
   // Resolve inherited colors from the actually rendered widget DOM (global colors cascade).
   const inherited = useInheritedColors(widget.id, mode, widget.style);
 
-  const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
+  const widgetLabel =
+    bl(WIDGETS.find((w) => w.type === widget.type)?.label) ?? widget.type;
 
   const highlightPreviewTarget = (key: string) => {
     if (typeof document === "undefined") return;
@@ -514,7 +517,7 @@ export function WidgetProperties({
                   return (
                     <div key={f.key} data-field-key={f.key}>
                       <FormElementSizeField
-                        label={meta.label}
+                        label={bl(meta.label)}
                         value={v}
                         min={meta.min}
                         max={meta.max}
@@ -1425,6 +1428,7 @@ function ContentFields({
   setContent: (k: string, v: Json) => void;
 }) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const c = widget.content;
 
   // Custom (list-style) editors for complex widgets.
@@ -1510,7 +1514,7 @@ function ContentFields({
             className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-2"
           >
             <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              {g.name}
+              {bl(g.name)}
             </h4>
             {body}
           </section>

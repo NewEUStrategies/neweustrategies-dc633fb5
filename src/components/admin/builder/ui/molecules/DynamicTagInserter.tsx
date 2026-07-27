@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { DYNAMIC_TAG_GROUPS } from "@/lib/builder/dynamicText";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import "@/lib/i18n-builder";
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
 
 export function DynamicTagInserter({ onInsert, label, compact = true }: Props) {
   const { t, i18n } = useTranslation();
+  const bl = useBuilderLabel();
   const [open, setOpen] = useState(false);
   const lang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const triggerLabel =
@@ -74,7 +76,7 @@ export function DynamicTagInserter({ onInsert, label, compact = true }: Props) {
                       }}
                       className="w-full flex items-center justify-between gap-2 px-2 py-1 text-left rounded hover:bg-accent/60 focus:bg-accent/60 outline-none"
                     >
-                      <span className="text-xs text-foreground truncate">{tag.label}</span>
+                      <span className="text-xs text-foreground truncate">{bl(tag.label)}</span>
                       <code className="text-[10px] font-mono text-muted-foreground shrink-0">
                         {tag.token}
                       </code>

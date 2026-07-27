@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { GripVertical, Move } from "lucide-react";
 import type { Device } from "@/lib/builder/types";
+import "@/lib/i18n-builder";
 
 interface Props {
   /** Container the overlay is positioned relative to (VisualCanvas root). */
@@ -43,6 +45,7 @@ type HandleKind = "top" | "bottom";
  * current height and updates live while dragging.
  */
 export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }: Props) {
+  const { t } = useTranslation();
   const [rect, setRect] = useState<Rect | null>(null);
   const targetRef = useRef<HTMLElement | null>(null);
   const draggingRef = useRef<{
@@ -234,7 +237,7 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
           lineHeight: 1.2,
           letterSpacing: "0.02em",
         }}
-        title={`Szerokość: ${displayW}px (${widthModeLabel})`}
+        title={t("builder.resize.widthTitle", { width: displayW, mode: widthModeLabel })}
       >
         W: {displayW}px · {widthModeLabel}
       </div>
@@ -255,9 +258,9 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
       <div
         role="slider"
         aria-orientation="vertical"
-        aria-label="Zmień wysokość widgetu (górna krawędź)"
+        aria-label={t("builder.resize.heightTopAria")}
         aria-valuenow={displayH}
-        title={`Wysokość: ${displayH} px - przeciągnij, aby zmienić`}
+        title={t("builder.resize.heightTitle", { height: displayH })}
         onPointerDown={beginDrag("top")}
         onPointerMove={onPointerMove}
         onPointerUp={finish}
@@ -276,9 +279,9 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
       <div
         role="slider"
         aria-orientation="vertical"
-        aria-label="Zmień wysokość widgetu (dolna krawędź)"
+        aria-label={t("builder.resize.heightBottomAria")}
         aria-valuenow={displayH}
-        title={`Wysokość: ${displayH} px - przeciągnij, aby zmienić`}
+        title={t("builder.resize.heightTitle", { height: displayH })}
         onPointerDown={beginDrag("bottom")}
         onPointerMove={onPointerMove}
         onPointerUp={finish}
@@ -317,8 +320,8 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
               data-builder-chrome
               draggable
               role="button"
-              aria-label="Przeciągnij, aby przenieść widget"
-              title="Przeciągnij, aby przenieść widget"
+              aria-label={t("builder.resize.moveWidget")}
+              title={t("builder.resize.moveWidget")}
               onMouseDownCapture={stealFocus}
               className={`${handleBase} cursor-grab active:cursor-grabbing gap-1 px-1.5`}
               style={{
@@ -336,8 +339,8 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
               data-builder-chrome
               draggable
               role="button"
-              aria-label="Przeciągnij, aby przenieść widget"
-              title="Przeciągnij, aby przenieść widget"
+              aria-label={t("builder.resize.moveWidget")}
+              title={t("builder.resize.moveWidget")}
               onMouseDownCapture={stealFocus}
               className={`${handleBase} cursor-grab active:cursor-grabbing`}
               style={{
@@ -355,8 +358,8 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
               data-builder-chrome
               draggable
               role="button"
-              aria-label="Przeciągnij, aby przenieść widget"
-              title="Przeciągnij, aby przenieść widget"
+              aria-label={t("builder.resize.moveWidget")}
+              title={t("builder.resize.moveWidget")}
               onMouseDownCapture={stealFocus}
               className={`${handleBase} cursor-grab active:cursor-grabbing`}
               style={{

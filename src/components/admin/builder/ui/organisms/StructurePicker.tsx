@@ -57,7 +57,7 @@ export function StructurePicker({ onPick, compact = false, cols = 4 }: Props) {
               // no side-effects on the doc happen until drop resolves.
               e.dataTransfer.effectAllowed = "copy";
               e.dataTransfer.setData(SECTION_STRUCTURE_MIME, JSON.stringify(s.spans));
-              e.dataTransfer.setData("text/plain", s.label);
+              e.dataTransfer.setData("text/plain", labelOf(s));
             }}
             onClick={() => onPick(s.spans)}
             title={t("builder.chrome.insertSection", { label: labelOf(s) })}

@@ -514,7 +514,7 @@ export function renderSimpleWidget(
                 <Cmp size={size} />
               </AppLink>
             ) : (
-              <span key={k} aria-label={`${label} (brak linku)`} className={cls} style={style}>
+              <span key={k} aria-label={`${label} (${lang === "pl" ? "brak linku" : "no link"})`} className={cls} style={style}>
                 <Cmp size={size} />
               </span>
             );

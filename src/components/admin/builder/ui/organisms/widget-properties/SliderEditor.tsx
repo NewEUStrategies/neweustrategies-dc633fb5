@@ -30,6 +30,7 @@ import {
 } from "@/lib/builder/sliderVariants";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 
 interface Props {
   c: WidgetNode["content"];
@@ -39,6 +40,7 @@ interface Props {
 
 export function SliderEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const variant = ((typeof c.variant === "string" && c.variant) ||
     "editorial-hero") as SliderVariant;
   const ratio = (typeof c.ratio === "string" ? c.ratio : "16/9") as
@@ -221,7 +223,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                     setContent("variant", v.value);
                   }
                 }}
-                title={v.label}
+                title={bl(v.label)}
                 className={`group relative text-left rounded-lg overflow-hidden transition-all duration-200 bg-card w-full cursor-pointer
                   ${
                     isActive
@@ -256,7 +258,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                   <span
                     className={`text-xs font-medium truncate ${isActive ? "text-brand" : "text-foreground/80"}`}
                   >
-                    {v.label}
+                    {bl(v.label)}
                   </span>
                 </div>
               </div>
@@ -562,7 +564,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             <SelectContent>
               {NAV_ARROW_VARIANTS.map((v) => (
                 <SelectItem key={v.value} value={v.value}>
-                  {v.label}
+                  {bl(v.label)}
                 </SelectItem>
               ))}
             </SelectContent>

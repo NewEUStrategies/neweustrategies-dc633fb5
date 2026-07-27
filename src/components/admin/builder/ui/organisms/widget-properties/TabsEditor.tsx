@@ -23,7 +23,17 @@ export function TabsEditor({ c, lang, setContent }: Props) {
     <ListShell
       title={t("builder.tabsEditor.title")}
       items={tabs}
-      onAdd={() => update([...tabs, { label_pl: "Nowa", html_pl: "<p>Treść…</p>" }])}
+      onAdd={() =>
+        update([
+          ...tabs,
+          {
+            label_pl: "Nowa",
+            label_en: "New",
+            html_pl: "<p>Treść…</p>",
+            html_en: "<p>Content…</p>",
+          },
+        ])
+      }
     >
       <div className="space-y-2">
         {tabs.map((it, i) => (

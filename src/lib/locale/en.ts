@@ -17,6 +17,12 @@ export const en = {
       lightMode: "Light mode",
       darkMode: "Dark mode",
     },
+    // Language names stay endonyms in both bundles - a PL|EN switcher is read
+    // by speakers of the language it points at, not of the current UI language.
+    lang: {
+      pl: "Polski",
+      en: "English",
+    },
     cancel: "Cancel",
     confirm: "Confirm",
     save: "Save",

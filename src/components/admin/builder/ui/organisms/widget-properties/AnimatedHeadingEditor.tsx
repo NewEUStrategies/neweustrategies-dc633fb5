@@ -21,6 +21,7 @@ import {
   type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
 import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import { PLACEHOLDER_POST_CTX } from "@/lib/builder/currentPostContext";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
@@ -33,6 +34,7 @@ interface Props {
 
 export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const mode = (typeof c.mode === "string" ? c.mode : "highlight") as AnimatedHeadingMode;
   const shape = (typeof c.shape === "string" ? c.shape : "underline") as AnimatedHeadingShape;
   const tag = (typeof c.tag === "string" ? c.tag : "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
@@ -133,7 +135,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
             <SelectContent>
               {ANIMATED_MODES.map((m) => (
                 <SelectItem key={m.value} value={m.value}>
-                  {m.label}
+                  {bl(m.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -172,7 +174,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
                     ? "ring-2 ring-brand border-brand bg-brand/5"
                     : "border-border hover:border-brand/50 bg-background"
                 }`}
-                title={s.label}
+                title={bl(s.label)}
               >
                 <div className="pointer-events-none flex items-center justify-center h-[44px]">
                   <div
@@ -192,7 +194,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
                     />
                   </div>
                 </div>
-                <div className="mt-1 text-[10px] text-muted-foreground truncate">{s.label}</div>
+                <div className="mt-1 text-[10px] text-muted-foreground truncate">{bl(s.label)}</div>
                 {isActive && <span className="absolute top-1 right-1 text-brand text-xs">✓</span>}
               </button>
             );

@@ -23,8 +23,7 @@ import { PageUrlAutocomplete } from "./PageUrlAutocomplete";
 import { RichHtmlField } from "./RichHtmlField";
 import { Image as ImageIcon, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
-
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 
 interface Props {
   field: SchemaFieldDef;
@@ -40,19 +39,24 @@ const asStringArray = (v: unknown): string[] =>
 
 export function SchemaFieldControl({ field, lang, content, setContent }: Props) {
   const { t } = useTranslation();
+  // Schema copy is authored in Polish; render it in the admin's UI language.
+  const bl = useBuilderLabel();
   const [urlPickerOpen, setUrlPickerOpen] = useState(false);
   if (field.visibleWhen && !field.visibleWhen(content)) return null;
 
   const langSuffix = lang.toUpperCase();
   const i18nKey = `${field.key}_${lang}`;
+  const label = bl(field.label);
+  const hint = bl(field.hint);
+  const placeholder = bl(field.placeholder);
 
   switch (field.type) {
     case "text":
       return (
-        <PropField label={field.label} hint={field.hint}>
+        <PropField label={label} hint={hint}>
           <Input
             value={asString(content[field.key])}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             onChange={(e) => setContent(field.key, e.target.value)}
             className="h-8 text-xs"
           />
@@ -61,12 +65,12 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
     case "url":
       return (
-        <PropField label={field.label} hint={field.hint}>
+        <PropField label={label} hint={hint}>
           <div className="flex flex-col gap-1.5">
             <PageUrlAutocomplete
               value={asString(content[field.key])}
               onChange={(v) => setContent(field.key, v)}
-              placeholder={field.placeholder}
+              placeholder={placeholder}
               lang={lang}
             />
 
@@ -93,37 +97,34 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         </PropField>
       );
 
-
-
     case "icon":
       return (
-        <PropField label={field.label} hint={field.hint}>
+        <PropField label={label} hint={hint}>
           <LucideIconPicker
             value={asString(content[field.key])}
             onChange={(v) => setContent(field.key, v ?? "")}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
           />
         </PropField>
       );
 
     case "image":
-
       return (
         <ImageSlot
-          label={field.label}
+          label={label}
           icon={<ImageIcon className="w-3 h-3" />}
           value={asString(content[field.key])}
           onChange={(v) => setContent(field.key, v)}
-          hint={field.hint}
+          hint={hint}
         />
       );
 
     case "i18nText":
       return (
-        <PropField label={`${field.label} (${langSuffix})`} hint={field.hint}>
+        <PropField label={`${label} (${langSuffix})`} hint={hint}>
           <Input
             value={asString(content[i18nKey])}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             onChange={(e) => setContent(i18nKey, e.target.value)}
             className="h-8 text-xs"
           />
@@ -132,19 +133,19 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
     case "i18nHtml":
       return (
-        <PropField label={`${field.label} (${langSuffix})`} hint={field.hint}>
+        <PropField label={`${label} (${langSuffix})`} hint={hint}>
           <RichHtmlField
             value={asString(content[i18nKey])}
             onChange={(html: string) => setContent(i18nKey, html)}
             rows={field.rows ?? 4}
-            ariaLabel={`${field.label} (${langSuffix})`}
+            ariaLabel={`${label} (${langSuffix})`}
           />
         </PropField>
       );
 
     case "textarea":
       return (
-        <PropField label={field.label} hint={field.hint}>
+        <PropField label={label} hint={hint}>
           <Textarea
             rows={field.rows ?? 4}
             value={asString(content[field.key])}
@@ -156,14 +157,16 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
     case "chartData":
       return (
-        <PropField label={field.label} hint={field.hint}>
+        <PropField label={label} hint={hint}>
           <div className="space-y-2">
             <Textarea
               rows={field.rows ?? 6}
               value={asString(content[field.key])}
               onChange={(e) => setContent(field.key, e.target.value)}
               className="text-xs font-mono"
-              placeholder="; Seria A; Seria B&#10;2024; 12; 8"
+              placeholder={t("builder.schemaField.chartDataPlaceholder", {
+                defaultValue: "; Seria A; Seria B\n2024; 12; 8",
+              })}
             />
             <ChartDataSpreadsheetDialog
               value={asString(content[field.key])}
@@ -186,7 +189,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
           ? String(field.default)
           : "";
       return (
-        <PropField label={field.label} hint={field.hint}>
+        <PropField label={label} hint={hint}>
           <Input
             type="number"
             min={field.min}
@@ -214,7 +217,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       const raw = asString(content[field.key]);
       const current = raw === "" ? EMPTY : raw || field.options?.[0]?.value || EMPTY;
       return (
-        <PropField label={field.label} hint={field.hint}>
+        <PropField label={label} hint={hint}>
           <Select
             value={current}
             onValueChange={(v) => setContent(field.key, v === EMPTY ? "" : v)}
@@ -225,7 +228,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
             <SelectContent>
               {field.options?.map((o) => (
                 <SelectItem key={o.value || EMPTY} value={o.value === "" ? EMPTY : o.value}>
-                  {o.label ?? o.value}
+                  {bl(o.label) ?? o.value}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -237,14 +240,16 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
     case "color": {
       const value = asString(content[field.key]);
       return (
-        <PropField label={field.label} hint={field.hint}>
+        <PropField label={label} hint={hint}>
           <AdminColorPicker
             value={value}
             onChange={(v) => setContent(field.key, v ?? "")}
-            ariaLabel={field.label}
+            ariaLabel={label}
             allowTransparent={true}
             allowReset={true}
-            placeholder="dziedziczy z global colors (lub transparent)"
+            placeholder={t("builder.schemaField.colorInherits", {
+              defaultValue: "dziedziczy z global colors (lub transparent)",
+            })}
           />
         </PropField>
       );
@@ -252,7 +257,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
     case "stringArray":
       return (
-        <PropField label={field.label} hint={field.hint}>
+        <PropField label={label} hint={hint}>
           <Textarea
             rows={field.rows ?? 4}
             value={asStringArray(content[field.key]).join("\n")}

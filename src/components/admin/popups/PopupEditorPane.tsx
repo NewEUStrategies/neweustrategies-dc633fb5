@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Save } from "@/lib/lucide-shim";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { usePopupEditor, type PopupSettings, type PopupStatus } from "@/lib/builder/popups";
+import { useAdminLang } from "@/lib/builder/labelsEn";
 
 export function PopupEditorPane({ popupId }: { popupId: string }) {
   const { t } = useTranslation();
@@ -33,7 +34,10 @@ export function PopupEditorPane({ popupId }: { popupId: string }) {
   const [doc, setDoc] = useState<BuilderDocument | null>(null);
   const [settings, setSettings] = useState<PopupSettings | null>(null);
   const [saving, setSaving] = useState(false);
-  const [lang, setLang] = useState<"pl" | "en">("pl");
+  // Seed the canvas language from the admin UI language so an English admin
+  // does not land on the Polish content tab (and Polish editor chrome).
+  const adminLang = useAdminLang();
+  const [lang, setLang] = useState<"pl" | "en">(adminLang);
   // Migawka stanu z ostatniego zapisu (null = rekord jeszcze nie zaladowany).
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 

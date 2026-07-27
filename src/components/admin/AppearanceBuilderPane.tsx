@@ -27,6 +27,7 @@ import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
 import { FooterChromePane } from "@/components/admin/FooterChromePane";
 import { TrendingTickerPane } from "@/components/admin/TrendingTickerPane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useAdminLang } from "@/lib/builder/labelsEn";
 
 interface Props {
   settingsKey: string;
@@ -39,7 +40,10 @@ type Json = Record<string, unknown>;
 export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [lang, setLang] = useState<"pl" | "en">("pl");
+  // Seed the canvas language from the admin UI language so an English admin
+  // does not land on the Polish content tab (and Polish editor chrome).
+  const adminLang = useAdminLang();
+  const [lang, setLang] = useState<"pl" | "en">(adminLang);
   const [doc, setDoc] = useState<BuilderDocument | null>(null);
 
   const { data } = useQuery({
