@@ -31,6 +31,28 @@ export function normalizeBuilderRichHtml(html: string): string {
     changed = false;
     pass += 1;
 
+    // 1) Remove empty <li> (whitespace, <br>, &nbsp; only) — silent bullets
+    //    from WP/Elementor imports and accidental Enter presses in the editor.
+    const items = root.querySelectorAll("li");
+    for (const item of items) {
+      const text = item.text.replace(/\u00a0/g, "").trim();
+      if (text.length > 0) continue;
+      const hasMedia = item.querySelectorAll("ul, ol, img, iframe, video, audio").length > 0;
+      if (hasMedia) continue;
+      item.remove();
+      changed = true;
+    }
+
+    // 2) Drop lists that lost all their items.
+    const emptyLists = root.querySelectorAll("ul, ol");
+    for (const list of emptyLists) {
+      if (list.querySelectorAll("li").length === 0) {
+        list.remove();
+        changed = true;
+      }
+    }
+
+    // 3) Collapse accidental single-item list shells.
     const lists = root.querySelectorAll("ul, ol").reverse();
     for (const list of lists) {
       const listChildren = meaningfulChildren(list);
