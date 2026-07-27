@@ -156,9 +156,10 @@ export function PostListView({
   const visibleRows = uniqueOnPage
     ? dedupeAndSlice(data ?? [], excludeIds, limit)
     : (data ?? []).slice(0, limit);
-  const rows = visibleRows.map((p) =>
-    overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p,
-  );
+  const rows = visibleRows.map((p) => {
+    const withOverride = overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p;
+    return showCover ? withOverride : { ...withOverride, cover_image_url: null };
+  });
 
   // Register the IDs this widget actually DISPLAYS (not the over-fetched extras)
   // so later uniqueOnPage widgets exclude exactly what the reader saw. Keyed on
