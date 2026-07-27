@@ -2672,3 +2672,52 @@ pushLabelsFor("contact-form", [
 // page still referencing the old type gets the full property panel.
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField> | undefined>).contact =
   WIDGET_SCHEMAS["contact-form"];
+
+(WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["tailored-must-reads"] = [
+  {
+    key: "label",
+    type: "i18nText",
+    label: "Nagłówek (użyj {name} dla imienia)",
+    hint: "Token {name} jest automatycznie odmieniany do wołacza w PL (np. Igor → Igorze). Możesz też użyć {name.nominative}.",
+  },
+  {
+    key: "fallback",
+    type: "i18nText",
+    label: "Nagłówek dla niezalogowanych",
+    hint: "Widoczny gdy odbiorca nie jest zalogowany.",
+  },
+  { key: "kicker", type: "i18nText", label: "Kicker (mały nadtytuł)" },
+  {
+    key: "showKicker",
+    type: "select",
+    label: "Pokaż kicker",
+    options: [
+      { value: "1", label: "Tak" },
+      { value: "0", label: "Nie" },
+    ],
+    default: "1",
+  },
+  {
+    key: "showExcerpt",
+    type: "select",
+    label: "Pokaż zajawkę",
+    options: [
+      { value: "1", label: "Tak" },
+      { value: "0", label: "Nie" },
+    ],
+    default: "1",
+  },
+  { key: "limit", type: "number", label: "Liczba wpisów", min: 1, max: 9, default: 3 },
+  {
+    key: "columns",
+    type: "select",
+    label: "Kolumny",
+    options: [
+      { value: "1", label: "1" },
+      { value: "2", label: "2" },
+      { value: "3", label: "3" },
+      { value: "4", label: "4" },
+    ],
+    default: "3",
+  },
+];

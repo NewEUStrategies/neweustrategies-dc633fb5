@@ -75,6 +75,7 @@ import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion"
 import { Editable } from "./ui/molecules/Editable";
 // Eager: layout-critical / above-the-fold / navigation widgets.
 import { PostListView } from "./ui/organisms/widget-view/PostListView";
+import { TailoredMustReadsView } from "./ui/organisms/widget-view/TailoredMustReadsView";
 import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import { SiteMenu } from "@/components/menu/SiteMenu";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
@@ -753,6 +754,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(
         <PostListView c={c} lang={lang} carousel typography={activeTypography ?? undefined} />,
       );
+    }
+    case "tailored-must-reads": {
+      return wrap(<TailoredMustReadsView c={c} lang={lang} />);
     }
     case "news-ticker":
       return wrap(<NewsTickerView c={c} lang={lang} />);
