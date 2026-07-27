@@ -43,7 +43,12 @@ const GscBiDashboard = lazy(() =>
   import("@/components/admin/analytics/GscBiDashboard").then((m) => ({
     default: m.GscBiDashboard,
   })),
+const FooterAnalyticsPanel = lazy(() =>
+  import("@/components/admin/analytics/FooterAnalyticsPanel").then((m) => ({
+    default: m.FooterAnalyticsPanel,
+  })),
 );
+
 const Ga4BiDashboard = lazy(() =>
   import("@/components/admin/analytics/Ga4BiDashboard").then((m) => ({
     default: m.Ga4BiDashboard,
