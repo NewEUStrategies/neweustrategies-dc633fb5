@@ -606,12 +606,9 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             if (f.type === "checkbox") {
               return (
                 <div key={f.id} className={span}>
-                  <label className="widget-align-row flex items-start gap-2 text-xs opacity-90">
-                    <input type="checkbox" name={name} className="mt-0.5" />
-                    <span>
-                      {label}
-                      {null}
-                    </span>
+                  <label className="widget-align-row flex items-start gap-2 text-xs opacity-90 cursor-pointer">
+                    <Checkbox name={name} className="mt-0.5 shrink-0" />
+                    <span>{label}</span>
                   </label>
                   {err && <span className="block text-[11px] text-destructive">{err}</span>}
                 </div>
