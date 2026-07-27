@@ -122,28 +122,28 @@ export function MegaPanelView({
             const title = pickLocalized(col.title_pl, col.title_en, lang);
             return (
                 <div key={i} className="flex min-w-0 flex-col">
-                <div className="mb-3 flex items-center gap-2">
+                <div className="mb-1.5 flex items-center gap-1.5">
                   <span
                     aria-hidden
-                    className="inline-block h-4 w-1 rounded-sm"
+                    className="inline-block h-3 w-1 rounded-sm"
                     style={{ background: "var(--brand)" }}
                   />
                   {title ? (
                     col.href ? (
                       <AppLink
                         href={safeUrl(col.href) || "#"}
-                        className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
+                        className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:text-foreground"
                       >
                         {title}
                       </AppLink>
                     ) : (
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                         {title}
                       </span>
                     )
                   ) : null}
                 </div>
-                <ul className="flex flex-col gap-1.5">
+                <ul className="flex flex-col gap-0.5">
                   {(col.links ?? []).map((lnk, j) => {
                     const label = pickLocalized(lnk.label_pl, lnk.label_en, lang);
                     if (!label) return null;
