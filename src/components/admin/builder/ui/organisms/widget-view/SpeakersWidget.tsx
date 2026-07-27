@@ -62,6 +62,8 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   const enableSearch = cRaw.enableSearch !== false;
   const enableSort = cRaw.enableSort !== false;
   const pageSize = Math.max(0, Math.round(numOf(cRaw.pageSize, 0)));
+  const pageModeRaw = typeof cRaw.pageMode === "string" ? cRaw.pageMode : "button";
+  const pageMode: "button" | "scroll" = pageModeRaw === "scroll" ? "scroll" : "button";
 
   const speakers: SpeakerItem[] = Array.isArray(cRaw.speakers)
     ? (cRaw.speakers as unknown[]).filter(
