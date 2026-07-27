@@ -5789,3 +5789,39 @@ textarea.input {
     font-size: 16px !important;
   }
 }
+
+/* -------------------------------------------------------------------------
+   Unified in-form hyperlinks
+   -------------------------------------------------------------------------
+   Applied by <FormLink /> plus every consent/policy HTML injected via
+   `dangerouslySetInnerHTML` in newsletter and contact forms (NewsletterForm,
+   NewsletterPopupForm, ContactFormView, JoinUsForm). Matches the JoinUsForm
+   reference: underlined + brand-ink hover, works in light & dark modes.
+   ------------------------------------------------------------------------- */
+.form-link,
+.nl-consent a,
+.cf-consent a,
+[data-form-policy] a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition:
+    color 150ms ease,
+    text-decoration-color 150ms ease;
+}
+.form-link:hover,
+.nl-consent a:hover,
+.cf-consent a:hover,
+[data-form-policy] a:hover {
+  color: var(--brand-ink, var(--brand));
+  text-decoration-color: currentColor;
+}
+.form-link:focus-visible,
+.nl-consent a:focus-visible,
+.cf-consent a:focus-visible,
+[data-form-policy] a:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
