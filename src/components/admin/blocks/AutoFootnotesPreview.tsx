@@ -48,7 +48,14 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
     return collectFootnoteOrigins({ ...doc, blocks: safe.blocks } as BlocksDoc);
   }, [doc]);
 
-  if (entries.length === 0) return null;
+  const issues: FootnoteIssue[] = useMemo(() => {
+    if (!doc?.blocks?.length) return [];
+    const safe = safeParseBlocks(doc);
+    if (!safe.blocks.length) return [];
+    return validateFootnotes({ ...doc, blocks: safe.blocks } as BlocksDoc);
+  }, [doc]);
+
+  if (entries.length === 0 && issues.length === 0) return null;
 
   const canEdit = typeof onChange === "function";
 
