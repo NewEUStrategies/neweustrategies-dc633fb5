@@ -255,18 +255,31 @@ export function renderSimpleWidget(
     }
     case "spacer": {
       const h = getNum(c, "height", 32);
+      const widthPct = Math.max(10, Math.min(100, getNum(c, "widthPct", 100)));
+      const alignRaw = getStr(c, "align") || "left";
+      const align: "left" | "center" | "right" =
+        alignRaw === "center" ? "center" : alignRaw === "right" ? "right" : "left";
+      const alignStyle: CSSProperties =
+        align === "center"
+          ? { marginLeft: "auto", marginRight: "auto" }
+          : align === "right"
+            ? { marginLeft: "auto", marginRight: 0 }
+            : { marginLeft: 0, marginRight: "auto" };
+      const widthStyle: CSSProperties = { width: `${widthPct}%`, ...alignStyle };
       if (editable) {
         return (
           <div
-            className="w-full flex items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground/70 border border-dashed border-border/70 rounded-sm bg-muted/30"
-            style={{ height: `${h}px`, minHeight: `${h}px` }}
+            className="flex items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground/70 border border-dashed border-border/70 rounded-sm bg-muted/30"
+            style={{ height: `${h}px`, minHeight: `${h}px`, ...widthStyle }}
             aria-label="Spacer"
           >
-            <span>↕ {h}px</span>
+            <span>
+              ↕ {h}px · {widthPct}%
+            </span>
           </div>
         );
       }
-      return <div style={{ height: `${h}px`, width: "100%" }} />;
+      return <div style={{ height: `${h}px`, ...widthStyle }} />;
     }
     case "social-icons": {
       const size = getNum(c, "size", 14);
