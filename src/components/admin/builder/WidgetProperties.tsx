@@ -359,62 +359,67 @@ export function WidgetProperties({
 .cms-panel-field-focus{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;transition:outline-color .2s;}`}</style>
       <WidgetLivePreview widget={widget} lang={lang} device={device} mode={mode} />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="mb-1.5 px-0.5">
-          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
-          <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
-        </div>
-        {widget.globalId && (
-          <GlobalWidgetBanner
-            globalId={widget.globalId}
-            onUnlink={() =>
-              onChange((w) => {
-                delete w.globalId;
-              })
-            }
-          />
-        )}
-        <div className="mb-2 px-0.5">
-          <div className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1">
-            Pozycja
+        <div className="mb-2 rounded-md border border-border bg-card/50 p-2 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[9px] uppercase tracking-wide text-muted-foreground">
+                Widget
+              </div>
+              <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
+            </div>
+            <div
+              className="inline-flex rounded-md border border-border overflow-hidden shrink-0"
+              role="group"
+              aria-label={t("builder.widgetProps.block") + " / " + t("builder.widgetProps.inline")}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setAdvanced((a) => {
+                    a.layout = undefined;
+                  })
+                }
+                className={`h-6 px-2 text-[10px] font-medium transition-colors ${(widget.advanced?.layout ?? "block") === "block" ? "bg-brand/10 text-brand" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                title={t("builder.widgetProps.blockLayoutTitle")}
+              >
+                {t("builder.widgetProps.block")}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setAdvanced((a) => {
+                    a.layout = "inline";
+                  })
+                }
+                className={`h-6 px-2 text-[10px] font-medium border-l border-border transition-colors ${widget.advanced?.layout === "inline" ? "bg-brand/10 text-brand" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                title={t("builder.widgetProps.inlineLayoutTitle")}
+              >
+                {t("builder.widgetProps.inline")}
+              </button>
+            </div>
           </div>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() =>
-                setAdvanced((a) => {
-                  a.layout = undefined;
+          {widget.globalId && (
+            <GlobalWidgetBanner
+              globalId={widget.globalId}
+              onUnlink={() =>
+                onChange((w) => {
+                  delete w.globalId;
                 })
               }
-              className={`flex-1 h-7 px-2 text-[11px] rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-              title={t("builder.widgetProps.blockLayoutTitle")}
-            >
-              {t("builder.widgetProps.block")}
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setAdvanced((a) => {
-                  a.layout = "inline";
-                })
-              }
-              className={`flex-1 h-7 px-2 text-[11px] rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-              title={t("builder.widgetProps.inlineLayoutTitle")}
-            >
-              {t("builder.widgetProps.inline")}
-            </button>
-          </div>
+            />
+          )}
+          <TabsList className="grid grid-cols-3 w-full h-7 p-0.5">
+            <TabsTrigger value="content" className="text-[11px] h-6">
+              {t("builder.widgetProps.tabContent")}
+            </TabsTrigger>
+            <TabsTrigger value="style" className="text-[11px] h-6">
+              {t("builder.widgetProps.tabStyle")}
+            </TabsTrigger>
+            <TabsTrigger value="advanced" className="text-[11px] h-6">
+              {t("builder.widgetProps.tabAdvanced")}
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <TabsList className="grid grid-cols-3 w-full h-6">
-          <TabsTrigger value="content" className="text-[11px]">
-            {t("builder.widgetProps.tabContent")}
-          </TabsTrigger>
-          <TabsTrigger value="style" className="text-[11px]">
-            {t("builder.widgetProps.tabStyle")}
-          </TabsTrigger>
-          <TabsTrigger value="advanced" className="text-[11px]">
-            {t("builder.widgetProps.tabAdvanced")}
-          </TabsTrigger>
-        </TabsList>
 
         <TabsContent value="content" className="space-y-2 mt-2">
           <ContentFields widget={widget} lang={lang} setContent={setContent} />
