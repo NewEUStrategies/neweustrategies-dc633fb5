@@ -189,11 +189,11 @@ export function MegaPanelView({
         {/* Featured column */}
         {showFeatured && featured ? (
           <div
-            className="border-l border-border/60 bg-muted/40 p-5 sm:p-6"
+            className="border-l border-border/60 bg-muted/40 p-3 sm:p-4"
             style={{ gridColumn: "span 4 / span 4" }}
           >
-            <div className="mb-3">
-              <span className="inline-block bg-brand px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-white">
+            <div className="mb-2">
+              <span className="inline-block bg-brand px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-white">
                 {eyebrowFallback}
               </span>
             </div>
@@ -203,7 +203,7 @@ export function MegaPanelView({
               role="menuitem"
             >
               {featured.cover_image_url ? (
-                <div className="mb-3 aspect-[16/10] w-full overflow-hidden rounded-sm ring-1 ring-border/60 shadow-sm">
+                <div className="mb-2 aspect-[16/10] w-full overflow-hidden rounded-sm ring-1 ring-border/60 shadow-sm">
                   <img
                     src={featured.cover_image_url}
                     alt=""
@@ -214,7 +214,7 @@ export function MegaPanelView({
                 </div>
               ) : null}
               {featuredTitle ? (
-                <h4 className="mb-1 text-[15px] font-black leading-tight text-foreground transition-colors group-hover:text-brand">
+                <h4 className="mb-1 text-[13px] font-black leading-tight text-foreground transition-colors group-hover:text-brand">
                   {featuredTitle}
                 </h4>
               ) : null}
