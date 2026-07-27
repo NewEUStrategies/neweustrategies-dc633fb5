@@ -424,7 +424,7 @@ function SearchBar({
   const { t } = useTranslation();
   return (
     <div
-      className={`flex items-center gap-2 border-b border-border/60 ${compact ? "px-3 py-2" : "px-3.5 py-2.5"}`}
+      className={`flex items-center gap-2 border-b border-border/60 ${compact ? "px-3 py-2" : "px-3.5 py-3 sm:py-2.5"}`}
     >
       <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
       <input
@@ -438,14 +438,18 @@ function SearchBar({
         aria-controls={listboxId}
         aria-activedescendant={activeOptionId}
         aria-autocomplete="list"
-        className="flex-1 border-0 bg-transparent text-[13px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+        enterKeyHint="search"
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        className="flex-1 border-0 bg-transparent text-[16px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 sm:text-[13px]"
         style={{ boxShadow: "none", WebkitTapHighlightColor: "transparent" }}
       />
       {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       {q && !loading && (
         <button
           onClick={() => setQ("")}
-          className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          className="rounded px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-muted hover:text-foreground sm:px-1.5 sm:py-0.5 sm:text-[10px]"
         >
           {t("searchOverlay.clear") as string}
         </button>
@@ -453,7 +457,7 @@ function SearchBar({
       <button
         onClick={onClose}
         aria-label={t("searchOverlay.close") as string}
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground pointer-coarse:h-9 pointer-coarse:w-9"
+        className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground sm:inline-flex pointer-coarse:h-9 pointer-coarse:w-9"
       >
         <X className="h-3.5 w-3.5" />
       </button>
