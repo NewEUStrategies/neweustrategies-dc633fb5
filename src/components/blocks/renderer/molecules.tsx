@@ -84,6 +84,10 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
   const href = safeUrl(str(block.data, "href"), "");
   const source = str(block.data, "source");
   const sourceUrl = safeUrl(str(block.data, "sourceUrl"), "");
+  const align = str(block.data, "align") || "center";
+  const size = str(block.data, "size") || "full";
+  const rounded = bool(block.data, "rounded", true);
+  const shadow = bool(block.data, "shadow", false);
   if (!url) return null;
   const rawW = num(block.data, "width", NaN);
   const rawH = num(block.data, "height", NaN);
@@ -91,11 +95,21 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
     Number.isFinite(rawW) && Number.isFinite(rawH) && rawW > 0 && rawH > 0
       ? { width: Math.round(rawW), height: Math.round(rawH) }
       : undefined;
+  const sizeCls =
+    size === "small" ? "max-w-xs" : size === "medium" ? "max-w-md" : "w-full";
+  const alignCls =
+    align === "left" ? "mr-auto" : align === "right" ? "ml-auto" : "mx-auto";
+  const imgCls = [
+    rounded ? "rounded-lg" : "",
+    shadow ? "shadow-lg" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   const img = (
     <OptimizedImage
       src={url}
       alt={alt}
-      className="rounded-lg"
+      className={imgCls}
       responsive
       sizes="(max-width: 768px) 100vw, 800px"
       width={dims?.width}
@@ -110,7 +124,7 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
     img
   );
   return (
-    <figure className={cls}>
+    <figure className={`${cls} ${sizeCls} ${alignCls}`}>
       {wrapped}
       {cap && (
         <figcaption className="text-sm text-muted-foreground text-center italic mt-2">
@@ -137,6 +151,7 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
     </figure>
   );
 };
+
 
 
 /** Blok kodu z podświetlaniem. */
