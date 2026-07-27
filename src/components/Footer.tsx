@@ -26,11 +26,15 @@ interface FooterProps {
 }
 
 export const Footer = memo(function Footer({ compact }: FooterProps) {
-  // SSR-correct language: derived from the request URL on the server and from
-  // the URL on hydration, so the footer's PL/EN content matches the rendered
-  // HTML on first paint (i18next's async language switch would flash the wrong
-  // language during SSR/hydration).
-  const lang = currentLang();
+  // Reactive language source: `currentLang()` gives the SSR-correct value on
+  // first render (from the request URL / client ref set synchronously by the
+  // switcher), while `useTranslation` subscribes the memoized footer to
+  // i18next `languageChanged` events so a runtime switch re-renders the
+  // subtree immediately - without waiting for a route navigation.
+  const { i18n } = useTranslation();
+  const runtimeLang = currentLang();
+  const lang: "pl" | "en" =
+    i18n.language?.startsWith("en") || runtimeLang === "en" ? "en" : "pl";
   const isPl = lang === "pl";
 
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
