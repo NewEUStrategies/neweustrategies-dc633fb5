@@ -243,6 +243,28 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
+        {pageSize > 0 && (
+          <PropField
+            label={l("Tryb doładowywania", "Load-more mode")}
+            hint={l(
+              "„Przycisk" = ręczne kliknięcie. „Scroll" = auto-doładowanie przy przewijaniu.",
+              "Button = manual click. Scroll = auto-load on scroll.",
+            )}
+          >
+            <Select
+              value={strOf((c as Record<string, unknown>).pageMode) || "button"}
+              onValueChange={(v) => setContent("pageMode", v)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="button">{l("Przycisk „Pokaż więcej"", "Load more button")}</SelectItem>
+                <SelectItem value="scroll">{l("Wczytaj przy scrollu", "Load on scroll")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+        )}
       </div>
 
       <div className="flex gap-2">
