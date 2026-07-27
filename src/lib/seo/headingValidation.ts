@@ -7,7 +7,15 @@
 // mirror the SeoIssue shape so the SeoPanel can render them alongside the
 // title/description warnings.
 
-export type HeadingIssueKind = "missing_h1" | "multiple_h1" | "skipped_level" | "empty_heading";
+export type HeadingIssueKind =
+  | "missing_h1"
+  | "multiple_h1"
+  | "extra_h1"
+  | "skipped_level"
+  | "empty_heading"
+  | "duplicate_heading"
+  | "too_long_heading"
+  | "shouty_heading";
 export type HeadingIssueSeverity = "error" | "warning";
 export type HeadingIssueLang = "pl" | "en";
 
@@ -18,8 +26,12 @@ export interface HeadingIssue {
   /** Details for skipped_level: the jump we detected. */
   from?: number;
   to?: number;
-  /** Count of H1s when kind = multiple_h1. */
+  /** Count of H1s (multiple_h1 / extra_h1) or empty headings / duplicates. */
   count?: number;
+  /** 1-based position of the heading in document order. */
+  position?: number;
+  /** Short plain-text snippet of the affected heading. */
+  snippet?: string;
 }
 
 interface HeadingRef {
