@@ -356,7 +356,16 @@ export function WidgetProperties({
   return (
     <div className="wp-compact">
       <style>{`.cms-preview-field-focus{outline:2px solid var(--brand) !important;outline-offset:3px;border-radius:4px;box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 25%, transparent);transition:outline-color .15s, box-shadow .15s;}
-.cms-panel-field-focus{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;transition:outline-color .2s;}`}</style>
+.cms-panel-field-focus{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;transition:outline-color .2s;}
+.wp-seg{display:inline-flex;width:100%;border:1px solid hsl(var(--border));border-radius:6px;overflow:hidden;background:hsl(var(--background));}
+.wp-seg > button{flex:1;min-width:0;height:26px;padding:0 8px;font-size:11px;line-height:1;font-weight:500;color:hsl(var(--muted-foreground));background:transparent;border:0;border-left:1px solid hsl(var(--border));transition:background-color .15s,color .15s;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;}
+.wp-seg > button:first-child{border-left:0;}
+.wp-seg > button:hover{background:hsl(var(--muted));color:hsl(var(--foreground));}
+.wp-seg > button[data-active="true"]{background:color-mix(in oklab, var(--brand) 12%, transparent);color:var(--brand);font-weight:600;}
+.wp-seg.wp-seg-grid{display:grid;grid-template-columns:1fr 1fr;}
+.wp-seg.wp-seg-grid > button:nth-child(2n+1){border-left:0;}
+.wp-seg.wp-seg-grid > button:nth-child(n+3){border-top:1px solid hsl(var(--border));}`}</style>
+
       <WidgetLivePreview widget={widget} lang={lang} device={device} mode={mode} />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="mb-2 rounded-md border border-border bg-card/50 p-2 space-y-2">
