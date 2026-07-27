@@ -26,15 +26,14 @@ interface FooterProps {
 }
 
 export const Footer = memo(function Footer({ compact }: FooterProps) {
-  // Reactive language source: `currentLang()` gives the SSR-correct value on
-  // first render (from the request URL / client ref set synchronously by the
-  // switcher), while `useTranslation` subscribes the memoized footer to
-  // i18next `languageChanged` events so a runtime switch re-renders the
-  // subtree immediately - without waiting for a route navigation.
-  const { i18n } = useTranslation();
-  const runtimeLang = currentLang();
-  const lang: "pl" | "en" =
-    i18n.language?.startsWith("en") || runtimeLang === "en" ? "en" : "pl";
+  // Reactive language: `currentLang()` is the SSR-correct source of truth
+  // (request URL on the server, live ref set synchronously by the switcher on
+  // the client). We subscribe to i18next `languageChanged` via `useTranslation`
+  // purely so the memoized footer re-renders when the user flips the language
+  // without a route navigation - the actual value still comes from
+  // currentLang() to avoid hydration mismatches.
+  useTranslation();
+  const lang = currentLang();
   const isPl = lang === "pl";
 
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
