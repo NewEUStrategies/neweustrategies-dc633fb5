@@ -91,7 +91,6 @@ const defaultHeaderDoc = (): BuilderDocument =>
                 instagram: "#",
                 linkedin: "#",
                 spotify: "#",
-                email: "",
                 size: 16,
               }),
             ]),

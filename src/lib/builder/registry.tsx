@@ -706,7 +706,7 @@ export const WIDGETS: WidgetDef[] = [
       youtube: "",
       instagram: "",
       linkedin: "",
-      email: "",
+      spotify: "",
       size: 16,
     }),
   },
