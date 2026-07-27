@@ -107,6 +107,9 @@ export function TailoredMustReadsView({
   const showKicker = getStr(c, "showKicker") !== "0";
   const showExcerpt = getStr(c, "showExcerpt") !== "0";
   const showAuthor = getStr(c, "showAuthor") !== "0";
+  const audienceRaw = getStr(c, "audience") || "auth";
+  const audience: "auth" | "all" | "guest" =
+    audienceRaw === "all" || audienceRaw === "guest" ? audienceRaw : "auth";
   const kicker =
     getStr(c, `kicker_${lang}`) ||
     (lang === "pl" ? "Polecane dla ciebie" : "Recommended for you");
@@ -130,10 +133,13 @@ export function TailoredMustReadsView({
     posts.map((p) => p.author_id).filter((id): id is string => !!id),
   );
 
-  // Widget dostępny wyłącznie dla zalogowanych - dla gości nie renderujemy nic
-  // (żeby nie zostawiać pustego bloku w layoucie strony).
+  // Reguły widoczności zgodne z ustawieniem "audience" w edytorze widgetu.
+  // Domyślnie widget jest dostępny wyłącznie dla zalogowanych (rekomendacje
+  // wymagają zainteresowań / historii). Nie renderujemy pustego bloku.
   if (authLoading) return null;
-  if (!user) return null;
+  if (audience === "auth" && !user) return null;
+  if (audience === "guest" && user) return null;
+
 
 
   const gridCols =
