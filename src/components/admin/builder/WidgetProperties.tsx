@@ -807,7 +807,7 @@ export function WidgetProperties({
                 }
               >
                 <StepperInput
-                  value={widgetWidthValue}
+                  value={String(widgetWidthValue)}
                   min={widgetWidthMode === "percent" ? 1 : 8}
                   max={widgetWidthMode === "percent" ? 100 : 4000}
                   onChange={(value) => {

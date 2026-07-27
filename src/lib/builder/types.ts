@@ -107,7 +107,8 @@ export type MotionEasing =
   | "spring"
   | "bounce";
 
-type WidgetSize = number | "auto" | `${number}%`;
+type WidgetSize = number | "auto";
+type WidgetWidth = WidgetSize | `${number}%`;
 
 export type AccessAuthMode = "any" | "guest" | "user";
 export type AccessRole = "admin" | "editor" | "author";
@@ -158,7 +159,7 @@ export interface AdvancedSettings {
   htmlId?: string;
   // Per-breakpoint widget frame size. `number` = px, "auto" = hug content.
   // Legacy projects may still use a flat number - read with `pickWidgetSize`.
-  width?: ResponsiveValue<WidgetSize> | number;
+  width?: ResponsiveValue<WidgetWidth> | number;
   height?: ResponsiveValue<WidgetSize> | number;
   /** Section-only: marks this section as a variant of an A/B experiment. */
   abTest?: AbTestTag;
