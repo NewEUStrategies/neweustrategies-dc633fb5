@@ -83,7 +83,7 @@ describe("updateFootnoteAtOrigin", () => {
     const d = doc(blocks);
     const origins = collectFootnoteOrigins(d);
     const next = updateFootnoteAtOrigin(d, origins[0].origin, "  ");
-    expect((next.blocks[0].data as { html: string }).html).toBe(" B[fn]two[/fn]");
+    expect((next.blocks[0].data as { html: string }).html).toBe("A B[fn]two[/fn]");
   });
 
   it("działa dla list, table, quote i kontenerów", () => {
