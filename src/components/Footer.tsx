@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
@@ -15,6 +15,7 @@ import { CopyrightBar } from "@/components/footer/CopyrightBar";
 import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
 import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
 import { currentLang } from "@/lib/i18n/localeRuntime";
+import type { AppLang } from "@/lib/i18n/localePath";
 
 type FooterSettings = {
   builder_data?: BuilderDocument | null;
@@ -26,15 +27,28 @@ interface FooterProps {
 }
 
 export const Footer = memo(function Footer({ compact }: FooterProps) {
-  // Reactive language: `currentLang()` is the SSR-correct source of truth
-  // (request URL on the server, live ref set synchronously by the switcher on
-  // the client). We subscribe to i18next `languageChanged` via `useTranslation`
-  // purely so the memoized footer re-renders when the user flips the language
-  // without a route navigation - the actual value still comes from
-  // currentLang() to avoid hydration mismatches.
-  useTranslation();
-  const lang = currentLang();
+  // SSR-safe seed: currentLang() reads the request URL on the server and the
+  // live client ref during hydration, so the first render matches the HTML the
+  // browser received. After hydration we subscribe to i18next's
+  // `languageChanged` event and mirror i18n.language into state so the footer
+  // re-renders synchronously whenever the user flips the switcher - even when
+  // the router navigation is deferred or the memoized wrapper would otherwise
+  // bail out on identical props.
+  const { i18n } = useTranslation();
+  const [lang, setLang] = useState<AppLang>(() => currentLang());
+  useEffect(() => {
+    const sync = () => {
+      const next: AppLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+      setLang((prev) => (prev === next ? prev : next));
+    };
+    sync();
+    i18n.on("languageChanged", sync);
+    return () => {
+      i18n.off("languageChanged", sync);
+    };
+  }, [i18n]);
   const isPl = lang === "pl";
+
 
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<FooterSettings>(settingsMap, "footer", {});
