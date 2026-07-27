@@ -14,7 +14,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Check, X, Trash2 } from "lucide-react";
+import { Pencil, Check, X, Trash2, AlertTriangle } from "lucide-react";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import { renderFootnoteHtml } from "@/components/blocks/renderer";
@@ -23,6 +23,10 @@ import {
   updateFootnoteAtOrigin,
   type FootnoteEntry,
 } from "@/lib/blocks/footnoteOrigins";
+import {
+  validateFootnotes,
+  type FootnoteIssue,
+} from "@/lib/blocks/footnoteValidation";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-public";
@@ -44,7 +48,14 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
     return collectFootnoteOrigins({ ...doc, blocks: safe.blocks } as BlocksDoc);
   }, [doc]);
 
-  if (entries.length === 0) return null;
+  const issues: FootnoteIssue[] = useMemo(() => {
+    if (!doc?.blocks?.length) return [];
+    const safe = safeParseBlocks(doc);
+    if (!safe.blocks.length) return [];
+    return validateFootnotes({ ...doc, blocks: safe.blocks } as BlocksDoc);
+  }, [doc]);
+
+  if (entries.length === 0 && issues.length === 0) return null;
 
   const canEdit = typeof onChange === "function";
 
@@ -100,6 +111,41 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
           </span>
         ) : null}
       </div>
+      {issues.length > 0 ? (
+        <div
+          role="alert"
+          className="mb-3 rounded border border-amber-400/60 bg-amber-50/70 dark:bg-amber-950/30 px-3 py-2 text-[12px] text-amber-900 dark:text-amber-100"
+        >
+          <div className="flex items-center gap-1.5 font-semibold mb-1">
+            <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+            {t("admin.autoFootnotes.warningsTitle", {
+              defaultValue: "Wykryto problem(y) z markerami [fn]…[/fn]: {{count}}",
+              count: issues.length,
+            })}
+          </div>
+          <ul className="space-y-1 pl-5 list-disc">
+            {issues.map((iss, idx) => (
+              <li key={`${iss.kind}:${iss.path.join("/")}:${idx}`}>
+                <span className="font-medium">
+                  {t("admin.autoFootnotes.blockLabel", {
+                    defaultValue: "Blok #{{n}} ({{type}})",
+                    n: iss.blockIndex + 1,
+                    type: iss.blockType,
+                  })}
+                  :
+                </span>{" "}
+                {iss.message}
+                {iss.excerpt ? (
+                  <code className="ml-1 rounded bg-amber-100/70 dark:bg-amber-900/40 px-1 py-0.5 text-[11px]">
+                    {iss.excerpt}
+                  </code>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {entries.length === 0 ? null : (
       <ol className="space-y-1.5 pl-5 list-decimal text-sm text-foreground/85">
         {entries.map((e) => {
           const isEditing = editingId === e.id;
@@ -189,6 +235,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
           );
         })}
       </ol>
+      )}
     </section>
   );
 }
