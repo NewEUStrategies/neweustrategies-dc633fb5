@@ -5891,3 +5891,23 @@ textarea.input {
   color: var(--foreground);
   margin-right: 0.25rem;
 }
+
+/* Social/anchor-only list imported from WP: keep the links, drop the bullets,
+   lay them out inline. Applied automatically by normalizeBuilderRichHtml. */
+.cms-social-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.cms-social-list > li {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.cms-social-list > li::before,
+.cms-social-list > li::marker {
+  content: none;
+}
