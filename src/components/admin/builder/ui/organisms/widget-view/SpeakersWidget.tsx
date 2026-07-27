@@ -1,4 +1,5 @@
-// Widget "Speakers" - kartowa siatka prelegentów z filtrem kategorii.
+// Widget "Speakers" - kartowa siatka prelegentów z filtrem kategorii,
+// wyszukiwarką, sortowaniem (ocena/wystąpienia/opinie) i paginacją "load more".
 // Wzorzec UI zainspirowany designem "mentors-section" (portret + rola + ocena
 // + opis), zaadaptowany do naszej typografii (.cms-*), tokenów Theme Design
 // i dark/light modes. Każdy speaker ma pola i18n (rola/kategoria/opis) oraz
@@ -6,12 +7,13 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
-import { Star, User as UserIcon } from "@/lib/lucide-shim";
+import { Star, User as UserIcon, Search as SearchIcon } from "@/lib/lucide-shim";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { getStr, type Lang } from "./frame";
 
 type SpeakerItem = Record<string, unknown>;
+type SortKey = "default" | "rating" | "gigs" | "reviews";
 
 const ALL_KEY = "__all__";
 
@@ -38,7 +40,9 @@ function StarRow({ rating }: { rating: number }) {
           key={i}
           className={
             "h-3 w-3 " +
-            (i < rounded ? "fill-[color:var(--brand)] text-[color:var(--brand)]" : "text-muted-foreground/40")
+            (i < rounded
+              ? "fill-[color:var(--brand)] text-[color:var(--brand)]"
+              : "text-muted-foreground/40")
           }
         />
       ))}
@@ -54,6 +58,10 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   const columnsRaw = numOf(cRaw.columns, 3);
   const columns = Math.min(4, Math.max(2, Math.round(columnsRaw))) as 2 | 3 | 4;
   const accent = getStr(c, "accentColor") || "var(--brand)";
+
+  const enableSearch = cRaw.enableSearch !== false;
+  const enableSort = cRaw.enableSort !== false;
+  const pageSize = Math.max(0, Math.round(numOf(cRaw.pageSize, 0)));
 
   const speakers: SpeakerItem[] = Array.isArray(cRaw.speakers)
     ? (cRaw.speakers as unknown[]).filter(
@@ -74,11 +82,37 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   }, [speakers, lang]);
 
   const [active, setActive] = useState<string>(ALL_KEY);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("default");
+  const [visibleCount, setVisibleCount] = useState<number>(pageSize > 0 ? pageSize : 0);
 
-  const visible = useMemo(() => {
-    if (active === ALL_KEY) return speakers;
-    return speakers.filter((s) => loc(s, "category", lang).trim() === active);
-  }, [speakers, active, lang]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let list = speakers.filter((s) => {
+      if (active !== ALL_KEY && loc(s, "category", lang).trim() !== active) return false;
+      if (!q) return true;
+      const hay = [
+        getStr(s as WidgetContent, "name"),
+        loc(s, "role", lang),
+        loc(s, "description", lang),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+    if (sort !== "default") {
+      const key = sort;
+      list = list.slice().sort((a, b) => numOf(b[key]) - numOf(a[key]));
+    }
+    return list;
+  }, [speakers, active, query, sort, lang]);
+
+  const paginated = useMemo(() => {
+    if (pageSize <= 0 || visibleCount <= 0) return filtered;
+    return filtered.slice(0, visibleCount);
+  }, [filtered, pageSize, visibleCount]);
+
+  const canLoadMore = pageSize > 0 && paginated.length < filtered.length;
 
   const gridClass =
     columns === 2
@@ -89,6 +123,15 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
 
   const accentStyle: CSSProperties = { ["--speakers-accent" as string]: accent };
   const allLabel = lang === "pl" ? "Wszyscy" : "All";
+
+  const sortOptions: { value: SortKey; label: string }[] = [
+    { value: "default", label: lang === "pl" ? "Kolejność" : "Default" },
+    { value: "rating", label: lang === "pl" ? "Najlepsza ocena" : "Top rated" },
+    { value: "gigs", label: lang === "pl" ? "Najwięcej wystąpień" : "Most gigs" },
+    { value: "reviews", label: lang === "pl" ? "Najwięcej opinii" : "Most reviews" },
+  ];
+
+  const resetPagination = () => setVisibleCount(pageSize > 0 ? pageSize : 0);
 
   return (
     <section className="cms-speakers space-y-6" style={accentStyle}>
@@ -102,14 +145,20 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
           >
             <FilterChip
               active={active === ALL_KEY}
-              onClick={() => setActive(ALL_KEY)}
+              onClick={() => {
+                setActive(ALL_KEY);
+                resetPagination();
+              }}
               label={allLabel}
             />
             {categories.map((cat) => (
               <FilterChip
                 key={cat}
                 active={active === cat}
-                onClick={() => setActive(cat)}
+                onClick={() => {
+                  setActive(cat);
+                  resetPagination();
+                }}
                 label={cat}
               />
             ))}
@@ -117,19 +166,89 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
         )}
       </header>
 
+      {(enableSearch || enableSort) && speakers.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {enableSearch && (
+            <label className="relative flex-1">
+              <span className="sr-only">{lang === "pl" ? "Szukaj" : "Search"}</span>
+              <SearchIcon
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60"
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  resetPagination();
+                }}
+                placeholder={
+                  lang === "pl"
+                    ? "Szukaj po imieniu, roli, opisie…"
+                    : "Search by name, role, description…"
+                }
+                className="h-10 w-full rounded-[6px] border border-border/60 bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/50"
+              />
+            </label>
+          )}
+          {enableSort && (
+            <label className="flex items-center gap-2">
+              <span className="cms-meta text-muted-foreground">
+                {lang === "pl" ? "Sortuj:" : "Sort:"}
+              </span>
+              <select
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value as SortKey);
+                  resetPagination();
+                }}
+                className="h-10 rounded-[6px] border border-border/60 bg-background px-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/50"
+              >
+                {sortOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
+
       <div
-        key={active}
+        key={`${active}-${sort}-${query}`}
         className={`grid animate-in fade-in-0 duration-200 grid-cols-1 ${gridClass} gap-4 sm:gap-5`}
       >
-        {visible.map((s, i) => (
+        {paginated.map((s, i) => (
           <SpeakerCard key={(s.id as string) ?? i} item={s} lang={lang} />
         ))}
-        {visible.length === 0 && (
+        {paginated.length === 0 && (
           <p className="cms-meta col-span-full text-center italic text-muted-foreground">
-            {lang === "pl" ? "Brak prelegentów w tej kategorii." : "No speakers in this category."}
+            {query
+              ? lang === "pl"
+                ? "Brak wyników wyszukiwania."
+                : "No results."
+              : lang === "pl"
+                ? "Brak prelegentów w tej kategorii."
+                : "No speakers in this category."}
           </p>
         )}
       </div>
+
+      {canLoadMore && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setVisibleCount((n) => n + (pageSize > 0 ? pageSize : filtered.length))}
+            className="rounded-[6px] border border-border/70 bg-background px-5 py-2 text-sm font-medium text-foreground transition-colors hover:bg-[color:var(--speakers-accent)]/10 hover:border-[color:var(--speakers-accent)]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/50"
+          >
+            {lang === "pl" ? "Pokaż więcej" : "Load more"}
+            <span className="ml-2 text-xs text-muted-foreground">
+              ({paginated.length}/{filtered.length})
+            </span>
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -162,7 +281,9 @@ function FilterChip({
 }
 
 function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
-  const photo = safeImageUrl(getStr(item as WidgetContent, "photo") || getStr(item as WidgetContent, "image"));
+  const photo = safeImageUrl(
+    getStr(item as WidgetContent, "photo") || getStr(item as WidgetContent, "image"),
+  );
   const name = getStr(item as WidgetContent, "name");
   const role = loc(item, "role", lang);
   const description = loc(item, "description", lang);
@@ -176,7 +297,9 @@ function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
     <article
       className={
         "group relative flex h-full flex-col overflow-hidden rounded-[10px] border border-border/60 bg-card text-card-foreground shadow-sm transition-all duration-300 " +
-        (href ? "hover:-translate-y-0.5 hover:shadow-md hover:border-[color:var(--speakers-accent)]/40" : "")
+        (href
+          ? "hover:-translate-y-0.5 hover:shadow-md hover:border-[color:var(--speakers-accent)]/40"
+          : "")
       }
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
