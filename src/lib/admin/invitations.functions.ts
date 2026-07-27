@@ -259,7 +259,7 @@ async function performSend(
   const meta = (inv.metadata ?? {}) as Record<string, unknown>;
   const email = inv.email;
   const displayName = inv.display_name ?? email;
-  const origin = process.env.PUBLIC_APP_URL ?? "https://neweustrategies.lovable.app";
+  const origin = process.env.PUBLIC_APP_URL ?? "https://neweuropeanstrategies.com";
 
   let authUserId: string | null = inv.auth_user_id;
   let tempPassword: string | undefined;
