@@ -178,86 +178,168 @@ export function AdminColorPicker({
             style={swatchStyle}
           />
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[204px] p-2 space-y-1.5">
-          <div className="admin-color-picker-canvas">
-            <HexColorPicker color={hexForPicker} onChange={commitHex} />
-          </div>
+        <PopoverContent
+          align="start"
+          className="w-[520px] p-0 overflow-hidden rounded-xl border border-border shadow-2xl"
+          style={{ fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif' }}
+        >
+          <div className="flex">
+            {/* LEFT: Canvas + hue slider */}
+            <div className="flex-1 p-4 bg-muted/30 border-r border-border">
+              <div className="admin-color-picker-canvas admin-color-picker-canvas--lg">
+                <HexColorPicker color={hexForPicker} onChange={commitHex} />
+              </div>
+            </div>
 
-          {/* HEX first - most important */}
-          <div className="space-y-[2px]">
-            <label className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold leading-none">
-              HEX
-            </label>
-            <Input
-              value={hexDraft.toUpperCase()}
-              onChange={(e) => {
-                const next = e.target.value.startsWith("#") ? e.target.value : `#${e.target.value}`;
-                setHexDraft(next);
-                if (isHex(next)) onChange(expandHex(next));
-              }}
-              className="h-[18px] text-[9px] font-mono uppercase px-1.5 leading-none"
-              spellCheck={false}
-            />
-          </div>
-
-          {/* RGB */}
-          <div className="space-y-[2px]">
-            <label className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold leading-none">
-              RGB
-            </label>
-            <div className="grid grid-cols-3 gap-1">
-              {(["r", "g", "b"] as const).map((k) => (
-                <div key={k} className="relative">
-                  <Input
-                    type="number"
-                    min={0}
-                    max={255}
-                    value={rgb[k]}
-                    onChange={(e) => {
-                      const n = Math.max(0, Math.min(255, Number(e.target.value) || 0));
-                      const next = { ...rgb, [k]: n };
-                      commitHex(rgbToHex(next.r, next.g, next.b));
+            {/* RIGHT: Values + active token */}
+            <div className="w-[240px] p-4 flex flex-col gap-3 bg-background">
+              {/* Active preview + token */}
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-12 w-12 rounded-lg border border-border shadow-inner shrink-0"
+                  style={swatchStyle}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
+                    {ac("activeToken") || "Active"}
+                  </div>
+                  <div
+                    className="px-2 py-1 text-[11px] font-mono rounded border truncate"
+                    style={{
+                      background: "color-mix(in oklab, var(--primary) 10%, transparent)",
+                      color: "var(--primary)",
+                      borderColor: "color-mix(in oklab, var(--primary) 25%, transparent)",
                     }}
-                    className="h-[18px] text-[9px] pl-1 pr-3 font-mono leading-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] uppercase text-muted-foreground pointer-events-none font-semibold">
-                    {k}
-                  </span>
+                    title={hasOverride ? v : inherited || hexForPicker}
+                  >
+                    {hasOverride ? v : inherited || hexForPicker}
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* HEX */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  HEX
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                    #
+                  </span>
+                  <Input
+                    value={hexDraft.replace(/^#/, "").toUpperCase()}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/^#/, "");
+                      const next = `#${raw}`;
+                      setHexDraft(next);
+                      if (isHex(next)) onChange(expandHex(next));
+                    }}
+                    className="h-8 text-xs font-mono uppercase pl-5"
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+
+              {/* RGB */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  RGB
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(["r", "g", "b"] as const).map((k) => (
+                    <div key={k} className="flex flex-col items-center gap-0.5">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={255}
+                        value={rgb[k]}
+                        onChange={(e) => {
+                          const n = Math.max(0, Math.min(255, Number(e.target.value) || 0));
+                          const next = { ...rgb, [k]: n };
+                          commitHex(rgbToHex(next.r, next.g, next.b));
+                        }}
+                        className="h-7 text-[11px] text-center font-mono px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-[9px] font-semibold uppercase text-muted-foreground">
+                        {k}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* HSL */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  HSL
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(["h", "s", "l"] as const).map((k) => (
+                    <div key={k} className="flex flex-col items-center gap-0.5">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={k === "h" ? 360 : 100}
+                        value={hsl[k]}
+                        onChange={(e) => {
+                          const n = Math.max(
+                            0,
+                            Math.min(k === "h" ? 360 : 100, Number(e.target.value) || 0),
+                          );
+                          const next = { ...hsl, [k]: n };
+                          const c = hslToRgb(next.h, next.s, next.l);
+                          commitHex(rgbToHex(c.r, c.g, c.b));
+                        }}
+                        className="h-7 text-[11px] text-center font-mono px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-[9px] font-semibold uppercase text-muted-foreground">
+                        {k}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {allowReset && showInherited ? (
+                <button
+                  type="button"
+                  onClick={() => onChange(undefined)}
+                  className="mt-auto w-full h-8 flex items-center justify-center gap-1.5 text-[11px] font-medium text-muted-foreground border border-border rounded-md bg-muted/40 hover:bg-muted transition-colors"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  {ac("resetInherited") || ac("resetDefault")}
+                </button>
+              ) : null}
             </div>
           </div>
 
-          {/* HSL */}
-          <div className="space-y-[2px]">
-            <label className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold leading-none">
-              HSL
-            </label>
-            <div className="grid grid-cols-3 gap-1">
-              {(["h", "s", "l"] as const).map((k) => (
-                <div key={k} className="relative">
-                  <Input
-                    type="number"
-                    min={0}
-                    max={k === "h" ? 360 : 100}
-                    value={hsl[k]}
-                    onChange={(e) => {
-                      const n = Math.max(
-                        0,
-                        Math.min(k === "h" ? 360 : 100, Number(e.target.value) || 0),
-                      );
-                      const next = { ...hsl, [k]: n };
-                      const c = hslToRgb(next.h, next.s, next.l);
-                      commitHex(rgbToHex(c.r, c.g, c.b));
-                    }}
-                    className="h-[18px] text-[9px] pl-1 pr-3 font-mono leading-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] uppercase text-muted-foreground pointer-events-none font-semibold">
-                    {k}
-                  </span>
-                </div>
-              ))}
-            </div>
+          {/* FOOTER: brand palette swatches */}
+          <div className="border-t border-border bg-background px-3 py-2.5 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+              {ac("brandPalette") || "Paleta"}
+            </span>
+            {[
+              "#FA9346",
+              "#F8B632",
+              "#FECA62",
+              "#63B2F2",
+              "#81D365",
+              "#F24343",
+              "#CD393B",
+              "#F8F6F4",
+              "#01112F",
+              "#141313",
+            ].map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => commitHex(c)}
+                title={c}
+                aria-label={c}
+                className="h-5 w-5 rounded-full border border-border/70 shadow-sm transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                style={{ background: c }}
+              />
+            ))}
           </div>
         </PopoverContent>
       </Popover>
