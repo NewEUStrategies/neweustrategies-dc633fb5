@@ -40,7 +40,7 @@ export function DynamicTagInserter({ onInsert, label, compact = true }: Props) {
             compact ? "h-8 w-8" : "h-9 w-9"
           } shrink-0 inline-flex items-center justify-center rounded border border-border bg-background text-muted-foreground hover:text-foreground hover:border-brand/60 transition-colors`}
         >
-          <Braces className="w-3.5 h-3.5" />
+          <Wand2 className="w-3.5 h-3.5" />
         </button>
       </PopoverTrigger>
       <PopoverContent
