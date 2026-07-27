@@ -40,6 +40,7 @@ import { SearchButtonWidget } from "./SearchButtonWidget";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
 import { AccountMenuWidget, type AccountMenuConfig } from "./AccountMenuWidget";
 import { TeamMemberWidget } from "./TeamMemberWidget";
+import { SpeakersWidget } from "./SpeakersWidget";
 import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
 import { CounterWidget } from "./CounterWidget";
 import { TocWidget } from "./TocWidget";
@@ -1210,6 +1211,9 @@ export function renderSimpleWidget(
     }
     case "team-member": {
       return <TeamMemberWidget node={node} lang={lang} />;
+    }
+    case "speakers": {
+      return <SpeakersWidget node={node} lang={lang} />;
     }
     case "interactive-circle": {
       return <InteractiveCircleWidget node={node} lang={lang} />;

@@ -88,6 +88,7 @@ import {
   HeadingFallbackPreview,
   TeamMemberEditor,
   InteractiveCircleEditor,
+  SpeakersEditor,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
@@ -1338,6 +1339,8 @@ function ContentFields({
       return <TeamMemberEditor c={c} lang={lang} setContent={setContent} />;
     case "interactive-circle":
       return <InteractiveCircleEditor c={c} lang={lang} setContent={setContent} />;
+    case "speakers":
+      return <SpeakersEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.
