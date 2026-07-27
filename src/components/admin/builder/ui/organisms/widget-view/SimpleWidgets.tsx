@@ -181,13 +181,14 @@ export function renderSimpleWidget(
           : editable
             ? "flex-1 border-t border-foreground/60"
             : "flex-1 border-t border-border";
+        const iconColor = getStr(c, "iconColor");
         return wrap(
           <div
             className="flex items-center gap-3 text-muted-foreground"
             style={{ ...widthStyle, ...(color ? { color } : {}) }}
           >
             <div className={lineCls} style={lineStyle} />
-            <Icon size={16} />
+            <Icon size={16} color={iconColor || undefined} />
             <div className={lineCls} style={lineStyle} />
           </div>,
         );
