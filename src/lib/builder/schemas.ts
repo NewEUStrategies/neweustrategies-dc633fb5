@@ -2700,7 +2700,17 @@ pushLabelsFor("contact-form", [
   {
     key: "showExcerpt",
     type: "select",
-    label: "Pokaż zajawkę",
+    label: "Pokaż opis (zajawkę)",
+    options: [
+      { value: "1", label: "Tak" },
+      { value: "0", label: "Nie" },
+    ],
+    default: "1",
+  },
+  {
+    key: "showAuthor",
+    type: "select",
+    label: "Pokaż autora (zdjęcie + imię i nazwisko)",
     options: [
       { value: "1", label: "Tak" },
       { value: "0", label: "Nie" },

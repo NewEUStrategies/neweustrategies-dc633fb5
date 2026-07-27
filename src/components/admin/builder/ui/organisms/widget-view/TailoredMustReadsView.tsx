@@ -64,6 +64,33 @@ function renderLabel(template: string, name: string, lang: Lang): string {
     .replace(/\{name\}/gi, vocative);
 }
 
+type AuthorInfo = { display_name: string | null; slug: string | null; avatar_url: string | null };
+
+function useAuthorsMap(authorIds: string[]) {
+  const key = [...new Set(authorIds.filter(Boolean))].sort();
+  return useQuery({
+    queryKey: ["tailored-authors", key],
+    enabled: key.length > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<Record<string, AuthorInfo>> => {
+      const { data, error } = await supabase
+        .from("profiles_public")
+        .select("id, display_name, slug, avatar_url")
+        .in("id", key);
+      if (error) return {};
+      const map: Record<string, AuthorInfo> = {};
+      for (const row of (data ?? []) as Array<{ id: string } & AuthorInfo>) {
+        map[row.id] = {
+          display_name: row.display_name,
+          slug: row.slug,
+          avatar_url: row.avatar_url,
+        };
+      }
+      return map;
+    },
+  });
+}
+
 export function TailoredMustReadsView({
   c,
   lang,
@@ -79,6 +106,7 @@ export function TailoredMustReadsView({
   const columns = Math.min(Math.max(getNum(c, "columns", 3), 1), 4);
   const showKicker = getStr(c, "showKicker") !== "0";
   const showExcerpt = getStr(c, "showExcerpt") !== "0";
+  const showAuthor = getStr(c, "showAuthor") !== "0";
   const kicker =
     getStr(c, `kicker_${lang}`) ||
     (lang === "pl" ? "Polecane dla ciebie" : "Recommended for you");
@@ -97,6 +125,9 @@ export function TailoredMustReadsView({
   }, [template, firstName, lang, user, fallbackNoUser]);
 
   const { data: posts = [], isLoading } = useRecommendedPosts(limit);
+  const { data: authorsMap = {} } = useAuthorsMap(
+    posts.map((p) => p.author_id).filter((id): id is string => !!id),
+  );
 
   const gridCols =
     columns === 1
@@ -106,17 +137,6 @@ export function TailoredMustReadsView({
         : columns === 4
           ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
           : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
-
-  const reasonLabel = (r: string): string => {
-    const map: Record<string, { pl: string; en: string }> = {
-      author: { pl: "Bo obserwujesz autora", en: "Because you follow the author" },
-      category: { pl: "Z twojej kategorii", en: "From your category" },
-      tag: { pl: "Twój temat", en: "Your topic" },
-      history: { pl: "Kontynuuj czytanie", en: "Continue reading" },
-      fresh: { pl: "Świeże", en: "Fresh" },
-    };
-    return map[r]?.[lang] ?? r;
-  };
 
   return (
     <section className="w-full" data-widget="tailored-must-reads">
@@ -156,7 +176,11 @@ export function TailoredMustReadsView({
             const excerpt =
               (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || p.excerpt_pl || p.excerpt_en;
             const href = localizedPath(`/post/${p.slug}`, lang);
-            const reason = Array.isArray(p.reasons) && p.reasons.length ? p.reasons[0] : "fresh";
+            const author = p.author_id ? authorsMap[p.author_id] : undefined;
+            const authorName = author?.display_name?.trim() || "";
+            const authorHref = author?.slug
+              ? localizedPath(`/author/${author.slug}`, lang)
+              : null;
             return (
               <li key={p.id} className="group flex flex-col gap-3">
                 <AppLink
@@ -172,9 +196,48 @@ export function TailoredMustReadsView({
                   />
                 </AppLink>
                 <div className="flex min-w-0 flex-col gap-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
-                    {reasonLabel(reason)}
-                  </span>
+                  {showAuthor && authorName ? (
+                    authorHref ? (
+                      <AppLink
+                        href={authorHref}
+                        className="inline-flex items-center gap-2 min-w-0 text-[12px] font-medium text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        {author?.avatar_url ? (
+                          <img
+                            src={author.avatar_url}
+                            alt=""
+                            width={20}
+                            height={20}
+                            loading="lazy"
+                            className="h-5 w-5 shrink-0 rounded-full object-cover"
+                            style={{ borderRadius: 5 }}
+                          />
+                        ) : (
+                          <span
+                            aria-hidden
+                            className="h-5 w-5 shrink-0 bg-muted"
+                            style={{ borderRadius: 5 }}
+                          />
+                        )}
+                        <span className="truncate">{authorName}</span>
+                      </AppLink>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 min-w-0 text-[12px] font-medium text-muted-foreground">
+                        {author?.avatar_url ? (
+                          <img
+                            src={author.avatar_url}
+                            alt=""
+                            width={20}
+                            height={20}
+                            loading="lazy"
+                            className="h-5 w-5 shrink-0 object-cover"
+                            style={{ borderRadius: 5 }}
+                          />
+                        ) : null}
+                        <span className="truncate">{authorName}</span>
+                      </span>
+                    )
+                  ) : null}
                   <AppLink href={href} className="min-w-0">
                     <h3 className="line-clamp-3 font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
                       {title}
@@ -192,3 +255,4 @@ export function TailoredMustReadsView({
     </section>
   );
 }
+
