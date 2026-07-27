@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
@@ -12,6 +12,8 @@ import {
 } from "@/lib/theme/footerSettings";
 import { BackToTop } from "@/components/footer/BackToTop";
 import { CopyrightBar } from "@/components/footer/CopyrightBar";
+import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
+import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
 
 type FooterSettings = {
   builder_data?: BuilderDocument | null;
