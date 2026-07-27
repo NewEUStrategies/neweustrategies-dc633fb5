@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Upload, GripVertical } from "@/lib/lucide-shim";
+import { Download, Upload, GripVertical, Copy } from "@/lib/lucide-shim";
 import {
   DndContext,
   PointerSensor,
@@ -82,10 +82,14 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
   const patch = (i: number, p: Partial<Item>) =>
     commit(speakers.map((x, j) => (j === i ? { ...x, ...p } : x)));
   const remove = (i: number) => commit(speakers.filter((_, j) => j !== i));
+  const duplicate = (i: number) =>
+    commit([
+      ...speakers.slice(0, i + 1),
+      { ...speakers[i], id: `sp-${Date.now().toString(36)}` },
+      ...speakers.slice(i + 1),
+    ]);
 
-  const itemIds = speakers.map(
-    (s, i) => (typeof s.id === "string" && s.id ? s.id : `sp-idx-${i}`),
-  );
+  const itemIds = speakers.map((s, i) => (typeof s.id === "string" && s.id ? s.id : `sp-idx-${i}`));
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -125,6 +129,13 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
   const pageSize = numOf((c as Record<string, unknown>).pageSize, 0);
 
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
+
+  // Podpowiedzi kategorii (datalist) z już wpisanych wartości - pomagają
+  // utrzymać spójne nazwy, od których zależą filtry w widoku publicznym.
+  const categorySuggestions = {
+    pl: [...new Set(speakers.map((s) => strOf(s.category_pl).trim()).filter(Boolean))],
+    en: [...new Set(speakers.map((s) => strOf(s.category_en).trim()).filter(Boolean))],
+  };
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -172,7 +183,10 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
         }));
       commit(mode === "replace" ? normalized : [...speakers, ...normalized]);
       toast.success(
-        l(`Zaimportowano ${normalized.length} prelegentów`, `Imported ${normalized.length} speakers`),
+        l(
+          `Zaimportowano ${normalized.length} prelegentów`,
+          `Imported ${normalized.length} speakers`,
+        ),
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -215,10 +229,7 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
           hint={l("Filtruje po imieniu, roli, opisie", "Filters by name, role, description")}
           inline
         >
-          <Switch
-            checked={enableSearch}
-            onCheckedChange={(v) => setContent("enableSearch", v)}
-          />
+          <Switch checked={enableSearch} onCheckedChange={(v) => setContent("enableSearch", v)} />
         </PropField>
         <PropField
           label={l("Sortowanie", "Sorting")}
@@ -322,11 +333,7 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
             "Drag the handle to reorder. Manual order overrides sorting by rating/gigs/reviews.",
           )}
         </p>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
               {speakers.map((it, i) => (
@@ -336,8 +343,10 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
                   item={it}
                   index={i}
                   lang={lang}
+                  categorySuggestions={categorySuggestions}
                   onPatch={(p) => patch(i, p)}
                   onRemove={() => remove(i)}
+                  onDuplicate={() => duplicate(i)}
                 />
               ))}
             </div>
@@ -353,11 +362,22 @@ interface RowProps {
   item: Item;
   index: number;
   lang: "pl" | "en";
+  categorySuggestions: { pl: string[]; en: string[] };
   onPatch: (p: Partial<Item>) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
 }
 
-function SortableSpeakerRow({ id, item: it, index: i, lang, onPatch, onRemove }: RowProps) {
+function SortableSpeakerRow({
+  id,
+  item: it,
+  index: i,
+  lang,
+  categorySuggestions,
+  onPatch,
+  onRemove,
+  onDuplicate,
+}: RowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
@@ -393,6 +413,15 @@ function SortableSpeakerRow({ id, item: it, index: i, lang, onPatch, onRemove }:
           >
             <GripVertical className="h-3.5 w-3.5" />
           </button>
+          <button
+            type="button"
+            onClick={onDuplicate}
+            title={l("Duplikuj prelegenta", "Duplicate speaker")}
+            aria-label={l("Duplikuj prelegenta", "Duplicate speaker")}
+            className="p-1 rounded text-muted-foreground hover:bg-accent"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
           {photo && !photoErr && (
             <img
               src={photo}
@@ -408,8 +437,7 @@ function SortableSpeakerRow({ id, item: it, index: i, lang, onPatch, onRemove }:
             onChange={(e) => onPatch({ photo: e.target.value })}
             placeholder="https://…"
             className={
-              "h-8 text-xs " +
-              (photoErr ? "border-destructive focus-visible:ring-destructive" : "")
+              "h-8 text-xs " + (photoErr ? "border-destructive focus-visible:ring-destructive" : "")
             }
             aria-invalid={photoErr ? true : undefined}
           />
@@ -446,14 +474,26 @@ function SortableSpeakerRow({ id, item: it, index: i, lang, onPatch, onRemove }:
               value={strOf(it.category_pl)}
               onChange={(e) => onPatch({ category_pl: e.target.value })}
               className="h-8 text-xs"
+              list={`speakers-cats-pl-${id}`}
             />
+            <datalist id={`speakers-cats-pl-${id}`}>
+              {categorySuggestions.pl.map((cat) => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
           </PropField>
           <PropField label={`${l("Kategoria", "Category")} EN`}>
             <Input
               value={strOf(it.category_en)}
               onChange={(e) => onPatch({ category_en: e.target.value })}
               className="h-8 text-xs"
+              list={`speakers-cats-en-${id}`}
             />
+            <datalist id={`speakers-cats-en-${id}`}>
+              {categorySuggestions.en.map((cat) => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
           </PropField>
         </div>
 
