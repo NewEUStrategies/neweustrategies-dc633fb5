@@ -342,27 +342,29 @@ export function PostListView({
                 <h4 className="cms-post-title line-clamp-3" style={tStyle}>
                   {title(p)}
                 </h4>
-                {authorName(p) && (
+                {showAuthorAny && authorName(p) && (
                   <div className="cms-meta mt-2 flex items-center gap-2 min-w-0">
-                    {showAuthorAvatar && p.author_avatar_url ? (
-                      <img
-                        src={p.author_avatar_url}
-                        alt=""
-                        width={20}
-                        height={20}
-                        loading="lazy"
-                        className="h-5 w-5 shrink-0 object-cover"
-                        style={{ borderRadius: 5 }}
-                      />
-                    ) : showAuthorAvatar ? (
-                      <span
-                        aria-hidden
-                        className="h-5 w-5 shrink-0 bg-muted"
-                        style={{ borderRadius: 5 }}
-                      />
+                    {authorDisplay === "avatar" ? (
+                      p.author_avatar_url ? (
+                        <img
+                          src={p.author_avatar_url}
+                          alt=""
+                          width={20}
+                          height={20}
+                          loading="lazy"
+                          className="h-5 w-5 shrink-0 object-cover"
+                          style={{ borderRadius: 5 }}
+                        />
+                      ) : (
+                        <span
+                          aria-hidden
+                          className="h-5 w-5 shrink-0 bg-muted"
+                          style={{ borderRadius: 5 }}
+                        />
+                      )
                     ) : null}
-                    {showAuthorLabel && byLabel && !(showAuthorAvatar && p.author_avatar_url) ? (
-                      <span className="opacity-70">{byLabel}</span>
+                    {authorDisplay === "label" && byLabel ? (
+                      <span className="opacity-70">{byLabel}:</span>
                     ) : null}
                     <span className="text-foreground truncate">{authorName(p)}</span>
                   </div>
