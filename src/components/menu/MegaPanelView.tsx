@@ -79,8 +79,8 @@ export function MegaPanelView({
 
   const containerClass =
     variant === "live"
-      ? "overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5 border border-border/40 mx-auto"
-      : "overflow-hidden rounded-lg bg-background text-foreground ring-1 ring-border/60";
+      ? "overflow-hidden rounded-lg bg-popover text-popover-foreground ring-1 ring-border/60 border border-border/40 mx-auto antialiased subpixel-antialiased"
+      : "overflow-hidden rounded-lg bg-background text-foreground ring-1 ring-border/60 antialiased subpixel-antialiased";
 
   return (
     <div
