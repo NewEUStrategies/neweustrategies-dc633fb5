@@ -51,9 +51,10 @@ interface HeaderProps {
 }
 
 function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
-  const { i18n, t } = useTranslation();
-  const lang = i18n.language ?? "pl";
-  const isPl = lang.startsWith("pl");
+  const { t } = useTranslation();
+  // URL-seeded language (SSR-safe, no hydration flicker) - see useLang docs.
+  const lang = useLang();
+  const isPl = lang === "pl";
 
   // Loader in __root.tsx prefetches this query, so useSuspenseQuery resolves
   // synchronously on hydration and on every client navigation - the header
