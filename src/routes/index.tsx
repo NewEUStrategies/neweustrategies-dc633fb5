@@ -27,7 +27,8 @@ import {
   SITE_DEFAULT_TITLE,
   SITE_DEFAULT_DESCRIPTION,
 } from "@/lib/seo/meta";
-import { organizationJsonLd, safeJsonLd, webSiteJsonLd } from "@/lib/seo/jsonld";
+import { organizationJsonLd, safeJsonLd, siteNavigationJsonLd, webSiteJsonLd } from "@/lib/seo/jsonld";
+import { FOOTER_LINKS, labelFor } from "@/lib/seo/footerNavigation";
 import {
   resolveRobotsMeta,
   resolveSeoText,
@@ -256,11 +257,19 @@ export const Route = createFileRoute("/")({
       sameAs: seoSettings.organization_same_as,
       logoUrl: seoSettings.publisher_logo_url.trim() || `${origin}/og-default.jpg`,
     });
+    const footerNavItems = FOOTER_LINKS.map((l) => ({
+      name: labelFor(l, lang),
+      href: l.href,
+    }));
     return {
       ...head,
       scripts: [
         { type: "application/ld+json", children: safeJsonLd(organization) },
         { type: "application/ld+json", children: safeJsonLd(webSiteJsonLd(origin, lang)) },
+        {
+          type: "application/ld+json",
+          children: safeJsonLd(siteNavigationJsonLd(origin, footerNavItems, lang)),
+        },
       ],
     };
   },

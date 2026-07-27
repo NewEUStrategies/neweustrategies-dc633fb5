@@ -30,6 +30,14 @@ export function safeJsonLd(value: unknown): string {
     .replace(/\u2029/g, "\\u2029");
 }
 
+export interface ContactPointInput {
+  email?: string | null;
+  telephone?: string | null;
+  contactType?: string;
+  areaServed?: string;
+  availableLanguage?: readonly string[];
+}
+
 export interface OrganizationJsonLdInput {
   origin: string;
   lang: Lang;
@@ -38,6 +46,8 @@ export interface OrganizationJsonLdInput {
   /** Publisher logo (absolute URL preferred). */
   logoUrl?: string | null;
   description?: string | null;
+  /** Optional customer/editorial contact point rendered in the footer. */
+  contactPoint?: ContactPointInput | null;
 }
 
 /**
@@ -47,6 +57,20 @@ export interface OrganizationJsonLdInput {
  */
 export function organizationJsonLd(input: OrganizationJsonLdInput): Record<string, unknown> {
   const sameAs = (input.sameAs ?? []).filter(Boolean);
+  const cp = input.contactPoint;
+  const contactPoint =
+    cp && (cp.email || cp.telephone)
+      ? {
+          "@type": "ContactPoint",
+          contactType: cp.contactType ?? "customer support",
+          ...(cp.email ? { email: cp.email } : {}),
+          ...(cp.telephone ? { telephone: cp.telephone } : {}),
+          ...(cp.areaServed ? { areaServed: cp.areaServed } : {}),
+          ...(cp.availableLanguage?.length
+            ? { availableLanguage: [...cp.availableLanguage] }
+            : {}),
+        }
+      : null;
   return {
     "@context": "https://schema.org",
     "@type": "NewsMediaOrganization",
@@ -56,6 +80,40 @@ export function organizationJsonLd(input: OrganizationJsonLdInput): Record<strin
     description: input.description?.trim() || SITE_DEFAULT_DESCRIPTION[input.lang],
     ...(input.logoUrl ? { logo: { "@type": "ImageObject", url: input.logoUrl } } : {}),
     ...(sameAs.length ? { sameAs } : {}),
+    ...(contactPoint ? { contactPoint: [contactPoint] } : {}),
+  };
+}
+
+export interface SiteNavigationItem {
+  name: string;
+  href: string;
+}
+
+/**
+ * SiteNavigationElement graph - ujawnia crawlerom kluczowe linki stopki
+ * (Editorial / Topics / Community / Institute / Legal). ItemList z ListItem
+ * o typie SiteNavigationElement jest wzorcem rekomendowanym w schema.org do
+ * opisania nawigacji globalnej strony.
+ */
+export function siteNavigationJsonLd(
+  origin: string,
+  items: readonly SiteNavigationItem[],
+  lang: Lang,
+): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "@id": `${origin}/#footer-navigation`,
+    name: lang === "en" ? "Footer navigation" : "Nawigacja stopki",
+    inLanguage: lang,
+    itemListElement: items.map((item, i) => ({
+      "@type": "SiteNavigationElement",
+      position: i + 1,
+      name: item.name,
+      url: item.href.startsWith("http")
+        ? item.href
+        : `${origin}${item.href.startsWith("/") ? item.href : `/${item.href}`}`,
+    })),
   };
 }
 

@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Users,
   Scale,
+  MousePointerClick,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -43,6 +44,12 @@ const GscBiDashboard = lazy(() =>
     default: m.GscBiDashboard,
   })),
 );
+const FooterAnalyticsPanel = lazy(() =>
+  import("@/components/admin/analytics/FooterAnalyticsPanel").then((m) => ({
+    default: m.FooterAnalyticsPanel,
+  })),
+);
+
 const Ga4BiDashboard = lazy(() =>
   import("@/components/admin/analytics/Ga4BiDashboard").then((m) => ({
     default: m.Ga4BiDashboard,
@@ -634,6 +641,9 @@ function AnalyticsPage() {
           <TabsTrigger value="semantic">
             <Scale className="w-3.5 h-3.5 mr-2" /> {t("admin.nav.analyticsReconciliation")}
           </TabsTrigger>
+          <TabsTrigger value="footer">
+            <MousePointerClick className="w-3.5 h-3.5 mr-2" /> Stopka
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
@@ -679,6 +689,12 @@ function AnalyticsPage() {
         <TabsContent value="semantic" className="mt-4">
           <Suspense fallback={<DashboardFallback />}>
             <SemanticReconciliationPanel />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="footer" className="mt-4">
+          <Suspense fallback={<DashboardFallback />}>
+            <FooterAnalyticsPanel />
           </Suspense>
         </TabsContent>
       </Tabs>
