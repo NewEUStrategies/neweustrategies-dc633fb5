@@ -69,8 +69,9 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
   const [, force] = useState(0);
   useEffect(() => force((n) => n + 1), [block.data]);
 
-  const set = (patch: Record<string, unknown>) =>
+  const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
+
 
   const promptFor = async (
     field: string,
