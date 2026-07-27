@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
-import { ChevronUp, ChevronDown, Copy, Trash2, GripVertical, Link2, Check } from "@/lib/lucide-shim";
+import { ChevronUp, ChevronDown, Copy, Trash2, GripVertical, Link as LinkIcon, Check } from "@/lib/lucide-shim";
 import { IconButton } from "../atoms/IconButton";
 import {
   ContextMenu,
