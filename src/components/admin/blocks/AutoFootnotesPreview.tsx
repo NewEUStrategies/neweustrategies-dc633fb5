@@ -59,6 +59,27 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
 
   const canEdit = typeof onChange === "function";
 
+  // Rozwiązuje id top-level bloku z pierwszego segmentu `origin.path`
+  // (walidator/collector wchodzą do dokumentu z prefiksem `[]`, więc path[0]
+  // to zawsze indeks w `doc.blocks`). Nawet dla przypisów zagnieżdżonych
+  // wewnątrz columns/group scrollujemy do NAJBLIŻSZEGO renderowanego
+  // top-level bloku - to jest jedyny poziom, który `SortableBlockItem`
+  // oznacza atrybutem `data-block-id`.
+  const scrollToOrigin = (path: readonly (string | number)[]) => {
+    if (typeof document === "undefined") return;
+    const topIdx = typeof path[0] === "number" ? (path[0] as number) : -1;
+    const top = topIdx >= 0 ? doc?.blocks?.[topIdx] : null;
+    if (!top?.id) return;
+    const el = document.querySelector<HTMLElement>(`[data-block-id="${top.id}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Krótki flash, żeby autor od razu widział, do którego bloku trafił.
+    el.classList.add("ring-2", "ring-primary/70", "ring-offset-2", "rounded");
+    window.setTimeout(() => {
+      el.classList.remove("ring-2", "ring-primary/70", "ring-offset-2", "rounded");
+    }, 1400);
+  };
+
   const startEdit = (e: FootnoteEntry) => {
     setEditingId(e.id);
     setDraft(e.html);
@@ -126,14 +147,21 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
           <ul className="space-y-1 pl-5 list-disc">
             {issues.map((iss, idx) => (
               <li key={`${iss.kind}:${iss.path.join("/")}:${idx}`}>
-                <span className="font-medium">
+                <button
+                  type="button"
+                  onClick={() => scrollToOrigin(iss.path)}
+                  className="font-medium underline decoration-dotted underline-offset-2 hover:text-amber-950 dark:hover:text-amber-50"
+                  title={t("admin.autoFootnotes.jumpToBlock", {
+                    defaultValue: "Przejdź do bloku w kanwie",
+                  })}
+                >
                   {t("admin.autoFootnotes.blockLabel", {
                     defaultValue: "Blok #{{n}} ({{type}})",
                     n: iss.blockIndex + 1,
                     type: iss.blockType,
                   })}
-                  :
-                </span>{" "}
+                </button>
+                :{" "}
                 {iss.message}
                 {iss.excerpt ? (
                   <code className="ml-1 rounded bg-amber-100/70 dark:bg-amber-900/40 px-1 py-0.5 text-[11px]">
@@ -196,11 +224,23 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                   </div>
                 </div>
               ) : (
-                <div className={cn("flex items-start gap-2", canEdit && "cursor-text")}>
-                  <span
-                    className="flex-1"
-                    dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(e.html) }}
-                  />
+                <div className={cn("flex items-start gap-2")}>
+                  <button
+                    type="button"
+                    onClick={() => scrollToOrigin(e.origin.path)}
+                    className="flex-1 text-left rounded hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/40 px-1 -mx-1"
+                    title={t("admin.autoFootnotes.jumpHint", {
+                      defaultValue: "Przejdź do miejsca [fn] w kanwie",
+                    })}
+                    aria-label={t("admin.autoFootnotes.jumpAria", {
+                      defaultValue: "Przejdź do przypisu nr {{n}} w treści",
+                      n: e.id,
+                    })}
+                  >
+                    <span
+                      dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(e.html) }}
+                    />
+                  </button>
                   {canEdit ? (
                     <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5">
                       <button
