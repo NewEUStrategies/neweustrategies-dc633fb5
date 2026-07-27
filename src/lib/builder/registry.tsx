@@ -510,6 +510,24 @@ export const WIDGETS: WidgetDef[] = [
     defaults: () => ({}),
   },
   { type: "tags", label: "Tagi", category: "dynamic", icon: Tags, defaults: () => ({}) },
+  {
+    type: "tailored-must-reads",
+    label: "Rekomendacje z imieniem",
+    category: "dynamic",
+    icon: UserPlus,
+    defaults: () => ({
+      limit: 3,
+      columns: 3,
+      label_pl: "Twoje wybrane must-reads, {name}",
+      label_en: "Your tailored must-reads, {name}",
+      fallback_pl: "Dla ciebie",
+      fallback_en: "For you",
+      kicker_pl: "Polecane dla ciebie",
+      kicker_en: "Recommended for you",
+      showKicker: "1",
+      showExcerpt: "1",
+    }),
+  },
   // Forms
   {
     type: "newsletter",
