@@ -351,13 +351,14 @@ export function NewsletterForm({
                 ))}
               </div>
 
-              <button
+              <SubscribeButton
                 type="submit"
-                disabled={state === "loading"}
-                className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-60 w-full sm:w-auto"
+                loading={state === "loading"}
+                loadingLabel="…"
+                className="w-full sm:w-auto"
               >
-                {state === "loading" ? "…" : t("newsletterForm.subscribe")}
-              </button>
+                {t("newsletterForm.subscribe")}
+              </SubscribeButton>
             </>
           ) : (
             <>
