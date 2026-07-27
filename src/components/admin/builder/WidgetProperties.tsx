@@ -1107,7 +1107,7 @@ function WidgetHeightControl({
           />
         </div>
       </div>
-      <div className="flex gap-1">
+      <div className="wp-seg" role="group">
         {(
           [
             [
@@ -1132,20 +1132,14 @@ function WidgetHeightControl({
             (key === "fixed" && typeof value === "number") ||
             (key === "hug" && isAuto);
           return (
-            <Button
+            <button
               key={key}
               type="button"
-              variant="outline"
-              size="sm"
+              data-active={active}
               onClick={() => onChange(target)}
-              className={`flex-1 h-8 px-2 text-[11px] rounded-md transition ${
-                active
-                  ? "border-brand bg-brand/10 text-brand"
-                  : "border-border bg-background hover:bg-muted"
-              }`}
             >
               {label}
-            </Button>
+            </button>
           );
         })}
       </div>
