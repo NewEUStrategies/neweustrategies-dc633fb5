@@ -27,7 +27,8 @@ import {
   SITE_DEFAULT_TITLE,
   SITE_DEFAULT_DESCRIPTION,
 } from "@/lib/seo/meta";
-import { organizationJsonLd, safeJsonLd, webSiteJsonLd } from "@/lib/seo/jsonld";
+import { organizationJsonLd, safeJsonLd, siteNavigationJsonLd, webSiteJsonLd } from "@/lib/seo/jsonld";
+import { FOOTER_LINKS, labelFor } from "@/lib/seo/footerNavigation";
 import {
   resolveRobotsMeta,
   resolveSeoText,
