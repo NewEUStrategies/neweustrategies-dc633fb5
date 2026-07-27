@@ -30,6 +30,8 @@ import {
 } from "./frame";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
+import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
 import { ContactFormView, AuthFormWidget } from "./lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
