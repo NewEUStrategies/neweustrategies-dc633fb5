@@ -82,10 +82,9 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
   const alt = str(block.data, "alt");
   const cap = str(block.data, "caption");
   const href = safeUrl(str(block.data, "href"), "");
+  const source = str(block.data, "source");
+  const sourceUrl = safeUrl(str(block.data, "sourceUrl"), "");
   if (!url) return null;
-  // Wymiary stemplowane przez edytor (naturalWidth/Height) - OptimizedImage
-  // wyprowadza z nich aspect-ratio i rezerwuje miejsce zanim obraz się doczyta
-  // (CLS=0). Starsze bloki bez wymiarów renderują się jak dotąd.
   const rawW = num(block.data, "width", NaN);
   const rawH = num(block.data, "height", NaN);
   const dims =
@@ -118,9 +117,27 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
           {cap}
         </figcaption>
       )}
+      {source && (
+        <p className="text-xs text-muted-foreground text-center mt-1">
+          <span className="uppercase tracking-wider mr-1">Źródło:</span>
+          {sourceUrl ? (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="underline hover:text-foreground"
+            >
+              {source}
+            </a>
+          ) : (
+            source
+          )}
+        </p>
+      )}
     </figure>
   );
 };
+
 
 /** Blok kodu z podświetlaniem. */
 export const renderCode: BlockRenderer = ({ block, cls }) => {
@@ -157,19 +174,48 @@ export const renderEmbed: BlockRenderer = ({ block, cls }) => {
   );
 };
 
-/** Wideo (plik lub URL) z posterem. */
 export const renderVideo: BlockRenderer = ({ block, cls }) => {
   const url = safeUrl(str(block.data, "url"), "");
   const poster = safeImageUrl(str(block.data, "poster"));
+  const caption = str(block.data, "caption");
+  const source = str(block.data, "source");
+  const sourceUrl = safeUrl(str(block.data, "sourceUrl"), "");
   if (!url) return null;
   return (
-    <video
-      src={url}
-      poster={poster || undefined}
-      controls
-      preload="metadata"
-      className={`w-full rounded-lg ${cls}`}
-    />
+    <figure className={`not-prose my-4 ${cls}`}>
+      <video
+        src={url}
+        poster={poster || undefined}
+        controls
+        preload="metadata"
+        className="w-full rounded-lg"
+        autoPlay={Boolean(block.data.autoplay)}
+        loop={Boolean(block.data.loop)}
+        muted={Boolean(block.data.muted)}
+      />
+      {caption && (
+        <figcaption className="text-sm text-muted-foreground text-center italic mt-2">
+          {caption}
+        </figcaption>
+      )}
+      {source && (
+        <p className="text-xs text-muted-foreground text-center mt-1">
+          <span className="uppercase tracking-wider mr-1">Źródło:</span>
+          {sourceUrl ? (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="underline hover:text-foreground"
+            >
+              {source}
+            </a>
+          ) : (
+            source
+          )}
+        </p>
+      )}
+    </figure>
   );
 };
 
@@ -186,18 +232,46 @@ export const renderGallery: BlockRenderer = ({ block, cls }) => {
 export const renderAudio: BlockRenderer = ({ block, cls }) => {
   const url = str(block.data, "url");
   const caption = str(block.data, "caption");
+  const source = str(block.data, "source");
+  const sourceUrl = safeUrl(str(block.data, "sourceUrl"), "");
   if (!url) return null;
   return (
     <figure className={`not-prose my-4 ${cls}`}>
-      <audio src={url} controls preload="metadata" className="w-full" />
+      <audio
+        src={url}
+        controls
+        preload="metadata"
+        className="w-full"
+        autoPlay={Boolean(block.data.autoplay)}
+        loop={Boolean(block.data.loop)}
+        muted={Boolean(block.data.muted)}
+      />
       {caption && (
         <figcaption className="text-sm text-muted-foreground text-center italic mt-2">
           {caption}
         </figcaption>
       )}
+      {source && (
+        <p className="text-xs text-muted-foreground text-center mt-1">
+          <span className="uppercase tracking-wider mr-1">Źródło:</span>
+          {sourceUrl ? (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="underline hover:text-foreground"
+            >
+              {source}
+            </a>
+          ) : (
+            source
+          )}
+        </p>
+      )}
     </figure>
   );
 };
+
 
 /** Okładka - obraz tła z nakładką i tytułem. */
 export const renderCover: BlockRenderer = ({ block, cls }) => {

@@ -3,17 +3,21 @@ import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { Image as ImageIcon } from "@/lib/lucide-shim";
 import { Input } from "@/components/ui/input";
+import { MediaWidgetToolbar } from "../MediaWidgetToolbar";
 
 interface Props {
   block: Block;
+  isActive?: boolean;
   onChange: (next: Block) => void;
 }
 
-export function ImageBlock({ block, onChange }: Props) {
+export function ImageBlock({ block, isActive, onChange }: Props) {
   const bt = useBlocksI18n();
   const url = String(block.data.url ?? "");
   const alt = String(block.data.alt ?? "");
   const caption = String(block.data.caption ?? "");
+  const source = String(block.data.source ?? "");
+  const sourceUrl = String(block.data.sourceUrl ?? "");
 
   if (!url) {
     return (
@@ -30,14 +34,12 @@ export function ImageBlock({ block, onChange }: Props) {
   }
 
   return (
-    <figure className="space-y-2">
+    <figure className="relative space-y-2">
+      {isActive && <MediaWidgetToolbar kind="image" block={block} onChange={onChange} />}
       <img
         src={url}
         alt={alt}
         className="rounded-lg max-w-full h-auto"
-        // Stempluje naturalne wymiary do danych bloku (także przy edycji
-        // starszych wpisów) - publiczny renderer rezerwuje dzięki nim
-        // aspect-ratio i obraz nie przesuwa treści przy doczytywaniu (CLS).
         onLoad={(e) => {
           const img = e.currentTarget;
           const w = img.naturalWidth;
@@ -54,6 +56,29 @@ export function ImageBlock({ block, onChange }: Props) {
         onChange={(e) => onChange({ ...block, data: { ...block.data, caption: e.target.value } })}
         className="w-full bg-transparent text-sm text-muted-foreground text-center italic border-none outline-none focus:ring-0 p-0"
       />
+      <div className="flex items-center gap-2 justify-center text-[11px] text-muted-foreground">
+        <span className="uppercase tracking-wider">
+          {bt.t("blocks.toolbar.source", { defaultValue: "Źródło" })}:
+        </span>
+        <input
+          type="text"
+          value={source}
+          placeholder={bt.t("blocks.toolbar.sourceLabel", {
+            defaultValue: "Nazwa źródła (np. autor, agencja)",
+          })}
+          onChange={(e) => onChange({ ...block, data: { ...block.data, source: e.target.value } })}
+          className="flex-1 bg-transparent border-none outline-none focus:ring-0 p-0"
+        />
+        <input
+          type="url"
+          value={sourceUrl}
+          placeholder="https://…"
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, sourceUrl: e.target.value } })
+          }
+          className="flex-1 bg-transparent border-none outline-none focus:ring-0 p-0"
+        />
+      </div>
     </figure>
   );
 }

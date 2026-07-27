@@ -312,7 +312,7 @@ function BlockRenderer({
     case "heading":
       return <HeadingBlock block={block} onChange={onChange} />;
     case "image":
-      return <ImageBlock block={block} onChange={onChange} />;
+      return <ImageBlock block={block} isActive={isActive} onChange={onChange} />;
     case "list":
       return <ListBlockEdit block={block} onChange={onChange} />;
     case "quote":
@@ -322,7 +322,7 @@ function BlockRenderer({
     case "embed":
       return <EmbedBlock block={block} onChange={onChange} />;
     case "video":
-      return <VideoBlock block={block} onChange={onChange} />;
+      return <VideoBlock block={block} isActive={isActive} onChange={onChange} />;
     case "gallery":
       return <GalleryBlock block={block} onChange={onChange} />;
     case "separator":
@@ -364,7 +364,7 @@ function BlockRenderer({
     case "reset-password-form":
       return <ResetPasswordFormBlock block={block} onChange={onChange} />;
     case "audio":
-      return <AudioBlock block={block} onChange={onChange} />;
+      return <AudioBlock block={block} isActive={isActive} onChange={onChange} />;
     case "cover":
       return <CoverBlock block={block} onChange={onChange} />;
     case "file":
