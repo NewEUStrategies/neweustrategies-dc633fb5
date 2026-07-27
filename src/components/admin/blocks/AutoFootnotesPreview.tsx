@@ -111,6 +111,41 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
           </span>
         ) : null}
       </div>
+      {issues.length > 0 ? (
+        <div
+          role="alert"
+          className="mb-3 rounded border border-amber-400/60 bg-amber-50/70 dark:bg-amber-950/30 px-3 py-2 text-[12px] text-amber-900 dark:text-amber-100"
+        >
+          <div className="flex items-center gap-1.5 font-semibold mb-1">
+            <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+            {t("admin.autoFootnotes.warningsTitle", {
+              defaultValue: "Wykryto problem(y) z markerami [fn]…[/fn]: {{count}}",
+              count: issues.length,
+            })}
+          </div>
+          <ul className="space-y-1 pl-5 list-disc">
+            {issues.map((iss, idx) => (
+              <li key={`${iss.kind}:${iss.path.join("/")}:${idx}`}>
+                <span className="font-medium">
+                  {t("admin.autoFootnotes.blockLabel", {
+                    defaultValue: "Blok #{{n}} ({{type}})",
+                    n: iss.blockIndex + 1,
+                    type: iss.blockType,
+                  })}
+                  :
+                </span>{" "}
+                {iss.message}
+                {iss.excerpt ? (
+                  <code className="ml-1 rounded bg-amber-100/70 dark:bg-amber-900/40 px-1 py-0.5 text-[11px]">
+                    {iss.excerpt}
+                  </code>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {entries.length === 0 ? null : (
       <ol className="space-y-1.5 pl-5 list-decimal text-sm text-foreground/85">
         {entries.map((e) => {
           const isEditing = editingId === e.id;
