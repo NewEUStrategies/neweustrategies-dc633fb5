@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { memo, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
@@ -25,10 +26,13 @@ interface FooterProps {
 }
 
 export const Footer = memo(function Footer({ compact }: FooterProps) {
-  // SSR-correct language: derived from the request URL on the server and from
-  // the URL on hydration, so the footer's PL/EN content matches the rendered
-  // HTML on first paint (i18next's async language switch would flash the wrong
-  // language during SSR/hydration).
+  // Reactive language: `currentLang()` is the SSR-correct source of truth
+  // (request URL on the server, live ref set synchronously by the switcher on
+  // the client). We subscribe to i18next `languageChanged` via `useTranslation`
+  // purely so the memoized footer re-renders when the user flips the language
+  // without a route navigation - the actual value still comes from
+  // currentLang() to avoid hydration mismatches.
+  useTranslation();
   const lang = currentLang();
   const isPl = lang === "pl";
 
