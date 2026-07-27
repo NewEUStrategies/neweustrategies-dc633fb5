@@ -37,27 +37,27 @@ export function CollapsibleSection({
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div
-      className={`border border-border rounded-md overflow-hidden transition-colors ${
-        open ? "bg-card" : "bg-muted/20"
+      className={`border rounded-md overflow-hidden transition-all ${
+        open ? "border-border bg-card shadow-sm" : "border-border/80 bg-card"
       }`}
     >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className={`w-full flex items-center justify-between gap-2 px-2.5 h-8 text-[10.5px] font-semibold uppercase tracking-wider transition-colors ${
+        className={`w-full flex items-center justify-between gap-2 px-2.5 h-9 text-[10.5px] font-semibold uppercase tracking-normal transition-colors ${
           open
-            ? "text-foreground bg-muted/40 hover:bg-muted/60"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+            ? "text-brand bg-brand/5 hover:bg-brand/10"
+            : "text-foreground hover:text-brand hover:bg-muted/40"
         }`}
       >
-        <span className="truncate text-left">{title}</span>
+        <span className="flex min-w-0 items-center gap-2 truncate text-left before:h-1.5 before:w-1.5 before:shrink-0 before:rounded-full before:bg-current before:opacity-60">{title}</span>
         <ChevronDown
           className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
       {open && (
-        <div className="px-2.5 pb-2.5 pt-2 space-y-2 border-t border-border">{children}</div>
+        <div className="px-2.5 pb-2.5 pt-2.5 space-y-2.5 border-t border-border bg-background/60">{children}</div>
       )}
     </div>
   );

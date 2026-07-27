@@ -449,7 +449,7 @@ export function Builder({
   return (
     <>
       <div
-        className={`cms-builder-compact grid ${sidebarCollapsed ? "grid-cols-[40px_1fr]" : "grid-cols-[260px_1fr]"} gap-3 items-start transition-[grid-template-columns] duration-200`}
+        className={`cms-builder-compact grid ${sidebarCollapsed ? "grid-cols-[40px_1fr]" : "grid-cols-[320px_minmax(0,1fr)]"} gap-3 items-start transition-[grid-template-columns] duration-200`}
       >
         {/* LEFT PANEL */}
         <aside
@@ -471,14 +471,14 @@ export function Builder({
             <>
               {hasSelection ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="p-3 border-b border-border flex items-center justify-between gap-2">
+                  <div className="h-11 px-3 border-b border-border flex items-center justify-between gap-2 bg-card/95 backdrop-blur-sm">
                     <button
                       onClick={() => setSelection({ kind: null, id: null })}
                       className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
                     >
                       <ChevronLeft className="w-3.5 h-3.5" /> {t("builder.chrome.widgets")}
                     </button>
-                    <h3 className="text-sm font-medium inline-flex items-center gap-2">
+                    <h3 className="text-xs font-semibold inline-flex items-center gap-1.5">
                       <SettingsIcon className="w-4 h-4" />
                       {selectedWidget
                         ? t("builder.chrome.widget")
@@ -504,7 +504,7 @@ export function Builder({
                       </button>
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-3">
+                  <div className="flex-1 overflow-y-auto p-2.5 bg-muted/10">
                     {selectedWidget && (
                       <WidgetProperties
                         widget={selectedWidget}
