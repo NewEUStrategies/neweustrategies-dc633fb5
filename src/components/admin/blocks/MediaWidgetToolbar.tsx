@@ -91,6 +91,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
 
   const toggle = (field: string) => set({ [field]: !block.data[field] });
 
+
   return (
     <div
       ref={rootRef}
