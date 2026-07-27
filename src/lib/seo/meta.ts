@@ -48,7 +48,7 @@ export const SITE_DEFAULT_DESCRIPTION: Record<Lang, string> = {
 /** Absolute origin for the canonical brand deployment - used to resolve the
  *  root-head social image to a fully-qualified URL (scrapers ignore relative
  *  og:image paths). */
-export const SITE_CANONICAL_ORIGIN = "https://neweustrategies.lovable.app";
+export const SITE_CANONICAL_ORIGIN = "https://neweuropeanstrategies.com";
 
 /** Split a (possibly empty) absolute URL into origin + pathname, dropping the
  * `lang` query param so canonical/hreflang are built from a clean base. */

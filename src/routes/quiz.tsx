@@ -62,7 +62,7 @@ const SHARE_BUTTONS = [
 function useShareUrl() {
   const { t, i18n } = useTranslation();
   const url =
-    (typeof window !== "undefined" ? window.location.href : "https://neweustrategies.lovable.app/quiz");
+    (typeof window !== "undefined" ? window.location.href : "https://neweuropeanstrategies.com/quiz");
   const encodedUrl = encodeURIComponent(url);
   const title = t("quiz.share.title");
   const text = encodeURIComponent(
