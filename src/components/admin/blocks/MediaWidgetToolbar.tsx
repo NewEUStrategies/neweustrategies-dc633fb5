@@ -1,7 +1,7 @@
 // Floating "WordStyleToolbar" analog dla mediów (image/video/audio).
-// Zawsze widoczny nad blokiem gdy blok jest aktywny - pozwala szybko podpiąć
-// źródło, link, atrybuty odtwarzania oraz podmienić/wyczyścić URL.
-// PL/EN i18n przez useBlocksI18n().
+// Zawsze widoczny nad blokiem gdy blok jest aktywny - dopasowany do możliwości
+// każdego formatu (obraz: wyrównanie/rozmiar/kadr, wideo: poster/aspect/tryby,
+// audio: cover/download). PL/EN i18n przez useBlocksI18n().
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Link as LinkIcon,
@@ -15,6 +15,17 @@ import {
   Quote,
   Trash2,
   Replace,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Maximize2,
+  Minimize2,
+  Square,
+  RectangleHorizontal,
+  Sliders,
+  Download,
+  Disc,
+  Captions,
 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
@@ -69,9 +80,10 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
   const [, force] = useState(0);
   useEffect(() => force((n) => n + 1), [block.data]);
 
+  const d = block.data as Record<string, Json>;
   const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
-
+  const toggle = (field: string) => set({ [field]: !d[field] });
 
   const promptFor = async (
     field: string,
@@ -82,15 +94,16 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
     const v = await promptDialog({
       title,
       label,
-      defaultValue: String(block.data[field] ?? defaultValue),
+      defaultValue: String(d[field] ?? defaultValue),
       confirmLabel: i18n.t("blocks.toolbar.apply", { defaultValue: "Zastosuj" }),
     });
     if (v === null) return;
     set({ [field]: v });
   };
 
-  const toggle = (field: string) => set({ [field]: !block.data[field] });
-
+  const align = String(d.align ?? "center");
+  const size = String(d.size ?? "full");
+  const aspect = String(d.aspect ?? "16:9");
 
   return (
     <div
@@ -99,6 +112,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
       onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => e.stopPropagation()}
     >
+      {/* --- Common: replace URL --- */}
       <TBtn
         title={i18n.t("blocks.toolbar.replaceUrl", { defaultValue: "Podmień URL" })}
         onClick={() =>
@@ -112,11 +126,13 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
         <Replace className="h-3.5 w-3.5" />
       </TBtn>
 
+      {/* ============ IMAGE ============ */}
       {kind === "image" && (
         <>
+          <Divider />
           <TBtn
             title={i18n.t("blocks.toolbar.altText", { defaultValue: "Tekst alternatywny" })}
-            active={Boolean(block.data.alt)}
+            active={Boolean(d.alt)}
             onClick={() =>
               promptFor(
                 "alt",
@@ -129,7 +145,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
           </TBtn>
           <TBtn
             title={i18n.t("blocks.toolbar.link", { defaultValue: "Link" })}
-            active={Boolean(block.data.href)}
+            active={Boolean(d.href)}
             onClick={() =>
               promptFor(
                 "href",
@@ -140,7 +156,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
           >
             <LinkIcon className="h-3.5 w-3.5" />
           </TBtn>
-          {Boolean(block.data.href) && (
+          {Boolean(d.href) && (
             <TBtn
               title={i18n.t("blocks.toolbar.unlink", { defaultValue: "Usuń link" })}
               onClick={() => set({ href: "" })}
@@ -148,14 +164,80 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
               <Link2Off className="h-3.5 w-3.5" />
             </TBtn>
           )}
+
+          <Divider />
+          {/* Wyrównanie */}
+          <TBtn
+            title={i18n.t("blocks.toolbar.alignLeft", { defaultValue: "Do lewej" })}
+            active={align === "left"}
+            onClick={() => set({ align: "left" })}
+          >
+            <AlignLeft className="h-3.5 w-3.5" />
+          </TBtn>
+          <TBtn
+            title={i18n.t("blocks.toolbar.alignCenter", { defaultValue: "Wyśrodkuj" })}
+            active={align === "center"}
+            onClick={() => set({ align: "center" })}
+          >
+            <AlignCenter className="h-3.5 w-3.5" />
+          </TBtn>
+          <TBtn
+            title={i18n.t("blocks.toolbar.alignRight", { defaultValue: "Do prawej" })}
+            active={align === "right"}
+            onClick={() => set({ align: "right" })}
+          >
+            <AlignRight className="h-3.5 w-3.5" />
+          </TBtn>
+
+          <Divider />
+          {/* Rozmiar */}
+          <TBtn
+            title={i18n.t("blocks.toolbar.sizeSmall", { defaultValue: "Mały" })}
+            active={size === "small"}
+            onClick={() => set({ size: "small" })}
+          >
+            <Minimize2 className="h-3.5 w-3.5" />
+          </TBtn>
+          <TBtn
+            title={i18n.t("blocks.toolbar.sizeMedium", { defaultValue: "Średni" })}
+            active={size === "medium"}
+            onClick={() => set({ size: "medium" })}
+          >
+            <Square className="h-3.5 w-3.5" />
+          </TBtn>
+          <TBtn
+            title={i18n.t("blocks.toolbar.sizeFull", { defaultValue: "Pełna szerokość" })}
+            active={size === "full"}
+            onClick={() => set({ size: "full" })}
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </TBtn>
+
+          <Divider />
+          <TBtn
+            title={i18n.t("blocks.toolbar.rounded", { defaultValue: "Zaokrąglenie" })}
+            active={Boolean(d.rounded)}
+            onClick={() => toggle("rounded")}
+          >
+            <RectangleHorizontal className="h-3.5 w-3.5" />
+          </TBtn>
+          <TBtn
+            title={i18n.t("blocks.toolbar.shadow", { defaultValue: "Cień" })}
+            active={Boolean(d.shadow)}
+            onClick={() => toggle("shadow")}
+          >
+            <Sliders className="h-3.5 w-3.5" />
+          </TBtn>
         </>
       )}
 
+      {/* ============ VIDEO ============ */}
       {kind === "video" && (
         <>
+          <Divider />
           <TBtn
             title={i18n.t("blocks.toolbar.poster", { defaultValue: "Miniatura (poster)" })}
-            active={Boolean(block.data.poster)}
+            active={Boolean(d.poster)}
             onClick={() =>
               promptFor(
                 "poster",
@@ -166,31 +248,86 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
           >
             <ImageIcon className="h-3.5 w-3.5" />
           </TBtn>
+          <TBtn
+            title={i18n.t("blocks.toolbar.captions", { defaultValue: "Napisy (VTT)" })}
+            active={Boolean(d.captionsUrl)}
+            onClick={() =>
+              promptFor(
+                "captionsUrl",
+                i18n.t("blocks.toolbar.captions", { defaultValue: "Napisy (VTT)" }),
+                "URL .vtt",
+              )
+            }
+          >
+            <Captions className="h-3.5 w-3.5" />
+          </TBtn>
+
+          <Divider />
+          {/* Aspect ratio */}
+          {(["16:9", "4:3", "1:1", "9:16"] as const).map((r) => (
+            <TBtn
+              key={r}
+              title={`${i18n.t("blocks.toolbar.aspect", { defaultValue: "Proporcje" })} ${r}`}
+              active={aspect === r}
+              onClick={() => set({ aspect: r })}
+            >
+              <span className="text-[10px] font-medium leading-none">{r}</span>
+            </TBtn>
+          ))}
         </>
       )}
 
+      {/* ============ AUDIO ============ */}
+      {kind === "audio" && (
+        <>
+          <Divider />
+          <TBtn
+            title={i18n.t("blocks.toolbar.cover", { defaultValue: "Okładka" })}
+            active={Boolean(d.cover)}
+            onClick={() =>
+              promptFor(
+                "cover",
+                i18n.t("blocks.toolbar.cover", { defaultValue: "Okładka" }),
+                "URL",
+              )
+            }
+          >
+            <Disc className="h-3.5 w-3.5" />
+          </TBtn>
+          <TBtn
+            title={i18n.t("blocks.toolbar.download", { defaultValue: "Pobieranie" })}
+            active={Boolean(d.download)}
+            onClick={() => toggle("download")}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </TBtn>
+        </>
+      )}
+
+      {/* ============ Video/Audio common playback ============ */}
       {(kind === "video" || kind === "audio") && (
         <>
+          <Divider />
           <TBtn
             title="Autoplay"
-            active={Boolean(block.data.autoplay)}
+            active={Boolean(d.autoplay)}
             onClick={() => toggle("autoplay")}
           >
             <Play className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
             title="Loop"
-            active={Boolean(block.data.loop)}
+            active={Boolean(d.loop)}
             onClick={() => toggle("loop")}
           >
             <RotateCw className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={block.data.muted ? "Unmute" : "Mute"}
-            active={Boolean(block.data.muted)}
+            title={d.muted ? "Unmute" : "Mute"}
+            active={Boolean(d.muted)}
             onClick={() => toggle("muted")}
           >
-            {block.data.muted ? (
+            {d.muted ? (
               <VolumeX className="h-3.5 w-3.5" />
             ) : (
               <Volume2 className="h-3.5 w-3.5" />
@@ -201,16 +338,17 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
 
       <Divider />
 
+      {/* --- Common: source attribution --- */}
       <TBtn
         title={i18n.t("blocks.toolbar.source", { defaultValue: "Źródło" })}
-        active={Boolean(block.data.source) || Boolean(block.data.sourceUrl)}
+        active={Boolean(d.source) || Boolean(d.sourceUrl)}
         onClick={async () => {
           const label = await promptDialog({
             title: i18n.t("blocks.toolbar.source", { defaultValue: "Źródło" }),
             label: i18n.t("blocks.toolbar.sourceLabel", {
               defaultValue: "Nazwa źródła (np. autor, agencja)",
             }),
-            defaultValue: String(block.data.source ?? ""),
+            defaultValue: String(d.source ?? ""),
             confirmLabel: i18n.t("blocks.toolbar.next", { defaultValue: "Dalej" }),
           });
           if (label === null) return;
@@ -219,7 +357,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
             label: i18n.t("blocks.toolbar.sourceUrl", {
               defaultValue: "URL źródła (opcjonalny)",
             }),
-            defaultValue: String(block.data.sourceUrl ?? ""),
+            defaultValue: String(d.sourceUrl ?? ""),
             confirmLabel: i18n.t("blocks.toolbar.apply", { defaultValue: "Zastosuj" }),
           });
           if (url === null) {
