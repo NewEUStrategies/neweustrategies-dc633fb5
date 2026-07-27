@@ -195,23 +195,31 @@ export function WordStyleToolbar({ editor }: Props) {
   };
 
   const insertFootnote = async () => {
+    // Świadomie NIE używamy `{ from, to }` do zastąpienia zaznaczenia -
+    // marker `[fn]…[/fn]` ma być dopisany OBOK zaznaczonego słowa, nie zamiast
+    // niego. Inaczej przy drugim przypisie w tym samym bloku autor gubi tekst,
+    // do którego chciał podpiąć nową notę (regresja obsługi wielu przypisów).
     const { from, to, empty } = editor.state.selection;
     const selected = empty ? "" : editor.state.doc.textBetween(from, to, " ");
     const promptLabel = i18n.t("blocks.toolbar.footnotePrompt", {
       defaultValue: "Treść przypisu:",
     });
-    const initial = selected || "";
     const text = await promptDialog({
       title: i18n.t("blocks.toolbar.footnote", { defaultValue: "Przypis" }),
       label: promptLabel,
-      defaultValue: initial,
+      defaultValue: selected,
       confirmLabel: i18n.t("blocks.toolbar.insert", { defaultValue: "Wstaw" }),
     });
     if (text === null) return;
     const body = text.trim();
     if (!body) return;
-    editor.chain().focus().insertContentAt({ from, to }, `[fn]${body}[/fn]`).run();
+    // Wstaw po prawej stronie zaznaczenia (albo w kursorze) - numeracja i tak
+    // zostanie policzona przez `precomputeFootnotes` w kolejności dokumentu,
+    // więc pozycja w tekście decyduje o numerze, nie kolejność klików.
+    const at = empty ? from : to;
+    editor.chain().focus().insertContentAt(at, `[fn]${body}[/fn]`).run();
   };
+
 
   return (
     <div
