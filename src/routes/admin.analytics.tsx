@@ -691,6 +691,12 @@ function AnalyticsPage() {
             <SemanticReconciliationPanel />
           </Suspense>
         </TabsContent>
+
+        <TabsContent value="footer" className="mt-4">
+          <Suspense fallback={<DashboardFallback />}>
+            <FooterAnalyticsPanel />
+          </Suspense>
+        </TabsContent>
       </Tabs>
     </div>
   );
