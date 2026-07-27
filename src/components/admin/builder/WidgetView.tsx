@@ -413,13 +413,21 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
                 : sizePreset === "display"
                   ? "text-6xl md:text-7xl"
                   : "text-3xl";
+      const gradientFrom = getStr(c, "gradientFrom");
+      const gradientTo = getStr(c, "gradientTo");
+      const gradientAngle = getNum(c, "gradientAngle", 90);
+      const highlightColor = getStr(c, "highlightColor");
+      const outlineColor = getStr(c, "outlineColor");
+      const customGradient = variant === "gradient" && !!gradientFrom && !!gradientTo;
       const variantCls =
         variant === "gradient"
-          ? "text-gradient-brand"
+          ? customGradient
+            ? "bg-clip-text text-transparent"
+            : "text-gradient-brand"
           : variant === "outlined"
             ? "[-webkit-text-stroke:1px_currentColor] text-transparent"
             : variant === "highlight"
-              ? "decoration-brand decoration-4 underline-offset-4 underline"
+              ? `${highlightColor ? "" : "decoration-brand"} decoration-4 underline-offset-4 underline`
               : variant === "uppercase"
                 ? "uppercase tracking-widest"
                 : variant === "serif"
@@ -432,10 +440,20 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           : useGlobalTitle
             ? { fontSize: "var(--td-pt-size, 15px)", lineHeight: "var(--td-pt-lh, 1.3)" }
             : {}),
-        // Waga: jawna wartość widgetu > globalna Theme Design (--td-pt-weight).
         fontWeight: (titleWeight
           ? titleWeight
           : "var(--td-pt-weight, 600)") as React.CSSProperties["fontWeight"],
+        ...(customGradient
+          ? {
+              backgroundImage: `linear-gradient(${gradientAngle}deg, ${gradientFrom}, ${gradientTo})`,
+            }
+          : {}),
+        ...(variant === "highlight" && highlightColor
+          ? { textDecorationColor: highlightColor }
+          : {}),
+        ...(variant === "outlined" && outlineColor
+          ? ({ WebkitTextStrokeColor: outlineColor } as React.CSSProperties)
+          : {}),
       };
       const finalStyle = Object.keys(headStyle).length ? headStyle : undefined;
       const finalCls = headCls;
@@ -583,11 +601,31 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
             ? "px-7 py-3 text-base"
             : "px-3.5 py-2 text-xs";
       const cls = `inline-flex items-center justify-center gap-2 rounded-md font-medium leading-none transition w-full h-full ${sizeCls} ${variantCls} ${fullWidth ? "justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
+      const btnGradFrom = getStr(c, "gradientFrom");
+      const btnGradTo = getStr(c, "gradientTo");
+      const btnGradAngle = getNum(c, "gradientAngle", 90);
+      const btnBgColor = getStr(c, "btnBgColor");
+      const btnTextColor = getStr(c, "btnTextColor");
+      const btnBorderColor = getStr(c, "btnBorderColor");
+      const btnStyle: React.CSSProperties = {};
+      if (variant === "gradient" && btnGradFrom && btnGradTo) {
+        btnStyle.backgroundImage = `linear-gradient(${btnGradAngle}deg, ${btnGradFrom}, ${btnGradTo})`;
+      }
+      if (btnBgColor && (variant === "primary" || variant === "soft" || variant === "outline")) {
+        btnStyle.backgroundColor = btnBgColor;
+      }
+      if (btnTextColor && variant !== "gradient") {
+        btnStyle.color = btnTextColor;
+      }
+      if (btnBorderColor && variant === "outline") {
+        btnStyle.borderColor = btnBorderColor;
+      }
+      const hasBtnStyle = Object.keys(btnStyle).length > 0;
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Icon = iconName ? (reg[iconName] ?? null) : null;
       const inner = canEdit ? (
-        <span className={cls}>
+        <span className={cls} style={hasBtnStyle ? btnStyle : undefined}>
           {Icon && <Icon size={14} />}
           <Editable
             as="span"
@@ -602,6 +640,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           target={target}
           rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined}
           className={cls}
+          style={hasBtnStyle ? btnStyle : undefined}
         >
           {Icon && <Icon size={14} />}
           {label}
@@ -1039,18 +1078,41 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           : `flex flex-col sm:flex-row gap-4 ${align === "left" ? "items-start sm:items-center" : align === "center" ? "items-center justify-center text-center" : "items-center justify-between"}`;
       const ctaWidthPx = getNum(c, "ctaWidthPx", 0);
       const ctaHeightPx = getNum(c, "ctaHeightPx", 0);
+      const ctaBgFrom = getStr(c, "ctaBgFrom");
+      const ctaBgTo = getStr(c, "ctaBgTo");
+      const ctaGradientAngle = getNum(c, "ctaGradientAngle", 135);
+      const ctaBgColor = getStr(c, "ctaBgColor");
+      const ctaTextColor = getStr(c, "ctaTextColor");
+      const ctaBtnBg = getStr(c, "ctaBtnBg");
+      const ctaBtnText = getStr(c, "ctaBtnText");
+      const containerStyle: React.CSSProperties = {};
+      if (variant === "gradient" && ctaBgFrom && ctaBgTo) {
+        containerStyle.backgroundImage = `linear-gradient(${ctaGradientAngle}deg, ${ctaBgFrom}, ${ctaBgTo})`;
+      }
+      if (variant !== "gradient" && ctaBgColor) containerStyle.backgroundColor = ctaBgColor;
+      if (ctaTextColor) containerStyle.color = ctaTextColor;
+      const hasContainerStyle = Object.keys(containerStyle).length > 0;
       const ctaBtnCls =
         "inline-flex items-center justify-center w-full h-full bg-brand-foreground text-brand px-3.5 py-2 rounded font-medium text-xs leading-none";
+      const ctaBtnStyle: React.CSSProperties = {};
+      if (ctaBtnBg) ctaBtnStyle.backgroundColor = ctaBtnBg;
+      if (ctaBtnText) ctaBtnStyle.color = ctaBtnText;
+      const hasBtnStyle = Object.keys(ctaBtnStyle).length > 0;
       const ctaInner = canEdit ? (
         <Editable
           as="span"
           value={cta}
           onCommit={(v) => commit(cKey, v)}
           className={ctaBtnCls}
+          style={hasBtnStyle ? ctaBtnStyle : undefined}
           placeholder="Etykieta…"
         />
       ) : (
-        <AppLink href={href} className={`${ctaBtnCls} hover:opacity-90 transition`}>
+        <AppLink
+          href={href}
+          className={`${ctaBtnCls} hover:opacity-90 transition`}
+          style={hasBtnStyle ? ctaBtnStyle : undefined}
+        >
           {cta}
         </AppLink>
       );
@@ -1068,7 +1130,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         </ResizableBox>
       );
       return wrap(
-        <div className={containerCls}>
+        <div className={containerCls} style={hasContainerStyle ? containerStyle : undefined}>
           <div className={layoutCls}>
             <div className="space-y-1">
               {canEdit ? (
