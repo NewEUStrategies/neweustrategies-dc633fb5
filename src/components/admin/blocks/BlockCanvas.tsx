@@ -283,6 +283,30 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   );
 }
 
+/** Bloki, które renderują własny wyspecjalizowany floating toolbar. */
+const OWN_TOOLBAR_TYPES = new Set(["paragraph", "heading", "image", "video", "audio"]);
+
+function BlockWithToolbar({
+  block,
+  isActive,
+  onChange,
+  children,
+}: {
+  block: Block;
+  isActive: boolean;
+  onChange: (n: Block) => void;
+  children: React.ReactNode;
+}) {
+  const hasOwn = OWN_TOOLBAR_TYPES.has(block.type);
+  if (hasOwn) return <>{children}</>;
+  return (
+    <div className="relative">
+      {isActive && <GenericWidgetToolbar block={block} onChange={onChange} />}
+      {children}
+    </div>
+  );
+}
+
 interface RendererProps {
   block: Block;
   isActive: boolean;
