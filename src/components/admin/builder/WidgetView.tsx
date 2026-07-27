@@ -638,7 +638,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
               : variant === "underline"
                 ? "inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
                 : "inline-flex items-center gap-1.5 text-foreground hover:opacity-80";
-      const cls = `h-10 text-xs font-bold tracking-wider leading-none transition ${variantCls}`;
+      const cls = `h-10 text-xs font-bold tracking-wider leading-none transition w-fit self-start justify-start ${variantCls}`;
       const iconEl = iconName ? <DynamicIcon name={iconName} size={14} /> : null;
       if (canEdit) {
         return wrap(
