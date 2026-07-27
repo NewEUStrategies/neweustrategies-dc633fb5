@@ -147,14 +147,21 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
           <ul className="space-y-1 pl-5 list-disc">
             {issues.map((iss, idx) => (
               <li key={`${iss.kind}:${iss.path.join("/")}:${idx}`}>
-                <span className="font-medium">
+                <button
+                  type="button"
+                  onClick={() => scrollToOrigin(iss.path)}
+                  className="font-medium underline decoration-dotted underline-offset-2 hover:text-amber-950 dark:hover:text-amber-50"
+                  title={t("admin.autoFootnotes.jumpToBlock", {
+                    defaultValue: "Przejdź do bloku w kanwie",
+                  })}
+                >
                   {t("admin.autoFootnotes.blockLabel", {
                     defaultValue: "Blok #{{n}} ({{type}})",
                     n: iss.blockIndex + 1,
                     type: iss.blockType,
                   })}
-                  :
-                </span>{" "}
+                </button>
+                :{" "}
                 {iss.message}
                 {iss.excerpt ? (
                   <code className="ml-1 rounded bg-amber-100/70 dark:bg-amber-900/40 px-1 py-0.5 text-[11px]">
