@@ -284,12 +284,15 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   );
 
   const footer = (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-1.5">
-      <div className="flex flex-wrap items-center gap-1">
+    <div
+      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2 sm:py-1.5"
+      style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+    >
+      <div className="-mx-1 flex w-full items-center gap-1 overflow-x-auto px-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
         <span
           data-typography-exempt
           style={{ fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
-          className="mr-1 !text-[9px] !leading-[12px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+          className="mr-1 shrink-0 !text-[9px] !leading-[12px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
         >
           {t("search.widget.operators", { defaultValue: "Operatory" }) as string}
         </span>
@@ -303,7 +306,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               insertOperator(ins, caret);
             }}
             style={{ fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
-            className="inline-flex items-center rounded-[6px] border border-border/60 bg-background px-1 py-px !text-[9px] !leading-[12px] font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+            className="inline-flex shrink-0 items-center rounded-[6px] border border-border/60 bg-background px-1.5 py-0.5 !text-[10px] !leading-[14px] font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)] sm:px-1 sm:py-px sm:!text-[9px] sm:!leading-[12px]"
           >
             {op}
           </button>
@@ -335,7 +338,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       <AppLink
         href={hasQuery ? `/search?q=${encodeURIComponent(trimmed)}&adv=1` : "/search?adv=1"}
         onClick={() => selectAndClose(q)}
-        className="inline-flex items-center gap-1 text-[9px] font-semibold hover:underline"
+        className="inline-flex items-center gap-1 text-[10px] font-semibold hover:underline sm:text-[9px]"
         style={{ color: "var(--brand)" }}
       >
         <SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
@@ -369,7 +372,20 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           onClick={(e) => e.stopPropagation()}
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
-          <SuggestListShell className="flex flex-col overflow-hidden rounded-none sm:rounded-[10px]">
+          <SuggestListShell className="flex h-full flex-col overflow-hidden rounded-none sm:h-auto sm:rounded-[10px]">
+            <div className="flex items-center justify-between border-b border-border/60 px-4 py-2.5 sm:hidden">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                {t("searchOverlay.dialogLabel", { defaultValue: "Wyszukiwarka" }) as string}
+              </span>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={t("searchOverlay.close") as string}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
             {bar}
             <div className="min-h-0 flex-1 overflow-y-auto sm:flex-none sm:overflow-visible">
               {body}
