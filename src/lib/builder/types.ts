@@ -107,7 +107,7 @@ export type MotionEasing =
   | "spring"
   | "bounce";
 
-type WidgetSize = number | "auto";
+type WidgetSize = number | "auto" | `${number}%`;
 
 export type AccessAuthMode = "any" | "guest" | "user";
 export type AccessRole = "admin" | "editor" | "author";

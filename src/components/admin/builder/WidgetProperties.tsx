@@ -135,6 +135,46 @@ export function WidgetProperties({
       mut(w.advanced);
     });
 
+  type WidgetWidthMode = "full" | "percent" | "px" | "wrapped";
+  const responsiveWidgetWidth = widget.advanced?.width;
+  const activeWidgetWidth =
+    responsiveWidgetWidth && typeof responsiveWidgetWidth === "object"
+      ? (responsiveWidgetWidth[device] ?? responsiveWidgetWidth.desktop)
+      : responsiveWidgetWidth;
+  const widgetWidthMode: WidgetWidthMode =
+    activeWidgetWidth === "auto"
+      ? "wrapped"
+      : typeof activeWidgetWidth === "string" && activeWidgetWidth.endsWith("%")
+        ? activeWidgetWidth === "100%"
+          ? "full"
+          : "percent"
+        : typeof activeWidgetWidth === "number"
+          ? "px"
+          : "full";
+  const widgetWidthValue =
+    widgetWidthMode === "percent"
+      ? Number.parseFloat(String(activeWidgetWidth)) || 50
+      : widgetWidthMode === "px"
+        ? Number(activeWidgetWidth) || 320
+        : widgetWidthMode === "full"
+          ? 100
+          : 0;
+  const setWidgetWidth = (value: number | "auto" | `${number}%` | undefined) =>
+    setAdvanced((a) => {
+      const previous = a.width;
+      const responsive =
+        previous && typeof previous === "object" ? { ...previous } : {};
+      if (value === undefined) delete responsive[device];
+      else responsive[device] = value;
+      a.width = Object.keys(responsive).length > 0 ? responsive : undefined;
+    });
+  const setWidgetWidthMode = (nextMode: WidgetWidthMode) => {
+    if (nextMode === "full") setWidgetWidth("100%");
+    else if (nextMode === "percent") setWidgetWidth("50%");
+    else if (nextMode === "px") setWidgetWidth(320);
+    else setWidgetWidth("auto");
+  };
+
   // ---- Themed (light/dark) helpers for color-style fields ----
   type ColorKey =
     | "bgColor"
@@ -730,6 +770,62 @@ export function WidgetProperties({
                 className="h-8 text-xs"
               />
             </PropField>
+          </section>
+
+          <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              {t("builder.widgetProps.widgetWidth")}
+            </h4>
+            <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("builder.widgetProps.widgetWidth")}>
+              {(
+                [
+                  ["full", t("builder.widgetProps.widthFull")],
+                  ["percent", t("builder.widgetProps.widthPercent")],
+                  ["px", t("builder.widgetProps.widthPixels")],
+                  ["wrapped", t("builder.widgetProps.widthWrapped")],
+                ] as const
+              ).map(([value, label]) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={widgetWidthMode === value ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 justify-start px-2 text-[11px]"
+                  onClick={() => setWidgetWidthMode(value)}
+                  aria-pressed={widgetWidthMode === value}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {(widgetWidthMode === "percent" || widgetWidthMode === "px") && (
+              <PropField
+                label={
+                  widgetWidthMode === "percent"
+                    ? t("builder.widgetProps.widthPercentValue")
+                    : t("builder.widgetProps.widthPixelValue")
+                }
+              >
+                <StepperInput
+                  value={widgetWidthValue}
+                  min={widgetWidthMode === "percent" ? 1 : 8}
+                  max={widgetWidthMode === "percent" ? 100 : 4000}
+                  onChange={(value) => {
+                    const numeric = typeof value === "number" ? value : Number(value);
+                    if (!Number.isFinite(numeric)) return;
+                    if (widgetWidthMode === "percent") {
+                      const percent = Math.max(1, Math.min(100, numeric));
+                      setWidgetWidth(`${percent}%`);
+                    } else {
+                      setWidgetWidth(Math.max(8, Math.min(4000, numeric)));
+                    }
+                  }}
+                />
+              </PropField>
+            )}
+            <p className="text-[10px] text-muted-foreground">
+              {t("builder.widgetProps.widthDeviceHint", { device })}
+            </p>
           </section>
 
           <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
