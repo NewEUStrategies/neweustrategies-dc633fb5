@@ -60,6 +60,7 @@ import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
 import { confirmDialog } from "@/lib/appDialogs";
+import { useAdminLang } from "@/lib/builder/labelsEn";
 export const Route = createFileRoute("/admin/pages/$slug")({
   component: EditPage,
 });
@@ -766,7 +767,10 @@ function PageBuilderPane({
   form: { builder_data: BuilderDocument | null };
   set: (k: "builder_data", v: BuilderDocument) => void;
 }) {
-  const [lang, setLang] = useState<"pl" | "en">("pl");
+  // Seed the canvas language from the admin UI language so an English admin
+  // does not land on the Polish content tab (and Polish editor chrome).
+  const adminLang = useAdminLang();
+  const [lang, setLang] = useState<"pl" | "en">(adminLang);
   return (
     <Builder
       value={form.builder_data}

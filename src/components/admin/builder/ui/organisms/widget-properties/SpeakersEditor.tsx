@@ -56,23 +56,36 @@ const numOf = (v: unknown, fb = 0): number => {
 const URL_RE = /^(https?:\/\/|\/)[^\s]+$/i;
 const IMAGE_URL_RE = /^(https?:\/\/|\/)[^\s]+(\.(jpe?g|png|webp|avif|gif|svg))(\?.*)?$/i;
 
-function validatePhoto(v: string): string | null {
+/** Localised validators - the message goes straight into the field's error slot. */
+type Translate = (pl: string, en: string) => string;
+
+function validatePhoto(v: string, l: Translate): string | null {
   if (!v) return null;
-  if (!URL_RE.test(v)) return "Nieprawidłowy URL (http(s)://… lub /…)";
-  if (!IMAGE_URL_RE.test(v)) return "URL nie wygląda na obraz (jpg/png/webp/avif/gif/svg)";
+  if (!URL_RE.test(v))
+    return l("Nieprawidłowy URL (http(s)://… lub /…)", "Invalid URL (http(s)://… or /…)");
+  if (!IMAGE_URL_RE.test(v))
+    return l(
+      "URL nie wygląda na obraz (jpg/png/webp/avif/gif/svg)",
+      "The URL does not look like an image (jpg/png/webp/avif/gif/svg)",
+    );
   return null;
 }
-function validateHref(v: string): string | null {
+function validateHref(v: string, l: Translate): string | null {
   if (!v) return null;
-  if (!URL_RE.test(v)) return "Link musi zaczynać się od / lub http(s)://";
+  if (!URL_RE.test(v))
+    return l(
+      "Link musi zaczynać się od / lub http(s)://",
+      "The link must start with / or http(s)://",
+    );
   return null;
 }
-function validateRating(v: number): string | null {
-  if (v < 0 || v > 5) return "Ocena musi mieścić się w zakresie 0-5";
+function validateRating(v: number, l: Translate): string | null {
+  if (v < 0 || v > 5)
+    return l("Ocena musi mieścić się w zakresie 0-5", "The rating must be between 0 and 5");
   return null;
 }
-function validateNonNeg(v: number): string | null {
-  if (v < 0) return "Wartość nie może być ujemna";
+function validateNonNeg(v: number, l: Translate): string | null {
+  if (v < 0) return l("Wartość nie może być ujemna", "The value cannot be negative");
   return null;
 }
 
@@ -160,7 +173,13 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
         : Array.isArray((parsed as { speakers?: unknown }).speakers)
           ? (parsed as { speakers: unknown[] }).speakers
           : null;
-      if (!raw) throw new Error("Oczekiwano tablicy `speakers` lub payloadu { speakers: [...] }");
+      if (!raw)
+        throw new Error(
+          l(
+            "Oczekiwano tablicy `speakers` lub payloadu { speakers: [...] }",
+            "Expected a `speakers` array or a { speakers: [...] } payload",
+          ),
+        );
       const normalized: Item[] = raw
         .filter(
           (x): x is Record<string, unknown> =>
@@ -393,11 +412,11 @@ function SortableSpeakerRow({
   const rating = numOf(it.rating);
   const gigs = numOf(it.gigs);
   const reviews = numOf(it.reviews);
-  const photoErr = validatePhoto(photo);
-  const hrefErr = validateHref(href);
-  const ratingErr = validateRating(rating);
-  const gigsErr = validateNonNeg(gigs);
-  const reviewsErr = validateNonNeg(reviews);
+  const photoErr = validatePhoto(photo, l);
+  const hrefErr = validateHref(href, l);
+  const ratingErr = validateRating(rating, l);
+  const gigsErr = validateNonNeg(gigs, l);
+  const reviewsErr = validateNonNeg(reviews, l);
 
   return (
     <div ref={setNodeRef} style={style}>

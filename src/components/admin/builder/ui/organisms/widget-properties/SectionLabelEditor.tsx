@@ -6,6 +6,7 @@ import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { PropField } from "../../atoms";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 
 // Compact px-size stepper. Accepts/produces strings like "14px" / "1.5rem" / "".
 // Up/Down arrows step the numeric prefix by ±1; bare numbers get "px" on blur.
@@ -93,6 +94,7 @@ interface Props {
 
 export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const labelKey = `label_${lang}`;
   const actionKey = `action_${lang}`;
   // Jedno źródło prawdy z runtime - te same mapowania content -> props.
@@ -200,7 +202,7 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                 key={v.value}
                 type="button"
                 onClick={() => setContent("variant", v.value)}
-                title={v.label}
+                title={bl(v.label)}
                 className={`text-left rounded-md border p-1.5 transition bg-background ${isActive ? "border-foreground ring-2 ring-foreground/30" : "border-border hover:border-foreground/40"}`}
               >
                 <div className="min-h-[34px] flex items-center w-full min-w-0 overflow-hidden">
@@ -218,7 +220,7 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                     />
                   </div>
                 </div>
-                <div className="mt-1 text-[9px] text-muted-foreground truncate">{v.label}</div>
+                <div className="mt-1 text-[9px] text-muted-foreground truncate">{bl(v.label)}</div>
               </button>
             );
           })}
