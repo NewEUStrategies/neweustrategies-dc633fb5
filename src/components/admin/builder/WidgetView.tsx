@@ -643,13 +643,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
                 ? "inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
                 : "inline-flex items-center gap-1.5 text-foreground hover:opacity-80";
       const cls = `h-10 text-xs font-bold tracking-wider leading-none transition ${variantCls}`;
-      const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
-        LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
-      const Cmp = iconName ? (reg[iconName] ?? null) : null;
+      const iconEl = iconName ? <DynamicIcon name={iconName} size={14} /> : null;
       if (canEdit) {
         return wrap(
           <span className={cls}>
-            {Cmp ? <Cmp size={14} /> : null}
+            {iconEl}
             <Editable
               as="span"
               value={label}
@@ -666,7 +664,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined}
           className={cls}
         >
-          {Cmp ? <Cmp size={14} /> : null}
+          {iconEl}
           {label}
         </AppLink>,
       );
