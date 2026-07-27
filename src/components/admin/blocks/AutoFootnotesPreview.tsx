@@ -59,6 +59,27 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
 
   const canEdit = typeof onChange === "function";
 
+  // Rozwiązuje id top-level bloku z pierwszego segmentu `origin.path`
+  // (walidator/collector wchodzą do dokumentu z prefiksem `[]`, więc path[0]
+  // to zawsze indeks w `doc.blocks`). Nawet dla przypisów zagnieżdżonych
+  // wewnątrz columns/group scrollujemy do NAJBLIŻSZEGO renderowanego
+  // top-level bloku - to jest jedyny poziom, który `SortableBlockItem`
+  // oznacza atrybutem `data-block-id`.
+  const scrollToOrigin = (path: readonly (string | number)[]) => {
+    if (typeof document === "undefined") return;
+    const topIdx = typeof path[0] === "number" ? (path[0] as number) : -1;
+    const top = topIdx >= 0 ? doc?.blocks?.[topIdx] : null;
+    if (!top?.id) return;
+    const el = document.querySelector<HTMLElement>(`[data-block-id="${top.id}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Krótki flash, żeby autor od razu widział, do którego bloku trafił.
+    el.classList.add("ring-2", "ring-primary/70", "ring-offset-2", "rounded");
+    window.setTimeout(() => {
+      el.classList.remove("ring-2", "ring-primary/70", "ring-offset-2", "rounded");
+    }, 1400);
+  };
+
   const startEdit = (e: FootnoteEntry) => {
     setEditingId(e.id);
     setDraft(e.html);
