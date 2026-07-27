@@ -18,7 +18,14 @@ export type StatusFilter =
   | "pending_review"
   | "scheduled"
   | "archived";
-export type LangFilter = "all" | "pl_only" | "en_only" | "missing_any" | "complete";
+export type LangFilter =
+  | "all"
+  | "has_pl"
+  | "has_en"
+  | "pl_only"
+  | "en_only"
+  | "missing_any"
+  | "complete";
 
 export interface AdminListToolbarProps {
   search: string;
