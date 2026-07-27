@@ -112,7 +112,7 @@ describe("updateFootnoteAtOrigin", () => {
     expect((nf.blocks[2].data as { cite: string }).cite).toBe("C[fn]F-NEW[/fn]");
     // Edycja "g" (wnętrze group)
     const ng = updateFootnoteAtOrigin(d, origins[6].origin, "G-NEW");
-    const gChildren = (ng.blocks[3].data as { children: Block[] }).children;
+    const gChildren = (ng.blocks[3].data as unknown as { children: Block[] }).children;
     expect((gChildren[0].data as { html: string }).html).toBe("G[fn]G-NEW[/fn]");
   });
 
