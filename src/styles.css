@@ -5919,15 +5919,23 @@ textarea.input {
   content: none;
 }
 
-/* Site header shrink-on-scroll: po przewinięciu header zmniejsza się do
-   połowy wysokości, a jego zawartość skaluje się proporcjonalnie (zoom),
-   dzięki czemu wszystkie elementy (logo, menu, ticker) dopasowują się. */
+/* Site header shrink-on-scroll: po przewinięciu header zmniejsza się
+   płynnie, a jego zawartość skaluje się proporcjonalnie (zoom).
+   Dłuższe easing (520 ms) i will-change eliminują „skok" layoutu. */
 header[data-site-header].site-header-shrink {
-  transition: box-shadow 300ms ease;
+  transition:
+    box-shadow 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    height 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: height, box-shadow;
 }
 header[data-site-header].site-header-shrink > * {
-  transition: zoom 300ms ease, transform 300ms ease;
+  transition:
+    zoom 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    grid-template-rows 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
   transform-origin: top left;
+  will-change: zoom, transform, opacity, grid-template-rows;
 }
 header[data-site-header][data-scrolled="true"].site-header-shrink {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
@@ -5935,9 +5943,26 @@ header[data-site-header][data-scrolled="true"].site-header-shrink {
 header[data-site-header][data-scrolled="true"].site-header-shrink > * {
   zoom: 0.8;
 }
-/* Hide trending ticker ("na czasie") while the shrunk header is active. */
+
+/* Trending ticker ("na czasie") zwija się płynnie zamiast znikać natychmiast.
+   Grid-template-rows minmax(0,1fr) -> minmax(0,0fr) animuje rzeczywistą
+   wysokość elementu, ponieważ minmax(0, ...) usuwa domyślne ograniczenie
+   min-content, które blokuje zwijanie do zera. */
+header[data-site-header].site-header-shrink .cms-trending {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  opacity: 1;
+  transition:
+    grid-template-rows 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 360ms ease-in-out;
+  overflow: hidden;
+}
+header[data-site-header].site-header-shrink .cms-trending > div {
+  min-height: 0;
+}
 header[data-site-header][data-scrolled="true"].site-header-shrink .cms-trending {
-  display: none !important;
+  grid-template-rows: minmax(0, 0fr);
+  opacity: 0;
 }
 
 /* Na stronie głównej pierwsza sekcja builderowego headera lekko "rośnie"
@@ -5947,7 +5972,7 @@ header[data-site-header][data-scrolled="true"].site-header-shrink .cms-trending 
   overflow: visible;
 }
 .home-header-grow > div > section[data-sec-id]:first-of-type > div:nth-of-type(2) {
-  transition: transform 300ms ease;
+  transition: transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
   transform-origin: top center;
 }
 header[data-scrolled="true"]
@@ -5956,6 +5981,19 @@ header[data-scrolled="true"]
   > section[data-sec-id]:first-of-type
   > div:nth-of-type(2) {
   transform: scale(1.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  header[data-site-header].site-header-shrink,
+  header[data-site-header].site-header-shrink > *,
+  header[data-site-header].site-header-shrink .cms-trending,
+  .home-header-grow > div > section[data-sec-id]:first-of-type > div:nth-of-type(2) {
+    transition: none !important;
+  }
+  header[data-site-header][data-scrolled="true"].site-header-shrink .cms-trending {
+    grid-template-rows: minmax(0, 0fr);
+    opacity: 0;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
