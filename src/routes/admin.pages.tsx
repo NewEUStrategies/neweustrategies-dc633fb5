@@ -565,8 +565,8 @@ function PagesList() {
                         <div className="flex items-center gap-2">
                           {isTrash ? (
                             <div className="font-medium text-[13px] truncate max-w-[360px]">
-                              {(lang === "en" ? p.title_en : p.title_pl) ||
-                                (lang === "en" ? p.title_pl : p.title_en) || (
+                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
+                                (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
                                     - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
                                   </span>
@@ -578,8 +578,8 @@ function PagesList() {
                               params={{ slug: p.slug }}
                               className="font-medium text-[13px] truncate max-w-[360px] text-[#231f20] dark:text-[#F8F6F4] hover:text-[#FDB078] hover:underline"
                             >
-                              {(lang === "en" ? p.title_en : p.title_pl) ||
-                                (lang === "en" ? p.title_pl : p.title_en) || (
+                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
+                                (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
                                     - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
                                   </span>
@@ -684,7 +684,7 @@ function PagesList() {
                                 onClick={() =>
                                   setAsHome(
                                     p.slug,
-                                    (lang === "en" ? p.title_en : p.title_pl) ?? p.slug,
+                                    (viewLang === "en" ? p.title_en : p.title_pl) ?? p.slug,
                                   )
                                 }
                               >
