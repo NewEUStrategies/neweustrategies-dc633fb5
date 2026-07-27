@@ -50,7 +50,11 @@ export const Route = createFileRoute("/category/$slug")({
         sort: deps.sort,
       }),
     );
-    if (!data) throw notFound();
+    if (!data) {
+      setCacheControlHeader(NO_STORE);
+      throw notFound();
+    }
+    setCacheControlHeader(contentCacheControl());
     return data;
   },
   head: ({ loaderData, params }) => {
