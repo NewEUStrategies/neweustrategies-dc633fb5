@@ -413,13 +413,21 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
                 : sizePreset === "display"
                   ? "text-6xl md:text-7xl"
                   : "text-3xl";
+      const gradientFrom = getStr(c, "gradientFrom");
+      const gradientTo = getStr(c, "gradientTo");
+      const gradientAngle = getNum(c, "gradientAngle", 90);
+      const highlightColor = getStr(c, "highlightColor");
+      const outlineColor = getStr(c, "outlineColor");
+      const customGradient = variant === "gradient" && !!gradientFrom && !!gradientTo;
       const variantCls =
         variant === "gradient"
-          ? "text-gradient-brand"
+          ? customGradient
+            ? "bg-clip-text text-transparent"
+            : "text-gradient-brand"
           : variant === "outlined"
             ? "[-webkit-text-stroke:1px_currentColor] text-transparent"
             : variant === "highlight"
-              ? "decoration-brand decoration-4 underline-offset-4 underline"
+              ? `${highlightColor ? "" : "decoration-brand"} decoration-4 underline-offset-4 underline`
               : variant === "uppercase"
                 ? "uppercase tracking-widest"
                 : variant === "serif"
@@ -432,10 +440,20 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           : useGlobalTitle
             ? { fontSize: "var(--td-pt-size, 15px)", lineHeight: "var(--td-pt-lh, 1.3)" }
             : {}),
-        // Waga: jawna wartość widgetu > globalna Theme Design (--td-pt-weight).
         fontWeight: (titleWeight
           ? titleWeight
           : "var(--td-pt-weight, 600)") as React.CSSProperties["fontWeight"],
+        ...(customGradient
+          ? {
+              backgroundImage: `linear-gradient(${gradientAngle}deg, ${gradientFrom}, ${gradientTo})`,
+            }
+          : {}),
+        ...(variant === "highlight" && highlightColor
+          ? { textDecorationColor: highlightColor }
+          : {}),
+        ...(variant === "outlined" && outlineColor
+          ? ({ WebkitTextStrokeColor: outlineColor } as React.CSSProperties)
+          : {}),
       };
       const finalStyle = Object.keys(headStyle).length ? headStyle : undefined;
       const finalCls = headCls;
