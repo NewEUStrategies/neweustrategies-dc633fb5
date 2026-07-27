@@ -4,7 +4,7 @@
 // + opis), zaadaptowany do naszej typografii (.cms-*), tokenów Theme Design
 // i dark/light modes. Każdy speaker ma pola i18n (rola/kategoria/opis) oraz
 // opcjonalny link `href` (np. do profilu eksperta).
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { Star, User as UserIcon, Search as SearchIcon } from "@/lib/lucide-shim";
@@ -62,6 +62,8 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   const enableSearch = cRaw.enableSearch !== false;
   const enableSort = cRaw.enableSort !== false;
   const pageSize = Math.max(0, Math.round(numOf(cRaw.pageSize, 0)));
+  const pageModeRaw = typeof cRaw.pageMode === "string" ? cRaw.pageMode : "button";
+  const pageMode: "button" | "scroll" = pageModeRaw === "scroll" ? "scroll" : "button";
 
   const speakers: SpeakerItem[] = Array.isArray(cRaw.speakers)
     ? (cRaw.speakers as unknown[]).filter(
@@ -132,6 +134,23 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   ];
 
   const resetPagination = () => setVisibleCount(pageSize > 0 ? pageSize : 0);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (pageMode !== "scroll" || !canLoadMore) return;
+    const el = sentinelRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((x) => x.isIntersecting)) {
+          setVisibleCount((n) => n + (pageSize > 0 ? pageSize : filtered.length));
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [pageMode, canLoadMore, pageSize, filtered.length]);
 
   return (
     <section className="cms-speakers space-y-6" style={accentStyle}>
@@ -235,7 +254,7 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
         )}
       </div>
 
-      {canLoadMore && (
+      {canLoadMore && pageMode === "button" && (
         <div className="flex justify-center">
           <button
             type="button"
@@ -247,6 +266,18 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
               ({paginated.length}/{filtered.length})
             </span>
           </button>
+        </div>
+      )}
+      {canLoadMore && pageMode === "scroll" && (
+        <div
+          ref={sentinelRef}
+          aria-hidden
+          className="h-10 w-full flex items-center justify-center text-xs text-muted-foreground"
+        >
+          <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <span className="ml-2">
+            {lang === "pl" ? "Wczytywanie…" : "Loading…"} ({paginated.length}/{filtered.length})
+          </span>
         </div>
       )}
     </section>

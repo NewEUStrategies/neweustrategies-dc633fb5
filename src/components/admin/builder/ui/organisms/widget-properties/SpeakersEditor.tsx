@@ -19,7 +19,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Upload } from "@/lib/lucide-shim";
+import { Download, Upload, GripVertical } from "@/lib/lucide-shim";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { PropField, ItemFrame, ColorField } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
@@ -64,14 +81,23 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
   const commit = (next: Item[]) => setContent("speakers", toJson(next));
   const patch = (i: number, p: Partial<Item>) =>
     commit(speakers.map((x, j) => (j === i ? { ...x, ...p } : x)));
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    if (j < 0 || j >= speakers.length) return;
-    const next = speakers.slice();
-    [next[i], next[j]] = [next[j], next[i]];
-    commit(next);
-  };
   const remove = (i: number) => commit(speakers.filter((_, j) => j !== i));
+
+  const itemIds = speakers.map(
+    (s, i) => (typeof s.id === "string" && s.id ? s.id : `sp-idx-${i}`),
+  );
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const from = itemIds.indexOf(String(active.id));
+    const to = itemIds.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    commit(arrayMove(speakers, from, to));
+  };
   const add = () =>
     commit([
       ...speakers,
@@ -217,6 +243,32 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
+        {pageSize > 0 && (
+          <PropField
+            label={l("Tryb doładowywania", "Load-more mode")}
+            hint={l(
+              "Przycisk = ręczne kliknięcie. Scroll = auto-doładowanie przy przewijaniu.",
+              "Button = manual click. Scroll = auto-load on scroll.",
+            )}
+          >
+            <Select
+              value={strOf((c as Record<string, unknown>).pageMode) || "button"}
+              onValueChange={(v) => setContent("pageMode", v)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="button">
+                  {l("Przycisk Pokaż więcej", "Load more button")}
+                </SelectItem>
+                <SelectItem value="scroll">
+                  {l("Wczytaj przy scrollu", "Load on scroll")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+        )}
       </div>
 
       <div className="flex gap-2">
@@ -264,192 +316,215 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
       </div>
 
       <ListShell title={l("Prelegenci", "Speakers")} items={speakers} onAdd={add}>
-        <div className="space-y-2">
-          {speakers.map((it, i) => {
-            const photo = strOf(it.photo);
-            const href = strOf(it.href);
-            const rating = numOf(it.rating);
-            const gigs = numOf(it.gigs);
-            const reviews = numOf(it.reviews);
-            const photoErr = validatePhoto(photo);
-            const hrefErr = validateHref(href);
-            const ratingErr = validateRating(rating);
-            const gigsErr = validateNonNeg(gigs);
-            const reviewsErr = validateNonNeg(reviews);
-
-            return (
-              <ItemFrame
-                key={(it.id as string) ?? i}
-                title={strOf(it.name) || `#${i + 1}`}
-                onRemove={() => remove(i)}
-              >
-                <div className="mb-1 flex items-center gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 px-1 text-[10px]"
-                    onClick={() => move(i, -1)}
-                  >
-                    ↑
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 px-1 text-[10px]"
-                    onClick={() => move(i, 1)}
-                  >
-                    ↓
-                  </Button>
-                  {photo && !photoErr && (
-                    <img
-                      src={photo}
-                      alt=""
-                      className="ml-auto h-8 w-8 rounded-[6px] object-cover border border-border/60"
-                    />
-                  )}
-                </div>
-
-                <PropField label={l("Zdjęcie (URL)", "Photo (URL)")}>
-                  <Input
-                    value={photo}
-                    onChange={(e) => patch(i, { photo: e.target.value })}
-                    placeholder="https://…"
-                    className={
-                      "h-8 text-xs " +
-                      (photoErr ? "border-destructive focus-visible:ring-destructive" : "")
-                    }
-                    aria-invalid={photoErr ? true : undefined}
-                  />
-                  {photoErr && <p className="text-[10px] text-destructive mt-0.5">{photoErr}</p>}
-                </PropField>
-                <PropField label={l("Imię i nazwisko", "Full name")}>
-                  <Input
-                    value={strOf(it.name)}
-                    onChange={(e) => patch(i, { name: e.target.value })}
-                    className="h-8 text-xs"
-                  />
-                </PropField>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <PropField label={`${l("Rola", "Role")} PL`}>
-                    <Input
-                      value={strOf(it.role_pl)}
-                      onChange={(e) => patch(i, { role_pl: e.target.value })}
-                      className="h-8 text-xs"
-                    />
-                  </PropField>
-                  <PropField label={`${l("Rola", "Role")} EN`}>
-                    <Input
-                      value={strOf(it.role_en)}
-                      onChange={(e) => patch(i, { role_en: e.target.value })}
-                      className="h-8 text-xs"
-                    />
-                  </PropField>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <PropField label={`${l("Kategoria", "Category")} PL`}>
-                    <Input
-                      value={strOf(it.category_pl)}
-                      onChange={(e) => patch(i, { category_pl: e.target.value })}
-                      className="h-8 text-xs"
-                    />
-                  </PropField>
-                  <PropField label={`${l("Kategoria", "Category")} EN`}>
-                    <Input
-                      value={strOf(it.category_en)}
-                      onChange={(e) => patch(i, { category_en: e.target.value })}
-                      className="h-8 text-xs"
-                    />
-                  </PropField>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <PropField label={l("Wystąpienia", "Gigs")}>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={gigs}
-                      onChange={(e) => patch(i, { gigs: Number(e.target.value) || 0 })}
-                      className={
-                        "h-8 text-xs " + (gigsErr ? "border-destructive" : "")
-                      }
-                    />
-                    {gigsErr && <p className="text-[10px] text-destructive mt-0.5">{gigsErr}</p>}
-                  </PropField>
-                  <PropField label={l("Ocena (0-5)", "Rating (0-5)")}>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={5}
-                      step={0.1}
-                      value={rating}
-                      onChange={(e) => patch(i, { rating: Number(e.target.value) || 0 })}
-                      className={
-                        "h-8 text-xs " + (ratingErr ? "border-destructive" : "")
-                      }
-                    />
-                    {ratingErr && (
-                      <p className="text-[10px] text-destructive mt-0.5">{ratingErr}</p>
-                    )}
-                  </PropField>
-                  <PropField label={l("Opinie", "Reviews")}>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={reviews}
-                      onChange={(e) => patch(i, { reviews: Number(e.target.value) || 0 })}
-                      className={
-                        "h-8 text-xs " + (reviewsErr ? "border-destructive" : "")
-                      }
-                    />
-                    {reviewsErr && (
-                      <p className="text-[10px] text-destructive mt-0.5">{reviewsErr}</p>
-                    )}
-                  </PropField>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <PropField label={`${l("Opis", "Description")} PL`}>
-                    <Textarea
-                      rows={2}
-                      value={strOf(it.description_pl)}
-                      onChange={(e) => patch(i, { description_pl: e.target.value })}
-                      className="text-xs"
-                    />
-                  </PropField>
-                  <PropField label={`${l("Opis", "Description")} EN`}>
-                    <Textarea
-                      rows={2}
-                      value={strOf(it.description_en)}
-                      onChange={(e) => patch(i, { description_en: e.target.value })}
-                      className="text-xs"
-                    />
-                  </PropField>
-                </div>
-
-                <PropField
-                  label={l("Link (opcjonalny)", "Link (optional)")}
-                  hint={l("np. /author/imie-nazwisko", "e.g. /author/first-last")}
-                >
-                  <Input
-                    value={href}
-                    onChange={(e) => patch(i, { href: e.target.value })}
-                    placeholder="/author/…"
-                    className={
-                      "h-8 text-xs " + (hrefErr ? "border-destructive" : "")
-                    }
-                    aria-invalid={hrefErr ? true : undefined}
-                  />
-                  {hrefErr && <p className="text-[10px] text-destructive mt-0.5">{hrefErr}</p>}
-                </PropField>
-              </ItemFrame>
-            );
-          })}
-        </div>
+        <p className="text-[10px] text-muted-foreground/70 -mt-1">
+          {l(
+            "Przeciągnij uchwyt aby zmienić kolejność. Ręczna kolejność nadpisuje sortowanie po ocenie/wystąpieniach/opiniach.",
+            "Drag the handle to reorder. Manual order overrides sorting by rating/gigs/reviews.",
+          )}
+        </p>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {speakers.map((it, i) => (
+                <SortableSpeakerRow
+                  key={itemIds[i]}
+                  id={itemIds[i]}
+                  item={it}
+                  index={i}
+                  lang={lang}
+                  onPatch={(p) => patch(i, p)}
+                  onRemove={() => remove(i)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       </ListShell>
+    </div>
+  );
+}
+
+interface RowProps {
+  id: string;
+  item: Item;
+  index: number;
+  lang: "pl" | "en";
+  onPatch: (p: Partial<Item>) => void;
+  onRemove: () => void;
+}
+
+function SortableSpeakerRow({ id, item: it, index: i, lang, onPatch, onRemove }: RowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
+  const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const photo = strOf(it.photo);
+  const href = strOf(it.href);
+  const rating = numOf(it.rating);
+  const gigs = numOf(it.gigs);
+  const reviews = numOf(it.reviews);
+  const photoErr = validatePhoto(photo);
+  const hrefErr = validateHref(href);
+  const ratingErr = validateRating(rating);
+  const gigsErr = validateNonNeg(gigs);
+  const reviewsErr = validateNonNeg(reviews);
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <ItemFrame title={strOf(it.name) || `#${i + 1}`} onRemove={onRemove}>
+        <div className="mb-1 flex items-center gap-1">
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            title={l("Przeciągnij aby zmienić kolejność", "Drag to reorder")}
+            aria-label={l("Przeciągnij aby zmienić kolejność", "Drag to reorder")}
+            className="p-1 rounded text-muted-foreground hover:bg-accent cursor-grab active:cursor-grabbing"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          {photo && !photoErr && (
+            <img
+              src={photo}
+              alt=""
+              className="ml-auto h-8 w-8 rounded-[6px] object-cover border border-border/60"
+            />
+          )}
+        </div>
+
+        <PropField label={l("Zdjęcie (URL)", "Photo (URL)")}>
+          <Input
+            value={photo}
+            onChange={(e) => onPatch({ photo: e.target.value })}
+            placeholder="https://…"
+            className={
+              "h-8 text-xs " +
+              (photoErr ? "border-destructive focus-visible:ring-destructive" : "")
+            }
+            aria-invalid={photoErr ? true : undefined}
+          />
+          {photoErr && <p className="text-[10px] text-destructive mt-0.5">{photoErr}</p>}
+        </PropField>
+        <PropField label={l("Imię i nazwisko", "Full name")}>
+          <Input
+            value={strOf(it.name)}
+            onChange={(e) => onPatch({ name: e.target.value })}
+            className="h-8 text-xs"
+          />
+        </PropField>
+
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label={`${l("Rola", "Role")} PL`}>
+            <Input
+              value={strOf(it.role_pl)}
+              onChange={(e) => onPatch({ role_pl: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </PropField>
+          <PropField label={`${l("Rola", "Role")} EN`}>
+            <Input
+              value={strOf(it.role_en)}
+              onChange={(e) => onPatch({ role_en: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </PropField>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label={`${l("Kategoria", "Category")} PL`}>
+            <Input
+              value={strOf(it.category_pl)}
+              onChange={(e) => onPatch({ category_pl: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </PropField>
+          <PropField label={`${l("Kategoria", "Category")} EN`}>
+            <Input
+              value={strOf(it.category_en)}
+              onChange={(e) => onPatch({ category_en: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </PropField>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <PropField label={l("Wystąpienia", "Gigs")}>
+            <Input
+              type="number"
+              min={0}
+              value={gigs}
+              onChange={(e) => onPatch({ gigs: Number(e.target.value) || 0 })}
+              className={"h-8 text-xs " + (gigsErr ? "border-destructive" : "")}
+            />
+            {gigsErr && <p className="text-[10px] text-destructive mt-0.5">{gigsErr}</p>}
+          </PropField>
+          <PropField label={l("Ocena (0-5)", "Rating (0-5)")}>
+            <Input
+              type="number"
+              min={0}
+              max={5}
+              step={0.1}
+              value={rating}
+              onChange={(e) => onPatch({ rating: Number(e.target.value) || 0 })}
+              className={"h-8 text-xs " + (ratingErr ? "border-destructive" : "")}
+            />
+            {ratingErr && <p className="text-[10px] text-destructive mt-0.5">{ratingErr}</p>}
+          </PropField>
+          <PropField label={l("Opinie", "Reviews")}>
+            <Input
+              type="number"
+              min={0}
+              value={reviews}
+              onChange={(e) => onPatch({ reviews: Number(e.target.value) || 0 })}
+              className={"h-8 text-xs " + (reviewsErr ? "border-destructive" : "")}
+            />
+            {reviewsErr && <p className="text-[10px] text-destructive mt-0.5">{reviewsErr}</p>}
+          </PropField>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label={`${l("Opis", "Description")} PL`}>
+            <Textarea
+              rows={2}
+              value={strOf(it.description_pl)}
+              onChange={(e) => onPatch({ description_pl: e.target.value })}
+              className="text-xs"
+            />
+          </PropField>
+          <PropField label={`${l("Opis", "Description")} EN`}>
+            <Textarea
+              rows={2}
+              value={strOf(it.description_en)}
+              onChange={(e) => onPatch({ description_en: e.target.value })}
+              className="text-xs"
+            />
+          </PropField>
+        </div>
+
+        <PropField
+          label={l("Link (opcjonalny)", "Link (optional)")}
+          hint={l("np. /author/imie-nazwisko", "e.g. /author/first-last")}
+        >
+          <Input
+            value={href}
+            onChange={(e) => onPatch({ href: e.target.value })}
+            placeholder="/author/…"
+            className={"h-8 text-xs " + (hrefErr ? "border-destructive" : "")}
+            aria-invalid={hrefErr ? true : undefined}
+          />
+          {hrefErr && <p className="text-[10px] text-destructive mt-0.5">{hrefErr}</p>}
+        </PropField>
+      </ItemFrame>
     </div>
   );
 }
