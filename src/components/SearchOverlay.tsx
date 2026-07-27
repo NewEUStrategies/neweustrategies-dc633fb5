@@ -264,7 +264,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           <p className="mx-auto mt-1.5 max-w-xs text-[11px] leading-relaxed text-muted-foreground sm:hidden">
             {t("searchOverlay.hint", {
               defaultValue:
-                "Wpisz frazę - użyj cudzysłowów dla dokładnej frazy lub „-" aby wykluczyć słowo.",
+                'Wpisz frazę - użyj cudzysłowów dla dokładnej frazy lub „-" aby wykluczyć słowo.',
             }) as string}
           </p>
         </div>
