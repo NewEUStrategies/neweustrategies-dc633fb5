@@ -81,14 +81,23 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
   const commit = (next: Item[]) => setContent("speakers", toJson(next));
   const patch = (i: number, p: Partial<Item>) =>
     commit(speakers.map((x, j) => (j === i ? { ...x, ...p } : x)));
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    if (j < 0 || j >= speakers.length) return;
-    const next = speakers.slice();
-    [next[i], next[j]] = [next[j], next[i]];
-    commit(next);
-  };
   const remove = (i: number) => commit(speakers.filter((_, j) => j !== i));
+
+  const itemIds = speakers.map(
+    (s, i) => (typeof s.id === "string" && s.id ? s.id : `sp-idx-${i}`),
+  );
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const from = itemIds.indexOf(String(active.id));
+    const to = itemIds.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    commit(arrayMove(speakers, from, to));
+  };
   const add = () =>
     commit([
       ...speakers,
