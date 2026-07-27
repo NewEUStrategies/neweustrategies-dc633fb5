@@ -74,12 +74,15 @@ import {
 
 const PRESET_COLORS: { value: string; label: string; hex: string }[] = [
   { value: "brand", label: "Brand", hex: "#FA9346" },
-  { value: "military", label: "Military", hex: "#9b4a2a" },
-  { value: "finance", label: "Finance", hex: "#2d8a4e" },
-  { value: "transport", label: "Transport", hex: "#c98a2a" },
-  { value: "diplomacy", label: "Diplomacy", hex: "#3a5da8" },
-  { value: "cyber", label: "Cyber", hex: "#2a9ec9" },
-  { value: "neutral", label: "Neutral", hex: "#777777" },
+  { value: "amber", label: "Amber", hex: "#F8B632" },
+  { value: "gold", label: "Gold", hex: "#FECA62" },
+  { value: "sky", label: "Sky", hex: "#63B2F2" },
+  { value: "green", label: "Green", hex: "#81D365" },
+  { value: "red", label: "Red", hex: "#F24343" },
+  { value: "ivory", label: "Ivory", hex: "#F8F6F4" },
+  { value: "crimson", label: "Crimson", hex: "#CD393B" },
+  { value: "navy", label: "Navy", hex: "#01112F" },
+  { value: "ink", label: "Ink", hex: "#141313" },
 ];
 
 interface Props {
@@ -127,7 +130,7 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {t("builder.sectionLabelEditor.accentColor")}
         </div>
-        <div className="grid grid-cols-7 gap-1.5">
+        <div className="grid grid-cols-5 gap-1.5">
           {PRESET_COLORS.map((p) => {
             const isActive = !customAccent && colorPreset === p.value;
             return (
