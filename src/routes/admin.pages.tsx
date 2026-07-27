@@ -140,6 +140,10 @@ function PagesList() {
           .neq("title_pl", "")
           .not("title_en", "is", null)
           .neq("title_en", "");
+      } else if (langFilter === "has_pl") {
+        q = q.not("title_pl", "is", null).neq("title_pl", "");
+      } else if (langFilter === "has_en") {
+        q = q.not("title_en", "is", null).neq("title_en", "");
       } else if (langFilter === "missing_any") {
         q = q.or("title_pl.is.null,title_pl.eq.,title_en.is.null,title_en.eq.");
       } else if (langFilter === "pl_only") {
