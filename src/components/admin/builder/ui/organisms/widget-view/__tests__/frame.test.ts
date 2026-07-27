@@ -111,6 +111,11 @@ describe("getWidgetFrameStyle", () => {
     );
   });
 
+  it("applies an explicit percentage width", () => {
+    const advanced = { width: { desktop: "60%" } } as WidgetNode["advanced"];
+    expect(getWidgetFrameStyle(node({ advanced }), "desktop").width).toBe("60%");
+  });
+
   it("shrinks to content for inline layout and anchors via selfJustify", () => {
     const inline = getWidgetFrameStyle(
       node({ type: "button", advanced: { layout: "inline" } as WidgetNode["advanced"] }),
