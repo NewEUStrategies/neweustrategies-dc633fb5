@@ -512,7 +512,7 @@ export const WIDGETS: WidgetDef[] = [
   { type: "tags", label: "Tagi", category: "dynamic", icon: Tags, defaults: () => ({}) },
   {
     type: "tailored-must-reads",
-    label: "Rekomendacje z imieniem",
+    label: "Tailored must-reads (rekomendacje z imieniem)",
     category: "dynamic",
     icon: UserPlus,
     defaults: () => ({
