@@ -98,15 +98,19 @@ export const styleToCSS = (
 };
 
 // Re-export so consumers don't need a separate import.
+type ResponsiveSizeValue = number | "auto" | `${number}%`;
 type ResponsiveSize =
-  | number
-  | "auto"
-  | { desktop?: number | "auto"; tablet?: number | "auto"; mobile?: number | "auto" }
+  | ResponsiveSizeValue
+  | {
+      desktop?: ResponsiveSizeValue;
+      tablet?: ResponsiveSizeValue;
+      mobile?: ResponsiveSizeValue;
+    }
   | undefined;
 
-function pickSize(value: ResponsiveSize, device: Device): number | "auto" | undefined {
+function pickSize(value: ResponsiveSize, device: Device): ResponsiveSizeValue | undefined {
   if (value === undefined) return undefined;
-  if (typeof value === "number" || value === "auto") return value;
+  if (typeof value === "number" || value === "auto" || typeof value === "string") return value;
   return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
 
@@ -117,15 +121,16 @@ function pickSize(value: ResponsiveSize, device: Device): number | "auto" | unde
  * pierwszeństwo, jeśli zostały jawnie ustawione.
  */
 function pickHeight(value: ResponsiveSize, device: Device): number | "auto" | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value === "number" || value === "auto") return value;
-  return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
+  const v = pickSize(value, device);
+  if (typeof v === "string" && v !== "auto") return undefined;
+  return v as number | "auto" | undefined;
 }
 
-function toCssSize(value: number | "auto" | undefined): string | number | undefined {
+function toCssSize(value: ResponsiveSizeValue | undefined): string | number | undefined {
   if (value === undefined) return undefined;
   return value === "auto" ? "auto" : value;
 }
+
 
 export const getWidgetFrameStyle = (
   node: WidgetNode,
@@ -139,6 +144,12 @@ export const getWidgetFrameStyle = (
 
   const isInline = adv?.layout === "inline";
   const shouldAlwaysFillColumn = node.type === "post-list" || node.type === "carousel";
+  // Structural widgets (divider/spacer) describe horizontal space in the
+  // column and must always visualise their intrinsic width regardless of the
+  // widget's horizontal anchor / inline layout. Otherwise centering a divider
+  // collapses the outer frame to shrink-to-content and the rendered widget
+  // ends up ~70px wide instead of the section's real width.
+  const isStructuralWidthWidget = node.type === "divider" || node.type === "spacer";
 
   const style: CSSProperties = {
     width: "100%",
@@ -151,13 +162,18 @@ export const getWidgetFrameStyle = (
   const saRaw = node.style?.selfAlign;
   // Default: no per-widget vertical anchor - column-level verticalAlign decides.
   const sa = !saRaw || saRaw === "auto" ? undefined : saRaw;
-  const horizontalAnchored = sj && sj !== "auto";
+  const horizontalAnchored = !isStructuralWidthWidget && sj && sj !== "auto";
 
   // When user anchors the widget horizontally OR opted into inline flow, it
   // must shrink to its content so siblings can sit next to it.
   // Exception: the search widget always fills the full column width.
   const isSearch = node.type === "search-button";
-  const shrinkToContent = !isSearch && !shouldAlwaysFillColumn && (horizontalAnchored || isInline);
+  const shrinkToContent =
+    !isSearch &&
+    !shouldAlwaysFillColumn &&
+    !isStructuralWidthWidget &&
+    (horizontalAnchored || isInline);
+
   const sliderShouldFill =
     node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !shrinkToContent;
   const searchShouldFill = isSearch && wRaw === undefined;
