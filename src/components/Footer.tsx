@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { memo, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
