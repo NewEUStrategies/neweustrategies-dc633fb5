@@ -208,20 +208,30 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
           </h4>
         </div>
         <PropField label={t("builder.animatedHeadingEditor.before", { lang: lang.toUpperCase() })}>
-          <Input
-            value={textBefore}
-            onChange={(e) => setContent(`textBefore_${lang}`, e.target.value)}
-            placeholder={t("builder.animatedHeadingEditor.beforePh")}
-            className="h-8 text-xs"
-          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={textBefore}
+              onChange={(e) => setContent(`textBefore_${lang}`, e.target.value)}
+              placeholder={t("builder.animatedHeadingEditor.beforePh")}
+              className="h-8 text-xs"
+            />
+            <DynamicTagInserter
+              onInsert={(tok) => appendToken(`textBefore_${lang}`, textBefore, tok)}
+            />
+          </div>
         </PropField>
         <PropField label={t("builder.animatedHeadingEditor.after", { lang: lang.toUpperCase() })}>
-          <Input
-            value={textAfter}
-            onChange={(e) => setContent(`textAfter_${lang}`, e.target.value)}
-            placeholder={t("builder.animatedHeadingEditor.afterPh")}
-            className="h-8 text-xs"
-          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={textAfter}
+              onChange={(e) => setContent(`textAfter_${lang}`, e.target.value)}
+              placeholder={t("builder.animatedHeadingEditor.afterPh")}
+              className="h-8 text-xs"
+            />
+            <DynamicTagInserter
+              onInsert={(tok) => appendToken(`textAfter_${lang}`, textAfter, tok)}
+            />
+          </div>
         </PropField>
         <PropField label={t("builder.animatedHeadingEditor.staticColor")}>
           <ColorField
