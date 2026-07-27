@@ -92,7 +92,7 @@ export function MegaPanelView({
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
         {/* Nav columns */}
         <div
-          className="p-3 sm:p-4 grid gap-3 sm:gap-5"
+          className="p-3 sm:p-4 grid gap-x-3 gap-y-1 sm:gap-x-5 sm:gap-y-1.5"
           style={
             showFeatured
               ? {
@@ -103,10 +103,10 @@ export function MegaPanelView({
           }
         >
           {parentLabel && parentHref ? (
-            <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{ gridColumn: "1 / -1" }} className="-mb-1">
               <AppLink
                 href={safeUrl(parentHref) || "#"}
-                className="group inline-flex items-center gap-2 text-xs font-bold text-brand hover:opacity-80"
+                className="group inline-flex items-center gap-2 rounded-sm px-1.5 py-1 -mx-1.5 text-xs font-bold text-brand hover:bg-muted/60 hover:opacity-90"
               >
                 <span className="text-muted-foreground">{goToPage}:</span>
                 <span className="font-black uppercase tracking-[0.12em]">{parentLabel}</span>
@@ -122,27 +122,34 @@ export function MegaPanelView({
             const title = pickLocalized(col.title_pl, col.title_en, lang);
             return (
                 <div key={i} className="flex min-w-0 flex-col">
-                <div className="mb-1.5 flex items-center gap-1.5">
-                  <span
-                    aria-hidden
-                    className="inline-block h-3 w-1 rounded-sm"
-                    style={{ background: "var(--brand)" }}
-                  />
-                  {title ? (
-                    col.href ? (
-                      <AppLink
-                        href={safeUrl(col.href) || "#"}
-                        className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:text-foreground"
-                      >
+                {title ? (
+                  col.href ? (
+                    <AppLink
+                      href={safeUrl(col.href) || "#"}
+                      className="mb-1 -mx-1.5 flex items-center gap-1.5 rounded-sm px-1.5 py-1 transition-colors hover:bg-muted/60"
+                    >
+                      <span
+                        aria-hidden
+                        className="inline-block h-3 w-1 shrink-0 rounded-sm"
+                        style={{ background: "var(--brand)" }}
+                      />
+                      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground group-hover:text-foreground">
                         {title}
-                      </AppLink>
-                    ) : (
+                      </span>
+                    </AppLink>
+                  ) : (
+                    <div className="mb-1 flex items-center gap-1.5 px-1.5 py-1 -mx-1.5">
+                      <span
+                        aria-hidden
+                        className="inline-block h-3 w-1 shrink-0 rounded-sm"
+                        style={{ background: "var(--brand)" }}
+                      />
                       <span className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                         {title}
                       </span>
-                    )
-                  ) : null}
-                </div>
+                    </div>
+                  )
+                ) : null}
                 <ul className="flex flex-col gap-0.5">
                   {(col.links ?? []).map((lnk, j) => {
                     const label = pickLocalized(lnk.label_pl, lnk.label_en, lang);
