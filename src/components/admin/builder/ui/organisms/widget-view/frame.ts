@@ -98,15 +98,19 @@ export const styleToCSS = (
 };
 
 // Re-export so consumers don't need a separate import.
+type ResponsiveSizeValue = number | "auto" | `${number}%`;
 type ResponsiveSize =
-  | number
-  | "auto"
-  | { desktop?: number | "auto"; tablet?: number | "auto"; mobile?: number | "auto" }
+  | ResponsiveSizeValue
+  | {
+      desktop?: ResponsiveSizeValue;
+      tablet?: ResponsiveSizeValue;
+      mobile?: ResponsiveSizeValue;
+    }
   | undefined;
 
-function pickSize(value: ResponsiveSize, device: Device): number | "auto" | undefined {
+function pickSize(value: ResponsiveSize, device: Device): ResponsiveSizeValue | undefined {
   if (value === undefined) return undefined;
-  if (typeof value === "number" || value === "auto") return value;
+  if (typeof value === "number" || value === "auto" || typeof value === "string") return value;
   return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
 
@@ -117,15 +121,16 @@ function pickSize(value: ResponsiveSize, device: Device): number | "auto" | unde
  * pierwszeństwo, jeśli zostały jawnie ustawione.
  */
 function pickHeight(value: ResponsiveSize, device: Device): number | "auto" | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value === "number" || value === "auto") return value;
-  return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
+  const v = pickSize(value, device);
+  if (typeof v === "string" && v !== "auto") return undefined;
+  return v as number | "auto" | undefined;
 }
 
-function toCssSize(value: number | "auto" | undefined): string | number | undefined {
+function toCssSize(value: ResponsiveSizeValue | undefined): string | number | undefined {
   if (value === undefined) return undefined;
   return value === "auto" ? "auto" : value;
 }
+
 
 export const getWidgetFrameStyle = (
   node: WidgetNode,
