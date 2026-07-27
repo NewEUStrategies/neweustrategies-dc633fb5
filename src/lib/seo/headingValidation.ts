@@ -112,39 +112,147 @@ export function collectHeadings(input: { html?: string | null; blocks?: unknown 
   return headingsFromHtml(input.html);
 }
 
+/** Truncate to a readable snippet without cutting mid-word. */
+function snippet(text: string, max = 60): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 20 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
+export interface ValidateHeadingsOptions {
+  /**
+   * True when the page/post layout already renders the primary title as an
+   * `<h1>` outside the block editor - so the body should NOT add another H1.
+   * Suppresses `missing_h1` and reclassifies any body H1 as `extra_h1`.
+   */
+  rendersTitleAsH1?: boolean;
+  /** Max recommended heading length (chars) before flagging `too_long_heading`. */
+  maxHeadingChars?: number;
+}
+
 /** Compute the set of heading issues for a single language variant. */
 export function validateHeadings(
   lang: HeadingIssueLang,
   input: { html?: string | null; blocks?: unknown },
+  options: ValidateHeadingsOptions = {},
 ): HeadingIssue[] {
+  const { rendersTitleAsH1 = false, maxHeadingChars = 70 } = options;
   const headings = collectHeadings(input);
   // Empty document -> no signal to flag (editor may be new/draft).
   if (headings.length === 0) return [];
 
   const issues: HeadingIssue[] = [];
 
-  const h1s = headings.filter((h) => h.level === 1);
-  if (h1s.length === 0) {
+  const h1Indices = headings
+    .map((h, i) => (h.level === 1 ? i : -1))
+    .filter((i) => i >= 0);
+  if (rendersTitleAsH1) {
+    // Layout renders the H1; any body H1 is a duplicate.
+    if (h1Indices.length > 0) {
+      issues.push({
+        lang,
+        kind: "extra_h1",
+        severity: "warning",
+        count: h1Indices.length,
+        position: h1Indices[0] + 1,
+        snippet: snippet(headings[h1Indices[0]].text),
+      });
+    }
+  } else if (h1Indices.length === 0) {
     issues.push({ lang, kind: "missing_h1", severity: "warning" });
-  } else if (h1s.length > 1) {
-    issues.push({ lang, kind: "multiple_h1", severity: "error", count: h1s.length });
+  } else if (h1Indices.length > 1) {
+    issues.push({
+      lang,
+      kind: "multiple_h1",
+      severity: "error",
+      count: h1Indices.length,
+      position: h1Indices[1] + 1,
+      snippet: snippet(headings[h1Indices[1]].text),
+    });
   }
 
-  // Any completely empty heading is a warning.
-  if (headings.some((h) => h.text.length === 0)) {
-    issues.push({ lang, kind: "empty_heading", severity: "warning" });
+  // Empty headings - report count + position of the first one.
+  const emptyIdx = headings.findIndex((h) => h.text.length === 0);
+  if (emptyIdx >= 0) {
+    const count = headings.filter((h) => h.text.length === 0).length;
+    issues.push({
+      lang,
+      kind: "empty_heading",
+      severity: "warning",
+      count,
+      position: emptyIdx + 1,
+    });
   }
 
-  // Detect skipped levels within the body. Compare only consecutive headings
-  // and skip the transition from H1 (title) into the body.
+  // Skipped levels - report the first jump with heading text as context.
   let prev = headings[0].level;
   for (let i = 1; i < headings.length; i++) {
     const cur = headings[i].level;
     if (cur > prev + 1) {
-      issues.push({ lang, kind: "skipped_level", severity: "warning", from: prev, to: cur });
-      break; // one issue is enough - avoids noisy repeated warnings
+      issues.push({
+        lang,
+        kind: "skipped_level",
+        severity: "warning",
+        from: prev,
+        to: cur,
+        position: i + 1,
+        snippet: headings[i].text ? snippet(headings[i].text) : undefined,
+      });
+      break;
     }
     prev = cur;
+  }
+
+  // Overly long H2/H3 (SERP-scale hurdle) - single warning.
+  const longIdx = headings.findIndex(
+    (h) => h.level >= 2 && h.level <= 3 && [...h.text].length > maxHeadingChars,
+  );
+  if (longIdx >= 0) {
+    issues.push({
+      lang,
+      kind: "too_long_heading",
+      severity: "warning",
+      position: longIdx + 1,
+      count: [...headings[longIdx].text].length,
+      snippet: snippet(headings[longIdx].text),
+    });
+  }
+
+  // ALL-CAPS heading (>= 8 letters, >70% uppercase) - readability signal.
+  const shoutyIdx = headings.findIndex((h) => {
+    const letters = h.text.replace(/[^\p{L}]/gu, "");
+    if (letters.length < 8) return false;
+    const upper = letters.replace(/[^\p{Lu}]/gu, "").length;
+    return upper / letters.length > 0.7;
+  });
+  if (shoutyIdx >= 0) {
+    issues.push({
+      lang,
+      kind: "shouty_heading",
+      severity: "warning",
+      position: shoutyIdx + 1,
+      snippet: snippet(headings[shoutyIdx].text),
+    });
+  }
+
+  // Duplicate heading text (case/whitespace-insensitive), across H2..H6.
+  const seen = new Map<string, number>();
+  for (let i = 0; i < headings.length; i++) {
+    if (headings[i].level < 2 || !headings[i].text) continue;
+    const key = headings[i].text.toLowerCase().replace(/\s+/g, " ").trim();
+    if (seen.has(key)) {
+      issues.push({
+        lang,
+        kind: "duplicate_heading",
+        severity: "warning",
+        position: i + 1,
+        snippet: snippet(headings[i].text),
+      });
+      break;
+    }
+    seen.set(key, i);
   }
 
   return issues;
