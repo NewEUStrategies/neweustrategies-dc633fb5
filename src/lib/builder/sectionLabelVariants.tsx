@@ -51,18 +51,37 @@ export function resolveAccentColor(color?: string): string {
     return color;
   }
   switch (color) {
+    case "amber":
+      return "#F8B632";
+    case "gold":
+      return "#FECA62";
+    case "sky":
+      return "#63B2F2";
+    case "green":
+      return "#81D365";
+    case "red":
+      return "#F24343";
+    case "ivory":
+      return "#F8F6F4";
+    case "crimson":
+      return "#CD393B";
+    case "navy":
+      return "#01112F";
+    case "ink":
+      return "#141313";
+    // Legacy aliases (kept for existing content)
     case "military":
-      return "oklch(0.55 0.18 30)";
+      return "#CD393B";
     case "finance":
-      return "oklch(0.55 0.18 140)";
+      return "#81D365";
     case "diplomacy":
-      return "oklch(0.55 0.18 260)";
+      return "#01112F";
     case "transport":
-      return "oklch(0.55 0.18 60)";
+      return "#F8B632";
     case "cyber":
-      return "oklch(0.55 0.18 200)";
+      return "#63B2F2";
     case "neutral":
-      return "oklch(0.55 0 0)";
+      return "#141313";
     case "brand":
     default:
       return "#FA9346";
