@@ -5918,3 +5918,21 @@ textarea.input {
 .cms-social-list > li::marker {
   content: none;
 }
+
+/* Site header shrink-on-scroll: zmniejsza header do połowy wysokości,
+   a wszystkie elementy skalują się proporcjonalnie przez transform. */
+header[data-site-header].site-header-shrink {
+  transition: max-height 300ms ease, box-shadow 300ms ease;
+  will-change: max-height;
+}
+header[data-site-header].site-header-shrink > * {
+  transform-origin: top center;
+  transition: transform 300ms ease;
+}
+header[data-site-header][data-scrolled="true"].site-header-shrink {
+  max-height: 50vh;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+header[data-site-header][data-scrolled="true"].site-header-shrink > * {
+  transform: scaleY(0.5);
+}
