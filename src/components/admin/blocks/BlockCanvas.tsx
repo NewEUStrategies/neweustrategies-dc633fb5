@@ -247,6 +247,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                   index={idx}
                   total={blocks.length}
                   active={b.id === activeId}
+                  typeLabel={BLOCK_SPECS[b.type]?.label ?? b.type}
                   onSelect={() => onSelect(b.id)}
                   onMove={(dir) => move(idx, dir)}
                   onDuplicate={() => duplicate(idx)}
