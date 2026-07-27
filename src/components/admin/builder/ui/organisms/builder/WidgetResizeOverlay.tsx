@@ -239,30 +239,84 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
       >
         <span className="text-[10px] leading-none font-bold">═</span>
       </div>
-      {/* Move handle (right-middle) - stable grip for HTML5 drag-and-drop
-          repositioning of the widget. Carries data-widget-id so the canvas'
-          native dragstart listener treats it identically to a drag that
-          began on the widget body. */}
-      <div
-        data-widget-id={widgetId}
-        data-builder-chrome
-        draggable
-        role="button"
-        aria-label="Przeciągnij, aby przenieść widget"
-        title="Przeciągnij, aby przenieść widget"
-        className={`${handleBase} cursor-grab active:cursor-grabbing`}
-        style={{
-          left: rect.left + rect.width - 6,
-          top: rect.top + rect.height / 2 - 22,
-          width: 12,
-          height: 44,
-          writingMode: "vertical-rl",
-        }}
-      >
-        <span className="text-[11px] leading-none font-bold select-none tracking-tighter">
-          ⋮⋮
-        </span>
-      </div>
+      {/* Move handles - stable grips for HTML5 drag-and-drop repositioning.
+          Text/rich widgets often have contenteditable inside them, which
+          steals pointerdown for caret placement and blocks a body-drag.
+          These handles carry data-widget-id so VisualCanvas' native
+          dragstart listener treats them identically to a drag started on
+          the widget itself. onMouseDownCapture blurs any active editor so
+          the browser starts a drag instead of a text selection. */}
+      {(() => {
+        const stealFocus = (e: React.MouseEvent) => {
+          const active = document.activeElement as HTMLElement | null;
+          if (active && active !== e.currentTarget && typeof active.blur === "function") {
+            active.blur();
+          }
+          const sel = window.getSelection?.();
+          sel?.removeAllRanges?.();
+        };
+        return (
+          <>
+            {/* Top-left move badge (Elementor-style) */}
+            <div
+              data-widget-id={widgetId}
+              data-builder-chrome
+              draggable
+              role="button"
+              aria-label="Przeciągnij, aby przenieść widget"
+              title="Przeciągnij, aby przenieść widget"
+              onMouseDownCapture={stealFocus}
+              className={`${handleBase} cursor-grab active:cursor-grabbing gap-1 px-1.5`}
+              style={{
+                left: Math.max(0, rect.left - 6),
+                top: Math.max(0, rect.top - 20),
+                height: 18,
+                minWidth: 34,
+              }}
+            >
+              <Move className="w-3 h-3" strokeWidth={2.5} />
+            </div>
+            {/* Right-middle vertical grip bar */}
+            <div
+              data-widget-id={widgetId}
+              data-builder-chrome
+              draggable
+              role="button"
+              aria-label="Przeciągnij, aby przenieść widget"
+              title="Przeciągnij, aby przenieść widget"
+              onMouseDownCapture={stealFocus}
+              className={`${handleBase} cursor-grab active:cursor-grabbing`}
+              style={{
+                left: rect.left + rect.width - 8,
+                top: rect.top + rect.height / 2 - 28,
+                width: 16,
+                height: 56,
+              }}
+            >
+              <GripVertical className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </div>
+            {/* Left-middle vertical grip bar (mirror, easier reach on wide widgets) */}
+            <div
+              data-widget-id={widgetId}
+              data-builder-chrome
+              draggable
+              role="button"
+              aria-label="Przeciągnij, aby przenieść widget"
+              title="Przeciągnij, aby przenieść widget"
+              onMouseDownCapture={stealFocus}
+              className={`${handleBase} cursor-grab active:cursor-grabbing`}
+              style={{
+                left: Math.max(0, rect.left - 8),
+                top: rect.top + rect.height / 2 - 28,
+                width: 16,
+                height: 56,
+              }}
+            >
+              <GripVertical className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </div>
+          </>
+        );
+      })()}
       {dragging && (
         <div
           className="absolute pointer-events-none rounded bg-[color:var(--brand,#ff6a00)] text-white text-[11px] font-semibold px-2 py-0.5 shadow-md"
