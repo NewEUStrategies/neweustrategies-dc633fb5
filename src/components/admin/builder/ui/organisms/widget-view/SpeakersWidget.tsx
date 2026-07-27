@@ -4,7 +4,7 @@
 // + opis), zaadaptowany do naszej typografii (.cms-*), tokenów Theme Design
 // i dark/light modes. Każdy speaker ma pola i18n (rola/kategoria/opis) oraz
 // opcjonalny link `href` (np. do profilu eksperta).
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { Star, User as UserIcon, Search as SearchIcon } from "@/lib/lucide-shim";
