@@ -33,12 +33,14 @@ export function normalizeBuilderRichHtml(html: string): string {
 
     // 1) Remove empty <li> (whitespace, <br>, &nbsp; only) — silent bullets
     //    from WP/Elementor imports and accidental Enter presses in the editor.
+    //    Preserve list items that carry a link or media (social icon lists,
+    //    nested lists, embeds), even when their visible text is empty.
     const items = root.querySelectorAll("li");
     for (const item of items) {
       const text = item.text.replace(/\u00a0/g, "").trim();
       if (text.length > 0) continue;
-      const hasMedia = item.querySelectorAll("ul, ol, img, iframe, video, audio").length > 0;
-      if (hasMedia) continue;
+      const hasKeeper = item.querySelectorAll("a[href], ul, ol, img, iframe, video, audio, button").length > 0;
+      if (hasKeeper) continue;
       item.remove();
       changed = true;
     }
@@ -69,6 +71,24 @@ export function normalizeBuilderRichHtml(html: string): string {
       if (!LIST_TAGS.has(nestedList.rawTagName.toUpperCase())) continue;
 
       list.replaceWith(nestedList.toString());
+      changed = true;
+    }
+
+    // 4) Tag icon-only anchor lists (WP social row) so CSS can drop the bullet
+    //    and lay them out horizontally. We do NOT delete them — the anchor URL
+    //    is the actual value; only the bullet is noise.
+    const anchorLists = root.querySelectorAll("ul, ol");
+    for (const list of anchorLists) {
+      const cls = list.getAttribute("class") ?? "";
+      if (cls.includes("cms-social-list")) continue;
+      const lis = list.querySelectorAll("li");
+      if (lis.length === 0) continue;
+      const allAnchorOnly = lis.every((li) => {
+        if (li.text.replace(/\u00a0/g, "").trim().length > 0) return false;
+        return li.querySelectorAll("a[href]").length > 0;
+      });
+      if (!allAnchorOnly) continue;
+      list.setAttribute("class", `${cls} cms-social-list`.trim());
       changed = true;
     }
   }
