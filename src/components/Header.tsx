@@ -184,7 +184,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
       </div>
 
       {/* Full builder-authored header - visible from lg up. */}
-      <div className="hidden lg:block">
+      <div className={cn("hidden lg:block", isHome && "home-header-grow")}>
         <BuilderRenderer doc={cfg.builder_data} lang={isPl ? "pl" : "en"} />
       </div>
 
