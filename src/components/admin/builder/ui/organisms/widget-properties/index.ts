@@ -17,3 +17,4 @@ export { AccountLinkEditor } from "./AccountLinkEditor";
 export { HeadingFallbackPreview } from "./HeadingFallbackPreview";
 export { TeamMemberEditor } from "./TeamMemberEditor";
 export { InteractiveCircleEditor } from "./InteractiveCircleEditor";
+export { SpeakersEditor } from "./SpeakersEditor";

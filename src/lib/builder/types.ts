@@ -403,6 +403,7 @@ export type WidgetType =
   | "logo-cloud"
   | "testimonial"
   | "team-member"
+  | "speakers"
   | "pricing"
   | "interactive-circle"
   // Rich content: embeds the full blocks engine (article-style content) inside

@@ -1174,6 +1174,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       hint: "Puste = pełna szerokość kolumny. Ustaw, aby ujednolicić rozmiar karty w układach o różnej liczbie kolumn (np. 300 px = ten sam rozmiar w 3 i 4 kolumnach).",
     },
   ],
+  // "Speakers" ma dedykowany edytor (SpeakersEditor) - schema pusta, żeby
+  // fallback po schemacie nie próbował renderować duplikatów pól.
+  speakers: [],
   "search-button": [
     { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
     {

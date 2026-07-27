@@ -55,6 +55,7 @@ import {
   FlaskConical,
   Layers,
   Target as TargetIcon,
+  Users,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -1013,6 +1014,35 @@ export const WIDGETS: WidgetDef[] = [
       website: "",
       accentColor: "",
       overlayAlpha: 0.55,
+    }),
+  },
+  {
+    type: "speakers",
+    label: "Prelegenci",
+    category: "blocks",
+    icon: Users,
+    defaults: () => ({
+      heading_pl: "Prelegenci",
+      heading_en: "Speakers",
+      columns: 3,
+      accentColor: "",
+      speakers: [
+        {
+          id: "sp-1",
+          photo: "",
+          name: "",
+          role_pl: "",
+          role_en: "",
+          category_pl: "",
+          category_en: "",
+          gigs: 0,
+          rating: 0,
+          reviews: 0,
+          description_pl: "",
+          description_en: "",
+          href: "",
+        },
+      ] as unknown as Json,
     }),
   },
   {

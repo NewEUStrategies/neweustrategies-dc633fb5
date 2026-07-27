@@ -57,6 +57,10 @@ export const WIDGET_TEXT_FIELDS: Partial<Record<WidgetType, WidgetTextFieldSpec>
   // widget-view/TeamMemberWidget.tsx - biogram w modalu. `name_*` i `role_*`
   // renderują się jako tekst, więc NIE wchodzą.
   "team-member": { scalar: ["bio"] },
+
+  // widget-view/SpeakersWidget.tsx - opis prelegenta renderowany jako tekst,
+  // nie HTML (line-clamp). Nie wchodzi do indeksu wyszukiwania jako HTML.
+  speakers: { arrays: [{ arrayKey: "speakers", fields: ["description"] }] },
 };
 
 /** Rozszerza klucz na warianty lokalizowane + wariant bez sufiksu. */
