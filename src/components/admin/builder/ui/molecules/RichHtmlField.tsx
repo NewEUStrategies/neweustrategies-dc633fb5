@@ -78,6 +78,52 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
     exec("createLink", url);
   };
 
+  // Rozmiary czcionki - zgodne ze skalą tokenów `--fs-*` (px). "" = reset do globalu.
+  const FONT_SIZES: ReadonlyArray<{ label: string; value: string }> = [
+    { label: "Domyślny", value: "" },
+    { label: "12", value: "12px" },
+    { label: "13", value: "13px" },
+    { label: "14", value: "14px" },
+    { label: "16", value: "16px" },
+    { label: "18", value: "18px" },
+    { label: "20", value: "20px" },
+    { label: "24", value: "24px" },
+    { label: "28", value: "28px" },
+    { label: "32", value: "32px" },
+    { label: "40", value: "40px" },
+    { label: "48", value: "48px" },
+  ];
+
+  const applyFontSize = (size: string) => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) return;
+    // Wyciągnij zaznaczenie, zdejmij zagnieżdżone font-size w środku i owiń nowym span-em.
+    const contents = range.extractContents();
+    contents.querySelectorAll<HTMLElement>('[style*="font-size"]').forEach((node) => {
+      node.style.removeProperty("font-size");
+      if (!node.getAttribute("style")) node.removeAttribute("style");
+    });
+    if (size) {
+      const span = document.createElement("span");
+      span.style.fontSize = size;
+      span.appendChild(contents);
+      range.insertNode(span);
+      // Odtwórz zaznaczenie na wstawionym spanie.
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    } else {
+      range.insertNode(contents);
+    }
+    setTimeout(emit, 0);
+  };
+
   const buttons: ReadonlyArray<ToolbarBtn | "sep"> = [
     { icon: Bold, title: "Pogrubienie (⌘/Ctrl+B)", run: () => exec("bold") },
     { icon: Italic, title: "Kursywa (⌘/Ctrl+I)", run: () => exec("italic") },
