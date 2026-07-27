@@ -21,6 +21,7 @@ import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import { BlockInserter } from "./BlockInserter";
 import { SortableBlockItem } from "./molecules/SortableBlockItem";
+import { GenericWidgetToolbar } from "./GenericWidgetToolbar";
 import { getBlockVariants } from "@/lib/blocks/variants";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
 import { ParagraphBlock } from "./edit/Paragraph";
@@ -259,16 +260,18 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                     replaceBlock(b.id, { ...b, data: { ...b.data, variant: v } })
                   }
                 >
-                  <BlockRenderer
-                    block={b}
-                    isActive={b.id === activeId}
-                    onChange={(n) => replaceBlock(b.id, n)}
-                    onTransform={(replacement) => replaceWith(b.id, replacement)}
-                    onInsertAfter={(blk) => insertAt(idx + 1, blk)}
-                    onDeleteEmpty={() => {
-                      if (blocks.length > 1) remove(idx);
-                    }}
-                  />
+                  <BlockWithToolbar block={b} isActive={b.id === activeId} onChange={(n) => replaceBlock(b.id, n)}>
+                    <BlockRenderer
+                      block={b}
+                      isActive={b.id === activeId}
+                      onChange={(n) => replaceBlock(b.id, n)}
+                      onTransform={(replacement) => replaceWith(b.id, replacement)}
+                      onInsertAfter={(blk) => insertAt(idx + 1, blk)}
+                      onDeleteEmpty={() => {
+                        if (blocks.length > 1) remove(idx);
+                      }}
+                    />
+                  </BlockWithToolbar>
                 </SortableBlockItem>
                 <BlockInserter onInsert={(blk) => insertAt(idx + 1, blk)} />
               </div>
@@ -277,6 +280,30 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
         </div>
       </SortableContext>
     </DndContext>
+  );
+}
+
+/** Bloki, które renderują własny wyspecjalizowany floating toolbar. */
+const OWN_TOOLBAR_TYPES = new Set(["paragraph", "heading", "image", "video", "audio"]);
+
+function BlockWithToolbar({
+  block,
+  isActive,
+  onChange,
+  children,
+}: {
+  block: Block;
+  isActive: boolean;
+  onChange: (n: Block) => void;
+  children: React.ReactNode;
+}) {
+  const hasOwn = OWN_TOOLBAR_TYPES.has(block.type);
+  if (hasOwn) return <>{children}</>;
+  return (
+    <div className="relative">
+      {isActive && <GenericWidgetToolbar block={block} onChange={onChange} />}
+      {children}
+    </div>
   );
 }
 
