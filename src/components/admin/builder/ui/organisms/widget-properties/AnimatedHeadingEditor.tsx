@@ -254,24 +254,32 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
           <PropField
             label={t("builder.animatedHeadingEditor.highlight", { lang: lang.toUpperCase() })}
           >
-            <Input
-              value={highlight}
-              onChange={(e) => setContent(`highlight_${lang}`, e.target.value)}
-              placeholder={t("builder.animatedHeadingEditor.highlightPh")}
-              className="h-8 text-xs"
-            />
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={highlight}
+                onChange={(e) => setContent(`highlight_${lang}`, e.target.value)}
+                placeholder={t("builder.animatedHeadingEditor.highlightPh")}
+                className="h-8 text-xs"
+              />
+              <DynamicTagInserter
+                onInsert={(tok) => appendToken(`highlight_${lang}`, highlight, tok)}
+              />
+            </div>
           </PropField>
         ) : (
           <PropField
             label={t("builder.animatedHeadingEditor.rotateWords", { lang: lang.toUpperCase() })}
           >
-            <Textarea
-              rows={4}
-              value={rotateWords.join("\n")}
-              onChange={(e) => setWords(e.target.value)}
-              placeholder={t("builder.animatedHeadingEditor.rotatePh")}
-              className="text-xs font-mono"
-            />
+            <div className="flex items-start gap-1.5">
+              <Textarea
+                rows={4}
+                value={rotateWords.join("\n")}
+                onChange={(e) => setWords(e.target.value)}
+                placeholder={t("builder.animatedHeadingEditor.rotatePh")}
+                className="text-xs font-mono"
+              />
+              <DynamicTagInserter onInsert={appendRotateToken} />
+            </div>
           </PropField>
         )}
 
