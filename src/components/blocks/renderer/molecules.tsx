@@ -84,6 +84,10 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
   const href = safeUrl(str(block.data, "href"), "");
   const source = str(block.data, "source");
   const sourceUrl = safeUrl(str(block.data, "sourceUrl"), "");
+  const align = str(block.data, "align") || "center";
+  const size = str(block.data, "size") || "full";
+  const rounded = bool(block.data, "rounded", true);
+  const shadow = bool(block.data, "shadow", false);
   if (!url) return null;
   const rawW = num(block.data, "width", NaN);
   const rawH = num(block.data, "height", NaN);
@@ -91,11 +95,21 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
     Number.isFinite(rawW) && Number.isFinite(rawH) && rawW > 0 && rawH > 0
       ? { width: Math.round(rawW), height: Math.round(rawH) }
       : undefined;
+  const sizeCls =
+    size === "small" ? "max-w-xs" : size === "medium" ? "max-w-md" : "w-full";
+  const alignCls =
+    align === "left" ? "mr-auto" : align === "right" ? "ml-auto" : "mx-auto";
+  const imgCls = [
+    rounded ? "rounded-lg" : "",
+    shadow ? "shadow-lg" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   const img = (
     <OptimizedImage
       src={url}
       alt={alt}
-      className="rounded-lg"
+      className={imgCls}
       responsive
       sizes="(max-width: 768px) 100vw, 800px"
       width={dims?.width}
@@ -110,7 +124,7 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
     img
   );
   return (
-    <figure className={cls}>
+    <figure className={`${cls} ${sizeCls} ${alignCls}`}>
       {wrapped}
       {cap && (
         <figcaption className="text-sm text-muted-foreground text-center italic mt-2">
@@ -137,6 +151,7 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
     </figure>
   );
 };
+
 
 
 /** Blok kodu z podświetlaniem. */
@@ -180,19 +195,36 @@ export const renderVideo: BlockRenderer = ({ block, cls }) => {
   const caption = str(block.data, "caption");
   const source = str(block.data, "source");
   const sourceUrl = safeUrl(str(block.data, "sourceUrl"), "");
+  const captionsUrl = safeUrl(str(block.data, "captionsUrl"), "");
+  const aspect = str(block.data, "aspect") || "16:9";
   if (!url) return null;
+  const aspectCls =
+    aspect === "4:3"
+      ? "aspect-[4/3]"
+      : aspect === "1:1"
+        ? "aspect-square"
+        : aspect === "9:16"
+          ? "aspect-[9/16] max-w-sm mx-auto"
+          : "aspect-video";
   return (
     <figure className={`not-prose my-4 ${cls}`}>
-      <video
-        src={url}
-        poster={poster || undefined}
-        controls
-        preload="metadata"
-        className="w-full rounded-lg"
-        autoPlay={Boolean(block.data.autoplay)}
-        loop={Boolean(block.data.loop)}
-        muted={Boolean(block.data.muted)}
-      />
+      <div className={`w-full overflow-hidden rounded-lg ${aspectCls}`}>
+        <video
+          src={url}
+          poster={poster || undefined}
+          controls
+          preload="metadata"
+          className="w-full h-full object-cover"
+          autoPlay={Boolean(block.data.autoplay)}
+          loop={Boolean(block.data.loop)}
+          muted={Boolean(block.data.muted)}
+          playsInline
+        >
+          {captionsUrl && (
+            <track kind="captions" src={captionsUrl} srcLang="pl" default />
+          )}
+        </video>
+      </div>
       {caption && (
         <figcaption className="text-sm text-muted-foreground text-center italic mt-2">
           {caption}
@@ -218,6 +250,7 @@ export const renderVideo: BlockRenderer = ({ block, cls }) => {
     </figure>
   );
 };
+
 
 /** Galeria - siatka obrazów. */
 export const renderGallery: BlockRenderer = ({ block, cls }) => {
@@ -234,18 +267,40 @@ export const renderAudio: BlockRenderer = ({ block, cls }) => {
   const caption = str(block.data, "caption");
   const source = str(block.data, "source");
   const sourceUrl = safeUrl(str(block.data, "sourceUrl"), "");
+  const cover = safeImageUrl(str(block.data, "cover"));
+  const showDownload = bool(block.data, "download", false);
   if (!url) return null;
   return (
     <figure className={`not-prose my-4 ${cls}`}>
-      <audio
-        src={url}
-        controls
-        preload="metadata"
-        className="w-full"
-        autoPlay={Boolean(block.data.autoplay)}
-        loop={Boolean(block.data.loop)}
-        muted={Boolean(block.data.muted)}
-      />
+      <div className="flex items-center gap-4 rounded-lg border border-border bg-card p-3">
+        {cover && (
+          <img
+            src={cover}
+            alt=""
+            className="h-16 w-16 rounded-md object-cover flex-shrink-0"
+          />
+        )}
+        <audio
+          src={url}
+          controls
+          preload="metadata"
+          className="w-full"
+          autoPlay={Boolean(block.data.autoplay)}
+          loop={Boolean(block.data.loop)}
+          muted={Boolean(block.data.muted)}
+        />
+      </div>
+      {showDownload && (
+        <p className="text-xs text-center mt-2">
+          <a
+            href={url}
+            download
+            className="underline text-muted-foreground hover:text-foreground"
+          >
+            ⬇ Pobierz plik
+          </a>
+        </p>
+      )}
       {caption && (
         <figcaption className="text-sm text-muted-foreground text-center italic mt-2">
           {caption}
@@ -271,6 +326,7 @@ export const renderAudio: BlockRenderer = ({ block, cls }) => {
     </figure>
   );
 };
+
 
 
 /** Okładka - obraz tła z nakładką i tytułem. */
