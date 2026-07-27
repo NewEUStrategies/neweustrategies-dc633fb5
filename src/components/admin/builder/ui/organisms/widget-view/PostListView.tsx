@@ -335,7 +335,7 @@ export function PostListView({
                         style={{ borderRadius: 5 }}
                       />
                     ) : null}
-                    {showAuthorLabel && byLabel ? (
+                    {showAuthorLabel && byLabel && !(showAuthorAvatar && p.author_avatar_url) ? (
                       <span className="opacity-70">{byLabel}</span>
                     ) : null}
                     <span className="text-foreground truncate">{authorName(p)}</span>
