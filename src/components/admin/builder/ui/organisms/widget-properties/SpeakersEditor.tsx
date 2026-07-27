@@ -203,7 +203,10 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
         </PropField>
         <PropField
           label={l("Paginacja (0 = wyłączona)", "Page size (0 = disabled)")}
-          hint={l("Liczba prelegentów na stronę + przycisk „Pokaż więcej"", "Speakers per page + Load more")}
+          hint={l(
+            "Liczba prelegentów na stronę + przycisk Pokaż więcej",
+            "Speakers per page + Load more",
+          )}
         >
           <Input
             type="number"
