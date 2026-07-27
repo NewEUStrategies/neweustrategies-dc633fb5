@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import "@/lib/i18n-public";
 import { Button } from "@/components/ui/button";
+import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Loader2, User, KeyRound, ShieldCheck, LogIn } from "lucide-react";
