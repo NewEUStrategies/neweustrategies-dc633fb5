@@ -80,6 +80,7 @@ export function PostContentEditor({
                 coverImageUrl={form.cover_image_url}
               >
                 {canvas}
+                <AutoFootnotesPreview doc={(form.blocks_data ?? { pl: null, en: null })[lang]} />
               </LayoutScaffold>
             );
           }}
