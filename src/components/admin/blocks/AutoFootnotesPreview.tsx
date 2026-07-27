@@ -235,6 +235,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
           );
         })}
       </ol>
+      )}
     </section>
   );
 }
