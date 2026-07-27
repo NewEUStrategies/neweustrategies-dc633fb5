@@ -92,7 +92,7 @@ export function MegaPanelView({
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
         {/* Nav columns */}
         <div
-          className="p-5 sm:p-6 grid gap-6 sm:gap-8"
+          className="p-3 sm:p-4 grid gap-3 sm:gap-5"
           style={
             showFeatured
               ? {
