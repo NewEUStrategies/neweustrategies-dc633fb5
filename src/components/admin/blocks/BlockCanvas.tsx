@@ -310,7 +310,7 @@ function BlockRenderer({
         />
       );
     case "heading":
-      return <HeadingBlock block={block} onChange={onChange} />;
+      return <HeadingBlock block={block} isActive={isActive} onChange={onChange} />;
     case "image":
       return <ImageBlock block={block} isActive={isActive} onChange={onChange} />;
     case "list":
