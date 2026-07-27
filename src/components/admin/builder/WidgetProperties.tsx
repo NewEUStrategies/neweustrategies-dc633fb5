@@ -211,39 +211,43 @@ export function WidgetProperties({
       }
     });
 
-  // ---- Shared (non-themed) read/write for dimension / border / shadow fields.
-  // These are intentionally NOT per-mode: only colors differ between light
-  // and dark. Border radius, width, shadow strength etc. stay identical.
+  // ---- Per-mode (Themed) read/write for dimension / border / shadow fields.
+  // The renderer (frame.ts styleToCSS) already handles Themed<string> via
+  // pickMode, so per-mode overrides stay backwards compatible with legacy flat
+  // values. Editing in dark mode preserves the light value and vice versa.
   type StringStyleKey = "borderRadius" | "borderWidth" | "boxShadow";
   const getFlatStr = (key: StringStyleKey): string => {
-    const v = widget.style?.[key];
-    // Back-compat: if a legacy themed value exists, surface whichever side is set.
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      const o = v as { light?: string; dark?: string };
-      return (o.light ?? o.dark ?? "") as string;
-    }
-    return typeof v === "string" ? v : "";
+    const v = widget.style?.[key] as Themed<string> | string | undefined;
+    return pickMode<string>(v as Themed<string> | undefined, mode) ?? "";
   };
   const setFlatStr = (key: StringStyleKey, v: string | undefined) =>
     setStyle((s) => {
-      (s as Record<string, unknown>)[key] = v && v.length ? v : undefined;
+      const prev = s[key] as Themed<string> | string | undefined;
+      const next = setThemedMode<string>(
+        prev as Themed<string> | undefined,
+        mode,
+        v && v.length ? v : undefined,
+      );
+      (s[key] as Themed<string> | undefined) = next;
     });
   const getFlatBorderStyle = (): string => {
-    const v = widget.style?.borderStyle as unknown;
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      const o = v as { light?: string; dark?: string };
-      return (o.light ?? o.dark ?? "none") as string;
-    }
-    return typeof v === "string" ? v : "none";
+    const v = widget.style?.borderStyle as Themed<string> | string | undefined;
+    return pickMode<string>(v as Themed<string> | undefined, mode) ?? "none";
   };
   const setFlatBorderStyle = (v: CommonStyle["borderStyle"] | undefined) =>
     setStyle((s) => {
-      (s as Record<string, unknown>).borderStyle = v ?? undefined;
+      const prev = s.borderStyle as Themed<string> | string | undefined;
+      const next = setThemedMode<string>(
+        prev as Themed<string> | undefined,
+        mode,
+        v ?? undefined,
+      );
+      (s as Record<string, unknown>).borderStyle = next;
     });
 
-  // Typography metrics are shared between light/dark modes. Only colors are
-  // mode-specific. Store typography as a flat object so editing in dark mode
-  // immediately changes the same source of truth used by the renderer.
+  // Typography is per-mode: editing in dark mode preserves the light values
+  // and vice versa. The renderer (resolveWidgetTypography) already handles
+  // Themed<WidgetTypography> and falls back to the opposite mode on miss.
   const getThemedTypography = (): WidgetTypography | undefined =>
     pickMode<WidgetTypography>(
       widget.style?.typography as Themed<WidgetTypography> | undefined,
@@ -257,7 +261,8 @@ export function WidgetProperties({
     const next = t && Object.keys(t).length ? t : undefined;
     broadcastWidgetTypography(widget.id, next);
     setStyle((s) => {
-      s.typography = next;
+      const prev = s.typography as Themed<WidgetTypography> | undefined;
+      s.typography = setThemedMode<WidgetTypography>(prev, mode, next);
     });
   };
 
