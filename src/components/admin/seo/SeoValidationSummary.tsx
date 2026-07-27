@@ -47,29 +47,67 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
 
   for (const h of headingIssues) {
     let text = "";
+    const pos = h.position ? ` (#${h.position})` : "";
+    const snip = h.snippet ? ` - "${h.snippet}"` : "";
     if (h.kind === "missing_h1") {
       text = t("admin.seo.validation.missingH1", {
         defaultValue: "Brakuje H1 w treści - dodaj główny nagłówek.",
       });
     } else if (h.kind === "multiple_h1") {
       text = t("admin.seo.validation.multipleH1", {
-        defaultValue: "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden.",
+        defaultValue: "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden{{pos}}{{snip}}.",
         count: h.count ?? 2,
+        pos,
+        snip,
+      });
+    } else if (h.kind === "extra_h1") {
+      text = t("admin.seo.validation.extraH1", {
+        defaultValue:
+          "Tytuł strony jest już renderowany jako H1 - usuń nagłówek H1 z treści{{pos}}{{snip}}.",
+        pos,
+        snip,
       });
     } else if (h.kind === "skipped_level") {
       text = t("admin.seo.validation.skippedLevel", {
         defaultValue:
-          "Przeskoczony poziom nagłówka: H{{from}} → H{{to}}. Zachowaj hierarchię H2 → H3 → H4.",
+          "Przeskoczony poziom nagłówka{{pos}}: H{{from}} → H{{to}}. Zachowaj hierarchię H2 → H3 → H4{{snip}}.",
         from: h.from,
         to: h.to,
+        pos,
+        snip,
       });
     } else if (h.kind === "empty_heading") {
       text = t("admin.seo.validation.emptyHeading", {
-        defaultValue: "Pusty nagłówek w treści - usuń lub uzupełnij.",
+        defaultValue:
+          "Pusty nagłówek w treści{{pos}}{{extra}} - usuń lub uzupełnij tekst.",
+        pos,
+        extra: h.count && h.count > 1 ? ` (łącznie ${h.count})` : "",
+      });
+    } else if (h.kind === "duplicate_heading") {
+      text = t("admin.seo.validation.duplicateHeading", {
+        defaultValue:
+          "Powtórzony nagłówek{{pos}}{{snip}} - użyj unikalnych tytułów sekcji.",
+        pos,
+        snip,
+      });
+    } else if (h.kind === "too_long_heading") {
+      text = t("admin.seo.validation.tooLongHeading", {
+        defaultValue:
+          "Nagłówek za długi{{pos}} ({{count}} znaków) - skróć do ~70{{snip}}.",
+        pos,
+        count: h.count,
+        snip,
+      });
+    } else if (h.kind === "shouty_heading") {
+      text = t("admin.seo.validation.shoutyHeading", {
+        defaultValue:
+          "Nagłówek pisany WERSALIKAMI{{pos}}{{snip}} - użyj zwykłej wielkości liter.",
+        pos,
+        snip,
       });
     }
     all.push({
-      key: `h-${h.lang}-${h.kind}`,
+      key: `h-${h.lang}-${h.kind}-${h.position ?? 0}`,
       severity: h.severity,
       text: `${LANG_LABEL[h.lang]} - ${t("admin.seo.validation.headingLabel", { defaultValue: "Struktura nagłówków" })}: ${text}`,
     });
