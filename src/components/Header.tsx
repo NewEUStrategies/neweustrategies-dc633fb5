@@ -21,6 +21,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { useLang } from "@/lib/i18n/useLang";
 
 type ThemeLogoCfg = {
   logo?: {
