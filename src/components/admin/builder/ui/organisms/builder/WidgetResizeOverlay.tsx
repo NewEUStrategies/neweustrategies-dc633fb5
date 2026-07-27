@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { GripVertical, Move } from "lucide-react";
 import type { Device } from "@/lib/builder/types";
 
 interface Props {
