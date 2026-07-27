@@ -140,121 +140,214 @@ export function SortableBlockItem(props: Props) {
           : ""
       }`}
     >
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        onClick={(e) => {
-          e.stopPropagation();
-          props.onSelect();
-        }}
-        title={t("blocks.actions.drag")}
-        aria-label={t("blocks.actions.drag")}
-        className="absolute left-1 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent cursor-grab active:cursor-grabbing"
-      >
-        <GripVertical className="w-3.5 h-3.5" />
-      </button>
+  const [copied, setCopied] = useState(false);
+  const copyId = async () => {
+    try {
+      await navigator.clipboard.writeText(props.id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* noop */
+    }
+  };
 
-      {/* Stały badge z etykietą typu bloku i zmierzonymi rozmiarami. */}
-      <span
-        className={`pointer-events-none absolute top-1 left-8 z-10 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-background/90 border border-border/60 shadow-sm ${
-          props.active ? "text-foreground" : "text-muted-foreground/80"
-        }`}
-        aria-hidden="true"
-      >
-        {badgeText}
-      </span>
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={setRefs}
+          style={style}
+          data-block-id={props.id}
+          onClick={props.onSelect}
+          onContextMenu={props.onSelect}
+          className={`group relative pl-8 pr-3 pt-6 pb-2 scroll-mt-24 ${
+            props.active
+              ? "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:bg-foreground before:rounded"
+              : ""
+          }`}
+        >
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onSelect();
+            }}
+            title={t("blocks.actions.drag", { defaultValue: "Przeciągnij" })}
+            aria-label={t("blocks.actions.drag", { defaultValue: "Przeciągnij" })}
+            className="absolute left-1 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent cursor-grab active:cursor-grabbing"
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </button>
 
+          {/* Stały badge z etykietą typu bloku i zmierzonymi rozmiarami. */}
+          <span
+            className={`pointer-events-none absolute top-1 left-8 z-10 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-background/90 border border-border/60 shadow-sm ${
+              props.active ? "text-foreground" : "text-muted-foreground/80"
+            }`}
+            aria-hidden="true"
+          >
+            {badgeText}
+          </span>
 
-      <div
-        ref={toolbarRef}
-        style={{ left: toolbarPos.left, top: toolbarPos.top }}
-        onClick={(e) => e.stopPropagation()}
-        className={`absolute flex items-center gap-1 z-20 bg-popover border border-border rounded-md shadow-sm px-1 py-0.5 transition-opacity ${
-          props.active ? "opacity-100" : "opacity-60 hover:opacity-100 group-hover:opacity-100"
-        }`}
-      >
+          <div
+            ref={toolbarRef}
+            style={{ left: toolbarPos.left, top: toolbarPos.top }}
+            onClick={(e) => e.stopPropagation()}
+            className={`absolute flex items-center gap-1 z-20 bg-popover border border-border rounded-md shadow-sm px-1 py-0.5 transition-opacity ${
+              props.active ? "opacity-100" : "opacity-60 hover:opacity-100 group-hover:opacity-100"
+            }`}
+          >
+            {props.variants && props.variants.length > 1 && props.onVariantChange && (
+              <>
+                <div
+                  className="flex items-center gap-0.5"
+                  role="group"
+                  aria-label={t("blocks.actions.variant", { defaultValue: "Wariant" })}
+                >
+                  {props.variants.map((v) => {
+                    const isCurrent = v.key === props.currentVariant;
+                    return (
+                      <button
+                        key={v.key}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isCurrent) props.onVariantChange!(v.key);
+                        }}
+                        aria-pressed={isCurrent}
+                        title={v.label}
+                        className={`px-2 h-6 text-[11px] font-medium rounded transition-colors ${
+                          isCurrent
+                            ? "bg-foreground text-background"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                        }`}
+                      >
+                        {v.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+              </>
+            )}
+
+            <IconButton
+              disabled={props.index === 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onMove(-1);
+              }}
+              title={t("blocks.actions.up", { defaultValue: "W górę" })}
+              aria-label={t("blocks.actions.up", { defaultValue: "W górę" })}
+            >
+              <ChevronUp className="w-3 h-3" />
+            </IconButton>
+            <IconButton
+              disabled={props.index === props.total - 1}
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onMove(1);
+              }}
+              title={t("blocks.actions.down", { defaultValue: "W dół" })}
+              aria-label={t("blocks.actions.down", { defaultValue: "W dół" })}
+            >
+              <ChevronDown className="w-3 h-3" />
+            </IconButton>
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onDuplicate();
+              }}
+              title={t("blocks.actions.duplicate", { defaultValue: "Duplikuj" })}
+              aria-label={t("blocks.actions.duplicate", { defaultValue: "Duplikuj" })}
+            >
+              <Copy className="w-3 h-3" />
+            </IconButton>
+            <IconButton
+              danger
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onRemove();
+              }}
+              title={t("blocks.actions.remove", { defaultValue: "Usuń" })}
+              aria-label={t("blocks.actions.remove", { defaultValue: "Usuń" })}
+            >
+              <Trash2 className="w-3 h-3" />
+            </IconButton>
+          </div>
+
+          {props.children}
+        </div>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent className="w-60">
+        <ContextMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          {props.typeLabel || t("blocks.actions.block", { defaultValue: "Blok" })}
+          {size.w && size.h ? ` · ${size.w}×${size.h}px` : ""}
+        </ContextMenuLabel>
+        <ContextMenuSeparator />
+
         {props.variants && props.variants.length > 1 && props.onVariantChange && (
           <>
-            <div
-              className="flex items-center gap-0.5"
-              role="group"
-              aria-label={t("blocks.actions.variant", { defaultValue: "Wariant" })}
-            >
-              {props.variants.map((v) => {
-                const isCurrent = v.key === props.currentVariant;
-                return (
-                  <button
-                    key={v.key}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isCurrent) props.onVariantChange!(v.key);
-                    }}
-                    aria-pressed={isCurrent}
-                    title={v.label}
-                    className={`px-2 h-6 text-[11px] font-medium rounded transition-colors ${
-                      isCurrent
-                        ? "bg-foreground text-background"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                    }`}
-                  >
-                    {v.label}
-                  </button>
-                );
-              })}
-            </div>
-            <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                {t("blocks.actions.variant", { defaultValue: "Wariant" })}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                <ContextMenuRadioGroup
+                  value={props.currentVariant ?? ""}
+                  onValueChange={(v) => props.onVariantChange?.(v)}
+                >
+                  {props.variants.map((v) => (
+                    <ContextMenuRadioItem key={v.key} value={v.key}>
+                      {v.label}
+                    </ContextMenuRadioItem>
+                  ))}
+                </ContextMenuRadioGroup>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            <ContextMenuSeparator />
           </>
         )}
 
-        <IconButton
+        <ContextMenuItem
           disabled={props.index === 0}
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onMove(-1);
-          }}
-          title={t("blocks.actions.up")}
-          aria-label={t("blocks.actions.up")}
+          onSelect={() => props.onMove(-1)}
         >
-          <ChevronUp className="w-3 h-3" />
-        </IconButton>
-        <IconButton
+          <ChevronUp className="w-3.5 h-3.5 mr-2" />
+          {t("blocks.actions.up", { defaultValue: "Przenieś w górę" })}
+        </ContextMenuItem>
+        <ContextMenuItem
           disabled={props.index === props.total - 1}
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onMove(1);
-          }}
-          title={t("blocks.actions.down")}
-          aria-label={t("blocks.actions.down")}
+          onSelect={() => props.onMove(1)}
         >
-          <ChevronDown className="w-3 h-3" />
-        </IconButton>
-        <IconButton
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onDuplicate();
-          }}
-          title={t("blocks.actions.duplicate")}
-          aria-label={t("blocks.actions.duplicate")}
+          <ChevronDown className="w-3.5 h-3.5 mr-2" />
+          {t("blocks.actions.down", { defaultValue: "Przenieś w dół" })}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => props.onDuplicate()}>
+          <Copy className="w-3.5 h-3.5 mr-2" />
+          {t("blocks.actions.duplicate", { defaultValue: "Duplikuj" })}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => void copyId()}>
+          {copied ? (
+            <Check className="w-3.5 h-3.5 mr-2" />
+          ) : (
+            <LinkIcon className="w-3.5 h-3.5 mr-2" />
+          )}
+          {t("blocks.actions.copyId", { defaultValue: "Kopiuj ID bloku" })}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          className="text-destructive focus:text-destructive"
+          onSelect={() => props.onRemove()}
         >
-          <Copy className="w-3 h-3" />
-        </IconButton>
-        <IconButton
-          danger
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onRemove();
-          }}
-          title={t("blocks.actions.remove")}
-          aria-label={t("blocks.actions.remove")}
-        >
-          <Trash2 className="w-3 h-3" />
-        </IconButton>
-      </div>
-
-
-      {props.children}
-    </div>
+          <Trash2 className="w-3.5 h-3.5 mr-2" />
+          {t("blocks.actions.remove", { defaultValue: "Usuń blok" })}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
