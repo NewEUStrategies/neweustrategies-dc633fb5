@@ -248,8 +248,19 @@ function PostsList() {
     qc.invalidateQueries({ queryKey: ["admin-posts-view-count"] });
   };
 
+  // Widoczny język listy zależy od filtra językowego: gdy użytkownik wybierze
+  // "Angielski" / "Tylko EN", tytuły oraz otwierana wersja edytora przełączają
+  // się na EN. Analogicznie dla PL. Bez filtra - język UI.
+  const viewLang: "pl" | "en" =
+    langFilter === "has_en" || langFilter === "en_only"
+      ? "en"
+      : langFilter === "has_pl" || langFilter === "pl_only"
+        ? "pl"
+        : lang.startsWith("en")
+          ? "en"
+          : "pl";
   const titleOf = (p: { title_pl: string | null; title_en: string | null; slug: string }) =>
-    (lang === "en" ? p.title_en : p.title_pl) || p.slug;
+    (viewLang === "en" ? p.title_en : p.title_pl) || p.slug;
 
   // Duplikat -> szkic-kopia; od razu otwieramy edytor kopii (skraca pętlę
   // "powiel i popraw" dla powtarzalnych formatów).
