@@ -26,6 +26,7 @@ import {
   type CustomField,
 } from "@/lib/builder/formFields";
 import { safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
@@ -605,12 +606,9 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             if (f.type === "checkbox") {
               return (
                 <div key={f.id} className={span}>
-                  <label className="widget-align-row flex items-start gap-2 text-xs opacity-90">
-                    <input type="checkbox" name={name} className="mt-0.5" />
-                    <span>
-                      {label}
-                      {null}
-                    </span>
+                  <label className="widget-align-row flex items-start gap-2 text-xs opacity-90 cursor-pointer">
+                    <Checkbox name={name} className="mt-0.5 shrink-0" />
+                    <span>{label}</span>
                   </label>
                   {err && <span className="block text-[11px] text-destructive">{err}</span>}
                 </div>
@@ -679,16 +677,15 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
         {(requireConsent || showNewsletter) && (
           <div className="mt-3 space-y-1.5">
             {requireConsent && (
-              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80">
-                <input type="checkbox" name="consent" className="mt-0.5" />
+              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80 cursor-pointer">
+                <Checkbox name="consent" className="mt-0.5 shrink-0" />
                 <span>{renderConsentText(consentTextRaw)}</span>
-                {null}
               </label>
             )}
 
             {showNewsletter && (
-              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80">
-                <input type="checkbox" name="newsletter_optin" className="mt-0.5" />
+              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80 cursor-pointer">
+                <Checkbox name="newsletter_optin" className="mt-0.5 shrink-0" />
                 <span>{newsletterLabel}</span>
               </label>
             )}
