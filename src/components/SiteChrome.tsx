@@ -1,5 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, type CSSProperties, type ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { adPageTypeForLocation } from "@/lib/ads/pageType";
 import { Footer } from "@/components/Footer";
