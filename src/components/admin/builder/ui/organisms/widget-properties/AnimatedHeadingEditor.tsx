@@ -11,6 +11,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { PropField, ColorField } from "../../atoms";
+import { DynamicTagInserter } from "../../molecules/DynamicTagInserter";
 import {
   ANIMATED_MODES,
   ANIMATED_SHAPES,
@@ -19,6 +20,8 @@ import {
   type AnimatedHeadingMode,
   type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
+import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
+import { PLACEHOLDER_POST_CTX } from "@/lib/builder/currentPostContext";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 
