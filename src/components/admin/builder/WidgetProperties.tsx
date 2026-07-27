@@ -672,7 +672,7 @@ export function WidgetProperties({
 
           <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              {t("builder.widgetProps.border")}
+              {t("builder.widgetProps.border")} ({md()})
             </h4>
             <div className="grid grid-cols-2 gap-2">
               <PropField label={t("builder.widgetProps.style")}>
