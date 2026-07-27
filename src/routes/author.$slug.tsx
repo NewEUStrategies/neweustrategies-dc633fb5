@@ -56,12 +56,20 @@ import {
 } from "@/lib/expertLayouts";
 import { isIndexableProfile, profileRobots } from "@/lib/experts/publicVisibility";
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { contentCacheControl } from "@/lib/http/cachePolicy";
+
+const NO_STORE = contentCacheControl({ preview: true });
+
 export const Route = createFileRoute("/author/$slug")({
   loader: async ({ params, context }) => {
     // Najpierw hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
     // `expert_layout_settings` (per tenant, nie tylko dla tenanta hosta).
     const data = await context.queryClient.ensureQueryData(expertHubQueryOptions(params.slug));
-    if (!data) throw notFound();
+    if (!data) {
+      setCacheControlHeader(NO_STORE);
+      throw notFound();
+    }
     const layoutOptions = expertLayoutSettingsQueryOptions(data.expert.tenant_id);
     if (data.layoutSettings !== undefined) {
       // RPC get_expert_hub przyniosło layout w TYM SAMYM round-tripie - zasiej
@@ -76,6 +84,8 @@ export const Route = createFileRoute("/author/$slug")({
     } else {
       await context.queryClient.ensureQueryData(layoutOptions);
     }
+    // Non-indexable profile robots still share the same cacheable shell.
+    setCacheControlHeader(contentCacheControl());
     return data;
   },
   head: ({ loaderData, params }) => {
