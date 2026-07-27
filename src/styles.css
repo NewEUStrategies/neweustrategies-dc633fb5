@@ -5935,3 +5935,21 @@ header[data-site-header][data-scrolled="true"].site-header-shrink {
 header[data-site-header][data-scrolled="true"].site-header-shrink > * {
   zoom: 0.5;
 }
+
+/* Na stronie głównej pierwsza sekcja builderowego headera lekko "rośnie"
+   po przewinięciu, żeby wybrany element był nieco bardziej widoczny
+   pomimo ogólnego zmniejszenia headera. */
+.home-header-grow > div > section[data-sec-id]:first-of-type {
+  overflow: visible;
+}
+.home-header-grow > div > section[data-sec-id]:first-of-type > div:nth-of-type(2) {
+  transition: transform 300ms ease;
+  transform-origin: top center;
+}
+header[data-scrolled="true"]
+  .home-header-grow
+  > div
+  > section[data-sec-id]:first-of-type
+  > div:nth-of-type(2) {
+  transform: scale(1.12);
+}

@@ -4,6 +4,7 @@ import { memo, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Menu, Search, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
@@ -45,9 +46,11 @@ interface HeaderProps {
    * bez niego baner emituje wyłącznie placementy z page_type="all".
    */
   adPageType?: AdPageType;
+  /** Czy header renderuje się na stronie głównej (wpływa na efekty scroll). */
+  isHome?: boolean;
 }
 
-function HeaderInner({ adPageType = "all" }: HeaderProps) {
+function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   const { i18n, t } = useTranslation();
   const lang = i18n.language ?? "pl";
   const isPl = lang.startsWith("pl");
@@ -182,7 +185,7 @@ function HeaderInner({ adPageType = "all" }: HeaderProps) {
       </div>
 
       {/* Full builder-authored header - visible from lg up. */}
-      <div className="hidden lg:block">
+      <div className={cn("hidden lg:block", isHome && "home-header-grow")}>
         <BuilderRenderer doc={cfg.builder_data} lang={isPl ? "pl" : "en"} />
       </div>
 
@@ -268,7 +271,7 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
       style={{ viewTransitionName: "site-header" }}
     >
       <Suspense fallback={<HeaderSkeleton />}>
-        <HeaderInner adPageType={adPageType} />
+        <HeaderInner adPageType={adPageType} isHome={isHome} />
       </Suspense>
     </header>
   );
