@@ -99,7 +99,7 @@ function DropdownPanel({
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-          className="group flex items-center gap-2 border-b border-border/50 bg-muted/30 px-4 py-2.5 transition-colors hover:bg-muted/50"
+          className="group flex items-center gap-2 border-b border-border/50 bg-muted/30 px-3 py-2 transition-colors hover:bg-muted/50"
         >
           <span
             aria-hidden
@@ -119,7 +119,7 @@ function DropdownPanel({
           />
         </AppLink>
       ) : null}
-      <ul className="menu-card-list flex flex-col gap-1 p-2">
+      <ul className="menu-card-list flex flex-col gap-1 p-1.5">
         {parentLabel ? (
           <li>
             <AppLink
@@ -259,7 +259,7 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       {open ? (
         <ul
           role="menu"
-          className="menu-card-list absolute left-full top-0 z-50 ml-2 flex min-w-[240px] flex-col gap-1 rounded-md border border-border/50 bg-popover p-2 text-popover-foreground shadow-2xl ring-1 ring-black/5"
+          className="menu-card-list absolute left-full top-0 z-50 ml-2 flex min-w-[240px] flex-col gap-1 rounded-md border border-border/50 bg-popover p-1.5 text-popover-foreground shadow-2xl ring-1 ring-black/5"
         >
           {node.children.map((child) => (
             <SubmenuItem key={child.id} node={child} lang={lang} />
