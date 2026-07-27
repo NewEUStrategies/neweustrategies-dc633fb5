@@ -50,7 +50,6 @@ export function SortableBlockItem(props: Props) {
   };
 
   useLayoutEffect(() => {
-    if (!props.active) return;
     const container = containerRef.current;
     const toolbar = toolbarRef.current;
     if (!container || !toolbar) return;
@@ -85,7 +84,8 @@ export function SortableBlockItem(props: Props) {
       window.removeEventListener("scroll", compute, true);
       window.removeEventListener("resize", compute);
     };
-  }, [props.active]);
+  }, []);
+
 
   // Ciągły pomiar szerokosci x wysokosci bloku (bez zaokrąglania w dół do 0,
   // gdy element jeszcze się nie zamountował). Aktualizacja przez
