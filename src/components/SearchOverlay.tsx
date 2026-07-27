@@ -367,10 +367,10 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 
   return (
     <div
-      className="fixed inset-0 z-[60] bg-background sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
+      className="fixed inset-x-0 bottom-0 top-[64px] z-[60] bg-background sm:inset-0 sm:top-0 sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="absolute inset-x-0 top-0 flex h-full max-h-screen justify-center overflow-y-auto px-0 pt-0 pb-0 sm:h-auto sm:px-4 sm:pt-[12vh] sm:pb-8">
+      <div className="absolute inset-x-0 top-0 flex h-full max-h-full justify-center overflow-y-auto px-0 pt-0 pb-0 sm:h-auto sm:max-h-screen sm:px-4 sm:pt-[12vh] sm:pb-8">
         <div
           ref={panelRef}
           role="dialog"
@@ -378,22 +378,8 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           aria-label={t("searchOverlay.dialogLabel") as string}
           className="flex h-full w-full max-w-xl flex-col animate-in slide-in-from-top-4 duration-300 sm:h-auto sm:zoom-in-95"
           onClick={(e) => e.stopPropagation()}
-          style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
           <SuggestListShell className="flex h-full flex-col overflow-hidden rounded-none sm:h-auto sm:rounded-[10px]">
-            <div className="flex items-center justify-between border-b border-border/60 px-4 py-2.5 sm:hidden">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                {t("searchOverlay.dialogLabel", { defaultValue: "Wyszukiwarka" }) as string}
-              </span>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label={t("searchOverlay.close") as string}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
             {bar}
             <div className="min-h-0 flex-1 overflow-y-auto sm:flex-none sm:overflow-visible">
               {body}
