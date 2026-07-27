@@ -5933,7 +5933,11 @@ header[data-site-header][data-scrolled="true"].site-header-shrink {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
 }
 header[data-site-header][data-scrolled="true"].site-header-shrink > * {
-  zoom: 0.5;
+  zoom: 0.8;
+}
+/* Hide trending ticker ("na czasie") while the shrunk header is active. */
+header[data-site-header][data-scrolled="true"].site-header-shrink .cms-trending {
+  display: none !important;
 }
 
 /* Na stronie głównej pierwsza sekcja builderowego headera lekko "rośnie"
