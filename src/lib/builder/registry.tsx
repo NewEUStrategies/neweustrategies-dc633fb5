@@ -55,6 +55,7 @@ import {
   FlaskConical,
   Layers,
   Target as TargetIcon,
+  Users,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 

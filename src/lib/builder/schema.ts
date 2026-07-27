@@ -84,6 +84,7 @@ export const WIDGET_TYPES = [
   "logo-cloud",
   "testimonial",
   "team-member",
+  "speakers",
   "pricing",
   "interactive-circle",
   // Rich content (embeds the blocks engine)
