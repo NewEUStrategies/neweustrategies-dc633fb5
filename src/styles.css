@@ -5531,13 +5531,13 @@ textarea.input {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 5px;
-  border-radius: 5px;
+  gap: 7px;
+  padding: 4px 7px;
+  border-radius: 6px;
   color: color-mix(in oklab, var(--foreground) 62%, transparent);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.15;
   transition:
     background-color 0.22s ease-out,
     color 0.22s ease-out,
@@ -5552,8 +5552,8 @@ textarea.input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   flex-shrink: 0;
   border-radius: 4px;
   background: transparent;
