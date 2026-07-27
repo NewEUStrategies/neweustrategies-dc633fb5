@@ -4,6 +4,7 @@ import { memo, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Menu, Search, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
