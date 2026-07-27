@@ -197,6 +197,17 @@ describe("spacer", () => {
     const { container: ed } = renderNode("spacer", { height: 48 }, { editable: true });
     expect(ed.textContent).toContain("48px");
   });
+
+  it("keeps the editable spacer full-width even when widget text is aligned", () => {
+    renderNode("spacer", { height: 32 }, {
+      editable: true,
+      style: { align: { desktop: "center" } },
+    });
+
+    const spacer = screen.getByLabelText("Spacer");
+    expect(spacer.className).toContain("w-full");
+    expect(spacer.parentElement?.style.width).not.toBe("auto");
+  });
 });
 
 describe("social-icons", () => {
