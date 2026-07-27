@@ -8,8 +8,21 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
-import { ChevronUp, ChevronDown, Copy, Trash2, GripVertical } from "@/lib/lucide-shim";
+import { ChevronUp, ChevronDown, Copy, Trash2, GripVertical, Link2, Check } from "@/lib/lucide-shim";
 import { IconButton } from "../atoms/IconButton";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 import type { BlockVariantOption } from "@/lib/blocks/variants";
 
