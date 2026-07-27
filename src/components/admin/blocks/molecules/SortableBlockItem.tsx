@@ -1,7 +1,10 @@
 // Sortable wrapper for a block row. Uses @dnd-kit/sortable.
-// Owns: drag handle, hover toolbar (move/duplicate/remove), selection styling.
+// Owns: drag handle, hover toolbar (move/duplicate/remove), selection styling,
+// and a permanent "size badge" (jak `TREŚĆ - MAX 960PX` w LayoutScaffold) który
+// pokazuje typ bloku oraz zmierzoną szerokość x wysokość - dostępny dla każdego
+// bloku w CMS builderze wpisów.
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
@@ -15,6 +18,8 @@ interface Props {
   index: number;
   total: number;
   active: boolean;
+  /** Etykieta typu bloku widoczna w stałym badge'u (np. "AKAPIT", "OBRAZ"). */
+  typeLabel?: string;
   onSelect: () => void;
   onMove: (dir: -1 | 1) => void;
   onDuplicate: () => void;
@@ -24,6 +29,7 @@ interface Props {
   onVariantChange?: (v: string) => void;
   children: ReactNode;
 }
+
 
 export function SortableBlockItem(props: Props) {
   const { t } = useTranslation();
