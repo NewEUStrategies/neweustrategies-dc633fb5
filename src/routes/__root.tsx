@@ -258,6 +258,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           ? footer.builder_data
           : defaultDocFor("footer");
         const chromeWarm: Promise<unknown>[] = [tickerWarm];
+        // Menu chrome (nawigacja główna + stopka) — pobieramy przez
+        // `ensureQueryData` opakowane `.catch(() => null)`, żeby anulowanie
+        // strumienia SSR (np. HMR podmieniający moduł w locie) NIE zostawiło
+        // zapytania w stanie `pending` w dehydratowanym `$_TSR.router`.
+        // Gdy się zdarzy, klient po hydratacji wykona własny fetch zamiast
+        // czekać w nieskończoność na streamowaną dopowiedź, której już nie
+        // będzie. Fallbackiem renderu jest komponent menu z własnym `useQuery`.
+        const { menuWithItemsQueryOptions } = await import("../lib/menus/queries");
+        const warmMenu = (key: string) =>
+          context.queryClient
+            .ensureQueryData(menuWithItemsQueryOptions(key))
+            .catch(() => null);
+        chromeWarm.push(warmMenu("main"), warmMenu("footer"));
         if (headerVisible && header.builder_data) {
           chromeWarm.push(
             prefetchCachedRouteQueries(context.queryClient, header.builder_data, lang, 2500),
@@ -267,6 +280,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           chromeWarm.push(prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, 2500));
         }
         await Promise.allSettled(chromeWarm);
+        // Sanity-guard: jeżeli którekolwiek zapytanie menu zostało anulowane
+        // przez HMR i zostało w stanie `pending`, zresetuj je - inaczej klient
+        // po hydratacji zawiesi się czekając na strumień, który już nie wróci.
+        for (const key of ["main", "footer"] as const) {
+          const state = context.queryClient.getQueryState(["menu-with-items", key]);
+          if (state?.status === "pending") {
+            context.queryClient.removeQueries({ queryKey: ["menu-with-items", key], exact: true });
+          }
+        }
       } catch {
         /* chrome warm-up is best-effort decoration - never let it block the site */
       }
