@@ -630,8 +630,8 @@ function PostsList() {
                         {isTrash ? (
                           <>
                             <div className="font-medium text-[13px] truncate max-w-[420px]">
-                              {(lang === "en" ? p.title_en : p.title_pl) ||
-                                (lang === "en" ? p.title_pl : p.title_en) || (
+                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
+                                (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
                                     - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
                                   </span>
@@ -648,8 +648,8 @@ function PostsList() {
                             className="block group"
                           >
                             <div className="font-medium text-[13px] truncate max-w-[420px] text-[#231f20] dark:text-[#F8F6F4] group-hover:text-[#FDB078] group-hover:underline underline-offset-2">
-                              {(lang === "en" ? p.title_en : p.title_pl) ||
-                                (lang === "en" ? p.title_pl : p.title_en) || (
+                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
+                                (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
                                     - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
                                   </span>
