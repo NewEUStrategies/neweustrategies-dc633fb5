@@ -904,19 +904,19 @@ export function WidgetProperties({
               />
             </PropField>
             <PropField label={t("builder.widgetProps.contentAlign")}>
-              <div className="flex gap-1">
+              <div className="wp-seg" role="group">
                 {(["start", "center", "end"] as const).map((v) => {
                   const active = (widget.advanced?.contentAlign ?? "start") === v;
                   return (
                     <button
                       key={v}
                       type="button"
+                      data-active={active}
                       onClick={() =>
                         setAdvanced((a) => {
                           a.contentAlign = v === "start" ? undefined : v;
                         })
                       }
-                      className={`flex-1 h-8 px-2 text-xs rounded border ${active ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
                     >
                       {v === "start"
                         ? t("builder.common.left")
