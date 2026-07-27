@@ -254,7 +254,7 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
         )}
       </div>
 
-      {canLoadMore && (
+      {canLoadMore && pageMode === "button" && (
         <div className="flex justify-center">
           <button
             type="button"
@@ -266,6 +266,18 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
               ({paginated.length}/{filtered.length})
             </span>
           </button>
+        </div>
+      )}
+      {canLoadMore && pageMode === "scroll" && (
+        <div
+          ref={sentinelRef}
+          aria-hidden
+          className="h-10 w-full flex items-center justify-center text-xs text-muted-foreground"
+        >
+          <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <span className="ml-2">
+            {lang === "pl" ? "Wczytywanie…" : "Loading…"} ({paginated.length}/{filtered.length})
+          </span>
         </div>
       )}
     </section>
