@@ -161,6 +161,45 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
 
   const dragging = liveH !== null;
   const displayH = liveH ?? Math.round(rect.height);
+  const displayW = Math.round(rect.width);
+  // Detect width mode from the target element to label full/%/wrapped/px.
+  let widthMode: "full" | "percent" | "auto" | "px" = "full";
+  let widthModeLabel = "100%";
+  const el = targetRef.current;
+  if (el) {
+    const inline = el.style.width?.trim();
+    const computed = inline || getComputedStyle(el).width;
+    if (inline?.endsWith("%")) {
+      widthMode = "percent";
+      widthModeLabel = inline;
+    } else if (inline === "auto" || inline === "fit-content" || inline === "max-content") {
+      widthMode = "auto";
+      widthModeLabel = "auto";
+    } else if (inline && /px\)?$/.test(inline)) {
+      widthMode = "px";
+      widthModeLabel = `${displayW}px`;
+    } else {
+      // Fallback: compare to parent width to infer full vs wrapped.
+      const parentW = el.parentElement?.getBoundingClientRect().width ?? 0;
+      const ratio = parentW > 0 ? rect.width / (parentW / scaleRef.current.x) : 1;
+      if (ratio >= 0.98) {
+        widthMode = "full";
+        widthModeLabel = "100%";
+      } else {
+        widthMode = "auto";
+        widthModeLabel = "auto";
+      }
+    }
+    void computed;
+  }
+  const widthBadgeBg =
+    widthMode === "full"
+      ? "var(--brand,#ff6a00)"
+      : widthMode === "percent"
+        ? "#0ea5e9"
+        : widthMode === "px"
+          ? "#6366f1"
+          : "#10b981";
   const handleBase =
     "absolute z-[70] bg-[color:var(--brand,#ff6a00)] text-white shadow-md rounded-[3px] " +
     "flex items-center justify-center select-none pointer-events-auto";
@@ -185,6 +224,20 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
             "inset 0 0 0 2px var(--brand, #ff6a00), 0 0 0 1px color-mix(in oklab, var(--background) 65%, transparent)",
         }}
       />
+      {/* Width label chip — reflects actual mode (100% / %  / px / auto) */}
+      <div
+        className="absolute rounded text-white text-[10px] font-semibold px-1.5 py-0.5 shadow-md pointer-events-none"
+        style={{
+          left: rect.left,
+          top: Math.max(0, rect.top - 20),
+          backgroundColor: widthBadgeBg,
+          lineHeight: 1.2,
+          letterSpacing: "0.02em",
+        }}
+        title={`Szerokość: ${displayW}px (${widthModeLabel})`}
+      >
+        W: {displayW}px · {widthModeLabel}
+      </div>
       {/* Height label chip — always visible, updates live */}
       <div
         className="absolute rounded bg-[color:var(--brand,#ff6a00)] text-white text-[10px] font-semibold px-1.5 py-0.5 shadow-md pointer-events-none"
@@ -197,6 +250,7 @@ export function WidgetResizeOverlay({ containerRef, widgetId, device, onResize }
       >
         H: {displayH}px
       </div>
+
       {/* Top (height) handle */}
       <div
         role="slider"
