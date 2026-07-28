@@ -39,7 +39,7 @@ export const getSystemEmailReport = createServerFn({ method: "GET" })
       fetchSystemEmailReport({
         days: data.days,
         template: data.template,
-        status: data.status as SystemEmailStatus | null,
+        status: data.status,
         search: data.search,
         page: data.page,
         pageSize: data.pageSize,
