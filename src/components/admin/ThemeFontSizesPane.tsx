@@ -118,8 +118,8 @@ export function ThemeFontSizesPane() {
           </h3>
           <p className="text-xs text-muted-foreground">
             {isPL
-              ? "Globalne rozmiary typografii dla H1-H6, body, small, lead, blockquote, code."
-              : "Global typography sizes for H1-H6, body, small, lead, blockquote, code."}
+              ? "Globalne rozmiary typografii (H1-H6, body, small, lead, blockquote, code) oraz odstępy treści - wspólne dla frontu i CMS buildera."
+              : "Global typography sizes (H1-H6, body, small, lead, blockquote, code) and content spacing - shared by the front end and the CMS builder."}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
