@@ -96,6 +96,14 @@ export function SystemEmailsPanel() {
           colorSlot: 3,
         },
       ],
+      stacked: false,
+      unit: "",
+      height: 220,
+      showLegend: true,
+      showGrid: true,
+      showValues: false,
+      animate: false,
+      source: "",
     };
   }, [data?.series, locale, t]);
 
@@ -187,7 +195,7 @@ export function SystemEmailsPanel() {
 
       {chart ? (
         <div className="rounded-[6px] border border-border bg-card p-4">
-          <Chart config={chart} />
+          <Chart config={chart} lang={isPl ? "pl" : "en"} />
         </div>
       ) : null}
 
