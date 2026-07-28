@@ -386,6 +386,71 @@ describe("PostListView", () => {
     wrap(<PostListView c={{ limit: 8 }} lang="pl" carousel />);
     expect((await screen.findAllByText("Pierwszy wpis")).length).toBeGreaterThan(0);
   });
+
+  it("showTitle=0 hides post titles across variants", async () => {
+    for (const variant of ["card", "list", "ranked"]) {
+      db.tables.posts = posts;
+      const view = wrap(
+        <PostListView c={{ variant, showTitle: "0", limit: 6, columns: 3 }} lang="pl" />,
+      );
+      // The sample posts must be fetched, but their titles must not appear.
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.queryByText("Pierwszy wpis")).toBeNull();
+      expect(screen.queryByText("Drugi wpis")).toBeNull();
+      view.unmount();
+    }
+  });
+
+  it("showExcerpt=0 hides post excerpts", async () => {
+    db.tables.posts = posts;
+    wrap(
+      <PostListView c={{ variant: "card", showExcerpt: "0", limit: 6, columns: 3 }} lang="pl" />,
+    );
+    await screen.findAllByText("Pierwszy wpis");
+    expect(screen.queryByText("Zajawka")).toBeNull();
+    expect(screen.queryByText("Zajawka 2")).toBeNull();
+  });
+
+  it("showCover=0 removes cover <img> tags from the list variant", async () => {
+    db.tables.posts = posts;
+    const { container } = wrap(
+      <PostListView c={{ variant: "list", showCover: "0", limit: 6, columns: 3 }} lang="pl" />,
+    );
+    await screen.findAllByText("Pierwszy wpis");
+    expect(container.querySelectorAll("img").length).toBe(0);
+  });
+
+  it("ranked + authorDisplay=none suppresses author metadata", async () => {
+    db.tables.posts = posts.map((p) => ({
+      ...p,
+      author_display_name: "Jan Kowalski",
+      author_avatar_url: null,
+    }));
+    wrap(
+      <PostListView
+        c={{ variant: "ranked", authorDisplay: "none", limit: 6 }}
+        lang="pl"
+      />,
+    );
+    await screen.findAllByText("Pierwszy wpis");
+    expect(screen.queryByText("Jan Kowalski")).toBeNull();
+  });
+
+  it("ranked + authorDisplay=label renders 'Autor:' before the author name", async () => {
+    db.tables.posts = posts.map((p) => ({
+      ...p,
+      author_display_name: "Jan Kowalski",
+      author_avatar_url: null,
+    }));
+    const { container } = wrap(
+      <PostListView
+        c={{ variant: "ranked", authorDisplay: "label", limit: 6 }}
+        lang="pl"
+      />,
+    );
+    await screen.findAllByText("Jan Kowalski");
+    expect(container.textContent).toMatch(/Autor:/);
+  });
 });
 
 describe("CategoriesView / TagsView", () => {
