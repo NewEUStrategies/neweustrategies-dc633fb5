@@ -73,7 +73,7 @@ export function ThemeFontSizesPane() {
   // is saved.
   const previewCss = useMemo(
     () =>
-      `${fontSizesToCss(draft)}\n.post-content.post-content :is(p,ul,ol,blockquote),.single-post-content.single-post-content :is(p,ul,ol,blockquote){margin-bottom:${paragraphSpacing}rem;}[data-builder-renderer]{--cms-paragraph-spacing:${paragraphSpacing}rem;}`,
+      `${fontSizesToCss(draft)}\n.post-content.post-content :is(p,ul,ol,blockquote),.blocks-content.blocks-content :is(p,ul,ol,blockquote),.single-post-content.single-post-content :is(p,ul,ol,blockquote){margin-bottom:${paragraphSpacing}rem;}[data-builder-renderer]{--cms-paragraph-spacing:${paragraphSpacing}rem;}`,
     [draft, paragraphSpacing],
   );
 
