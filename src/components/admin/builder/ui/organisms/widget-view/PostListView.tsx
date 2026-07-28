@@ -494,9 +494,11 @@ export function PostListView({
                 hoverEffect="zoom"
               />
             )}
-            <h3 className="cms-post-title line-clamp-3" style={tStyle}>
-              {title(p)}
-            </h3>
+            {title(p) && (
+              <h3 className="cms-post-title line-clamp-3" style={tStyle}>
+                {title(p)}
+              </h3>
+            )}
             {excerpt(p) && (
               <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>
                 {excerpt(p)}
