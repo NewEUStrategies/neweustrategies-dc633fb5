@@ -17,6 +17,7 @@ import {
 import { PropField, CollapsibleSection as Collapsible, ColorField } from "../../atoms";
 import { AdminDatePicker } from "@/components/admin/blocks/AdminDatePicker";
 import { IndexColorPreview } from "./IndexColorPreview";
+import { DisplayLivePreview } from "./DisplayLivePreview";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import { ImageSlot } from "./ImageSlot";
 import { readThumbnailOverrides, setThumbnailOverride } from "@/lib/builder/thumbnailOverrides";
