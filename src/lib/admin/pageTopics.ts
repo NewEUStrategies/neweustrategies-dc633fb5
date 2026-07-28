@@ -8,7 +8,8 @@
 // Filtry działają po stronie serwera (Supabase `.or(slug.ilike.*, ...)`),
 // więc paginacja i licznik pozostają spójne. Wzorce piszemy w formacie
 // PostgREST `ilike` (LIKE bez case-sensitivity, `%` = wildcard).
-import { escapeLike } from "@/lib/admin/listFilters";
+// Wzorce są STAŁYMI zdefiniowanymi w tym pliku (nie user input), więc nie
+// przechodzą przez `escapeLike` — ta funkcja usuwa `%`, co złamałoby ILIKE.
 
 export type PageTopicKey =
   | "all"
