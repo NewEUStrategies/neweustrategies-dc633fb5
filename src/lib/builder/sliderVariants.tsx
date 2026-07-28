@@ -1157,6 +1157,7 @@ function EditorialHeroVariant(p: VariantProps) {
                 slug={cur.authorSlug}
                 tone="light"
                 size={22}
+                labelPrefix={p.authorLabelPrefix}
               />
             )}
             {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">|</span>}
