@@ -2,6 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { grantEntitlement } from "@/lib/billing/grant.server";
 import { applyCouponEffectsForOrder } from "@/lib/billing/couponEffects.server";
+import {
+  notifyEventRegistration,
+  notifySubscriptionEmail,
+} from "@/lib/billing/notifications.server";
+
 
 // Stripe webhook endpoint.
 // Receives Checkout / Subscription events, verifies signature, and reconciles
@@ -321,8 +326,32 @@ async function handle(request: Request): Promise<Response> {
         // bazie (zatrzask `effects_applied_at`), więc wywołanie przy każdej
         // dostawie jest bezpieczne i samonaprawiające po nieudanej próbie.
         await applyCouponEffectsForOrder(order.id);
+
+        // Powiadomienia mailowe (fail-soft, idempotentne po id zamówienia):
+        // potwierdzenie subskrypcji albo potwierdzenie zapisu na wydarzenie.
+        if (order.kind === "subscription") {
+          await notifySubscriptionEmail({
+            kind: "subscription_confirmed",
+            userId: order.user_id,
+            planId: order.plan_id,
+            amountCents: amountTotal ?? order.amount_cents,
+            currency: (currency ?? order.currency ?? "PLN").toUpperCase(),
+            idempotencySeed: order.id,
+          });
+        }
+        const paidEventId = meta?.event_id ?? null;
+        if (paidEventId) {
+          await notifyEventRegistration({
+            userId: order.user_id,
+            eventId: paidEventId,
+            amountCents: amountTotal ?? order.amount_cents,
+            currency: (currency ?? order.currency ?? "PLN").toUpperCase(),
+            idempotencySeed: order.id,
+          });
+        }
         break;
       }
+
 
       case "invoice.payment_succeeded": {
         const invoice = event.data.object;
@@ -344,7 +373,29 @@ async function handle(request: Request): Promise<Response> {
               .neq("status", "canceled"),
             `user_subscriptions renewal (${subscriptionId})`,
           );
+
+          // Mail o przedłużeniu tylko dla kolejnych okresów - pierwszą fakturę
+          // pokrywa potwierdzenie subskrypcji z checkoutu.
+          if (str(invoice, "billing_reason") !== "subscription_create") {
+            const { data: renewed } = await supabaseAdmin
+              .from("user_subscriptions")
+              .select("user_id, plan_id")
+              .eq("external_ref", subscriptionId)
+              .maybeSingle();
+            if (renewed?.user_id) {
+              await notifySubscriptionEmail({
+                kind: "subscription_renewed",
+                userId: renewed.user_id,
+                planId: renewed.plan_id,
+                periodEnd: periodEnd.toISOString(),
+                amountCents: num(invoice, "amount_paid"),
+                currency: (str(invoice, "currency") ?? "PLN").toUpperCase(),
+                idempotencySeed: invoiceId ?? `${subscriptionId}:${periodEnd.toISOString()}`,
+              });
+            }
+          }
         }
+
 
         // Rejestr dokumentów: payload faktury niesie komplet metadanych, więc
         // KAŻDE odnowienie zostawia dokument widoczny w profilu (dotąd ślad
@@ -447,17 +498,69 @@ async function handle(request: Request): Promise<Response> {
           // UI stops showing "cancels at".
           updates.canceled_at = cancelAtPeriodEnd ? new Date().toISOString() : null;
         }
+        // Zmiana planu po stronie Stripe (metadata.plan_id na subskrypcji):
+        // porównanie ceny decyduje, czy to upgrade czy downgrade.
+        const newPlanId = (sub.metadata as Record<string, string> | null)?.plan_id ?? null;
+        const { data: current } = await supabaseAdmin
+          .from("user_subscriptions")
+          .select("user_id, plan_id")
+          .eq("external_ref", subId)
+          .maybeSingle();
+
+        type SubUpdateWithPlan = SubUpdate & { plan_id?: string };
+        const finalUpdates: SubUpdateWithPlan = { ...updates };
+        const planChanged = !!newPlanId && !!current?.plan_id && newPlanId !== current.plan_id;
+        if (planChanged) finalUpdates.plan_id = newPlanId;
+
         await mustWrite(
-          supabaseAdmin.from("user_subscriptions").update(updates).eq("external_ref", subId),
+          supabaseAdmin.from("user_subscriptions").update(finalUpdates).eq("external_ref", subId),
           `user_subscriptions mirror (${subId})`,
         );
+
+        if (planChanged && current?.user_id) {
+          const { data: plans } = await supabaseAdmin
+            .from("access_plans")
+            .select("id, price_cents")
+            .in("id", [current.plan_id as string, newPlanId as string]);
+          const priceOf = (id: string | null) =>
+            plans?.find((p) => p.id === id)?.price_cents ?? 0;
+          const upgraded = priceOf(newPlanId) >= priceOf(current.plan_id);
+          await notifySubscriptionEmail({
+            kind: upgraded ? "subscription_upgraded" : "subscription_downgraded",
+            userId: current.user_id,
+            planId: newPlanId,
+            previousPlanId: current.plan_id,
+            periodEnd,
+            idempotencySeed: `${subId}:${current.plan_id}->${newPlanId}`,
+          });
+        } else if (
+          localStatus === "active" &&
+          cancelAtPeriodEnd &&
+          current?.user_id
+        ) {
+          // Rezygnacja z odnowienia zgłoszona przed końcem okresu.
+          await notifySubscriptionEmail({
+            kind: "subscription_canceled",
+            userId: current.user_id,
+            planId: current.plan_id,
+            periodEnd,
+            idempotencySeed: `${subId}:cancel_at_period_end:${periodEnd ?? ""}`,
+          });
+        }
         break;
       }
+
 
       case "customer.subscription.deleted": {
         const sub = event.data.object;
         const subId = str(sub, "id");
         if (subId) {
+          const { data: ending } = await supabaseAdmin
+            .from("user_subscriptions")
+            .select("user_id, plan_id, current_period_end")
+            .eq("external_ref", subId)
+            .maybeSingle();
+
           // Musi rzucać: cicha porażka zostawia anulowaną subskrypcję jako
           // `active`, czyli dostęp płatny po rezygnacji.
           await mustWrite(
@@ -467,7 +570,18 @@ async function handle(request: Request): Promise<Response> {
               .eq("external_ref", subId),
             `user_subscriptions cancel (${subId})`,
           );
+
+          if (ending?.user_id) {
+            await notifySubscriptionEmail({
+              kind: "subscription_canceled",
+              userId: ending.user_id,
+              planId: ending.plan_id,
+              periodEnd: ending.current_period_end,
+              idempotencySeed: `${subId}:deleted`,
+            });
+          }
         }
+
         break;
       }
 
