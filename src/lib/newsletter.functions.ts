@@ -327,7 +327,18 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       );
       if (error) return { ok: false, error: error.message };
       await syncToCrm(tenantId, email, data, meta, data.custom ?? null);
+      // Potwierdzenie zapisu w standardzie NES (kolejka transakcyjna).
+      const { sendTxEmail } = await import("@/lib/email/transactional.server");
+      await sendTxEmail({
+        type: "newsletter_confirmed",
+        to: email,
+        lang: data.language,
+        metaName: data.firstName ?? displayName,
+        ctaPath: data.language === "en" ? "/en/analyses" : "/analizy",
+        idempotencyKey: `newsletter_confirmed:${tenantId}:${email}`,
+      });
       return { ok: true, status: "subscribed" };
+
     }
 
     const token = hexToken(32);
