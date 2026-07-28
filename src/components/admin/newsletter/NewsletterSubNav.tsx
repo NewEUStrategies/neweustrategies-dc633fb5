@@ -49,7 +49,15 @@ const tabs = [
     labelPl: "Dostarczalność",
     labelEn: "Deliverability",
   },
+  {
+    to: "/admin/newsletter/system-emails",
+    key: "system-emails",
+    icon: MailCheck,
+    labelPl: "Maile systemowe",
+    labelEn: "System emails",
+  },
 ] as const;
+
 
 export function NewsletterSubNav() {
   const { i18n } = useTranslation();
