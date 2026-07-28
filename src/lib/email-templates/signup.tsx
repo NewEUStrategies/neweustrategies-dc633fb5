@@ -26,6 +26,7 @@ interface SignupEmailProps {
   lang?: EmailLang;
   firstName?: string | null;
   gender?: PolishGender;
+  vocativePl?: string | null;
 }
 
 export const SignupEmail = ({
@@ -34,13 +35,14 @@ export const SignupEmail = ({
   lang = "pl",
   firstName,
   gender = "unknown",
+  vocativePl,
 }: SignupEmailProps) => {
   const c = authCopy("signup", lang);
   return (
     <NesEmailLayout lang={lang} preview={c.preview} siteUrl={siteUrl}>
       <Text style={eyebrow}>{c.eyebrow}</Text>
       <Text style={h1}>{c.heading}</Text>
-      <Text style={greeting}>{emailGreeting(lang, firstName, gender)}</Text>
+      <Text style={greeting}>{emailGreeting(lang, firstName, gender, vocativePl)}</Text>
       <Text style={text}>{c.intro}</Text>
       <Section style={{ margin: "0 0 24px" }}>
         <Button style={buttonStyle} href={confirmationUrl}>

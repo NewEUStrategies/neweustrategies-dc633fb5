@@ -11,6 +11,8 @@ import { MagicLinkEmail } from '@/lib/email-templates/magic-link'
 import { RecoveryEmail } from '@/lib/email-templates/recovery'
 import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
+import { resolveRecipientName } from '@/lib/email/recipient-name.server'
+
 
 const EMAIL_SUBJECTS: Record<string, string> = {
   signup: 'Confirm your email',
@@ -136,13 +138,40 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
         const rawUrl = `${payload.data.redirect_to ?? ''} ${payload.data.url ?? ''}`
         const lang: 'pl' | 'en' = /[?&]lang=en\b|\/en(\/|\?|$)/i.test(rawUrl) ? 'en' : 'pl'
 
-        // Imię do personalizacji powitania (wołacz PL) - z metadanych użytkownika.
+        // Imię do personalizacji powitania (wołacz PL): metadane -> newsletter -> słownik imion.
         const meta = (payload.data.user?.user_metadata ?? {}) as Record<string, unknown>
         const firstNameRaw = meta.first_name ?? meta.firstName ?? meta.given_name ?? meta.name
-        const firstName = typeof firstNameRaw === 'string' ? firstNameRaw : null
+        const metaName = typeof firstNameRaw === 'string' ? firstNameRaw : null
         const genderRaw = typeof meta.gender === 'string' ? meta.gender.toLowerCase() : ''
-        const gender: 'male' | 'female' | 'unknown' =
+        const metaGender: 'male' | 'female' | 'unknown' =
           genderRaw === 'male' || genderRaw === 'female' ? genderRaw : 'unknown'
+
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+        if (!supabaseUrl || !supabaseServiceKey) {
+          console.error('Missing Supabase environment variables')
+          return Response.json({ error: 'Server configuration error' }, { status: 500 })
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+        let firstName = metaName
+        let gender = metaGender
+        let vocativePl: string | null = null
+        try {
+          const resolved = await resolveRecipientName(
+            supabase,
+            payload.data.email,
+            metaName,
+            metaGender,
+          )
+          firstName = resolved.firstName ?? metaName
+          gender = resolved.gender
+          vocativePl = resolved.vocativePl
+        } catch (err) {
+          console.error('Failed to resolve recipient name', err)
+        }
 
         // Build template props from payload.data (HookData structure)
         const templateProps = {
@@ -157,7 +186,9 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           lang,
           firstName,
           gender,
+          vocativePl,
         }
+
 
         // Render React Email to HTML and plain text
         const element = React.createElement(EmailTemplate, templateProps)
@@ -166,19 +197,8 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
 
 
         // Enqueue email for async processing by the dispatcher (process-email-queue).
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-        if (!supabaseUrl || !supabaseServiceKey) {
-          console.error('Missing Supabase environment variables')
-          return Response.json(
-            { error: 'Server configuration error' },
-            { status: 500 }
-          )
-        }
-
-        const supabase = createClient(supabaseUrl, supabaseServiceKey)
         const messageId = crypto.randomUUID()
+
 
         // Log pending BEFORE enqueue so we have a record even if enqueue crashes
         await supabase.from('email_send_log').insert({

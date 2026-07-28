@@ -27,6 +27,7 @@ interface EmailChangeEmailProps {
   lang?: EmailLang;
   firstName?: string | null;
   gender?: PolishGender;
+  vocativePl?: string | null;
 }
 
 export const EmailChangeEmail = ({
@@ -37,6 +38,7 @@ export const EmailChangeEmail = ({
   lang = "pl",
   firstName,
   gender = "unknown",
+  vocativePl,
 }: EmailChangeEmailProps) => {
   const c = authCopy("email_change", lang);
   const labels = EMAIL_CHANGE_LABELS[lang];
@@ -44,7 +46,7 @@ export const EmailChangeEmail = ({
     <NesEmailLayout lang={lang} preview={c.preview} siteUrl={siteUrl}>
       <Text style={eyebrow}>{c.eyebrow}</Text>
       <Text style={h1}>{c.heading}</Text>
-      <Text style={greeting}>{emailGreeting(lang, firstName, gender)}</Text>
+      <Text style={greeting}>{emailGreeting(lang, firstName, gender, vocativePl)}</Text>
       <Text style={text}>{c.intro}</Text>
       {(oldEmail || newEmail) && (
         <Section style={infoBox}>
