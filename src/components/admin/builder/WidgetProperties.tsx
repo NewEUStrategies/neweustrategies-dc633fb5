@@ -1243,6 +1243,7 @@ function WidgetHeightControl({
         </PropField>
       )}
     </div>
+
   );
 }
 
