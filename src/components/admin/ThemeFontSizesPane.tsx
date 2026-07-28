@@ -346,7 +346,10 @@ export function ThemeFontSizesPane() {
               />
             </div>
           </section>
+
+          <ApplyToPublishedSection isPL={isPL} />
         </div>
+
 
 
         {/* PREVIEW */}
