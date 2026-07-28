@@ -20,6 +20,7 @@ export { InteractiveCircleEditor } from "./InteractiveCircleEditor";
 export { SpeakersEditor } from "./SpeakersEditor";
 export { EventScheduleEditor } from "./EventScheduleEditor";
 export { EventCountdownEditor } from "./EventCountdownEditor";
+export { EventCountdownCardEditor } from "./EventCountdownCardEditor";
 export { EventPicker } from "./EventPicker";
 export { ProfilePicker } from "./ProfilePicker";
 export { MeetingBookingEditor } from "./MeetingBookingEditor";

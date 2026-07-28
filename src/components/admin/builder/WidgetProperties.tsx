@@ -96,6 +96,7 @@ import {
   SpeakersEditor,
   EventScheduleEditor,
   EventCountdownEditor,
+  EventCountdownCardEditor,
   MeetingBookingEditor,
   SponsorsEditor,
 } from "./ui/organisms/widget-properties";
