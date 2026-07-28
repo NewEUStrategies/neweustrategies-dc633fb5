@@ -513,6 +513,7 @@ export function PostListView({
                 {excerpt(p)}
               </p>
             )}
+            <AuthorMeta p={p} />
           </AppLink>
         ))}
       </div>
