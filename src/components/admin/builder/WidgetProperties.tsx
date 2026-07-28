@@ -1243,6 +1243,12 @@ function WidgetHeightControl({
         </PropField>
       )}
     </div>
+      {disabledReason ? (
+        <p className="mt-2 rounded-md border border-brand/30 bg-brand/5 px-2 py-1.5 text-[10.5px] leading-snug text-foreground/80">
+          {disabledReason}
+        </p>
+      ) : null}
+
 
   );
 }
