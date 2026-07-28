@@ -113,11 +113,8 @@ const en = {
   },
 };
 
-if (!i18n.hasResourceBundle("pl", "translation")) {
-  i18n.addResourceBundle("pl", "translation", pl, true, true);
-} else {
-  i18n.addResourceBundle("pl", "translation", pl, true, true);
-}
+i18n.addResourceBundle("pl", "translation", pl, true, true);
 i18n.addResourceBundle("en", "translation", en, true, true);
+
 
 export {};
