@@ -6,8 +6,8 @@ import { requireAdmin } from "@/integrations/supabase/require-staff";
 import {
   fetchSystemEmailReport,
   type SystemEmailReport,
-  type SystemEmailStatus,
 } from "@/lib/email/system-log.server";
+
 
 export type {
   SystemEmailReport,
