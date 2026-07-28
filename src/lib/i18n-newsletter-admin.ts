@@ -61,7 +61,7 @@ const pl = {
       sendError: "Wysyłka przerwana. Możesz ją wznowić przyciskiem Wyślij.",
       resume: "Wznów wysyłkę",
       emailNotConfigured:
-        "Wysyłka e-mail nie jest skonfigurowana (RESEND_API_KEY / LOVABLE_API_KEY). Kampania pozostała w kolejce - skonfiguruj klucze i wznów wysyłkę.",
+        "Wysyłka e-mail nie jest skonfigurowana (brak kluczy dostawcy poczty). Kampania pozostała w kolejce - skonfiguruj klucze i wznów wysyłkę.",
       noRecipients:
         "Brak odbiorców w wybranym segmencie - kampania pozostała szkicem. Sprawdź listę subskrybentów.",
       results: "Wyniki",
@@ -171,7 +171,7 @@ const en: typeof pl = {
       sendError: "Sending interrupted. You can resume with the Send button.",
       resume: "Resume sending",
       emailNotConfigured:
-        "Email delivery is not configured (RESEND_API_KEY / LOVABLE_API_KEY). The campaign stays queued - configure the keys and resume.",
+        "Email delivery is not configured (mail provider keys missing). The campaign stays queued - configure the keys and resume.",
       noRecipients:
         "No recipients in the selected segment - the campaign stays a draft. Check the subscriber list.",
       results: "Results",

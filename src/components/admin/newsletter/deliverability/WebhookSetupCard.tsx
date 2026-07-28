@@ -2,7 +2,7 @@
 //
 // Najczęstszy powód, dla którego lista wykluczeń jest pusta mimo odbić, to
 // niepodłączony webhook. Kafel mówi wprost: czy sekret jest ustawiony, jaki
-// adres wkleić w panelu Resend, na jakie zdarzenia nasłuchiwać i kiedy
+// adres wkleić u dostawcy poczty, na jakie zdarzenia nasłuchiwać i kiedy
 // ostatnio COKOLWIEK przyszło (bo skonfigurowany != działający).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
