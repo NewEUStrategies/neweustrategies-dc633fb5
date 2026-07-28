@@ -71,6 +71,14 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const showExcerpt = c.showExcerpt !== false;
   const showAuthor = c.showAuthor !== false;
   const showCover = c.showCover !== false;
+  const showTitle = c.showTitle !== false;
+  const authorDisplay = (typeof c.authorDisplay === "string"
+    ? c.authorDisplay
+    : c.showAuthor === false
+      ? "none"
+      : "avatar") as "avatar" | "label" | "none";
+  const authorLabelPl = typeof c.authorLabel_pl === "string" ? c.authorLabel_pl : "";
+  const authorLabelEn = typeof c.authorLabel_en === "string" ? c.authorLabel_en : "";
 
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
