@@ -16,6 +16,7 @@ export type EmailIconName =
   | "hero-check"
   | "hero-handshake"
   | "hero-magic"
+  | "hero-log-in"
   | "hero-key"
   | "hero-mail"
   | "hero-shield"

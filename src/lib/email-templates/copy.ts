@@ -84,7 +84,7 @@ const PL: Dict = {
   },
   magiclink: {
     subject: "🔐 Twój link logowania - New European Strategies",
-    icon: "hero-magic",
+    icon: "hero-log-in",
     preview: "Bezpieczny link do zalogowania się bez hasła.",
     eyebrow: "Logowanie",
     heading: "Zaloguj się jednym kliknięciem",
@@ -181,7 +181,7 @@ const EN: Dict = {
   },
   magiclink: {
     subject: "🔐 Your sign-in link - New European Strategies",
-    icon: "hero-magic",
+    icon: "hero-log-in",
     preview: "A secure link to sign in without a password.",
     eyebrow: "Sign in",
     heading: "Sign in with one click",
