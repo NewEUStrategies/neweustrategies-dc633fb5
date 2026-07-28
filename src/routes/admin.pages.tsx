@@ -35,6 +35,14 @@ import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenan
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 import { escapeLike } from "@/lib/admin/listFilters";
 import { toastError } from "@/lib/toastError";
+import {
+  TOPICS,
+  topicOrFilter,
+  otherNotPatterns,
+  topicForSlug,
+  topicLabel,
+  type PageTopicKey,
+} from "@/lib/admin/pageTopics";
 
 type Reading = {
   posts_per_page: number;
