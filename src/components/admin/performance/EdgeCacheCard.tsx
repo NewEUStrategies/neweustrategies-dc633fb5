@@ -3,17 +3,21 @@
 // Słownik rejestruje nakładka i18n w tym samym chunku trasy.
 import "@/lib/i18n-admin-edge-cache";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { RefreshCw, Trash2, Zap } from "lucide-react";
+import { RefreshCw, Search, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FloatingInput } from "@/components/ui/floating-input";
 import {
   getEdgeCacheStats,
+  probeEdgeCache,
   purgeEdgeCache,
+  type DocumentCacheProbe,
   type DocumentCacheSnapshot,
 } from "@/lib/edgeCache.functions";
 
@@ -32,6 +36,23 @@ function hitRatio(snapshot: DocumentCacheSnapshot): number | null {
   const total = served + snapshot.misses;
   if (total === 0) return null;
   return served / total;
+}
+
+const STATUS_TONE: Record<string, string> = {
+  HIT: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  STALE: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  MISS: "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  BYPASS: "border-border bg-muted text-muted-foreground",
+};
+
+function StatusPill({ status }: { status: string }) {
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_TONE[status] ?? STATUS_TONE.BYPASS}`}
+    >
+      {status}
+    </span>
+  );
 }
 
 function StatTile({ label, value }: { label: string; value: string }) {
@@ -54,6 +75,16 @@ export function EdgeCacheCard() {
     queryKey: STATS_QUERY_KEY,
     queryFn: () => fetchStats(),
     refetchInterval: 30_000,
+  });
+
+  const runProbe = useServerFn(probeEdgeCache);
+  const [probePath, setProbePath] = useState("/");
+  const [probe, setProbe] = useState<DocumentCacheProbe | null>(null);
+
+  const probeMutation = useMutation({
+    mutationFn: (path: string) => runProbe({ data: { path } }),
+    onSuccess: (result) => setProbe(result),
+    onError: () => toast.error(t("adminEdgeCache.diag.probeError")),
   });
 
   const purgeMutation = useMutation({
@@ -186,6 +217,109 @@ export function EdgeCacheCard() {
                 </div>
               )}
               <p className="mt-2 text-xs text-muted-foreground">{t("adminEdgeCache.l2.note")}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+              <div className="text-xs font-medium">{t("adminEdgeCache.diag.title")}</div>
+              <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+                {t("adminEdgeCache.diag.note")}
+              </p>
+              <form
+                className="mt-3 flex flex-wrap items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const path = probePath.trim();
+                  if (path.startsWith("/")) probeMutation.mutate(path);
+                }}
+              >
+                <div className="min-w-[220px] flex-1">
+                  <FloatingInput
+                    label={t("adminEdgeCache.diag.probeLabel")}
+                    placeholder={t("adminEdgeCache.diag.probePlaceholder")}
+                    value={probePath}
+                    onChange={(event) => setProbePath(event.target.value)}
+                  />
+                </div>
+                <Button type="submit" variant="outline" size="sm" disabled={probeMutation.isPending}>
+                  <Search className="h-3.5 w-3.5" aria-hidden />
+                  {t("adminEdgeCache.diag.probeRun")}
+                </Button>
+              </form>
+              {probe && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <StatusPill status={probe.status} />
+                  <span className="font-mono">{probe.path}</span>
+                  <span className="text-muted-foreground">
+                    {!probe.cacheable
+                      ? t("adminEdgeCache.diag.probeBypass", { reason: probe.bypassReason ?? "-" })
+                      : probe.cached
+                        ? t("adminEdgeCache.diag.probeCached", {
+                            status: probe.status,
+                            age: probe.ageS ?? 0,
+                            fresh: Math.max(0, probe.freshForS ?? 0),
+                          })
+                        : t("adminEdgeCache.diag.probeMiss")}
+                  </span>
+                </div>
+              )}
+
+              <div className="mt-4 text-xs font-medium">
+                {t("adminEdgeCache.diag.recentTitle")}
+              </div>
+              {snapshot.recent.length === 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t("adminEdgeCache.diag.recentEmpty")}
+                </p>
+              ) : (
+                <div className="mt-2 max-h-64 overflow-auto rounded-md border border-border/70">
+                  <table className="w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-card">
+                      <tr className="text-muted-foreground">
+                        <th className="px-2 py-1 font-medium">
+                          {t("adminEdgeCache.diag.colTime")}
+                        </th>
+                        <th className="px-2 py-1 font-medium">
+                          {t("adminEdgeCache.diag.colPath")}
+                        </th>
+                        <th className="px-2 py-1 font-medium">
+                          {t("adminEdgeCache.diag.colStatus")}
+                        </th>
+                        <th className="px-2 py-1 font-medium">
+                          {t("adminEdgeCache.diag.colDetail")}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {snapshot.recent.map((decision, index) => (
+                        <tr
+                          key={`${decision.at}-${decision.path}-${index}`}
+                          className="border-t border-border/60"
+                        >
+                          <td className="px-2 py-1 tabular-nums text-muted-foreground">
+                            {new Date(decision.at).toLocaleTimeString(locale)}
+                          </td>
+                          <td className="max-w-[240px] truncate px-2 py-1 font-mono">
+                            {decision.path}
+                          </td>
+                          <td className="px-2 py-1">
+                            <StatusPill status={decision.status} />
+                          </td>
+                          <td className="px-2 py-1 text-muted-foreground">
+                            {[
+                              decision.ageS === undefined ? null : `age ${decision.ageS}s`,
+                              decision.renderMs === undefined
+                                ? null
+                                : `ssr ${decision.renderMs}ms`,
+                              decision.cacheControl ?? null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               {t("adminEdgeCache.since", {
