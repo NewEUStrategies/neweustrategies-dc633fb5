@@ -64,7 +64,7 @@ const FOOTER_COPY = {
 
 /**
  * Wspólna ramka maili systemowych NES: jasny header z poziomym logo,
- * ciemny hero (#141313) z ikoną Lucide i tytułem, biała karta treści
+ * ciemny hero (#141313) z logo w wariancie dark, tytułem i ikoną Lucide pod nim, biała karta treści
  * oraz ciemna stopka z logo w wersji dark.
  */
 export const NesEmailLayout = ({
@@ -97,13 +97,22 @@ export const NesEmailLayout = ({
 
           {(heading || eyebrowText) && (
             <Section style={hero}>
-              {icon ? (
-                <Section style={heroIconWrap}>
-                  <EmailIcon name={icon} size={34} style={{ margin: "0 auto" }} />
-                </Section>
-              ) : null}
+              <Section style={heroLogoWrap}>
+                <Img
+                  src={NES_LOGO_DARK}
+                  alt="New European Strategies"
+                  width={150}
+                  height={62}
+                  style={logoImg}
+                />
+              </Section>
               {eyebrowText ? <Text style={heroEyebrow}>{eyebrowText}</Text> : null}
               {heading ? <Text style={heroTitle}>{heading}</Text> : null}
+              {icon ? (
+                <Section style={heroIconWrap}>
+                  <EmailIcon name={icon} size={30} style={{ margin: "0 auto" }} />
+                </Section>
+              ) : null}
             </Section>
           )}
 
@@ -180,8 +189,14 @@ const hero: React.CSSProperties = {
   textAlign: "center" as const,
 };
 
+const heroLogoWrap: React.CSSProperties = {
+  margin: "0 0 16px",
+  textAlign: "center" as const,
+};
+
+/** Ikona Lucide siedzi POD tytulem hero (logo przejelo miejsce nad nim). */
 const heroIconWrap: React.CSSProperties = {
-  margin: "0 0 12px",
+  margin: "16px 0 0",
   textAlign: "center" as const,
 };
 
