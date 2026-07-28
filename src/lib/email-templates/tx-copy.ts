@@ -74,12 +74,14 @@ const LABELS_EN: TxCopy["labels"] = {
   newPlan: "New plan",
 };
 
-const HELP_PL = "Masz pytania dotyczące płatności lub dostępu? Napisz do nas - odpowiadamy w dni robocze.";
+const HELP_PL =
+  "Masz pytania dotyczące płatności lub dostępu? Napisz do nas - odpowiadamy w dni robocze.";
 const HELP_EN = "Questions about billing or access? Write to us - we reply on business days.";
 
 const PL: Dict = {
   subscription_confirmed: {
-    subject: (v) => `✅ Subskrypcja aktywna${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `✅ Subskrypcja aktywna${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
     preview: "Twoja subskrypcja jest aktywna - pełny dostęp do analiz i danych NES.",
     eyebrow: "Subskrypcja",
@@ -92,7 +94,8 @@ const PL: Dict = {
     footerHelp: HELP_PL,
   },
   subscription_renewed: {
-    subject: (v) => `🔄 Subskrypcja przedłużona${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `🔄 Subskrypcja przedłużona${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
     preview: "Subskrypcja została przedłużona na kolejny okres rozliczeniowy.",
     eyebrow: "Odnowienie subskrypcji",
@@ -105,7 +108,8 @@ const PL: Dict = {
     footerHelp: HELP_PL,
   },
   subscription_canceled: {
-    subject: (v) => `🛑 Subskrypcja anulowana${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `🛑 Subskrypcja anulowana${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-shield",
     preview: "Potwierdzamy anulowanie subskrypcji - dostęp trwa do końca opłaconego okresu.",
     eyebrow: "Anulowanie subskrypcji",
@@ -118,7 +122,8 @@ const PL: Dict = {
     footerHelp: HELP_PL,
   },
   subscription_upgraded: {
-    subject: (v) => `⬆️ Plan podniesiony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `⬆️ Plan podniesiony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-handshake",
     preview: "Twój plan subskrypcji został podniesiony - szerszy dostęp działa od razu.",
     eyebrow: "Zmiana planu",
@@ -131,7 +136,8 @@ const PL: Dict = {
     footerHelp: HELP_PL,
   },
   subscription_downgraded: {
-    subject: (v) => `⬇️ Plan zmieniony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `⬇️ Plan zmieniony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "info",
     preview: "Twój plan subskrypcji został zmieniony na niższy.",
     eyebrow: "Zmiana planu",
@@ -144,7 +150,8 @@ const PL: Dict = {
     footerHelp: HELP_PL,
   },
   event_registered: {
-    subject: (v) => `🎟️ Potwierdzenie zapisu${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `🎟️ Potwierdzenie zapisu${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
     preview: "Twój udział w wydarzeniu jest potwierdzony.",
     eyebrow: "Wydarzenie",
@@ -173,7 +180,8 @@ const PL: Dict = {
 
 const EN: Dict = {
   subscription_confirmed: {
-    subject: (v) => `✅ Subscription active${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `✅ Subscription active${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
     preview: "Your subscription is active - full access to NES analysis and data.",
     eyebrow: "Subscription",
@@ -186,7 +194,8 @@ const EN: Dict = {
     footerHelp: HELP_EN,
   },
   subscription_renewed: {
-    subject: (v) => `🔄 Subscription renewed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `🔄 Subscription renewed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
     preview: "Your subscription has been renewed for another billing period.",
     eyebrow: "Subscription renewal",
@@ -199,7 +208,8 @@ const EN: Dict = {
     footerHelp: HELP_EN,
   },
   subscription_canceled: {
-    subject: (v) => `🛑 Subscription cancelled${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `🛑 Subscription cancelled${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-shield",
     preview: "Your cancellation is confirmed - access runs until the end of the paid period.",
     eyebrow: "Subscription cancellation",
@@ -212,7 +222,8 @@ const EN: Dict = {
     footerHelp: HELP_EN,
   },
   subscription_upgraded: {
-    subject: (v) => `⬆️ Plan upgraded${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `⬆️ Plan upgraded${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-handshake",
     preview: "Your subscription plan has been upgraded - wider access is live right away.",
     eyebrow: "Plan change",
@@ -225,7 +236,8 @@ const EN: Dict = {
     footerHelp: HELP_EN,
   },
   subscription_downgraded: {
-    subject: (v) => `⬇️ Plan changed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `⬇️ Plan changed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "info",
     preview: "Your subscription plan has been moved to a lower tier.",
     eyebrow: "Plan change",
@@ -238,7 +250,8 @@ const EN: Dict = {
     footerHelp: HELP_EN,
   },
   event_registered: {
-    subject: (v) => `🎟️ Registration confirmed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    subject: (v) =>
+      `🎟️ Registration confirmed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
     preview: "Your attendance is confirmed.",
     eyebrow: "Event",

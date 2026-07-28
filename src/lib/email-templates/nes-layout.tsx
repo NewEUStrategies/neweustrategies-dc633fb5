@@ -299,27 +299,37 @@ export const linkStyle: React.CSSProperties = {
 };
 
 export const infoBox: React.CSSProperties = {
-  backgroundColor: SAND,
-  border: `1px solid ${BORDER}`,
-  borderRadius: "8px",
-  padding: "14px 16px",
+  backgroundColor: "#ffffff",
+  borderTop: `1px solid ${BORDER}`,
+  borderBottom: `1px solid ${BORDER}`,
+  borderRadius: 0,
+  padding: "14px 0",
   margin: "0 0 18px",
 };
 
 export const infoText: React.CSSProperties = {
   fontSize: "12px",
   color: MUTED,
-  lineHeight: "1.6",
+  lineHeight: "1.7",
   margin: 0,
 };
 
+/** Blok bezpieczenstwa - powsciagliwy, bez kolorowych alertow. */
 export const noteBox: React.CSSProperties = {
-  backgroundColor: "#fdf6ef",
-  border: "1px solid #f6e2cd",
-  borderLeft: `3px solid ${ORANGE}`,
-  borderRadius: "8px",
-  padding: "12px 14px",
-  margin: "0 0 18px",
+  backgroundColor: "#ffffff",
+  borderTop: `1px solid ${BORDER}`,
+  borderRadius: 0,
+  padding: "14px 0 0",
+  margin: "20px 0 0",
+};
+
+export const noteLabel: React.CSSProperties = {
+  color: INK,
+  fontSize: "10px",
+  fontWeight: 700,
+  letterSpacing: "0.14em",
+  textTransform: "uppercase" as const,
+  margin: "0 0 6px",
 };
 
 export const codeStyle: React.CSSProperties = {
@@ -342,3 +352,22 @@ export const smallPrint: React.CSSProperties = {
   lineHeight: "1.6",
   margin: "22px 0 0",
 };
+
+/**
+ * Nota bezpieczenstwa - stonowana typografia zamiast kolorowego "alert boxa".
+ * Cienka linia u gory, wersalikowa etykieta, tekst w kolorze tresci.
+ */
+export const SecurityNote = ({
+  lang,
+  children,
+  label,
+}: {
+  lang: EmailLang;
+  children: React.ReactNode;
+  label?: string;
+}) => (
+  <Section style={noteBox}>
+    <Text style={noteLabel}>{label ?? (lang === "pl" ? "Bezpieczeństwo" : "Security")}</Text>
+    <Text style={infoText}>{children}</Text>
+  </Section>
+);
