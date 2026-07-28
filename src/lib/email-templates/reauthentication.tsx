@@ -49,7 +49,9 @@ export const ReauthenticationEmail = ({
       <Section style={{ textAlign: "center" as const }}>
         <Text style={codeStyle}>{token}</Text>
       </Section>
-      <IconRow name="clock" textStyle={text}>{c.expiry}</IconRow>
+      <IconRow name="clock" textStyle={text}>
+        {c.expiry}
+      </IconRow>
       <SecurityNote lang={lang}>{c.security}</SecurityNote>
       <Text style={smallPrint}>
         {lang === "pl"

@@ -332,7 +332,6 @@ export const noteLabel: React.CSSProperties = {
   margin: "0 0 6px",
 };
 
-
 export const codeStyle: React.CSSProperties = {
   backgroundColor: SAND,
   border: `1px solid ${BORDER}`,

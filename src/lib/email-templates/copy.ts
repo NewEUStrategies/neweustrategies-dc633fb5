@@ -124,7 +124,8 @@ const EN: Dict = {
       "Thank you for creating an account with New European Strategies. Confirm your email address to unlock our analysis, data and expert insights.",
     cta: "Confirm email address",
     fallback: "If the button does not work, copy this address into your browser:",
-    security: "If you did not create this account, simply ignore this message - nothing will happen.",
+    security:
+      "If you did not create this account, simply ignore this message - nothing will happen.",
     expiry: "For security reasons this link is valid for a limited time.",
   },
   invite: {

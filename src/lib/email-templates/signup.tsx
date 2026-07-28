@@ -63,7 +63,9 @@ export const SignupEmail = ({
           </a>
         </Text>
       </Section>
-      <IconRow name="clock" textStyle={text}>{c.expiry}</IconRow>
+      <IconRow name="clock" textStyle={text}>
+        {c.expiry}
+      </IconRow>
       <SecurityNote lang={lang}>{c.security}</SecurityNote>
       <Text style={smallPrint}>
         {lang === "pl"
