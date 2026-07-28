@@ -82,6 +82,7 @@ import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as EventsSlugRouteImport } from './routes/events.$slug'
+import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
@@ -166,6 +167,7 @@ import { Route as TagSlugRssDotxmlRouteImport } from './routes/tag.$slug.rss[.]x
 import { Route as ProgramsSlugRssDotxmlRouteImport } from './routes/programs.$slug.rss[.]xml'
 import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$show.rss[.]xml'
 import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
+import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
@@ -233,6 +235,8 @@ import { Route as AdminAppearanceCategoryArchiveRouteImport } from './routes/adm
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as AdminCrmFunnelIndexRouteImport } from './routes/admin.crm.funnel.index'
+import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
@@ -607,6 +611,11 @@ const EventsSlugRoute = EventsSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => EventsRoute,
+} as any)
+const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
+  id: '/email/unsubscribe',
+  path: '/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
   id: '/checkout/success',
@@ -1030,6 +1039,11 @@ const NetworkMutualUserIdRoute = NetworkMutualUserIdRouteImport.update({
   path: '/mutual/$userId',
   getParentRoute: () => NetworkRoute,
 } as any)
+const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
+  id: '/lovable/email/suppression',
+  path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CategorySlugRssDotxmlRoute = CategorySlugRssDotxmlRouteImport.update({
   id: '/rss.xml',
   path: '/rss.xml',
@@ -1380,6 +1394,18 @@ const AdminCrmFunnelIndexRoute = AdminCrmFunnelIndexRouteImport.update({
   path: '/funnel/',
   getParentRoute: () => AdminCrmRoute,
 } as any)
+const LovableEmailTransactionalSendRoute =
+  LovableEmailTransactionalSendRouteImport.update({
+    id: '/lovable/email/transactional/send',
+    path: '/lovable/email/transactional/send',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const LovableEmailQueueProcessRoute =
   LovableEmailQueueProcessRouteImport.update({
     id: '/lovable/email/queue/process',
@@ -1538,6 +1564,7 @@ export interface FileRoutesByFullPath {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
@@ -1642,6 +1669,7 @@ export interface FileRoutesByFullPath {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
@@ -1663,6 +1691,8 @@ export interface FileRoutesByFullPath {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -1764,6 +1794,7 @@ export interface FileRoutesByTo {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
@@ -1867,6 +1898,7 @@ export interface FileRoutesByTo {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
@@ -1888,6 +1920,8 @@ export interface FileRoutesByTo {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/admin/crm/funnel': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -1999,6 +2033,7 @@ export interface FileRoutesById {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
@@ -2103,6 +2138,7 @@ export interface FileRoutesById {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
@@ -2124,6 +2160,8 @@ export interface FileRoutesById {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -2236,6 +2274,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/email/unsubscribe'
     | '/events/$slug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
@@ -2340,6 +2379,7 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
+    | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
@@ -2361,6 +2401,8 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
+    | '/lovable/email/transactional/send'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesByTo: FileRoutesByTo
@@ -2462,6 +2504,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/email/unsubscribe'
     | '/events/$slug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
@@ -2565,6 +2608,7 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
+    | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
@@ -2586,6 +2630,8 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
+    | '/lovable/email/transactional/send'
     | '/admin/crm/funnel'
     | '/admin/newsletter/campaigns'
   id:
@@ -2696,6 +2742,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/email/unsubscribe'
     | '/events/$slug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
@@ -2800,6 +2847,7 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
+    | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
@@ -2821,6 +2869,8 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
+    | '/lovable/email/transactional/send'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesById: FileRoutesById
@@ -2869,6 +2919,7 @@ export interface RootRouteChildren {
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
+  EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
   PodcastSlugRoute: typeof PodcastSlugRoute
@@ -2902,6 +2953,7 @@ export interface RootRouteChildren {
   ApiPublicTrackRoute: typeof ApiPublicTrackRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
+  LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
   ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
@@ -2910,6 +2962,8 @@ export interface RootRouteChildren {
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
+  LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
+  LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -3424,6 +3478,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/events/$slug'
       preLoaderRoute: typeof EventsSlugRouteImport
       parentRoute: typeof EventsRoute
+    }
+    '/email/unsubscribe': {
+      id: '/email/unsubscribe'
+      path: '/email/unsubscribe'
+      fullPath: '/email/unsubscribe'
+      preLoaderRoute: typeof EmailUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/checkout/success': {
       id: '/checkout/success'
@@ -4013,6 +4074,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NetworkMutualUserIdRouteImport
       parentRoute: typeof NetworkRoute
     }
+    '/lovable/email/suppression': {
+      id: '/lovable/email/suppression'
+      path: '/lovable/email/suppression'
+      fullPath: '/lovable/email/suppression'
+      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/category/$slug/rss.xml': {
       id: '/category/$slug/rss.xml'
       path: '/rss.xml'
@@ -4481,6 +4549,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/crm/funnel/'
       preLoaderRoute: typeof AdminCrmFunnelIndexRouteImport
       parentRoute: typeof AdminCrmRoute
+    }
+    '/lovable/email/transactional/send': {
+      id: '/lovable/email/transactional/send'
+      path: '/lovable/email/transactional/send'
+      fullPath: '/lovable/email/transactional/send'
+      preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/lovable/email/queue/process': {
       id: '/lovable/email/queue/process'
@@ -5124,6 +5206,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
+  EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,
   PodcastSlugRoute: PodcastSlugRoute,
@@ -5157,6 +5240,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTrackRoute: ApiPublicTrackRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
+  LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
   ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
@@ -5165,6 +5249,8 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
+  LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
+  LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
