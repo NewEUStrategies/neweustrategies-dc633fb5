@@ -48,6 +48,59 @@ export default defineConfig({
         "seroval",
       ],
     },
+    // --- DEV-ONLY: pamięć i zimny start SSR (incydent: OOM `heap out of
+    // memory` po serii renderów SSR w trybie dev). Przyczyna jest artefaktem
+    // dev-a, nie produkcji: w dev każdy `React.lazy(() => import(...))` z
+    // lazyWidgets.tsx jest transformowany i trzymany JAKO OSOBNY moduł w
+    // module-graph runnera SSR (razem z sourcemapami), a graf tras jest
+    // ogromny - stąd rosnący heap i 30-40 s pierwszego zimnego żądania.
+    // Wszystkie poniższe opcje są ignorowane przy `vite build`, więc artefakt
+    // produkcyjny (worker) pozostaje bit-w-bit taki sam.
+    //
+    // 1) Prebundling zależności także dla środowiska SSR: setki modułów
+    //    node_modules zwijają się do kilku plików ESM => mniej wpisów w
+    //    module-graph i mniej pracy transformera przy każdym renderze.
+    ssr: {
+      optimizeDeps: {
+        include: [
+          "react",
+          "react-dom",
+          "react-dom/server",
+          "@tanstack/react-router",
+          "@tanstack/react-query",
+          "@supabase/supabase-js",
+          "i18next",
+          "react-i18next",
+        ],
+      },
+    },
+    server: {
+      // 2) Rozgrzewka najcięższych wejść SSR - transform startuje przy starcie
+      //    dev-servera, a nie dopiero przy pierwszym żądaniu użytkownika.
+      warmup: {
+        ssrFiles: [
+          "./src/routes/__root.tsx",
+          "./src/routes/index.tsx",
+          "./src/components/admin/builder/BuilderRenderer.tsx",
+          "./src/components/admin/builder/WidgetView.tsx",
+          "./src/components/admin/builder/ui/organisms/widget-view/lazyWidgets.tsx",
+        ],
+        clientFiles: ["./src/routes/__root.tsx", "./src/routes/index.tsx"],
+      },
+      // 3) Watcher nie trzyma w pamięci katalogów, które nigdy nie wchodzą do
+      //    grafu aplikacji (migracje, dokumentacja, artefakty testów).
+      watch: {
+        ignored: [
+          "**/supabase/**",
+          "**/docs/**",
+          "**/test-results/**",
+          "**/playwright-report/**",
+          "**/coverage/**",
+          "**/.lovable/**",
+        ],
+      },
+    },
+
     // Minifikacja WSZYSTKICH środowisk builda esbuildem (2026-07-24). Historia:
     // top-level `minify: false` wprowadzono, gdy V8 wyczerpywał pamięć podczas
     // minifikacji chunka SSR >2.5 MB przy `build:dev` - ale efektem ubocznym
