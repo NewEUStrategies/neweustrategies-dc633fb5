@@ -246,7 +246,17 @@ function PagesList() {
   const allIds = useMemo(() => pagedPages.map((p) => p.id), [pagedPages]);
   useEffect(() => {
     setPage(1);
-  }, [view, searchDebounced, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
+  }, [
+    view,
+    searchDebounced,
+    statusFilter,
+    langFilter,
+    authorFilter,
+    topicFilter,
+    trashFrom,
+    trashTo,
+    pageSize,
+  ]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
