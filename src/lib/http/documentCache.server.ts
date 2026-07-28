@@ -396,7 +396,7 @@ export async function handleDocumentRequest<T>(
 
   stats.misses += 1;
   const { result, timing } = await renderWithTiming();
-  console.log("[nes-dbg] miss result", result instanceof Response, Object.prototype.toString.call(result));
+  console.log("[nes-dbg] miss result keys", Object.keys(result as object), JSON.stringify(Object.fromEntries(Object.entries(result as object).map(([k,v])=>[k, v && typeof v==="object" ? v.constructor?.name : typeof v]))));
   if (result instanceof Response) {
     return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
   }
