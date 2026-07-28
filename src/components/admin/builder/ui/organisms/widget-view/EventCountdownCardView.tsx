@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
 import { safeUrl } from "@/lib/sanitize";
 import { AppLink } from "@/components/atoms/AppLink";
-import { CalendarDays, Clock, Users, ArrowRight } from "@/lib/lucide-shim";
+import { CalendarDays, Clock, Users, MapPin, ArrowRight } from "@/lib/lucide-shim";
 import { eventByIdQueryOptions, eventRsvpCountsQueryOptions } from "@/lib/builder/eventsQuery";
 import {
   countdownParts,
@@ -48,6 +48,8 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
   const eventId = getStr(c, "eventId");
   const showSeconds = getBool(c, "showSeconds", true);
   const showAttendees = getBool(c, "showAttendees", true);
+  const showCountdown = getBool(c, "showCountdown", true);
+  const showLocation = getBool(c, "showLocation", true);
   const enableAnimations = getBool(c, "enableAnimations", true);
   const accent = getStr(c, "accentColor");
   const manualImage = safeUrl(getStr(c, "image"), "");
@@ -82,6 +84,7 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
   const doneHint =
     locStr(c, "doneHint", lang) ||
     (lang === "pl" ? "Dołącz teraz, aby wziąć udział" : "Join now to participate");
+  const location = locStr(c, "location", lang) || (mode === "event" ? (eventRow?.location ?? "") : "");
   const eventHref = mode === "event" && eventRow ? `/events/${eventRow.slug}` : "";
   const ctaHref = href || eventHref;
 
@@ -185,10 +188,16 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
                 {lang === "pl" ? `${attendees} uczestników` : `${attendees} attending`}
               </span>
             ) : null}
+            {showLocation && location ? (
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin aria-hidden className="h-3.5 w-3.5" />
+                {location}
+              </span>
+            ) : null}
           </div>
         </div>
 
-        {done ? (
+        {!showCountdown ? null : done ? (
           <div className="rounded-[6px] border border-border/60 bg-muted/40 p-4 text-center">
             <p role="status" className="font-display text-lg font-semibold text-foreground">
               {doneText}
