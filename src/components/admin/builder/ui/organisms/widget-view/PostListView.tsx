@@ -603,12 +603,14 @@ export function PostListView({
               </div>
             )}
             <div className="min-w-0 flex flex-col justify-center py-0.5">
-              <h4
-                className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
-                style={tStyle}
-              >
-                {title(p)}
-              </h4>
+              {title(p) && (
+                <h4
+                  className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
+                  style={tStyle}
+                >
+                  {title(p)}
+                </h4>
+              )}
               {excerpt(p) && (
                 <p className="cms-post-excerpt mt-1.5 line-clamp-2" style={eStyle}>
                   {excerpt(p)}
