@@ -243,7 +243,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
             const currentVariant =
               typeof b.data.variant === "string" ? (b.data.variant as string) : undefined;
             return (
-              <div key={b.id}>
+              <div key={b.id} data-block-type={b.type}>
                 <SortableBlockItem
                   id={b.id}
                   index={idx}
