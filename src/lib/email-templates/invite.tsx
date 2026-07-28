@@ -36,7 +36,7 @@ export const InviteEmail = ({
   gender = "unknown",
   vocativePl,
 }: InviteEmailProps) => {
-  const c = authCopy("invite", lang);
+  const c = authCopy("invite", lang, gender);
   return (
     <NesEmailLayout
       lang={lang}

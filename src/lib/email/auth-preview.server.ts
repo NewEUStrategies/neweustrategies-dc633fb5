@@ -76,7 +76,7 @@ function componentFor(type: AuthEmailType): React.ComponentType<PreviewProps> {
 export async function renderAuthEmailPreview(
   input: AuthEmailPreviewInput,
 ): Promise<AuthEmailPreview> {
-  const copy = authCopy(input.type, input.lang);
+  const copy = authCopy(input.type, input.lang, input.gender);
   const Component = componentFor(input.type);
 
   const props: PreviewProps = {

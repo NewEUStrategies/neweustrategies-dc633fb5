@@ -36,7 +36,7 @@ export const RecoveryEmail = ({
   gender = "unknown",
   vocativePl,
 }: RecoveryEmailProps) => {
-  const c = authCopy("recovery", lang);
+  const c = authCopy("recovery", lang, gender);
   return (
     <NesEmailLayout
       lang={lang}

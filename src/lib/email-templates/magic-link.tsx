@@ -36,7 +36,7 @@ export const MagicLinkEmail = ({
   gender = "unknown",
   vocativePl,
 }: MagicLinkEmailProps) => {
-  const c = authCopy("magiclink", lang);
+  const c = authCopy("magiclink", lang, gender);
   return (
     <NesEmailLayout
       lang={lang}

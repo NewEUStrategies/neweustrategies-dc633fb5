@@ -40,7 +40,7 @@ export const EmailChangeEmail = ({
   gender = "unknown",
   vocativePl,
 }: EmailChangeEmailProps) => {
-  const c = authCopy("email_change", lang);
+  const c = authCopy("email_change", lang, gender);
   const labels = EMAIL_CHANGE_LABELS[lang];
   return (
     <NesEmailLayout
