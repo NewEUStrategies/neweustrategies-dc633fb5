@@ -21,6 +21,8 @@ const numOf = (v: unknown): number => (typeof v === "number" ? v : Number(v) || 
 export function EventCountdownCardEditor({ c, lang, setContent }: Props) {
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const showAttendees = c.showAttendees !== false;
+  const showCountdown = c.showCountdown !== false;
+  const showLocation = c.showLocation !== false;
   const enableAnimations = c.enableAnimations !== false;
   const eventMode = strOf(c.mode) === "event";
 
@@ -73,6 +75,38 @@ export function EventCountdownCardEditor({ c, lang, setContent }: Props) {
               value={numOf(c.attendees) || ""}
               onChange={(e) => setContent("attendees", Math.max(0, Number(e.target.value) || 0))}
               className="h-8 text-xs"
+            />
+          </PropField>
+        ) : null}
+
+        <PropField label={l("Pokaż odliczanie", "Show countdown")} inline>
+          <Switch
+            checked={showCountdown}
+            onCheckedChange={(v) => setContent("showCountdown", v)}
+          />
+        </PropField>
+
+        <PropField label={l("Pokaż lokalizację", "Show location")} inline>
+          <Switch checked={showLocation} onCheckedChange={(v) => setContent("showLocation", v)} />
+        </PropField>
+
+        {showLocation ? (
+          <PropField
+            label={l("Lokalizacja", "Location") + ` (${lang.toUpperCase()})`}
+            hint={
+              eventMode
+                ? l(
+                    "Puste = lokalizacja wybranego wydarzenia.",
+                    "Empty = location of the selected event.",
+                  )
+                : undefined
+            }
+          >
+            <Input
+              value={strOf(c[`location_${lang}`])}
+              onChange={(e) => setContent(`location_${lang}`, e.target.value)}
+              className="h-8 text-xs"
+              placeholder={l("Bruksela, Belgia", "Brussels, Belgium")}
             />
           </PropField>
         ) : null}

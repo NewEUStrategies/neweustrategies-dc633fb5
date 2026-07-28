@@ -92,11 +92,11 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
   // identyczne (placeholdery), wiec hydratacja nigdy sie nie rozjezdza.
   const [nowMs, setNowMs] = useState<number | null>(null);
   useEffect(() => {
-    if (targetMs === null) return;
+    if (targetMs === null || !showCountdown) return;
     setNowMs(Date.now());
     const interval = window.setInterval(() => setNowMs(Date.now()), showSeconds ? 1000 : 30_000);
     return () => window.clearInterval(interval);
-  }, [targetMs, showSeconds]);
+  }, [targetMs, showSeconds, showCountdown]);
 
   if (targetMs === null) {
     if (inBuilder) {
