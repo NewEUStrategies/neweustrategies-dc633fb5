@@ -205,8 +205,39 @@ export function fontSizesToCss(fs: FontSizesSettings): string {
     `:root{${rootLines.join("")}}`,
     `@media (max-width: ${fs.mobileBreakpoint}px){:root{${mobileLines.join("")}}}`,
     spacingRulesCss(),
+    lineHeightRulesCss(),
   ].join("");
 }
+
+/**
+ * Interlinia treści (akapity + nagłówki). Te same zmienne konsumują publiczny
+ * wpis (`.post-content` / `.single-post-content`) oraz canvas Gutenberga
+ * (`[data-builder-renderer]`), więc edytor 1:1 odwzorowuje front.
+ * Podwojona specyficzność klas wygrywa z `<ContentAreaStyle/>` i utility.
+ */
+function lineHeightRulesCss(): string {
+  const heads = HEADING_LEVELS.map(
+    (level) =>
+      `.post-content.post-content ${level},` +
+      `.single-post-content.single-post-content ${level},` +
+      `[data-builder-renderer] ${level}` +
+      `{line-height:var(--lh-${level});}`,
+  ).join("");
+  return [
+    `.post-content.post-content :is(p,li),`,
+    `.single-post-content.single-post-content :is(p,li),`,
+    `[data-builder-renderer] > [data-block-type="paragraph"],`,
+    `[data-builder-renderer] > [data-block-type="paragraph"] :is(p,div,li),`,
+    `[data-builder-renderer] > [data-block-type="list"] :is(p,li)`,
+    `{line-height:var(--lh-body);}`,
+    `.post-content.post-content blockquote,`,
+    `.single-post-content.single-post-content blockquote,`,
+    `[data-builder-renderer] > [data-block-type="quote"]`,
+    `{line-height:var(--lh-blockquote);}`,
+    heads,
+  ].join("");
+}
+
 
 /**
  * Reguły odstępów treści. Podwojona specyficzność klas, żeby wygrać z
