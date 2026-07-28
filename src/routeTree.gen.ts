@@ -201,6 +201,7 @@ import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin.pages.$slug'
 import { Route as AdminOrganizationsNewRouteImport } from './routes/admin.organizations.new'
 import { Route as AdminOrganizationsIdRouteImport } from './routes/admin.organizations.$id'
+import { Route as AdminNewsletterSystemEmailsRouteImport } from './routes/admin.newsletter.system-emails'
 import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.newsletter.subscribers'
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
@@ -1203,6 +1204,12 @@ const AdminOrganizationsIdRoute = AdminOrganizationsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AdminOrganizationsRoute,
 } as any)
+const AdminNewsletterSystemEmailsRoute =
+  AdminNewsletterSystemEmailsRouteImport.update({
+    id: '/system-emails',
+    path: '/system-emails',
+    getParentRoute: () => AdminNewsletterRoute,
+  } as any)
 const AdminNewsletterSubscribersRoute =
   AdminNewsletterSubscribersRouteImport.update({
     id: '/subscribers',
@@ -1584,6 +1591,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/newsletter/system-emails': typeof AdminNewsletterSystemEmailsRoute
   '/admin/organizations/$id': typeof AdminOrganizationsIdRoute
   '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
@@ -1806,6 +1814,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/newsletter/system-emails': typeof AdminNewsletterSystemEmailsRoute
   '/admin/organizations/$id': typeof AdminOrganizationsIdRoute
   '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
@@ -2039,6 +2048,7 @@ export interface FileRoutesById {
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
+  '/admin/newsletter/system-emails': typeof AdminNewsletterSystemEmailsRoute
   '/admin/organizations/$id': typeof AdminOrganizationsIdRoute
   '/admin/organizations/new': typeof AdminOrganizationsNewRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
@@ -2273,6 +2283,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/newsletter/system-emails'
     | '/admin/organizations/$id'
     | '/admin/organizations/new'
     | '/admin/pages/$slug'
@@ -2495,6 +2506,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/newsletter/system-emails'
     | '/admin/organizations/$id'
     | '/admin/organizations/new'
     | '/admin/pages/$slug'
@@ -2727,6 +2739,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
+    | '/admin/newsletter/system-emails'
     | '/admin/organizations/$id'
     | '/admin/organizations/new'
     | '/admin/pages/$slug'
@@ -4220,6 +4233,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrganizationsIdRouteImport
       parentRoute: typeof AdminOrganizationsRoute
     }
+    '/admin/newsletter/system-emails': {
+      id: '/admin/newsletter/system-emails'
+      path: '/system-emails'
+      fullPath: '/admin/newsletter/system-emails'
+      preLoaderRoute: typeof AdminNewsletterSystemEmailsRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/newsletter/subscribers': {
       id: '/admin/newsletter/subscribers'
       path: '/subscribers'
@@ -4612,6 +4632,7 @@ interface AdminNewsletterRouteChildren {
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
   AdminNewsletterSubscribersRoute: typeof AdminNewsletterSubscribersRoute
+  AdminNewsletterSystemEmailsRoute: typeof AdminNewsletterSystemEmailsRoute
   AdminNewsletterIndexRoute: typeof AdminNewsletterIndexRoute
 }
 
@@ -4622,6 +4643,7 @@ const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
   AdminNewsletterSubscribersRoute: AdminNewsletterSubscribersRoute,
+  AdminNewsletterSystemEmailsRoute: AdminNewsletterSystemEmailsRoute,
   AdminNewsletterIndexRoute: AdminNewsletterIndexRoute,
 }
 
