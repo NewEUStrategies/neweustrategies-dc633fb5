@@ -15,6 +15,7 @@ export type AuthEmailType =
 
 interface Copy {
   subject: string;
+  emoji: string;
   preview: string;
   eyebrow: string;
   heading: string;
@@ -29,7 +30,8 @@ type Dict = Record<AuthEmailType, Copy>;
 
 const PL: Dict = {
   signup: {
-    subject: "Potwierdź adres e-mail - New European Strategies",
+    subject: "✅ Potwierdź adres e-mail - New European Strategies",
+    emoji: "✅",
     preview: "Jeden klik dzieli Cię od aktywacji konta w New European Strategies.",
     eyebrow: "Aktywacja konta",
     heading: "Potwierdź swój adres e-mail",
@@ -41,7 +43,8 @@ const PL: Dict = {
     expiry: "Link jest ważny przez ograniczony czas ze względów bezpieczeństwa.",
   },
   invite: {
-    subject: "Zaproszenie do New European Strategies",
+    subject: "🤝 Zaproszenie do New European Strategies",
+    emoji: "🤝",
     preview: "Otrzymałeś zaproszenie do platformy New European Strategies.",
     eyebrow: "Zaproszenie",
     heading: "Zaproszenie do platformy",
@@ -53,7 +56,8 @@ const PL: Dict = {
     expiry: "Zaproszenie jest ważne przez ograniczony czas.",
   },
   magiclink: {
-    subject: "Twój link logowania - New European Strategies",
+    subject: "🔐 Twój link logowania - New European Strategies",
+    emoji: "🔐",
     preview: "Bezpieczny link do zalogowania się bez hasła.",
     eyebrow: "Logowanie",
     heading: "Zaloguj się jednym kliknięciem",
@@ -66,7 +70,8 @@ const PL: Dict = {
     expiry: "Link wygasa po krótkim czasie i może zostać użyty tylko raz.",
   },
   recovery: {
-    subject: "Reset hasła - New European Strategies",
+    subject: "🔑 Reset hasła - New European Strategies",
+    emoji: "🔑",
     preview: "Ustaw nowe hasło do swojego konta w New European Strategies.",
     eyebrow: "Bezpieczeństwo konta",
     heading: "Ustaw nowe hasło",
@@ -79,7 +84,8 @@ const PL: Dict = {
     expiry: "Link do resetu hasła jest ważny przez ograniczony czas.",
   },
   email_change: {
-    subject: "Potwierdź zmianę adresu e-mail - New European Strategies",
+    subject: "📧 Potwierdź zmianę adresu e-mail - New European Strategies",
+    emoji: "📧",
     preview: "Potwierdź nowy adres e-mail przypisany do Twojego konta.",
     eyebrow: "Zmiana danych konta",
     heading: "Potwierdź nowy adres e-mail",
@@ -92,7 +98,8 @@ const PL: Dict = {
     expiry: "Link potwierdzający jest ważny przez ograniczony czas.",
   },
   reauthentication: {
-    subject: "Kod weryfikacyjny - New European Strategies",
+    subject: "🛡️ Kod weryfikacyjny - New European Strategies",
+    emoji: "🛡️",
     preview: "Twój jednorazowy kod weryfikacyjny.",
     eyebrow: "Weryfikacja tożsamości",
     heading: "Twój kod weryfikacyjny",
@@ -107,7 +114,8 @@ const PL: Dict = {
 
 const EN: Dict = {
   signup: {
-    subject: "Confirm your email - New European Strategies",
+    subject: "✅ Confirm your email - New European Strategies",
+    emoji: "✅",
     preview: "One click left to activate your New European Strategies account.",
     eyebrow: "Account activation",
     heading: "Confirm your email address",
@@ -119,7 +127,8 @@ const EN: Dict = {
     expiry: "For security reasons this link is valid for a limited time.",
   },
   invite: {
-    subject: "You have been invited to New European Strategies",
+    subject: "🤝 You have been invited to New European Strategies",
+    emoji: "🤝",
     preview: "You have received an invitation to the New European Strategies platform.",
     eyebrow: "Invitation",
     heading: "You have been invited",
@@ -131,7 +140,8 @@ const EN: Dict = {
     expiry: "The invitation is valid for a limited time.",
   },
   magiclink: {
-    subject: "Your sign-in link - New European Strategies",
+    subject: "🔐 Your sign-in link - New European Strategies",
+    emoji: "🔐",
     preview: "A secure link to sign in without a password.",
     eyebrow: "Sign in",
     heading: "Sign in with one click",
@@ -144,7 +154,8 @@ const EN: Dict = {
     expiry: "The link expires shortly and can be used only once.",
   },
   recovery: {
-    subject: "Reset your password - New European Strategies",
+    subject: "🔑 Reset your password - New European Strategies",
+    emoji: "🔑",
     preview: "Set a new password for your New European Strategies account.",
     eyebrow: "Account security",
     heading: "Set a new password",
@@ -157,7 +168,8 @@ const EN: Dict = {
     expiry: "The password reset link is valid for a limited time.",
   },
   email_change: {
-    subject: "Confirm your new email - New European Strategies",
+    subject: "📧 Confirm your new email - New European Strategies",
+    emoji: "📧",
     preview: "Confirm the new email address linked to your account.",
     eyebrow: "Account details change",
     heading: "Confirm your new email address",
@@ -170,7 +182,8 @@ const EN: Dict = {
     expiry: "The confirmation link is valid for a limited time.",
   },
   reauthentication: {
-    subject: "Your verification code - New European Strategies",
+    subject: "🛡️ Your verification code - New European Strategies",
+    emoji: "🛡️",
     preview: "Your one-time verification code.",
     eyebrow: "Identity verification",
     heading: "Your verification code",
@@ -185,6 +198,10 @@ const EN: Dict = {
 
 export function authCopy(type: AuthEmailType, lang: EmailLang): Copy {
   return (lang === "en" ? EN : PL)[type];
+}
+
+export function authEmoji(type: AuthEmailType, lang: EmailLang): string {
+  return authCopy(type, lang).emoji;
 }
 
 export function authSubject(type: AuthEmailType, lang: EmailLang): string {
