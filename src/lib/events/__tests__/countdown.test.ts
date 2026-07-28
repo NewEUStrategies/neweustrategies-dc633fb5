@@ -58,3 +58,20 @@ describe("daysUntil", () => {
     expect(daysUntil(now - DAY, now)).toBe(0);
   });
 });
+
+describe("isStartingSoon", () => {
+  const now = Date.parse("2026-01-01T12:00:00Z");
+  it("true dla startu w ciagu 24h", () => {
+    expect(isStartingSoon(now + 3_600_000, now)).toBe(true);
+  });
+  it("false dla startu dalej niz 24h", () => {
+    expect(isStartingSoon(now + 48 * 3_600_000, now)).toBe(false);
+  });
+  it("false dla celu w przeszlosci", () => {
+    expect(isStartingSoon(now - 1000, now)).toBe(false);
+  });
+  it("respektuje wlasne okno godzinowe", () => {
+    expect(isStartingSoon(now + 5 * 3_600_000, now, 2)).toBe(false);
+    expect(isStartingSoon(now + 1 * 3_600_000, now, 2)).toBe(true);
+  });
+});
