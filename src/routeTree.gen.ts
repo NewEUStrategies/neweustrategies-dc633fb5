@@ -209,6 +209,7 @@ import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsle
 import { Route as AdminNewsletterEmailPreviewRouteImport } from './routes/admin.newsletter.email-preview'
 import { Route as AdminNewsletterDeliverabilityRouteImport } from './routes/admin.newsletter.deliverability'
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
+import { Route as AdminNewsletterAuthLogsRouteImport } from './routes/admin.newsletter.auth-logs'
 import { Route as AdminCrmIdRouteImport } from './routes/admin.crm.$id'
 import { Route as AdminCouponsRedemptionsRouteImport } from './routes/admin.coupons.redemptions'
 import { Route as AdminCouponsCampaignsRouteImport } from './routes/admin.coupons.campaigns'
@@ -1250,6 +1251,11 @@ const AdminNewsletterCampaignsRoute =
     path: '/campaigns',
     getParentRoute: () => AdminNewsletterRoute,
   } as any)
+const AdminNewsletterAuthLogsRoute = AdminNewsletterAuthLogsRouteImport.update({
+  id: '/auth-logs',
+  path: '/auth-logs',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
 const AdminCrmIdRoute = AdminCrmIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -1592,6 +1598,7 @@ export interface FileRoutesByFullPath {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
@@ -1817,6 +1824,7 @@ export interface FileRoutesByTo {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
@@ -2051,6 +2059,7 @@ export interface FileRoutesById {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
@@ -2287,6 +2296,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/deliverability'
     | '/admin/newsletter/email-preview'
@@ -2512,6 +2522,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/deliverability'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
@@ -2745,6 +2756,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/deliverability'
     | '/admin/newsletter/email-preview'
@@ -4302,6 +4314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterCampaignsRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/newsletter/auth-logs': {
+      id: '/admin/newsletter/auth-logs'
+      path: '/auth-logs'
+      fullPath: '/admin/newsletter/auth-logs'
+      preLoaderRoute: typeof AdminNewsletterAuthLogsRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/crm/$id': {
       id: '/admin/crm/$id'
       path: '/$id'
@@ -4646,6 +4665,7 @@ const AdminNewsletterCampaignsRouteWithChildren =
   )
 
 interface AdminNewsletterRouteChildren {
+  AdminNewsletterAuthLogsRoute: typeof AdminNewsletterAuthLogsRoute
   AdminNewsletterCampaignsRoute: typeof AdminNewsletterCampaignsRouteWithChildren
   AdminNewsletterDeliverabilityRoute: typeof AdminNewsletterDeliverabilityRoute
   AdminNewsletterEmailPreviewRoute: typeof AdminNewsletterEmailPreviewRoute
@@ -4658,6 +4678,7 @@ interface AdminNewsletterRouteChildren {
 }
 
 const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
+  AdminNewsletterAuthLogsRoute: AdminNewsletterAuthLogsRoute,
   AdminNewsletterCampaignsRoute: AdminNewsletterCampaignsRouteWithChildren,
   AdminNewsletterDeliverabilityRoute: AdminNewsletterDeliverabilityRoute,
   AdminNewsletterEmailPreviewRoute: AdminNewsletterEmailPreviewRoute,
