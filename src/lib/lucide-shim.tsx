@@ -116,6 +116,8 @@ import {
   Facebook as LFacebook,
   Linkedin as LLinkedin,
   Twitter as LTwitter,
+  Instagram as LInstagram,
+  Youtube as LYoutube,
   Folder as LFolder,
   FolderOpen as LFolderOpen,
   FolderPlus as LFolderPlus,
@@ -147,7 +149,11 @@ interface IconProps extends Omit<SVGAttributes<SVGSVGElement>, "color"> {
   absoluteStrokeWidth?: boolean;
 }
 
-function makeIcon(faName: string, LucideComp: LucideIconImpl): LucideIcon {
+function makeIcon(faName: string, LucideComp: LucideIconImpl | undefined): LucideIcon {
+  // Runtime fallback: if a lucide export vanishes in a future version (common
+  // for brand icons across major versions), render a neutral Circle glyph
+  // instead of crashing the tree.
+  const Resolved: LucideIconImpl = (LucideComp ?? LCircle) as LucideIconImpl;
   const Comp = forwardRef<SVGSVGElement, IconProps>(
     (
       { size = 24, color, className, style, strokeWidth, absoluteStrokeWidth: _abs, ...rest },
@@ -156,7 +162,7 @@ function makeIcon(faName: string, LucideComp: LucideIconImpl): LucideIcon {
       const pack = useIconPack();
       if (pack === "lucide") {
         return (
-          <LucideComp
+          <Resolved
             size={size}
             color={color}
             strokeWidth={strokeWidth as number | undefined}
@@ -300,10 +306,17 @@ export const Gauge = makeIcon("Gauge", LGauge);
 export const Printer = makeIcon("Printer", LPrinter);
 export const Download = makeIcon("Download", LDownload);
 
-// Brands
+// Brands. Kept behind makeIcon() so a future lucide-react release that drops
+// any of these exports degrades to a neutral Circle glyph instead of a
+// build-time TS2305 or a runtime crash.
 export const Facebook = makeIcon("Facebook", LFacebook);
 export const Linkedin = makeIcon("Linkedin", LLinkedin);
 export const Twitter = makeIcon("Twitter", LTwitter);
+export const Instagram = makeIcon("Instagram", LInstagram);
+export const Youtube = makeIcon("Youtube", LYoutube);
+// Brand alias registry lives in ./brandIconRegistry to keep this module's
+// namespace as a flat map of icon components (many call sites cast
+// `import * as Icons from "@/lib/lucide-shim"` to Record<string, IconComp>).
 
 // Files/folders extras
 export const Folder = makeIcon("Folder", LFolder);
