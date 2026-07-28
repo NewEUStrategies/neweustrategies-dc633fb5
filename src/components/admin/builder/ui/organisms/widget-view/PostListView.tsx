@@ -260,9 +260,11 @@ export function PostListView({
               />
             )}
             <div className="min-w-0">
-              <h4 className="cms-post-title line-clamp-2" style={tStyle}>
-                {title(p)}
-              </h4>
+              {title(p) && (
+                <h4 className="cms-post-title line-clamp-2" style={tStyle}>
+                  {title(p)}
+                </h4>
+              )}
               {excerpt(p) && (
                 <p className="cms-post-excerpt line-clamp-2" style={eStyle}>
                   {excerpt(p)}
@@ -337,9 +339,11 @@ export function PostListView({
               <div
                 className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-0" : "pr-10 sm:pr-12 lg:pr-0"}`}
               >
-                <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                  {title(p)}
-                </h4>
+                {title(p) && (
+                  <h4 className="cms-post-title line-clamp-3" style={tStyle}>
+                    {title(p)}
+                  </h4>
+                )}
                 {showAuthorAny && authorName(p) && (
                   <div className="cms-meta mt-2 flex items-center gap-2 min-w-0">
                     {authorDisplay === "avatar" ? (
@@ -446,9 +450,11 @@ export function PostListView({
               <div
                 className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-1" : "pr-10 sm:pr-12 lg:pr-1"}`}
               >
-                <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                  {title(p)}
-                </h4>
+                {title(p) && (
+                  <h4 className="cms-post-title line-clamp-3" style={tStyle}>
+                    {title(p)}
+                  </h4>
+                )}
                 {showExcerpt && excerpt(p) && (
                   <p className="cms-post-excerpt mt-1.5 line-clamp-2" style={eStyle}>
                     {excerpt(p)}
@@ -488,9 +494,11 @@ export function PostListView({
                 hoverEffect="zoom"
               />
             )}
-            <h3 className="cms-post-title line-clamp-3" style={tStyle}>
-              {title(p)}
-            </h3>
+            {title(p) && (
+              <h3 className="cms-post-title line-clamp-3" style={tStyle}>
+                {title(p)}
+              </h3>
+            )}
             {excerpt(p) && (
               <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>
                 {excerpt(p)}
@@ -519,12 +527,14 @@ export function PostListView({
               />
             </div>
           )}
-          <h3
-            className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
-            style={tStyle}
-          >
-            {title(lead)}
-          </h3>
+          {title(lead) && (
+            <h3
+              className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
+              style={tStyle}
+            >
+              {title(lead)}
+            </h3>
+          )}
           {excerpt(lead) && (
             <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>
               {excerpt(lead)}
@@ -552,12 +562,14 @@ export function PostListView({
                     {String(i + 1).padStart(2, "0")}
                   </span>
                 )}
-                <h4
-                  className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
-                  style={tStyle}
-                >
-                  {title(p)}
-                </h4>
+                {title(p) && (
+                  <h4
+                    className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
+                    style={tStyle}
+                  >
+                    {title(p)}
+                  </h4>
+                )}
               </AppLink>
             </li>
           ))}
@@ -591,12 +603,14 @@ export function PostListView({
               </div>
             )}
             <div className="min-w-0 flex flex-col justify-center py-0.5">
-              <h4
-                className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
-                style={tStyle}
-              >
-                {title(p)}
-              </h4>
+              {title(p) && (
+                <h4
+                  className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
+                  style={tStyle}
+                >
+                  {title(p)}
+                </h4>
+              )}
               {excerpt(p) && (
                 <p className="cms-post-excerpt mt-1.5 line-clamp-2" style={eStyle}>
                   {excerpt(p)}
@@ -669,13 +683,14 @@ function PostCard({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/5 sm:from-black/90 sm:via-black/45" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
         <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-white">
-          
-          <h4
-            className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
-            style={titleStyle}
-          >
-            {title}
-          </h4>
+          {title && (
+            <h4
+              className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
+              style={titleStyle}
+            >
+              {title}
+            </h4>
+          )}
         </div>
       </AppLink>
     );
@@ -697,9 +712,11 @@ function PostCard({
             hoverEffect="zoom"
           />
         )}
-        <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
-          {title}
-        </h4>
+        {title && (
+          <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
+            {title}
+          </h4>
+        )}
         {excerpt && (
           <p className="cms-post-excerpt line-clamp-2 mt-1.5" style={excerptStyle}>
             {excerpt}
@@ -723,9 +740,11 @@ function PostCard({
         />
       )}
       <div className="p-3">
-        <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
-          {title}
-        </h4>
+        {title && (
+          <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
+            {title}
+          </h4>
+        )}
         {excerpt && (
           <p className="cms-post-excerpt line-clamp-2" style={excerptStyle}>
             {excerpt}
