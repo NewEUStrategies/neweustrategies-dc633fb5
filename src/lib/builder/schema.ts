@@ -135,6 +135,7 @@ export const WIDGET_TYPES = [
   "contact-form",
   "toc",
   "tailored-must-reads",
+  "event-countdown-card",
 ] as const;
 
 // Compile-time guarantee that WIDGET_TYPES and the WidgetType union never drift:

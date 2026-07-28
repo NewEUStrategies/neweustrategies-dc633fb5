@@ -1460,6 +1460,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   // EventCountdownEditor) - schema pusta z tego samego powodu co speakers.
   "event-schedule": [],
   "event-countdown": [],
+  // Karta odliczania - dedykowany edytor (EventCountdownCardEditor).
+  "event-countdown-card": [],
   // Networking 1-1 i sponsorzy - dedykowane edytory (MeetingBookingEditor /
   // SponsorsEditor).
   "meeting-booking": [],

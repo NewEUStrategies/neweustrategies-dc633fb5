@@ -1509,6 +1509,8 @@ function ContentFields({
       return <EventScheduleEditor c={c} lang={lang} setContent={setContent} />;
     case "event-countdown":
       return <EventCountdownEditor c={c} lang={lang} setContent={setContent} />;
+    case "event-countdown-card":
+      return <EventCountdownCardEditor c={c} lang={lang} setContent={setContent} />;
     case "meeting-booking":
       return <MeetingBookingEditor c={c} lang={lang} setContent={setContent} />;
     case "event-sponsors":
