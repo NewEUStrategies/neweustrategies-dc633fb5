@@ -45,8 +45,10 @@ describe("polishVocative", () => {
   });
 
   it("buduje powitanie zależne od języka", () => {
-    expect(emailGreeting("pl", "Marek")).toBe("Dzień dobry, Marku!");
-    expect(emailGreeting("pl", null)).toBe("Dzień dobry!");
+    expect(emailGreeting("pl", "Marek")).toBe("Dzień dobry, Marku");
+    expect(emailGreeting("pl", "Marek", "male", "Mareczku")).toBe("Dzień dobry, Mareczku");
+    expect(emailGreeting("pl", null)).toBe("Dzień dobry");
+
     expect(emailGreeting("en", "Marek")).toBe("Hi Marek,");
     expect(emailGreeting("en", "")).toBe("Hello,");
   });
