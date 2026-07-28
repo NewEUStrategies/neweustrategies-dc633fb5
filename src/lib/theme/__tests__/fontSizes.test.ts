@@ -62,5 +62,8 @@ describe("fontSizesToCss - odstępy treści", () => {
     expect(css).toContain("[data-builder-renderer] h2{line-height:var(--lh-h2);}");
     expect(css).toContain("{line-height:var(--lh-blockquote);}");
     expect(css).toContain(".blocks-content.blocks-content :is(p,li),");
+    expect(css).toContain('[data-builder-renderer] > [data-block-type="list"]');
+    expect(css).toContain("{margin-bottom:var(--sp-list);}");
+    expect(css).toContain("{margin-top:0;margin-bottom:0;}");
   });
 });
