@@ -20,13 +20,14 @@ const out = {};
 const aliases = {};
 let failed = 0;
 for (const fn of readdirSync(ICONS_DIR).sort()) {
-  if (!fn.endsWith(".js") || fn === "index.js") continue;
-  const name = fn.slice(0, -3);
+  if ((!fn.endsWith(".js") && !fn.endsWith(".mjs")) || fn === "index.js" || fn === "index.mjs")
+    continue;
+  const name = fn.replace(/\.m?js$/, "");
   const src = readFileSync(join(ICONS_DIR, fn), "utf8");
   const m = /const __iconNode\S* = (\[[\s\S]*?\]);\n/.exec(src);
   if (!m) {
     // Pliki-aliasy re-eksportują kanoniczną ikonę: zapisz mapowanie nazw.
-    const alias = /export \{ default(?: as \w+)? \} from '\.\/([a-z0-9-]+)\.js'/.exec(src);
+    const alias = /export \{ default(?: as \w+)? \} from '\.\/([a-z0-9-]+)\.m?js'/.exec(src);
     if (alias) aliases[name] = alias[1];
     else failed++;
     continue;
