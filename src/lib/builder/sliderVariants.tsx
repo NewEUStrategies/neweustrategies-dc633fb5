@@ -1253,7 +1253,7 @@ function MultiCardVariant(p: VariantProps) {
                   );
                 })()}
                 <div className="pt-3 pb-1 px-1 eh-card-content">
-                  {href ? (
+                  {p.showTitle && (href ? (
                     <AppLink href={href} className="block">
                       <h3
                         className="cms-post-title text-foreground line-clamp-2"
@@ -1269,7 +1269,7 @@ function MultiCardVariant(p: VariantProps) {
                     >
                       {title || "\u00A0"}
                     </h3>
-                  )}
+                  ))}
                   {p.showExcerpt &&
                     sub &&
                     (href ? (
