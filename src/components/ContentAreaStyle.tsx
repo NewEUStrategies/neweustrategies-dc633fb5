@@ -50,12 +50,14 @@ export function ContentAreaStyle() {
 [data-builder-renderer] { --cms-paragraph-spacing: ${s.paragraph_spacing_rem || 1.5}rem; }
 [data-builder-renderer] > [data-block-type="paragraph"] + [data-block-type="paragraph"],
 [data-builder-renderer] > [data-block-type="paragraph"] + [data-block-type="list"],
-[data-builder-renderer] > [data-block-type="list"] + [data-block-type="paragraph"],
-[data-builder-renderer] > [data-block-type="paragraph"] + [data-block-type="quote"],
 [data-builder-renderer] > [data-block-type="paragraph"] + [data-block-type="html"] {
   margin-top: var(--cms-paragraph-spacing);
 }
-.post-content ul, .single-post-content ul { list-style: ${s.list_style || "disc"}; padding-left: 1.5rem; }
+.post-content ul, .blocks-content ul, .single-post-content ul,
+[data-builder-renderer] > [data-block-type="list"] ul { list-style: ${s.list_style || "disc"}; padding-left: 1.5rem; }
+.post-content ol, .blocks-content ol, .single-post-content ol,
+[data-builder-renderer] > [data-block-type="list"] ol { padding-left: 1.5rem; }
+
 .post-content a, .single-post-content a {
   color: var(--pc-link);
   font-weight: ${linkWeight};
