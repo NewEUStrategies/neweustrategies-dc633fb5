@@ -12394,6 +12394,12 @@ export type Database = {
           weight_recency: number
           weight_tags: number
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "related_posts_config"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_tracker_stats: { Args: never; Returns: Json }
       get_user_monthly_metering_count: {
@@ -13301,6 +13307,10 @@ export type Database = {
       seed_pricing_defaults: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_faq: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_plans_v3: { Args: { p_tenant: string }; Returns: undefined }
+      seed_related_posts_config: {
+        Args: { _tenant_id: string }
+        Returns: undefined
+      }
       seed_retention_defaults: {
         Args: { p_tenant: string }
         Returns: undefined
