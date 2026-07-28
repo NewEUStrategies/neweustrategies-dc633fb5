@@ -86,6 +86,7 @@ function PagesList() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [langFilter, setLangFilter] = useState<LangFilter>("all");
   const [authorFilter, setAuthorFilter] = useState<string>("all");
+  const [topicFilter, setTopicFilter] = useState<PageTopicKey>("all");
   const [trashFrom, setTrashFrom] = useState("");
   const [trashTo, setTrashTo] = useState("");
   const [page, setPage] = useState(1);
