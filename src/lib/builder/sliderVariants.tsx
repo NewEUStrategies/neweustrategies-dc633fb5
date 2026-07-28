@@ -1115,7 +1115,7 @@ function EditorialHeroVariant(p: VariantProps) {
         className="px-4 pt-8 pb-2 text-center"
         style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
       >
-        {href ? (
+        {p.showTitle && (href ? (
           <AppLink href={href} className="inline-block w-full">
             <div className="eh-title-clamp">
               <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
@@ -1129,7 +1129,7 @@ function EditorialHeroVariant(p: VariantProps) {
               {title || "\u00A0"}
             </h3>
           </div>
-        )}
+        ))}
         {p.showExcerpt && sub &&
           (href ? (
             <AppLink href={href} className="block">
