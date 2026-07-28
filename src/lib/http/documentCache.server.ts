@@ -304,9 +304,11 @@ export async function handleDocumentRequest<T>(
   next: () => T | Promise<T>,
 ): Promise<T | Response> {
   if (!cacheEnabled()) return next();
+  console.log("[nes-dbg] enter", request.method, request.url);
 
   const host = requestPublicHost(request);
   const plan = planDocumentCache(request, host);
+  console.log("[nes-dbg] plan", host, JSON.stringify(plan));
   if (plan.kind === "bypass") {
     if (plan.reason !== "method") stats.bypass += 1;
     return next();
