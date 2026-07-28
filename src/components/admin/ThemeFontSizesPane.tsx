@@ -3,7 +3,14 @@
 // Right: live preview reflecting the draft values before save.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Save, RotateCcw } from "lucide-react";
+import { Save, RotateCcw, SearchCheck, Wand2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import {
+  applyTypographyToPublished,
+  type ApplyTypographyResult,
+} from "@/lib/theme/typographyApply.functions";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -515,5 +522,93 @@ function PreviewSample() {
         <code style={{ fontSize: "var(--fs-code)" }}>inline code</code>
       </p>
     </div>
+  );
+}
+
+/**
+ * Migracja opublikowanych wpisów na globalną typografię. Skan (dry-run) liczy
+ * wpisy z zaszytą inline typografią; „Zastosuj” usuwa te nadpisania, żeby
+ * front i canvas Gutenberga renderowały ten sam układ.
+ */
+function ApplyToPublishedSection({ isPL }: { isPL: boolean }) {
+  const scan = useServerFn(applyTypographyToPublished);
+  const [result, setResult] = useState<ApplyTypographyResult | null>(null);
+  const run = useMutation({
+    mutationFn: (dryRun: boolean) => scan({ data: { dryRun } }),
+    onSuccess: (res) => {
+      setResult(res);
+      if (res.dryRun) {
+        toast.success(
+          isPL
+            ? `Przeskanowano ${res.scanned} wpisów - do migracji: ${res.affected}`
+            : `Scanned ${res.scanned} posts - to migrate: ${res.affected}`,
+        );
+      } else {
+        toast.success(
+          isPL
+            ? `Zaktualizowano ${res.updated} wpisów`
+            : `Updated ${res.updated} posts`,
+        );
+      }
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <section className="rounded-lg border border-border p-4 space-y-4">
+      <div>
+        <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          {isPL ? "Opublikowane wpisy" : "Published posts"}
+        </h4>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {isPL
+            ? "Nowe ustawienia działają na wszystkich wpisach automatycznie. Wyjątkiem są treści zaimportowane z zaszytą typografią (inline font-size / line-height) - ta operacja je usuwa, nie zmieniając treści."
+            : "New settings apply to every article automatically. The exception is imported content with hard-coded typography (inline font-size / line-height) - this action removes it without touching the copy."}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => run.mutate(true)}
+          disabled={run.isPending}
+        >
+          <SearchCheck className="w-4 h-4 mr-2" />
+          {isPL ? "Skanuj wpisy" : "Scan posts"}
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => run.mutate(false)}
+          disabled={run.isPending || !result || result.affected === 0}
+        >
+          <Wand2 className="w-4 h-4 mr-2" />
+          {isPL ? "Zastosuj typografię" : "Apply typography"}
+        </Button>
+      </div>
+      {result ? (
+        <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-xs">
+          <p>
+            {isPL
+              ? `Przeskanowano: ${result.scanned} · wymaga migracji: ${result.affected} · zaktualizowano: ${result.updated}`
+              : `Scanned: ${result.scanned} · needs migration: ${result.affected} · updated: ${result.updated}`}
+          </p>
+          {result.affected === 0 ? (
+            <p className="mt-1 text-muted-foreground">
+              {isPL
+                ? "Wszystkie opublikowane wpisy dziedziczą już typografię motywu - front i Gutenberg są zsynchronizowane."
+                : "Every published article already inherits the theme typography - front end and Gutenberg are in sync."}
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-1 text-muted-foreground">
+              {result.posts.map((p) => (
+                <li key={p.id} className="truncate">
+                  {p.title} <span className="opacity-60">/{p.slug}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </section>
   );
 }
