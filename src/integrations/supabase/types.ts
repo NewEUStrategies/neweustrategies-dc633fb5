@@ -433,6 +433,78 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_email_events: {
+        Row: {
+          action_url_host: string | null
+          created_at: string
+          duration_ms: number | null
+          email_type: string
+          error_message: string | null
+          greeting_name: string | null
+          id: string
+          lang: string | null
+          lang_fallback: boolean
+          lang_raw: string | null
+          lang_source: string | null
+          message_id: string | null
+          metadata: Json
+          recipient_domain: string | null
+          recipient_masked: string | null
+          redirect_to: string | null
+          run_id: string | null
+          sender: string | null
+          sender_domain: string | null
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          action_url_host?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          email_type: string
+          error_message?: string | null
+          greeting_name?: string | null
+          id?: string
+          lang?: string | null
+          lang_fallback?: boolean
+          lang_raw?: string | null
+          lang_source?: string | null
+          message_id?: string | null
+          metadata?: Json
+          recipient_domain?: string | null
+          recipient_masked?: string | null
+          redirect_to?: string | null
+          run_id?: string | null
+          sender?: string | null
+          sender_domain?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Update: {
+          action_url_host?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          email_type?: string
+          error_message?: string | null
+          greeting_name?: string | null
+          id?: string
+          lang?: string | null
+          lang_fallback?: boolean
+          lang_raw?: string | null
+          lang_source?: string | null
+          message_id?: string | null
+          metadata?: Json
+          recipient_domain?: string | null
+          recipient_masked?: string | null
+          redirect_to?: string | null
+          run_id?: string | null
+          sender?: string | null
+          sender_domain?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Relationships: []
+      }
       author_profiles: {
         Row: {
           avatar_url: string | null
