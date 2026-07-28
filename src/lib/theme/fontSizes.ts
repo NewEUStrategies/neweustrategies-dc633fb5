@@ -219,24 +219,28 @@ function lineHeightRulesCss(): string {
   const heads = HEADING_LEVELS.map(
     (level) =>
       `.post-content.post-content ${level},` +
+      `.blocks-content.blocks-content ${level},` +
       `.single-post-content.single-post-content ${level},` +
       `[data-builder-renderer] ${level}` +
       `{line-height:var(--lh-${level});}`,
   ).join("");
   return [
     `.post-content.post-content :is(p,li),`,
+    `.blocks-content.blocks-content :is(p,li),`,
     `.single-post-content.single-post-content :is(p,li),`,
     `[data-builder-renderer] > [data-block-type="paragraph"],`,
     `[data-builder-renderer] > [data-block-type="paragraph"] :is(p,div,li),`,
     `[data-builder-renderer] > [data-block-type="list"] :is(p,li)`,
     `{line-height:var(--lh-body);}`,
     `.post-content.post-content blockquote,`,
+    `.blocks-content.blocks-content blockquote,`,
     `.single-post-content.single-post-content blockquote,`,
     `[data-builder-renderer] > [data-block-type="quote"]`,
     `{line-height:var(--lh-blockquote);}`,
     heads,
   ].join("");
 }
+
 
 
 /**
