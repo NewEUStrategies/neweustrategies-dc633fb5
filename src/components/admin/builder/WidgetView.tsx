@@ -1182,7 +1182,21 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "tabs": {
       const tabs = Array.isArray(c.tabs) ? (c.tabs as Array<Record<string, string>>) : [];
       const orientation = c.orientation === "vertical" ? "vertical" : "horizontal";
-      return wrap(<TabsBlock tabs={tabs} lang={lang} nodeId={node.id} orientation={orientation} />);
+      const rawAlign = typeof c.tabAlign === "string" ? c.tabAlign : "left";
+      const tabAlign = (["left", "center", "right", "justify"] as const).includes(
+        rawAlign as "left" | "center" | "right" | "justify",
+      )
+        ? (rawAlign as "left" | "center" | "right" | "justify")
+        : "left";
+      return wrap(
+        <TabsBlock
+          tabs={tabs}
+          lang={lang}
+          nodeId={node.id}
+          orientation={orientation}
+          tabAlign={tabAlign}
+        />,
+      );
     }
     case "rated-list":
       return wrap(<RatedListView c={c} lang={lang} mode={effectiveMode} />);
