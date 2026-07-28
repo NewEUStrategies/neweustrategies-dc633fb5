@@ -110,6 +110,29 @@ export interface DocumentCacheSnapshot {
   startedAt: string;
   /** Warstwa per-colo (Cache API); `enabled: false` poza Workers. */
   l2: DocumentCacheL2Snapshot;
+  /** Ostatnie decyzje cache'a (najnowsze pierwsze) - obserwowalność bez nagłówków. */
+  recent: DocumentCacheDecision[];
+}
+
+/**
+ * Jedna decyzja cache'a zapisana w pierścieniu w pamięci.
+ *
+ * Warstwa hostingu zdejmuje `x-nes-cache` i `Server-Timing` z odpowiedzi
+ * wychodzącej (i nadpisuje `Cache-Control`), więc skuteczności NES Edge Cache
+ * nie da się zmierzyć z zewnątrz. Ten pierścień jest źródłem prawdy dla karty
+ * /admin/performance: status jest zapisywany po stronie serwera, dokładnie w
+ * miejscu podjęcia decyzji, zanim cokolwiek dotknie odpowiedzi.
+ */
+export interface DocumentCacheDecision {
+  at: string;
+  path: string;
+  status: NesCacheStatus;
+  /** Wiek serwowanego wpisu w sekundach (HIT/STALE). */
+  ageS?: number;
+  /** Czas renderu SSR w ms (MISS / rewalidacja). */
+  renderMs?: number;
+  /** Cache-Control wyliczony przez aplikację (przed ewentualną zmianą na brzegu). */
+  cacheControl?: string;
 }
 
 const store = new Map<string, DocumentCacheEntry>();
@@ -126,6 +149,14 @@ const stats = {
   purges: 0,
   startedAt: new Date().toISOString(),
 };
+
+const RECENT_DECISIONS_LIMIT = 50;
+const recentDecisions: DocumentCacheDecision[] = [];
+
+function recordDecision(decision: DocumentCacheDecision): void {
+  recentDecisions.unshift(decision);
+  if (recentDecisions.length > RECENT_DECISIONS_LIMIT) recentDecisions.length = RECENT_DECISIONS_LIMIT;
+}
 
 function cacheEnabled(): boolean {
   const flag =
@@ -162,7 +193,20 @@ function touchEntry(key: string, entry: DocumentCacheEntry): void {
   store.set(key, entry);
 }
 
-function replay(entry: DocumentCacheEntry, status: NesCacheStatus, now: number): Response {
+function replay(
+  entry: DocumentCacheEntry,
+  status: NesCacheStatus,
+  now: number,
+  path: string,
+): Response {
+  const ageS = Math.max(0, Math.round((now - entry.storedAt) / 1000));
+  recordDecision({
+    at: new Date(now).toISOString(),
+    path,
+    status,
+    ageS,
+    cacheControl: entry.cacheControl,
+  });
   const headers = new Headers({
     "content-type": entry.contentType,
     "cache-control": entry.cacheControl,
@@ -254,10 +298,18 @@ async function collectStream(
 function passThroughAndMaybeStore(
   host: string | null,
   key: string,
+  path: string,
   response: Response,
   now: number,
   timing?: RenderTiming,
 ): Response {
+  recordDecision({
+    at: new Date(now).toISOString(),
+    path,
+    status: "MISS",
+    ...(timing?.renderMs === undefined ? {} : { renderMs: timing.renderMs }),
+    cacheControl: response.headers.get("cache-control") ?? undefined,
+  });
   const policy = documentStorePolicy(
     response.status,
     response.headers.get("content-type"),
@@ -310,9 +362,13 @@ export async function handleDocumentRequest<T>(
   if (!cacheEnabled()) return next();
 
   const host = requestPublicHost(request);
+  const path = safePathname(request.url);
   const plan = planDocumentCache(request, host);
   if (plan.kind === "bypass") {
-    if (plan.reason !== "method") stats.bypass += 1;
+    if (plan.reason !== "method") {
+      stats.bypass += 1;
+      recordDecision({ at: new Date().toISOString(), path, status: "BYPASS" });
+    }
     return next();
   }
 
@@ -333,12 +389,12 @@ export async function handleDocumentRequest<T>(
     if (age < entry.freshMs) {
       stats.hits += 1;
       touchEntry(plan.key, entry);
-      return replay(entry, "HIT", now);
+      return replay(entry, "HIT", now, path);
     }
     if (age < entry.freshMs + entry.swrMs) {
       if (revalidating.has(plan.key)) {
         stats.stale += 1;
-        return replay(entry, "STALE", now);
+        return replay(entry, "STALE", now, path);
       }
       revalidating.add(plan.key);
       try {
@@ -347,14 +403,14 @@ export async function handleDocumentRequest<T>(
         if (rendered) {
           return withMiddlewareResponse(
             result,
-            passThroughAndMaybeStore(host, plan.key, rendered, Date.now(), timing),
+            passThroughAndMaybeStore(host, plan.key, path, rendered, Date.now(), timing),
           );
         }
         return result;
       } catch {
         // Render się wywalił - nieświeży dokument jest lepszy niż 500.
         stats.stale += 1;
-        return replay(entry, "STALE", now);
+        return replay(entry, "STALE", now, path);
       } finally {
         revalidating.delete(plan.key);
       }
@@ -373,14 +429,14 @@ export async function handleDocumentRequest<T>(
       setEntry(plan.key, seeded);
       stats.hits += 1;
       recordL2Serve("HIT");
-      return replay(seeded, "HIT", now);
+      return replay(seeded, "HIT", now, path);
     }
     if (l2Age < l2Entry.freshMs + l2Entry.swrMs) {
       const staleEntry = entryFromL2(l2Entry);
       if (revalidating.has(plan.key)) {
         stats.stale += 1;
         recordL2Serve("STALE");
-        return replay(staleEntry, "STALE", now);
+        return replay(staleEntry, "STALE", now, path);
       }
       revalidating.add(plan.key);
       try {
@@ -389,14 +445,14 @@ export async function handleDocumentRequest<T>(
         if (rendered) {
           return withMiddlewareResponse(
             result,
-            passThroughAndMaybeStore(host, plan.key, rendered, Date.now(), timing),
+            passThroughAndMaybeStore(host, plan.key, path, rendered, Date.now(), timing),
           );
         }
         return result;
       } catch {
         stats.stale += 1;
         recordL2Serve("STALE");
-        return replay(staleEntry, "STALE", now);
+        return replay(staleEntry, "STALE", now, path);
       } finally {
         revalidating.delete(plan.key);
       }
@@ -410,7 +466,7 @@ export async function handleDocumentRequest<T>(
   if (rendered) {
     return withMiddlewareResponse(
       result,
-      passThroughAndMaybeStore(host, plan.key, rendered, Date.now(), timing),
+      passThroughAndMaybeStore(host, plan.key, path, rendered, Date.now(), timing),
     );
   }
   return result;
@@ -463,6 +519,14 @@ export async function purgeDocumentCacheForCurrentHost(): Promise<number> {
   }
 }
 
+function safePathname(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
 /** Migawka do karty "NES Edge Cache" w /admin/performance. */
 export function getDocumentCacheSnapshot(): DocumentCacheSnapshot {
   return {
@@ -480,6 +544,68 @@ export function getDocumentCacheSnapshot(): DocumentCacheSnapshot {
     purges: stats.purges,
     startedAt: stats.startedAt,
     l2: l2Stats(),
+    recent: [...recentDecisions],
+  };
+}
+
+/** Wynik sondy: czy dana ścieżka leży w cache'u tej instancji i w jakim stanie. */
+export interface DocumentCacheProbe {
+  path: string;
+  key: string;
+  cacheable: boolean;
+  /** Powód pominięcia, gdy `cacheable` = false. */
+  bypassReason?: string;
+  cached: boolean;
+  status: NesCacheStatus;
+  ageS?: number;
+  freshForS?: number;
+  bytes?: number;
+  cacheControl?: string;
+}
+
+/**
+ * Sonda "czy ta ścieżka jest w cache'u" - odpowiednik nagłówka `x-nes-cache`,
+ * tyle że czytany bezpośrednio z magazynu, więc niewrażliwy na to, co warstwa
+ * hostingu robi z nagłówkami odpowiedzi. Nie renderuje niczego i nie rusza
+ * liczników.
+ */
+export async function probeDocumentCache(
+  path: string,
+  /** Nadpisanie hosta - wyłącznie dla testów; produkcyjnie host bierzemy z żądania. */
+  hostOverride?: string | null,
+): Promise<DocumentCacheProbe> {
+  const host = hostOverride !== undefined ? hostOverride : await currentTenantHost();
+  const url = new URL(path, `https://${host ?? "localhost"}`);
+  const plan = planDocumentCache(new Request(url, { method: "GET" }), host);
+  if (plan.kind === "bypass") {
+    return {
+      path: url.pathname,
+      key: "",
+      cacheable: false,
+      bypassReason: plan.reason,
+      cached: false,
+      status: "BYPASS",
+    };
+  }
+
+  const now = Date.now();
+  const entry = store.get(plan.key) ?? (await l2Match(host, plan.key).then((e) => (e ? entryFromL2(e) : undefined)));
+  if (!entry) {
+    return { path: url.pathname, key: plan.key, cacheable: true, cached: false, status: "MISS" };
+  }
+  const age = now - entry.storedAt;
+  const fresh = age < entry.freshMs;
+  const withinSwr = age < entry.freshMs + entry.swrMs;
+  return {
+    path: url.pathname,
+    key: plan.key,
+    cacheable: true,
+    cached: withinSwr,
+    status: fresh ? "HIT" : withinSwr ? "STALE" : "MISS",
+    ageS: Math.max(0, Math.round(age / 1000)),
+    freshForS: Math.max(0, Math.round((entry.freshMs - age) / 1000)),
+    bytes: entry.bytes,
+    cacheControl: entry.cacheControl,
   };
 }
 
@@ -496,4 +622,5 @@ export function resetDocumentCacheForTests(): void {
   stats.evictions = 0;
   stats.purges = 0;
   stats.startedAt = new Date().toISOString();
+  recentDecisions.length = 0;
 }

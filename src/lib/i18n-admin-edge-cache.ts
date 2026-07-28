@@ -43,6 +43,26 @@ const pl = {
         bumps: "Bumpy wersji",
       },
     },
+    diag: {
+      title: "Diagnostyka (nagłówki zdejmowane na brzegu)",
+      note:
+        "Warstwa hostingu usuwa z odpowiedzi nagłówki x-nes-cache i Server-Timing oraz " +
+        "nadpisuje Cache-Control, dlatego status cache'a czytamy tu bezpośrednio z serwera - " +
+        "z rejestru decyzji i sondy pojedynczej ścieżki.",
+      probeLabel: "Sprawdź ścieżkę",
+      probePlaceholder: "/analizy",
+      probeRun: "Sprawdź",
+      probeError: "Nie udało się sprawdzić ścieżki.",
+      probeCached: "W cache ({{status}}), wiek {{age}} s, świeże jeszcze {{fresh}} s.",
+      probeMiss: "Brak w cache tej instancji (kolejne żądanie zrenderuje i zapisze).",
+      probeBypass: "Ścieżka pomijana przez cache (powód: {{reason}}).",
+      recentTitle: "Ostatnie decyzje",
+      recentEmpty: "Brak decyzji od startu instancji.",
+      colTime: "Czas",
+      colPath: "Ścieżka",
+      colStatus: "Status",
+      colDetail: "Szczegóły",
+    },
     refresh: "Odśwież",
     purge: "Wyczyść cache tenanta",
     purgeDone_one: "Usunięto {{count}} dokument z cache.",
@@ -92,6 +112,26 @@ const en = {
         stores: "L2 stores",
         bumps: "Version bumps",
       },
+    },
+    diag: {
+      title: "Diagnostics (headers stripped at the edge)",
+      note:
+        "The hosting layer removes x-nes-cache and Server-Timing from responses and overrides " +
+        "Cache-Control, so cache status is read straight from the server here - from the " +
+        "decision log and a single-path probe.",
+      probeLabel: "Check a path",
+      probePlaceholder: "/analizy",
+      probeRun: "Check",
+      probeError: "Failed to check the path.",
+      probeCached: "Cached ({{status}}), age {{age}} s, fresh for another {{fresh}} s.",
+      probeMiss: "Not cached on this instance (the next request renders and stores it).",
+      probeBypass: "Path bypasses the cache (reason: {{reason}}).",
+      recentTitle: "Recent decisions",
+      recentEmpty: "No decisions since instance start.",
+      colTime: "Time",
+      colPath: "Path",
+      colStatus: "Status",
+      colDetail: "Details",
     },
     refresh: "Refresh",
     purge: "Purge tenant cache",
