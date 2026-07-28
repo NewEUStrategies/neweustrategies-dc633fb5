@@ -712,9 +712,11 @@ function PostCard({
             hoverEffect="zoom"
           />
         )}
-        <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
-          {title}
-        </h4>
+        {title && (
+          <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
+            {title}
+          </h4>
+        )}
         {excerpt && (
           <p className="cms-post-excerpt line-clamp-2 mt-1.5" style={excerptStyle}>
             {excerpt}
