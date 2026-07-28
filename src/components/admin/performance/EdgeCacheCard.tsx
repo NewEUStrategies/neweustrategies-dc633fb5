@@ -234,7 +234,6 @@ export function EdgeCacheCard() {
                 <div className="min-w-[220px] flex-1">
                   <FloatingInput
                     label={t("adminEdgeCache.diag.probeLabel")}
-                    placeholder={t("adminEdgeCache.diag.probePlaceholder")}
                     value={probePath}
                     onChange={(event) => setProbePath(event.target.value)}
                   />
