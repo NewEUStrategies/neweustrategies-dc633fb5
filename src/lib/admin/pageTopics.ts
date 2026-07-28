@@ -147,7 +147,7 @@ export function topicOrFilter(topic: PageTopicKey): string | null {
   if (!def || def.slugPatterns.length === 0) return null;
   // escapeLike neutralizuje `,` i inne znaki, które PostgREST traktuje jako
   // separatory w `.or()` — dla naszych wzorców to no-op, ale trzymamy dyscyplinę.
-  return def.slugPatterns.map((p) => `slug.ilike.${escapeLike(p).replace(/,/g, "")}`).join(",");
+  return def.slugPatterns.map((p) => `slug.ilike.${p.replace(/,/g, "")}`).join(",");
 }
 
 /** LIKE-patterns dla "other" — do zastosowania jako `.not("slug","ilike",p)` w łańcuchu. */
