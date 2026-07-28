@@ -259,12 +259,16 @@ const defaultCacheControlMiddleware = createMiddleware().server(async ({ request
   // bez naruszania strumieniowanego body.
   const headers = new Headers(response.headers);
   headers.set("cache-control", defaultPolicy);
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+  return withMiddlewareResponse(
+    result,
+    new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    }),
+  );
 });
+
 
 /**
  * Add response headers without mutating a framework/fetch-owned Headers object.
