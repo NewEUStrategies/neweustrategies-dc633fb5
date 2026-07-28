@@ -1256,9 +1256,6 @@ function WidgetHeightControl({
 
 
 
-  );
-}
-
 function ThemedColorField({
   label,
   value,
