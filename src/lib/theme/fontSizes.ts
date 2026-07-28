@@ -258,13 +258,21 @@ function spacingRulesCss(): string {
     `{margin-top:var(--sp-heading-top);margin-bottom:var(--sp-heading-bottom);}`,
     `.post-content.post-content :is(ul,ol),`,
     `.blocks-content.blocks-content :is(ul,ol),`,
-    `.single-post-content.single-post-content :is(ul,ol)`,
+    `.single-post-content.single-post-content :is(ul,ol),`,
+    `[data-builder-renderer] > [data-block-type="list"]`,
     `{margin-bottom:var(--sp-list);}`,
     `.post-content.post-content blockquote,`,
     `.blocks-content.blocks-content blockquote,`,
     `.single-post-content.single-post-content blockquote,`,
     `[data-builder-renderer] > [data-block-type="quote"]`,
     `{margin-top:var(--sp-blockquote);margin-bottom:var(--sp-blockquote);}`,
+    // Canvas: margines niesie wrapper bloku (jedno źródło prawdy), więc
+    // wewnętrzne ul/ol/blockquote nie mogą dokładać drugiego odstępu -
+    // inaczej edytor rozjeżdża się z frontem o wartość prose.
+    `[data-builder-renderer] > [data-block-type="list"] :is(ul,ol),`,
+    `[data-builder-renderer] > [data-block-type="quote"] blockquote`,
+    `{margin-top:0;margin-bottom:0;}`,
   ].join("");
+
 }
 
