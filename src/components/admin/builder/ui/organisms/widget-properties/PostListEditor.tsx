@@ -317,6 +317,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             )}
           </div>
         )}
+        <DisplayLivePreview c={c} lang={lang} />
       </Collapsible>
       {/* anchor */}
 
