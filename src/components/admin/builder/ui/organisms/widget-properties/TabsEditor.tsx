@@ -21,6 +21,12 @@ export function TabsEditor({ c, lang, setContent }: Props) {
   const tabs = itemsOf(c, "tabs");
   const update = (next: Item[]) => setContent("tabs", toJson(next));
   const orientation = c.orientation === "vertical" ? "vertical" : "horizontal";
+  const rawAlign = typeof c.tabAlign === "string" ? c.tabAlign : "left";
+  const tabAlign = (["left", "center", "right", "justify"] as const).includes(
+    rawAlign as "left" | "center" | "right" | "justify",
+  )
+    ? rawAlign
+    : "left";
   const isPL = lang === "pl";
   return (
     <ListShell
@@ -52,6 +58,20 @@ export function TabsEditor({ c, lang, setContent }: Props) {
           </option>
         </select>
       </PropField>
+      {orientation === "horizontal" && (
+        <PropField label={isPL ? "Pozycjonowanie zakładek" : "Tabs alignment"}>
+          <select
+            value={tabAlign}
+            onChange={(e) => setContent("tabAlign", e.target.value)}
+            className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+          >
+            <option value="left">{isPL ? "Do lewej" : "Left"}</option>
+            <option value="center">{isPL ? "Wyśrodkowane" : "Center"}</option>
+            <option value="right">{isPL ? "Do prawej" : "Right"}</option>
+            <option value="justify">{isPL ? "Wyjustowane" : "Justify"}</option>
+          </select>
+        </PropField>
+      )}
       <div className="space-y-2">
         {tabs.map((it, i) => (
           <ItemFrame
