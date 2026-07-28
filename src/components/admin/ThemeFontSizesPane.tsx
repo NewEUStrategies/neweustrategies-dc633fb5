@@ -40,6 +40,16 @@ export function ThemeFontSizesPane() {
   const save = useSaveFontSizes();
   const [draft, setDraft] = useState<FontSizesSettings>(data ?? FONT_SIZES_DEFAULTS);
 
+  // Odstęp między akapitami żyje w post_layout_settings (jedno źródło prawdy
+  // współdzielone z /admin/content-area), więc edytujemy tę samą kolumnę
+  // zamiast duplikować wartość w font_sizes.
+  const layout = usePostLayoutSettings();
+  const saveLayout = useSavePostLayoutSettings();
+  const [paragraphSpacing, setParagraphSpacing] = useState<number>(1.5);
+  useEffect(() => {
+    if (layout.data) setParagraphSpacing(layout.data.paragraph_spacing_rem || 1.5);
+  }, [layout.data]);
+
   useEffect(() => {
     if (data) setDraft(data);
   }, [data]);
@@ -50,7 +60,19 @@ export function ThemeFontSizesPane() {
   // renders after <ThemeFontSizesStyle /> in the DOM, so same-specificity
   // cascade wins and takes precedence until the pane unmounts or the draft
   // is saved.
-  const previewCss = useMemo(() => fontSizesToCss(draft), [draft]);
+  const previewCss = useMemo(
+    () =>
+      `${fontSizesToCss(draft)}\n.post-content.post-content :is(p,ul,ol,blockquote),.single-post-content.single-post-content :is(p,ul,ol,blockquote){margin-bottom:${paragraphSpacing}rem;}[data-builder-renderer]{--cms-paragraph-spacing:${paragraphSpacing}rem;}`,
+    [draft, paragraphSpacing],
+  );
+
+  const persist = () => {
+    save.mutate(draft);
+    if (paragraphSpacing !== (layout.data?.paragraph_spacing_rem ?? 1.5)) {
+      saveLayout.mutate({ paragraph_spacing_rem: paragraphSpacing });
+    }
+  };
+
 
   const setHeading = <K extends keyof FontSizesSettings["headings"]["h1"]>(
     level: HeadingLevel,
