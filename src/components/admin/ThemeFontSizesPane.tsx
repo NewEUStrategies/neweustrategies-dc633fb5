@@ -252,7 +252,68 @@ export function ThemeFontSizesPane() {
               />
             </div>
           </section>
+
+          <section className="rounded-lg border border-border p-4 space-y-4">
+            <div>
+              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                {isPL ? "Odstępy treści" : "Content spacing"}
+              </h4>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {isPL
+                  ? "Rytm pionowy wpisu. Te same wartości obowiązują w Gutenberg builderze - Enter tworzy nowy akapit z identycznym odstępem jak na froncie."
+                  : "Vertical rhythm of an article. The same values apply in the Gutenberg builder - Enter creates a paragraph with the exact front-end spacing."}
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <NumField
+                label={isPL ? "Między akapitami" : "Between paragraphs"}
+                value={paragraphSpacing}
+                min={0.5}
+                max={3}
+                step={0.05}
+                suffix="rem"
+                onChange={setParagraphSpacing}
+              />
+              <NumField
+                label={isPL ? "Nad nagłówkiem" : "Above heading"}
+                value={draft.spacing.headingTopRem}
+                min={0}
+                max={6}
+                step={0.05}
+                suffix="rem"
+                onChange={(v) => setSpacing("headingTopRem", v)}
+              />
+              <NumField
+                label={isPL ? "Pod nagłówkiem" : "Below heading"}
+                value={draft.spacing.headingBottomRem}
+                min={0}
+                max={6}
+                step={0.05}
+                suffix="rem"
+                onChange={(v) => setSpacing("headingBottomRem", v)}
+              />
+              <NumField
+                label={isPL ? "Listy" : "Lists"}
+                value={draft.spacing.listRem}
+                min={0}
+                max={6}
+                step={0.05}
+                suffix="rem"
+                onChange={(v) => setSpacing("listRem", v)}
+              />
+              <NumField
+                label={isPL ? "Cytaty" : "Blockquotes"}
+                value={draft.spacing.blockquoteRem}
+                min={0}
+                max={6}
+                step={0.05}
+                suffix="rem"
+                onChange={(v) => setSpacing("blockquoteRem", v)}
+              />
+            </div>
+          </section>
         </div>
+
 
         {/* PREVIEW */}
         <div className="lg:sticky lg:top-4 h-fit">
