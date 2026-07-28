@@ -112,15 +112,19 @@ export function polishVocative(rawName: string, gender: PolishGender = "unknown"
 
 /**
  * Powitanie w mailu: PL używa wołacza, EN mianownika.
+ * `vocativeOverride` pochodzi ze słownika imion (admin panel) i ma pierwszeństwo.
  */
 export function emailGreeting(
   lang: "pl" | "en",
   firstName?: string | null,
   gender: PolishGender = "unknown",
+  vocativeOverride?: string | null,
 ): string {
   const name = (firstName ?? "").trim();
   if (lang === "pl") {
-    return name ? `Dzień dobry, ${polishVocative(name, gender)}!` : "Dzień dobry!";
+    const vocative = (vocativeOverride ?? "").trim() || polishVocative(name, gender);
+    return vocative ? `Dzień dobry, ${vocative}` : "Dzień dobry";
   }
   return name ? `Hi ${name.split(/\s+/)[0]},` : "Hello,";
 }
+
