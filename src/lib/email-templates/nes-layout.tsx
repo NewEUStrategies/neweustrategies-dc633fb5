@@ -132,9 +132,7 @@ export const NesEmailLayout = ({
               </Link>
             </Text>
             <Text style={footerNote}>{f.auto}</Text>
-            <Text style={footerNote}>
-              © {new Date().getFullYear()} New European Strategies
-            </Text>
+            <Text style={footerNote}>© {new Date().getFullYear()} New European Strategies</Text>
           </Section>
         </Container>
       </Body>
@@ -156,7 +154,6 @@ const outer: React.CSSProperties = {
   margin: "0 auto",
   width: "100%",
 };
-
 
 const logoImg: React.CSSProperties = {
   display: "block",
