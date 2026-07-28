@@ -1530,7 +1530,7 @@ function SplitFeatureVariant(p: VariantProps) {
             {cat}
           </span>
         )}
-        {href ? (
+        {p.showTitle && (href ? (
           <AppLink href={href} className="block">
             <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
               {title || "\u00A0"}
@@ -1540,7 +1540,7 @@ function SplitFeatureVariant(p: VariantProps) {
           <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
             {title || "\u00A0"}
           </h3>
-        )}
+        ))}
         {p.showExcerpt &&
           sub &&
           (href ? (
