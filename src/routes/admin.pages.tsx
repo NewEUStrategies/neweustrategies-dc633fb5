@@ -461,6 +461,18 @@ function PagesList() {
         </TabsList>
       </Tabs>
 
+      <TopicTabs
+        tenantId={tenantId}
+        view={view}
+        value={topicFilter}
+        onChange={(next) => {
+          setTopicFilter(next);
+          clear();
+        }}
+        lang={lang}
+      />
+
+
       <AdminListToolbar
         search={search}
         onSearch={setSearch}
