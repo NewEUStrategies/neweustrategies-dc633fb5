@@ -13,10 +13,12 @@ import { Card } from "@/components/ui/card";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { toast } from "sonner";
 import { getAuthEmailPreviews } from "@/lib/auth-email-preview.functions";
+import { getTxEmailPreviews } from "@/lib/tx-email-preview.functions";
 
 type Lang = "pl" | "en";
 type Gender = "male" | "female" | "unknown";
 type Device = "desktop" | "mobile";
+type Scope = "auth" | "app";
 
 const TYPE_LABELS: Record<string, { pl: string; en: string }> = {
   signup: { pl: "Rejestracja - potwierdzenie e-mail", en: "Signup confirmation" },
@@ -25,6 +27,13 @@ const TYPE_LABELS: Record<string, { pl: string; en: string }> = {
   invite: { pl: "Zaproszenie do platformy", en: "Platform invitation" },
   email_change: { pl: "Zmiana adresu e-mail", en: "Email address change" },
   reauthentication: { pl: "Kod weryfikacyjny", en: "Verification code" },
+  subscription_confirmed: { pl: "Subskrypcja - potwierdzenie", en: "Subscription confirmed" },
+  subscription_renewed: { pl: "Subskrypcja - przedłużenie", en: "Subscription renewed" },
+  subscription_canceled: { pl: "Subskrypcja - anulowanie", en: "Subscription canceled" },
+  subscription_upgraded: { pl: "Subskrypcja - upgrade", en: "Subscription upgraded" },
+  subscription_downgraded: { pl: "Subskrypcja - downgrade", en: "Subscription downgraded" },
+  event_registered: { pl: "Zapis na wydarzenie", en: "Event registration" },
+  newsletter_confirmed: { pl: "Newsletter - potwierdzenie", en: "Newsletter confirmed" },
 };
 
 export function AuthEmailPreviewPanel() {
@@ -36,14 +45,26 @@ export function AuthEmailPreviewPanel() {
   const [gender, setGender] = useState<Gender>("unknown");
   const [device, setDevice] = useState<Device>("desktop");
   const [activeType, setActiveType] = useState<string>("signup");
+  const [scope, setScope] = useState<Scope>("auth");
 
-  const fetchPreviews = useServerFn(getAuthEmailPreviews);
+  const fetchAuthPreviews = useServerFn(getAuthEmailPreviews);
+  const fetchTxPreviews = useServerFn(getTxEmailPreviews);
   const { data, isFetching } = useQuery({
-    queryKey: ["auth-email-previews", lang, firstName, gender],
-    queryFn: () =>
-      fetchPreviews({
+    queryKey: ["email-previews", scope, lang, firstName, gender],
+    queryFn: async () => {
+      const input = {
         data: { lang, firstName: firstName.trim() ? firstName.trim() : null, gender },
-      }),
+      };
+      const rows =
+        scope === "auth" ? await fetchAuthPreviews(input) : await fetchTxPreviews(input);
+      return rows as Array<{
+        type: string;
+        lang: Lang;
+        subject: string;
+        html: string;
+        text: string;
+      }>;
+    },
     staleTime: 60_000,
   });
 
@@ -87,6 +108,18 @@ export function AuthEmailPreviewPanel() {
             onChange={(e) => setFirstName(e.target.value)}
           />
         </div>
+
+        <Segmented
+          value={scope}
+          onChange={(v) => {
+            setScope(v as Scope);
+            setActiveType(v === "auth" ? "signup" : "subscription_confirmed");
+          }}
+          options={[
+            { value: "auth", label: isPl ? "Autoryzacyjne" : "Auth" },
+            { value: "app", label: isPl ? "Aplikacyjne" : "App" },
+          ]}
+        />
 
         <Segmented
           value={gender}
@@ -144,7 +177,7 @@ export function AuthEmailPreviewPanel() {
             })}
             {!data && (
               <div className="space-y-2 p-1">
-                {Array.from({ length: 6 }).map((_, i) => (
+                {Array.from({ length: 7 }).map((_, i) => (
                   <div key={i} className="h-10 w-full rounded-md bg-muted animate-pulse" />
                 ))}
               </div>
