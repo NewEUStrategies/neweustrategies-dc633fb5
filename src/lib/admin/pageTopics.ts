@@ -22,6 +22,11 @@ export type PageTopicKey =
   | "membership"
   | "editorial"
   | "legal"
+  | "basic"
+  | "forms"
+  | "recruitment"
+  | "mentoring"
+  | "subscription"
   | "other";
 
 export interface PageTopicDef {
