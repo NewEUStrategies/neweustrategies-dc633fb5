@@ -83,8 +83,8 @@ export const NesEmailLayout = ({
       <Preview>{preview}</Preview>
       <Body style={main}>
         <Container style={outer}>
-          {(heading || eyebrowText) && (
-            <Section style={hero}>
+          {/* Hero renderujemy zawsze - to on niesie logo marki (wariant dark). */}
+          <Section style={hero}>
               <Section style={heroLogoWrap}>
                 <Link href={siteUrl}>
                   <Img
