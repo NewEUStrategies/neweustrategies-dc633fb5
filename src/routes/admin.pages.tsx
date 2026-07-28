@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2, Home, Undo2, X, Download } from "@/lib/lucide-shim";
 import { WordPressImportDialog } from "@/components/admin/WordPressImportDialog";
+import { TopicTabs } from "@/components/admin/molecules/TopicTabs";
 import {
   deletePage,
   bulkDeletePages,
@@ -35,6 +36,14 @@ import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenan
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 import { escapeLike } from "@/lib/admin/listFilters";
 import { toastError } from "@/lib/toastError";
+import {
+  TOPICS,
+  topicOrFilter,
+  otherNotPatterns,
+  topicForSlug,
+  topicLabel,
+  type PageTopicKey,
+} from "@/lib/admin/pageTopics";
 
 type Reading = {
   posts_per_page: number;
@@ -78,6 +87,7 @@ function PagesList() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [langFilter, setLangFilter] = useState<LangFilter>("all");
   const [authorFilter, setAuthorFilter] = useState<string>("all");
+  const [topicFilter, setTopicFilter] = useState<PageTopicKey>("all");
   const [trashFrom, setTrashFrom] = useState("");
   const [trashTo, setTrashTo] = useState("");
   const [page, setPage] = useState(1);
@@ -105,6 +115,7 @@ function PagesList() {
       statusFilter,
       langFilter,
       authorFilter,
+      topicFilter,
       trashFrom,
       trashTo,
       page,
@@ -150,6 +161,13 @@ function PagesList() {
         q = q.not("title_pl", "is", null).neq("title_pl", "").or("title_en.is.null,title_en.eq.");
       } else if (langFilter === "en_only") {
         q = q.not("title_en", "is", null).neq("title_en", "").or("title_pl.is.null,title_pl.eq.");
+      }
+      // Topic filter — pozytywne dopasowanie ILIKE lub negacja dla "other".
+      const topicOr = topicOrFilter(topicFilter);
+      if (topicOr) {
+        q = q.or(topicOr);
+      } else if (topicFilter === "other") {
+        for (const p of otherNotPatterns()) q = q.not("slug", "ilike", p);
       }
       if (isTrashView) {
         if (trashFrom) q = q.gte("deleted_at", new Date(trashFrom).toISOString());
@@ -229,7 +247,17 @@ function PagesList() {
   const allIds = useMemo(() => pagedPages.map((p) => p.id), [pagedPages]);
   useEffect(() => {
     setPage(1);
-  }, [view, searchDebounced, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
+  }, [
+    view,
+    searchDebounced,
+    statusFilter,
+    langFilter,
+    authorFilter,
+    topicFilter,
+    trashFrom,
+    trashTo,
+    pageSize,
+  ]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -434,6 +462,18 @@ function PagesList() {
         </TabsList>
       </Tabs>
 
+      <TopicTabs
+        tenantId={tenantId}
+        view={view}
+        value={topicFilter}
+        onChange={(next) => {
+          setTopicFilter(next);
+          clear();
+        }}
+        lang={lang}
+      />
+
+
       <AdminListToolbar
         search={search}
         onSearch={setSearch}
@@ -530,6 +570,9 @@ function PagesList() {
                     />
                   </th>
                   <th className="text-left p-2">{t("admin.posts.titleCol")}</th>
+                  <th className="text-left p-2 w-[140px] hidden lg:table-cell">
+                    {t("admin.pages.topic", { defaultValue: "Temat" })}
+                  </th>
                   <th className="text-left p-2 w-[110px]">
                     {t("admin.list.lang.col", { defaultValue: "Języki" })}
                   </th>
@@ -606,6 +649,11 @@ function PagesList() {
                             /{p.slug}
                           </Link>
                         )}
+                      </td>
+                      <td className="p-2 hidden lg:table-cell">
+                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal">
+                          {topicLabel(topicForSlug(p.slug), lang)}
+                        </Badge>
                       </td>
                       <td className="p-2">
                         <LangCoverageBadges
