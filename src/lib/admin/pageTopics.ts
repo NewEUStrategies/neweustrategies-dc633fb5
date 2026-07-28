@@ -125,8 +125,6 @@ export const TOPICS: readonly PageTopicDef[] = [
       "contact%",
       "o-nas",
       "about%",
-      "kariera%",
-      "career%",
       "reklamuj-%",
       "advertis%",
       "membership-login",
