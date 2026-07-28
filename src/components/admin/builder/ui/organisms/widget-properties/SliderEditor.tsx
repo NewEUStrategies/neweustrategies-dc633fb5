@@ -71,6 +71,14 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const showExcerpt = c.showExcerpt !== false;
   const showAuthor = c.showAuthor !== false;
   const showCover = c.showCover !== false;
+  const showTitle = c.showTitle !== false;
+  const authorDisplay = (typeof c.authorDisplay === "string"
+    ? c.authorDisplay
+    : c.showAuthor === false
+      ? "none"
+      : "avatar") as "avatar" | "label" | "none";
+  const authorLabelPl = typeof c.authorLabel_pl === "string" ? c.authorLabel_pl : "";
+  const authorLabelEn = typeof c.authorLabel_en === "string" ? c.authorLabel_en : "";
 
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
@@ -376,19 +384,73 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           {t("builder.sliderEditor.displayTitle", { defaultValue: "Wyświetlanie" })}
         </div>
         <label className="flex items-center justify-between gap-2 py-1 cursor-pointer">
-          <span className="text-xs">{t("builder.sliderEditor.showExcerpt")}</span>
-          <Switch checked={showExcerpt} onCheckedChange={(v) => setContent("showExcerpt", v)} />
-        </label>
-        <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
-          <span className="text-xs">{t("builder.sliderEditor.showAuthor")}</span>
-          <Switch checked={showAuthor} onCheckedChange={(v) => setContent("showAuthor", v)} />
-        </label>
-        <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
           <span className="text-xs">
-            {t("builder.sliderEditor.showCover", { defaultValue: "Pokaż zdjęcie (cover)" })}
+            {t("builder.sliderEditor.showCover", { defaultValue: "Pokaż okładkę" })}
           </span>
           <Switch checked={showCover} onCheckedChange={(v) => setContent("showCover", v)} />
         </label>
+        <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
+          <span className="text-xs">
+            {t("builder.sliderEditor.showTitle", { defaultValue: "Pokaż tytuł" })}
+          </span>
+          <Switch checked={showTitle} onCheckedChange={(v) => setContent("showTitle", v)} />
+        </label>
+        <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
+          <span className="text-xs">{t("builder.sliderEditor.showExcerpt")}</span>
+          <Switch checked={showExcerpt} onCheckedChange={(v) => setContent("showExcerpt", v)} />
+        </label>
+        <div className="border-t border-brand/20 pt-2 space-y-2">
+          <PropField
+            label={t("builder.sliderEditor.authorDisplay", { defaultValue: "Autor" })}
+          >
+            <Select
+              value={authorDisplay}
+              onValueChange={(v) => {
+                setContent("authorDisplay", v);
+                setContent("showAuthor", v !== "none");
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="avatar">
+                  {t("builder.sliderEditor.authorAvatar", {
+                    defaultValue: "Zdjęcie + imię i nazwisko",
+                  })}
+                </SelectItem>
+                <SelectItem value="label">
+                  {t("builder.sliderEditor.authorLabel", {
+                    defaultValue: "Etykieta „Autor: Imię Nazwisko”",
+                  })}
+                </SelectItem>
+                <SelectItem value="none">
+                  {t("builder.sliderEditor.authorNone", { defaultValue: "Bez autora" })}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          {authorDisplay === "label" && (
+            <div className="grid grid-cols-2 gap-2">
+              <PropField label="Etykieta (PL)">
+                <Input
+                  value={authorLabelPl}
+                  onChange={(e) => setContent("authorLabel_pl", e.target.value)}
+                  placeholder="Autor: "
+                  className="h-8 text-xs"
+                />
+              </PropField>
+              <PropField label="Label (EN)">
+                <Input
+                  value={authorLabelEn}
+                  onChange={(e) => setContent("authorLabel_en", e.target.value)}
+                  placeholder="Author: "
+                  className="h-8 text-xs"
+                />
+              </PropField>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Settings */}
