@@ -77,6 +77,57 @@ const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, ne
 });
 
 /**
+ * Language preference for the BARE homepage, decided on the server before any
+ * rendering (dawniej: efekt kliencki po hydracji -> migotanie tekstu i
+ * hydration mismatch). Cookie wygrywa, w przeciwnym razie decyduje
+ * Accept-Language i wynik jest utrwalany. Decyzja równa językowi domyślnemu to
+ * no-op, więc "/" pozostaje jednym, współdzielonym wpisem cache. Sam redirect
+ * jest `no-store` + `Vary`, żeby nigdy nie trafił do cache brzegowego.
+ */
+const homepageLangMiddleware = createMiddleware().server(async ({ request, next }) => {
+  if (request.method !== "GET" && request.method !== "HEAD") return next();
+  const url = new URL(request.url);
+  if (url.pathname !== "/") return next();
+  if (!(request.headers.get("accept") ?? "").includes("text/html")) return next();
+
+  const decision = resolveHomepageLang(
+    url.pathname,
+    request.headers.get("cookie"),
+    request.headers.get("accept-language"),
+  );
+  if (!decision.lang) return next();
+
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+    url.protocol.replace(":", "");
+  const headers = new Headers();
+  if (decision.persistCookie) {
+    headers.append("Set-Cookie", langCookieHeaderValue(decision.lang, proto === "https"));
+  }
+
+  if (!decision.location) {
+    // Zostajemy na "/" - tylko utrwalamy wykrytą preferencję na kolejne wizyty.
+    if (!decision.persistCookie) return next();
+    const response = await next();
+    const merged = new Headers(response.headers);
+    for (const cookie of headers.getSetCookie()) merged.append("Set-Cookie", cookie);
+    merged.append("Vary", "Accept-Language");
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: merged,
+    });
+  }
+
+  headers.set("Location", `${decision.location}${url.search}`);
+  headers.set("Cache-Control", "no-store");
+  headers.set("Vary", "Cookie, Accept-Language");
+  return new Response(null { status: 302, headers });
+});
+
+
+
+/**
  * Baseline security headers: HSTS for every https response plus the document
  * set (CSP / X-Frame-Options / nosniff / referrer / permissions) for HTML. The
  * CSP is the defense-in-depth layer behind output escaping (see safeJsonLd):
