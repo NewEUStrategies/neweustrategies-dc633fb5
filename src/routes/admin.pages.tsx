@@ -650,6 +650,11 @@ function PagesList() {
                           </Link>
                         )}
                       </td>
+                      <td className="p-2 hidden lg:table-cell">
+                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal">
+                          {topicLabel(topicForSlug(p.slug), lang)}
+                        </Badge>
+                      </td>
                       <td className="p-2">
                         <LangCoverageBadges
                           pl={cov.pl}
