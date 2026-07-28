@@ -570,6 +570,9 @@ function PagesList() {
                     />
                   </th>
                   <th className="text-left p-2">{t("admin.posts.titleCol")}</th>
+                  <th className="text-left p-2 w-[140px] hidden lg:table-cell">
+                    {t("admin.pages.topic", { defaultValue: "Temat" })}
+                  </th>
                   <th className="text-left p-2 w-[110px]">
                     {t("admin.list.lang.col", { defaultValue: "Języki" })}
                   </th>
