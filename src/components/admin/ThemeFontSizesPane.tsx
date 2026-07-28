@@ -74,6 +74,11 @@ export function ThemeFontSizesPane() {
     setDraft((d) => ({ ...d, [section]: { ...d[section], [key]: value } }));
   };
 
+  const setSpacing = (key: keyof FontSizesSettings["spacing"], value: number) => {
+    setDraft((d) => ({ ...d, spacing: { ...d.spacing, [key]: value } }));
+  };
+
+
   return (
     <div className="space-y-6">
       <style dangerouslySetInnerHTML={{ __html: previewCss }} />
