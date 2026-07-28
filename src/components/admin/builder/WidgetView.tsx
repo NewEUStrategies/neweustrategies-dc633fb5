@@ -1181,7 +1181,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "tabs": {
       const tabs = Array.isArray(c.tabs) ? (c.tabs as Array<Record<string, string>>) : [];
-      return wrap(<TabsBlock tabs={tabs} lang={lang} nodeId={node.id} />);
+      const orientation = c.orientation === "vertical" ? "vertical" : "horizontal";
+      return wrap(<TabsBlock tabs={tabs} lang={lang} nodeId={node.id} orientation={orientation} />);
     }
     case "rated-list":
       return wrap(<RatedListView c={c} lang={lang} mode={effectiveMode} />);
