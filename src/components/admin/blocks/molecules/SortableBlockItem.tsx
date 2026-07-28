@@ -148,7 +148,7 @@ export function SortableBlockItem(props: Props) {
           data-block-id={props.id}
           onClick={props.onSelect}
           onContextMenu={props.onSelect}
-          className={`group relative pl-8 pr-3 pt-6 pb-2 scroll-mt-24 ${
+          className={`group relative pl-8 pr-3 pt-2 pb-2 scroll-mt-24 ${
             props.active
               ? "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:bg-foreground before:rounded"
               : ""
