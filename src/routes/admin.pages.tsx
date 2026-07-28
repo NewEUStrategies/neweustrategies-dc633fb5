@@ -114,6 +114,7 @@ function PagesList() {
       statusFilter,
       langFilter,
       authorFilter,
+      topicFilter,
       trashFrom,
       trashTo,
       page,
