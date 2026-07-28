@@ -70,7 +70,7 @@ export const freeRsvpPlTemplate = createAppEmailTemplate(
     vocativePl: "Anno",
     subjectName: "Europejski Briefing Strategiczny",
     details: eventDetailsPl,
-    ctaUrl: `${SITE_URL}/wydarzenia`,
+    ctaUrl: `${SITE_URL}/events`,
   },
 );
 
@@ -86,7 +86,7 @@ export const freeRsvpEnTemplate = createAppEmailTemplate(
       { label: "Date", value: "29 July 2026, 18:00" },
       { label: "Location", value: "Warsaw / online" },
     ],
-    ctaUrl: `${SITE_URL}/en/events`,
+    ctaUrl: `${SITE_URL}/events`,
   },
 );
 

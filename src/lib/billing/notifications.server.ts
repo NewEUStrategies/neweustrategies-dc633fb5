@@ -210,7 +210,7 @@ export async function notifyEventRegistration(input: EventNotifyInput): Promise<
       metaName: recipient.name,
       subjectName: title,
       details,
-      ctaPath: event.slug ? `/wydarzenia/${event.slug}` : "/wydarzenia",
+      ctaPath: event.slug ? `/events/${event.slug}` : "/events",
       idempotencyKey: `event_registered:${input.idempotencySeed}`,
     });
   } catch (err) {
