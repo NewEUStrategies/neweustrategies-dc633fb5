@@ -550,6 +550,7 @@ export function PostListView({
               {excerpt(lead)}
             </p>
           )}
+          <AuthorMeta p={lead} />
         </AppLink>
         <ol className="flex flex-col">
           {rest.map((p, i) => (
