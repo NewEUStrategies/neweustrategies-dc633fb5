@@ -83,28 +83,18 @@ export const NesEmailLayout = ({
       <Preview>{preview}</Preview>
       <Body style={main}>
         <Container style={outer}>
-          <Section style={header}>
-            <Link href={siteUrl}>
-              <Img
-                src={NES_LOGO_LIGHT}
-                alt="New European Strategies"
-                width={186}
-                height={77}
-                style={logoImg}
-              />
-            </Link>
-          </Section>
-
           {(heading || eyebrowText) && (
             <Section style={hero}>
               <Section style={heroLogoWrap}>
-                <Img
-                  src={NES_LOGO_DARK}
-                  alt="New European Strategies"
-                  width={150}
-                  height={62}
-                  style={logoImg}
-                />
+                <Link href={siteUrl}>
+                  <Img
+                    src={NES_LOGO_DARK}
+                    alt="New European Strategies"
+                    width={168}
+                    height={70}
+                    style={logoImg}
+                  />
+                </Link>
               </Section>
               {eyebrowText ? <Text style={heroEyebrow}>{eyebrowText}</Text> : null}
               {heading ? <Text style={heroTitle}>{heading}</Text> : null}
@@ -185,6 +175,7 @@ const hero: React.CSSProperties = {
   backgroundColor: INK,
   backgroundImage: `linear-gradient(140deg, ${INK} 0%, ${INK_SOFT} 62%, #2c211a 100%)`,
   borderBottom: `3px solid ${ORANGE}`,
+  borderRadius: "10px 10px 0 0",
   padding: "30px 28px 28px",
   textAlign: "center" as const,
 };
