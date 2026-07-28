@@ -647,6 +647,8 @@ export function PostListView({
           excerpt={excerpt(p)}
           titleStyle={tStyle}
           excerptStyle={eStyle}
+          authorNode={<AuthorMeta p={p} />}
+          authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
         />
       ))}
     </div>
