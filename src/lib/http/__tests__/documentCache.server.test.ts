@@ -133,3 +133,33 @@ describe("handleDocumentRequest", () => {
     expect(getDocumentCacheSnapshot().enabled).toBe(false);
   });
 });
+
+describe("obserwowalność bez nagłówków (hosting je zdejmuje)", () => {
+  it("zapisuje decyzje MISS i HIT w rejestrze snapshotu", async () => {
+    await handleDocumentRequest(docRequest("/analizy"), () => htmlResponse("<html>a</html>"));
+    await settle();
+    await handleDocumentRequest(docRequest("/analizy"), () => htmlResponse("<html>a</html>"));
+
+    const recent = getDocumentCacheSnapshot().recent;
+    expect(recent[0]?.status).toBe("HIT");
+    expect(recent[0]?.path).toBe("/analizy");
+    expect(recent[1]?.status).toBe("MISS");
+    expect(recent[1]?.cacheControl).toContain("s-maxage=900");
+  });
+
+  it("sonda raportuje stan wpisu dla ścieżki", async () => {
+    const { probeDocumentCache } = await import("../documentCache.server");
+
+    const before = await probeDocumentCache("/analizy");
+    expect(before.cached).toBe(false);
+    expect(before.status).toBe("MISS");
+
+    await handleDocumentRequest(docRequest("/analizy"), () => htmlResponse("<html>a</html>"));
+    await settle();
+
+    const after = await probeDocumentCache("/analizy");
+    expect(after.cached).toBe(true);
+    expect(after.status).toBe("HIT");
+    expect(after.bytes).toBeGreaterThan(0);
+  });
+});
