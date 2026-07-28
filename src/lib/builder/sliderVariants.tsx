@@ -1392,9 +1392,11 @@ function CinematicOverlayVariant(p: VariantProps) {
                 {cat}
               </span>
             )}
-            <h3 className="cms-post-title drop-shadow" style={p.titleStyle}>
-              {title || "\u00A0"}
-            </h3>
+            {p.showTitle && (
+              <h3 className="cms-post-title drop-shadow" style={p.titleStyle}>
+                {title || "\u00A0"}
+              </h3>
+            )}
             {p.showExcerpt && sub && (
               <p
                 className="cms-post-excerpt eh-clamp-2 mt-3 text-white/85 max-w-2xl"
