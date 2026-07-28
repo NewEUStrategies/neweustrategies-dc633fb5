@@ -3,6 +3,7 @@
 import { type CSSProperties, type ReactElement, type ReactNode } from "react";
 import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import {
   SectionLabelRender,
