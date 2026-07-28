@@ -1310,6 +1310,10 @@ export const WIDGETS: WidgetDef[] = [
       itemColor: "",
       activeBg: "",
       activeColor: "",
+      animation: "none",
+      activeScale: 1.15,
+      autoplay: "off",
+      intervalMs: 4000,
       title_pl: "Wyświetl treści w półokrągłym układzie",
       title_en: "Display content in a semi-circular layout",
       desc_pl:

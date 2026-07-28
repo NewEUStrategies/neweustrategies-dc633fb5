@@ -1,15 +1,14 @@
 // Widget "Interaktywne koło" - do 8 pozycji rozłożonych na okręgu (semi lub
-// full). Hover / klik przenosi treść (tytuł + opis) do środka. Ikony to
-// dowolne ikony Lucide; kolory, teksty i etykiety są w pełni edytowalne.
-// Renderer używa wyłącznie semantycznych tokenów (border/foreground/muted)
-// oraz kolorów przekazanych z kontentu widgetu.
-import { useMemo, useState, type CSSProperties } from "react";
-import * as LucideIcons from "@/lib/lucide-shim";
+// full). Hover / klik / autoplay przenosi treść (tytuł + opis) do środka.
+// Ikony są rozwiązywane przez DynamicIcon (kebab-case z pickera oraz
+// PascalCase z legacy defaults), a wszystkie opcje edytora (rozmiary, kolory,
+// animacja, autoplay, skala aktywnej pozycji) są w pełni zsynchronizowane
+// z rendererem - zmiana w panelu widoczna jest natychmiast w podglądzie.
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeUrl, sanitizeHtml } from "@/lib/sanitize";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { getStr, getNum, type Lang } from "./frame";
-
-type LucideCmp = React.ComponentType<{ size?: number; className?: string; color?: string }>;
 
 interface Item {
   icon?: string;
@@ -56,7 +55,7 @@ function computePositions(n: number, layout: "semi" | "full"): { x: number; y: n
     }
     return positions;
   }
-  // Semi: górny półokrąg — kąty od π do 2π (czyli od lewej do prawej u góry).
+  // Semi: górny półokrąg - kąty od π do 2π (czyli od lewej do prawej u góry).
   for (let i = 0; i < n; i++) {
     const t = n === 1 ? 0.5 : i / (n - 1);
     const angle = Math.PI + t * Math.PI;
@@ -68,6 +67,8 @@ function computePositions(n: number, layout: "semi" | "full"): { x: number; y: n
   return positions;
 }
 
+type AnimationMode = "none" | "rotate" | "pulse";
+
 export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const c = (node.content ?? {}) as WidgetContent;
   const cRaw = c as unknown as Record<string, unknown>;
@@ -78,6 +79,13 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
   const size = Math.max(280, Math.min(900, getNum(c, "size", 480)));
   const itemSize = Math.max(40, Math.min(140, getNum(c, "itemSize", 72)));
   const circleThickness = Math.max(1, Math.min(8, getNum(c, "circleThickness", 2)));
+  const activeScale = Math.max(1, Math.min(1.6, getNum(c, "activeScale", 1.15)));
+  const animation = ((): AnimationMode => {
+    const v = getStr(c, "animation");
+    return v === "rotate" || v === "pulse" ? v : "none";
+  })();
+  const autoplay = getStr(c, "autoplay") === "on";
+  const intervalMs = Math.max(1500, Math.min(15000, getNum(c, "intervalMs", 4000)));
 
   const circleColor = getStr(c, "circleColor");
   const itemBg = getStr(c, "itemBg");
@@ -89,11 +97,23 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
   const desc = loc(cRaw, "desc", lang);
 
   const [active, setActive] = useState(0);
+  useEffect(() => {
+    // Reset gdy zmniejszy się liczba pozycji poniżej aktualnego indeksu.
+    if (active > items.length - 1) setActive(0);
+  }, [items.length, active]);
+
+  // Autoplay - zatrzymuje się na hover/focus by nie walczyć z użytkownikiem.
+  const pausedRef = useRef(false);
+  useEffect(() => {
+    if (!autoplay || items.length < 2) return;
+    const id = window.setInterval(() => {
+      if (pausedRef.current) return;
+      setActive((i) => (i + 1) % items.length);
+    }, intervalMs);
+    return () => window.clearInterval(id);
+  }, [autoplay, intervalMs, items.length]);
 
   const positions = useMemo(() => computePositions(items.length, layout), [items.length, layout]);
-
-  const iconReg = LucideIcons as unknown as Record<string, LucideCmp | undefined>;
-  const Fallback = LucideIcons.Star as LucideCmp;
 
   const containerHeight = layout === "semi" ? size * 0.62 : size;
 
@@ -103,13 +123,22 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
     : title;
   const activeDesc = activeItem ? loc(activeItem as Record<string, unknown>, "desc", lang) : desc;
 
+  const arcCls =
+    animation === "rotate" && layout === "full"
+      ? "animate-[spin_18s_linear_infinite] origin-center"
+      : animation === "pulse"
+        ? "animate-pulse"
+        : "";
+
   return (
-    <div className="w-full flex flex-col items-center text-center">
-      {title && (
-        <h3 className="font-display mb-2 mt-0 text-foreground">
-          {title}
-        </h3>
-      )}
+    <div
+      className="w-full flex flex-col items-center text-center"
+      onMouseEnter={() => (pausedRef.current = true)}
+      onMouseLeave={() => (pausedRef.current = false)}
+      onFocusCapture={() => (pausedRef.current = true)}
+      onBlurCapture={() => (pausedRef.current = false)}
+    >
+      {title && <h3 className="font-display mb-2 mt-0 text-foreground">{title}</h3>}
       {desc && (
         <p
           className="cms-post-excerpt max-w-2xl mx-auto mb-6"
@@ -119,17 +148,13 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
 
       <div
         className="relative"
-        style={{
-          width: "100%",
-          maxWidth: size,
-          height: containerHeight,
-        }}
+        style={{ width: "100%", maxWidth: size, height: containerHeight }}
       >
         {/* Circle / semicircle */}
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
-          className="absolute inset-0 w-full h-full pointer-events-none"
+          className={`absolute inset-0 w-full h-full pointer-events-none ${arcCls}`}
           aria-hidden
         >
           {layout === "full" ? (
@@ -155,26 +180,30 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
           )}
         </svg>
 
-        {/* Center panel with the active item's title/description */}
+        {/* Center panel with the active item's title/description (animowany crossfade). */}
         <div
           className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center px-6"
           style={{
             top: layout === "semi" ? "62%" : "50%",
-            transform: layout === "semi" ? "translate(-50%, -50%)" : "translate(-50%, -50%)",
+            transform: "translate(-50%, -50%)",
             width: "min(100%, 22rem)",
           }}
         >
-          {activeTitle && (
-            <h4 className="font-display text-foreground m-0">
-              {activeTitle}
-            </h4>
-          )}
-          {activeDesc && (
-            <p
-              className="cms-post-excerpt mt-2 mb-0"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(activeDesc) }}
-            />
-          )}
+          <div
+            key={`${active}-${activeTitle}`}
+            className="animate-fade-in"
+            style={{ animationDuration: "260ms" }}
+          >
+            {activeTitle && (
+              <h4 className="font-display text-foreground m-0">{activeTitle}</h4>
+            )}
+            {activeDesc && (
+              <p
+                className="cms-post-excerpt mt-2 mb-0"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(activeDesc) }}
+              />
+            )}
+          </div>
         </div>
 
         {/* Items along the arc */}
@@ -182,7 +211,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
           const pos = positions[i];
           if (!pos) return null;
           const isActive = i === active;
-          const Icon: LucideCmp = (it.icon && iconReg[it.icon]) || Fallback;
+          const iconName = it.icon || "star";
           const label = loc(it as Record<string, unknown>, "label", lang) || `#${i + 1}`;
 
           const bg = isActive ? activeBg || "hsl(var(--primary))" : itemBg || "hsl(var(--card))";
@@ -194,29 +223,52 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
             position: "absolute",
             left: `${pos.x}%`,
             top: `${pos.y}%`,
-            transform: "translate(-50%, -50%)",
             width: itemSize,
             height: itemSize,
             background: bg,
             color: fg,
             borderColor: circleColor || "hsl(var(--border))",
+            transform: `translate(-50%, -50%) scale(${isActive ? activeScale : 1})`,
+            transition:
+              "transform 300ms cubic-bezier(.2,.8,.2,1), background-color 220ms ease, color 220ms ease, box-shadow 220ms ease",
+            boxShadow: isActive
+              ? `0 10px 24px -8px color-mix(in oklab, ${activeBg || "hsl(var(--primary))"} 55%, transparent), 0 0 0 4px color-mix(in oklab, ${activeBg || "hsl(var(--primary))"} 18%, transparent)`
+              : "0 1px 2px rgba(0,0,0,.06)",
+            zIndex: isActive ? 2 : 1,
           };
 
           const handleActivate = () => setActive(i);
           const hoverHandlers =
             trigger === "hover" ? { onMouseEnter: handleActivate, onFocus: handleActivate } : {};
 
-          const content = (
+          const inner = (
             <>
-              <Icon size={Math.round(itemSize * 0.32)} />
+              {animation === "pulse" && isActive && (
+                <span
+                  aria-hidden
+                  className="absolute inset-0 rounded-full animate-ping"
+                  style={{
+                    background: activeBg || "hsl(var(--primary))",
+                    opacity: 0.35,
+                  }}
+                />
+              )}
+              <DynamicIcon
+                name={iconName}
+                size={Math.round(itemSize * 0.32)}
+                aria-hidden
+              />
               <span
-                className="cms-meta mt-1 px-1 truncate max-w-full"
+                className="cms-meta mt-1 px-1 truncate max-w-full relative"
                 style={{ color: fg }}
               >
                 {label}
               </span>
             </>
           );
+
+          const commonCls =
+            "relative rounded-full border flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
           if (it.href) {
             const href = safeUrl(it.href);
@@ -225,12 +277,12 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
                 key={i}
                 href={href}
                 style={btnStyle}
-                className="rounded-full border shadow-sm flex flex-col items-center justify-center transition-all duration-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className={commonCls}
                 onClick={handleActivate}
                 {...hoverHandlers}
                 aria-label={label}
               >
-                {content}
+                {inner}
               </a>
             );
           }
@@ -239,13 +291,13 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
               key={i}
               type="button"
               style={btnStyle}
-              className="rounded-full border shadow-sm flex flex-col items-center justify-center transition-all duration-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className={commonCls}
               onClick={handleActivate}
               {...hoverHandlers}
               aria-label={label}
               aria-pressed={isActive}
             >
-              {content}
+              {inner}
             </button>
           );
         })}
