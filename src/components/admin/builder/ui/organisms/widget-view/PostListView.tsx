@@ -173,6 +173,37 @@ export function PostListView({
   // never pop in via a late client-side fetch.
   const authorName = (p: PostRow) => p.author_display_name ?? "";
 
+  const AuthorMeta = ({ p, tone = "default" }: { p: PostRow; tone?: "default" | "onDark" }) => {
+    if (!showAuthorAny) return null;
+    const name = authorName(p);
+    if (!name) return null;
+    const textCls = tone === "onDark" ? "text-white/90" : "text-foreground";
+    const labelCls = tone === "onDark" ? "text-white/70" : "opacity-70";
+    return (
+      <div className={`cms-meta mt-2 flex items-center gap-2 min-w-0 ${tone === "onDark" ? "text-white/85" : ""}`}>
+        {authorDisplay === "avatar" ? (
+          p.author_avatar_url ? (
+            <img
+              src={p.author_avatar_url}
+              alt=""
+              width={20}
+              height={20}
+              loading="lazy"
+              className="h-5 w-5 shrink-0 object-cover"
+              style={{ borderRadius: 5 }}
+            />
+          ) : (
+            <span aria-hidden className="h-5 w-5 shrink-0 bg-muted" style={{ borderRadius: 5 }} />
+          )
+        ) : null}
+        {authorDisplay === "label" && byLabel ? (
+          <span className={labelCls}>{byLabel}:</span>
+        ) : null}
+        <span className={`${textCls} truncate`}>{name}</span>
+      </div>
+    );
+  };
+
   const effectiveCols = Math.max(1, Math.min(cols, rows.length || 1));
   if (!rows.length) {
     // While the query is still running (initial mount or background refetch
