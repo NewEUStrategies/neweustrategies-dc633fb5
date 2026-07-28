@@ -230,6 +230,8 @@ import { Route as AdminAppearanceCategoryArchiveRouteImport } from './routes/adm
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as AdminCrmFunnelIndexRouteImport } from './routes/admin.crm.funnel.index'
+import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
+import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
 import { Route as ApiPublicWebhooksResendRouteImport } from './routes/api/public/webhooks.resend'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
@@ -1357,6 +1359,16 @@ const AdminCrmFunnelIndexRoute = AdminCrmFunnelIndexRouteImport.update({
   path: '/funnel/',
   getParentRoute: () => AdminCrmRoute,
 } as any)
+const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
+  id: '/lovable/email/auth/webhook',
+  path: '/lovable/email/auth/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
+  id: '/lovable/email/auth/preview',
+  path: '/lovable/email/auth/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   id: '/api/public/webhooks/stripe',
   path: '/api/public/webhooks/stripe',
@@ -1618,6 +1630,8 @@ export interface FileRoutesByFullPath {
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
+  '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -1837,6 +1851,8 @@ export interface FileRoutesByTo {
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
+  '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/admin/crm/funnel': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -2067,6 +2083,8 @@ export interface FileRoutesById {
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
+  '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -2298,6 +2316,8 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/resend'
     | '/api/public/webhooks/stripe'
+    | '/lovable/email/auth/preview'
+    | '/lovable/email/auth/webhook'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesByTo: FileRoutesByTo
@@ -2517,6 +2537,8 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/resend'
     | '/api/public/webhooks/stripe'
+    | '/lovable/email/auth/preview'
+    | '/lovable/email/auth/webhook'
     | '/admin/crm/funnel'
     | '/admin/newsletter/campaigns'
   id:
@@ -2746,6 +2768,8 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/webhooks/resend'
     | '/api/public/webhooks/stripe'
+    | '/lovable/email/auth/preview'
+    | '/lovable/email/auth/webhook'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesById: FileRoutesById
@@ -2832,6 +2856,8 @@ export interface RootRouteChildren {
   ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
   ApiPublicWebhooksResendRoute: typeof ApiPublicWebhooksResendRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
+  LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
+  LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -4383,6 +4409,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCrmFunnelIndexRouteImport
       parentRoute: typeof AdminCrmRoute
     }
+    '/lovable/email/auth/webhook': {
+      id: '/lovable/email/auth/webhook'
+      path: '/lovable/email/auth/webhook'
+      fullPath: '/lovable/email/auth/webhook'
+      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/preview': {
+      id: '/lovable/email/auth/preview'
+      path: '/lovable/email/auth/preview'
+      fullPath: '/lovable/email/auth/preview'
+      preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webhooks/stripe': {
       id: '/api/public/webhooks/stripe'
       path: '/api/public/webhooks/stripe'
@@ -5036,17 +5076,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
   ApiPublicWebhooksResendRoute: ApiPublicWebhooksResendRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
+  LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
+  LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -34,7 +34,9 @@
     "@fortawesome/free-brands-svg-icons": "^7.2.0",
     "@fortawesome/free-solid-svg-icons": "^7.2.0",
     "@fortawesome/react-fontawesome": "^3.3.1",
+    "@lovable.dev/email-js": "^0.1.2",
     "@lovable.dev/mcp-js": "^0.20.0",
+    "@lovable.dev/webhooks-js": "^0.0.2",
     "@noble/hashes": "^2.2.0",
     "@radix-ui/react-accordion": "^1.2.16",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -52,6 +54,8 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.1.0",
     "@supabase/supabase-js": "^2.106.2",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-query": "^5.101.2",
@@ -76,6 +80,7 @@
     "dompurify": "3.4.7",
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
+    "entities": "4.5.0",
     "i18n-iso-countries": "^7.14.0",
     "i18next": "^26.3.0",
     "lucide-react": "0.577.0",
@@ -120,5 +125,10 @@
     "typescript-eslint": "^8.56.1",
     "vite": "^7.3.1",
     "vitest": "^4.1.7"
+  },
+  "pnpm": {
+    "overrides": {
+      "entities": "4.5.0"
+    }
   }
 }

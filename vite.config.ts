@@ -4,7 +4,20 @@
 //     componentTagger (dev-only), VITE_* env injection, @ path alias, React/TanStack dedupe,
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { loadEnv } from "vite";
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
+
+// Trasy serwerowe (m.in. /lovable/email/*) czytają sekrety BEZ prefiksu VITE_
+// (SUPABASE_SERVICE_ROLE_KEY, LOVABLE_API_KEY). Domyślna konfiguracja wstrzykuje
+// wyłącznie VITE_*, więc dokładamy je do process.env - tylko po stronie serwera,
+// nigdy do envDefine/bundla klienta.
+Object.assign(process.env, loadEnv(process.env.NODE_ENV ?? "development", rootDir, ""));
+
 
 // Minifikacja artefaktu WORKERA (2026-07-24). Chunki serwera składa NITRO
 // własnym rollupem, więc vite-owe `build.minify` ich nie dotyka - bez tej
@@ -31,6 +44,17 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
+    // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz
+    // wywraca SSR. Alias przypina WSZYSTKIE importy do hoistowanej 4.5.0.
+    resolve: {
+      alias: {
+        "entities/lib/decode.js": path.resolve(rootDir, "node_modules/entities/lib/decode.js"),
+        "entities/lib/encode.js": path.resolve(rootDir, "node_modules/entities/lib/encode.js"),
+        entities: path.resolve(rootDir, "node_modules/entities"),
+      },
+    },
+
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
     // FIRST page load - "new dependencies optimized: ... reloading" then forces

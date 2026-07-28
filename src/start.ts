@@ -18,7 +18,17 @@ import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middle
  * a resztę zamienia na przyjazną stronę 500 (bez wycieku stacka do usera;
  * pełny błąd trafia do Server Logs). Nie ingeruje w normalne odpowiedzi.
  */
+/**
+ * Trasy platformowe (`/lovable/*` - webhooki e-mail, kolejka, preview szablonów)
+ * uwierzytelniają się same (podpis webhooka / klucz API), więc muszą omijać
+ * redirecty SEO i kanonizację języka - inaczej dostawca dostaje 301/302 zamiast 200.
+ */
+function isInternalPlatformPath(pathname: string): boolean {
+  return pathname.startsWith("/lovable/") || pathname === "/email/unsubscribe";
+}
+
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
+
   try {
     return await next();
   } catch (error) {
@@ -52,8 +62,10 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 // so we set it and 302 to the cleaned URL.
 const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, next }) => {
   const url = new URL(request.url);
+  if (isInternalPlatformPath(url.pathname)) return next();
   const lang = normalizeLang(url.searchParams.get("lang"));
   if (!lang) return next();
+
 
   url.searchParams.delete("lang");
   const query = url.searchParams.toString();
@@ -207,6 +219,7 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ request, ne
  * lookup succeeding for every document.
  */
 const redirectMiddleware = createMiddleware().server(async ({ request, next }) => {
+  if (isInternalPlatformPath(new URL(request.url).pathname)) return next();
   try {
     const hit = await resolveRedirectForRequest(request);
     if (hit) {
