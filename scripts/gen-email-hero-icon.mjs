@@ -15,7 +15,7 @@ const COLOR = "#FA9346"; // brand orange
 
 function parseNodes() {
   const txt = readFileSync(ICONS_FILE, "utf8");
-  const m = /LUCIDE_ICON_NODES: Record<string, IconNode> = (\{[\s\S]*\});/.exec(txt);
+  const m = /LUCIDE_ICON_NODES: Record<string, IconNode> = (\{[\s\S]*?\}) as unknown as Record<string, IconNode>;/ .exec(txt);
   if (!m) throw new Error("Nie znaleziono LUCIDE_ICON_NODES");
   // Zamień klucze obiektów na stringi, aby był poprawny JSON
   const json = m[1].replace(/([,{\[]\s*)([a-zA-Z][a-zA-Z0-9-]*)\s*:/g, '$1"$2":');
