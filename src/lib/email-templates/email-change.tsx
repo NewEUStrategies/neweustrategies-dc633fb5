@@ -5,13 +5,12 @@ import { Button, Section, Text } from "@react-email/components";
 import { authCopy, EMAIL_CHANGE_LABELS } from "./copy";
 import {
   buttonStyle,
-  eyebrow,
   greeting,
-  h1,
   infoBox,
   infoText,
   linkStyle,
   NesEmailLayout,
+  noteBox,
   smallPrint,
   text,
   type EmailLang,
@@ -43,9 +42,14 @@ export const EmailChangeEmail = ({
   const c = authCopy("email_change", lang);
   const labels = EMAIL_CHANGE_LABELS[lang];
   return (
-    <NesEmailLayout lang={lang} preview={c.preview} siteUrl={siteUrl}>
-      <Text style={eyebrow}>{c.eyebrow}</Text>
-      <Text style={h1}>{c.heading}</Text>
+    <NesEmailLayout
+      lang={lang}
+      preview={c.preview}
+      siteUrl={siteUrl}
+      eyebrow={c.eyebrow}
+      heading={c.heading}
+      emoji={c.emoji}
+    >
       <Text style={greeting}>{emailGreeting(lang, firstName, gender, vocativePl)}</Text>
       <Text style={text}>{c.intro}</Text>
       {(oldEmail || newEmail) && (
@@ -76,8 +80,15 @@ export const EmailChangeEmail = ({
           </a>
         </Text>
       </Section>
-      <Text style={text}>{c.expiry}</Text>
-      <Text style={smallPrint}>{c.security}</Text>
+      <Text style={text}>⏳ {c.expiry}</Text>
+      <Section style={noteBox}>
+        <Text style={infoText}>🔒 {c.security}</Text>
+      </Section>
+      <Text style={smallPrint}>
+        {lang === "pl"
+          ? "Potrzebujesz pomocy? Napisz do nas - odpowiadamy w dni robocze."
+          : "Need help? Write to us - we reply on business days."}
+      </Text>
     </NesEmailLayout>
   );
 };
