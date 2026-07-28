@@ -3,11 +3,13 @@ import { createStart, createMiddleware, createCsrfMiddleware } from "@tanstack/r
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { isLocalizablePath, localizedPath, normalizeLang } from "@/lib/i18n/localePath";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
+import { langCookieHeaderValue, resolveHomepageLang } from "@/lib/i18n/langNegotiation";
 import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
 import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
 import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { renderErrorPage } from "@/lib/error-page";
+import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 
 /**
  * Ostatnia linia obrony przed dispatchem routera: łapie synchronowe i
@@ -77,6 +79,62 @@ const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, ne
 });
 
 /**
+ * Language preference for the BARE homepage, decided on the server before any
+ * rendering (dawniej: efekt kliencki po hydracji -> migotanie tekstu i
+ * hydration mismatch). Cookie wygrywa, w przeciwnym razie decyduje
+ * Accept-Language i wynik jest utrwalany. Decyzja równa językowi domyślnemu to
+ * no-op, więc "/" pozostaje jednym, współdzielonym wpisem cache. Sam redirect
+ * jest `no-store` + `Vary`, żeby nigdy nie trafił do cache brzegowego.
+ */
+const homepageLangMiddleware = createMiddleware().server(async ({ request, next }) => {
+  if (request.method !== "GET" && request.method !== "HEAD") return next();
+  const url = new URL(request.url);
+  if (url.pathname !== "/") return next();
+  if (!(request.headers.get("accept") ?? "").includes("text/html")) return next();
+
+  const decision = resolveHomepageLang(
+    url.pathname,
+    request.headers.get("cookie"),
+    request.headers.get("accept-language"),
+  );
+  if (!decision.lang) return next();
+
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+    url.protocol.replace(":", "");
+  const headers = new Headers();
+  if (decision.persistCookie) {
+    headers.append("Set-Cookie", langCookieHeaderValue(decision.lang, proto === "https"));
+  }
+
+  if (!decision.location) {
+    // Zostajemy na "/" - tylko utrwalamy wykrytą preferencję na kolejne wizyty.
+    if (!decision.persistCookie) return next();
+    const result = await next();
+    const response = getMiddlewareResponse(result);
+    if (!response) return result;
+    const merged = new Headers(response.headers);
+    for (const cookie of headers.getSetCookie()) merged.append("Set-Cookie", cookie);
+    merged.append("Vary", "Accept-Language");
+    return withMiddlewareResponse(
+      result,
+      new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: merged,
+      }),
+    );
+  }
+
+  headers.set("Location", `${decision.location}${url.search}`);
+  headers.set("Cache-Control", "no-store");
+  headers.set("Vary", "Cookie, Accept-Language");
+  return new Response(null, { status: 302, headers });
+});
+
+
+
+/**
  * Baseline security headers: HSTS for every https response plus the document
  * set (CSP / X-Frame-Options / nosniff / referrer / permissions) for HTML. The
  * CSP is the defense-in-depth layer behind output escaping (see safeJsonLd):
@@ -134,9 +192,10 @@ function contentSecurityPolicy(): string {
 }
 
 const securityHeadersMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const response = await next();
-  if (!(response instanceof Response)) return response;
-  return applySecurityHeaders(request, response);
+  const result = await next();
+  const response = getMiddlewareResponse(result);
+  if (!response) return result;
+  return withMiddlewareResponse(result, applySecurityHeaders(request, response));
 });
 
 /**
@@ -172,13 +231,14 @@ const redirectMiddleware = createMiddleware().server(async ({ request, next }) =
  * post-response and never awaits before returning - the log is best-effort.
  */
 const seo404Middleware = createMiddleware().server(async ({ request, next }) => {
-  const response = await next();
-  if (response instanceof Response) {
+  const result = await next();
+  const response = getMiddlewareResponse(result);
+  if (response) {
     // Fire-and-forget, ale pod ctx.waitUntil: na Workers praca "za odpowiedzią"
     // bez waitUntil bywa ubijana wraz z domknięciem żądania, więc log ginął.
     runAfterResponse(maybeLog404(request, response).catch(() => undefined));
   }
-  return response;
+  return result;
 });
 
 /**
@@ -189,21 +249,26 @@ const seo404Middleware = createMiddleware().server(async ({ request, next }) => 
  * (degradacja home -> no-store, preview, personalized), zawsze wygrywa.
  */
 const defaultCacheControlMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const response = await next();
-  if (!(response instanceof Response)) return response;
+  const result = await next();
+  const response = getMiddlewareResponse(result);
+  if (!response) return result;
   const defaultPolicy = planDefaultCacheControl(request, response);
-  if (!defaultPolicy) return response;
+  if (!defaultPolicy) return result;
   // Nowa Response: nagłówki odpowiedzi routera mogą być immutable (patrz
   // applySecurityHeaders) - przebudowa daje własną, mutowalną listę nagłówków
   // bez naruszania strumieniowanego body.
   const headers = new Headers(response.headers);
   headers.set("cache-control", defaultPolicy);
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+  return withMiddlewareResponse(
+    result,
+    new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    }),
+  );
 });
+
 
 /**
  * Add response headers without mutating a framework/fetch-owned Headers object.
@@ -302,6 +367,7 @@ export const startInstance = createStart(() => ({
     seo404Middleware,
     redirectMiddleware,
     legacyLangQueryMiddleware,
+    homepageLangMiddleware,
     documentCacheMiddleware,
     defaultCacheControlMiddleware,
   ],

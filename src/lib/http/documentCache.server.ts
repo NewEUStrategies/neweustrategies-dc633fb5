@@ -44,6 +44,10 @@ import {
 } from "@/lib/http/documentCache";
 import { currentTenantHost, requestPublicHost } from "@/lib/http/requestHost";
 import {
+  getMiddlewareResponse,
+  withMiddlewareResponse,
+} from "@/lib/http/middlewareResult";
+import {
   bumpL2Version,
   l2Match,
   l2Put,
@@ -339,8 +343,12 @@ export async function handleDocumentRequest<T>(
       revalidating.add(plan.key);
       try {
         const { result, timing } = await renderWithTiming();
-        if (result instanceof Response) {
-          return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
+        const rendered = getMiddlewareResponse(result);
+        if (rendered) {
+          return withMiddlewareResponse(
+            result,
+            passThroughAndMaybeStore(host, plan.key, rendered, Date.now(), timing),
+          );
         }
         return result;
       } catch {
@@ -377,8 +385,12 @@ export async function handleDocumentRequest<T>(
       revalidating.add(plan.key);
       try {
         const { result, timing } = await renderWithTiming();
-        if (result instanceof Response) {
-          return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
+        const rendered = getMiddlewareResponse(result);
+        if (rendered) {
+          return withMiddlewareResponse(
+            result,
+            passThroughAndMaybeStore(host, plan.key, rendered, Date.now(), timing),
+          );
         }
         return result;
       } catch {
@@ -394,8 +406,12 @@ export async function handleDocumentRequest<T>(
 
   stats.misses += 1;
   const { result, timing } = await renderWithTiming();
-  if (result instanceof Response) {
-    return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
+  const rendered = getMiddlewareResponse(result);
+  if (rendered) {
+    return withMiddlewareResponse(
+      result,
+      passThroughAndMaybeStore(host, plan.key, rendered, Date.now(), timing),
+    );
   }
   return result;
 }
