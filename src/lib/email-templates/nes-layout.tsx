@@ -111,29 +111,66 @@ export const NesEmailLayout = ({
             <Img
               src={NES_LOGO_DARK}
               alt="New European Strategies"
-              width={162}
-              height={67}
+              width={150}
+              height={62}
               style={logoImg}
             />
             <Text style={footerClaim}>{f.claim}</Text>
             <Text style={footerTagline}>{f.tagline}</Text>
+
+            {/* Social media - tabela zamiast flexa (Outlook/Gmail). */}
+            <table
+              role="presentation"
+              cellPadding={0}
+              cellSpacing={0}
+              border={0}
+              align="center"
+              style={socialTable}
+            >
+              <tbody>
+                <tr>
+                  {NES_SOCIAL_LINKS.map((s) => (
+                    <td key={s.key} style={socialCell}>
+                      <Link href={s.href} style={socialLink} title={s.label}>
+                        <EmailIcon name={s.icon} size={16} alt={s.label} />
+                      </Link>
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+
             <Hr style={footerRule} />
+
             <Text style={footerLinks}>
               <Link href={siteUrl} style={footerLink}>
                 {f.site}
               </Link>
-              {"  ·  "}
+              <span style={footerSep}>·</span>
               <Link href={`${siteUrl}/polityka-prywatnosci`} style={footerLink}>
                 {f.privacy}
               </Link>
-              {"  ·  "}
+              <span style={footerSep}>·</span>
               <Link href={`${siteUrl}/kontakt`} style={footerLink}>
                 {f.contact}
               </Link>
             </Text>
+
+            <Text style={footerContact}>
+              <Link href={`mailto:${NES_CONTACT.email}`} style={footerContactLink}>
+                {NES_CONTACT.email}
+              </Link>
+              <span style={footerSep}>·</span>
+              {NES_CONTACT.phone}
+            </Text>
+            <Text style={footerAddress}>
+              {lang === "pl" ? NES_CONTACT.addressPl : NES_CONTACT.addressEn}
+            </Text>
+
             <Text style={footerNote}>{f.auto}</Text>
             <Text style={footerNote}>© {new Date().getFullYear()} New European Strategies</Text>
           </Section>
+
         </Container>
       </Body>
     </Html>
