@@ -87,6 +87,10 @@ export const WIDGET_TYPES = [
   "speakers",
   "pricing",
   "interactive-circle",
+  // Events ecosystem
+  "event-schedule",
+  "event-list",
+  "event-countdown",
   // Rich content (embeds the blocks engine)
   "rich-text",
   // Home-page building blocks

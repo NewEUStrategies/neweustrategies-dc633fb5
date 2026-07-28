@@ -58,9 +58,10 @@ export const WIDGET_TEXT_FIELDS: Partial<Record<WidgetType, WidgetTextFieldSpec>
   // renderują się jako tekst, więc NIE wchodzą.
   "team-member": { scalar: ["bio"] },
 
-  // widget-view/SpeakersWidget.tsx - opis prelegenta renderowany jako tekst,
-  // nie HTML (line-clamp). Nie wchodzi do indeksu wyszukiwania jako HTML.
-  speakers: { arrays: [{ arrayKey: "speakers", fields: ["description"] }] },
+  // widget-view/SpeakersWidget.tsx celowo NIE ma wpisu: opis prelegenta
+  // renderuje się jako węzeł tekstowy (line-clamp), więc marker `[fn]…[/fn]`
+  // zamieniony na <sup> pokazałby się czytelnikowi dosłownie (patrz
+  // NIEZMIENNIK wyżej i widgetTextFields.test.ts).
 };
 
 /** Rozszerza klucz na warianty lokalizowane + wariant bez sufiksu. */

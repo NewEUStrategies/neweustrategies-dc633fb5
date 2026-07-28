@@ -40,6 +40,7 @@ import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useMembershipTiers, tierName, tierHasFeature, useCurrentTier } from "@/lib/billing/tiers";
 import { useAuth } from "@/hooks/useAuth";
 import { EventGroupButton } from "@/components/network/EventGroupButton";
+import { EventSpeakersSection } from "@/components/events/EventSpeakersSection";
 import { AddToCalendar } from "@/components/community/AddToCalendar";
 import { Button } from "@/components/ui/button";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
@@ -345,6 +346,10 @@ function EventDetail() {
           {desc}
         </div>
       )}
+
+      {/* Prelegenci wydarzenia: event_speakers + profil prelegenta/eksperta
+          (RPC get_public_speakers); klik otwiera dialog profilu prelegenta. */}
+      <EventSpeakersSection eventId={ev.id} lang={lang} />
 
       {tierBlocked && (
         <div className="mt-8 rounded-lg border border-primary/40 bg-primary/5 p-5">

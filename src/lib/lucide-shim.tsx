@@ -18,6 +18,8 @@ import {
   ChevronRight as LChevronRight,
   ChevronUp as LChevronUp,
   ChevronsUp as LChevronsUp,
+  CalendarClock as LCalendarClock,
+  CalendarDays as LCalendarDays,
   Circle as LCircle,
   Clock as LClock,
   Columns2 as LColumns2,
@@ -199,6 +201,8 @@ export const ChevronRight = makeIcon("ChevronRight", LChevronRight);
 export const ChevronRightIcon = ChevronRight;
 export const ChevronUp = makeIcon("ChevronUp", LChevronUp);
 export const ChevronsUp = makeIcon("ChevronsUp", LChevronsUp);
+export const CalendarClock = makeIcon("CalendarClock", LCalendarClock);
+export const CalendarDays = makeIcon("CalendarDays", LCalendarDays);
 export const Circle = makeIcon("Circle", LCircle);
 export const Clock = makeIcon("Clock", LClock);
 export const Columns2 = makeIcon("Columns2", LColumns2);

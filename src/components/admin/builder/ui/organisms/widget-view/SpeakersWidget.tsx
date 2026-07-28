@@ -4,13 +4,46 @@
 // + opis), zaadaptowany do naszej typografii (.cms-*), tokenów Theme Design
 // i dark/light modes. Każdy speaker ma pola i18n (rola/kategoria/opis) oraz
 // opcjonalny link `href` (np. do profilu eksperta).
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+//
+// Źródła danych (content.source):
+//  - "manual"    - lista wpisana ręcznie w edytorze (legacy, domyślne),
+//  - "directory" - publiczne profile prelegentów (speaker_profiles / CRM)
+//                  przez RPC get_public_speakers,
+//  - "event"     - prelegenci wskazanego wydarzenia (event_speakers).
+// W trybach z bazy klik na karcie otwiera SpeakerProfileDialog (profil
+// prelegenta + profil eksperta + lista wystąpień), o ile openProfile != false.
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
-import { Star, User as UserIcon, Search as SearchIcon } from "@/lib/lucide-shim";
+import { ShieldCheck, User as UserIcon, Search as SearchIcon } from "@/lib/lucide-shim";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
+import {
+  speakersQueryOptions,
+  speakersSource,
+  type PublicSpeakerRow,
+} from "@/lib/builder/speakersQuery";
+import { SpeakerStars } from "@/components/events/SpeakerStars";
+import type { SpeakerDialogFallback } from "@/components/events/SpeakerProfileDialog";
 import { getStr, type Lang } from "./frame";
+
+// SpeakersWidget siedzi w EAGER-owej sciezce chrome (SimpleWidgets), a dialog
+// profilu montuje sie dopiero po kliknieciu - lazy chunk trzyma Radix Dialog i
+// zapytania profilu poza bundlem wejsciowym.
+const SpeakerProfileDialogLazy = lazy(() =>
+  import("@/components/events/SpeakerProfileDialog").then((m) => ({
+    default: m.SpeakerProfileDialog,
+  })),
+);
 
 type SpeakerItem = Record<string, unknown>;
 type SortKey = "default" | "rating" | "gigs" | "reviews";
@@ -31,23 +64,29 @@ function numOf(v: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function StarRow({ rating }: { rating: number }) {
-  const rounded = Math.round(rating);
-  return (
-    <span aria-hidden className="inline-flex items-center gap-[1px]">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <Star
-          key={i}
-          className={
-            "h-3 w-3 " +
-            (i < rounded
-              ? "fill-[color:var(--brand)] text-[color:var(--brand)]"
-              : "text-muted-foreground/40")
-          }
-        />
-      ))}
-    </span>
-  );
+/** Wiersz z RPC -> kształt karty (ten sam, co wpisy ręczne), więc filtrowanie,
+ *  sortowanie i paginacja działają identycznie dla każdego źródła. */
+function speakerRowToItem(row: PublicSpeakerRow, lang: Lang): SpeakerItem {
+  void lang;
+  const rolePl = row.headline_pl || row.job_title || "";
+  const roleEn = row.headline_en || row.job_title || "";
+  return {
+    id: row.user_id,
+    userId: row.user_id,
+    photo: row.avatar_url ?? "",
+    name: row.display_name ?? "",
+    role_pl: rolePl,
+    role_en: roleEn,
+    category_pl: "",
+    category_en: "",
+    gigs: row.talks_count,
+    rating: row.rating,
+    reviews: row.reviews_count,
+    description_pl: row.bio_pl ?? "",
+    description_en: row.bio_en ?? "",
+    href: row.slug ? `/author/${row.slug}` : "",
+    isExpert: row.is_expert,
+  };
 }
 
 export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
@@ -64,12 +103,28 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   const pageSize = Math.max(0, Math.round(numOf(cRaw.pageSize, 0)));
   const pageModeRaw = typeof cRaw.pageMode === "string" ? cRaw.pageMode : "button";
   const pageMode: "button" | "scroll" = pageModeRaw === "scroll" ? "scroll" : "button";
+  const source = speakersSource(c);
+  const openProfile = cRaw.openProfile !== false;
 
-  const speakers: SpeakerItem[] = Array.isArray(cRaw.speakers)
-    ? (cRaw.speakers as unknown[]).filter(
-        (x): x is SpeakerItem => typeof x === "object" && x !== null && !Array.isArray(x),
-      )
-    : [];
+  const manualSpeakers: SpeakerItem[] = useMemo(
+    () =>
+      Array.isArray(cRaw.speakers)
+        ? (cRaw.speakers as unknown[]).filter(
+            (x): x is SpeakerItem => typeof x === "object" && x !== null && !Array.isArray(x),
+          )
+        : [],
+    [cRaw.speakers],
+  );
+
+  const dbQ = useQuery({
+    ...speakersQueryOptions(c, lang),
+    enabled: source !== "manual",
+  });
+
+  const speakers: SpeakerItem[] = useMemo(() => {
+    if (source === "manual") return manualSpeakers;
+    return (dbQ.data ?? []).map((row) => speakerRowToItem(row, lang));
+  }, [source, manualSpeakers, dbQ.data, lang]);
 
   const categories = useMemo(() => {
     const seen = new Set<string>();
@@ -87,6 +142,10 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("default");
   const [visibleCount, setVisibleCount] = useState<number>(pageSize > 0 ? pageSize : 0);
+  const [dialogSpeaker, setDialogSpeaker] = useState<{
+    userId: string;
+    fallback: SpeakerDialogFallback;
+  } | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -151,6 +210,8 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
     io.observe(el);
     return () => io.disconnect();
   }, [pageMode, canLoadMore, pageSize, filtered.length]);
+
+  const dbLoading = source !== "manual" && dbQ.isLoading;
 
   return (
     <section className="cms-speakers space-y-6" style={accentStyle}>
@@ -234,25 +295,54 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
         </div>
       )}
 
-      <div
-        key={`${active}-${sort}-${query}`}
-        className={`grid animate-in fade-in-0 duration-200 grid-cols-1 ${gridClass} gap-4 sm:gap-5`}
-      >
-        {paginated.map((s, i) => (
-          <SpeakerCard key={(s.id as string) ?? i} item={s} lang={lang} />
-        ))}
-        {paginated.length === 0 && (
-          <p className="cms-meta col-span-full text-center italic text-muted-foreground">
-            {query
-              ? lang === "pl"
-                ? "Brak wyników wyszukiwania."
-                : "No results."
-              : lang === "pl"
-                ? "Brak prelegentów w tej kategorii."
-                : "No speakers in this category."}
-          </p>
-        )}
-      </div>
+      {dbLoading ? (
+        <div aria-hidden className={`grid grid-cols-1 ${gridClass} gap-4 sm:gap-5`}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-72 animate-pulse rounded-[6px] bg-muted/60" />
+          ))}
+        </div>
+      ) : (
+        <div
+          key={`${active}-${sort}-${query}`}
+          className={`grid animate-in fade-in-0 duration-200 grid-cols-1 ${gridClass} gap-4 sm:gap-5`}
+        >
+          {paginated.map((s, i) => (
+            <SpeakerCard
+              key={(s.id as string) ?? i}
+              item={s}
+              lang={lang}
+              onOpenProfile={
+                openProfile && typeof s.userId === "string" && s.userId
+                  ? () =>
+                      setDialogSpeaker({
+                        userId: s.userId as string,
+                        fallback: {
+                          name: getStr(s as WidgetContent, "name"),
+                          role: loc(s, "role", lang),
+                          photo: getStr(s as WidgetContent, "photo") || undefined,
+                        },
+                      })
+                  : undefined
+              }
+            />
+          ))}
+          {paginated.length === 0 && (
+            <p className="cms-meta col-span-full text-center italic text-muted-foreground">
+              {query
+                ? lang === "pl"
+                  ? "Brak wyników wyszukiwania."
+                  : "No results."
+                : source !== "manual"
+                  ? lang === "pl"
+                    ? "Brak publicznych profili prelegentów."
+                    : "No public speaker profiles."
+                  : lang === "pl"
+                    ? "Brak prelegentów w tej kategorii."
+                    : "No speakers in this category."}
+            </p>
+          )}
+        </div>
+      )}
 
       {canLoadMore && pageMode === "button" && (
         <div className="flex justify-center">
@@ -279,6 +369,20 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
             {lang === "pl" ? "Wczytywanie…" : "Loading…"} ({paginated.length}/{filtered.length})
           </span>
         </div>
+      )}
+
+      {dialogSpeaker && (
+        <Suspense fallback={null}>
+          <SpeakerProfileDialogLazy
+            userId={dialogSpeaker.userId}
+            lang={lang}
+            open
+            onOpenChange={(open) => {
+              if (!open) setDialogSpeaker(null);
+            }}
+            fallback={dialogSpeaker.fallback}
+          />
+        </Suspense>
       )}
     </section>
   );
@@ -311,7 +415,15 @@ function FilterChip({
   );
 }
 
-function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
+function SpeakerCard({
+  item,
+  lang,
+  onOpenProfile,
+}: {
+  item: SpeakerItem;
+  lang: Lang;
+  onOpenProfile?: () => void;
+}) {
   const photo = safeImageUrl(
     getStr(item as WidgetContent, "photo") || getStr(item as WidgetContent, "image"),
   );
@@ -323,12 +435,14 @@ function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
   const reviews = numOf(item.reviews);
   const rawHref = getStr(item as WidgetContent, "href");
   const href = rawHref ? safeUrl(rawHref, "") : "";
+  const isExpert = item.isExpert === true;
+  const interactive = !!onOpenProfile || !!href;
 
   const body = (
     <article
       className={
-        "group relative flex h-full flex-col overflow-hidden rounded-[10px] border border-border/60 bg-card text-card-foreground shadow-sm transition-all duration-300 " +
-        (href
+        "group relative flex h-full flex-col overflow-hidden rounded-[6px] border border-border/60 bg-card text-card-foreground shadow-sm transition-all duration-300 " +
+        (interactive
           ? "hover:-translate-y-0.5 hover:shadow-md hover:border-[color:var(--speakers-accent)]/40"
           : "")
       }
@@ -350,12 +464,16 @@ function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
             <UserIcon className="h-12 w-12" />
           </span>
         )}
+        {isExpert && (
+          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-[6px] bg-background/90 px-2 py-0.5 text-[10px] font-semibold text-brand-ink shadow-sm backdrop-blur-sm">
+            <ShieldCheck aria-hidden className="h-3 w-3" />
+            {lang === "pl" ? "Ekspert" : "Expert"}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-4">
-        {name && (
-          <h3 className="text-base font-semibold leading-tight text-foreground">{name}</h3>
-        )}
+        {name && <h3 className="text-base font-semibold leading-tight text-foreground">{name}</h3>}
         {(role || gigs > 0) && (
           <p className="cms-meta">
             {role}
@@ -368,7 +486,7 @@ function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
             {rating > 0 && (
               <span className="font-semibold text-foreground">{rating.toFixed(1)}</span>
             )}
-            <StarRow rating={rating} />
+            <SpeakerStars rating={rating} />
             {reviews > 0 && (
               <span>
                 ({reviews} {lang === "pl" ? "opinii" : "reviews"})
@@ -383,11 +501,23 @@ function SpeakerCard({ item, lang }: { item: SpeakerItem; lang: Lang }) {
     </article>
   );
 
+  if (onOpenProfile) {
+    return (
+      <button
+        type="button"
+        onClick={onOpenProfile}
+        className="block h-full w-full rounded-[6px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/60"
+        aria-label={name || undefined}
+      >
+        {body}
+      </button>
+    );
+  }
   if (href) {
     return (
       <AppLink
         href={href}
-        className="block h-full rounded-[10px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/60"
+        className="block h-full rounded-[6px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/60"
         aria-label={name || undefined}
       >
         {body}

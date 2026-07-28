@@ -407,6 +407,12 @@ export type WidgetType =
   | "speakers"
   | "pricing"
   | "interactive-circle"
+  // Events ecosystem: agenda wydarzenia (dni/sesje/prelegenci), lista wydarzen
+  // z modulu events (tenant-scoped RLS) oraz odliczanie do startu. Prelegenci
+  // moga byc wpisani recznie lub podpiecie pod profile (speaker_profiles/CRM).
+  | "event-schedule"
+  | "event-list"
+  | "event-countdown"
   // Rich content: embeds the full blocks engine (article-style content) inside
   // a builder layout, so the builder is the single page-composition engine.
   | "rich-text"

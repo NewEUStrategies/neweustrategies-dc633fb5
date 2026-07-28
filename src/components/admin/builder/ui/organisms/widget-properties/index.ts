@@ -18,3 +18,6 @@ export { HeadingFallbackPreview } from "./HeadingFallbackPreview";
 export { TeamMemberEditor } from "./TeamMemberEditor";
 export { InteractiveCircleEditor } from "./InteractiveCircleEditor";
 export { SpeakersEditor } from "./SpeakersEditor";
+export { EventScheduleEditor } from "./EventScheduleEditor";
+export { EventCountdownEditor } from "./EventCountdownEditor";
+export { EventPicker } from "./EventPicker";

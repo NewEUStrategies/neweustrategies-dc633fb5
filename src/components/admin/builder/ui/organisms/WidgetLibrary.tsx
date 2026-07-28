@@ -117,6 +117,9 @@ export function WidgetLibrary({
     "logo-cloud": "marketing",
     "ad-slot": "marketing",
     timeline: "timeline",
+    speakers: "events",
+    "event-schedule": "events",
+    "event-countdown": "events",
     // media
     video: "visual",
     gallery: "visual",
@@ -127,6 +130,7 @@ export function WidgetLibrary({
     // dynamic
     "post-list": "listings",
     carousel: "listings",
+    "event-list": "listings",
     "news-ticker": "listings",
     "podcast-latest": "listings",
     "web-stories-carousel": "listings",
@@ -169,7 +173,7 @@ export function WidgetLibrary({
   };
   const SUBGROUP_ORDER: Record<string, string[]> = {
     basic: ["typography", "visual", "actions", "layout"],
-    blocks: ["interactive", "content", "marketing", "timeline"],
+    blocks: ["interactive", "content", "marketing", "events", "timeline"],
     media: ["visual", "audio", "location"],
     dynamic: ["listings", "taxonomy", "dataViz", "singlePost"],
     form: ["growth", "account", "utility"],
