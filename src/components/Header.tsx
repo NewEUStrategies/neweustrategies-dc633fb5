@@ -252,22 +252,27 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
 
 export const Header = memo(function Header({ adPageType }: HeaderProps) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  // Wyjątek: strona główna (PL "/" i EN "/en") ma sticky header.
   const isHome = pathname === "/" || pathname === "/en" || pathname === "/en/";
+  // Wpisy mają własny ReadingHeader po scrollu - tam nie robimy sticky/shrink,
+  // żeby nie duplikować chrome'u. Wszystkie pozostałe strony (statyczne,
+  // archiwa, kategorie, profile itd.) zachowują się tak samo jak home:
+  // sticky top-0 + shrink na scroll.
+  const isPost = pathname.startsWith("/post/");
+  const stickyShrink = !isPost;
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    if (!isHome) return;
+    if (!stickyShrink) return;
     const onScroll = () => setScrolled(window.scrollY > 80);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [isHome]);
+  }, [stickyShrink]);
   return (
     <header
       data-site-header
       data-scrolled={scrolled ? "true" : "false"}
       className={
-        (isHome ? "sticky top-0 " : "relative ") +
+        (stickyShrink ? "sticky top-0 " : "relative ") +
         "z-40 bg-background border-b border-border site-header-shrink"
       }
       style={{ viewTransitionName: "site-header" }}
@@ -278,5 +283,6 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
     </header>
   );
 });
+
 
 Header.displayName = "Header";
