@@ -4,7 +4,7 @@
 // builderow.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LayoutDashboard, Mail, Send, ShieldCheck, Users, Megaphone } from "lucide-react";
+import { LayoutDashboard, Mail, MailCheck, Send, ShieldCheck, Users, Megaphone } from "lucide-react";
 
 const tabs = [
   {
