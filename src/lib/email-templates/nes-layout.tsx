@@ -14,6 +14,7 @@ import {
 } from "@react-email/components";
 
 import { EmailIcon, type EmailIconName } from "./icons";
+import { NES_CONTACT, NES_SOCIAL_LINKS } from "./social";
 
 export type EmailLang = "pl" | "en";
 
