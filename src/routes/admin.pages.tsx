@@ -161,6 +161,13 @@ function PagesList() {
       } else if (langFilter === "en_only") {
         q = q.not("title_en", "is", null).neq("title_en", "").or("title_pl.is.null,title_pl.eq.");
       }
+      // Topic filter — pozytywne dopasowanie ILIKE lub negacja dla "other".
+      const topicOr = topicOrFilter(topicFilter);
+      if (topicOr) {
+        q = q.or(topicOr);
+      } else if (topicFilter === "other") {
+        for (const p of otherNotPatterns()) q = q.not("slug", "ilike", p);
+      }
       if (isTrashView) {
         if (trashFrom) q = q.gte("deleted_at", new Date(trashFrom).toISOString());
         if (trashTo)
