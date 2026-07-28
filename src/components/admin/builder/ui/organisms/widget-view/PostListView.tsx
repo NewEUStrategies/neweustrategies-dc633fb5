@@ -562,12 +562,14 @@ export function PostListView({
                     {String(i + 1).padStart(2, "0")}
                   </span>
                 )}
-                <h4
-                  className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
-                  style={tStyle}
-                >
-                  {title(p)}
-                </h4>
+                {title(p) && (
+                  <h4
+                    className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
+                    style={tStyle}
+                  >
+                    {title(p)}
+                  </h4>
+                )}
               </AppLink>
             </li>
           ))}
