@@ -123,9 +123,8 @@ export function SortableBlockItem(props: Props) {
     opacity: isDragging ? 0.45 : 1,
   };
 
-  const badgeText =
-    (props.typeLabel ? props.typeLabel.toUpperCase() : t("blocks.actions.block", { defaultValue: "BLOK" })) +
-    (size.w && size.h ? ` · ${size.w}×${size.h}px` : "");
+
+
 
 
   const [copied, setCopied] = useState(false);
@@ -148,7 +147,7 @@ export function SortableBlockItem(props: Props) {
           data-block-id={props.id}
           onClick={props.onSelect}
           onContextMenu={props.onSelect}
-          className={`group relative pl-8 pr-3 pt-6 pb-2 scroll-mt-24 ${
+          className={`group relative pl-8 pr-3 pt-2 pb-2 scroll-mt-24 ${
             props.active
               ? "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:bg-foreground before:rounded"
               : ""
@@ -169,15 +168,9 @@ export function SortableBlockItem(props: Props) {
             <GripVertical className="w-3.5 h-3.5" />
           </button>
 
-          {/* Stały badge z etykietą typu bloku i zmierzonymi rozmiarami. */}
-          <span
-            className={`pointer-events-none absolute top-1 left-8 z-10 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-background/90 border border-border/60 shadow-sm ${
-              props.active ? "text-foreground" : "text-muted-foreground/80"
-            }`}
-            aria-hidden="true"
-          >
-            {badgeText}
-          </span>
+          {/* Badge typu/rozmiaru bloku ukryty - informacja dostępna w menu kontekstowym. */}
+
+
 
           <div
             ref={toolbarRef}
