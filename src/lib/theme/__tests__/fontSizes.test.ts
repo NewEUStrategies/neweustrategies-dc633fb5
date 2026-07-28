@@ -27,3 +27,27 @@ describe("fontSizes", () => {
     expect(css).toMatch(/@media \(max-width: \d+px\)\{:root\{[^}]*--fs-h1:/);
   });
 });
+
+describe("fontSizesToCss - odstępy treści", () => {
+  it("emituje zmienne odstępów i reguły dla frontu oraz canvasa buildera", () => {
+    const css = fontSizesToCss({
+      ...FONT_SIZES_DEFAULTS,
+      spacing: {
+        headingTopRem: 2.5,
+        headingBottomRem: 0.5,
+        listRem: 1.25,
+        blockquoteRem: 2,
+      },
+    });
+    expect(css).toContain("--sp-heading-top:2.5rem;");
+    expect(css).toContain("--sp-heading-bottom:0.5rem;");
+    expect(css).toContain("--sp-list:1.25rem;");
+    expect(css).toContain("--sp-blockquote:2rem;");
+    expect(css).toContain('[data-builder-renderer] > [data-block-type="heading"]');
+    expect(css).toContain(".single-post-content.single-post-content blockquote");
+  });
+
+  it("ma domyślne odstępy po parsowaniu pustej konfiguracji", () => {
+    expect(FONT_SIZES_DEFAULTS.spacing.headingTopRem).toBeGreaterThan(0);
+  });
+});
