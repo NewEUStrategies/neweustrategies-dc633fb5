@@ -23,6 +23,10 @@ import {
   type FontSizesSettings,
   type HeadingLevel,
 } from "@/lib/theme/fontSizes";
+import {
+  usePostLayoutSettings,
+  useSavePostLayoutSettings,
+} from "@/hooks/usePostLayoutSettings";
 
 type TextTransform = FontSizesSettings["headings"]["h1"]["transform"];
 
@@ -122,13 +126,16 @@ export function ThemeFontSizesPane() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setDraft(FONT_SIZES_DEFAULTS)}
+            onClick={() => {
+              setDraft(FONT_SIZES_DEFAULTS);
+              setParagraphSpacing(1.5);
+            }}
             disabled={save.isPending}
           >
             <RotateCcw className="w-4 h-4 mr-2" />
             {isPL ? "Reset" : "Reset"}
           </Button>
-          <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
+          <Button size="sm" onClick={persist} disabled={save.isPending || saveLayout.isPending}>
             <Save className="w-4 h-4 mr-2" />
             {save.isPending ? (isPL ? "Zapisywanie..." : "Saving...") : isPL ? "Zapisz" : "Save"}
           </Button>
