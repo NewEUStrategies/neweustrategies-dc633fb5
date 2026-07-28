@@ -140,7 +140,13 @@ export const getWidgetFrameStyle = (
     | { width?: ResponsiveSize; height?: ResponsiveSize; layout?: "block" | "inline" }
     | undefined;
   const wRaw = pickSize(adv?.width, device);
-  const hRaw = pickHeight(adv?.height, device);
+  // Image widgets that declare an aspect ratio derive height from width;
+  // an explicit advanced.height would clip the aspect-ratio wrapper and hide
+  // the picture. Ratio wins - see WidgetProperties disabled height notice.
+  const imageRatio =
+    node.type === "image" ? (node.content?.ratio as string | undefined) : undefined;
+  const ratioOwnsHeight = !!imageRatio && imageRatio !== "auto";
+  const hRaw = ratioOwnsHeight ? undefined : pickHeight(adv?.height, device);
 
   const isInline = adv?.layout === "inline";
   const shouldAlwaysFillColumn = node.type === "post-list" || node.type === "carousel";
