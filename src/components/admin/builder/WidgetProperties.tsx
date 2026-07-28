@@ -992,7 +992,19 @@ export function WidgetProperties({
                   a.height = writeDesktopHeight(a.height, next);
                 })
               }
+              disabledReason={(() => {
+                if (widget.type !== "image") return undefined;
+                const r =
+                  typeof widget.content?.ratio === "string" ? widget.content.ratio : "";
+                if (!r || r === "auto") return undefined;
+                return t("builder.widgetProps.dimensionsRatioLock", {
+                  defaultValue:
+                    "Wysokość jest wyznaczana automatycznie przez proporcje obrazu ({{ratio}}). Usuń proporcje, aby ustawić własną wysokość.",
+                  ratio: r,
+                });
+              })()}
             />
+
           </section>
 
           <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
