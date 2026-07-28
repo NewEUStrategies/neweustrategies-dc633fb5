@@ -158,12 +158,6 @@ const outer: React.CSSProperties = {
   width: "100%",
 };
 
-const header: React.CSSProperties = {
-  backgroundColor: SAND,
-  borderRadius: "10px 10px 0 0",
-  padding: "22px 28px",
-  textAlign: "center" as const,
-};
 
 const logoImg: React.CSSProperties = {
   display: "block",
