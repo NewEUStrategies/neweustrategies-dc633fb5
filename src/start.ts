@@ -9,6 +9,7 @@ import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
 import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { renderErrorPage } from "@/lib/error-page";
+import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 
 /**
  * Ostatnia linia obrony przed dispatchem routera: łapie synchronowe i
@@ -109,16 +110,20 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
   if (!decision.location) {
     // Zostajemy na "/" - tylko utrwalamy wykrytą preferencję na kolejne wizyty.
     if (!decision.persistCookie) return next();
-    const response = await next();
-    if (!(response instanceof Response)) return response;
+    const result = await next();
+    const response = getMiddlewareResponse(result);
+    if (!response) return result;
     const merged = new Headers(response.headers);
     for (const cookie of headers.getSetCookie()) merged.append("Set-Cookie", cookie);
     merged.append("Vary", "Accept-Language");
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: merged,
-    });
+    return withMiddlewareResponse(
+      result,
+      new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: merged,
+      }),
+    );
   }
 
   headers.set("Location", `${decision.location}${url.search}`);
@@ -187,9 +192,10 @@ function contentSecurityPolicy(): string {
 }
 
 const securityHeadersMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const response = await next();
-  if (!(response instanceof Response)) return response;
-  return applySecurityHeaders(request, response);
+  const result = await next();
+  const response = getMiddlewareResponse(result);
+  if (!response) return result;
+  return withMiddlewareResponse(result, applySecurityHeaders(request, response));
 });
 
 /**
@@ -225,13 +231,14 @@ const redirectMiddleware = createMiddleware().server(async ({ request, next }) =
  * post-response and never awaits before returning - the log is best-effort.
  */
 const seo404Middleware = createMiddleware().server(async ({ request, next }) => {
-  const response = await next();
-  if (response instanceof Response) {
+  const result = await next();
+  const response = getMiddlewareResponse(result);
+  if (response) {
     // Fire-and-forget, ale pod ctx.waitUntil: na Workers praca "za odpowiedzią"
     // bez waitUntil bywa ubijana wraz z domknięciem żądania, więc log ginął.
     runAfterResponse(maybeLog404(request, response).catch(() => undefined));
   }
-  return response;
+  return result;
 });
 
 /**
@@ -242,10 +249,11 @@ const seo404Middleware = createMiddleware().server(async ({ request, next }) => 
  * (degradacja home -> no-store, preview, personalized), zawsze wygrywa.
  */
 const defaultCacheControlMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const response = await next();
-  if (!(response instanceof Response)) return response;
+  const result = await next();
+  const response = getMiddlewareResponse(result);
+  if (!response) return result;
   const defaultPolicy = planDefaultCacheControl(request, response);
-  if (!defaultPolicy) return response;
+  if (!defaultPolicy) return result;
   // Nowa Response: nagłówki odpowiedzi routera mogą być immutable (patrz
   // applySecurityHeaders) - przebudowa daje własną, mutowalną listę nagłówków
   // bez naruszania strumieniowanego body.
