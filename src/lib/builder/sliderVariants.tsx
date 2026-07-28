@@ -1298,6 +1298,7 @@ function MultiCardVariant(p: VariantProps) {
                           slug={it.authorSlug}
                           tone="light"
                           size={20}
+                          labelPrefix={p.authorLabelPrefix}
                         />
                       )}
                       {p.showAuthor && it.author && it.readTime && (
