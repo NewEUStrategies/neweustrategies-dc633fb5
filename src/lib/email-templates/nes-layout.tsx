@@ -85,26 +85,25 @@ export const NesEmailLayout = ({
         <Container style={outer}>
           {/* Hero renderujemy zawsze - to on niesie logo marki (wariant dark). */}
           <Section style={hero}>
-              <Section style={heroLogoWrap}>
-                <Link href={siteUrl}>
-                  <Img
-                    src={NES_LOGO_DARK}
-                    alt="New European Strategies"
-                    width={168}
-                    height={70}
-                    style={logoImg}
-                  />
-                </Link>
-              </Section>
-              {eyebrowText ? <Text style={heroEyebrow}>{eyebrowText}</Text> : null}
-              {heading ? <Text style={heroTitle}>{heading}</Text> : null}
-              {icon ? (
-                <Section style={heroIconWrap}>
-                  <EmailIcon name={icon} size={30} style={{ margin: "0 auto" }} />
-                </Section>
-              ) : null}
+            <Section style={heroLogoWrap}>
+              <Link href={siteUrl}>
+                <Img
+                  src={NES_LOGO_DARK}
+                  alt="New European Strategies"
+                  width={168}
+                  height={70}
+                  style={logoImg}
+                />
+              </Link>
             </Section>
-          )}
+            {eyebrowText ? <Text style={heroEyebrow}>{eyebrowText}</Text> : null}
+            {heading ? <Text style={heroTitle}>{heading}</Text> : null}
+            {icon ? (
+              <Section style={heroIconWrap}>
+                <EmailIcon name={icon} size={30} style={{ margin: "0 auto" }} />
+              </Section>
+            ) : null}
+          </Section>
 
           <Section style={card}>{children}</Section>
 
