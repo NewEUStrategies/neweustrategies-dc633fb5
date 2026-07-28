@@ -683,13 +683,14 @@ function PostCard({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/5 sm:from-black/90 sm:via-black/45" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
         <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-white">
-          
-          <h4
-            className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
-            style={titleStyle}
-          >
-            {title}
-          </h4>
+          {title && (
+            <h4
+              className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
+              style={titleStyle}
+            >
+              {title}
+            </h4>
+          )}
         </div>
       </AppLink>
     );
