@@ -527,12 +527,14 @@ export function PostListView({
               />
             </div>
           )}
-          <h3
-            className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
-            style={tStyle}
-          >
-            {title(lead)}
-          </h3>
+          {title(lead) && (
+            <h3
+              className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
+              style={tStyle}
+            >
+              {title(lead)}
+            </h3>
+          )}
           {excerpt(lead) && (
             <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>
               {excerpt(lead)}
