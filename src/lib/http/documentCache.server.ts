@@ -569,8 +569,12 @@ export interface DocumentCacheProbe {
  * hostingu robi z nagłówkami odpowiedzi. Nie renderuje niczego i nie rusza
  * liczników.
  */
-export async function probeDocumentCache(path: string): Promise<DocumentCacheProbe> {
-  const host = await currentTenantHost();
+export async function probeDocumentCache(
+  path: string,
+  /** Nadpisanie hosta - wyłącznie dla testów; produkcyjnie host bierzemy z żądania. */
+  hostOverride?: string | null,
+): Promise<DocumentCacheProbe> {
+  const host = hostOverride !== undefined ? hostOverride : await currentTenantHost();
   const url = new URL(path, `https://${host ?? "localhost"}`);
   const plan = planDocumentCache(new Request(url, { method: "GET" }), host);
   if (plan.kind === "bypass") {

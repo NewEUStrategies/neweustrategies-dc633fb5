@@ -150,14 +150,14 @@ describe("obserwowalność bez nagłówków (hosting je zdejmuje)", () => {
   it("sonda raportuje stan wpisu dla ścieżki", async () => {
     const { probeDocumentCache } = await import("../documentCache.server");
 
-    const before = await probeDocumentCache("/analizy");
+    const before = await probeDocumentCache("/analizy", "tenant-a.eu");
     expect(before.cached).toBe(false);
     expect(before.status).toBe("MISS");
 
     await handleDocumentRequest(docRequest("/analizy"), () => htmlResponse("<html>a</html>"));
     await settle();
 
-    const after = await probeDocumentCache("/analizy");
+    const after = await probeDocumentCache("/analizy", "tenant-a.eu");
     expect(after.cached).toBe(true);
     expect(after.status).toBe("HIT");
     expect(after.bytes).toBeGreaterThan(0);
