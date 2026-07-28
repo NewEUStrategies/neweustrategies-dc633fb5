@@ -50,4 +50,16 @@ describe("fontSizesToCss - odstępy treści", () => {
   it("ma domyślne odstępy po parsowaniu pustej konfiguracji", () => {
     expect(FONT_SIZES_DEFAULTS.spacing.headingTopRem).toBeGreaterThan(0);
   });
+
+  it("emituje interlinię akapitów i nagłówków dla frontu i canvasa buildera", () => {
+    const css = fontSizesToCss({
+      ...FONT_SIZES_DEFAULTS,
+      body: { size: 16, lineHeight: 1.8 },
+    });
+    expect(css).toContain("--lh-body:1.8;");
+    expect(css).toContain('[data-builder-renderer] > [data-block-type="paragraph"],');
+    expect(css).toContain("{line-height:var(--lh-body);}");
+    expect(css).toContain("[data-builder-renderer] h2{line-height:var(--lh-h2);}");
+    expect(css).toContain("{line-height:var(--lh-blockquote);}");
+  });
 });
