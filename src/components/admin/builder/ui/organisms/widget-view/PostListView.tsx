@@ -450,9 +450,11 @@ export function PostListView({
               <div
                 className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-1" : "pr-10 sm:pr-12 lg:pr-1"}`}
               >
-                <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                  {title(p)}
-                </h4>
+                {title(p) && (
+                  <h4 className="cms-post-title line-clamp-3" style={tStyle}>
+                    {title(p)}
+                  </h4>
+                )}
                 {showExcerpt && excerpt(p) && (
                   <p className="cms-post-excerpt mt-1.5 line-clamp-2" style={eStyle}>
                     {excerpt(p)}
