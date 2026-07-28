@@ -112,6 +112,67 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
+        <PropField label={t("builder.interactiveCircleEditor.animation")}>
+          <Select
+            value={s(c.animation, "none")}
+            onValueChange={(v) => setContent("animation", v)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">{t("builder.interactiveCircleEditor.animNone")}</SelectItem>
+              <SelectItem value="rotate">
+                {t("builder.interactiveCircleEditor.animRotate")}
+              </SelectItem>
+              <SelectItem value="pulse">
+                {t("builder.interactiveCircleEditor.animPulse")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </PropField>
+        <PropField label={t("builder.interactiveCircleEditor.activeScale")}>
+          <Input
+            type="number"
+            step={0.05}
+            min={1}
+            max={1.6}
+            value={n(c.activeScale, 1.15)}
+            onChange={(e) => setContent("activeScale", Number(e.target.value) || 1.15)}
+            className="h-8 text-xs"
+          />
+        </PropField>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <PropField label={t("builder.interactiveCircleEditor.autoplay")}>
+          <Select
+            value={s(c.autoplay, "off")}
+            onValueChange={(v) => setContent("autoplay", v)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">{t("builder.interactiveCircleEditor.autoplayOff")}</SelectItem>
+              <SelectItem value="on">{t("builder.interactiveCircleEditor.autoplayOn")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </PropField>
+        <PropField label={t("builder.interactiveCircleEditor.intervalMs")}>
+          <Input
+            type="number"
+            min={1500}
+            max={15000}
+            step={250}
+            value={n(c.intervalMs, 4000)}
+            onChange={(e) => setContent("intervalMs", Number(e.target.value) || 4000)}
+            className="h-8 text-xs"
+          />
+        </PropField>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.interactiveCircleEditor.itemBg")}>
           <ColorField
             value={s(c.itemBg) || undefined}
