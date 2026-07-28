@@ -579,12 +579,10 @@ export function renderSimpleWidget(
       );
     }
     case "icon": {
-      const name = getStr(c, "name") || "Star";
+      const name = getStr(c, "name") || "star";
       const size = getNum(c, "size", 32);
       const variant = getStr(c, "variant") || "plain";
       const spin = getStr(c, "spin") || "none";
-      const reg = LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
-      const Cmp = reg[name] ?? LucideIcons.Star;
       const spinCls =
         spin === "spin"
           ? "animate-spin"
@@ -604,8 +602,8 @@ export function renderSimpleWidget(
                 ? "inline-flex items-center justify-center rounded-lg border border-border p-3"
                 : "inline-flex";
       return (
-        <span className={`${wrapperCls} ${spinCls}`.trim()}>
-          <Cmp size={size} />
+        <span key={`${name}-${size}-${variant}`} className={`${wrapperCls} ${spinCls}`.trim()}>
+          <DynamicIcon name={name} size={size} />
         </span>
       );
     }
