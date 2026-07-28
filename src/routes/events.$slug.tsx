@@ -135,6 +135,11 @@ function EventDetail() {
     void qc.invalidateQueries({ queryKey: ["event-waitlist-position", eventId, user?.id] });
   };
 
+  // Potwierdzenie mailowe bezpłatnego RSVP - serwer sam weryfikuje status,
+  // więc wywołanie jest bezpieczne i całkowicie fail-soft (mail nie może
+  // zepsuć samego zapisu na wydarzenie).
+  const sendRsvpEmail = useServerFn(confirmFreeRsvpEmail);
+
   const rsvpM = useMutation({
     mutationFn: async (target: RsvpRequestStatus) => {
       if (!eventQ.data || !user) throw new Error("no user");
@@ -158,6 +163,11 @@ function EventDetail() {
             : t("community.events.toastWaitlistNoPosition"),
         );
         return;
+      }
+      if (result.status === "going" && eventQ.data) {
+        void sendRsvpEmail({ data: { eventId: eventQ.data.id } }).catch(() => {
+          /* mail jest dodatkiem - brak potwierdzenia nie unieważnia RSVP */
+        });
       }
       const key =
         result.status === "going"
