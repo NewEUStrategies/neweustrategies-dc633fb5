@@ -9,6 +9,7 @@
 // warstwy (flaga recordings) rozstrzyganą w get_event_access.
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -37,6 +38,7 @@ import {
   type RsvpRequestStatus,
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
+import { confirmFreeRsvpEmail } from "@/lib/events/rsvp-email.functions";
 import { useMembershipTiers, tierName, tierHasFeature, useCurrentTier } from "@/lib/billing/tiers";
 import { useAuth } from "@/hooks/useAuth";
 import { EventGroupButton } from "@/components/network/EventGroupButton";
@@ -133,6 +135,11 @@ function EventDetail() {
     void qc.invalidateQueries({ queryKey: ["event-waitlist-position", eventId, user?.id] });
   };
 
+  // Potwierdzenie mailowe bezpłatnego RSVP - serwer sam weryfikuje status,
+  // więc wywołanie jest bezpieczne i całkowicie fail-soft (mail nie może
+  // zepsuć samego zapisu na wydarzenie).
+  const sendRsvpEmail = useServerFn(confirmFreeRsvpEmail);
+
   const rsvpM = useMutation({
     mutationFn: async (target: RsvpRequestStatus) => {
       if (!eventQ.data || !user) throw new Error("no user");
@@ -156,6 +163,11 @@ function EventDetail() {
             : t("community.events.toastWaitlistNoPosition"),
         );
         return;
+      }
+      if (result.status === "going" && eventQ.data) {
+        void sendRsvpEmail({ data: { eventId: eventQ.data.id } }).catch(() => {
+          /* mail jest dodatkiem - brak potwierdzenia nie unieważnia RSVP */
+        });
       }
       const key =
         result.status === "going"
