@@ -36,6 +36,9 @@ import {
   Minus,
   Plus,
   MoveVertical,
+  FileText,
+  Palette,
+  SlidersHorizontal,
 } from "@/lib/lucide-shim";
 import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgets";
 
@@ -63,6 +66,7 @@ import { WidgetLivePreview } from "./ui/organisms/WidgetLivePreview";
 import { LinkPicker } from "./ui/molecules/LinkPicker";
 
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import {
   EDIT_TARGET_META,
   FOCUS_SIZE_FIELD_EVENT,
@@ -114,6 +118,7 @@ export function WidgetProperties({
   onChange,
 }: Props) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const md = () =>
     mode === "dark" ? t("builder.widgetProps.modeDark") : t("builder.widgetProps.modeLight");
   const setContent = (k: string, v: Json) =>
@@ -311,7 +316,8 @@ export function WidgetProperties({
   // Resolve inherited colors from the actually rendered widget DOM (global colors cascade).
   const inherited = useInheritedColors(widget.id, mode, widget.style);
 
-  const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
+  const widgetLabel =
+    bl(WIDGETS.find((w) => w.type === widget.type)?.label) ?? widget.type;
 
   const highlightPreviewTarget = (key: string) => {
     if (typeof document === "undefined") return;
@@ -358,73 +364,102 @@ export function WidgetProperties({
   }, []);
 
   return (
-    <div className="wp-compact">
+    <div className="wp-compact min-w-0">
       <style>{`.cms-preview-field-focus{outline:2px solid var(--brand) !important;outline-offset:3px;border-radius:4px;box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 25%, transparent);transition:outline-color .15s, box-shadow .15s;}
-.cms-panel-field-focus{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;transition:outline-color .2s;}`}</style>
-      <WidgetLivePreview widget={widget} lang={lang} device={device} mode={mode} />
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="mb-1.5 px-0.5">
-          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
-          <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
-        </div>
-        {widget.globalId && (
-          <GlobalWidgetBanner
-            globalId={widget.globalId}
-            onUnlink={() =>
-              onChange((w) => {
-                delete w.globalId;
-              })
-            }
-          />
-        )}
-        <div className="mb-2 px-0.5">
-          <div className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1">
-            Pozycja
-          </div>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() =>
-                setAdvanced((a) => {
-                  a.layout = undefined;
-                })
-              }
-              className={`flex-1 h-7 px-2 text-[11px] rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-              title={t("builder.widgetProps.blockLayoutTitle")}
-            >
-              {t("builder.widgetProps.block")}
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setAdvanced((a) => {
-                  a.layout = "inline";
-                })
-              }
-              className={`flex-1 h-7 px-2 text-[11px] rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-              title={t("builder.widgetProps.inlineLayoutTitle")}
-            >
-              {t("builder.widgetProps.inline")}
-            </button>
-          </div>
-        </div>
-        <TabsList className="grid grid-cols-3 w-full h-6">
-          <TabsTrigger value="content" className="text-[11px]">
-            {t("builder.widgetProps.tabContent")}
-          </TabsTrigger>
-          <TabsTrigger value="style" className="text-[11px]">
-            {t("builder.widgetProps.tabStyle")}
-          </TabsTrigger>
-          <TabsTrigger value="advanced" className="text-[11px]">
-            {t("builder.widgetProps.tabAdvanced")}
-          </TabsTrigger>
-        </TabsList>
+.cms-panel-field-focus{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;transition:outline-color .2s;}
+.wp-seg{display:inline-flex;width:100%;border:1px solid hsl(var(--border));border-radius:6px;overflow:hidden;background:hsl(var(--background));}
+.wp-seg > button{flex:1;min-width:0;height:26px;padding:0 8px;font-size:11px;line-height:1;font-weight:500;color:hsl(var(--muted-foreground));background:transparent;border:0;border-left:1px solid hsl(var(--border));transition:background-color .15s,color .15s;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;}
+.wp-seg > button:first-child{border-left:0;}
+.wp-seg > button:hover{background:hsl(var(--muted));color:hsl(var(--foreground));}
+.wp-seg > button[data-active="true"]{background:color-mix(in oklab, var(--brand) 12%, transparent);color:var(--brand);font-weight:600;}
+.wp-seg.wp-seg-grid{display:grid;grid-template-columns:1fr 1fr;}
+.wp-seg.wp-seg-grid > button:nth-child(2n+1){border-left:0;}
+.wp-seg.wp-seg-grid > button:nth-child(n+3){border-top:1px solid hsl(var(--border));}
+.wp-panel-content>section{border-radius:6px;border:1px solid hsl(var(--border));background:hsl(var(--card));padding:10px;box-shadow:0 1px 2px hsl(var(--foreground)/.025);}
+.wp-panel-content>section>h4{display:flex;align-items:center;min-height:22px;margin:-2px -2px 8px;padding:0 2px;border-bottom:1px solid hsl(var(--border)/.7);font-size:10px;font-weight:700;letter-spacing:.04em;color:hsl(var(--foreground));}
+.wp-compact label{letter-spacing:0;}
+.wp-compact input,.wp-compact textarea,.wp-compact [role="combobox"]{border-radius:6px;}`}</style>
 
-        <TabsContent value="content" className="space-y-2 mt-2">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="mb-2 overflow-hidden rounded-md border border-border bg-card shadow-sm">
+          <div className="flex items-center justify-between gap-2 border-l-[3px] border-l-brand px-2.5 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand/10 text-brand">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[9px] font-semibold uppercase text-muted-foreground">
+                  {lang === "en" ? "Widget settings" : "Ustawienia widgetu"}
+                </div>
+                <div className="truncate text-[12px] font-semibold text-foreground">{widgetLabel}</div>
+              </div>
+            </div>
+            <div
+              className="wp-seg !w-auto shrink-0"
+              role="group"
+              aria-label={t("builder.widgetProps.block") + " / " + t("builder.widgetProps.inline")}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setAdvanced((a) => {
+                    a.layout = undefined;
+                  })
+                }
+                data-active={(widget.advanced?.layout ?? "block") === "block"}
+                title={t("builder.widgetProps.blockLayoutTitle")}
+              >
+                {t("builder.widgetProps.block")}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setAdvanced((a) => {
+                    a.layout = "inline";
+                  })
+                }
+                data-active={widget.advanced?.layout === "inline"}
+                title={t("builder.widgetProps.inlineLayoutTitle")}
+              >
+                {t("builder.widgetProps.inline")}
+              </button>
+            </div>
+          </div>
+          {widget.globalId && (
+            <div className="px-2.5 pb-2">
+            <GlobalWidgetBanner
+              globalId={widget.globalId}
+              onUnlink={() =>
+                onChange((w) => {
+                  delete w.globalId;
+                })
+              }
+            />
+            </div>
+          )}
+          <TabsList className="grid h-9 w-full grid-cols-3 rounded-none border-t border-border bg-muted/30 p-1">
+            <TabsTrigger value="content" className="h-7 gap-1.5 rounded-[4px] text-[10.5px] font-semibold">
+              <FileText className="h-3 w-3" />
+              {t("builder.widgetProps.tabContent")}
+            </TabsTrigger>
+            <TabsTrigger value="style" className="h-7 gap-1.5 rounded-[4px] text-[10.5px] font-semibold">
+              <Palette className="h-3 w-3" />
+              {t("builder.widgetProps.tabStyle")}
+            </TabsTrigger>
+            <TabsTrigger value="advanced" className="h-7 gap-1.5 rounded-[4px] text-[10.5px] font-semibold">
+              <SlidersHorizontal className="h-3 w-3" />
+              {t("builder.widgetProps.tabAdvanced")}
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <WidgetLivePreview widget={widget} lang={lang} device={device} mode={mode} />
+
+        <TabsContent value="content" className="wp-panel-content mt-2 space-y-2">
           <ContentFields widget={widget} lang={lang} setContent={setContent} />
         </TabsContent>
 
-        <TabsContent value="style" className="space-y-4 mt-3">
+        <TabsContent value="style" className="wp-panel-content mt-2 space-y-2">
           {/* Light / Dark mode tabs - synced with global preview switcher */}
           <div className="flex items-center justify-between gap-2">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -486,7 +521,7 @@ export function WidgetProperties({
                   return (
                     <div key={f.key} data-field-key={f.key}>
                       <FormElementSizeField
-                        label={meta.label}
+                        label={bl(meta.label)}
                         value={v}
                         min={meta.min}
                         max={meta.max}
@@ -752,7 +787,7 @@ export function WidgetProperties({
           </section>
         </TabsContent>
 
-        <TabsContent value="advanced" className="space-y-4 mt-3">
+        <TabsContent value="advanced" className="wp-panel-content mt-2 space-y-2">
           <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.identifiers")}
@@ -785,7 +820,7 @@ export function WidgetProperties({
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.widgetWidth")}
             </h4>
-            <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("builder.widgetProps.widgetWidth")}>
+            <div className="wp-seg wp-seg-grid" role="group" aria-label={t("builder.widgetProps.widgetWidth")}>
               {(
                 [
                   ["full", t("builder.widgetProps.widthFull")],
@@ -794,17 +829,15 @@ export function WidgetProperties({
                   ["wrapped", t("builder.widgetProps.widthWrapped")],
                 ] as const
               ).map(([value, label]) => (
-                <Button
+                <button
                   key={value}
                   type="button"
-                  variant={widgetWidthMode === value ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 justify-start px-2 text-[11px]"
+                  data-active={widgetWidthMode === value}
                   onClick={() => setWidgetWidthMode(value)}
                   aria-pressed={widgetWidthMode === value}
                 >
                   {label}
-                </Button>
+                </button>
               ))}
             </div>
             {(widgetWidthMode === "percent" || widgetWidthMode === "px") && (
@@ -841,27 +874,27 @@ export function WidgetProperties({
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.positionRelative")}
             </h4>
-            <div className="flex gap-1">
+            <div className="wp-seg" role="group">
               <button
                 type="button"
+                data-active={(widget.advanced?.layout ?? "block") === "block"}
                 onClick={() =>
                   setAdvanced((a) => {
                     a.layout = undefined;
                   })
                 }
-                className={`flex-1 h-8 px-2 text-xs rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
                 title={t("builder.widgetProps.blockLayoutTitle")}
               >
                 {t("builder.widgetProps.blockFull")}
               </button>
               <button
                 type="button"
+                data-active={widget.advanced?.layout === "inline"}
                 onClick={() =>
                   setAdvanced((a) => {
                     a.layout = "inline";
                   })
                 }
-                className={`flex-1 h-8 px-2 text-xs rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
                 title={t("builder.widgetProps.inlineLayoutTitle")}
               >
                 {t("builder.widgetProps.inlineRow")}
@@ -896,19 +929,19 @@ export function WidgetProperties({
               />
             </PropField>
             <PropField label={t("builder.widgetProps.contentAlign")}>
-              <div className="flex gap-1">
+              <div className="wp-seg" role="group">
                 {(["start", "center", "end"] as const).map((v) => {
                   const active = (widget.advanced?.contentAlign ?? "start") === v;
                   return (
                     <button
                       key={v}
                       type="button"
+                      data-active={active}
                       onClick={() =>
                         setAdvanced((a) => {
                           a.contentAlign = v === "start" ? undefined : v;
                         })
                       }
-                      className={`flex-1 h-8 px-2 text-xs rounded border ${active ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
                     >
                       {v === "start"
                         ? t("builder.common.left")
@@ -1099,7 +1132,7 @@ function WidgetHeightControl({
           />
         </div>
       </div>
-      <div className="flex gap-1">
+      <div className="wp-seg" role="group">
         {(
           [
             [
@@ -1124,20 +1157,14 @@ function WidgetHeightControl({
             (key === "fixed" && typeof value === "number") ||
             (key === "hug" && isAuto);
           return (
-            <Button
+            <button
               key={key}
               type="button"
-              variant="outline"
-              size="sm"
+              data-active={active}
               onClick={() => onChange(target)}
-              className={`flex-1 h-8 px-2 text-[11px] rounded-md transition ${
-                active
-                  ? "border-brand bg-brand/10 text-brand"
-                  : "border-border bg-background hover:bg-muted"
-              }`}
             >
               {label}
-            </Button>
+            </button>
           );
         })}
       </div>
@@ -1405,6 +1432,7 @@ function ContentFields({
   setContent: (k: string, v: Json) => void;
 }) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const c = widget.content;
 
   // Custom (list-style) editors for complex widgets.
@@ -1498,7 +1526,7 @@ function ContentFields({
             className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-2"
           >
             <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              {g.name}
+              {bl(g.name)}
             </h4>
             {body}
           </section>

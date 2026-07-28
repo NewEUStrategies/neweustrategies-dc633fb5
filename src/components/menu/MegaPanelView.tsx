@@ -79,8 +79,8 @@ export function MegaPanelView({
 
   const containerClass =
     variant === "live"
-      ? "overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5 border border-border/40 mx-auto"
-      : "overflow-hidden rounded-lg bg-background text-foreground ring-1 ring-border/60";
+      ? "overflow-hidden rounded-lg bg-popover text-popover-foreground ring-1 ring-border/60 border border-border/40 mx-auto antialiased subpixel-antialiased"
+      : "overflow-hidden rounded-lg bg-background text-foreground ring-1 ring-border/60 antialiased subpixel-antialiased";
 
   return (
     <div
@@ -218,7 +218,7 @@ export function MegaPanelView({
               role="menuitem"
             >
               {featured.cover_image_url ? (
-                <div className="mb-2 aspect-[16/10] w-full overflow-hidden rounded-sm ring-1 ring-border/60 shadow-sm">
+                <div className="mb-2 aspect-[16/10] w-full overflow-hidden rounded-sm ring-1 ring-border/60">
                   <img
                     src={featured.cover_image_url}
                     alt=""

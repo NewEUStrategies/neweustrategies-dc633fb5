@@ -21,6 +21,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { useLang } from "@/lib/i18n/useLang";
 
 type ThemeLogoCfg = {
   logo?: {
@@ -51,9 +52,10 @@ interface HeaderProps {
 }
 
 function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
-  const { i18n, t } = useTranslation();
-  const lang = i18n.language ?? "pl";
-  const isPl = lang.startsWith("pl");
+  const { t } = useTranslation();
+  // URL-seeded language (SSR-safe, no hydration flicker) - see useLang docs.
+  const lang = useLang();
+  const isPl = lang === "pl";
 
   // Loader in __root.tsx prefetches this query, so useSuspenseQuery resolves
   // synchronously on hydration and on every client navigation - the header

@@ -34,6 +34,7 @@ import { TemplateHistoryDialog } from "./TemplateHistoryDialog";
 import { StructurePicker } from "./StructurePicker";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 
 interface Props {
   onPickWidget: (t: WidgetType) => void;
@@ -55,6 +56,7 @@ export function WidgetLibrary({
   const { t, i18n } = useTranslation();
   const adminLang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const wl = (k: string, o?: Record<string, unknown>) => t(`builder.widgetLibrary.${k}`, o);
+  const bl = useBuilderLabel();
   const [search, setSearch] = useState("");
   const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
@@ -76,7 +78,7 @@ export function WidgetLibrary({
     });
   };
   const filtered = WIDGETS.filter(
-    (w) => !w.hiddenInPalette && w.label.toLowerCase().includes(search.toLowerCase()),
+    (w) => !w.hiddenInPalette && bl(w.label).toLowerCase().includes(search.toLowerCase()),
   );
   const labels: Record<string, string> = {
     basic: wl("catBasic"),
@@ -268,7 +270,7 @@ export function WidgetLibrary({
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = "copy";
                   e.dataTransfer.setData(CONTAINER_MIME, JSON.stringify({ withTabs: true }));
-                  e.dataTransfer.setData("text/plain", "Kontener z zakładkami");
+                  e.dataTransfer.setData("text/plain", wl("containerTabs"));
                 }}
                 onClick={() => onPickContainer?.(true)}
                 title={wl("containerTabsTitle")}
@@ -441,7 +443,7 @@ export function WidgetLibrary({
                         onClick={() => onPickGlobal?.(g)}
                         title={wl("insertGlobal", {
                           name: g.name,
-                          label: def?.label ?? g.data.type,
+                          label: bl(def?.label) ?? g.data.type,
                         })}
                         className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 rounded inline-flex items-center gap-1.5 cursor-grab active:cursor-grabbing"
                       >
@@ -495,7 +497,7 @@ export function WidgetLibrary({
                         draggable
                         role="button"
                         tabIndex={0}
-                        aria-label={wl("dragToSection", { label: w.label })}
+                        aria-label={wl("dragToSection", { label: bl(w.label) })}
                         onDragStart={(e) => {
                           e.dataTransfer.setData("application/x-widget-type", w.type);
                           e.dataTransfer.effectAllowed = "copy";
@@ -508,11 +510,11 @@ export function WidgetLibrary({
                           }
                         }}
                         className="h-12 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition group cursor-grab active:cursor-grabbing select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
-                        title={wl("dragToSection", { label: w.label })}
+                        title={wl("dragToSection", { label: bl(w.label) })}
                       >
                         <Icon className="w-3.5 h-3.5 text-brand group-hover:text-brand" />
                         <span className="text-[8px] text-center leading-[1.05] text-foreground group-hover:text-brand line-clamp-2">
-                          {w.label}
+                          {bl(w.label)}
                         </span>
                       </div>
                     );

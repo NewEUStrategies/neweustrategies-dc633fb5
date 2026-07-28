@@ -66,7 +66,29 @@ export function PostListView({
   typography?: import("@/lib/builder/types").WidgetTypography;
 }) {
   const { t } = useTranslation();
-  const byLabel = t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
+  const authorLabelOverride = getStr(c, `authorLabel_${lang}`).trim();
+  // Unified author display dropdown (new). Backward compat: derive from the
+  // legacy showAuthorAvatar/showAuthorLabel booleans when authorDisplay is unset.
+  const rawAuthorDisplay = getStr(c, "authorDisplay");
+  const legacyAvatar = getStr(c, "showAuthorAvatar");
+  const legacyLabel = getStr(c, "showAuthorLabel");
+  const authorDisplay: "avatar" | "label" | "none" =
+    rawAuthorDisplay === "avatar" || rawAuthorDisplay === "label" || rawAuthorDisplay === "none"
+      ? rawAuthorDisplay
+      : legacyAvatar === "0" && legacyLabel === "0"
+        ? "none"
+        : legacyAvatar === "0"
+          ? "label"
+          : "avatar";
+  const showAuthorAny = authorDisplay !== "none";
+  const byLabel =
+    authorLabelOverride ||
+    t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
+  // Global display toggles — apply to every variant.
+  const showCover = getStr(c, "showCover") !== "0";
+  const showTitleGlobal = getStr(c, "showTitle") !== "0";
+  const showExcerptGlobal = getStr(c, "showExcerpt") !== "0";
+
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
   const gapPx = normalizeTypographyGapPx(typography?.titleDescriptionGapPx);
@@ -132,9 +154,10 @@ export function PostListView({
   const visibleRows = uniqueOnPage
     ? dedupeAndSlice(data ?? [], excludeIds, limit)
     : (data ?? []).slice(0, limit);
-  const rows = visibleRows.map((p) =>
-    overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p,
-  );
+  const rows = visibleRows.map((p) => {
+    const withOverride = overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p;
+    return showCover ? withOverride : { ...withOverride, cover_image_url: null };
+  });
 
   // Register the IDs this widget actually DISPLAYS (not the over-fetched extras)
   // so later uniqueOnPage widgets exclude exactly what the reader saw. Keyed on
@@ -149,6 +172,37 @@ export function PostListView({
   // query, see attachAuthorNames) - covered by the SSR prefetch, so bylines
   // never pop in via a late client-side fetch.
   const authorName = (p: PostRow) => p.author_display_name ?? "";
+
+  const AuthorMeta = ({ p, tone = "default" }: { p: PostRow; tone?: "default" | "onDark" }) => {
+    if (!showAuthorAny) return null;
+    const name = authorName(p);
+    if (!name) return null;
+    const textCls = tone === "onDark" ? "text-white/90" : "text-foreground";
+    const labelCls = tone === "onDark" ? "text-white/70" : "opacity-70";
+    return (
+      <div className={`cms-meta mt-2 flex items-center gap-2 min-w-0 ${tone === "onDark" ? "text-white/85" : ""}`}>
+        {authorDisplay === "avatar" ? (
+          p.author_avatar_url ? (
+            <img
+              src={p.author_avatar_url}
+              alt=""
+              width={20}
+              height={20}
+              loading="lazy"
+              className="h-5 w-5 shrink-0 object-cover"
+              style={{ borderRadius: 5 }}
+            />
+          ) : (
+            <span aria-hidden className="h-5 w-5 shrink-0 bg-muted" style={{ borderRadius: 5 }} />
+          )
+        ) : null}
+        {authorDisplay === "label" && byLabel ? (
+          <span className={labelCls}>{byLabel}:</span>
+        ) : null}
+        <span className={`${textCls} truncate`}>{name}</span>
+      </div>
+    );
+  };
 
   const effectiveCols = Math.max(1, Math.min(cols, rows.length || 1));
   if (!rows.length) {
@@ -182,12 +236,19 @@ export function PostListView({
     );
   }
 
-  const title = (p: PostRow) =>
-    (lang === "pl" ? p.title_pl : p.title_en) ||
-    p.title_pl ||
-    p.title_en ||
-    (lang === "pl" ? "(bez tytułu)" : "(untitled)");
-  const excerpt = (p: PostRow) => (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
+  const title = (p: PostRow) => {
+    if (!showTitleGlobal) return "";
+    return (
+      (lang === "pl" ? p.title_pl : p.title_en) ||
+      p.title_pl ||
+      p.title_en ||
+      (lang === "pl" ? "(bez tytułu)" : "(untitled)")
+    );
+  };
+  const excerpt = (p: PostRow) => {
+    if (!showExcerptGlobal) return "";
+    return (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
+  };
 
   if (carousel) {
     return (
@@ -203,6 +264,8 @@ export function PostListView({
             excerpt={excerpt(p)}
             titleStyle={tStyle}
             excerptStyle={eStyle}
+            authorNode={<AuthorMeta p={p} />}
+            authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
           />
         ))}
       </div>
@@ -230,14 +293,17 @@ export function PostListView({
               />
             )}
             <div className="min-w-0">
-              <h4 className="cms-post-title line-clamp-2" style={tStyle}>
-                {title(p)}
-              </h4>
+              {title(p) && (
+                <h4 className="cms-post-title line-clamp-2" style={tStyle}>
+                  {title(p)}
+                </h4>
+              )}
               {excerpt(p) && (
                 <p className="cms-post-excerpt line-clamp-2" style={eStyle}>
                   {excerpt(p)}
                 </p>
               )}
+              <AuthorMeta p={p} />
             </div>
           </AppLink>
         ))}
@@ -307,15 +373,13 @@ export function PostListView({
               <div
                 className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-0" : "pr-10 sm:pr-12 lg:pr-0"}`}
               >
-                <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                  {title(p)}
-                </h4>
-                {authorName(p) && (
-                  <div className="cms-meta mt-2">
-                    <span className="opacity-70">{byLabel}</span>{" "}
-                    <span className="text-foreground">{authorName(p)}</span>
-                  </div>
+                {title(p) && (
+                  <h4 className="cms-post-title line-clamp-3" style={tStyle}>
+                    {title(p)}
+                  </h4>
                 )}
+                {<AuthorMeta p={p} />}
+
               </div>
             </div>
           </AppLink>
@@ -323,6 +387,7 @@ export function PostListView({
       </div>
     );
   }
+
 
   if (variant === "numbered") {
     // Big faint index on the left, title in the middle, thumbnail on the right.
@@ -394,9 +459,11 @@ export function PostListView({
               <div
                 className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-1" : "pr-10 sm:pr-12 lg:pr-1"}`}
               >
-                <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                  {title(p)}
-                </h4>
+                {title(p) && (
+                  <h4 className="cms-post-title line-clamp-3" style={tStyle}>
+                    {title(p)}
+                  </h4>
+                )}
                 {showExcerpt && excerpt(p) && (
                   <p className="cms-post-excerpt mt-1.5 line-clamp-2" style={eStyle}>
                     {excerpt(p)}
@@ -436,14 +503,17 @@ export function PostListView({
                 hoverEffect="zoom"
               />
             )}
-            <h3 className="cms-post-title line-clamp-3" style={tStyle}>
-              {title(p)}
-            </h3>
+            {title(p) && (
+              <h3 className="cms-post-title line-clamp-3" style={tStyle}>
+                {title(p)}
+              </h3>
+            )}
             {excerpt(p) && (
               <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>
                 {excerpt(p)}
               </p>
             )}
+            <AuthorMeta p={p} />
           </AppLink>
         ))}
       </div>
@@ -467,17 +537,20 @@ export function PostListView({
               />
             </div>
           )}
-          <h3
-            className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
-            style={tStyle}
-          >
-            {title(lead)}
-          </h3>
+          {title(lead) && (
+            <h3
+              className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
+              style={tStyle}
+            >
+              {title(lead)}
+            </h3>
+          )}
           {excerpt(lead) && (
             <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>
               {excerpt(lead)}
             </p>
           )}
+          <AuthorMeta p={lead} />
         </AppLink>
         <ol className="flex flex-col">
           {rest.map((p, i) => (
@@ -500,12 +573,14 @@ export function PostListView({
                     {String(i + 1).padStart(2, "0")}
                   </span>
                 )}
-                <h4
-                  className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
-                  style={tStyle}
-                >
-                  {title(p)}
-                </h4>
+                {title(p) && (
+                  <h4
+                    className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
+                    style={tStyle}
+                  >
+                    {title(p)}
+                  </h4>
+                )}
               </AppLink>
             </li>
           ))}
@@ -539,17 +614,20 @@ export function PostListView({
               </div>
             )}
             <div className="min-w-0 flex flex-col justify-center py-0.5">
-              <h4
-                className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
-                style={tStyle}
-              >
-                {title(p)}
-              </h4>
+              {title(p) && (
+                <h4
+                  className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
+                  style={tStyle}
+                >
+                  {title(p)}
+                </h4>
+              )}
               {excerpt(p) && (
                 <p className="cms-post-excerpt mt-1.5 line-clamp-2" style={eStyle}>
                   {excerpt(p)}
                 </p>
               )}
+              <AuthorMeta p={p} />
             </div>
           </AppLink>
         ))}
@@ -573,6 +651,8 @@ export function PostListView({
           excerpt={excerpt(p)}
           titleStyle={tStyle}
           excerptStyle={eStyle}
+          authorNode={<AuthorMeta p={p} />}
+          authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
         />
       ))}
     </div>
@@ -588,6 +668,8 @@ function PostCard({
   excerpt,
   titleStyle,
   excerptStyle,
+  authorNode,
+  authorOverlayNode,
 }: {
   p: PostRow;
   variant: Variant;
@@ -597,6 +679,8 @@ function PostCard({
   excerpt: string;
   titleStyle?: React.CSSProperties;
   excerptStyle?: React.CSSProperties;
+  authorNode?: React.ReactNode;
+  authorOverlayNode?: React.ReactNode;
 }) {
   const isBoxed = variant === "boxed-grid";
   const base = `${isBoxed ? "bg-card" : "bg-transparent"} border border-border rounded-md overflow-hidden transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
@@ -617,13 +701,15 @@ function PostCard({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/5 sm:from-black/90 sm:via-black/45" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
         <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-white">
-          
-          <h4
-            className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
-            style={titleStyle}
-          >
-            {title}
-          </h4>
+          {title && (
+            <h4
+              className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
+              style={titleStyle}
+            >
+              {title}
+            </h4>
+          )}
+          {authorOverlayNode}
         </div>
       </AppLink>
     );
@@ -645,14 +731,17 @@ function PostCard({
             hoverEffect="zoom"
           />
         )}
-        <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
-          {title}
-        </h4>
+        {title && (
+          <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
+            {title}
+          </h4>
+        )}
         {excerpt && (
           <p className="cms-post-excerpt line-clamp-2 mt-1.5" style={excerptStyle}>
             {excerpt}
           </p>
         )}
+        {authorNode}
       </AppLink>
     );
   }
@@ -671,14 +760,17 @@ function PostCard({
         />
       )}
       <div className="p-3">
-        <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
-          {title}
-        </h4>
+        {title && (
+          <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
+            {title}
+          </h4>
+        )}
         {excerpt && (
           <p className="cms-post-excerpt line-clamp-2" style={excerptStyle}>
             {excerpt}
           </p>
         )}
+        {authorNode}
       </div>
     </AppLink>
   );

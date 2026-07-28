@@ -3,6 +3,7 @@
 // listy punktowane i numerowane, cytat, link) operujący na contentEditable.
 // Wartością pola pozostaje HTML string - żadnej zmiany w schemacie/renderze.
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Bold,
   Italic,
@@ -19,6 +20,7 @@ import {
   Redo2,
 } from "lucide-react";
 import { normalizeBuilderRichHtml } from "@/lib/builder/normalizeRichHtml";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: string;
@@ -40,6 +42,8 @@ function exec(cmd: string, arg?: string) {
 }
 
 export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
+  const { t } = useTranslation();
+  const rf = (k: string) => t(`builder.richHtmlField.${k}`);
   const ref = useRef<HTMLDivElement>(null);
   const lastEmitted = useRef<string>(value);
 
@@ -73,14 +77,14 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
   };
 
   const insertLink = () => {
-    const url = window.prompt("Adres URL", "https://");
+    const url = window.prompt(rf("urlPrompt"), "https://");
     if (!url) return;
     exec("createLink", url);
   };
 
   // Rozmiary czcionki - zgodne ze skalą tokenów `--fs-*` (px). "" = reset do globalu.
   const FONT_SIZES: ReadonlyArray<{ label: string; value: string }> = [
-    { label: "Domyślny", value: "" },
+    { label: rf("sizeDefault"), value: "" },
     { label: "12", value: "12px" },
     { label: "13", value: "13px" },
     { label: "14", value: "14px" },
@@ -125,24 +129,24 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
   };
 
   const buttons: ReadonlyArray<ToolbarBtn | "sep"> = [
-    { icon: Bold, title: "Pogrubienie (⌘/Ctrl+B)", run: () => exec("bold") },
-    { icon: Italic, title: "Kursywa (⌘/Ctrl+I)", run: () => exec("italic") },
-    { icon: Underline, title: "Podkreślenie (⌘/Ctrl+U)", run: () => exec("underline") },
+    { icon: Bold, title: rf("bold"), run: () => exec("bold") },
+    { icon: Italic, title: rf("italic"), run: () => exec("italic") },
+    { icon: Underline, title: rf("underline"), run: () => exec("underline") },
     "sep",
-    { icon: Heading2, title: "Nagłówek H2", run: () => exec("formatBlock", "H2") },
-    { icon: Heading3, title: "Nagłówek H3", run: () => exec("formatBlock", "H3") },
-    { icon: Quote, title: "Cytat", run: () => exec("formatBlock", "BLOCKQUOTE") },
+    { icon: Heading2, title: rf("heading2"), run: () => exec("formatBlock", "H2") },
+    { icon: Heading3, title: rf("heading3"), run: () => exec("formatBlock", "H3") },
+    { icon: Quote, title: rf("quote"), run: () => exec("formatBlock", "BLOCKQUOTE") },
     "sep",
-    { icon: List, title: "Lista punktowana", run: () => exec("insertUnorderedList") },
-    { icon: ListOrdered, title: "Lista numerowana", run: () => exec("insertOrderedList") },
+    { icon: List, title: rf("bulletList"), run: () => exec("insertUnorderedList") },
+    { icon: ListOrdered, title: rf("orderedList"), run: () => exec("insertOrderedList") },
     "sep",
-    { icon: LinkIcon, title: "Wstaw link", run: insertLink },
-    { icon: Link2Off, title: "Usuń link", run: () => exec("unlink") },
+    { icon: LinkIcon, title: rf("insertLink"), run: insertLink },
+    { icon: Link2Off, title: rf("unlink"), run: () => exec("unlink") },
     "sep",
-    { icon: Eraser, title: "Wyczyść formatowanie", run: () => exec("removeFormat") },
+    { icon: Eraser, title: rf("clearFormat"), run: () => exec("removeFormat") },
     "sep",
-    { icon: Undo2, title: "Cofnij", run: () => exec("undo") },
-    { icon: Redo2, title: "Ponów", run: () => exec("redo") },
+    { icon: Undo2, title: rf("undo"), run: () => exec("undo") },
+    { icon: Redo2, title: rf("redo"), run: () => exec("redo") },
   ];
 
   const minHeight = Math.max(rows, 3) * 20 + 16;
@@ -152,7 +156,7 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
       <div
         className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/40 px-1 py-1"
         role="toolbar"
-        aria-label="Formatowanie tekstu"
+        aria-label={t("builder.editable.toolbar")}
       >
         {buttons.map((b, i) =>
           b === "sep" ? (
@@ -173,8 +177,8 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
         )}
         <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
         <select
-          title="Rozmiar czcionki"
-          aria-label="Rozmiar czcionki"
+          title={rf("fontSize")}
+          aria-label={rf("fontSize")}
           defaultValue=""
           onMouseDown={(e) => e.preventDefault()}
           onChange={(e) => {

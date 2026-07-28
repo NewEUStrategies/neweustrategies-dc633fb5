@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Upload, GripVertical } from "@/lib/lucide-shim";
+import { Download, Upload, GripVertical, Copy } from "@/lib/lucide-shim";
 import {
   DndContext,
   PointerSensor,
@@ -57,23 +57,36 @@ const numOf = (v: unknown, fb = 0): number => {
 const URL_RE = /^(https?:\/\/|\/)[^\s]+$/i;
 const IMAGE_URL_RE = /^(https?:\/\/|\/)[^\s]+(\.(jpe?g|png|webp|avif|gif|svg))(\?.*)?$/i;
 
-function validatePhoto(v: string): string | null {
+/** Localised validators - the message goes straight into the field's error slot. */
+type Translate = (pl: string, en: string) => string;
+
+function validatePhoto(v: string, l: Translate): string | null {
   if (!v) return null;
-  if (!URL_RE.test(v)) return "Nieprawidłowy URL (http(s)://… lub /…)";
-  if (!IMAGE_URL_RE.test(v)) return "URL nie wygląda na obraz (jpg/png/webp/avif/gif/svg)";
+  if (!URL_RE.test(v))
+    return l("Nieprawidłowy URL (http(s)://… lub /…)", "Invalid URL (http(s)://… or /…)");
+  if (!IMAGE_URL_RE.test(v))
+    return l(
+      "URL nie wygląda na obraz (jpg/png/webp/avif/gif/svg)",
+      "The URL does not look like an image (jpg/png/webp/avif/gif/svg)",
+    );
   return null;
 }
-function validateHref(v: string): string | null {
+function validateHref(v: string, l: Translate): string | null {
   if (!v) return null;
-  if (!URL_RE.test(v)) return "Link musi zaczynać się od / lub http(s)://";
+  if (!URL_RE.test(v))
+    return l(
+      "Link musi zaczynać się od / lub http(s)://",
+      "The link must start with / or http(s)://",
+    );
   return null;
 }
-function validateRating(v: number): string | null {
-  if (v < 0 || v > 5) return "Ocena musi mieścić się w zakresie 0-5";
+function validateRating(v: number, l: Translate): string | null {
+  if (v < 0 || v > 5)
+    return l("Ocena musi mieścić się w zakresie 0-5", "The rating must be between 0 and 5");
   return null;
 }
-function validateNonNeg(v: number): string | null {
-  if (v < 0) return "Wartość nie może być ujemna";
+function validateNonNeg(v: number, l: Translate): string | null {
+  if (v < 0) return l("Wartość nie może być ujemna", "The value cannot be negative");
   return null;
 }
 
@@ -83,6 +96,12 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
   const patch = (i: number, p: Partial<Item>) =>
     commit(speakers.map((x, j) => (j === i ? { ...x, ...p } : x)));
   const remove = (i: number) => commit(speakers.filter((_, j) => j !== i));
+  const duplicate = (i: number) =>
+    commit([
+      ...speakers.slice(0, i + 1),
+      { ...speakers[i], id: `sp-${Date.now().toString(36)}` },
+      ...speakers.slice(i + 1),
+    ]);
 
   const itemIds = speakers.map((s, i) => (typeof s.id === "string" && s.id ? s.id : `sp-idx-${i}`));
   const sensors = useSensors(
@@ -129,6 +148,13 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
 
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
+  // Podpowiedzi kategorii (datalist) z już wpisanych wartości - pomagają
+  // utrzymać spójne nazwy, od których zależą filtry w widoku publicznym.
+  const categorySuggestions = {
+    pl: [...new Set(speakers.map((s) => strOf(s.category_pl).trim()).filter(Boolean))],
+    en: [...new Set(speakers.map((s) => strOf(s.category_en).trim()).filter(Boolean))],
+  };
+
   const fileRef = useRef<HTMLInputElement>(null);
 
   const doExport = () => {
@@ -152,7 +178,13 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
         : Array.isArray((parsed as { speakers?: unknown }).speakers)
           ? (parsed as { speakers: unknown[] }).speakers
           : null;
-      if (!raw) throw new Error("Oczekiwano tablicy `speakers` lub payloadu { speakers: [...] }");
+      if (!raw)
+        throw new Error(
+          l(
+            "Oczekiwano tablicy `speakers` lub payloadu { speakers: [...] }",
+            "Expected a `speakers` array or a { speakers: [...] } payload",
+          ),
+        );
       const normalized: Item[] = raw
         .filter(
           (x): x is Record<string, unknown> =>
@@ -339,85 +371,26 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
             "The list below is used only in manual mode. In CRM modes cards come from public speaker profiles.",
           )}
         </p>
-      )}
-
-      {source === "manual" && (
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 flex-1 text-xs"
-            onClick={doExport}
-            disabled={speakers.length === 0}
-          >
-            <Download className="mr-1 h-3.5 w-3.5" />
-            {l("Eksportuj JSON", "Export JSON")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 flex-1 text-xs"
-            onClick={() => fileRef.current?.click()}
-          >
-            <Upload className="mr-1 h-3.5 w-3.5" />
-            {l("Importuj JSON", "Import JSON")}
-          </Button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              const mode = window.confirm(
-                l(
-                  "OK = zastąp obecną listę.\nAnuluj = dołącz do istniejącej.",
-                  "OK = replace current list.\nCancel = append to existing.",
-                ),
-              )
-                ? "replace"
-                : "merge";
-              void doImport(f, mode);
-              e.target.value = "";
-            }}
-          />
-        </div>
-      )}
-
-      {source === "manual" && (
-        <ListShell title={l("Prelegenci", "Speakers")} items={speakers} onAdd={add}>
-          <p className="text-[10px] text-muted-foreground/70 -mt-1">
-            {l(
-              "Przeciągnij uchwyt aby zmienić kolejność. Ręczna kolejność nadpisuje sortowanie po ocenie/wystąpieniach/opiniach.",
-              "Drag the handle to reorder. Manual order overrides sorting by rating/gigs/reviews.",
-            )}
-          </p>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2">
-                {speakers.map((it, i) => (
-                  <SortableSpeakerRow
-                    key={itemIds[i]}
-                    id={itemIds[i]}
-                    item={it}
-                    index={i}
-                    lang={lang}
-                    onPatch={(p) => patch(i, p)}
-                    onRemove={() => remove(i)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        </ListShell>
-      )}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {speakers.map((it, i) => (
+                <SortableSpeakerRow
+                  key={itemIds[i]}
+                  id={itemIds[i]}
+                  item={it}
+                  index={i}
+                  lang={lang}
+                  categorySuggestions={categorySuggestions}
+                  onPatch={(p) => patch(i, p)}
+                  onRemove={() => remove(i)}
+                  onDuplicate={() => duplicate(i)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      </ListShell>
     </div>
   );
 }
@@ -427,11 +400,22 @@ interface RowProps {
   item: Item;
   index: number;
   lang: "pl" | "en";
+  categorySuggestions: { pl: string[]; en: string[] };
   onPatch: (p: Partial<Item>) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
 }
 
-function SortableSpeakerRow({ id, item: it, index: i, lang, onPatch, onRemove }: RowProps) {
+function SortableSpeakerRow({
+  id,
+  item: it,
+  index: i,
+  lang,
+  categorySuggestions,
+  onPatch,
+  onRemove,
+  onDuplicate,
+}: RowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
@@ -447,11 +431,11 @@ function SortableSpeakerRow({ id, item: it, index: i, lang, onPatch, onRemove }:
   const rating = numOf(it.rating);
   const gigs = numOf(it.gigs);
   const reviews = numOf(it.reviews);
-  const photoErr = validatePhoto(photo);
-  const hrefErr = validateHref(href);
-  const ratingErr = validateRating(rating);
-  const gigsErr = validateNonNeg(gigs);
-  const reviewsErr = validateNonNeg(reviews);
+  const photoErr = validatePhoto(photo, l);
+  const hrefErr = validateHref(href, l);
+  const ratingErr = validateRating(rating, l);
+  const gigsErr = validateNonNeg(gigs, l);
+  const reviewsErr = validateNonNeg(reviews, l);
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -466,6 +450,15 @@ function SortableSpeakerRow({ id, item: it, index: i, lang, onPatch, onRemove }:
             className="p-1 rounded text-muted-foreground hover:bg-accent cursor-grab active:cursor-grabbing"
           >
             <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onDuplicate}
+            title={l("Duplikuj prelegenta", "Duplicate speaker")}
+            aria-label={l("Duplikuj prelegenta", "Duplicate speaker")}
+            className="p-1 rounded text-muted-foreground hover:bg-accent"
+          >
+            <Copy className="h-3.5 w-3.5" />
           </button>
           {photo && !photoErr && (
             <img
@@ -519,14 +512,26 @@ function SortableSpeakerRow({ id, item: it, index: i, lang, onPatch, onRemove }:
               value={strOf(it.category_pl)}
               onChange={(e) => onPatch({ category_pl: e.target.value })}
               className="h-8 text-xs"
+              list={`speakers-cats-pl-${id}`}
             />
+            <datalist id={`speakers-cats-pl-${id}`}>
+              {categorySuggestions.pl.map((cat) => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
           </PropField>
           <PropField label={`${l("Kategoria", "Category")} EN`}>
             <Input
               value={strOf(it.category_en)}
               onChange={(e) => onPatch({ category_en: e.target.value })}
               className="h-8 text-xs"
+              list={`speakers-cats-en-${id}`}
             />
+            <datalist id={`speakers-cats-en-${id}`}>
+              {categorySuggestions.en.map((cat) => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
           </PropField>
         </div>
 

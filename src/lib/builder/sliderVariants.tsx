@@ -86,6 +86,14 @@ export interface SliderConfig {
   showAuthor?: boolean;
   /** Show cover image on each slide. Default: true. */
   showCover?: boolean;
+  /** Show slide title (h3). Default: true. */
+  showTitle?: boolean;
+  /** Author presentation mode. avatar = avatar+name, label = "Autor: Name",
+   *  none = hide. When set, supersedes legacy showAuthor. */
+  authorDisplay?: "avatar" | "label" | "none";
+  /** Optional i18n override for the label prefix in authorDisplay='label'. */
+  authorLabel_pl?: string;
+  authorLabel_en?: string;
 
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
@@ -853,8 +861,17 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   const nav = resolveNavStyle(config);
   const showExcerpt = config.showExcerpt !== false;
-  const showAuthor = config.showAuthor !== false;
   const showCover = config.showCover !== false;
+  const showTitle = config.showTitle !== false;
+  const authorDisplay: "avatar" | "label" | "none" =
+    config.authorDisplay ?? (config.showAuthor === false ? "none" : "avatar");
+  const showAuthor = authorDisplay !== "none";
+  const authorLabelPrefix =
+    authorDisplay === "label"
+      ? (lang === "en"
+          ? (config.authorLabel_en?.trim() || "By")
+          : (config.authorLabel_pl?.trim() || "Autor")) + ": "
+      : "";
 
   const sharedProps = {
     items,
@@ -881,6 +898,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     nav,
     showExcerpt,
     showAuthor,
+    showTitle,
+    authorLabelPrefix,
   };
 
   return (
@@ -939,6 +958,8 @@ type VariantProps = {
   nav: NavStyleResolved;
   showExcerpt: boolean;
   showAuthor: boolean;
+  showTitle: boolean;
+  authorLabelPrefix: string;
 };
 
 /** Compact author badge: 6px-rounded avatar + display name; links to the
@@ -950,12 +971,14 @@ function AuthorBadge({
   slug,
   tone = "light",
   size = 22,
+  labelPrefix = "",
 }: {
   name?: string;
   avatar?: string;
   slug?: string;
   tone?: "light" | "dark";
   size?: number;
+  labelPrefix?: string;
 }) {
   if (!name && !avatar) return null;
   const safeAvatar = avatar ? safeImageUrl(avatar) : "";
@@ -983,7 +1006,7 @@ function AuthorBadge({
           {initial}
         </span>
       )}
-      {name && <span className={`font-medium ${textCls}`}>{name}</span>}
+      {name && <span className={`font-medium ${textCls}`}>{labelPrefix}{name}</span>}
     </span>
   );
   if (slug) {
@@ -1092,7 +1115,7 @@ function EditorialHeroVariant(p: VariantProps) {
         className="px-4 pt-8 pb-2 text-center"
         style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
       >
-        {href ? (
+        {p.showTitle && (href ? (
           <AppLink href={href} className="inline-block w-full">
             <div className="eh-title-clamp">
               <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
@@ -1106,23 +1129,23 @@ function EditorialHeroVariant(p: VariantProps) {
               {title || "\u00A0"}
             </h3>
           </div>
-        )}
-        {p.showExcerpt &&
+        ))}
+        {p.showExcerpt && sub &&
           (href ? (
             <AppLink href={href} className="block">
               <p
                 className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
-                style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
+                style={p.subtitleStyle}
               >
-                {sub || "\u00A0"}
+                {sub}
               </p>
             </AppLink>
           ) : (
             <p
               className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
-              style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
+              style={p.subtitleStyle}
             >
-              {sub || "\u00A0"}
+              {sub}
             </p>
           ))}
         {((p.showAuthor && cur.author) || cur.readTime) && (
@@ -1134,6 +1157,7 @@ function EditorialHeroVariant(p: VariantProps) {
                 slug={cur.authorSlug}
                 tone="light"
                 size={22}
+                labelPrefix={p.authorLabelPrefix}
               />
             )}
             {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">|</span>}
@@ -1229,7 +1253,7 @@ function MultiCardVariant(p: VariantProps) {
                   );
                 })()}
                 <div className="pt-3 pb-1 px-1 eh-card-content">
-                  {href ? (
+                  {p.showTitle && (href ? (
                     <AppLink href={href} className="block">
                       <h3
                         className="cms-post-title text-foreground line-clamp-2"
@@ -1245,7 +1269,7 @@ function MultiCardVariant(p: VariantProps) {
                     >
                       {title || "\u00A0"}
                     </h3>
-                  )}
+                  ))}
                   {p.showExcerpt &&
                     sub &&
                     (href ? (
@@ -1274,6 +1298,7 @@ function MultiCardVariant(p: VariantProps) {
                           slug={it.authorSlug}
                           tone="light"
                           size={20}
+                          labelPrefix={p.authorLabelPrefix}
                         />
                       )}
                       {p.showAuthor && it.author && it.readTime && (
@@ -1367,9 +1392,11 @@ function CinematicOverlayVariant(p: VariantProps) {
                 {cat}
               </span>
             )}
-            <h3 className="cms-post-title drop-shadow" style={p.titleStyle}>
-              {title || "\u00A0"}
-            </h3>
+            {p.showTitle && (
+              <h3 className="cms-post-title drop-shadow" style={p.titleStyle}>
+                {title || "\u00A0"}
+              </h3>
+            )}
             {p.showExcerpt && sub && (
               <p
                 className="cms-post-excerpt eh-clamp-2 mt-3 text-white/85 max-w-2xl"
@@ -1387,6 +1414,7 @@ function CinematicOverlayVariant(p: VariantProps) {
                     slug={cur.authorSlug}
                     tone="dark"
                     size={22}
+                    labelPrefix={p.authorLabelPrefix}
                   />
                 )}
                 {p.showAuthor && cur.author && cur.readTime && (
@@ -1502,7 +1530,7 @@ function SplitFeatureVariant(p: VariantProps) {
             {cat}
           </span>
         )}
-        {href ? (
+        {p.showTitle && (href ? (
           <AppLink href={href} className="block">
             <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
               {title || "\u00A0"}
@@ -1512,7 +1540,7 @@ function SplitFeatureVariant(p: VariantProps) {
           <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
             {title || "\u00A0"}
           </h3>
-        )}
+        ))}
         {p.showExcerpt &&
           sub &&
           (href ? (
@@ -1541,6 +1569,7 @@ function SplitFeatureVariant(p: VariantProps) {
                 slug={cur.authorSlug}
                 tone="light"
                 size={22}
+                labelPrefix={p.authorLabelPrefix}
               />
             )}
             {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">·</span>}
@@ -1626,9 +1655,11 @@ function MinimalStripVariant(p: VariantProps) {
               {cat}
             </span>
           )}
-          <h3 className="cms-post-title line-clamp-2" style={p.titleStyle}>
-            {title || "\u00A0"}
-          </h3>
+          {p.showTitle && (
+            <h3 className="cms-post-title line-clamp-2" style={p.titleStyle}>
+              {title || "\u00A0"}
+            </h3>
+          )}
           {p.showExcerpt && sub && (
             <p className="cms-post-excerpt mt-1 text-white/85 line-clamp-1" style={p.subtitleStyle}>
               {sub}

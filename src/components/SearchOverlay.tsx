@@ -254,11 +254,19 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           </ul>
         </div>
       ) : (
-        <div className="px-5 py-8 text-center">
-          <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-md bg-muted/50">
-            <Search className="h-4 w-4 text-muted-foreground" />
+        <div className="px-5 py-10 text-center sm:py-8">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 sm:mb-2 sm:h-9 sm:w-9 sm:rounded-md">
+            <Search className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
           </div>
-          <p className="text-[10px] text-muted-foreground">{t("searchOverlay.startTyping")}</p>
+          <p className="text-[13px] font-medium text-foreground sm:text-[10px] sm:font-normal sm:text-muted-foreground">
+            {t("searchOverlay.startTyping")}
+          </p>
+          <p className="mx-auto mt-1.5 max-w-xs text-[11px] leading-relaxed text-muted-foreground sm:hidden">
+            {t("searchOverlay.hint", {
+              defaultValue:
+                'Wpisz frazę - użyj cudzysłowów dla dokładnej frazy lub „-" aby wykluczyć słowo.',
+            }) as string}
+          </p>
         </div>
       )}
 
@@ -284,12 +292,15 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   );
 
   const footer = (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-1.5">
-      <div className="flex flex-wrap items-center gap-1">
+    <div
+      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border/60 bg-muted/40 px-3 py-2 sm:py-1.5"
+      style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+    >
+      <div className="-mx-1 flex w-full items-center gap-1 overflow-x-auto px-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
         <span
           data-typography-exempt
           style={{ fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
-          className="mr-1 !text-[9px] !leading-[12px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+          className="mr-1 shrink-0 !text-[9px] !leading-[12px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
         >
           {t("search.widget.operators", { defaultValue: "Operatory" }) as string}
         </span>
@@ -303,7 +314,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               insertOperator(ins, caret);
             }}
             style={{ fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
-            className="inline-flex items-center rounded-[6px] border border-border/60 bg-background px-1 py-px !text-[9px] !leading-[12px] font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)]"
+            className="inline-flex shrink-0 items-center rounded-[6px] border border-border/60 bg-background px-1.5 py-0.5 !text-[10px] !leading-[14px] font-semibold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-all hover:-translate-y-px hover:border-[var(--brand)] hover:text-[var(--brand)] sm:px-1 sm:py-px sm:!text-[9px] sm:!leading-[12px]"
           >
             {op}
           </button>
@@ -335,7 +346,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       <AppLink
         href={hasQuery ? `/search?q=${encodeURIComponent(trimmed)}&adv=1` : "/search?adv=1"}
         onClick={() => selectAndClose(q)}
-        className="inline-flex items-center gap-1 text-[9px] font-semibold hover:underline"
+        className="inline-flex items-center gap-1 text-[10px] font-semibold hover:underline sm:text-[9px]"
         style={{ color: "var(--brand)" }}
       >
         <SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
@@ -356,10 +367,10 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 
   return (
     <div
-      className="fixed inset-0 z-[60] bg-background sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
+      className="fixed inset-x-0 bottom-0 top-[64px] z-[60] bg-background sm:inset-0 sm:top-0 sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="absolute inset-x-0 top-0 flex h-full max-h-screen justify-center overflow-y-auto px-0 pt-0 pb-0 sm:h-auto sm:px-4 sm:pt-[12vh] sm:pb-8">
+      <div className="absolute inset-x-0 top-0 flex h-full max-h-full justify-center overflow-y-auto px-0 pt-0 pb-0 sm:h-auto sm:max-h-screen sm:px-4 sm:pt-[12vh] sm:pb-8">
         <div
           ref={panelRef}
           role="dialog"
@@ -367,9 +378,8 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           aria-label={t("searchOverlay.dialogLabel") as string}
           className="flex h-full w-full max-w-xl flex-col animate-in slide-in-from-top-4 duration-300 sm:h-auto sm:zoom-in-95"
           onClick={(e) => e.stopPropagation()}
-          style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
-          <SuggestListShell className="flex flex-col overflow-hidden rounded-none sm:rounded-[10px]">
+          <SuggestListShell className="flex h-full flex-col overflow-hidden rounded-none sm:h-auto sm:rounded-[10px]">
             {bar}
             <div className="min-h-0 flex-1 overflow-y-auto sm:flex-none sm:overflow-visible">
               {body}
@@ -408,7 +418,7 @@ function SearchBar({
   const { t } = useTranslation();
   return (
     <div
-      className={`flex items-center gap-2 border-b border-border/60 ${compact ? "px-3 py-2" : "px-3.5 py-2.5"}`}
+      className={`flex items-center gap-2 border-b border-border/60 ${compact ? "px-3 py-2" : "px-3.5 py-3 sm:py-2.5"}`}
     >
       <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
       <input
@@ -422,14 +432,18 @@ function SearchBar({
         aria-controls={listboxId}
         aria-activedescendant={activeOptionId}
         aria-autocomplete="list"
-        className="flex-1 border-0 bg-transparent text-[13px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+        enterKeyHint="search"
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        className="flex-1 border-0 bg-transparent text-[16px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 sm:text-[13px]"
         style={{ boxShadow: "none", WebkitTapHighlightColor: "transparent" }}
       />
       {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       {q && !loading && (
         <button
           onClick={() => setQ("")}
-          className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          className="rounded px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-muted hover:text-foreground sm:px-1.5 sm:py-0.5 sm:text-[10px]"
         >
           {t("searchOverlay.clear") as string}
         </button>
@@ -437,7 +451,7 @@ function SearchBar({
       <button
         onClick={onClose}
         aria-label={t("searchOverlay.close") as string}
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground pointer-coarse:h-9 pointer-coarse:w-9"
+        className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground sm:inline-flex pointer-coarse:h-9 pointer-coarse:w-9"
       >
         <X className="h-3.5 w-3.5" />
       </button>

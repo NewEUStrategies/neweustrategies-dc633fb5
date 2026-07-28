@@ -1091,7 +1091,63 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "list", label: "lista" },
       ],
     },
+    {
+      key: "showCover",
+      type: "select",
+      label: "Pokaż okładkę (cover)",
+      options: [
+        { value: "1", label: "Tak" },
+        { value: "0", label: "Nie" },
+      ],
+      default: "1",
+      group: "Wyświetlanie",
+    },
+    {
+      key: "showTitle",
+      type: "select",
+      label: "Pokaż tytuł",
+      options: [
+        { value: "1", label: "Tak" },
+        { value: "0", label: "Nie" },
+      ],
+      default: "1",
+      group: "Wyświetlanie",
+    },
+    {
+      key: "showExcerpt",
+      type: "select",
+      label: "Pokaż opis (excerpt)",
+      options: [
+        { value: "1", label: "Tak" },
+        { value: "0", label: "Nie" },
+      ],
+      default: "1",
+      group: "Wyświetlanie",
+    },
+    {
+      key: "authorDisplay",
+      type: "select",
+      label: "Autor (wariant ranked)",
+      hint: "Wybierz sposób prezentacji autora pod tytułem.",
+      options: [
+        { value: "avatar", label: "Zdjęcie + imię i nazwisko" },
+        { value: "label", label: 'Etykieta „Autor: Imię Nazwisko"' },
+        { value: "none", label: "Bez autora" },
+      ],
+      default: "avatar",
+      visibleWhen: (c) => c.variant === "ranked",
+      group: "Autor",
+    },
+    {
+      key: "authorLabel",
+      type: "i18nText",
+      label: "Etykieta autora (i18n)",
+      hint: 'Puste = domyślnie „Autor" (PL) / „By" (EN). Wpisz własne słowo, np. „Pisze", „Rozmawia", „Words by".',
+      visibleWhen: (c) => c.variant === "ranked" && c.authorDisplay === "label",
+      group: "Autor",
+    },
   ],
+
   carousel: [
     { key: "limit", type: "number", label: "Limit", min: 1, max: 50 },
     {
@@ -2799,7 +2855,17 @@ pushLabelsFor("contact-form", [
   {
     key: "showExcerpt",
     type: "select",
-    label: "Pokaż zajawkę",
+    label: "Pokaż opis (zajawkę)",
+    options: [
+      { value: "1", label: "Tak" },
+      { value: "0", label: "Nie" },
+    ],
+    default: "1",
+  },
+  {
+    key: "showAuthor",
+    type: "select",
+    label: "Pokaż autora (zdjęcie + imię i nazwisko)",
     options: [
       { value: "1", label: "Tak" },
       { value: "0", label: "Nie" },
@@ -2819,4 +2885,17 @@ pushLabelsFor("contact-form", [
     ],
     default: "3",
   },
+  {
+    key: "audience",
+    type: "select",
+    label: "Widoczność (dla kogo)",
+    hint: "Domyślnie widget wyświetla się wyłącznie zalogowanym użytkownikom - rekomendacje bazują na ich zainteresowaniach, obserwacjach i historii czytania.",
+    options: [
+      { value: "auth", label: "Tylko zalogowani (zalecane)" },
+      { value: "all", label: "Wszyscy (goście widzą generyczny nagłówek)" },
+      { value: "guest", label: "Tylko niezalogowani" },
+    ],
+    default: "auth",
+  },
 ];
+

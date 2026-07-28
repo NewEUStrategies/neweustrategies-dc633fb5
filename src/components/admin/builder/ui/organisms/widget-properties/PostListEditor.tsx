@@ -17,6 +17,7 @@ import {
 import { PropField, CollapsibleSection as Collapsible, ColorField } from "../../atoms";
 import { AdminDatePicker } from "@/components/admin/blocks/AdminDatePicker";
 import { IndexColorPreview } from "./IndexColorPreview";
+import { DisplayLivePreview } from "./DisplayLivePreview";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import { ImageSlot } from "./ImageSlot";
 import { readThumbnailOverrides, setThumbnailOverride } from "@/lib/builder/thumbnailOverrides";
@@ -234,6 +235,94 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             </PropField>
           )}
         </div>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <PropField label={t("builder.postListEditor.showCover", { defaultValue: "Okładka" })}>
+            <Select
+              value={str(c, "showCover", "1") === "0" ? "0" : "1"}
+              onValueChange={(v) => setContent("showCover", v)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1" className="text-xs">{t("builder.postListEditor.yes", { defaultValue: "Tak" })}</SelectItem>
+                <SelectItem value="0" className="text-xs">{t("builder.postListEditor.no", { defaultValue: "Nie" })}</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          <PropField label={t("builder.postListEditor.showTitle", { defaultValue: "Tytuł" })}>
+            <Select
+              value={str(c, "showTitle", "1") === "0" ? "0" : "1"}
+              onValueChange={(v) => setContent("showTitle", v)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1" className="text-xs">{t("builder.postListEditor.yes", { defaultValue: "Tak" })}</SelectItem>
+                <SelectItem value="0" className="text-xs">{t("builder.postListEditor.no", { defaultValue: "Nie" })}</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          <PropField label={t("builder.postListEditor.showExcerpt", { defaultValue: "Opis" })}>
+            <Select
+              value={str(c, "showExcerpt", "1") === "0" ? "0" : "1"}
+              onValueChange={(v) => setContent("showExcerpt", v)}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1" className="text-xs">{t("builder.postListEditor.yes", { defaultValue: "Tak" })}</SelectItem>
+                <SelectItem value="0" className="text-xs">{t("builder.postListEditor.no", { defaultValue: "Nie" })}</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+        </div>
+        <div className="mt-2">
+          <PropField
+            label={t("builder.postListEditor.authorDisplay", { defaultValue: "Autor" })}
+            hint={t("builder.postListEditor.authorDisplayHint", {
+              defaultValue: "Sposób prezentacji autora pod tytułem.",
+            })}
+          >
+            <Select
+              value={str(c, "authorDisplay", "avatar")}
+              onValueChange={(v) => {
+                setContent("authorDisplay", v);
+                // Keep legacy toggles in sync so older variants that read them still update.
+                setContent("showAuthor", v !== "none" ? "1" : "0");
+                setContent("showAuthorAvatar", v === "avatar" ? "1" : "0");
+                setContent("showAuthorLabel", v === "label" ? "1" : "0");
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="avatar" className="text-xs">
+                  {t("builder.postListEditor.authorAvatar", { defaultValue: "Zdjęcie + imię i nazwisko" })}
+                </SelectItem>
+                <SelectItem value="label" className="text-xs">
+                  {t("builder.postListEditor.authorLabelMode", { defaultValue: "Etykieta: „Autor: Imię Nazwisko\"" })}
+                </SelectItem>
+                <SelectItem value="none" className="text-xs">
+                  {t("builder.postListEditor.authorNone", { defaultValue: "Bez autora" })}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          {str(c, "authorDisplay", "avatar") === "label" && (
+            <div className="mt-2">
+              <PropField
+                label={t("builder.postListEditor.authorLabelText", { defaultValue: "Etykieta autora (i18n)" })}
+                hint={t("builder.postListEditor.authorLabelHint", {
+                  defaultValue: "Puste = „Autor\" (PL) / „By\" (EN).",
+                })}
+              >
+                <Input
+                  value={str(c, `authorLabel_${lang}`, "")}
+                  placeholder={lang === "pl" ? "Autor" : "By"}
+                  onChange={(e) => setContent(`authorLabel_${lang}`, e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </PropField>
+            </div>
+          )}
+        </div>
+        <DisplayLivePreview c={c} lang={lang} />
       </Collapsible>
       {/* anchor */}
 

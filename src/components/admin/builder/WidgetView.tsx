@@ -570,7 +570,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
             onCommit={(v) => commit(key, v)}
             className={proseCls}
             style={colStyle}
-            placeholder="Wpisz tekst…"
+            placeholder={lang === "pl" ? "Wpisz tekst…" : "Type text…"}
           />,
         );
       }

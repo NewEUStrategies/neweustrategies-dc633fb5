@@ -30,6 +30,7 @@ import {
   findEditTargetElement,
   isEditTargetKey,
 } from "@/lib/builder/editTargets";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import type { Selection } from "./builder/types";
 
 interface Props {
@@ -82,6 +83,7 @@ function sameRect(a: Rects["el"], b: Rects["el"]) {
 
 export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }: Props) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const [target, setTarget] = useState<Target | null>(null);
   const [rects, setRects] = useState<Rects | null>(null);
   const [effectivePx, setEffectivePx] = useState<number | null>(null);
@@ -221,6 +223,7 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
 
   if (!target || !rects) return null;
   const meta = EDIT_TARGET_META[target.key];
+  const metaLabel = bl(meta.label);
   const shown = draft ?? String(override ?? effectivePx ?? meta.fallbackPx);
   const isAuto = override === undefined;
 
@@ -328,7 +331,7 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
         data-cms-size-toolbar
         data-builder-chrome="size-toolbar"
         role="toolbar"
-        aria-label={t("builder.inlineSize.fontSizeAria", { label: meta.label })}
+        aria-label={t("builder.inlineSize.fontSizeAria", { label: metaLabel })}
         onPointerDown={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
@@ -364,9 +367,9 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
             whiteSpace: "nowrap",
             flex: "0 0 auto",
           }}
-          title={meta.label}
+          title={metaLabel}
         >
-          {meta.label}
+          {metaLabel}
         </span>
         <button
           type="button"
@@ -380,7 +383,7 @@ export function InlineSizeToolbar({ doc, selection, setSelection, updateWidget }
         <input
           type="text"
           inputMode="numeric"
-          aria-label={t("builder.inlineSize.pxSizeAria", { label: meta.label })}
+          aria-label={t("builder.inlineSize.pxSizeAria", { label: metaLabel })}
           value={shown}
           onFocus={() => setDraft(String(override ?? effectivePx ?? meta.fallbackPx))}
           onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}

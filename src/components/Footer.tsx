@@ -13,7 +13,7 @@ import { BackToTop } from "@/components/footer/BackToTop";
 import { CopyrightBar } from "@/components/footer/CopyrightBar";
 import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
 import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
-import { currentLang } from "@/lib/i18n/localeRuntime";
+import { useLang } from "@/lib/i18n/useLang";
 
 type FooterSettings = {
   builder_data?: BuilderDocument | null;
@@ -25,12 +25,12 @@ interface FooterProps {
 }
 
 export const Footer = memo(function Footer({ compact }: FooterProps) {
-  // SSR-correct language: derived from the request URL on the server and from
-  // the URL on hydration, so the footer's PL/EN content matches the rendered
-  // HTML on first paint (i18next's async language switch would flash the wrong
-  // language during SSR/hydration).
-  const lang = currentLang();
+  // URL-seeded language: SSR-safe first render + synchronous re-render on
+  // language switch, without the i18n.language hydration-flicker window.
+  const lang = useLang();
   const isPl = lang === "pl";
+
+
 
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<FooterSettings>(settingsMap, "footer", {});

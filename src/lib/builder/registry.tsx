@@ -516,7 +516,7 @@ export const WIDGETS: WidgetDef[] = [
   { type: "tags", label: "Tagi", category: "dynamic", icon: Tags, defaults: () => ({}) },
   {
     type: "tailored-must-reads",
-    label: "Rekomendacje z imieniem",
+    label: "Tailored must-reads (rekomendacje z imieniem)",
     category: "dynamic",
     icon: UserPlus,
     defaults: () => ({
@@ -530,6 +530,7 @@ export const WIDGETS: WidgetDef[] = [
       kicker_en: "Recommended for you",
       showKicker: "1",
       showExcerpt: "1",
+      showAuthor: "1",
     }),
   },
   // Forms
