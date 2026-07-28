@@ -64,7 +64,7 @@ const FOOTER_COPY = {
 
 /**
  * Wspólna ramka maili systemowych NES: jasny header z poziomym logo,
- * ciemny hero (#141313) z ikoną Lucide i tytułem, biała karta treści
+ * ciemny hero (#141313) z logo w wariancie dark, tytułem i ikoną Lucide pod nim, biała karta treści
  * oraz ciemna stopka z logo w wersji dark.
  */
 export const NesEmailLayout = ({
@@ -83,29 +83,27 @@ export const NesEmailLayout = ({
       <Preview>{preview}</Preview>
       <Body style={main}>
         <Container style={outer}>
-          <Section style={header}>
-            <Link href={siteUrl}>
-              <Img
-                src={NES_LOGO_LIGHT}
-                alt="New European Strategies"
-                width={186}
-                height={77}
-                style={logoImg}
-              />
-            </Link>
-          </Section>
-
-          {(heading || eyebrowText) && (
-            <Section style={hero}>
-              {icon ? (
-                <Section style={heroIconWrap}>
-                  <EmailIcon name={icon} size={34} style={{ margin: "0 auto" }} />
-                </Section>
-              ) : null}
-              {eyebrowText ? <Text style={heroEyebrow}>{eyebrowText}</Text> : null}
-              {heading ? <Text style={heroTitle}>{heading}</Text> : null}
+          {/* Hero renderujemy zawsze - to on niesie logo marki (wariant dark). */}
+          <Section style={hero}>
+            <Section style={heroLogoWrap}>
+              <Link href={siteUrl}>
+                <Img
+                  src={NES_LOGO_DARK}
+                  alt="New European Strategies"
+                  width={168}
+                  height={70}
+                  style={logoImg}
+                />
+              </Link>
             </Section>
-          )}
+            {eyebrowText ? <Text style={heroEyebrow}>{eyebrowText}</Text> : null}
+            {heading ? <Text style={heroTitle}>{heading}</Text> : null}
+            {icon ? (
+              <Section style={heroIconWrap}>
+                <EmailIcon name={icon} size={30} style={{ margin: "0 auto" }} />
+              </Section>
+            ) : null}
+          </Section>
 
           <Section style={card}>{children}</Section>
 
@@ -134,9 +132,7 @@ export const NesEmailLayout = ({
               </Link>
             </Text>
             <Text style={footerNote}>{f.auto}</Text>
-            <Text style={footerNote}>
-              © {new Date().getFullYear()} New European Strategies
-            </Text>
+            <Text style={footerNote}>© {new Date().getFullYear()} New European Strategies</Text>
           </Section>
         </Container>
       </Body>
@@ -159,13 +155,6 @@ const outer: React.CSSProperties = {
   width: "100%",
 };
 
-const header: React.CSSProperties = {
-  backgroundColor: SAND,
-  borderRadius: "10px 10px 0 0",
-  padding: "22px 28px",
-  textAlign: "center" as const,
-};
-
 const logoImg: React.CSSProperties = {
   display: "block",
   margin: "0 auto",
@@ -176,12 +165,19 @@ const hero: React.CSSProperties = {
   backgroundColor: INK,
   backgroundImage: `linear-gradient(140deg, ${INK} 0%, ${INK_SOFT} 62%, #2c211a 100%)`,
   borderBottom: `3px solid ${ORANGE}`,
+  borderRadius: "10px 10px 0 0",
   padding: "30px 28px 28px",
   textAlign: "center" as const,
 };
 
+const heroLogoWrap: React.CSSProperties = {
+  margin: "0 0 16px",
+  textAlign: "center" as const,
+};
+
+/** Ikona Lucide siedzi POD tytulem hero (logo przejelo miejsce nad nim). */
 const heroIconWrap: React.CSSProperties = {
-  margin: "0 0 12px",
+  margin: "16px 0 0",
   textAlign: "center" as const,
 };
 
