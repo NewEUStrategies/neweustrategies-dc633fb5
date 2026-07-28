@@ -1250,6 +1250,10 @@ function WidgetHeightControl({
           {disabledReason}
         </p>
       ) : null}
+    </>
+  );
+}
+
 
 
   );
