@@ -261,7 +261,229 @@ const pricingThreeColDoc = (): BuilderDocument => ({
   ],
 });
 
-// ---------------- POST PATTERNS ----------------
+// ---------------- EVENT / MEETING / SPEAKERS / AGENDA ----------------
+
+const eventPageDoc = (): BuilderDocument => ({
+  version: 1,
+  sections: [
+    s(
+      [
+        c(12, [
+          w("heading", {
+            text_pl: "Nazwa wydarzenia",
+            text_en: "Event name",
+            tag: "h1",
+            sizePreset: "xl",
+          }),
+          w("text", {
+            html_pl: "<p>Krótki opis wydarzenia - miejsce, data, dla kogo.</p>",
+            html_en: "<p>Short event description - venue, date, audience.</p>",
+          }),
+          w("event-countdown", {
+            mode: "custom",
+            targetAt: "",
+            title_pl: "Do startu wydarzenia",
+            title_en: "Event starts in",
+            doneText_pl: "Wydarzenie trwa!",
+            doneText_en: "The event is live!",
+            showSeconds: true,
+            size: "lg",
+            accentColor: "",
+            href: "",
+          }),
+          w("button", {
+            label_pl: "Zarejestruj się",
+            label_en: "Register",
+            href: "#rsvp",
+            variant: "primary",
+            size: "lg",
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140, verticalAlign: "middle" },
+        style: { padding: { desktop: "80px 24px" }, align: { desktop: "center" } },
+      },
+    ),
+    s(
+      [
+        c(12, [
+          w("event-schedule", {
+            heading_pl: "Agenda",
+            heading_en: "Schedule",
+            columns: 2,
+            showDayTabs: true,
+            openProfile: true,
+          }),
+        ]),
+      ],
+      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "64px 24px" } } },
+    ),
+    s(
+      [
+        c(12, [
+          w("speakers", {
+            heading_pl: "Prelegenci",
+            heading_en: "Speakers",
+            columns: 3,
+            source: "event",
+            eventId: "",
+            limit: 12,
+            openProfile: true,
+          }),
+        ]),
+      ],
+      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "64px 24px" } } },
+    ),
+    s(
+      [
+        c(12, [
+          w("event-sponsors", {
+            heading_pl: "Sponsorzy i partnerzy",
+            heading_en: "Sponsors & partners",
+            grayscale: true,
+          }),
+        ]),
+      ],
+      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "64px 24px 96px" } } },
+    ),
+  ],
+});
+
+const chathamPageDoc = (): BuilderDocument => ({
+  version: 1,
+  sections: [
+    s(
+      [
+        c(12, [
+          w("heading", {
+            text_pl: "Spotkanie Chatham House",
+            text_en: "Chatham House meeting",
+            tag: "h1",
+            sizePreset: "xl",
+          }),
+          w("text", {
+            html_pl:
+              "<p><strong>Reguła Chatham House:</strong> uczestnicy mogą swobodnie korzystać z otrzymanych informacji, ale nie ujawniają tożsamości ani afiliacji mówców.</p><p>Zamknięte spotkanie eksperckie dla zaproszonych gości - dyskusja przy okrągłym stole.</p>",
+            html_en:
+              "<p><strong>Chatham House Rule:</strong> participants are free to use the information received, but neither the identity nor the affiliation of the speakers may be revealed.</p><p>Closed, invitation-only expert roundtable discussion.</p>",
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 960, verticalAlign: "middle" },
+        style: { padding: { desktop: "80px 24px 32px" } },
+      },
+    ),
+    s(
+      [
+        c(6, [
+          w("heading", { text_pl: "Kiedy i gdzie", text_en: "When & where", tag: "h3", sizePreset: "md" }),
+          w("text", {
+            html_pl: "<p>Data: -<br/>Miejsce: -<br/>Format: dyskusja moderowana</p>",
+            html_en: "<p>Date: -<br/>Venue: -<br/>Format: moderated discussion</p>",
+          }),
+        ]),
+        c(6, [
+          w("heading", { text_pl: "Dla kogo", text_en: "Who it is for", tag: "h3", sizePreset: "md" }),
+          w("text", {
+            html_pl: "<p>Zaproszeni eksperci, decydenci i analitycy - lista zamknięta.</p>",
+            html_en: "<p>Invited experts, decision-makers and analysts - closed list.</p>",
+          }),
+        ]),
+      ],
+      { layout: { contentWidth: "boxed", width: 960 }, style: { padding: { desktop: "16px 24px 32px" } } },
+    ),
+    s(
+      [
+        c(12, [
+          w("heading", { text_pl: "Uczestnicy", text_en: "Participants", tag: "h2", sizePreset: "lg" }),
+          w("speakers", {
+            heading_pl: "",
+            heading_en: "",
+            columns: 4,
+            source: "event",
+            eventId: "",
+            limit: 24,
+            openProfile: true,
+          }),
+        ]),
+      ],
+      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "32px 24px 96px" } } },
+    ),
+  ],
+});
+
+const speakersPageDoc = (): BuilderDocument => ({
+  version: 1,
+  sections: [
+    s(
+      [
+        c(12, [
+          w("heading", { text_pl: "Prelegenci", text_en: "Speakers", tag: "h1", sizePreset: "xl" }),
+          w("text", {
+            html_pl: "<p>Poznaj ekspertów, którzy zabierają głos podczas naszych wydarzeń.</p>",
+            html_en: "<p>Meet the experts speaking at our events.</p>",
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "80px 24px 24px" }, align: { desktop: "center" } },
+      },
+    ),
+    s(
+      [
+        c(12, [
+          w("speakers", {
+            heading_pl: "",
+            heading_en: "",
+            columns: 3,
+            source: "directory",
+            limit: 48,
+            openProfile: true,
+          }),
+        ]),
+      ],
+      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "24px 24px 96px" } } },
+    ),
+  ],
+});
+
+const agendaPageDoc = (): BuilderDocument => ({
+  version: 1,
+  sections: [
+    s(
+      [
+        c(12, [
+          w("heading", { text_pl: "Agenda", text_en: "Schedule", tag: "h1", sizePreset: "xl" }),
+          w("text", {
+            html_pl: "<p>Pełny program wydarzenia - sesje, przerwy i networking.</p>",
+            html_en: "<p>Full event programme - sessions, breaks and networking.</p>",
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "80px 24px 24px" }, align: { desktop: "center" } },
+      },
+    ),
+    s(
+      [
+        c(12, [
+          w("event-schedule", {
+            heading_pl: "",
+            heading_en: "",
+            columns: 2,
+            showDayTabs: true,
+            openProfile: true,
+          }),
+        ]),
+      ],
+      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "24px 24px 96px" } } },
+    ),
+  ],
+});
 
 const articleBasicPL = `<p><em>Wprowadzenie - jednym akapitem oddaj to, dlaczego ten tekst powstał.</em></p>
 <h2>Tło</h2>
@@ -329,6 +551,54 @@ export const PATTERNS: Pattern[] = [
     },
     defaultTitle: { pl: "Cennik", en: "Pricing" },
     builder: pricingThreeColDoc(),
+  },
+  {
+    id: "page.event",
+    kind: "page",
+    category: "event",
+    name: { pl: "Wydarzenie - strona główna", en: "Event - landing page" },
+    description: {
+      pl: "Nagłówek z odliczaniem, agenda, prelegenci i sponsorzy.",
+      en: "Hero with countdown, agenda, speakers and sponsors.",
+    },
+    defaultTitle: { pl: "Nowe wydarzenie", en: "New event" },
+    builder: eventPageDoc(),
+  },
+  {
+    id: "page.chatham",
+    kind: "page",
+    category: "chatham",
+    name: { pl: "Spotkanie Chatham House", en: "Chatham House meeting" },
+    description: {
+      pl: "Zamknięta dyskusja z regułą Chatham House - opis, logistyka, uczestnicy.",
+      en: "Closed discussion under the Chatham House Rule - brief, logistics, participants.",
+    },
+    defaultTitle: { pl: "Spotkanie Chatham House", en: "Chatham House meeting" },
+    builder: chathamPageDoc(),
+  },
+  {
+    id: "page.speakers",
+    kind: "page",
+    category: "speakers",
+    name: { pl: "Prelegenci - katalog", en: "Speakers - directory" },
+    description: {
+      pl: "Siatka prelegentów z profilami - źródło: katalog prelegentów.",
+      en: "Grid of speakers with profiles - source: speakers directory.",
+    },
+    defaultTitle: { pl: "Prelegenci", en: "Speakers" },
+    builder: speakersPageDoc(),
+  },
+  {
+    id: "page.agenda",
+    kind: "page",
+    category: "agenda",
+    name: { pl: "Agenda wydarzenia", en: "Event agenda" },
+    description: {
+      pl: "Pełna agenda z zakładkami dni, sesjami i przerwami.",
+      en: "Full agenda with day tabs, sessions and breaks.",
+    },
+    defaultTitle: { pl: "Agenda", en: "Schedule" },
+    builder: agendaPageDoc(),
   },
   {
     id: "post.article.basic",

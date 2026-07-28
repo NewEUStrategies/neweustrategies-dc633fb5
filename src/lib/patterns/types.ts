@@ -15,7 +15,18 @@ interface PatternBase {
   id: string;
   kind: PatternKind;
   /** Visual category surfaced as a filter chip. */
-  category: "landing" | "about" | "article" | "longform" | "contact" | "pricing" | "blog";
+  category:
+    | "landing"
+    | "about"
+    | "article"
+    | "longform"
+    | "contact"
+    | "pricing"
+    | "blog"
+    | "event"
+    | "chatham"
+    | "speakers"
+    | "agenda";
   name: PatternI18nText;
   description: PatternI18nText;
   /** Optional preview thumbnail. When absent, we render the live document. */
