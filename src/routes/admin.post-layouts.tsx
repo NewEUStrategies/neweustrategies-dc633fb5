@@ -15,10 +15,12 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { adminToast } from "@/lib/adminToasts";
+import { ensureI18n as ensureAdminLayoutsI18n } from "@/lib/i18n-admin-layouts";
 
 export const Route = createFileRoute("/admin/post-layouts")({ component: Page });
 
 function Page() {
+  ensureAdminLayoutsI18n();
   const { t } = useTranslation();
   const { data } = usePostLayoutSettings();
   const save = useSavePostLayoutSettings();
