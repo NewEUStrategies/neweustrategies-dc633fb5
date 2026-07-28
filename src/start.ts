@@ -3,6 +3,7 @@ import { createStart, createMiddleware, createCsrfMiddleware } from "@tanstack/r
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { isLocalizablePath, localizedPath, normalizeLang } from "@/lib/i18n/localePath";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
+import { langCookieHeaderValue, resolveHomepageLang } from "@/lib/i18n/langNegotiation";
 import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
 import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
 import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
@@ -109,6 +110,7 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
     // Zostajemy na "/" - tylko utrwalamy wykrytą preferencję na kolejne wizyty.
     if (!decision.persistCookie) return next();
     const response = await next();
+    if (!(response instanceof Response)) return response;
     const merged = new Headers(response.headers);
     for (const cookie of headers.getSetCookie()) merged.append("Set-Cookie", cookie);
     merged.append("Vary", "Accept-Language");
@@ -122,7 +124,7 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
   headers.set("Location", `${decision.location}${url.search}`);
   headers.set("Cache-Control", "no-store");
   headers.set("Vary", "Cookie, Accept-Language");
-  return new Response(null { status: 302, headers });
+  return new Response(null, { status: 302, headers });
 });
 
 
