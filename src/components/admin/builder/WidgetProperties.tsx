@@ -1115,10 +1115,12 @@ function WidgetHeightControl({
   const setFixedHeight = (next: number) => onChange(Math.max(40, Math.min(2400, next)));
   const disabled = !!disabledReason;
   return (
+    <>
     <div
       className={`space-y-2 ${disabled ? "opacity-60 pointer-events-none select-none" : ""}`}
       aria-disabled={disabled || undefined}
     >
+
 
       <div
         className="relative h-20 overflow-hidden rounded-md border border-border bg-muted/30 p-2"
