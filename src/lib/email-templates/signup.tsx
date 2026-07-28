@@ -11,7 +11,7 @@ import {
   infoText,
   linkStyle,
   NesEmailLayout,
-  noteBox,
+  SecurityNote,
   smallPrint,
   text,
   type EmailLang,
@@ -64,9 +64,7 @@ export const SignupEmail = ({
         </Text>
       </Section>
       <IconRow name="clock" textStyle={text}>{c.expiry}</IconRow>
-      <Section style={noteBox}>
-        <IconRow name="lock" textStyle={infoText}>{c.security}</IconRow>
-      </Section>
+      <SecurityNote lang={lang}>{c.security}</SecurityNote>
       <Text style={smallPrint}>
         {lang === "pl"
           ? "Potrzebujesz pomocy? Napisz do nas - odpowiadamy w dni robocze."

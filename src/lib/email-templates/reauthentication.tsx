@@ -9,7 +9,7 @@ import {
   greeting,
   NesEmailLayout,
   infoText,
-  noteBox,
+  SecurityNote,
   smallPrint,
   text,
   type EmailLang,
@@ -50,9 +50,7 @@ export const ReauthenticationEmail = ({
         <Text style={codeStyle}>{token}</Text>
       </Section>
       <IconRow name="clock" textStyle={text}>{c.expiry}</IconRow>
-      <Section style={noteBox}>
-        <IconRow name="lock" textStyle={infoText}>{c.security}</IconRow>
-      </Section>
+      <SecurityNote lang={lang}>{c.security}</SecurityNote>
       <Text style={smallPrint}>
         {lang === "pl"
           ? "Potrzebujesz pomocy? Napisz do nas - odpowiadamy w dni robocze."

@@ -353,3 +353,22 @@ export const smallPrint: React.CSSProperties = {
   lineHeight: "1.6",
   margin: "22px 0 0",
 };
+
+/**
+ * Nota bezpieczenstwa - stonowana typografia zamiast kolorowego "alert boxa".
+ * Cienka linia u gory, wersalikowa etykieta, tekst w kolorze tresci.
+ */
+export const SecurityNote = ({
+  lang,
+  children,
+  label,
+}: {
+  lang: EmailLang;
+  children: React.ReactNode;
+  label?: string;
+}) => (
+  <Section style={noteBox}>
+    <Text style={noteLabel}>{label ?? (lang === "pl" ? "Bezpieczeństwo" : "Security")}</Text>
+    <Text style={infoText}>{children}</Text>
+  </Section>
+);
