@@ -339,9 +339,11 @@ export function PostListView({
               <div
                 className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-0" : "pr-10 sm:pr-12 lg:pr-0"}`}
               >
-                <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                  {title(p)}
-                </h4>
+                {title(p) && (
+                  <h4 className="cms-post-title line-clamp-3" style={tStyle}>
+                    {title(p)}
+                  </h4>
+                )}
                 {showAuthorAny && authorName(p) && (
                   <div className="cms-meta mt-2 flex items-center gap-2 min-w-0">
                     {authorDisplay === "avatar" ? (
