@@ -483,7 +483,7 @@ const PL = {
   },
   help: {
     email:
-      "Wysyłka e-maili wymaga skonfigurowanego konektora Resend (RESEND_API_KEY). Bez niego wiadomości są zapisywane, ale e-maile nie są wysyłane.",
+      "Wysyłka e-maili wymaga skonfigurowanego dostawcy poczty. Bez niego wiadomości są zapisywane, ale e-maile nie są wysyłane.",
     newsletter:
       "Po wysłaniu wiadomości użytkownik otrzyma osobny e-mail z linkiem potwierdzającym zapis do newslettera.",
   },
@@ -520,7 +520,7 @@ const EN = {
   },
   help: {
     email:
-      "Email delivery requires the Resend connector (RESEND_API_KEY). Without it, messages are stored but no emails are sent.",
+      "Email delivery requires a configured mail provider. Without it, messages are stored but no emails are sent.",
     newsletter:
       "After submitting, the user gets a separate email with a link to confirm their newsletter subscription.",
   },

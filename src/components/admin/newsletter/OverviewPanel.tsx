@@ -226,7 +226,7 @@ export function OverviewPanel() {
                 placeholder="newsletter@twoja-domena.pl"
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Wymaga zweryfikowanej domeny w Resend.
+                Wymaga zweryfikowanej domeny nadawcy.
               </p>
             </div>
           </div>

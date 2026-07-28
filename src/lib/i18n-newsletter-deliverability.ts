@@ -51,7 +51,7 @@ const pl = {
       configured: "Webhook skonfigurowany",
       missing: "Brak sekretu webhooka",
       missingBody:
-        "Ustaw RESEND_WEBHOOK_SECRET w sekretach projektu i dodaj poniższy adres w panelu Resend. Bez tego odbicia i skargi nie trafiają do platformy, a lista wykluczeń nie rośnie.",
+        "Ustaw sekret webhooka dostarczalności w sekretach projektu i dodaj poniższy adres u dostawcy poczty. Bez tego odbicia i skargi nie trafiają do naszych logów, a lista wykluczeń nie rośnie.",
       urlLabel: "Adres endpointu",
       eventsLabel: "Zdarzenia",
       copy: "Kopiuj",
@@ -184,7 +184,7 @@ const en: typeof pl = {
       configured: "Webhook configured",
       missing: "Webhook secret missing",
       missingBody:
-        "Set RESEND_WEBHOOK_SECRET in the project secrets and add the URL below in the Resend dashboard. Without it bounces and complaints never reach the platform and the suppression list stays empty.",
+        "Set the deliverability webhook secret in the project secrets and add the URL below at your mail provider. Without it bounces and complaints never reach our logs and the suppression list stays empty.",
       urlLabel: "Endpoint URL",
       eventsLabel: "Events",
       copy: "Copy",
