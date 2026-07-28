@@ -664,6 +664,8 @@ function PostCard({
   excerpt,
   titleStyle,
   excerptStyle,
+  authorNode,
+  authorOverlayNode,
 }: {
   p: PostRow;
   variant: Variant;
@@ -673,6 +675,8 @@ function PostCard({
   excerpt: string;
   titleStyle?: React.CSSProperties;
   excerptStyle?: React.CSSProperties;
+  authorNode?: React.ReactNode;
+  authorOverlayNode?: React.ReactNode;
 }) {
   const isBoxed = variant === "boxed-grid";
   const base = `${isBoxed ? "bg-card" : "bg-transparent"} border border-border rounded-md overflow-hidden transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
@@ -701,6 +705,7 @@ function PostCard({
               {title}
             </h4>
           )}
+          {authorOverlayNode}
         </div>
       </AppLink>
     );
@@ -732,6 +737,7 @@ function PostCard({
             {excerpt}
           </p>
         )}
+        {authorNode}
       </AppLink>
     );
   }
@@ -760,6 +766,7 @@ function PostCard({
             {excerpt}
           </p>
         )}
+        {authorNode}
       </div>
     </AppLink>
   );
