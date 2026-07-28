@@ -13,6 +13,7 @@
 
 export type PageTopicKey =
   | "all"
+  | "basic"
   | "events"
   | "conferences"
   | "chatham"
@@ -22,7 +23,6 @@ export type PageTopicKey =
   | "membership"
   | "editorial"
   | "legal"
-  | "basic"
   | "forms"
   | "recruitment"
   | "mentoring"
@@ -42,6 +42,38 @@ export interface PageTopicDef {
 // idą PRZED ogólnym "events".
 export const TOPICS: readonly PageTopicDef[] = [
   { key: "all", label_pl: "Wszystkie", label_en: "All", slugPatterns: [] },
+  {
+    key: "basic",
+    label_pl: "Strony podstawowe",
+    label_en: "Basic pages",
+    slugPatterns: [
+      "main",
+      "home",
+      "blog",
+      "blog-%",
+      "moje-konto",
+      "my-account",
+      "account",
+      "koszyk",
+      "cart",
+      "checkout",
+      "zamowienie",
+      "zamowienia",
+      "order",
+      "orders",
+      "login",
+      "sign-in",
+      "register",
+      "sign-up",
+      "password-reset",
+      "reset-password",
+      "logout",
+      "sitemap",
+      "search",
+      "wyszukiwarka",
+      "404",
+    ],
+  },
   {
     key: "conferences",
     label_pl: "Konferencje i panele",
@@ -186,38 +218,6 @@ export const TOPICS: readonly PageTopicDef[] = [
       "%-subscribe",
       "newsletter%",
       "%-newsletter",
-    ],
-  },
-  {
-    key: "basic",
-    label_pl: "Strony podstawowe",
-    label_en: "Basic pages",
-    slugPatterns: [
-      "main",
-      "home",
-      "blog",
-      "blog-%",
-      "moje-konto",
-      "my-account",
-      "account",
-      "koszyk",
-      "cart",
-      "checkout",
-      "zamowienie",
-      "zamowienia",
-      "order",
-      "orders",
-      "login",
-      "sign-in",
-      "register",
-      "sign-up",
-      "password-reset",
-      "reset-password",
-      "logout",
-      "sitemap",
-      "search",
-      "wyszukiwarka",
-      "404",
     ],
   },
   { key: "other", label_pl: "Pozostałe", label_en: "Other", slugPatterns: [] },
