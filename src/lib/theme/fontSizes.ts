@@ -248,15 +248,19 @@ function lineHeightRulesCss(): string {
 function spacingRulesCss(): string {
   return [
     `.post-content.post-content :is(h1,h2,h3,h4,h5,h6),`,
+    `.blocks-content.blocks-content :is(h1,h2,h3,h4,h5,h6),`,
     `.single-post-content.single-post-content :is(h1,h2,h3,h4,h5,h6),`,
     `[data-builder-renderer] > [data-block-type="heading"]`,
     `{margin-top:var(--sp-heading-top);margin-bottom:var(--sp-heading-bottom);}`,
     `.post-content.post-content :is(ul,ol),`,
+    `.blocks-content.blocks-content :is(ul,ol),`,
     `.single-post-content.single-post-content :is(ul,ol)`,
     `{margin-bottom:var(--sp-list);}`,
     `.post-content.post-content blockquote,`,
+    `.blocks-content.blocks-content blockquote,`,
     `.single-post-content.single-post-content blockquote,`,
     `[data-builder-renderer] > [data-block-type="quote"]`,
     `{margin-top:var(--sp-blockquote);margin-bottom:var(--sp-blockquote);}`,
   ].join("");
 }
+
