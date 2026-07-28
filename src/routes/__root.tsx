@@ -40,7 +40,7 @@ import { ConsentBanner } from "../components/ConsentBanner";
 import { ConsentScriptInjector } from "../components/ConsentScriptInjector";
 import { useEffectiveConsent } from "../lib/ads/consent";
 import { ConsentPreviewPanel } from "../components/ConsentPreviewPanel";
-import { LocalePreferenceRedirect } from "../components/LocalePreferenceRedirect";
+
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
@@ -417,7 +417,7 @@ function RootComponent() {
     <I18nextProvider i18n={renderI18n}>
       <ThemeProvider>
         <AuthProvider>
-          <LocalePreferenceRedirect />
+          
           <IconPackSync />
           <WidgetLiveSync />
           <SiteSettingsLiveSync />

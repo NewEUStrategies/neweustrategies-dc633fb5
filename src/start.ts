@@ -302,6 +302,7 @@ export const startInstance = createStart(() => ({
     seo404Middleware,
     redirectMiddleware,
     legacyLangQueryMiddleware,
+    homepageLangMiddleware,
     documentCacheMiddleware,
     defaultCacheControlMiddleware,
   ],
