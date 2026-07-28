@@ -107,6 +107,16 @@ const FontSizesSchema = z
           transform: "uppercase",
         },
       }),
+    // Odstępy pionowe treści (rem). Wspólne dla frontu i canvasa buildera -
+    // dzięki temu Enter w Gutenbergu daje ten sam rytm co publiczny wpis.
+    spacing: z
+      .object({
+        headingTopRem: z.coerce.number().min(0).max(6),
+        headingBottomRem: z.coerce.number().min(0).max(6),
+        listRem: z.coerce.number().min(0).max(6),
+        blockquoteRem: z.coerce.number().min(0).max(6),
+      })
+      .default({ headingTopRem: 2, headingBottomRem: 0.75, listRem: 1.5, blockquoteRem: 1.75 }),
     mobileBreakpoint: clamp(360, 1024).default(768),
   })
   .default({});
