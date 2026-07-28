@@ -3,6 +3,7 @@ import * as React from "react";
 import { Button, Section, Text } from "@react-email/components";
 
 import { authCopy, EMAIL_CHANGE_LABELS } from "./copy";
+import { IconRow } from "./icons";
 import {
   buttonStyle,
   greeting,
