@@ -7,7 +7,8 @@
 // Renderer jest deterministyczny podczas SSR (bookmarki hydratują po mount),
 // używa tokenów Theme Design i wspiera dark/light. Kompatybilny z istniejącym
 // SpeakersEditor - żadne pole danych nie zostało zmienione.
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import {
@@ -163,6 +164,10 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   const [sort, setSort] = useState<SortKey>("default");
   const [visibleCount, setVisibleCount] = useState<number>(pageSize > 0 ? pageSize : 0);
   const [bookmarks, setBookmarks] = useState<Set<string>>(() => new Set());
+  const [dialogSpeaker, setDialogSpeaker] = useState<{
+    userId: string;
+    fallback?: SpeakerDialogFallback;
+  } | null>(null);
 
   // Bookmarki są zapisywane per widget (node.id), żeby dwa widgety Speakers
   // na różnych stronach nie współdzieliły stanu. Stary klucz globalny jest
@@ -278,6 +283,23 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
 
   const dbLoading = source !== "manual" && dbQ.isLoading;
 
+  const onOpenProfile = (item: SpeakerItem) => {
+    if (!openProfile) return;
+    const userId = getStr(item as WidgetContent, "user_id");
+    if (!userId) return;
+    setDialogSpeaker({
+      userId,
+      fallback: {
+        name: getStr(item as WidgetContent, "name") || undefined,
+        role: loc(item, "role", lang) || undefined,
+        photo:
+          safeImageUrl(
+            getStr(item as WidgetContent, "photo") || getStr(item as WidgetContent, "image"),
+          ) || undefined,
+      },
+    });
+  };
+
   return (
     <section className="cms-speakers space-y-6" style={accentStyle}>
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -334,10 +356,12 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
           {enableSearch && (
             <label className="relative flex-1">
               <span className="sr-only">{lang === "pl" ? "Szukaj" : "Search"}</span>
-              <SearchIcon
-                aria-hidden
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60"
-              />
+              <span className="pointer-events-none absolute left-3 top-0 flex h-10 w-10 items-center justify-center">
+                <SearchIcon
+                  aria-hidden
+                  className="h-4 w-4 text-muted-foreground/60"
+                />
+              </span>
               <input
                 type="search"
                 value={query}
@@ -350,7 +374,7 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
                     ? "Szukaj po imieniu, roli, opisie…"
                     : "Search by name, role, description…"
                 }
-                className="h-10 w-full rounded-[6px] border border-border/60 bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/50"
+                className="h-10 w-full rounded-[6px] border border-border/60 bg-background pl-11 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/50"
               />
             </label>
           )}
@@ -396,6 +420,7 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
             index={i}
             bookmarked={bookmarks.has(id)}
             onToggleBookmark={() => toggleBookmark(id)}
+            onOpenProfile={() => onOpenProfile(item)}
           />
         ))}
         {paginated.length === 0 && (
@@ -519,6 +544,7 @@ function SpeakerCard({
   index,
   bookmarked,
   onToggleBookmark,
+  onOpenProfile,
 }: {
   item: SpeakerItem;
   lang: Lang;
@@ -526,6 +552,7 @@ function SpeakerCard({
   index: number;
   bookmarked: boolean;
   onToggleBookmark: () => void;
+  onOpenProfile?: () => void;
 }) {
   const photo = safeImageUrl(
     getStr(item as WidgetContent, "photo") || getStr(item as WidgetContent, "image"),

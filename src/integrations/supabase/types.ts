@@ -4157,6 +4157,105 @@ export type Database = {
           },
         ]
       }
+      meeting_bookings: {
+        Row: {
+          attendee_user_id: string
+          created_at: string
+          id: string
+          note: string | null
+          slot_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attendee_user_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          slot_id: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attendee_user_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          slot_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_bookings_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_bookings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_slots: {
+        Row: {
+          created_at: string
+          ends_at: string
+          event_id: string | null
+          host_user_id: string
+          id: string
+          is_public: boolean
+          location: string | null
+          starts_at: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at: string
+          event_id?: string | null
+          host_user_id: string
+          id?: string
+          is_public?: boolean
+          location?: string | null
+          starts_at: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          event_id?: string | null
+          host_user_id?: string
+          id?: string
+          is_public?: boolean
+          location?: string | null
+          starts_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_slots_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_slots_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_organizations: {
         Row: {
           brand_accent: string | null
@@ -9472,6 +9571,95 @@ export type Database = {
         }
         Relationships: []
       }
+      speaker_profiles: {
+        Row: {
+          bio_en: string | null
+          bio_pl: string | null
+          created_at: string
+          crm_lead_id: string | null
+          headline_en: string | null
+          headline_pl: string | null
+          id: string
+          is_public: boolean
+          languages: string[]
+          rating: number
+          reviews_count: number
+          talks_count: number
+          tenant_id: string
+          topics_en: string[]
+          topics_pl: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bio_en?: string | null
+          bio_pl?: string | null
+          created_at?: string
+          crm_lead_id?: string | null
+          headline_en?: string | null
+          headline_pl?: string | null
+          id?: string
+          is_public?: boolean
+          languages?: string[]
+          rating?: number
+          reviews_count?: number
+          talks_count?: number
+          tenant_id?: string
+          topics_en?: string[]
+          topics_pl?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bio_en?: string | null
+          bio_pl?: string | null
+          created_at?: string
+          crm_lead_id?: string | null
+          headline_en?: string | null
+          headline_pl?: string | null
+          id?: string
+          is_public?: boolean
+          languages?: string[]
+          rating?: number
+          reviews_count?: number
+          talks_count?: number
+          tenant_id?: string
+          topics_en?: string[]
+          topics_pl?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "speaker_profiles_crm_lead_id_fkey"
+            columns: ["crm_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "speaker_profiles_crm_lead_id_fkey"
+            columns: ["crm_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaker_profiles_crm_lead_id_fkey"
+            columns: ["crm_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaker_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tags: {
         Row: {
           created_at: string
@@ -10973,6 +11161,30 @@ export type Database = {
         Returns: undefined
       }
       admin_community_stats: { Args: never; Returns: Json }
+      admin_delete_speaker_profile: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
+      admin_get_speaker_profile: {
+        Args: { p_user_id: string }
+        Returns: {
+          bio_en: string
+          bio_pl: string
+          crm_lead_id: string
+          headline_en: string
+          headline_pl: string
+          id: string
+          is_public: boolean
+          languages: string[]
+          rating: number
+          reviews_count: number
+          talks_count: number
+          topics_en: string[]
+          topics_pl: string[]
+          updated_at: string
+          user_id: string
+        }[]
+      }
       admin_get_user: {
         Args: { _user_id: string }
         Returns: {
@@ -11170,6 +11382,24 @@ export type Database = {
         Args: { _avatar_url: string; _user_id: string }
         Returns: undefined
       }
+      admin_upsert_speaker_profile: {
+        Args: {
+          p_bio_en?: string
+          p_bio_pl?: string
+          p_headline_en?: string
+          p_headline_pl?: string
+          p_is_public?: boolean
+          p_languages?: string[]
+          p_rating?: number
+          p_reviews_count?: number
+          p_sync_crm?: boolean
+          p_talks_count?: number
+          p_topics_en?: string[]
+          p_topics_pl?: string[]
+          p_user_id: string
+        }
+        Returns: Json
+      }
       analytics_semantic_snapshot: {
         Args: { p_since: string; p_until: string }
         Returns: Json
@@ -11211,6 +11441,10 @@ export type Database = {
           revenue_cents: number
         }[]
       }
+      book_meeting_slot: {
+        Args: { p_note?: string; p_slot_id: string }
+        Returns: Json
+      }
       bulk_generate_coupons_for_campaign: {
         Args: { _campaign_id: string }
         Returns: number
@@ -11234,6 +11468,10 @@ export type Database = {
       }
       can_gift_articles: { Args: never; Returns: boolean }
       can_publish_content: { Args: { _user_id?: string }; Returns: boolean }
+      cancel_my_meeting_booking: {
+        Args: { p_slot_id: string }
+        Returns: boolean
+      }
       change_user_role: {
         Args: {
           _new_role: Database["public"]["Enums"]["app_role"]
@@ -11461,6 +11699,15 @@ export type Database = {
         Args: { p_member_ids: string[]; p_title: string }
         Returns: string
       }
+      create_my_meeting_slot: {
+        Args: {
+          p_ends_at: string
+          p_event_id?: string
+          p_location?: string
+          p_starts_at: string
+        }
+        Returns: string
+      }
       crm_backfill_all_leads: {
         Args: never
         Returns: {
@@ -11563,6 +11810,7 @@ export type Database = {
       }
       current_tenant_id: { Args: never; Returns: string }
       current_tier_rank: { Args: never; Returns: number }
+      delete_my_meeting_slot: { Args: { p_slot_id: string }; Returns: boolean }
       email_apply_delivery_event: {
         Args: {
           p_bounce_class?: string
@@ -12045,6 +12293,52 @@ export type Database = {
           profile_slug: string
           program_id: string
           sort_order: number
+        }[]
+      }
+      get_public_meeting_slots: {
+        Args: {
+          p_days?: number
+          p_event_id?: string
+          p_host_user_id?: string
+          p_limit?: number
+        }
+        Returns: {
+          booked_by_me: boolean
+          ends_at: string
+          event_id: string
+          host_avatar_url: string
+          host_name: string
+          host_slug: string
+          host_user_id: string
+          id: string
+          is_booked: boolean
+          is_mine: boolean
+          location: string
+          starts_at: string
+        }[]
+      }
+      get_public_speakers: {
+        Args: { p_event_id?: string; p_limit?: number; p_user_ids?: string[] }
+        Returns: {
+          avatar_url: string
+          bio_en: string
+          bio_pl: string
+          company: string
+          display_name: string
+          has_speaker_profile: boolean
+          headline_en: string
+          headline_pl: string
+          is_expert: boolean
+          job_title: string
+          languages: string[]
+          rating: number
+          reviews_count: number
+          slug: string
+          sort_order: number
+          talks_count: number
+          topics_en: string[]
+          topics_pl: string[]
+          user_id: string
         }[]
       }
       get_recommended_posts_v2: {

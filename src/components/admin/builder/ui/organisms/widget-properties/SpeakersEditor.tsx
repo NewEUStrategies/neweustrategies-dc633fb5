@@ -364,33 +364,40 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
         )}
       </div>
 
-      {source !== "manual" && (
+      {source !== "manual" ? (
         <p className="text-[10px] leading-snug text-muted-foreground/70">
           {l(
             "Lista poniżej jest używana tylko w trybie ręcznym. W trybach CRM karty pochodzą z publicznych profili prelegentów.",
             "The list below is used only in manual mode. In CRM modes cards come from public speaker profiles.",
           )}
         </p>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-              {speakers.map((it, i) => (
-                <SortableSpeakerRow
-                  key={itemIds[i]}
-                  id={itemIds[i]}
-                  item={it}
-                  index={i}
-                  lang={lang}
-                  categorySuggestions={categorySuggestions}
-                  onPatch={(p) => patch(i, p)}
-                  onRemove={() => remove(i)}
-                  onDuplicate={() => duplicate(i)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </ListShell>
+      ) : (
+        <ListShell
+          title={l("Prelegenci", "Speakers")}
+          items={speakers as unknown as Item[]}
+          onAdd={add}
+        >
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {speakers.map((it, i) => (
+                  <SortableSpeakerRow
+                    key={itemIds[i]}
+                    id={itemIds[i]}
+                    item={it}
+                    index={i}
+                    lang={lang}
+                    categorySuggestions={categorySuggestions}
+                    onPatch={(p) => patch(i, p)}
+                    onRemove={() => remove(i)}
+                    onDuplicate={() => duplicate(i)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </ListShell>
+      )}
     </div>
   );
 }
