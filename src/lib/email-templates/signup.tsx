@@ -1,84 +1,65 @@
-import * as React from 'react'
+import * as React from "react";
 
+import { Button, Section, Text } from "@react-email/components";
+
+import { authCopy } from "./copy";
 import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Link,
-  Preview,
-  Text,
-} from '@react-email/components'
+  buttonStyle,
+  eyebrow,
+  greeting,
+  h1,
+  infoBox,
+  infoText,
+  linkStyle,
+  NesEmailLayout,
+  smallPrint,
+  text,
+  type EmailLang,
+} from "./nes-layout";
+import { emailGreeting, type PolishGender } from "@/lib/i18n/polishVocative";
 
 interface SignupEmailProps {
-  siteName: string
-  siteUrl: string
-  recipient: string
-  confirmationUrl: string
+  siteName?: string;
+  siteUrl: string;
+  recipient?: string;
+  confirmationUrl: string;
+  lang?: EmailLang;
+  firstName?: string | null;
+  gender?: PolishGender;
 }
 
 export const SignupEmail = ({
-  siteName,
   siteUrl,
-  recipient,
   confirmationUrl,
-}: SignupEmailProps) => (
-  <Html lang="en" dir="ltr">
-    <Head />
-    <Preview>Confirm your email for {siteName}</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Heading style={h1}>Confirm your email</Heading>
-        <Text style={text}>
-          Thanks for signing up for{' '}
-          <Link href={siteUrl} style={link}>
-            <strong>{siteName}</strong>
-          </Link>
-          !
-        </Text>
-        <Text style={text}>
-          Please confirm your email address (
-          <Link href={`mailto:${recipient}`} style={link}>
-            {recipient}
-          </Link>
-          ) by clicking the button below:
-        </Text>
-        <Button style={button} href={confirmationUrl}>
-          Verify Email
+  lang = "pl",
+  firstName,
+  gender = "unknown",
+}: SignupEmailProps) => {
+  const c = authCopy("signup", lang);
+  return (
+    <NesEmailLayout lang={lang} preview={c.preview} siteUrl={siteUrl}>
+      <Text style={eyebrow}>{c.eyebrow}</Text>
+      <Text style={h1}>{c.heading}</Text>
+      <Text style={greeting}>{emailGreeting(lang, firstName, gender)}</Text>
+      <Text style={text}>{c.intro}</Text>
+      <Section style={{ margin: "0 0 24px" }}>
+        <Button style={buttonStyle} href={confirmationUrl}>
+          {c.cta}
         </Button>
-        <Text style={footer}>
-          If you didn't create an account, you can safely ignore this email.
+      </Section>
+      <Section style={infoBox}>
+        <Text style={infoText}>
+          {c.fallback}
+          <br />
+          <a href={confirmationUrl} style={linkStyle}>
+            {confirmationUrl}
+          </a>
         </Text>
-      </Container>
-    </Body>
-  </Html>
-)
+      </Section>
+      <Text style={text}>{c.expiry}</Text>
+      <Text style={smallPrint}>{c.security}</Text>
+    </NesEmailLayout>
+  );
+};
 
-export default SignupEmail
-
-const main = { backgroundColor: '#ffffff', fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif' }
-const container = { padding: '32px 28px', maxWidth: '560px', border: '1px solid #eceae7', borderRadius: '6px' }
-const h1 = {
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  color: '#01112F',
-  margin: '0 0 20px',
-}
-const text = {
-  fontSize: '13px',
-  color: '#55575d',
-  lineHeight: '1.5',
-  margin: '0 0 25px',
-}
-const link = { color: 'inherit', textDecoration: 'underline' }
-const button = {
-  backgroundColor: '#01112F',
-  color: '#ffffff',
-  fontSize: '14px',
-  borderRadius: '6px',
-  padding: '12px 20px',
-  textDecoration: 'none',
-}
-const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
+export default SignupEmail;
