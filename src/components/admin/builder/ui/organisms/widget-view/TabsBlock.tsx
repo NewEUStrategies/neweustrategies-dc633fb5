@@ -1,9 +1,23 @@
 // Organism: tabbed content block with per-language HTML panels.
+// Zakładki wspierają opcjonalną ikonę (Lucide, nazwa kebab-case) oraz
+// pogrubione etykiety. Ikona renderowana przez DynamicIcon (tree-shakable).
 import { useState } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 
 type Lang = "pl" | "en";
 type Orientation = "horizontal" | "vertical";
+
+function TabLabel({ tab, lang }: { tab: Record<string, string>; lang: Lang }) {
+  const icon = typeof tab.icon === "string" ? tab.icon.trim() : "";
+  const label = tab[`label_${lang}`] || tab.label_pl || "";
+  return (
+    <span className="inline-flex items-center gap-2 font-bold">
+      {icon ? <DynamicIcon name={icon} size={16} aria-hidden={true} /> : null}
+      <span>{label}</span>
+    </span>
+  );
+}
 
 export function TabsBlock({
   tabs,
@@ -50,13 +64,13 @@ export function TabsBlock({
               aria-selected={i === safe}
               type="button"
               onClick={() => setActive(i)}
-              className={`px-4 py-2 text-sm font-medium transition text-left md:border-r-2 md:-mr-px border-b-2 md:border-b-0 ${
+              className={`px-4 py-2 text-sm font-bold transition text-left md:border-r-2 md:-mr-px border-b-2 md:border-b-0 ${
                 i === safe
                   ? "border-brand text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t[`label_${lang}`] || t.label_pl}
+              <TabLabel tab={t} lang={lang} />
             </button>
           ))}
         </div>
@@ -75,13 +89,13 @@ export function TabsBlock({
             aria-selected={i === safe}
             type="button"
             onClick={() => setActive(i)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+            className={`px-4 py-2 text-sm font-bold border-b-2 -mb-px transition ${
               i === safe
                 ? "border-brand text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t[`label_${lang}`] || t.label_pl}
+            <TabLabel tab={t} lang={lang} />
           </button>
         ))}
       </div>

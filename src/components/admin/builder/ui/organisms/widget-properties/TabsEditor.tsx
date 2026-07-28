@@ -4,6 +4,7 @@ import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PropField, ItemFrame } from "../../atoms";
+import { LucideIconPicker } from "../../molecules/LucideIconPicker";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
 import { useTranslation } from "react-i18next";
@@ -81,6 +82,14 @@ export function TabsEditor({ c, lang, setContent }: Props) {
                   )
                 }
                 className="text-xs font-mono"
+              />
+            </PropField>
+            <PropField label={isPL ? "Ikona (opcjonalna)" : "Icon (optional)"}>
+              <LucideIconPicker
+                value={typeof it.icon === "string" ? (it.icon as string) : ""}
+                onChange={(name) =>
+                  update(tabs.map((x, j) => (j === i ? { ...x, icon: name ?? "" } : x)))
+                }
               />
             </PropField>
           </ItemFrame>
