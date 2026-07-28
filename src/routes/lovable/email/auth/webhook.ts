@@ -12,6 +12,8 @@ import { RecoveryEmail } from '@/lib/email-templates/recovery'
 import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
 import { resolveRecipientName } from '@/lib/email/recipient-name.server'
+import { resolveAuthEmailLang } from '@/lib/email/auth-lang'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 
 const EMAIL_SUBJECTS: Record<string, string> = {
@@ -46,10 +48,60 @@ function redactEmail(email: string | null | undefined): string {
   return `${localPart[0]}***@${domain}`
 }
 
+function emailDomain(email: string | null | undefined): string | null {
+  if (!email) return null
+  const domain = email.split('@')[1]
+  return domain ? domain.toLowerCase() : null
+}
+
+function hostOf(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    return new URL(url).host
+  } catch {
+    return null
+  }
+}
+
+interface AuthEventLog {
+  run_id: string
+  message_id?: string | null
+  email_type: string
+  lang?: string | null
+  lang_source?: string | null
+  lang_fallback?: boolean
+  lang_raw?: string | null
+  recipient_masked?: string | null
+  recipient_domain?: string | null
+  sender?: string | null
+  sender_domain?: string | null
+  subject?: string | null
+  redirect_to?: string | null
+  action_url_host?: string | null
+  greeting_name?: string | null
+  status: 'enqueued' | 'rejected' | 'failed'
+  error_message?: string | null
+  duration_ms?: number | null
+}
+
+/** Diagnostyka webhooka - nigdy nie może wywrócić wysyłki maila. */
+async function logAuthEvent(
+  client: SupabaseClient,
+  event: AuthEventLog,
+): Promise<void> {
+  try {
+    const { error } = await client.from('auth_email_events').insert(event)
+    if (error) console.error('auth_email_events insert failed', { error: error.message })
+  } catch (error) {
+    console.error('auth_email_events insert threw', { error })
+  }
+}
+
 export const Route = createFileRoute("/lovable/email/auth/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const startedAt = Date.now()
         const apiKey = process.env.LOVABLE_API_KEY
 
         if (!apiKey) {
@@ -134,9 +186,15 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           )
         }
 
-        // Język maila: z redirect_to / site URL (?lang=, /en/...), domyślnie PL.
-        const rawUrl = `${payload.data.redirect_to ?? ''} ${payload.data.url ?? ''}`
-        const lang: 'pl' | 'en' = /[?&]lang=en\b|\/en(\/|\?|$)/i.test(rawUrl) ? 'en' : 'pl'
+        // Język maila: jawny ?lang= -> prefiks /pl|/en -> metadane użytkownika ->
+        // Accept-Language -> domyślny PL. Źródło decyzji trafia do diagnostyki.
+        const langResult = resolveAuthEmailLang({
+          redirectTo: payload.data.redirect_to,
+          actionUrl: payload.data.url,
+          userMetadata: (payload.data.user?.user_metadata ?? null) as Record<string, unknown> | null,
+          acceptLanguage: request.headers.get('accept-language'),
+        })
+        const lang = langResult.lang
 
         // Imię do personalizacji powitania (wołacz PL): metadane -> newsletter -> słownik imion.
         const meta = (payload.data.user?.user_metadata ?? {}) as Record<string, unknown>
@@ -208,15 +266,39 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           status: 'pending',
         })
 
+        const fromAddress = `${SITE_NAME} <noreply@${FROM_DOMAIN}>`
+        const subject =
+          authSubject(emailType as AuthEmailType, lang) ||
+          EMAIL_SUBJECTS[emailType] ||
+          'Notification'
+
+        const diagnostics = {
+          run_id,
+          message_id: messageId,
+          email_type: emailType,
+          lang,
+          lang_source: langResult.source,
+          lang_fallback: langResult.usedFallback,
+          lang_raw: langResult.rawValue,
+          recipient_masked: redactEmail(payload.data.email),
+          recipient_domain: emailDomain(payload.data.email),
+          sender: fromAddress,
+          sender_domain: SENDER_DOMAIN,
+          subject,
+          redirect_to: payload.data.redirect_to ?? null,
+          action_url_host: hostOf(payload.data.url),
+          greeting_name: vocativePl ?? firstName ?? null,
+        }
+
         const { error: enqueueError } = await supabase.rpc('enqueue_email', {
           queue_name: 'auth_emails',
           payload: {
             run_id,
             message_id: messageId,
             to: payload.data.email,
-            from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+            from: fromAddress,
             sender_domain: SENDER_DOMAIN,
-            subject: authSubject(emailType as AuthEmailType, lang) || EMAIL_SUBJECTS[emailType] || 'Notification',
+            subject,
             html,
             text,
             purpose: 'transactional',
@@ -234,15 +316,32 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             status: 'failed',
             error_message: 'Failed to enqueue email',
           })
+          await logAuthEvent(supabase, {
+            ...diagnostics,
+            status: 'failed',
+            error_message: enqueueError.message ?? 'Failed to enqueue email',
+            duration_ms: Date.now() - startedAt,
+          })
           return Response.json(
             { error: 'Failed to enqueue email' },
             { status: 500 }
           )
         }
 
+        await logAuthEvent(supabase, {
+          ...diagnostics,
+          status: 'enqueued',
+          duration_ms: Date.now() - startedAt,
+        })
+
         console.log('Auth email enqueued', {
           emailType,
           email_redacted: redactEmail(payload.data.email),
+          lang,
+          lang_source: langResult.source,
+          sender: fromAddress,
+          subject,
+          redirect_to: payload.data.redirect_to ?? null,
           run_id,
         })
 

@@ -4,7 +4,7 @@
 // builderow.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LayoutDashboard, Mail, MailCheck, MailOpen, Send, ShieldCheck, Users, Megaphone } from "lucide-react";
+import { LayoutDashboard, Mail, MailCheck, MailOpen, ScrollText, Send, ShieldCheck, Users, Megaphone } from "lucide-react";
 
 const tabs = [
   {
@@ -55,6 +55,13 @@ const tabs = [
     icon: MailCheck,
     labelPl: "Maile systemowe",
     labelEn: "System emails",
+  },
+  {
+    to: "/admin/newsletter/auth-logs",
+    key: "auth-logs",
+    icon: ScrollText,
+    labelPl: "Logi auth",
+    labelEn: "Auth logs",
   },
   {
     to: "/admin/newsletter/email-preview",
