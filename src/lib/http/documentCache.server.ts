@@ -44,6 +44,10 @@ import {
 } from "@/lib/http/documentCache";
 import { currentTenantHost, requestPublicHost } from "@/lib/http/requestHost";
 import {
+  getMiddlewareResponse,
+  withMiddlewareResponse,
+} from "@/lib/http/middlewareResult";
+import {
   bumpL2Version,
   l2Match,
   l2Put,
