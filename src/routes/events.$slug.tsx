@@ -9,6 +9,7 @@
 // warstwy (flaga recordings) rozstrzyganą w get_event_access.
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -37,6 +38,7 @@ import {
   type RsvpRequestStatus,
 } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
+import { confirmFreeRsvpEmail } from "@/lib/events/rsvp-email.functions";
 import { useMembershipTiers, tierName, tierHasFeature, useCurrentTier } from "@/lib/billing/tiers";
 import { useAuth } from "@/hooks/useAuth";
 import { EventGroupButton } from "@/components/network/EventGroupButton";
