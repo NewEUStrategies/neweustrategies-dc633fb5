@@ -19,6 +19,8 @@ export function TabsEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
   const tabs = itemsOf(c, "tabs");
   const update = (next: Item[]) => setContent("tabs", toJson(next));
+  const orientation = c.orientation === "vertical" ? "vertical" : "horizontal";
+  const isPL = lang === "pl";
   return (
     <ListShell
       title={t("builder.tabsEditor.title")}
@@ -35,6 +37,20 @@ export function TabsEditor({ c, lang, setContent }: Props) {
         ])
       }
     >
+      <PropField label={isPL ? "Układ zakładek" : "Tabs layout"}>
+        <select
+          value={orientation}
+          onChange={(e) => setContent("orientation", e.target.value)}
+          className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+        >
+          <option value="horizontal">
+            {isPL ? "Poziomy (tekst pod zakładkami)" : "Horizontal (text below tabs)"}
+          </option>
+          <option value="vertical">
+            {isPL ? "Pionowy (tekst po prawej)" : "Vertical (text on the right)"}
+          </option>
+        </select>
+      </PropField>
       <div className="space-y-2">
         {tabs.map((it, i) => (
           <ItemFrame
