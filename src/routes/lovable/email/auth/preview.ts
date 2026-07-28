@@ -29,6 +29,10 @@ const ROOT_DOMAIN = "neweuropeanstrategies.com"
 // even if the project's domain has changed since the template was scaffolded.
 const SAMPLE_PROJECT_URL = "https://neweuropeanstrategies.com"
 const SAMPLE_EMAIL = "user@example.test"
+// Imie w podgladzie - zeby bylo widac spersonalizowane powitanie
+// ("Dzien dobry, Anno" w PL dzieki wolaczowi, "Hi Anna," w EN).
+const SAMPLE_NAME = "Anna"
+const SAMPLE_GENDER = "female"
 const SAMPLE_DATA: Record<string, object> = {
   signup: {
     siteName: SITE_NAME,
@@ -116,7 +120,12 @@ export const Route = createFileRoute("/lovable/email/auth/preview")({
           )
         }
 
-        const sampleData = { ...(SAMPLE_DATA[type] || {}), lang }
+        const sampleData = {
+          firstName: SAMPLE_NAME,
+          gender: SAMPLE_GENDER,
+          ...(SAMPLE_DATA[type] || {}),
+          lang,
+        }
         const html = await render(React.createElement(EmailTemplate, sampleData))
         const subject = authSubject(type as AuthEmailType, lang)
 
