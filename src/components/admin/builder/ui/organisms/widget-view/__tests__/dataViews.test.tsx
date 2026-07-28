@@ -421,11 +421,11 @@ describe("PostListView", () => {
   });
 
   it("ranked + authorDisplay=none suppresses author metadata", async () => {
-    db.tables.posts = posts.map((p) => ({
-      ...p,
-      author_display_name: "Jan Kowalski",
-      author_avatar_url: null,
-    }));
+    db.tables.posts = posts;
+    db.tables.profiles_public = [
+      { id: "a1", display_name: "Jan Kowalski", avatar_url: null, slug: "jan" },
+      { id: "a2", display_name: "Anna Nowak", avatar_url: null, slug: "anna" },
+    ];
     wrap(
       <PostListView
         c={{ variant: "ranked", authorDisplay: "none", limit: 6 }}
@@ -437,11 +437,11 @@ describe("PostListView", () => {
   });
 
   it("ranked + authorDisplay=label renders 'Autor:' before the author name", async () => {
-    db.tables.posts = posts.map((p) => ({
-      ...p,
-      author_display_name: "Jan Kowalski",
-      author_avatar_url: null,
-    }));
+    db.tables.posts = posts;
+    db.tables.profiles_public = [
+      { id: "a1", display_name: "Jan Kowalski", avatar_url: null, slug: "jan" },
+      { id: "a2", display_name: "Anna Nowak", avatar_url: null, slug: "anna" },
+    ];
     const { container } = wrap(
       <PostListView
         c={{ variant: "ranked", authorDisplay: "label", limit: 6 }}
