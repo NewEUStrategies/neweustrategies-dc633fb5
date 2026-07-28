@@ -23,6 +23,10 @@ import {
   type FontSizesSettings,
   type HeadingLevel,
 } from "@/lib/theme/fontSizes";
+import {
+  usePostLayoutSettings,
+  useSavePostLayoutSettings,
+} from "@/hooks/usePostLayoutSettings";
 
 type TextTransform = FontSizesSettings["headings"]["h1"]["transform"];
 
@@ -40,6 +44,16 @@ export function ThemeFontSizesPane() {
   const save = useSaveFontSizes();
   const [draft, setDraft] = useState<FontSizesSettings>(data ?? FONT_SIZES_DEFAULTS);
 
+  // Odstęp między akapitami żyje w post_layout_settings (jedno źródło prawdy
+  // współdzielone z /admin/content-area), więc edytujemy tę samą kolumnę
+  // zamiast duplikować wartość w font_sizes.
+  const layout = usePostLayoutSettings();
+  const saveLayout = useSavePostLayoutSettings();
+  const [paragraphSpacing, setParagraphSpacing] = useState<number>(1.5);
+  useEffect(() => {
+    if (layout.data) setParagraphSpacing(layout.data.paragraph_spacing_rem || 1.5);
+  }, [layout.data]);
+
   useEffect(() => {
     if (data) setDraft(data);
   }, [data]);
@@ -50,7 +64,19 @@ export function ThemeFontSizesPane() {
   // renders after <ThemeFontSizesStyle /> in the DOM, so same-specificity
   // cascade wins and takes precedence until the pane unmounts or the draft
   // is saved.
-  const previewCss = useMemo(() => fontSizesToCss(draft), [draft]);
+  const previewCss = useMemo(
+    () =>
+      `${fontSizesToCss(draft)}\n.post-content.post-content :is(p,ul,ol,blockquote),.single-post-content.single-post-content :is(p,ul,ol,blockquote){margin-bottom:${paragraphSpacing}rem;}[data-builder-renderer]{--cms-paragraph-spacing:${paragraphSpacing}rem;}`,
+    [draft, paragraphSpacing],
+  );
+
+  const persist = () => {
+    save.mutate(draft);
+    if (paragraphSpacing !== (layout.data?.paragraph_spacing_rem ?? 1.5)) {
+      saveLayout.mutate({ paragraph_spacing_rem: paragraphSpacing });
+    }
+  };
+
 
   const setHeading = <K extends keyof FontSizesSettings["headings"]["h1"]>(
     level: HeadingLevel,
@@ -74,6 +100,11 @@ export function ThemeFontSizesPane() {
     setDraft((d) => ({ ...d, [section]: { ...d[section], [key]: value } }));
   };
 
+  const setSpacing = (key: keyof FontSizesSettings["spacing"], value: number) => {
+    setDraft((d) => ({ ...d, spacing: { ...d.spacing, [key]: value } }));
+  };
+
+
   return (
     <div className="space-y-6">
       <style dangerouslySetInnerHTML={{ __html: previewCss }} />
@@ -87,21 +118,24 @@ export function ThemeFontSizesPane() {
           </h3>
           <p className="text-xs text-muted-foreground">
             {isPL
-              ? "Globalne rozmiary typografii dla H1-H6, body, small, lead, blockquote, code."
-              : "Global typography sizes for H1-H6, body, small, lead, blockquote, code."}
+              ? "Globalne rozmiary typografii (H1-H6, body, small, lead, blockquote, code) oraz odstępy treści - wspólne dla frontu i CMS buildera."
+              : "Global typography sizes (H1-H6, body, small, lead, blockquote, code) and content spacing - shared by the front end and the CMS builder."}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setDraft(FONT_SIZES_DEFAULTS)}
+            onClick={() => {
+              setDraft(FONT_SIZES_DEFAULTS);
+              setParagraphSpacing(1.5);
+            }}
             disabled={save.isPending}
           >
             <RotateCcw className="w-4 h-4 mr-2" />
             {isPL ? "Reset" : "Reset"}
           </Button>
-          <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
+          <Button size="sm" onClick={persist} disabled={save.isPending || saveLayout.isPending}>
             <Save className="w-4 h-4 mr-2" />
             {save.isPending ? (isPL ? "Zapisywanie..." : "Saving...") : isPL ? "Zapisz" : "Save"}
           </Button>
@@ -252,7 +286,68 @@ export function ThemeFontSizesPane() {
               />
             </div>
           </section>
+
+          <section className="rounded-lg border border-border p-4 space-y-4">
+            <div>
+              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                {isPL ? "Odstępy treści" : "Content spacing"}
+              </h4>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {isPL
+                  ? "Rytm pionowy wpisu. Te same wartości obowiązują w Gutenberg builderze - Enter tworzy nowy akapit z identycznym odstępem jak na froncie."
+                  : "Vertical rhythm of an article. The same values apply in the Gutenberg builder - Enter creates a paragraph with the exact front-end spacing."}
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <NumField
+                label={isPL ? "Między akapitami" : "Between paragraphs"}
+                value={paragraphSpacing}
+                min={0.5}
+                max={3}
+                step={0.05}
+                suffix="rem"
+                onChange={setParagraphSpacing}
+              />
+              <NumField
+                label={isPL ? "Nad nagłówkiem" : "Above heading"}
+                value={draft.spacing.headingTopRem}
+                min={0}
+                max={6}
+                step={0.05}
+                suffix="rem"
+                onChange={(v) => setSpacing("headingTopRem", v)}
+              />
+              <NumField
+                label={isPL ? "Pod nagłówkiem" : "Below heading"}
+                value={draft.spacing.headingBottomRem}
+                min={0}
+                max={6}
+                step={0.05}
+                suffix="rem"
+                onChange={(v) => setSpacing("headingBottomRem", v)}
+              />
+              <NumField
+                label={isPL ? "Listy" : "Lists"}
+                value={draft.spacing.listRem}
+                min={0}
+                max={6}
+                step={0.05}
+                suffix="rem"
+                onChange={(v) => setSpacing("listRem", v)}
+              />
+              <NumField
+                label={isPL ? "Cytaty" : "Blockquotes"}
+                value={draft.spacing.blockquoteRem}
+                min={0}
+                max={6}
+                step={0.05}
+                suffix="rem"
+                onChange={(v) => setSpacing("blockquoteRem", v)}
+              />
+            </div>
+          </section>
         </div>
+
 
         {/* PREVIEW */}
         <div className="lg:sticky lg:top-4 h-fit">

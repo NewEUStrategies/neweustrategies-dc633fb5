@@ -107,6 +107,16 @@ const FontSizesSchema = z
           transform: "uppercase",
         },
       }),
+    // Odstępy pionowe treści (rem). Wspólne dla frontu i canvasa buildera -
+    // dzięki temu Enter w Gutenbergu daje ten sam rytm co publiczny wpis.
+    spacing: z
+      .object({
+        headingTopRem: z.coerce.number().min(0).max(6),
+        headingBottomRem: z.coerce.number().min(0).max(6),
+        listRem: z.coerce.number().min(0).max(6),
+        blockquoteRem: z.coerce.number().min(0).max(6),
+      })
+      .default({ headingTopRem: 2, headingBottomRem: 0.75, listRem: 1.5, blockquoteRem: 1.75 }),
     mobileBreakpoint: clamp(360, 1024).default(768),
   })
   .default({});
@@ -175,6 +185,10 @@ export function fontSizesToCss(fs: FontSizesSettings): string {
     `--fs-blockquote:${fs.blockquote.size}px;`,
     `--lh-blockquote:${fs.blockquote.lineHeight};`,
     `--fs-code:${fs.code.size}px;`,
+    `--sp-heading-top:${fs.spacing.headingTopRem}rem;`,
+    `--sp-heading-bottom:${fs.spacing.headingBottomRem}rem;`,
+    `--sp-list:${fs.spacing.listRem}rem;`,
+    `--sp-blockquote:${fs.spacing.blockquoteRem}rem;`,
   ];
   for (const level of HEADING_LEVELS) {
     const h = fs.headings[level];
@@ -190,5 +204,28 @@ export function fontSizesToCss(fs: FontSizesSettings): string {
   return [
     `:root{${rootLines.join("")}}`,
     `@media (max-width: ${fs.mobileBreakpoint}px){:root{${mobileLines.join("")}}}`,
+    spacingRulesCss(),
+  ].join("");
+}
+
+/**
+ * Reguły odstępów treści. Podwojona specyficzność klas, żeby wygrać z
+ * <ContentAreaStyle/> (margin-bottom list/cytatów) niezależnie od kolejności
+ * montowania <style> w <head>. Canvas buildera dostaje te same wartości,
+ * więc edytor i front mają identyczny rytm pionowy.
+ */
+function spacingRulesCss(): string {
+  return [
+    `.post-content.post-content :is(h1,h2,h3,h4,h5,h6),`,
+    `.single-post-content.single-post-content :is(h1,h2,h3,h4,h5,h6),`,
+    `[data-builder-renderer] > [data-block-type="heading"]`,
+    `{margin-top:var(--sp-heading-top);margin-bottom:var(--sp-heading-bottom);}`,
+    `.post-content.post-content :is(ul,ol),`,
+    `.single-post-content.single-post-content :is(ul,ol)`,
+    `{margin-bottom:var(--sp-list);}`,
+    `.post-content.post-content blockquote,`,
+    `.single-post-content.single-post-content blockquote,`,
+    `[data-builder-renderer] > [data-block-type="quote"]`,
+    `{margin-top:var(--sp-blockquote);margin-bottom:var(--sp-blockquote);}`,
   ].join("");
 }
