@@ -375,33 +375,7 @@ export function PostListView({
                     {title(p)}
                   </h4>
                 )}
-                {showAuthorAny && authorName(p) && (
-                  <div className="cms-meta mt-2 flex items-center gap-2 min-w-0">
-                    {authorDisplay === "avatar" ? (
-                      p.author_avatar_url ? (
-                        <img
-                          src={p.author_avatar_url}
-                          alt=""
-                          width={20}
-                          height={20}
-                          loading="lazy"
-                          className="h-5 w-5 shrink-0 object-cover"
-                          style={{ borderRadius: 5 }}
-                        />
-                      ) : (
-                        <span
-                          aria-hidden
-                          className="h-5 w-5 shrink-0 bg-muted"
-                          style={{ borderRadius: 5 }}
-                        />
-                      )
-                    ) : null}
-                    {authorDisplay === "label" && byLabel ? (
-                      <span className="opacity-70">{byLabel}:</span>
-                    ) : null}
-                    <span className="text-foreground truncate">{authorName(p)}</span>
-                  </div>
-                )}
+                {<AuthorMeta p={p} />}
 
               </div>
             </div>
@@ -410,6 +384,7 @@ export function PostListView({
       </div>
     );
   }
+
 
   if (variant === "numbered") {
     // Big faint index on the left, title in the middle, thumbnail on the right.
