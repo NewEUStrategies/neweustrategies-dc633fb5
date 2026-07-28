@@ -1,7 +1,9 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
+import { createPortal } from "react-dom";
 import {
   Fragment,
+
   Suspense,
   createContext,
   lazy,
