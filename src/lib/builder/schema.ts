@@ -91,6 +91,8 @@ export const WIDGET_TYPES = [
   "event-schedule",
   "event-list",
   "event-countdown",
+  "meeting-booking",
+  "event-sponsors",
   // Rich content (embeds the blocks engine)
   "rich-text",
   // Home-page building blocks

@@ -339,7 +339,9 @@ type UntypedRpc = (
   args: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: { message: string } | null }>;
 
-const rpcUntyped = supabase.rpc as unknown as UntypedRpc;
+// Dostep odroczony do wywolania (klient Supabase to leniwe proxy).
+const rpcUntyped: UntypedRpc = (fn, args) =>
+  (supabase.rpc as unknown as UntypedRpc)(fn, args);
 
 const strOrEmpty = (v: unknown): string => (typeof v === "string" ? v : "");
 const numOrZero = (v: unknown): number => {

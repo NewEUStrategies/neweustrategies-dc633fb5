@@ -40,8 +40,10 @@ import {
   Lock,
   ChevronRight,
   Clock,
+  CalendarCheck,
   CalendarClock,
   CalendarDays,
+  Handshake,
   BookOpen,
   Image as CoverIcon,
   FileText,
@@ -1155,6 +1157,67 @@ export const WIDGETS: WidgetDef[] = [
       accentColor: "",
       emptyText_pl: "Brak zaplanowanych wydarzeń.",
       emptyText_en: "No scheduled events.",
+    }),
+  },
+  {
+    type: "meeting-booking",
+    label: "Networking 1-1",
+    category: "blocks",
+    icon: CalendarCheck,
+    defaults: () => ({
+      heading_pl: "Umów spotkanie 1-1",
+      heading_en: "Book a 1-1 meeting",
+      intro_pl: "",
+      intro_en: "",
+      // Tryb: "host" = sloty wskazanej osoby (ekspert/prelegent);
+      // "event" = sloty networkingowe wszystkich hostów wydarzenia.
+      mode: "host",
+      hostUserId: "",
+      eventId: "",
+      daysAhead: 14,
+      // Zalogowany host widzi panel publikowania własnych slotów.
+      allowHostManage: true,
+      showHost: true,
+      accentColor: "",
+    }),
+  },
+  {
+    type: "event-sponsors",
+    label: "Sponsorzy i partnerzy",
+    category: "blocks",
+    icon: Handshake,
+    defaults: () => ({
+      heading_pl: "Sponsorzy i partnerzy",
+      heading_en: "Sponsors & partners",
+      intro_pl: "",
+      intro_en: "",
+      accentColor: "",
+      grayscale: true,
+      tiers: [
+        {
+          id: "tier-1",
+          name_pl: "Partner główny",
+          name_en: "Main partner",
+          size: "lg",
+          sponsors: [
+            {
+              id: "spo-1",
+              name: "",
+              logo: "",
+              url: "",
+              description_pl: "",
+              description_en: "",
+            },
+          ],
+        },
+        {
+          id: "tier-2",
+          name_pl: "Partnerzy medialni",
+          name_en: "Media partners",
+          size: "sm",
+          sponsors: [],
+        },
+      ] as unknown as Json,
     }),
   },
   {

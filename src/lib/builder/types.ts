@@ -413,6 +413,11 @@ export type WidgetType =
   | "event-schedule"
   | "event-list"
   | "event-countdown"
+  // Networking 1-1: sloty godzinowe hostow (uzytkownicy/eksperci) +
+  // rezerwacje przez utwardzone RPC (meeting_slots/meeting_bookings).
+  | "meeting-booking"
+  // Sponsorzy i partnerzy wydarzenia: poziomy sponsorskie z siatka logotypow.
+  | "event-sponsors"
   // Rich content: embeds the full blocks engine (article-style content) inside
   // a builder layout, so the builder is the single page-composition engine.
   | "rich-text"

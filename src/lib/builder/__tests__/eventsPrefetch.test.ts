@@ -62,6 +62,19 @@ describe("speakers prefetch arm", () => {
   });
 });
 
+describe("meeting-booking and event-sponsors have NO prefetch arm (by design)", () => {
+  it("meeting-booking is auth-variant (booked_by_me/is_mine) - never SSR-prefetched", () => {
+    const widget = widgetOf("meeting-booking", { mode: "host", hostUserId: "u-1" });
+    expect(widgetQueryOptionsList(widget, "pl")).toEqual([]);
+    expect(widgetCacheTargets(widget, "pl")).toEqual([]);
+  });
+
+  it("event-sponsors is static content - nothing to prefetch", () => {
+    const widget = widgetOf("event-sponsors", { tiers: [] });
+    expect(widgetQueryOptionsList(widget, "pl")).toEqual([]);
+  });
+});
+
 describe("event-schedule prefetch arm", () => {
   it("prefetches linked speaker profiles and skips inline-only schedules", () => {
     const inlineOnly = widgetOf("event-schedule", {

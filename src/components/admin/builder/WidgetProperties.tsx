@@ -92,6 +92,8 @@ import {
   SpeakersEditor,
   EventScheduleEditor,
   EventCountdownEditor,
+  MeetingBookingEditor,
+  SponsorsEditor,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
@@ -1450,6 +1452,10 @@ function ContentFields({
       return <EventScheduleEditor c={c} lang={lang} setContent={setContent} />;
     case "event-countdown":
       return <EventCountdownEditor c={c} lang={lang} setContent={setContent} />;
+    case "meeting-booking":
+      return <MeetingBookingEditor c={c} lang={lang} setContent={setContent} />;
+    case "event-sponsors":
+      return <SponsorsEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.

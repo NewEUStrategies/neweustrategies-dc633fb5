@@ -182,6 +182,7 @@ export function Builder({
     insertContainerAt,
     loadHomepage,
     insertTemplateSection,
+    insertStarterTemplate,
     saveSectionAsTemplate,
     removeSection,
     moveSection,
@@ -557,6 +558,7 @@ export function Builder({
                       onPickWidget={addWidgetToFocused}
                       onPickStructure={addSection}
                       onPickTemplate={insertTemplateSection}
+                      onPickStarter={insertStarterTemplate}
                       onPickGlobal={addGlobalWidgetToFocused}
                       onPickContainer={addContainer}
                     />

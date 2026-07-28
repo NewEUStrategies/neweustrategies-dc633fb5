@@ -20,6 +20,8 @@ const SPLIT_WIDGETS = [
   "EventScheduleView",
   "EventsListView",
   "EventCountdownView",
+  "MeetingBookingView",
+  "EventSponsorsView",
   "RatedListView",
   "TabsBlock",
   "AdSlotById",
