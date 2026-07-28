@@ -34,7 +34,7 @@ export const ReauthenticationEmail = ({
   gender = "unknown",
   vocativePl,
 }: ReauthenticationEmailProps) => {
-  const c = authCopy("reauthentication", lang);
+  const c = authCopy("reauthentication", lang, gender);
   return (
     <NesEmailLayout
       lang={lang}

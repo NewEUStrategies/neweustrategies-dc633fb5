@@ -1,5 +1,6 @@
 import type { EmailIconName } from "./icons";
 import type { EmailLang } from "./nes-layout";
+import type { PolishGender } from "@/lib/i18n/polishVocative";
 
 /**
  * Treści maili autoryzacyjnych w PL i EN. Jedno źródło prawdy dla szablonów
@@ -27,7 +28,21 @@ interface Copy {
   expiry: string;
 }
 
-type Dict = Record<AuthEmailType, Copy>;
+/**
+ * Wartość tekstu może zależeć od rodzaju gramatycznego odbiorcy (PL).
+ * Rodzaj wynika z imienia rozpoznanego w słowniku imion (panel admina).
+ */
+type GenderedText = string | ((gender: PolishGender) => string);
+
+type RawCopy = { [K in keyof Copy]: K extends "icon" ? EmailIconName : GenderedText };
+
+type Dict = Record<AuthEmailType, RawCopy>;
+
+/** Męska / żeńska / neutralna (bezosobowa) wersja zdania. */
+const g =
+  (male: string, female: string, neutral: string) =>
+  (gender: PolishGender): string =>
+    gender === "male" ? male : gender === "female" ? female : neutral;
 
 const PL: Dict = {
   signup: {
@@ -40,17 +55,28 @@ const PL: Dict = {
       "Dziękujemy za założenie konta w New European Strategies. Aby uzyskać dostęp do analiz, danych i materiałów eksperckich, potwierdź swój adres e-mail.",
     cta: "Potwierdzam adres e-mail",
     fallback: "Jeśli przycisk nie działa, skopiuj poniższy adres do przeglądarki:",
-    security: "Jeśli to nie Ty zakładałeś konto, zignoruj tę wiadomość - nic się nie wydarzy.",
+    security: g(
+      "Jeśli to nie Ty zakładałeś konto, zignoruj tę wiadomość - nic się nie wydarzy.",
+      "Jeśli to nie Ty zakładałaś konto, zignoruj tę wiadomość - nic się nie wydarzy.",
+      "Jeśli konto nie zostało założone przez Ciebie, zignoruj tę wiadomość - nic się nie wydarzy.",
+    ),
     expiry: "Link jest ważny przez ograniczony czas ze względów bezpieczeństwa.",
   },
   invite: {
     subject: "🤝 Zaproszenie do New European Strategies",
     icon: "hero-handshake",
-    preview: "Otrzymałeś zaproszenie do platformy New European Strategies.",
+    preview: g(
+      "Otrzymałeś zaproszenie do platformy New European Strategies.",
+      "Otrzymałaś zaproszenie do platformy New European Strategies.",
+      "Zaproszenie do platformy New European Strategies czeka na Ciebie.",
+    ),
     eyebrow: "Zaproszenie",
     heading: "Zaproszenie do platformy",
-    intro:
+    intro: g(
       "Zostałeś zaproszony do New European Strategies - platformy analiz, danych i doradztwa strategicznego. Przyjmij zaproszenie, aby utworzyć konto i ustawić hasło.",
+      "Zostałaś zaproszona do New European Strategies - platformy analiz, danych i doradztwa strategicznego. Przyjmij zaproszenie, aby utworzyć konto i ustawić hasło.",
+      "Zapraszamy Cię do New European Strategies - platformy analiz, danych i doradztwa strategicznego. Przyjmij zaproszenie, aby utworzyć konto i ustawić hasło.",
+    ),
     cta: "Przyjmuję zaproszenie",
     fallback: "Jeśli przycisk nie działa, skopiuj poniższy adres do przeglądarki:",
     security: "Jeśli zaproszenie trafiło do Ciebie omyłkowo, po prostu je zignoruj.",
@@ -66,8 +92,11 @@ const PL: Dict = {
       "Poniższy link pozwala zalogować się do New European Strategies bez podawania hasła. Otwórz go na urządzeniu, z którego chcesz korzystać z platformy.",
     cta: "Zaloguj się",
     fallback: "Jeśli przycisk nie działa, skopiuj poniższy adres do przeglądarki:",
-    security:
+    security: g(
       "Nie przekazuj tego linku nikomu - daje on pełny dostęp do Twojego konta. Jeśli nie prosiłeś o logowanie, zignoruj tę wiadomość.",
+      "Nie przekazuj tego linku nikomu - daje on pełny dostęp do Twojego konta. Jeśli nie prosiłaś o logowanie, zignoruj tę wiadomość.",
+      "Nie przekazuj tego linku nikomu - daje on pełny dostęp do Twojego konta. Jeśli prośba o logowanie nie pochodziła od Ciebie, zignoruj tę wiadomość.",
+    ),
     expiry: "Link wygasa po krótkim czasie i może zostać użyty tylko raz.",
   },
   recovery: {
@@ -80,8 +109,11 @@ const PL: Dict = {
       "Otrzymaliśmy prośbę o zresetowanie hasła do Twojego konta. Kliknij przycisk poniżej, aby ustawić nowe hasło.",
     cta: "Ustawiam nowe hasło",
     fallback: "Jeśli przycisk nie działa, skopiuj poniższy adres do przeglądarki:",
-    security:
+    security: g(
       "Jeśli nie prosiłeś o zmianę hasła, zignoruj tę wiadomość - Twoje obecne hasło pozostaje aktywne.",
+      "Jeśli nie prosiłaś o zmianę hasła, zignoruj tę wiadomość - Twoje obecne hasło pozostaje aktywne.",
+      "Jeśli prośba o zmianę hasła nie pochodziła od Ciebie, zignoruj tę wiadomość - Twoje obecne hasło pozostaje aktywne.",
+    ),
     expiry: "Link do resetu hasła jest ważny przez ograniczony czas.",
   },
   email_change: {
@@ -94,8 +126,11 @@ const PL: Dict = {
       "Otrzymaliśmy prośbę o zmianę adresu e-mail przypisanego do Twojego konta w New European Strategies. Potwierdź zmianę, aby zaczęła obowiązywać.",
     cta: "Potwierdzam zmianę",
     fallback: "Jeśli przycisk nie działa, skopiuj poniższy adres do przeglądarki:",
-    security:
+    security: g(
       "Jeśli to nie Ty zleciłeś zmianę, zignoruj tę wiadomość i skontaktuj się z nami - adres nie zostanie zmieniony.",
+      "Jeśli to nie Ty zleciłaś zmianę, zignoruj tę wiadomość i skontaktuj się z nami - adres nie zostanie zmieniony.",
+      "Jeśli zmiana nie została zlecona przez Ciebie, zignoruj tę wiadomość i skontaktuj się z nami - adres nie zostanie zmieniony.",
+    ),
     expiry: "Link potwierdzający jest ważny przez ograniczony czas.",
   },
   reauthentication: {
@@ -107,8 +142,11 @@ const PL: Dict = {
     intro: "Wpisz poniższy kod w oknie platformy, aby potwierdzić swoją tożsamość.",
     cta: "",
     fallback: "",
-    security:
+    security: g(
       "Nigdy nie podawaj tego kodu osobom trzecim. Jeśli nie prosiłeś o weryfikację, zmień hasło do konta.",
+      "Nigdy nie podawaj tego kodu osobom trzecim. Jeśli nie prosiłaś o weryfikację, zmień hasło do konta.",
+      "Nigdy nie podawaj tego kodu osobom trzecim. Jeśli prośba o weryfikację nie pochodziła od Ciebie, zmień hasło do konta.",
+    ),
     expiry: "Kod wygasa po kilku minutach.",
   },
 };
@@ -198,12 +236,37 @@ const EN: Dict = {
   },
 };
 
-export function authCopy(type: AuthEmailType, lang: EmailLang): Copy {
-  return (lang === "en" ? EN : PL)[type];
+function resolve(value: GenderedText, gender: PolishGender): string {
+  return typeof value === "function" ? value(gender) : value;
+}
+
+/**
+ * Zwraca treść maila w danym języku. W PL zdania z formami osobowymi
+ * odmieniane są przez rodzaj odbiorcy (męski / żeński / bezosobowy fallback).
+ */
+export function authCopy(
+  type: AuthEmailType,
+  lang: EmailLang,
+  gender: PolishGender = "unknown",
+): Copy {
+  const raw = (lang === "en" ? EN : PL)[type];
+  const effective: PolishGender = lang === "en" ? "unknown" : gender;
+  return {
+    subject: resolve(raw.subject, effective),
+    icon: raw.icon,
+    preview: resolve(raw.preview, effective),
+    eyebrow: resolve(raw.eyebrow, effective),
+    heading: resolve(raw.heading, effective),
+    intro: resolve(raw.intro, effective),
+    cta: resolve(raw.cta, effective),
+    fallback: resolve(raw.fallback, effective),
+    security: resolve(raw.security, effective),
+    expiry: resolve(raw.expiry, effective),
+  };
 }
 
 export function authIcon(type: AuthEmailType, lang: EmailLang): EmailIconName {
-  return authCopy(type, lang).icon;
+  return (lang === "en" ? EN : PL)[type].icon;
 }
 
 export function authSubject(type: AuthEmailType, lang: EmailLang): string {

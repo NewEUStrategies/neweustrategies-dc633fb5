@@ -37,7 +37,7 @@ export const SignupEmail = ({
   gender = "unknown",
   vocativePl,
 }: SignupEmailProps) => {
-  const c = authCopy("signup", lang);
+  const c = authCopy("signup", lang, gender);
   return (
     <NesEmailLayout
       lang={lang}
