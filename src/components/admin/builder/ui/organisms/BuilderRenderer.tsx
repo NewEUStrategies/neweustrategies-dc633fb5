@@ -245,7 +245,10 @@ export function BuilderRenderer({
 // (e.g. `?debug=1`), so production visitors never see it. The height-annotation
 // loop runs once and labels every renderer on the page.
 function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocument }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   useEffect(() => {
+
     if (!import.meta.env.DEV || !debug || typeof window === "undefined") return;
     const annotate = () => {
       document
