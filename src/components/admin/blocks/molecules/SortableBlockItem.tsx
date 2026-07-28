@@ -123,9 +123,8 @@ export function SortableBlockItem(props: Props) {
     opacity: isDragging ? 0.45 : 1,
   };
 
-  const badgeText =
-    (props.typeLabel ? props.typeLabel.toUpperCase() : t("blocks.actions.block", { defaultValue: "BLOK" })) +
-    (size.w && size.h ? ` · ${size.w}×${size.h}px` : "");
+
+
 
 
   const [copied, setCopied] = useState(false);
