@@ -131,6 +131,18 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           )
         }
 
+        // Język maila: z redirect_to / site URL (?lang=, /en/...), domyślnie PL.
+        const rawUrl = `${payload.data.redirect_to ?? ''} ${payload.data.url ?? ''}`
+        const lang: 'pl' | 'en' = /[?&]lang=en\b|\/en(\/|\?|$)/i.test(rawUrl) ? 'en' : 'pl'
+
+        // Imię do personalizacji powitania (wołacz PL) - z metadanych użytkownika.
+        const meta = (payload.data.user?.user_metadata ?? {}) as Record<string, unknown>
+        const firstNameRaw = meta.first_name ?? meta.firstName ?? meta.given_name ?? meta.name
+        const firstName = typeof firstNameRaw === 'string' ? firstNameRaw : null
+        const genderRaw = typeof meta.gender === 'string' ? meta.gender.toLowerCase() : ''
+        const gender: 'male' | 'female' | 'unknown' =
+          genderRaw === 'male' || genderRaw === 'female' ? genderRaw : 'unknown'
+
         // Build template props from payload.data (HookData structure)
         const templateProps = {
           siteName: SITE_NAME,
@@ -141,12 +153,16 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           email: payload.data.email,
           oldEmail: payload.data.old_email,
           newEmail: payload.data.new_email,
+          lang,
+          firstName,
+          gender,
         }
 
         // Render React Email to HTML and plain text
         const element = React.createElement(EmailTemplate, templateProps)
         const html = await render(element)
         const text = await render(element, { plainText: true })
+
 
         // Enqueue email for async processing by the dispatcher (process-email-queue).
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
