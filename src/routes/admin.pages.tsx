@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2, Home, Undo2, X, Download } from "@/lib/lucide-shim";
 import { WordPressImportDialog } from "@/components/admin/WordPressImportDialog";
+import { TopicTabs } from "@/components/admin/molecules/TopicTabs";
 import {
   deletePage,
   bulkDeletePages,
