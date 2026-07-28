@@ -13,7 +13,7 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-const html = (c: Record<string, unknown>, lang: "pl" | "en" = "pl") =>
+const html = (c: Record<string, string>, lang: "pl" | "en" = "pl") =>
   renderToStaticMarkup(<DisplayLivePreview c={c} lang={lang} />);
 
 describe("DisplayLivePreview - sidebar toggles drive the preview", () => {
