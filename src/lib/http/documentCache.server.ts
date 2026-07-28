@@ -304,11 +304,9 @@ export async function handleDocumentRequest<T>(
   next: () => T | Promise<T>,
 ): Promise<T | Response> {
   if (!cacheEnabled()) return next();
-  console.log("[nes-dbg] enter", request.method, request.url);
 
   const host = requestPublicHost(request);
   const plan = planDocumentCache(request, host);
-  console.log("[nes-dbg] plan", host, JSON.stringify(plan));
   if (plan.kind === "bypass") {
     if (plan.reason !== "method") stats.bypass += 1;
     return next();
@@ -341,8 +339,12 @@ export async function handleDocumentRequest<T>(
       revalidating.add(plan.key);
       try {
         const { result, timing } = await renderWithTiming();
-        if (result instanceof Response) {
-          return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
+        const rendered = getMiddlewareResponse(result);
+        if (rendered) {
+          return withMiddlewareResponse(
+            result,
+            passThroughAndMaybeStore(host, plan.key, rendered, Date.now(), timing),
+          );
         }
         return result;
       } catch {
@@ -379,8 +381,12 @@ export async function handleDocumentRequest<T>(
       revalidating.add(plan.key);
       try {
         const { result, timing } = await renderWithTiming();
-        if (result instanceof Response) {
-          return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
+        const rendered = getMiddlewareResponse(result);
+        if (rendered) {
+          return withMiddlewareResponse(
+            result,
+            passThroughAndMaybeStore(host, plan.key, rendered, Date.now(), timing),
+          );
         }
         return result;
       } catch {
@@ -396,9 +402,12 @@ export async function handleDocumentRequest<T>(
 
   stats.misses += 1;
   const { result, timing } = await renderWithTiming();
-  console.log("[nes-dbg] miss result keys", Object.keys(result as object), JSON.stringify(Object.fromEntries(Object.entries(result as object).map(([k,v])=>[k, v && typeof v==="object" ? v.constructor?.name : typeof v]))));
-  if (result instanceof Response) {
-    return passThroughAndMaybeStore(host, plan.key, result, Date.now(), timing);
+  const rendered = getMiddlewareResponse(result);
+  if (rendered) {
+    return withMiddlewareResponse(
+      result,
+      passThroughAndMaybeStore(host, plan.key, rendered, Date.now(), timing),
+    );
   }
   return result;
 }
