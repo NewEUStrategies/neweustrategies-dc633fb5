@@ -1414,6 +1414,7 @@ function CinematicOverlayVariant(p: VariantProps) {
                     slug={cur.authorSlug}
                     tone="dark"
                     size={22}
+                    labelPrefix={p.authorLabelPrefix}
                   />
                 )}
                 {p.showAuthor && cur.author && cur.readTime && (
