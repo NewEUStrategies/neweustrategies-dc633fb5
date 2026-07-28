@@ -14,6 +14,7 @@ import {
 } from "@react-email/components";
 
 import { EmailIcon, type EmailIconName } from "./icons";
+import { NES_CONTACT, NES_SOCIAL_LINKS } from "./social";
 
 export type EmailLang = "pl" | "en";
 
@@ -111,29 +112,66 @@ export const NesEmailLayout = ({
             <Img
               src={NES_LOGO_DARK}
               alt="New European Strategies"
-              width={162}
-              height={67}
+              width={150}
+              height={62}
               style={logoImg}
             />
             <Text style={footerClaim}>{f.claim}</Text>
             <Text style={footerTagline}>{f.tagline}</Text>
+
+            {/* Social media - tabela zamiast flexa (Outlook/Gmail). */}
+            <table
+              role="presentation"
+              cellPadding={0}
+              cellSpacing={0}
+              border={0}
+              align="center"
+              style={socialTable}
+            >
+              <tbody>
+                <tr>
+                  {NES_SOCIAL_LINKS.map((s) => (
+                    <td key={s.key} style={socialCell}>
+                      <Link href={s.href} style={socialLink} title={s.label}>
+                        <EmailIcon name={s.icon} size={16} alt={s.label} />
+                      </Link>
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+
             <Hr style={footerRule} />
+
             <Text style={footerLinks}>
               <Link href={siteUrl} style={footerLink}>
                 {f.site}
               </Link>
-              {"  ·  "}
+              <span style={footerSep}>·</span>
               <Link href={`${siteUrl}/polityka-prywatnosci`} style={footerLink}>
                 {f.privacy}
               </Link>
-              {"  ·  "}
+              <span style={footerSep}>·</span>
               <Link href={`${siteUrl}/kontakt`} style={footerLink}>
                 {f.contact}
               </Link>
             </Text>
+
+            <Text style={footerContact}>
+              <Link href={`mailto:${NES_CONTACT.email}`} style={footerContactLink}>
+                {NES_CONTACT.email}
+              </Link>
+              <span style={footerSep}>·</span>
+              {NES_CONTACT.phone}
+            </Text>
+            <Text style={footerAddress}>
+              {lang === "pl" ? NES_CONTACT.addressPl : NES_CONTACT.addressEn}
+            </Text>
+
             <Text style={footerNote}>{f.auto}</Text>
             <Text style={footerNote}>© {new Date().getFullYear()} New European Strategies</Text>
           </Section>
+
         </Container>
       </Body>
     </Html>
@@ -207,8 +245,10 @@ const card: React.CSSProperties = {
 
 const footer: React.CSSProperties = {
   backgroundColor: INK,
+  backgroundImage: `linear-gradient(180deg, ${INK_SOFT} 0%, ${INK} 100%)`,
+  borderTop: `1px solid rgba(250,147,70,0.35)`,
   borderRadius: "0 0 10px 10px",
-  padding: "28px",
+  padding: "30px 28px 26px",
   textAlign: "center" as const,
 };
 
@@ -217,7 +257,7 @@ const footerClaim: React.CSSProperties = {
   fontSize: "10px",
   fontWeight: 700,
   letterSpacing: "0.18em",
-  margin: "10px 0 0",
+  margin: "12px 0 0",
 };
 
 const footerTagline: React.CSSProperties = {
@@ -227,20 +267,67 @@ const footerTagline: React.CSSProperties = {
   margin: "8px 0 0",
 };
 
+/* --- pasek social media --- */
+
+const socialTable: React.CSSProperties = {
+  borderCollapse: "separate" as const,
+  margin: "18px auto 0",
+};
+
+const socialCell: React.CSSProperties = {
+  padding: "0 5px",
+};
+
+/** Kwadratowa "płytka" z białym glifem - czytelna na ciemnym tle. */
+const socialLink: React.CSSProperties = {
+  backgroundColor: "rgba(255,255,255,0.08)",
+  border: "1px solid rgba(255,255,255,0.16)",
+  borderRadius: "8px",
+  display: "inline-block",
+  lineHeight: "0",
+  padding: "9px",
+  textDecoration: "none",
+};
+
 const footerRule: React.CSSProperties = {
-  borderColor: "rgba(255,255,255,0.14)",
-  margin: "18px 0",
+  borderColor: "rgba(255,255,255,0.12)",
+  margin: "20px 0 16px",
 };
 
 const footerLinks: React.CSSProperties = {
   color: "#9b9490",
   fontSize: "12px",
-  margin: "0 0 12px",
+  fontWeight: 600,
+  margin: "0 0 10px",
 };
 
 const footerLink: React.CSSProperties = {
   color: ORANGE,
   textDecoration: "none",
+};
+
+const footerSep: React.CSSProperties = {
+  color: "rgba(255,255,255,0.25)",
+  padding: "0 8px",
+};
+
+const footerContact: React.CSSProperties = {
+  color: "#cfc9c5",
+  fontSize: "12px",
+  lineHeight: "1.7",
+  margin: "0 0 2px",
+};
+
+const footerContactLink: React.CSSProperties = {
+  color: "#cfc9c5",
+  textDecoration: "none",
+};
+
+const footerAddress: React.CSSProperties = {
+  color: "#8b8481",
+  fontSize: "11px",
+  lineHeight: "1.6",
+  margin: "0 0 14px",
 };
 
 const footerNote: React.CSSProperties = {
@@ -249,6 +336,7 @@ const footerNote: React.CSSProperties = {
   lineHeight: "1.6",
   margin: "4px 0 0",
 };
+
 
 export const eyebrow: React.CSSProperties = {
   color: ORANGE,
@@ -282,7 +370,7 @@ export const text: React.CSSProperties = {
 };
 
 export const buttonStyle: React.CSSProperties = {
-  backgroundColor: INK,
+  backgroundColor: ORANGE,
   color: "#ffffff",
   fontSize: "14px",
   fontWeight: 700,
@@ -291,6 +379,7 @@ export const buttonStyle: React.CSSProperties = {
   textDecoration: "none",
   display: "inline-block",
 };
+
 
 export const linkStyle: React.CSSProperties = {
   color: INK,

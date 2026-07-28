@@ -21,7 +21,12 @@ export type EmailIconName =
   | "hero-shield"
   | "clock"
   | "lock"
-  | "info";
+  | "info"
+  // Glify social media (białe, 72px) - używane w stopce maili.
+  | "social-linkedin"
+  | "social-facebook"
+  | "social-x"
+  | "social-globe";
 
 /** Ikona Lucide (lucide-react) wyrenderowana do PNG - patrz opis modułu. */
 export const iconUrl = (name: EmailIconName): string => `${ICON_BASE}/${name}.png`;
