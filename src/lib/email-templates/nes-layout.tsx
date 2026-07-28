@@ -13,6 +13,8 @@ import {
   Text,
 } from "@react-email/components";
 
+import { EmailIcon, type EmailIconName } from "./icons";
+
 export type EmailLang = "pl" | "en";
 
 export const NES_LOGO_LIGHT =
@@ -37,7 +39,7 @@ interface LayoutProps {
   /** Nagłówek hero (ciemny pas) */
   eyebrow?: string;
   heading?: string;
-  emoji?: string;
+  icon?: EmailIconName;
   children: React.ReactNode;
 }
 
@@ -62,7 +64,7 @@ const FOOTER_COPY = {
 
 /**
  * Wspólna ramka maili systemowych NES: jasny header z poziomym logo,
- * ciemny hero (#141313) z emoji i tytułem, biała karta treści
+ * ciemny hero (#141313) z ikoną Lucide i tytułem, biała karta treści
  * oraz ciemna stopka z logo w wersji dark.
  */
 export const NesEmailLayout = ({
@@ -71,7 +73,7 @@ export const NesEmailLayout = ({
   siteUrl,
   eyebrow: eyebrowText,
   heading,
-  emoji,
+  icon,
   children,
 }: LayoutProps) => {
   const f = FOOTER_COPY[lang];
@@ -95,7 +97,11 @@ export const NesEmailLayout = ({
 
           {(heading || eyebrowText) && (
             <Section style={hero}>
-              {emoji ? <Text style={heroEmoji}>{emoji}</Text> : null}
+              {icon ? (
+                <Section style={heroIconWrap}>
+                  <EmailIcon name={icon} size={34} style={{ margin: "0 auto" }} />
+                </Section>
+              ) : null}
               {eyebrowText ? <Text style={heroEyebrow}>{eyebrowText}</Text> : null}
               {heading ? <Text style={heroTitle}>{heading}</Text> : null}
             </Section>
@@ -174,10 +180,9 @@ const hero: React.CSSProperties = {
   textAlign: "center" as const,
 };
 
-const heroEmoji: React.CSSProperties = {
-  fontSize: "30px",
-  lineHeight: "1",
+const heroIconWrap: React.CSSProperties = {
   margin: "0 0 12px",
+  textAlign: "center" as const,
 };
 
 const heroEyebrow: React.CSSProperties = {
