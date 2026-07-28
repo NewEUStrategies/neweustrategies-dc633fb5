@@ -11,7 +11,6 @@ import { NewsletterSubNav } from "@/components/admin/newsletter/NewsletterSubNav
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FloatingInput } from "@/components/ui/floating-input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { getAuthEmailPreviews } from "@/lib/auth-email-preview.functions";
 
@@ -146,7 +145,7 @@ export function AuthEmailPreviewPanel() {
             {!data && (
               <div className="space-y-2 p-1">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
+                  <div key={i} className="h-10 w-full rounded-md bg-muted animate-pulse" />
                 ))}
               </div>
             )}
@@ -183,7 +182,7 @@ export function AuthEmailPreviewPanel() {
                 }}
               />
             ) : (
-              <Skeleton className="w-full h-[600px]" />
+              <div className="w-full h-[600px] rounded-md bg-muted animate-pulse" />
             )}
           </div>
 
