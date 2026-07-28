@@ -8,29 +8,6 @@ const DEFAULT_SEND_DELAY_MS = 200
 const DEFAULT_AUTH_TTL_MINUTES = 15
 const DEFAULT_TRANSACTIONAL_TTL_MINUTES = 60
 
-type EmailPayload = Record<string, unknown> & {
-  message_id?: string
-  label?: string
-  to?: string
-  queued_at?: string
-  run_id?: string
-  from?: string
-  sender_domain?: string
-  subject?: string
-  html?: string
-  text?: string
-  purpose?: string
-  idempotency_key?: string
-  unsubscribe_token?: string
-}
-
-type QueueMessage = {
-  msg_id: number
-  read_ct?: number
-  enqueued_at?: string
-  message: EmailPayload
-}
-
 // Check if an error is a rate-limit (429) response.
 // Uses EmailAPIError.status when available (email-js >=0.x with structured errors),
 // falls back to parsing the error message for older versions.
@@ -59,9 +36,9 @@ function getRetryAfterSeconds(error: unknown): number {
 }
 
 async function moveToDlq(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<any, any>,
   queue: string,
-  msg: QueueMessage,
+  msg: { msg_id: number; message: Record<string, unknown> },
   reason: string
 ): Promise<void> {
   const payload = msg.message
@@ -88,7 +65,7 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
     handlers: {
       POST: async ({ request }) => {
         const apiKey = process.env.LOVABLE_API_KEY
-        const supabaseUrl = process.env.SUPABASE_URL
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
         const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
         if (!apiKey || !supabaseUrl || !supabaseServiceKey) {
@@ -111,7 +88,7 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
           return Response.json({ error: 'Forbidden' }, { status: 403 })
         }
 
-        const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey)
+        const supabase: SupabaseClient<any, any> = createClient(supabaseUrl, supabaseServiceKey)
 
         // 1. Check rate-limit cooldown and read queue config
         const { data: state } = await supabase
@@ -145,14 +122,13 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             continue
           }
 
-          if (!Array.isArray(messages) || messages.length === 0) continue
-          const queueMessages = messages as QueueMessage[]
+          if (!messages?.length) continue
 
           // Retry budget is based on real send failures, not pgmq read_ct.
           const messageIds = Array.from(
             new Set(
-              queueMessages
-                .map((msg) =>
+              messages
+                .map((msg: any) =>
                   msg?.message?.message_id && typeof msg.message.message_id === 'string'
                     ? msg.message.message_id
                     : null
@@ -185,8 +161,8 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             }
           }
 
-          for (let i = 0; i < queueMessages.length; i++) {
-            const msg = queueMessages[i]
+          for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i]
             const payload = msg.message
             const failedAttempts =
               payload?.message_id && typeof payload.message_id === 'string'
@@ -245,16 +221,6 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             }
 
             try {
-              if (
-                typeof payload.to !== 'string' ||
-                typeof payload.from !== 'string' ||
-                typeof payload.subject !== 'string' ||
-                typeof payload.html !== 'string' ||
-                typeof payload.text !== 'string'
-              ) {
-                await moveToDlq(supabase, queue, msg, 'Malformed email payload')
-                continue
-              }
               await sendLovableEmail(
                 {
                   run_id: payload.run_id,
@@ -347,7 +313,7 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             }
 
             // Small delay between sends to smooth bursts
-            if (i < queueMessages.length - 1) {
+            if (i < messages.length - 1) {
               await new Promise((r) => setTimeout(r, sendDelayMs))
             }
           }
