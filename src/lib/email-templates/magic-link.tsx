@@ -25,6 +25,7 @@ interface MagicLinkEmailProps {
   lang?: EmailLang;
   firstName?: string | null;
   gender?: PolishGender;
+  vocativePl?: string | null;
 }
 
 export const MagicLinkEmail = ({
@@ -33,13 +34,14 @@ export const MagicLinkEmail = ({
   lang = "pl",
   firstName,
   gender = "unknown",
+  vocativePl,
 }: MagicLinkEmailProps) => {
   const c = authCopy("magiclink", lang);
   return (
     <NesEmailLayout lang={lang} preview={c.preview} siteUrl={siteUrl}>
       <Text style={eyebrow}>{c.eyebrow}</Text>
       <Text style={h1}>{c.heading}</Text>
-      <Text style={greeting}>{emailGreeting(lang, firstName, gender)}</Text>
+      <Text style={greeting}>{emailGreeting(lang, firstName, gender, vocativePl)}</Text>
       <Text style={text}>{c.intro}</Text>
       <Section style={{ margin: "0 0 24px" }}>
         <Button style={buttonStyle} href={confirmationUrl}>

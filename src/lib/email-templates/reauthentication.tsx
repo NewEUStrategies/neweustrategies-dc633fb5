@@ -22,6 +22,7 @@ interface ReauthenticationEmailProps {
   lang?: EmailLang;
   firstName?: string | null;
   gender?: PolishGender;
+  vocativePl?: string | null;
 }
 
 export const ReauthenticationEmail = ({
@@ -30,13 +31,14 @@ export const ReauthenticationEmail = ({
   lang = "pl",
   firstName,
   gender = "unknown",
+  vocativePl,
 }: ReauthenticationEmailProps) => {
   const c = authCopy("reauthentication", lang);
   return (
     <NesEmailLayout lang={lang} preview={c.preview} siteUrl={siteUrl}>
       <Text style={eyebrow}>{c.eyebrow}</Text>
       <Text style={h1}>{c.heading}</Text>
-      <Text style={greeting}>{emailGreeting(lang, firstName, gender)}</Text>
+      <Text style={greeting}>{emailGreeting(lang, firstName, gender, vocativePl)}</Text>
       <Text style={text}>{c.intro}</Text>
       <Section style={{ textAlign: "center" as const }}>
         <Text style={codeStyle}>{token}</Text>
