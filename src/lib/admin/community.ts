@@ -237,6 +237,200 @@ export async function runEventReminders(): Promise<number> {
   return typeof data === "number" ? data : 0;
 }
 
+// ------- Prelegenci wydarzen + profile prelegentow --------
+// event_speakers: bezposrednie wpisy klienta pod RLS "event_speakers staff
+// manage" (wzorzec calego panelu events). Profil prelegenta: wylacznie przez
+// utwardzone RPC admin_*_speaker_profile (migracja 20260727200000) - funkcje
+// nie sa jeszcze w wygenerowanych typach, stad ustalony idiom rzutowania rpc
+// przez `unknown` (patrz popular_post_ids w postListQuery).
+
+export interface EventSpeakerEntry {
+  user_id: string;
+  sort_order: number;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+export async function fetchEventSpeakers(eventId: string): Promise<EventSpeakerEntry[]> {
+  const { data, error } = await supabase
+    .from("event_speakers")
+    .select("user_id, sort_order")
+    .eq("event_id", eventId)
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  const links = (data ?? []) as Array<{ user_id: string; sort_order: number }>;
+  if (links.length === 0) return [];
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles_public")
+    .select("id, display_name, avatar_url")
+    .in(
+      "id",
+      links.map((l) => l.user_id),
+    );
+  if (profilesError) throw profilesError;
+  const byId = new Map(
+    (
+      (profiles ?? []) as Array<{
+        id: string;
+        display_name: string | null;
+        avatar_url: string | null;
+      }>
+    ).map((p) => [p.id, p]),
+  );
+  return links.map((l) => ({
+    user_id: l.user_id,
+    sort_order: l.sort_order,
+    display_name: byId.get(l.user_id)?.display_name ?? null,
+    avatar_url: byId.get(l.user_id)?.avatar_url ?? null,
+  }));
+}
+
+export async function addEventSpeaker(
+  eventId: string,
+  userId: string,
+  sortOrder: number,
+): Promise<void> {
+  const { error } = await supabase
+    .from("event_speakers")
+    .upsert({ event_id: eventId, user_id: userId, sort_order: sortOrder });
+  if (error) throw error;
+}
+
+export async function removeEventSpeaker(eventId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("event_speakers")
+    .delete()
+    .eq("event_id", eventId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+export async function setEventSpeakerOrder(
+  eventId: string,
+  userId: string,
+  sortOrder: number,
+): Promise<void> {
+  const { error } = await supabase
+    .from("event_speakers")
+    .update({ sort_order: sortOrder })
+    .eq("event_id", eventId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+export interface AdminSpeakerProfile {
+  user_id: string;
+  headline_pl: string;
+  headline_en: string;
+  bio_pl: string;
+  bio_en: string;
+  topics_pl: string[];
+  topics_en: string[];
+  languages: string[];
+  talks_count: number;
+  rating: number;
+  reviews_count: number;
+  is_public: boolean;
+  crm_lead_id: string | null;
+}
+
+type UntypedRpc = (
+  fn: string,
+  args: Record<string, unknown>,
+) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+// Dostep odroczony do wywolania (klient Supabase to leniwe proxy).
+const rpcUntyped: UntypedRpc = (fn, args) =>
+  (supabase.rpc as unknown as UntypedRpc)(fn, args);
+
+const strOrEmpty = (v: unknown): string => (typeof v === "string" ? v : "");
+const numOrZero = (v: unknown): number => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const strArr = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+
+export async function fetchAdminSpeakerProfile(
+  userId: string,
+): Promise<AdminSpeakerProfile | null> {
+  const { data, error } = await rpcUntyped("admin_get_speaker_profile", { p_user_id: userId });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : undefined;
+  if (!row) return null;
+  return {
+    user_id: strOrEmpty(row.user_id),
+    headline_pl: strOrEmpty(row.headline_pl),
+    headline_en: strOrEmpty(row.headline_en),
+    bio_pl: strOrEmpty(row.bio_pl),
+    bio_en: strOrEmpty(row.bio_en),
+    topics_pl: strArr(row.topics_pl),
+    topics_en: strArr(row.topics_en),
+    languages: strArr(row.languages),
+    talks_count: numOrZero(row.talks_count),
+    rating: numOrZero(row.rating),
+    reviews_count: numOrZero(row.reviews_count),
+    is_public: row.is_public !== false,
+    crm_lead_id: strOrEmpty(row.crm_lead_id) || null,
+  };
+}
+
+export interface UpsertSpeakerProfileInput {
+  userId: string;
+  headlinePl: string;
+  headlineEn: string;
+  bioPl: string;
+  bioEn: string;
+  topicsPl: string[];
+  topicsEn: string[];
+  languages: string[];
+  talksCount: number;
+  rating: number;
+  reviewsCount: number;
+  isPublic: boolean;
+  /** Most do CRM: lead z tagiem 'speaker' + link crm_lead_id (domyslnie tak). */
+  syncCrm: boolean;
+}
+
+export interface UpsertSpeakerProfileResult {
+  id: string | null;
+  crm_lead_id: string | null;
+}
+
+export async function upsertAdminSpeakerProfile(
+  input: UpsertSpeakerProfileInput,
+): Promise<UpsertSpeakerProfileResult> {
+  const { data, error } = await rpcUntyped("admin_upsert_speaker_profile", {
+    p_user_id: input.userId,
+    p_headline_pl: input.headlinePl,
+    p_headline_en: input.headlineEn,
+    p_bio_pl: input.bioPl,
+    p_bio_en: input.bioEn,
+    p_topics_pl: input.topicsPl,
+    p_topics_en: input.topicsEn,
+    p_languages: input.languages,
+    p_talks_count: input.talksCount,
+    p_rating: input.rating,
+    p_reviews_count: input.reviewsCount,
+    p_is_public: input.isPublic,
+    p_sync_crm: input.syncCrm,
+  });
+  if (error) throw new Error(error.message);
+  const obj = (data ?? {}) as Record<string, unknown>;
+  return {
+    id: strOrEmpty(obj.id) || null,
+    crm_lead_id: strOrEmpty(obj.crm_lead_id) || null,
+  };
+}
+
+export async function deleteAdminSpeakerProfile(userId: string): Promise<boolean> {
+  const { data, error } = await rpcUntyped("admin_delete_speaker_profile", {
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+  return data === true;
+}
+
 // ------- Q&A --------
 
 export type QaSessionRow = Database["public"]["Tables"]["qa_sessions"]["Row"];

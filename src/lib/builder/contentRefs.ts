@@ -207,4 +207,12 @@ export const WIDGET_LIVE_QUERY_PREFIXES: ReadonlySet<string> = new Set([
   "global-widgets",
   "global-widget-meta",
   "builder-popups-active",
+  // Events ecosystem (event-list / event-countdown / speakers / event-schedule)
+  "builder-event-list",
+  "builder-event-by-id",
+  "builder-event-rsvp-counts",
+  "builder-speakers",
+  "builder-speakers-by-ids",
+  "public-speaker-profile",
+  "public-speaker-engagements",
 ]);

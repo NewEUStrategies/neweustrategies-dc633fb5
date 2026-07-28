@@ -26,6 +26,7 @@ import {
 } from "@/lib/builder/globalWidgets";
 import { useExperimentsAdmin } from "@/lib/builder/experiments";
 import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
+import type { StarterTemplate } from "@/lib/builder/starterTemplates";
 import type { GlobalDragPayload } from "../organisms/builder/VisualCanvas";
 import type { Selection, SelectionKind } from "../organisms/builder/types";
 
@@ -91,6 +92,15 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     update((d) => ops.insertSectionNode(d, ops.cloneSection(tpl.data)), {
       label: t("builder.ops.insertedTemplate"),
     });
+  // Szablony startowe (wbudowane, wielosekcyjne): build() zwraca swieze
+  // SectionNode z nowymi id, wiec wstawiamy bez klonowania.
+  const insertStarterTemplate = (tpl: StarterTemplate) =>
+    update(
+      (d) => {
+        for (const s of tpl.build()) ops.insertSectionNode(d, s);
+      },
+      { label: t("builder.ops.insertedTemplate") },
+    );
   const saveSectionAsTemplate = async (sid: string) => {
     const s = ops.findSection(doc, sid);
     if (!s) return;
@@ -292,6 +302,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     insertContainerAt,
     loadHomepage,
     insertTemplateSection,
+    insertStarterTemplate,
     saveSectionAsTemplate,
     removeSection,
     moveSection,

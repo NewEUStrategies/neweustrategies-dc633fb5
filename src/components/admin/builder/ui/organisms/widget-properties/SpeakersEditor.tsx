@@ -39,6 +39,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { PropField, ItemFrame, ColorField } from "../../atoms";
 import { ListShell } from "./ListShell";
+import { EventPicker } from "./EventPicker";
 import { itemsOf, type Item } from "./shared";
 
 interface Props {
@@ -140,6 +141,10 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
   const enableSearch = (c as Record<string, unknown>).enableSearch !== false;
   const enableSort = (c as Record<string, unknown>).enableSort !== false;
   const pageSize = numOf((c as Record<string, unknown>).pageSize, 0);
+  const sourceRaw = strOf(c.source);
+  const source: "manual" | "directory" | "event" =
+    sourceRaw === "directory" || sourceRaw === "event" ? sourceRaw : "manual";
+  const openProfile = (c as Record<string, unknown>).openProfile !== false;
 
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -244,6 +249,64 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
 
       <div className="rounded-[6px] border border-border/60 bg-muted/30 p-2 space-y-2">
         <PropField
+          label={l("Źródło danych", "Data source")}
+          hint={l(
+            "Profile prelegentów są powiązane z CRM i profilem eksperta.",
+            "Speaker profiles are linked to the CRM and the expert profile.",
+          )}
+        >
+          <Select value={source} onValueChange={(v) => setContent("source", v)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">{l("Ręczna lista", "Manual list")}</SelectItem>
+              <SelectItem value="directory">
+                {l("Profile prelegentów (CRM)", "Speaker profiles (CRM)")}
+              </SelectItem>
+              <SelectItem value="event">{l("Prelegenci wydarzenia", "Event speakers")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </PropField>
+        {source === "event" && (
+          <PropField label={l("Wydarzenie", "Event")}>
+            <EventPicker
+              value={strOf(c.eventId)}
+              onChange={(id) => setContent("eventId", id)}
+              lang={lang}
+            />
+          </PropField>
+        )}
+        {source === "directory" && (
+          <PropField label={l("Limit profili", "Profile limit")}>
+            <Input
+              type="number"
+              min={1}
+              max={200}
+              value={numOf((c as Record<string, unknown>).limit, 24)}
+              onChange={(e) =>
+                setContent("limit", Math.max(1, Math.min(200, Number(e.target.value) || 24)))
+              }
+              className="h-8 text-xs"
+            />
+          </PropField>
+        )}
+        {source !== "manual" && (
+          <PropField
+            label={l("Dialog profilu prelegenta", "Speaker profile dialog")}
+            hint={l(
+              "Klik na karcie otwiera profil prelegenta z listą wystąpień.",
+              "Clicking a card opens the speaker profile with engagements.",
+            )}
+            inline
+          >
+            <Switch checked={openProfile} onCheckedChange={(v) => setContent("openProfile", v)} />
+          </PropField>
+        )}
+      </div>
+
+      <div className="rounded-[6px] border border-border/60 bg-muted/30 p-2 space-y-2">
+        <PropField
           label={l("Wyszukiwarka", "Search box")}
           hint={l("Filtruje po imieniu, roli, opisie", "Filters by name, role, description")}
           inline
@@ -301,55 +364,11 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
         )}
       </div>
 
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 flex-1 text-xs"
-          onClick={doExport}
-          disabled={speakers.length === 0}
-        >
-          <Download className="mr-1 h-3.5 w-3.5" />
-          {l("Eksportuj JSON", "Export JSON")}
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 flex-1 text-xs"
-          onClick={() => fileRef.current?.click()}
-        >
-          <Upload className="mr-1 h-3.5 w-3.5" />
-          {l("Importuj JSON", "Import JSON")}
-        </Button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (!f) return;
-            const mode = window.confirm(
-              l(
-                "OK = zastąp obecną listę.\nAnuluj = dołącz do istniejącej.",
-                "OK = replace current list.\nCancel = append to existing.",
-              ),
-            )
-              ? "replace"
-              : "merge";
-            void doImport(f, mode);
-            e.target.value = "";
-          }}
-        />
-      </div>
-
-      <ListShell title={l("Prelegenci", "Speakers")} items={speakers} onAdd={add}>
-        <p className="text-[10px] text-muted-foreground/70 -mt-1">
+      {source !== "manual" && (
+        <p className="text-[10px] leading-snug text-muted-foreground/70">
           {l(
-            "Przeciągnij uchwyt aby zmienić kolejność. Ręczna kolejność nadpisuje sortowanie po ocenie/wystąpieniach/opiniach.",
-            "Drag the handle to reorder. Manual order overrides sorting by rating/gigs/reviews.",
+            "Lista poniżej jest używana tylko w trybie ręcznym. W trybach CRM karty pochodzą z publicznych profili prelegentów.",
+            "The list below is used only in manual mode. In CRM modes cards come from public speaker profiles.",
           )}
         </p>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

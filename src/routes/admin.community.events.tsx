@@ -37,6 +37,7 @@ import {
   type EventRow,
   type EventStatus,
 } from "@/lib/admin/community";
+import { EventSpeakersManager } from "@/components/admin/community/EventSpeakersManager";
 
 export const Route = createFileRoute("/admin/community/events")({
   head: () => ({ meta: [{ title: "Events · Community · Admin" }] }),
@@ -505,6 +506,12 @@ function EditEventDialog({
                   : "Tiers at this rank and above can register before opening."}
               </p>
             </div>
+          </div>
+
+          {/* Prelegenci wydarzenia (event_speakers) + profil prelegenta
+              (speaker_profiles z mostem do CRM). */}
+          <div className="rounded-[6px] border border-border/60 bg-muted/20 p-3">
+            <EventSpeakersManager eventId={event.id} isPl={isPl} />
           </div>
         </div>
         <DialogFooter>

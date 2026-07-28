@@ -19,6 +19,13 @@ import {
   sliderPostsQueryOptions,
   sliderUsesPostsSource,
 } from "@/lib/builder/sliderPostsQuery";
+import { eventByIdQueryOptions, eventsListQueryOptions } from "@/lib/builder/eventsQuery";
+import {
+  speakersByIdsQueryOptions,
+  speakersQueryOptions,
+  speakersSource,
+} from "@/lib/builder/speakersQuery";
+import { collectProfileSpeakerIds, parseScheduleDays } from "@/lib/events/schedule";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
 /** A single cache target for a widget: its query key + matching stale-time. */
@@ -63,6 +70,13 @@ export function collectBuilderWidgets(doc: BuilderDocument): WidgetNode[] {
   return widgets;
 }
 
+/** Id wydarzenia dla event-countdown w trybie "event" (inaczej pusty string). */
+function countdownEventId(c: WidgetContent): string {
+  const mode = typeof c.mode === "string" ? c.mode : "custom";
+  const eventId = typeof c.eventId === "string" ? c.eventId : "";
+  return mode === "event" ? eventId : "";
+}
+
 function contentItems(c: WidgetContent): Record<string, unknown>[] {
   const raw = c.items;
   if (!Array.isArray(raw)) return [];
@@ -88,7 +102,11 @@ export type BuilderSectionQuery =
   | ReturnType<typeof postRefQueryOptions>
   | ReturnType<typeof sliderFallbackImagesQueryOptions>
   | ReturnType<typeof sliderPostsQueryOptions>
-  | ReturnType<typeof menuWithItemsQueryOptions>;
+  | ReturnType<typeof menuWithItemsQueryOptions>
+  | ReturnType<typeof eventsListQueryOptions>
+  | ReturnType<typeof eventByIdQueryOptions>
+  | ReturnType<typeof speakersQueryOptions>
+  | ReturnType<typeof speakersByIdsQueryOptions>;
 
 /**
  * Warm one builder query. BuilderSectionQuery is a union of three differently
@@ -128,6 +146,20 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   }
   if (widget.type === "news-ticker") {
     out.push(newsTickerQueryOptions(widget.content, lang));
+  }
+  if (widget.type === "event-list") {
+    out.push(eventsListQueryOptions(widget.content, lang));
+  }
+  if (widget.type === "event-countdown") {
+    const eventId = countdownEventId(widget.content);
+    if (eventId) out.push(eventByIdQueryOptions(eventId));
+  }
+  if (widget.type === "speakers" && speakersSource(widget.content) !== "manual") {
+    out.push(speakersQueryOptions(widget.content, lang));
+  }
+  if (widget.type === "event-schedule") {
+    const ids = collectProfileSpeakerIds(parseScheduleDays(widget.content));
+    if (ids.length > 0) out.push(speakersByIdsQueryOptions(ids));
   }
   if (widget.type === "slider") {
     const items = contentItems(widget.content);
@@ -244,6 +276,28 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
   if (widget.type === "news-ticker") {
     const opts = newsTickerQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "event-list") {
+    const opts = eventsListQueryOptions(widget.content, lang);
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "event-countdown") {
+    const eventId = countdownEventId(widget.content);
+    if (eventId) {
+      const opts = eventByIdQueryOptions(eventId);
+      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+    }
+  }
+  if (widget.type === "speakers" && speakersSource(widget.content) !== "manual") {
+    const opts = speakersQueryOptions(widget.content, lang);
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "event-schedule") {
+    const ids = collectProfileSpeakerIds(parseScheduleDays(widget.content));
+    if (ids.length > 0) {
+      const opts = speakersByIdsQueryOptions(ids);
+      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+    }
   }
   if (widget.type === "slider") {
     const items = contentItems(widget.content);

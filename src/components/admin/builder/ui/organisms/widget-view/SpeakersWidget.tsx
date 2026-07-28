@@ -18,7 +18,23 @@ import {
 } from "@/lib/lucide-shim";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
+import {
+  speakersQueryOptions,
+  speakersSource,
+  type PublicSpeakerRow,
+} from "@/lib/builder/speakersQuery";
+import { SpeakerStars } from "@/components/events/SpeakerStars";
+import type { SpeakerDialogFallback } from "@/components/events/SpeakerProfileDialog";
 import { getStr, type Lang } from "./frame";
+
+// SpeakersWidget siedzi w EAGER-owej sciezce chrome (SimpleWidgets), a dialog
+// profilu montuje sie dopiero po kliknieciu - lazy chunk trzyma Radix Dialog i
+// zapytania profilu poza bundlem wejsciowym.
+const SpeakerProfileDialogLazy = lazy(() =>
+  import("@/components/events/SpeakerProfileDialog").then((m) => ({
+    default: m.SpeakerProfileDialog,
+  })),
+);
 
 type SpeakerItem = Record<string, unknown>;
 type SortKey = "default" | "rating" | "gigs" | "reviews";
@@ -92,6 +108,23 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   const pageSize = Math.max(0, Math.round(numOf(cRaw.pageSize, 0)));
   const pageModeRaw = typeof cRaw.pageMode === "string" ? cRaw.pageMode : "button";
   const pageMode: "button" | "scroll" = pageModeRaw === "scroll" ? "scroll" : "button";
+  const source = speakersSource(c);
+  const openProfile = cRaw.openProfile !== false;
+
+  const manualSpeakers: SpeakerItem[] = useMemo(
+    () =>
+      Array.isArray(cRaw.speakers)
+        ? (cRaw.speakers as unknown[]).filter(
+            (x): x is SpeakerItem => typeof x === "object" && x !== null && !Array.isArray(x),
+          )
+        : [],
+    [cRaw.speakers],
+  );
+
+  const dbQ = useQuery({
+    ...speakersQueryOptions(c, lang),
+    enabled: source !== "manual",
+  });
 
   const speakersRaw = cRaw.speakers;
   const speakers: SpeakerItem[] = useMemo(
@@ -242,6 +275,8 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
     io.observe(el);
     return () => io.disconnect();
   }, [pageMode, canLoadMore, pageSize, filtered.length]);
+
+  const dbLoading = source !== "manual" && dbQ.isLoading;
 
   return (
     <section className="cms-speakers space-y-6" style={accentStyle}>
@@ -417,6 +452,20 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
           </span>
         </div>
       )}
+
+      {dialogSpeaker && (
+        <Suspense fallback={null}>
+          <SpeakerProfileDialogLazy
+            userId={dialogSpeaker.userId}
+            lang={lang}
+            open
+            onOpenChange={(open) => {
+              if (!open) setDialogSpeaker(null);
+            }}
+            fallback={dialogSpeaker.fallback}
+          />
+        </Suspense>
+      )}
     </section>
   );
 }
@@ -490,6 +539,8 @@ function SpeakerCard({
   const reviews = numOf(item.reviews);
   const rawHref = getStr(item as WidgetContent, "href");
   const href = rawHref ? safeUrl(rawHref, "") : "";
+  const isExpert = item.isExpert === true;
+  const interactive = !!onOpenProfile || !!href;
 
   // Kaskadowe wejście kart: opóźnienie rośnie z indeksem (z sufitem, żeby
   // dalsze strony paginacji nie czekały sekundami na animację).
@@ -584,7 +635,7 @@ function SpeakerCard({
             {rating > 0 && (
               <span className="font-semibold text-foreground">{rating.toFixed(1)}</span>
             )}
-            <StarRow rating={rating} />
+            <SpeakerStars rating={rating} />
             {reviews > 0 && (
               <span>
                 ({reviews} {lang === "pl" ? "opinii" : "reviews"})
@@ -599,6 +650,18 @@ function SpeakerCard({
     </article>
   );
 
+  if (onOpenProfile) {
+    return (
+      <button
+        type="button"
+        onClick={onOpenProfile}
+        className="block h-full w-full rounded-[6px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/60"
+        aria-label={name || undefined}
+      >
+        {body}
+      </button>
+    );
+  }
   if (href) {
     return (
       <AppLink

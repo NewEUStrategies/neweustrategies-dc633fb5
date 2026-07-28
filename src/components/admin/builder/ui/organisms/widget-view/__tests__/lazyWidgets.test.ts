@@ -16,6 +16,12 @@ const SPLIT_WIDGETS = [
   "PodcastLatestView",
   "WebStoriesCarouselView",
   "NewsTickerView",
+  // Events ecosystem
+  "EventScheduleView",
+  "EventsListView",
+  "EventCountdownView",
+  "MeetingBookingView",
+  "EventSponsorsView",
   "RatedListView",
   "TabsBlock",
   "AdSlotById",

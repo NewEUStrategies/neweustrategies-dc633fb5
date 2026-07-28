@@ -17,7 +17,6 @@ type FieldType =
   | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
   | "stringArray"; // textarea with one item per line
 
-
 export interface SchemaField {
   /** Storage key for non-i18n fields, OR base key (without `_pl|_en`) for i18n fields. */
   key: string;
@@ -1457,6 +1456,102 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   // "Speakers" ma dedykowany edytor (SpeakersEditor) - schema pusta, żeby
   // fallback po schemacie nie próbował renderować duplikatów pól.
   speakers: [],
+  // Agenda i odliczanie maja dedykowane edytory (EventScheduleEditor /
+  // EventCountdownEditor) - schema pusta z tego samego powodu co speakers.
+  "event-schedule": [],
+  "event-countdown": [],
+  // Networking 1-1 i sponsorzy - dedykowane edytory (MeetingBookingEditor /
+  // SponsorsEditor).
+  "meeting-booking": [],
+  "event-sponsors": [],
+  "event-list": [
+    { key: "heading", type: "i18nText", label: "Nagłówek", placeholder: "Nadchodzące wydarzenia" },
+    {
+      key: "scope",
+      type: "select",
+      label: "Zakres",
+      options: [
+        { value: "upcoming", label: "Nadchodzące" },
+        { value: "past", label: "Minione" },
+        { value: "all", label: "Wszystkie" },
+      ],
+      group: "Dane",
+    },
+    {
+      key: "kind",
+      type: "select",
+      label: "Rodzaj",
+      options: [
+        { value: "", label: "Wszystkie" },
+        { value: "webinar", label: "Webinar" },
+        { value: "briefing", label: "Briefing" },
+        { value: "roundtable", label: "Okrągły stół" },
+        { value: "ama", label: "AMA" },
+        { value: "in_person", label: "Stacjonarne" },
+        { value: "hybrid", label: "Hybrydowe" },
+      ],
+      group: "Dane",
+    },
+    { key: "limit", type: "number", label: "Liczba wydarzeń", min: 1, max: 50, group: "Dane" },
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "cards", label: "Karty" },
+        { value: "list", label: "Lista" },
+      ],
+      group: "Wygląd",
+    },
+    {
+      key: "columns",
+      type: "number",
+      label: "Kolumny (karty)",
+      min: 2,
+      max: 4,
+      default: 3,
+      visibleWhen: (c) => (typeof c.variant === "string" ? c.variant : "cards") === "cards",
+      group: "Wygląd",
+    },
+    { key: "accentColor", type: "color", label: "Kolor akcentu", group: "Wygląd" },
+    {
+      key: "showCountdown",
+      type: "select",
+      label: "Chip odliczania (za X dni)",
+      options: [
+        { value: "true", label: "Tak" },
+        { value: "false", label: "Nie" },
+      ],
+      group: "Opcje",
+    },
+    {
+      key: "showKindBadge",
+      type: "select",
+      label: "Badge rodzaju",
+      options: [
+        { value: "true", label: "Tak" },
+        { value: "false", label: "Nie" },
+      ],
+      group: "Opcje",
+    },
+    {
+      key: "showRsvpCount",
+      type: "select",
+      label: "Licznik zapisanych (RSVP)",
+      options: [
+        { value: "false", label: "Nie" },
+        { value: "true", label: "Tak" },
+      ],
+      group: "Opcje",
+    },
+    {
+      key: "emptyText",
+      type: "i18nText",
+      label: "Tekst pustej listy",
+      placeholder: "Brak zaplanowanych wydarzeń.",
+      group: "Opcje",
+    },
+  ],
   "search-button": [
     { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
     {
@@ -1497,7 +1592,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "action", type: "i18nText", label: "Tekst linku (opcjonalny)", placeholder: "więcej" },
     { key: "href", type: "url", label: "URL linku (opcjonalny)", placeholder: "/kategoria/..." },
   ],
-  "toc": [
+  toc: [
     {
       key: "variant",
       type: "select",
@@ -1541,8 +1636,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       key: "items",
       type: "stringArray",
       label: "Pozycje (opcjonalne)",
-      hint:
-        "Zostaw puste, aby TOC zaczytał się automatycznie z nagłówków H2/H3 strony. Ręcznie: jedna pozycja per linia. Format: `Tekst` (H2) lub `-- Tekst` (H3). Opcjonalny id: `#moj-id | Tekst`.",
+      hint: "Zostaw puste, aby TOC zaczytał się automatycznie z nagłówków H2/H3 strony. Ręcznie: jedna pozycja per linia. Format: `Tekst` (H2) lub `-- Tekst` (H3). Opcjonalny id: `#moj-id | Tekst`.",
     },
   ],
   "hot-topic-bar": [
@@ -1585,7 +1679,12 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       label: "Facebook URL",
       placeholder: "https://facebook.com/...",
     },
-    { key: "twitter", type: "url", label: "X (dawniej Twitter) URL", placeholder: "https://x.com/..." },
+    {
+      key: "twitter",
+      type: "url",
+      label: "X (dawniej Twitter) URL",
+      placeholder: "https://x.com/...",
+    },
     { key: "youtube", type: "url", label: "YouTube URL", placeholder: "https://youtube.com/..." },
     {
       key: "instagram",

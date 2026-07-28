@@ -56,6 +56,11 @@ import {
   CorridorMapWidgetView,
   SourcesWidgetView,
   MethodologyWidgetView,
+  EventScheduleView,
+  EventsListView,
+  EventCountdownView,
+  MeetingBookingView,
+  EventSponsorsView,
 } from "./ui/organisms/widget-view/lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -760,6 +765,16 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "news-ticker":
       return wrap(<NewsTickerView c={c} lang={lang} />);
+    case "event-schedule":
+      return wrap(<EventScheduleView c={c} lang={lang} />);
+    case "event-list":
+      return wrap(<EventsListView c={c} lang={lang} />);
+    case "event-countdown":
+      return wrap(<EventCountdownView c={c} lang={lang} />);
+    case "meeting-booking":
+      return wrap(<MeetingBookingView c={c} lang={lang} />);
+    case "event-sponsors":
+      return wrap(<EventSponsorsView c={c} lang={lang} />);
     case "chart":
       return wrap(<ChartWidgetView node={node} lang={lang} />);
     case "data-map":

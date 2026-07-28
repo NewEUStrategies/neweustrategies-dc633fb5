@@ -22,6 +22,12 @@ import {
   type SectionTemplate,
   type TemplateRevision,
 } from "@/lib/builder/templates";
+import {
+  STARTER_TEMPLATES,
+  starterDescription,
+  starterName,
+  type StarterTemplate,
+} from "@/lib/builder/starterTemplates";
 import { useGlobalWidgets, type GlobalWidget } from "@/lib/builder/globalWidgets";
 import { GLOBAL_WIDGET_MIME, CONTAINER_MIME } from "./builder/VisualCanvas";
 import { TemplateHistoryDialog } from "./TemplateHistoryDialog";
@@ -34,6 +40,7 @@ interface Props {
   onPickWidget: (t: WidgetType) => void;
   onPickStructure: (spans: number[]) => void;
   onPickTemplate: (tpl: SectionTemplate) => void;
+  onPickStarter?: (tpl: StarterTemplate) => void;
   onPickGlobal?: (g: GlobalWidget) => void;
   onPickContainer?: (withTabs: boolean) => void;
 }
@@ -42,10 +49,12 @@ export function WidgetLibrary({
   onPickWidget,
   onPickStructure,
   onPickTemplate,
+  onPickStarter,
   onPickGlobal,
   onPickContainer,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const adminLang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const wl = (k: string, o?: Record<string, unknown>) => t(`builder.widgetLibrary.${k}`, o);
   const bl = useBuilderLabel();
   const [search, setSearch] = useState("");
@@ -119,6 +128,11 @@ export function WidgetLibrary({
     "logo-cloud": "marketing",
     "ad-slot": "marketing",
     timeline: "timeline",
+    speakers: "events",
+    "event-schedule": "events",
+    "event-countdown": "events",
+    "meeting-booking": "events",
+    "event-sponsors": "events",
     // media
     video: "visual",
     gallery: "visual",
@@ -129,6 +143,7 @@ export function WidgetLibrary({
     // dynamic
     "post-list": "listings",
     carousel: "listings",
+    "event-list": "listings",
     "news-ticker": "listings",
     "podcast-latest": "listings",
     "web-stories-carousel": "listings",
@@ -171,7 +186,7 @@ export function WidgetLibrary({
   };
   const SUBGROUP_ORDER: Record<string, string[]> = {
     basic: ["typography", "visual", "actions", "layout"],
-    blocks: ["interactive", "content", "marketing", "timeline"],
+    blocks: ["interactive", "content", "marketing", "events", "timeline"],
     media: ["visual", "audio", "location"],
     dynamic: ["listings", "taxonomy", "dataViz", "singlePost"],
     form: ["growth", "account", "utility"],
@@ -285,6 +300,53 @@ export function WidgetLibrary({
           </button>
           {!collapsed.__struct && <StructurePicker onPick={onPickStructure} cols={2} />}
         </section>
+
+        {/* Szablony startowe: wbudowane, wielosekcyjne kompozycje stron
+            (wydarzenia, networking, sponsorzy...). Klik wstawia komplet
+            sekcji ze swiezymi id - patrz lib/builder/starterTemplates. */}
+        {onPickStarter && (
+          <section>
+            <button
+              type="button"
+              onClick={() => toggle("__starters")}
+              className="w-full text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider inline-flex items-center gap-1.5 hover:text-foreground"
+            >
+              {collapsed.__starters ? (
+                <ChevronRight className="w-3 h-3" />
+              ) : (
+                <ChevronDown className="w-3 h-3" />
+              )}
+              <LayoutDashboard className="w-3.5 h-3.5" /> {wl("starters")}
+            </button>
+            {!collapsed.__starters && (
+              <ul className="space-y-1">
+                {STARTER_TEMPLATES.filter((tpl) =>
+                  starterName(tpl, adminLang).toLowerCase().includes(search.toLowerCase()),
+                ).map((tpl) => (
+                  <li key={tpl.id}>
+                    <button
+                      type="button"
+                      onClick={() => onPickStarter(tpl)}
+                      title={
+                        wl("insertStarter", { name: starterName(tpl, adminLang) }) +
+                        " - " +
+                        starterDescription(tpl, adminLang)
+                      }
+                      className="w-full text-left text-xs px-2 py-1.5 bg-brand/5 hover:bg-brand hover:text-brand-foreground border border-brand/30 rounded space-y-0.5"
+                    >
+                      <span className="block truncate font-medium">
+                        {starterName(tpl, adminLang)}
+                      </span>
+                      <span className="block truncate text-[10px] opacity-70">
+                        {starterDescription(tpl, adminLang)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         <section>
           <button

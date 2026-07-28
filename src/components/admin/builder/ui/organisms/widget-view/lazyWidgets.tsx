@@ -39,6 +39,11 @@ import type { TtsPlayerHost as TtsPlayerHostImpl } from "@/components/admin/buil
 import type { PodcastLatestView as PodcastLatestViewImpl } from "./PodcastLatestView";
 import type { WebStoriesCarouselView as WebStoriesCarouselViewImpl } from "./WebStoriesCarouselView";
 import type { NewsTickerView as NewsTickerViewImpl } from "./NewsTickerView";
+import type { EventScheduleView as EventScheduleViewImpl } from "./EventScheduleView";
+import type { EventsListView as EventsListViewImpl } from "./EventsListView";
+import type { EventCountdownView as EventCountdownViewImpl } from "./EventCountdownView";
+import type { MeetingBookingView as MeetingBookingViewImpl } from "./MeetingBookingView";
+import type { EventSponsorsView as EventSponsorsViewImpl } from "./EventSponsorsView";
 import type { RatedListView as RatedListViewImpl } from "./RatedListView";
 import type { TabsBlock as TabsBlockImpl } from "./TabsBlock";
 import type { AdSlotById as AdSlotByIdImpl } from "@/components/ads/AdSlotById";
@@ -145,6 +150,33 @@ const NewsTickerViewLazy = lazy(() =>
   import("./NewsTickerView").then((m) => ({ default: m.NewsTickerView })),
 ) as ComponentType<ComponentProps<typeof NewsTickerViewImpl>>;
 export const NewsTickerView = withSuspense(NewsTickerViewLazy);
+
+// Widgety wydarzen: agenda (dialog profilu prelegenta + react-query),
+// lista wydarzen i odliczanie - wszystkie poza bundlem wejsciowym chrome.
+const EventScheduleViewLazy = lazy(() =>
+  import("./EventScheduleView").then((m) => ({ default: m.EventScheduleView })),
+) as ComponentType<ComponentProps<typeof EventScheduleViewImpl>>;
+export const EventScheduleView = withSuspense(EventScheduleViewLazy);
+
+const EventsListViewLazy = lazy(() =>
+  import("./EventsListView").then((m) => ({ default: m.EventsListView })),
+) as ComponentType<ComponentProps<typeof EventsListViewImpl>>;
+export const EventsListView = withSuspense(EventsListViewLazy);
+
+const EventCountdownViewLazy = lazy(() =>
+  import("./EventCountdownView").then((m) => ({ default: m.EventCountdownView })),
+) as ComponentType<ComponentProps<typeof EventCountdownViewImpl>>;
+export const EventCountdownView = withSuspense(EventCountdownViewLazy);
+
+const MeetingBookingViewLazy = lazy(() =>
+  import("./MeetingBookingView").then((m) => ({ default: m.MeetingBookingView })),
+) as ComponentType<ComponentProps<typeof MeetingBookingViewImpl>>;
+export const MeetingBookingView = withSuspense(MeetingBookingViewLazy);
+
+const EventSponsorsViewLazy = lazy(() =>
+  import("./EventSponsorsView").then((m) => ({ default: m.EventSponsorsView })),
+) as ComponentType<ComponentProps<typeof EventSponsorsViewImpl>>;
+export const EventSponsorsView = withSuspense(EventSponsorsViewLazy);
 
 const RatedListViewLazy = lazy(() =>
   import("./RatedListView").then((m) => ({ default: m.RatedListView })),
