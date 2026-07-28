@@ -1,12 +1,23 @@
-import type { ComponentType } from 'react'
+import type { ComponentType } from "react";
+
+import {
+  freeRsvpEnTemplate,
+  freeRsvpPlTemplate,
+  newsletterConfirmedTemplate,
+  subscriptionCanceledTemplate,
+  subscriptionConfirmedTemplate,
+  subscriptionDowngradedTemplate,
+  subscriptionRenewedTemplate,
+  subscriptionUpgradedTemplate,
+} from "./app-transactional-templates";
 
 export interface TemplateEntry {
-  component: ComponentType<any>
-  subject: string | ((data: Record<string, any>) => string)
-  displayName?: string
-  previewData?: Record<string, any>
+  component: ComponentType<Record<string, unknown>>;
+  subject: string | ((data: Record<string, unknown>) => string);
+  displayName?: string;
+  previewData?: Record<string, unknown>;
   /** Fixed recipient — overrides caller-provided recipientEmail when set. */
-  to?: string
+  to?: string;
 }
 
 /**
@@ -18,6 +29,12 @@ export interface TemplateEntry {
  *   // then add to TEMPLATES: 'welcome': welcomeTemplate
  */
 export const TEMPLATES: Record<string, TemplateEntry> = {
-  // Add templates here as they are created, e.g.:
-  // 'welcome': welcomeTemplate,
-}
+  "free-rsvp-pl": freeRsvpPlTemplate,
+  "free-rsvp-en": freeRsvpEnTemplate,
+  "subscription-confirmed": subscriptionConfirmedTemplate,
+  "subscription-renewed": subscriptionRenewedTemplate,
+  "subscription-canceled": subscriptionCanceledTemplate,
+  "subscription-upgraded": subscriptionUpgradedTemplate,
+  "subscription-downgraded": subscriptionDowngradedTemplate,
+  "newsletter-confirmed": newsletterConfirmedTemplate,
+};
