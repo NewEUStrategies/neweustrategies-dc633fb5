@@ -7,6 +7,7 @@ import { MagicLinkEmail } from '@/lib/email-templates/magic-link'
 import { RecoveryEmail } from '@/lib/email-templates/recovery'
 import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
+import { authSubject, type AuthEmailType } from '@/lib/email-templates/copy'
 
 const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   signup: SignupEmail,
@@ -37,10 +38,14 @@ const SAMPLE_DATA: Record<string, object> = {
   },
   magiclink: {
     siteName: SITE_NAME,
+    siteUrl: SAMPLE_PROJECT_URL,
+    recipient: SAMPLE_EMAIL,
     confirmationUrl: SAMPLE_PROJECT_URL,
   },
   recovery: {
     siteName: SITE_NAME,
+    siteUrl: SAMPLE_PROJECT_URL,
+    recipient: SAMPLE_EMAIL,
     confirmationUrl: SAMPLE_PROJECT_URL,
   },
   invite: {
@@ -56,6 +61,9 @@ const SAMPLE_DATA: Record<string, object> = {
     confirmationUrl: SAMPLE_PROJECT_URL,
   },
   reauthentication: {
+    siteName: SITE_NAME,
+    siteUrl: SAMPLE_PROJECT_URL,
+    recipient: SAMPLE_EMAIL,
     token: '123456',
   },
 }
@@ -80,9 +88,18 @@ export const Route = createFileRoute("/lovable/email/auth/preview")({
         }
 
         let type: string
+        let lang: 'pl' | 'en' = 'pl'
         try {
           const body = await request.json()
           type = body.type
+          // i18n: ?lang / body.lang / "signup:en"
+          const url = new URL(request.url)
+          const rawLang =
+            (typeof body.lang === 'string' ? body.lang : null) ??
+            url.searchParams.get('lang') ??
+            (typeof type === 'string' && type.includes(':') ? type.split(':')[1] : null)
+          if (typeof type === 'string' && type.includes(':')) type = type.split(':')[0]
+          if (typeof rawLang === 'string' && rawLang.toLowerCase().startsWith('en')) lang = 'en'
         } catch {
           return Response.json(
             { error: 'Invalid JSON in request body' },
@@ -99,12 +116,18 @@ export const Route = createFileRoute("/lovable/email/auth/preview")({
           )
         }
 
-        const sampleData = SAMPLE_DATA[type] || {}
+        const sampleData = { ...(SAMPLE_DATA[type] || {}), lang }
         const html = await render(React.createElement(EmailTemplate, sampleData))
+        const subject = authSubject(type as AuthEmailType, lang)
 
         return new Response(html, {
           status: 200,
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'X-Email-Subject': encodeURIComponent(subject),
+            'X-Email-From': `${SITE_NAME} <noreply@${ROOT_DOMAIN}>`,
+            'X-Email-Lang': lang,
+          },
         })
       },
     },
