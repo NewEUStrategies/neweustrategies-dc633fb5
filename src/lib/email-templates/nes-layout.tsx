@@ -370,7 +370,7 @@ export const text: React.CSSProperties = {
 };
 
 export const buttonStyle: React.CSSProperties = {
-  backgroundColor: INK,
+  backgroundColor: ORANGE,
   color: "#ffffff",
   fontSize: "14px",
   fontWeight: 700,
@@ -379,6 +379,7 @@ export const buttonStyle: React.CSSProperties = {
   textDecoration: "none",
   display: "inline-block",
 };
+
 
 export const linkStyle: React.CSSProperties = {
   color: INK,
