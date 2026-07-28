@@ -245,6 +245,16 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             }
 
             try {
+              if (
+                typeof payload.to !== 'string' ||
+                typeof payload.from !== 'string' ||
+                typeof payload.subject !== 'string' ||
+                typeof payload.html !== 'string' ||
+                typeof payload.text !== 'string'
+              ) {
+                await moveToDlq(supabase, queue, msg, 'Malformed email payload')
+                continue
+              }
               await sendLovableEmail(
                 {
                   run_id: payload.run_id,
