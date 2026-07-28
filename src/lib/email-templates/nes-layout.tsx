@@ -37,14 +37,14 @@ interface LayoutProps {
 
 const FOOTER_COPY = {
   pl: {
-    tagline: "Analizy, dane i doradztwo strategiczne dla Europy Środkowej.",
+    tagline: "Analizy, dane i doradztwo strategiczne dla Europy.",
     auto: "Ta wiadomość została wysłana automatycznie - prosimy na nią nie odpowiadać.",
     site: "neweuropeanstrategies.com",
     privacy: "Polityka prywatności",
     contact: "Kontakt",
   },
   en: {
-    tagline: "Analysis, data and strategic advisory for Central Europe.",
+    tagline: "Analysis, data and strategic advisory for Europe.",
     auto: "This message was sent automatically - please do not reply to it.",
     site: "neweuropeanstrategies.com",
     privacy: "Privacy policy",
