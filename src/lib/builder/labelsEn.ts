@@ -87,6 +87,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Treść wpisu (automatycznie)": "Post content (automatic)",
   "Tailored must-reads (rekomendacje z imieniem)":
     "Tailored must-reads (personalised recommendations)",
+  "Karta odliczania (wydarzenie)": "Event countdown card",
   "Logowanie": "Sign in",
   "Rejestracja": "Sign up",
   "Wydarzenia": "Events",

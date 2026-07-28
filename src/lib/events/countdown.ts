@@ -43,3 +43,10 @@ export function daysUntil(targetMs: number, nowMs: number): number {
   if (diff <= 0) return 0;
   return Math.ceil(diff / 86_400_000);
 }
+
+/** true, gdy start jest w przyszlosci, ale blizej niz `withinHours` godzin.
+ *  Steruje badge "Juz wkrotce!" na karcie odliczania. */
+export function isStartingSoon(targetMs: number, nowMs: number, withinHours = 24): boolean {
+  const diff = targetMs - nowMs;
+  return diff > 0 && diff < withinHours * 3_600_000;
+}

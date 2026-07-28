@@ -131,6 +131,7 @@ export function WidgetLibrary({
     speakers: "events",
     "event-schedule": "events",
     "event-countdown": "events",
+    "event-countdown-card": "events",
     "meeting-booking": "events",
     "event-sponsors": "events",
     // media
