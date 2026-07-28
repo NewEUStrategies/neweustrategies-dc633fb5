@@ -20,9 +20,11 @@ export const NES_LOGO_LIGHT =
 export const NES_LOGO_DARK =
   "https://unnltowbgszpdzwpawdu.supabase.co/storage/v1/object/public/media/theme%2Femail%2Fnes-logo-dark.png";
 
-const NAVY = "#01112F";
-const ORANGE = "#FA9346";
+/** Ciemna baza marki w mailach (zamiast granatu). */
 const INK = "#141313";
+const INK_SOFT = "#221f1e";
+const ORANGE = "#FA9346";
+const AMBER = "#F8B632";
 const MUTED = "#55575d";
 const SAND = "#F8F6F4";
 const BORDER = "#eceae7";
@@ -32,6 +34,10 @@ interface LayoutProps {
   lang: EmailLang;
   preview: string;
   siteUrl: string;
+  /** Nagłówek hero (ciemny pas) */
+  eyebrow?: string;
+  heading?: string;
+  emoji?: string;
   children: React.ReactNode;
 }
 
@@ -42,6 +48,7 @@ const FOOTER_COPY = {
     site: "neweuropeanstrategies.com",
     privacy: "Polityka prywatności",
     contact: "Kontakt",
+    claim: "WIEDZA · STRATEGIA · WPŁYW",
   },
   en: {
     tagline: "Analysis, data and strategic advisory for Europe.",
@@ -49,14 +56,24 @@ const FOOTER_COPY = {
     site: "neweuropeanstrategies.com",
     privacy: "Privacy policy",
     contact: "Contact",
+    claim: "KNOWLEDGE · STRATEGY · IMPACT",
   },
 } as const;
 
 /**
  * Wspólna ramka maili systemowych NES: jasny header z poziomym logo,
- * biała karta treści i ciemna (granatowa) stopka z logo w wersji dark.
+ * ciemny hero (#141313) z emoji i tytułem, biała karta treści
+ * oraz ciemna stopka z logo w wersji dark.
  */
-export const NesEmailLayout = ({ lang, preview, siteUrl, children }: LayoutProps) => {
+export const NesEmailLayout = ({
+  lang,
+  preview,
+  siteUrl,
+  eyebrow: eyebrowText,
+  heading,
+  emoji,
+  children,
+}: LayoutProps) => {
   const f = FOOTER_COPY[lang];
   return (
     <Html lang={lang} dir="ltr">
@@ -69,12 +86,20 @@ export const NesEmailLayout = ({ lang, preview, siteUrl, children }: LayoutProps
               <Img
                 src={NES_LOGO_LIGHT}
                 alt="New European Strategies"
-                width={196}
-                height={81}
+                width={186}
+                height={77}
                 style={logoImg}
               />
             </Link>
           </Section>
+
+          {(heading || eyebrowText) && (
+            <Section style={hero}>
+              {emoji ? <Text style={heroEmoji}>{emoji}</Text> : null}
+              {eyebrowText ? <Text style={heroEyebrow}>{eyebrowText}</Text> : null}
+              {heading ? <Text style={heroTitle}>{heading}</Text> : null}
+            </Section>
+          )}
 
           <Section style={card}>{children}</Section>
 
@@ -82,10 +107,11 @@ export const NesEmailLayout = ({ lang, preview, siteUrl, children }: LayoutProps
             <Img
               src={NES_LOGO_DARK}
               alt="New European Strategies"
-              width={168}
-              height={69}
+              width={162}
+              height={67}
               style={logoImg}
             />
+            <Text style={footerClaim}>{f.claim}</Text>
             <Text style={footerTagline}>{f.tagline}</Text>
             <Hr style={footerRule} />
             <Text style={footerLinks}>
@@ -129,8 +155,8 @@ const outer: React.CSSProperties = {
 
 const header: React.CSSProperties = {
   backgroundColor: SAND,
-  borderRadius: "6px 6px 0 0",
-  padding: "24px 28px",
+  borderRadius: "10px 10px 0 0",
+  padding: "22px 28px",
   textAlign: "center" as const,
 };
 
@@ -140,25 +166,64 @@ const logoImg: React.CSSProperties = {
   border: 0,
 };
 
+const hero: React.CSSProperties = {
+  backgroundColor: INK,
+  backgroundImage: `linear-gradient(140deg, ${INK} 0%, ${INK_SOFT} 62%, #2c211a 100%)`,
+  borderBottom: `3px solid ${ORANGE}`,
+  padding: "30px 28px 28px",
+  textAlign: "center" as const,
+};
+
+const heroEmoji: React.CSSProperties = {
+  fontSize: "30px",
+  lineHeight: "1",
+  margin: "0 0 12px",
+};
+
+const heroEyebrow: React.CSSProperties = {
+  color: AMBER,
+  fontSize: "11px",
+  fontWeight: 700,
+  letterSpacing: "0.16em",
+  textTransform: "uppercase" as const,
+  margin: "0 0 8px",
+};
+
+const heroTitle: React.CSSProperties = {
+  color: "#ffffff",
+  fontSize: "25px",
+  fontWeight: 700,
+  lineHeight: "1.25",
+  margin: 0,
+};
+
 const card: React.CSSProperties = {
   backgroundColor: "#ffffff",
   border: `1px solid ${BORDER}`,
-  borderTop: `3px solid ${ORANGE}`,
-  padding: "32px 28px",
+  borderTop: "none",
+  padding: "30px 28px 32px",
 };
 
 const footer: React.CSSProperties = {
-  backgroundColor: NAVY,
-  borderRadius: "0 0 6px 6px",
+  backgroundColor: INK,
+  borderRadius: "0 0 10px 10px",
   padding: "28px",
   textAlign: "center" as const,
 };
 
+const footerClaim: React.CSSProperties = {
+  color: ORANGE,
+  fontSize: "10px",
+  fontWeight: 700,
+  letterSpacing: "0.18em",
+  margin: "10px 0 0",
+};
+
 const footerTagline: React.CSSProperties = {
-  color: "#c7cedb",
+  color: "#cfc9c5",
   fontSize: "12px",
   lineHeight: "1.6",
-  margin: "12px 0 0",
+  margin: "8px 0 0",
 };
 
 const footerRule: React.CSSProperties = {
@@ -167,7 +232,7 @@ const footerRule: React.CSSProperties = {
 };
 
 const footerLinks: React.CSSProperties = {
-  color: "#8d97a8",
+  color: "#9b9490",
   fontSize: "12px",
   margin: "0 0 12px",
 };
@@ -178,7 +243,7 @@ const footerLink: React.CSSProperties = {
 };
 
 const footerNote: React.CSSProperties = {
-  color: "#7b8598",
+  color: "#8b8481",
   fontSize: "11px",
   lineHeight: "1.6",
   margin: "4px 0 0",
@@ -196,38 +261,38 @@ export const eyebrow: React.CSSProperties = {
 export const h1: React.CSSProperties = {
   fontSize: "23px",
   fontWeight: 700,
-  color: NAVY,
+  color: INK,
   lineHeight: "1.25",
   margin: "0 0 8px",
 };
 
 export const greeting: React.CSSProperties = {
-  fontSize: "14px",
-  fontWeight: 600,
+  fontSize: "15px",
+  fontWeight: 700,
   color: INK,
-  margin: "18px 0 10px",
+  margin: "0 0 10px",
 };
 
 export const text: React.CSSProperties = {
   fontSize: "13px",
   color: MUTED,
-  lineHeight: "1.65",
+  lineHeight: "1.7",
   margin: "0 0 16px",
 };
 
 export const buttonStyle: React.CSSProperties = {
-  backgroundColor: NAVY,
+  backgroundColor: INK,
   color: "#ffffff",
   fontSize: "14px",
-  fontWeight: 600,
-  borderRadius: "6px",
-  padding: "13px 24px",
+  fontWeight: 700,
+  borderRadius: "8px",
+  padding: "14px 26px",
   textDecoration: "none",
   display: "inline-block",
 };
 
 export const linkStyle: React.CSSProperties = {
-  color: NAVY,
+  color: INK,
   textDecoration: "underline",
   wordBreak: "break-all" as const,
 };
@@ -235,7 +300,7 @@ export const linkStyle: React.CSSProperties = {
 export const infoBox: React.CSSProperties = {
   backgroundColor: SAND,
   border: `1px solid ${BORDER}`,
-  borderRadius: "6px",
+  borderRadius: "8px",
   padding: "14px 16px",
   margin: "0 0 18px",
 };
@@ -247,17 +312,26 @@ export const infoText: React.CSSProperties = {
   margin: 0,
 };
 
+export const noteBox: React.CSSProperties = {
+  backgroundColor: "#fdf6ef",
+  border: "1px solid #f6e2cd",
+  borderLeft: `3px solid ${ORANGE}`,
+  borderRadius: "8px",
+  padding: "12px 14px",
+  margin: "0 0 18px",
+};
+
 export const codeStyle: React.CSSProperties = {
   backgroundColor: SAND,
   border: `1px solid ${BORDER}`,
-  borderRadius: "6px",
-  color: NAVY,
+  borderRadius: "8px",
+  color: INK,
   display: "inline-block",
   fontFamily: '"Courier New", Courier, monospace',
-  fontSize: "28px",
+  fontSize: "30px",
   fontWeight: 700,
   letterSpacing: "0.28em",
-  padding: "14px 22px",
+  padding: "16px 24px",
   margin: "0 0 20px",
 };
 
