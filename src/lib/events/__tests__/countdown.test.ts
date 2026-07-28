@@ -1,6 +1,12 @@
 // Kontrakt czystej logiki odliczania (event-countdown).
 import { describe, it, expect } from "vitest";
-import { countdownParts, daysUntil, pad2, parseCountdownTarget } from "@/lib/events/countdown";
+import {
+  countdownParts,
+  daysUntil,
+  isStartingSoon,
+  pad2,
+  parseCountdownTarget,
+} from "@/lib/events/countdown";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
