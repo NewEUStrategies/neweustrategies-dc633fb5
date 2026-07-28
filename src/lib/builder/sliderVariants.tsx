@@ -86,6 +86,14 @@ export interface SliderConfig {
   showAuthor?: boolean;
   /** Show cover image on each slide. Default: true. */
   showCover?: boolean;
+  /** Show slide title (h3). Default: true. */
+  showTitle?: boolean;
+  /** Author presentation mode. avatar = avatar+name, label = "Autor: Name",
+   *  none = hide. When set, supersedes legacy showAuthor. */
+  authorDisplay?: "avatar" | "label" | "none";
+  /** Optional i18n override for the label prefix in authorDisplay='label'. */
+  authorLabel_pl?: string;
+  authorLabel_en?: string;
 
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
@@ -853,8 +861,17 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   const nav = resolveNavStyle(config);
   const showExcerpt = config.showExcerpt !== false;
-  const showAuthor = config.showAuthor !== false;
   const showCover = config.showCover !== false;
+  const showTitle = config.showTitle !== false;
+  const authorDisplay: "avatar" | "label" | "none" =
+    config.authorDisplay ?? (config.showAuthor === false ? "none" : "avatar");
+  const showAuthor = authorDisplay !== "none";
+  const authorLabelPrefix =
+    authorDisplay === "label"
+      ? (lang === "en"
+          ? (config.authorLabel_en?.trim() || "By")
+          : (config.authorLabel_pl?.trim() || "Autor")) + ": "
+      : "";
 
   const sharedProps = {
     items,
@@ -881,6 +898,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     nav,
     showExcerpt,
     showAuthor,
+    showTitle,
+    authorLabelPrefix,
   };
 
   return (
@@ -939,6 +958,8 @@ type VariantProps = {
   nav: NavStyleResolved;
   showExcerpt: boolean;
   showAuthor: boolean;
+  showTitle: boolean;
+  authorLabelPrefix: string;
 };
 
 /** Compact author badge: 6px-rounded avatar + display name; links to the
@@ -950,12 +971,14 @@ function AuthorBadge({
   slug,
   tone = "light",
   size = 22,
+  labelPrefix = "",
 }: {
   name?: string;
   avatar?: string;
   slug?: string;
   tone?: "light" | "dark";
   size?: number;
+  labelPrefix?: string;
 }) {
   if (!name && !avatar) return null;
   const safeAvatar = avatar ? safeImageUrl(avatar) : "";
@@ -983,7 +1006,7 @@ function AuthorBadge({
           {initial}
         </span>
       )}
-      {name && <span className={`font-medium ${textCls}`}>{name}</span>}
+      {name && <span className={`font-medium ${textCls}`}>{labelPrefix}{name}</span>}
     </span>
   );
   if (slug) {
