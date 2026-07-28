@@ -685,7 +685,7 @@ export const renderToc: BlockRenderer = ({ block, cls, lang, allBlocks }) => {
   return (
     <div className={cls}>
       <TocBlockView
-        blocks={[...allBlocks]}
+        blocks={allBlocks}
         title={str(block.data, "title")}
         minLevel={num(block.data, "minLevel", 2)}
         maxLevel={num(block.data, "maxLevel", 3)}

@@ -6,8 +6,9 @@
 // (t, lang, fnHtml, cls) dostaje z kontekstu wyliczonego przez dyspozytora.
 
 import { safeUrl } from "@/lib/sanitize";
+import { blockAnchor } from "@/lib/blocks/anchors";
 import type { BlockRenderer } from "./context";
-import { bool, num, slugify, str, strList } from "./data";
+import { bool, num, str, strList } from "./data";
 
 /** Akapit z formatowaniem inline (HTML sanitizowany, z rozwiniętymi przypisami). */
 export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
@@ -15,23 +16,56 @@ export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
   return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
 };
 
-/** Nagłówek H2-H4 z opcjonalną kotwicą (jawną lub slugifikowaną z treści). */
-export const renderHeading: BlockRenderer = ({ block, fnHtml, cls }) => {
+/**
+ * Nagłówek H2-H4 z kotwicą (jawną albo wyliczoną z treści).
+ *
+ * Kotwica pochodzi z JEDNEJ derywacji dokumentu (lib/blocks/anchors), tej samej,
+ * którą czyta spis treści - więc `#kotwica` w ToC zawsze trafia w to `id`, także
+ * przy dwóch nagłówkach o identycznej treści.
+ *
+ * `LegacyAnchors` dokłada puste kotwice dla identyfikatorów, jakie ten nagłówek
+ * dostawał przed unifikacją slugifikatora (bez transliteracji `ł`). Bez nich
+ * migracja treści bloki↔richtext zerwałaby już opublikowane linki `#`.
+ */
+export const renderHeading: BlockRenderer = ({ block, fnHtml, cls, allBlocks }) => {
   const level = Math.min(Math.max(num(block.data, "level", 2), 2), 4);
   const text = str(block.data, "text");
-  const explicit = str(block.data, "anchor");
-  const id = explicit || (text ? slugify(text) : undefined);
+  const anchor = blockAnchor(block, allBlocks);
+  const id = anchor.id || undefined;
   const Tag = `h${level}` as "h2" | "h3" | "h4";
   const withFn = fnHtml.get(`${block.id}:text`);
   if (withFn !== undefined) {
-    return <Tag id={id} className={cls} dangerouslySetInnerHTML={{ __html: withFn }} />;
+    // Aliasy doklejamy do stringa HTML, żeby przy braku aliasów (przypadek
+    // dominujący) DOM nagłówka pozostał BAJT W BAJT taki jak dotąd.
+    const html = legacyAnchorsHtml(anchor.legacyIds, anchor.id) + withFn;
+    return <Tag id={id} className={cls} dangerouslySetInnerHTML={{ __html: html }} />;
   }
   return (
     <Tag id={id} className={cls}>
+      {anchor.legacyIds.map((legacyId) => (
+        <span key={legacyId} id={legacyId} data-anchor-alias={anchor.id} aria-hidden="true" />
+      ))}
       {text}
     </Tag>
   );
 };
+
+/** Kotwica aliasowa MUSI być czystym slugiem - twardy warunek przed wejściem do HTML. */
+const SAFE_ANCHOR_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Puste kotwice zgodności wstecznej jako HTML (dla ścieżki z rozwiniętymi
+ * przypisami, gdzie treść nagłówka jest wstrzykiwana jako string). Identyfikatory
+ * pochodzą wyłącznie z `slugifyAnchor`/`legacyAnchorVariants`, więc są ASCII-only;
+ * regex jest tu ostatnią linią obrony, a nie jedyną.
+ */
+function legacyAnchorsHtml(ids: readonly string[], canonicalId: string): string {
+  if (ids.length === 0 || !SAFE_ANCHOR_RE.test(canonicalId)) return "";
+  return ids
+    .filter((id) => SAFE_ANCHOR_RE.test(id))
+    .map((id) => `<span id="${id}" data-anchor-alias="${canonicalId}" aria-hidden="true"></span>`)
+    .join("");
+}
 
 /** Lista numerowana lub punktowana (elementy mogą nieść przypisy). */
 export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
