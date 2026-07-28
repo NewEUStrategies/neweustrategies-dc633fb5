@@ -1,58 +1,50 @@
-import * as React from 'react'
+import * as React from "react";
 
+import { Section, Text } from "@react-email/components";
+
+import { authCopy } from "./copy";
 import {
-  Body,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Preview,
-  Text,
-} from '@react-email/components'
+  codeStyle,
+  eyebrow,
+  greeting,
+  h1,
+  NesEmailLayout,
+  smallPrint,
+  text,
+  type EmailLang,
+} from "./nes-layout";
+import { emailGreeting, type PolishGender } from "@/lib/i18n/polishVocative";
 
 interface ReauthenticationEmailProps {
-  token: string
+  siteName?: string;
+  siteUrl?: string;
+  token: string;
+  lang?: EmailLang;
+  firstName?: string | null;
+  gender?: PolishGender;
 }
 
-export const ReauthenticationEmail = ({ token }: ReauthenticationEmailProps) => (
-  <Html lang="en" dir="ltr">
-    <Head />
-    <Preview>Your verification code</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Heading style={h1}>Confirm reauthentication</Heading>
-        <Text style={text}>Use the code below to confirm your identity:</Text>
+export const ReauthenticationEmail = ({
+  siteUrl = "https://neweuropeanstrategies.com",
+  token,
+  lang = "pl",
+  firstName,
+  gender = "unknown",
+}: ReauthenticationEmailProps) => {
+  const c = authCopy("reauthentication", lang);
+  return (
+    <NesEmailLayout lang={lang} preview={c.preview} siteUrl={siteUrl}>
+      <Text style={eyebrow}>{c.eyebrow}</Text>
+      <Text style={h1}>{c.heading}</Text>
+      <Text style={greeting}>{emailGreeting(lang, firstName, gender)}</Text>
+      <Text style={text}>{c.intro}</Text>
+      <Section style={{ textAlign: "center" as const }}>
         <Text style={codeStyle}>{token}</Text>
-        <Text style={footer}>
-          This code will expire shortly. If you didn't request this, you can
-          safely ignore this email.
-        </Text>
-      </Container>
-    </Body>
-  </Html>
-)
+      </Section>
+      <Text style={text}>{c.expiry}</Text>
+      <Text style={smallPrint}>{c.security}</Text>
+    </NesEmailLayout>
+  );
+};
 
-export default ReauthenticationEmail
-
-const main = { backgroundColor: '#ffffff', fontFamily: '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif' }
-const container = { padding: '32px 28px', maxWidth: '560px', border: '1px solid #eceae7', borderRadius: '6px' }
-const h1 = {
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  color: '#01112F',
-  margin: '0 0 20px',
-}
-const text = {
-  fontSize: '13px',
-  color: '#55575d',
-  lineHeight: '1.5',
-  margin: '0 0 25px',
-}
-const codeStyle = {
-  fontFamily: 'Courier, monospace',
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  color: '#01112F',
-  margin: '0 0 30px',
-}
-const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
+export default ReauthenticationEmail;
