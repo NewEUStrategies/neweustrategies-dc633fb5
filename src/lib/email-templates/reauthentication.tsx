@@ -3,6 +3,7 @@ import * as React from "react";
 import { Section, Text } from "@react-email/components";
 
 import { authCopy } from "./copy";
+import { IconRow } from "./icons";
 import {
   codeStyle,
   greeting,
@@ -41,16 +42,16 @@ export const ReauthenticationEmail = ({
       siteUrl={siteUrl}
       eyebrow={c.eyebrow}
       heading={c.heading}
-      emoji={c.emoji}
+      icon={c.icon}
     >
       <Text style={greeting}>{emailGreeting(lang, firstName, gender, vocativePl)}</Text>
       <Text style={text}>{c.intro}</Text>
       <Section style={{ textAlign: "center" as const }}>
         <Text style={codeStyle}>{token}</Text>
       </Section>
-      <Text style={text}>⏳ {c.expiry}</Text>
+      <IconRow name="clock" textStyle={text}>{c.expiry}</IconRow>
       <Section style={noteBox}>
-        <Text style={infoText}>🔒 {c.security}</Text>
+        <IconRow name="lock" textStyle={infoText}>{c.security}</IconRow>
       </Section>
       <Text style={smallPrint}>
         {lang === "pl"

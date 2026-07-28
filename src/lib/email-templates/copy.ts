@@ -1,3 +1,4 @@
+import type { EmailIconName } from "./icons";
 import type { EmailLang } from "./nes-layout";
 
 /**
@@ -15,7 +16,7 @@ export type AuthEmailType =
 
 interface Copy {
   subject: string;
-  emoji: string;
+  icon: EmailIconName;
   preview: string;
   eyebrow: string;
   heading: string;
@@ -31,7 +32,7 @@ type Dict = Record<AuthEmailType, Copy>;
 const PL: Dict = {
   signup: {
     subject: "✅ Potwierdź adres e-mail - New European Strategies",
-    emoji: "✅",
+    icon: "hero-check",
     preview: "Jeden klik dzieli Cię od aktywacji konta w New European Strategies.",
     eyebrow: "Aktywacja konta",
     heading: "Potwierdź swój adres e-mail",
@@ -44,7 +45,7 @@ const PL: Dict = {
   },
   invite: {
     subject: "🤝 Zaproszenie do New European Strategies",
-    emoji: "🤝",
+    icon: "hero-handshake",
     preview: "Otrzymałeś zaproszenie do platformy New European Strategies.",
     eyebrow: "Zaproszenie",
     heading: "Zaproszenie do platformy",
@@ -57,7 +58,7 @@ const PL: Dict = {
   },
   magiclink: {
     subject: "🔐 Twój link logowania - New European Strategies",
-    emoji: "🔐",
+    icon: "hero-magic",
     preview: "Bezpieczny link do zalogowania się bez hasła.",
     eyebrow: "Logowanie",
     heading: "Zaloguj się jednym kliknięciem",
@@ -71,7 +72,7 @@ const PL: Dict = {
   },
   recovery: {
     subject: "🔑 Reset hasła - New European Strategies",
-    emoji: "🔑",
+    icon: "hero-key",
     preview: "Ustaw nowe hasło do swojego konta w New European Strategies.",
     eyebrow: "Bezpieczeństwo konta",
     heading: "Ustaw nowe hasło",
@@ -85,7 +86,7 @@ const PL: Dict = {
   },
   email_change: {
     subject: "📧 Potwierdź zmianę adresu e-mail - New European Strategies",
-    emoji: "📧",
+    icon: "hero-mail",
     preview: "Potwierdź nowy adres e-mail przypisany do Twojego konta.",
     eyebrow: "Zmiana danych konta",
     heading: "Potwierdź nowy adres e-mail",
@@ -99,7 +100,7 @@ const PL: Dict = {
   },
   reauthentication: {
     subject: "🛡️ Kod weryfikacyjny - New European Strategies",
-    emoji: "🛡️",
+    icon: "hero-shield",
     preview: "Twój jednorazowy kod weryfikacyjny.",
     eyebrow: "Weryfikacja tożsamości",
     heading: "Twój kod weryfikacyjny",
@@ -115,7 +116,7 @@ const PL: Dict = {
 const EN: Dict = {
   signup: {
     subject: "✅ Confirm your email - New European Strategies",
-    emoji: "✅",
+    icon: "hero-check",
     preview: "One click left to activate your New European Strategies account.",
     eyebrow: "Account activation",
     heading: "Confirm your email address",
@@ -128,7 +129,7 @@ const EN: Dict = {
   },
   invite: {
     subject: "🤝 You have been invited to New European Strategies",
-    emoji: "🤝",
+    icon: "hero-handshake",
     preview: "You have received an invitation to the New European Strategies platform.",
     eyebrow: "Invitation",
     heading: "You have been invited",
@@ -141,7 +142,7 @@ const EN: Dict = {
   },
   magiclink: {
     subject: "🔐 Your sign-in link - New European Strategies",
-    emoji: "🔐",
+    icon: "hero-magic",
     preview: "A secure link to sign in without a password.",
     eyebrow: "Sign in",
     heading: "Sign in with one click",
@@ -155,7 +156,7 @@ const EN: Dict = {
   },
   recovery: {
     subject: "🔑 Reset your password - New European Strategies",
-    emoji: "🔑",
+    icon: "hero-key",
     preview: "Set a new password for your New European Strategies account.",
     eyebrow: "Account security",
     heading: "Set a new password",
@@ -169,7 +170,7 @@ const EN: Dict = {
   },
   email_change: {
     subject: "📧 Confirm your new email - New European Strategies",
-    emoji: "📧",
+    icon: "hero-mail",
     preview: "Confirm the new email address linked to your account.",
     eyebrow: "Account details change",
     heading: "Confirm your new email address",
@@ -183,7 +184,7 @@ const EN: Dict = {
   },
   reauthentication: {
     subject: "🛡️ Your verification code - New European Strategies",
-    emoji: "🛡️",
+    icon: "hero-shield",
     preview: "Your one-time verification code.",
     eyebrow: "Identity verification",
     heading: "Your verification code",
@@ -200,8 +201,8 @@ export function authCopy(type: AuthEmailType, lang: EmailLang): Copy {
   return (lang === "en" ? EN : PL)[type];
 }
 
-export function authEmoji(type: AuthEmailType, lang: EmailLang): string {
-  return authCopy(type, lang).emoji;
+export function authIcon(type: AuthEmailType, lang: EmailLang): EmailIconName {
+  return authCopy(type, lang).icon;
 }
 
 export function authSubject(type: AuthEmailType, lang: EmailLang): string {

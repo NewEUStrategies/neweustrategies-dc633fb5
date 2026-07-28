@@ -3,6 +3,7 @@ import * as React from "react";
 import { Button, Section, Text } from "@react-email/components";
 
 import { authCopy, EMAIL_CHANGE_LABELS } from "./copy";
+import { IconRow } from "./icons";
 import {
   buttonStyle,
   greeting,
@@ -48,7 +49,7 @@ export const EmailChangeEmail = ({
       siteUrl={siteUrl}
       eyebrow={c.eyebrow}
       heading={c.heading}
-      emoji={c.emoji}
+      icon={c.icon}
     >
       <Text style={greeting}>{emailGreeting(lang, firstName, gender, vocativePl)}</Text>
       <Text style={text}>{c.intro}</Text>
@@ -80,9 +81,9 @@ export const EmailChangeEmail = ({
           </a>
         </Text>
       </Section>
-      <Text style={text}>⏳ {c.expiry}</Text>
+      <IconRow name="clock" textStyle={text}>{c.expiry}</IconRow>
       <Section style={noteBox}>
-        <Text style={infoText}>🔒 {c.security}</Text>
+        <IconRow name="lock" textStyle={infoText}>{c.security}</IconRow>
       </Section>
       <Text style={smallPrint}>
         {lang === "pl"
