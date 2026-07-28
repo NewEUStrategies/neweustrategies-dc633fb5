@@ -49,7 +49,8 @@ export function PostContentStyle() {
               : "disc";
 
     el.textContent = `
-      .single-post-content p { margin-bottom: ${s.paragraph_spacing_rem}rem; }
+      /* Odstępy akapitów/list żyją w <ContentAreaStyle/> + tokenach motywu
+         (--sp-list). Tutaj tylko style linków i obrazów, bez duplikatów. */
       .single-post-content a { ${fontStyle} ${underline} ${lightLink} ${lightUl} }
       .dark .single-post-content a { ${darkLink} ${darkUl} }
       .single-post-content ul { list-style: ${listStyleVal}; padding-left: 1.5rem; }

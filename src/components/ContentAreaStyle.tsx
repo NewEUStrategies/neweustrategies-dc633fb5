@@ -41,9 +41,9 @@ export function ContentAreaStyle() {
 .single-post-content figure.wide,
 .single-post-content figure.is-wide,
 .single-post-content img.wide { max-width: ${num(s.wide_align_max_width, "1600px")}; margin-left: auto; margin-right: auto; }
-.post-content p, .post-content ul, .post-content ol, .post-content blockquote,
-.blocks-content p, .blocks-content ul, .blocks-content ol, .blocks-content blockquote,
-.single-post-content p, .single-post-content ul, .single-post-content ol, .single-post-content blockquote { margin-bottom: ${s.paragraph_spacing_rem || 1.5}rem; }
+/* Tylko akapity - odstępy list i cytatów pochodzą z tokenów motywu
+   (--sp-list / --sp-blockquote), żeby nie było dwóch źródeł prawdy. */
+.post-content p, .blocks-content p, .single-post-content p { margin-bottom: ${s.paragraph_spacing_rem || 1.5}rem; }
 /* Sync builder canvas: Enter in Gutenberg tworzy nowy blok akapitu - odstęp
    między kolejnymi akapitami w edytorze musi być IDENTYCZNY z odstępem na
    froncie (var: paragraph_spacing_rem z /admin/content-area). */

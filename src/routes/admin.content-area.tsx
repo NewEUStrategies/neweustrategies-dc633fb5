@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import type { PostLayoutSettings } from "@/lib/postLayouts";
@@ -331,17 +331,19 @@ function Page() {
 
         <SectionCard title={t("admin.contentArea.paragraphs")}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <FieldShell label={t("admin.contentArea.paragraphSpacing")}>
-              <SliderField
-                value={local.paragraph_spacing_rem || 1.5}
-                onChange={(n) => upd({ paragraph_spacing_rem: n })}
-                min={0.5}
-                max={3}
-                step={0.05}
-                unit="rem"
-              />
-            </FieldShell>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              <Link to="/admin/theme-options" className="underline underline-offset-2">
+                {t("admin.contentArea.spacingMovedLink", {
+                  defaultValue: "Opcje motywu → Rozmiary czcionek",
+                })}
+              </Link>{" "}
+              {t("admin.contentArea.spacingMovedHint", {
+                defaultValue:
+                  "- tam ustawiasz odstępy akapitów, nagłówków, list i cytatów (jedno źródło prawdy dla frontu i Gutenberga).",
+              })}
+            </p>
             <FieldShell label={t("admin.contentArea.listStyle")}>
+
               <SelectField
                 value={local.list_style || "disc"}
                 onChange={(v) => upd({ list_style: v })}
