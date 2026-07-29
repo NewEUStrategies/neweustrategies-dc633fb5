@@ -33,7 +33,12 @@ const createOrderSchema = z.object({
   // spójne z cennikiem i /support). Konwersja liczona jest serwerowo, więc
   // klient nie może zmienić kwoty - jedynie wybrać docelową walutę z listy.
   display_currency: z.enum(["PLN", "EUR"]).optional(),
+  // Bilet na płatne wydarzenie - webhook po zapłacie potwierdza RSVP.
+  event_id: z.string().uuid().nullable().optional(),
+  // Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu.
+  environment: z.enum(["sandbox", "live"]).optional(),
 });
+
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
