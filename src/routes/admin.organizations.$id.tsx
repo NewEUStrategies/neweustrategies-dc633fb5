@@ -812,7 +812,6 @@ function SeatsPane({
     [seats, nextSeats],
   );
   const summary = useMemo(() => summarizeSeats(seats, seatsLimit), [seats, seatsLimit]);
-  const suspendedIds = useMemo(() => projectedSeatStatus(seats, seatsLimit), [seats, seatsLimit]);
 
   const applySeats = useMutation({
     mutationFn: async () => {
