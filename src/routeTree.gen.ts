@@ -56,6 +56,7 @@ import { Route as TrackerExplorerRouteImport } from './routes/tracker.explorer'
 import { Route as TrackerChangesRouteImport } from './routes/tracker.changes'
 import { Route as TrackerSlugRouteImport } from './routes/tracker.$slug'
 import { Route as TagSlugRouteImport } from './routes/tag.$slug'
+import { Route as SupportThankYouRouteImport } from './routes/support.thank-you'
 import { Route as SeriesSlugRouteImport } from './routes/series.$slug'
 import { Route as QaSlugRouteImport } from './routes/qa.$slug'
 import { Route as ProgramsSlugRouteImport } from './routes/programs.$slug'
@@ -484,6 +485,11 @@ const TagSlugRoute = TagSlugRouteImport.update({
   id: '/tag/$slug',
   path: '/tag/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SupportThankYouRoute = SupportThankYouRouteImport.update({
+  id: '/thank-you',
+  path: '/thank-you',
+  getParentRoute: () => SupportRoute,
 } as any)
 const SeriesSlugRoute = SeriesSlugRouteImport.update({
   id: '/series/$slug',
@@ -1510,7 +1516,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/support': typeof SupportRoute
+  '/support': typeof SupportRouteWithChildren
   '/unsubscribe': typeof UnsubscribeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -1613,6 +1619,7 @@ export interface FileRoutesByFullPath {
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
+  '/support/thank-you': typeof SupportThankYouRoute
   '/tag/$slug': typeof TagSlugRouteWithChildren
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
@@ -1750,7 +1757,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/support': typeof SupportRoute
+  '/support': typeof SupportRouteWithChildren
   '/unsubscribe': typeof UnsubscribeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -1846,6 +1853,7 @@ export interface FileRoutesByTo {
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
+  '/support/thank-you': typeof SupportThankYouRoute
   '/tag/$slug': typeof TagSlugRouteWithChildren
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
@@ -1985,7 +1993,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/support': typeof SupportRoute
+  '/support': typeof SupportRouteWithChildren
   '/unsubscribe': typeof UnsubscribeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -2088,6 +2096,7 @@ export interface FileRoutesById {
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
+  '/support/thank-you': typeof SupportThankYouRoute
   '/tag/$slug': typeof TagSlugRouteWithChildren
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
@@ -2332,6 +2341,7 @@ export interface FileRouteTypes {
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
+    | '/support/thank-you'
     | '/tag/$slug'
     | '/tracker/$slug'
     | '/tracker/changes'
@@ -2565,6 +2575,7 @@ export interface FileRouteTypes {
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
+    | '/support/thank-you'
     | '/tag/$slug'
     | '/tracker/$slug'
     | '/tracker/changes'
@@ -2806,6 +2817,7 @@ export interface FileRouteTypes {
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
+    | '/support/thank-you'
     | '/tag/$slug'
     | '/tracker/$slug'
     | '/tracker/changes'
@@ -2946,7 +2958,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SitemapRoute: typeof SitemapRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  SupportRoute: typeof SupportRoute
+  SupportRoute: typeof SupportRouteWithChildren
   UnsubscribeRoute: typeof UnsubscribeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -3335,6 +3347,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tag/$slug'
       preLoaderRoute: typeof TagSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/support/thank-you': {
+      id: '/support/thank-you'
+      path: '/thank-you'
+      fullPath: '/support/thank-you'
+      preLoaderRoute: typeof SupportThankYouRouteImport
+      parentRoute: typeof SupportRoute
     }
     '/series/$slug': {
       id: '/series/$slug'
@@ -5164,6 +5183,17 @@ const QaRouteChildren: QaRouteChildren = {
 
 const QaRouteWithChildren = QaRoute._addFileChildren(QaRouteChildren)
 
+interface SupportRouteChildren {
+  SupportThankYouRoute: typeof SupportThankYouRoute
+}
+
+const SupportRouteChildren: SupportRouteChildren = {
+  SupportThankYouRoute: SupportThankYouRoute,
+}
+
+const SupportRouteWithChildren =
+  SupportRoute._addFileChildren(SupportRouteChildren)
+
 interface CategorySlugRouteChildren {
   CategorySlugRssDotxmlRoute: typeof CategorySlugRssDotxmlRoute
 }
@@ -5257,7 +5287,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SitemapRoute: SitemapRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  SupportRoute: SupportRoute,
+  SupportRoute: SupportRouteWithChildren,
   UnsubscribeRoute: UnsubscribeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
