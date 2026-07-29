@@ -1,0 +1,331 @@
+// Weryfikacja end-to-end webhooka operatora płatności: każde zdarzenie stanu
+// (pauza, wznowienie, zaległość, nowy okres, rezygnacja) musi domknąć CZTERY
+// warstwy odczytu, z których korzysta reszta platformy:
+//   1. `subscriptions`      -> /admin/billing (zakładki subskrypcji i webhooków),
+//   2. `user_subscriptions` -> uprawnienia (`has_content_access`), profil,
+//                              /admin/users i widgety z gatingiem,
+//   3. `crm_leads`          -> lejek CRM,
+//   4. `notifications`      -> dzwonek w aplikacji.
+// Test jedzie realną ścieżką handlera; wymieniamy tylko klienta bazy,
+// weryfikację podpisu i wysyłkę maili.
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+interface QueryResult {
+  data: unknown;
+  error: unknown;
+}
+type Op = { table: string; method: string; args: unknown[] };
+
+const h = vi.hoisted(() => {
+  const state: {
+    ops: Op[];
+    table: string;
+    /** Wynik `maybeSingle()` per tabela (kolejka - kolejne odczyty). */
+    lookups: Record<string, QueryResult[]>;
+    write: QueryResult;
+  } = { ops: [], table: "", lookups: {}, write: { data: null, error: null } };
+
+  interface Chain extends PromiseLike<QueryResult> {
+    from: (t: string) => Chain;
+    select: (...a: unknown[]) => Chain;
+    insert: (...a: unknown[]) => Chain;
+    update: (...a: unknown[]) => Chain;
+    upsert: (...a: unknown[]) => Chain;
+    eq: (...a: unknown[]) => Chain;
+    limit: (...a: unknown[]) => Chain;
+    maybeSingle: () => Promise<QueryResult>;
+    single: () => Promise<QueryResult>;
+  }
+
+  const record =
+    (method: string) =>
+    (...args: unknown[]): Chain => {
+      if (method === "from") state.table = String(args[0]);
+      state.ops.push({ table: state.table, method, args });
+      return chain;
+    };
+
+  const lookup = (): Promise<QueryResult> => {
+    const queue = state.lookups[state.table];
+    return Promise.resolve(queue && queue.length > 0 ? queue.shift()! : { data: null, error: null });
+  };
+
+  const chain: Chain = {
+    from: record("from") as (t: string) => Chain,
+    select: record("select"),
+    insert: record("insert"),
+    update: record("update"),
+    upsert: record("upsert"),
+    eq: record("eq"),
+    limit: record("limit"),
+    maybeSingle: lookup,
+    single: lookup,
+    then: (ok, err) => Promise.resolve(state.write).then(ok, err),
+  };
+
+  const event: { value: unknown } = { value: null };
+  const emails = { subscription: vi.fn(async () => {}), payment: vi.fn(async () => {}) };
+  return { state, chain, event, emails };
+});
+
+vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.chain }));
+vi.mock("@/lib/paddle.server", () => ({
+  verifyWebhook: async () => h.event.value,
+  EventName: {
+    SubscriptionCreated: "subscription.created",
+    SubscriptionUpdated: "subscription.updated",
+    SubscriptionCanceled: "subscription.canceled",
+    TransactionCompleted: "transaction.completed",
+    TransactionPaymentFailed: "transaction.payment_failed",
+  },
+}));
+vi.mock("@/lib/billing/notifications.server", () => ({
+  notifySubscriptionEmail: (...a: unknown[]) => h.emails.subscription(...(a as [])),
+  notifyPaymentEmail: (...a: unknown[]) => h.emails.payment(...(a as [])),
+}));
+
+import { __handleForTests as handle } from "./webhook";
+
+const PLAN = { id: "plan_pro_m", tenant_id: "ten_1", price_cents: 9900, currency: "PLN" };
+const PROFILE = {
+  email: "Buyer@Example.com",
+  first_name: "Anna",
+  last_name: "Kowalska",
+  tenant_id: "ten_1",
+};
+
+function req(): Request {
+  return { url: "https://example.com/api/public/payments/webhook?env=live" } as unknown as Request;
+}
+
+function subEvent(
+  eventType: string,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    eventId: `evt_${Math.random().toString(36).slice(2)}`,
+    eventType,
+    occurredAt: "2026-07-29T10:00:00.000Z",
+    data: {
+      id: "sub_1",
+      customerId: "ctm_1",
+      items: [
+        {
+          quantity: 1,
+          price: { id: "pri_1", importMeta: { externalId: "pro_monthly" } },
+          product: { id: "pro_1", importMeta: { externalId: "plan_pro" } },
+        },
+      ],
+      ...data,
+    },
+  };
+}
+
+/** Domyślne odczyty: istniejąca subskrypcja, plan, profil, lead w CRM. */
+function seed(existing: Record<string, unknown> | null, extra?: Partial<Record<string, QueryResult[]>>) {
+  h.state.lookups = {
+    subscriptions: existing ? [{ data: existing, error: null }] : [{ data: null, error: null }],
+    access_plans: [
+      { data: PLAN, error: null },
+      { data: PLAN, error: null },
+      { data: PLAN, error: null },
+    ],
+    profiles: [{ data: PROFILE, error: null }],
+    crm_leads: [{ data: { id: "lead_1", tags: ["newsletter"] }, error: null }],
+    user_subscriptions: [{ data: { id: "us_1" }, error: null }],
+    ...extra,
+  };
+}
+
+const opsOn = (table: string, method: string) =>
+  h.state.ops.filter((o) => o.table === table && o.method === method);
+const payload = <T,>(table: string, method: string): T =>
+  (opsOn(table, method)[0]?.args[0] ?? {}) as T;
+
+describe("webhook operatora płatności - synchronizacja end-to-end", () => {
+  beforeEach(() => {
+    h.state.ops = [];
+    h.state.write = { data: null, error: null };
+    h.emails.subscription.mockClear();
+    h.emails.payment.mockClear();
+  });
+
+  it("pauza: wstrzymuje uprawnienie, oznacza CRM i powiadamia użytkownika", async () => {
+    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    h.event.value = subEvent("subscription.updated", {
+      status: "paused",
+      currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+    });
+
+    const res = await handle(req());
+    expect(res.status).toBe(200);
+
+    // 1. subscriptions -> panel administratora
+    expect(payload<{ status: string }>("subscriptions", "update").status).toBe("paused");
+
+    // 2. user_subscriptions -> uprawnienia, profil, widgety
+    const ent = payload<{ status: string; canceled_at: string | null }>(
+      "user_subscriptions",
+      "update",
+    );
+    expect(ent.status).toBe("canceled");
+    expect(ent.canceled_at).toBeTruthy();
+
+    // 3. CRM
+    const lead = payload<{ stage: string; tags: string[] }>("crm_leads", "update");
+    expect(lead.tags).toContain("subscription:paused");
+
+    // 4. dzwonek
+    expect(payload<{ title_pl: string }>("notifications", "insert").title_pl).toContain(
+      "wstrzymana",
+    );
+  });
+
+  it("wznowienie po pauzie: przywraca dostęp, czyści znacznik CRM i powiadamia", async () => {
+    seed({ user_id: "u1", price_id: "pro_monthly", status: "paused" }, {
+      crm_leads: [{ data: { id: "lead_1", tags: ["customer", "subscription:paused"] }, error: null }],
+    });
+    h.event.value = subEvent("subscription.updated", {
+      status: "active",
+      currentBillingPeriod: { startsAt: "2026-08-01T00:00:00Z", endsAt: "2026-09-01T00:00:00Z" },
+    });
+
+    await handle(req());
+
+    const ent = payload<{ status: string; current_period_end: string }>(
+      "user_subscriptions",
+      "update",
+    );
+    expect(ent.status).toBe("active");
+    expect(ent.current_period_end).toBe("2026-09-01T00:00:00Z");
+
+    const lead = payload<{ stage: string; tags: string[] }>("crm_leads", "update");
+    expect(lead.stage).toBe("won");
+    expect(lead.tags).not.toContain("subscription:paused");
+
+    expect(payload<{ title_pl: string }>("notifications", "insert").title_pl).toContain(
+      "wznowiona",
+    );
+  });
+
+  it("past_due: nie odbiera dostępu, ale zapisuje stan w panelu", async () => {
+    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    h.event.value = subEvent("subscription.updated", {
+      status: "past_due",
+      currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+    });
+
+    await handle(req());
+
+    expect(payload<{ status: string }>("subscriptions", "update").status).toBe("past_due");
+    expect(payload<{ status: string }>("user_subscriptions", "update").status).toBe("active");
+  });
+
+  it("nowy okres rozliczeniowy: przenosi datę końca do uprawnienia", async () => {
+    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    h.event.value = subEvent("subscription.updated", {
+      status: "active",
+      currentBillingPeriod: { startsAt: "2026-08-01T00:00:00Z", endsAt: "2026-09-01T00:00:00Z" },
+    });
+
+    await handle(req());
+
+    expect(payload<{ current_period_end: string }>("subscriptions", "update").current_period_end).toBe(
+      "2026-09-01T00:00:00Z",
+    );
+    const ent = payload<{ status: string; current_period_end: string }>(
+      "user_subscriptions",
+      "update",
+    );
+    expect(ent.status).toBe("active");
+    expect(ent.current_period_end).toBe("2026-09-01T00:00:00Z");
+  });
+
+  it("zdarzenie stanu bez pozycji cennika korzysta z ceny zapisanej przy subskrypcji", async () => {
+    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    h.event.value = {
+      eventId: "evt_no_items",
+      eventType: "subscription.updated",
+      occurredAt: "2026-07-29T10:00:00.000Z",
+      data: {
+        id: "sub_1",
+        customerId: "ctm_1",
+        items: [],
+        status: "paused",
+        currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+      },
+    };
+
+    await handle(req());
+
+    // Bez fallbacku ta ścieżka nie dotknęłaby uprawnień w ogóle.
+    expect(opsOn("user_subscriptions", "update").length).toBe(1);
+  });
+
+  it("rezygnacja: dostęp do końca okresu, CRM na 'archived', mail i ankieta", async () => {
+    seed({
+      user_id: "u1",
+      price_id: "pro_monthly",
+      current_period_end: "2099-01-01T00:00:00Z",
+      status: "active",
+    });
+    h.event.value = subEvent("subscription.canceled", { status: "canceled" });
+
+    await handle(req());
+
+    expect(payload<{ status: string }>("subscriptions", "update").status).toBe("canceled");
+
+    // Dostęp trwa do końca opłaconego okresu -> uprawnienie zostaje aktywne.
+    const ent = payload<{ status: string; current_period_end: string }>(
+      "user_subscriptions",
+      "update",
+    );
+    expect(ent.status).toBe("active");
+    expect(ent.current_period_end).toBe("2099-01-01T00:00:00Z");
+
+    const lead = payload<{ stage: string; tags: string[] }>("crm_leads", "update");
+    expect(lead.stage).toBe("archived");
+    expect(lead.tags).toContain("churned");
+    expect(lead.tags).not.toContain("customer");
+
+    expect(h.emails.subscription).toHaveBeenCalledTimes(1);
+    expect(payload<{ href: string }>("notifications", "insert").href).toContain("retention=1");
+  });
+
+  it("rezygnacja po zakończonym okresie odbiera uprawnienie", async () => {
+    seed({
+      user_id: "u1",
+      price_id: "pro_monthly",
+      current_period_end: "2020-01-01T00:00:00Z",
+      status: "active",
+    });
+    h.event.value = subEvent("subscription.canceled", { status: "canceled" });
+
+    await handle(req());
+
+    expect(payload<{ status: string }>("user_subscriptions", "update").status).toBe("canceled");
+  });
+
+  it("duplikat zdarzenia nie dotyka żadnej warstwy", async () => {
+    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    h.state.write = { data: null, error: { code: "23505", message: "duplicate" } };
+    h.event.value = subEvent("subscription.updated", { status: "paused" });
+
+    const res = await handle(req());
+    expect(await res.json()).toEqual({ received: true, duplicate: true });
+    expect(opsOn("user_subscriptions", "update").length).toBe(0);
+    expect(opsOn("crm_leads", "update").length).toBe(0);
+  });
+
+  it("każde obsłużone zdarzenie ląduje w rejestrze webhooków (/admin/billing)", async () => {
+    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    h.event.value = subEvent("subscription.updated", { status: "active" });
+
+    await handle(req());
+
+    expect(payload<{ event_type: string }>("payment_webhook_events", "insert").event_type).toBe(
+      "subscription.updated",
+    );
+    expect(payload<{ status: string }>("payment_webhook_events", "update").status).toBe("processed");
+  });
+});

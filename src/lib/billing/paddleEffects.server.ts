@@ -78,8 +78,26 @@ async function pushAppNotification(params: {
   }
 }
 
-/** Znacznik w CRM: kontakt stał się klientem. Nigdy nie rzuca. */
-async function syncCrmCustomer(userId: string, tierKey: string): Promise<void> {
+/** Stan komercyjny kontaktu wynikający ze stanu subskrypcji u operatora. */
+export type CrmSubscriptionState = "customer" | "paused" | "churned";
+
+const CRM_STAGE_BY_STATE: Record<CrmSubscriptionState, "won" | "archived"> = {
+  customer: "won",
+  paused: "won",
+  churned: "archived",
+};
+
+/**
+ * Znacznik w CRM wynikający ze stanu subskrypcji. Nigdy nie rzuca.
+ *
+ * Anulowanie i pauza muszą być widoczne w CRM tak samo jak zakup - inaczej
+ * lejek pokazuje „won” dla kontaktu, który już nie płaci.
+ */
+export async function syncCrmSubscriptionState(
+  userId: string,
+  tierKey: string,
+  state: CrmSubscriptionState = "customer",
+): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: profile } = await supabaseAdmin
@@ -98,11 +116,28 @@ async function syncCrmCustomer(userId: string, tierKey: string): Promise<void> {
       .maybeSingle();
 
     const tag = `plan:${tierKey}`;
+    const stateTags: Record<CrmSubscriptionState, string[]> = {
+      customer: ["customer", tag],
+      paused: ["customer", tag, "subscription:paused"],
+      churned: [tag, "churned"],
+    };
+    const dropTags: Record<CrmSubscriptionState, string[]> = {
+      customer: ["subscription:paused", "churned"],
+      paused: ["churned"],
+      churned: ["customer", "subscription:paused"],
+    };
+
     if (lead) {
-      const tags = Array.from(new Set([...(lead.tags ?? []), "customer", tag]));
+      const tags = Array.from(
+        new Set([...(lead.tags ?? []).filter((t) => !dropTags[state].includes(t)), ...stateTags[state]]),
+      );
       await supabaseAdmin
         .from("crm_leads")
-        .update({ stage: "won", tags, last_activity_at: new Date().toISOString() })
+        .update({
+          stage: CRM_STAGE_BY_STATE[state],
+          tags,
+          last_activity_at: new Date().toISOString(),
+        })
         .eq("id", lead.id);
     } else {
       await supabaseAdmin.from("crm_leads").insert({
@@ -111,15 +146,20 @@ async function syncCrmCustomer(userId: string, tierKey: string): Promise<void> {
         email_norm: email,
         first_name: profile.first_name ?? null,
         last_name: profile.last_name ?? null,
-        stage: "won",
+        stage: CRM_STAGE_BY_STATE[state],
         source_type: "import",
-        tags: ["customer", tag],
+        tags: stateTags[state],
       });
     }
   } catch (err) {
     console.error("[payments] crm sync failed", err);
   }
 }
+
+/** Zgodność wstecz: zakup = kontakt w stanie „customer”. */
+const syncCrmCustomer = (userId: string, tierKey: string) =>
+  syncCrmSubscriptionState(userId, tierKey, "customer");
+
 
 /** Nowa subskrypcja: dostęp + mail + CRM + powiadomienie. */
 export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> {
@@ -231,6 +271,10 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
     idempotencySeed: `cancel:${ctx.subscriptionId}`,
   });
 
+  // CRM: kontakt przestaje być aktywnym klientem (lejek nie może pokazywać „won”).
+  const canceledEntry = catalogEntryByPriceId(ctx.priceId);
+  if (canceledEntry) await syncCrmSubscriptionState(ctx.userId, canceledEntry.tierKey, "churned");
+
   await pushAppNotification({
     userId: ctx.userId,
     tenantId: plan.tenantId,
@@ -242,3 +286,59 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
     icon: "message-circle-question",
   });
 }
+
+/** Stan subskrypcji zgłoszony przez operatora w zdarzeniu `subscription.updated`. */
+export interface StatusTransitionContext {
+  userId: string;
+  priceId: string;
+  subscriptionId: string;
+  periodEnd: string | null;
+  previousStatus: string | null;
+  status: string;
+}
+
+/**
+ * Zmiana samego stanu subskrypcji (pauza, wznowienie, zaległość, powrót do
+ * rozliczeń). Uprawnienie synchronizuje webhook; tutaj domykamy warstwy
+ * widoczne dla człowieka: CRM i powiadomienie w aplikacji.
+ */
+export async function applyStatusTransitionEffects(
+  ctx: StatusTransitionContext,
+): Promise<void> {
+  if (ctx.previousStatus === ctx.status) return;
+  const entry = catalogEntryByPriceId(ctx.priceId);
+  const plan = await resolvePlanForPrice(ctx.priceId);
+  if (!entry || !plan) return;
+
+  if (ctx.status === "paused") {
+    await syncCrmSubscriptionState(ctx.userId, entry.tierKey, "paused");
+    await pushAppNotification({
+      userId: ctx.userId,
+      tenantId: plan.tenantId,
+      titlePl: "Subskrypcja wstrzymana",
+      titleEn: "Subscription paused",
+      bodyPl: "Dostęp do treści premium jest nieaktywny do czasu wznowienia.",
+      bodyEn: "Premium access is inactive until you resume the subscription.",
+      href: "/profile/subscription",
+      icon: "pause-circle",
+    });
+    return;
+  }
+
+  if (ctx.status === "active" || ctx.status === "trialing") {
+    await syncCrmSubscriptionState(ctx.userId, entry.tierKey, "customer");
+    if (ctx.previousStatus === "paused" || ctx.previousStatus === "past_due") {
+      await pushAppNotification({
+        userId: ctx.userId,
+        tenantId: plan.tenantId,
+        titlePl: "Subskrypcja wznowiona",
+        titleEn: "Subscription resumed",
+        bodyPl: "Dostęp do treści premium znów działa.",
+        bodyEn: "Premium access is active again.",
+        href: "/profile/subscription",
+        icon: "badge-check",
+      });
+    }
+  }
+}
+
