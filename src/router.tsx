@@ -1,12 +1,16 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { isServer } from "@tanstack/router-core/isServer";
+
 
 import { routeTree } from "./routeTree.gen";
 import { addLangPrefix, stripLangPrefix } from "./lib/i18n/localePath";
 import { currentLang } from "./lib/i18n/localeRuntime";
 import { FriendlyErrorPage } from "./components/error/FriendlyErrorPage";
 import { errorCopy } from "./lib/errorCopy";
+import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
+
 
 // World-class defaults for a content-heavy public site:
 //   - 5 min staleTime: settings/menus/posts rarely change; avoid wasted refetches.
@@ -95,7 +99,18 @@ export const getRouter = () => {
   // render-phase queries, and provides QueryClientProvider.
   setupRouterSsrQueryIntegration({ router, queryClient });
 
-  if (!router.isServer) {
+  // NOTE: `router.isServer` is not reliable at construction time - use the
+  // same `isServer` flag the integration itself reads.
+  if (isServer) {
+    // Bound every render-phase query so one hanging fetch cannot hold the
+    // dehydrate stream open and truncate the HTML response. Also logs the
+    // offending query keys. See lib/ssr/queryTimeout.
+    installSsrQueryTimeout(queryClient);
+  }
+
+  if (!isServer) {
+
+
     // The integration hydrates the INITIAL dehydrated batch synchronously, but
     // pumps the render-phase query STREAM through an async reader chain. React
     // hydration otherwise starts before those buffered chunks land in the
