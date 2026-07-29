@@ -135,7 +135,12 @@ export function guardQueryStream<T>(
       console.warn(`[ssr-query-stream] closed by guard (${reason}) route=${label}`);
       dumpPending(reason);
       void reader?.cancel().catch(() => undefined);
+    } else if (collectPendingQueries(queryClient).length > 0) {
+      // Źródło się domknęło, a mimo to coś wisi - to właśnie te promisy
+      // trzymają serializację seroval po zakończeniu renderu.
+      dumpPending("source");
     }
+
     try {
       controller?.close();
     } catch {
