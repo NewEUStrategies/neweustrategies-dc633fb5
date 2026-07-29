@@ -115,6 +115,71 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
           )
         }
 
+        // 1b. AUTORYZACJA (nie tylko uwierzytelnienie).
+        //
+        // Sam ważny token = dowolne konto czytelnika. Bez dodatkowego checku
+        // każdy zalogowany mógłby wysłać z zweryfikowanej domeny nadawczej mail
+        // o dowolnej treści (subject/CTA/details) na dowolny adres - klasyczny
+        // open relay / wektor phishingu. Reguła:
+        //   * staff (admin/editor/author/super_admin) - dowolny odbiorca,
+        //   * pozostali - wyłącznie własny adres albo szablon z ustalonym `to`.
+        const STAFF_ROLES = ['admin', 'editor', 'author', 'super_admin']
+        const { data: callerRoles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+
+        if (rolesError) {
+          console.error('Role lookup failed for transactional send', { userId: user.id })
+          return Response.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
+        const isStaff = (callerRoles ?? []).some((r: { role: string }) =>
+          STAFF_ROLES.includes(r.role),
+        )
+        const isSelfSend =
+          !!template.to ||
+          (!!user.email && user.email.toLowerCase() === effectiveRecipient.toLowerCase())
+
+        if (!isStaff && !isSelfSend) {
+          console.warn('Blocked transactional send to third-party recipient', {
+            userId: user.id,
+            templateName,
+            recipient_redacted: redactEmail(effectiveRecipient),
+          })
+          return Response.json(
+            { error: 'Forbidden: only staff may send to another recipient' },
+            { status: 403 },
+          )
+        }
+
+        // 1c. Każdy link renderowany w mailu musi wskazywać na naszą domenę -
+        // inaczej treść od nas firmuje obcy adres docelowy.
+        const ALLOWED_LINK_HOSTS = [
+          'neweuropeanstrategies.com',
+          'www.neweuropeanstrategies.com',
+        ]
+        const urlFields = ['ctaUrl', 'siteUrl', 'url', 'link']
+        for (const field of urlFields) {
+          const value = templateData[field]
+          if (typeof value !== 'string' || value.length === 0) continue
+          let host: string
+          try {
+            host = new URL(value).host.toLowerCase()
+          } catch {
+            return Response.json(
+              { error: `Invalid URL in templateData.${field}` },
+              { status: 400 },
+            )
+          }
+          if (!ALLOWED_LINK_HOSTS.includes(host)) {
+            return Response.json(
+              { error: `templateData.${field} must point to an allowed domain` },
+              { status: 400 },
+            )
+          }
+        }
+
         // 2. Check suppression list (fail-closed: if we can't verify, don't send)
         const { data: suppressed, error: suppressionError } = await supabase
           .from('suppressed_emails')
