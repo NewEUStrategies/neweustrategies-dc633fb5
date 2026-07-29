@@ -15,6 +15,8 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "subscription_canceled",
   "subscription_upgraded",
   "subscription_downgraded",
+  "payment_failed",
+  "payment_recovered",
   "event_registered",
   "newsletter_confirmed",
 ] as const;
