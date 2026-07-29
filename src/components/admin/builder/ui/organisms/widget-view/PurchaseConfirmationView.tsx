@@ -16,7 +16,7 @@ import {
   CreditCard,
   ExternalLink,
   Loader2,
-  Receipt,
+  FileText,
   RefreshCw,
   ShieldCheck,
 } from "@/lib/lucide-shim";
@@ -228,7 +228,7 @@ export function PurchaseConfirmationView({ c, lang }: { c: WidgetContent; lang: 
 
           <div className="rounded-[6px] border border-border/60 bg-muted/20 p-4">
             <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              <Receipt className="h-3.5 w-3.5" aria-hidden />
+              <FileText className="h-3.5 w-3.5" aria-hidden />
               {copy.reference}
             </div>
             <p className="mt-2 break-all font-mono text-sm text-foreground">
@@ -236,7 +236,7 @@ export function PurchaseConfirmationView({ c, lang }: { c: WidgetContent; lang: 
             </p>
             {summary.amountCents !== null && summary.currency ? (
               <p className="mt-1 text-sm text-muted-foreground">
-                {formatMoney(summary.amountCents, summary.currency)}
+                {formatMoney(summary.amountCents, summary.currency, lang)}
               </p>
             ) : null}
           </div>
