@@ -401,6 +401,14 @@ function EditEventDialog({
   const [earlyRsvpRank, setEarlyRsvpRank] = useState<string>(
     event.early_rsvp_rank?.toString() ?? "",
   );
+  // Bilet płatny: cena trzymana jest w groszach/centach, ale redaktor wpisuje
+  // kwotę w jednostkach głównych. Pusto = wydarzenie bezpłatne (RSVP).
+  const [ticketPrice, setTicketPrice] = useState<string>(
+    event.ticket_price_cents && event.ticket_price_cents > 0
+      ? (event.ticket_price_cents / 100).toFixed(2)
+      : "",
+  );
+  const [ticketCurrency, setTicketCurrency] = useState<string>(event.ticket_currency || "PLN");
 
   const saveM = useMutation({
     mutationFn: () =>
@@ -414,6 +422,10 @@ function EditEventDialog({
         capacity: capacity ? Number(capacity) : null,
         rsvp_opens_at: rsvpOpensAt ? new Date(rsvpOpensAt).toISOString() : null,
         early_rsvp_rank: earlyRsvpRank ? Number(earlyRsvpRank) : null,
+        ticket_price_cents: ticketPrice.trim()
+          ? Math.max(0, Math.round(Number(ticketPrice.replace(",", ".")) * 100))
+          : null,
+        ticket_currency: ticketCurrency || "PLN",
       }),
     onSuccess: () => {
       toast.success(isPl ? "Zapisano" : "Saved");
@@ -505,6 +517,40 @@ function EditEventDialog({
                   ? "Warstwy o tej randze i wyższej rejestrują się przed otwarciem."
                   : "Tiers at this rank and above can register before opening."}
               </p>
+            </div>
+          </div>
+
+          {/* Bilet płatny: kwota jest źródłem prawdy dla checkoutu (server
+              wylicza ją z tego wiersza), więc pusta wartość = wstęp wolny. */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <FloatingInput
+                label={isPl ? "Cena biletu" : "Ticket price"}
+                type="number"
+                min={0}
+                step="0.01"
+                value={ticketPrice}
+                onChange={(e) => setTicketPrice(e.target.value)}
+              />
+              <p className="pl-1 text-[11px] text-muted-foreground">
+                {isPl
+                  ? "Pusto lub 0 = wydarzenie bezpłatne (samo RSVP)."
+                  : "Empty or 0 = free event (RSVP only)."}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[11px] text-muted-foreground" htmlFor="ticket-currency">
+                {isPl ? "Waluta biletu" : "Ticket currency"}
+              </label>
+              <select
+                id="ticket-currency"
+                value={ticketCurrency}
+                onChange={(e) => setTicketCurrency(e.target.value)}
+                className="h-10 w-full rounded-[6px] border border-input bg-background px-3 text-[0.8125rem]"
+              >
+                <option value="PLN">PLN</option>
+                <option value="EUR">EUR</option>
+              </select>
             </div>
           </div>
 
