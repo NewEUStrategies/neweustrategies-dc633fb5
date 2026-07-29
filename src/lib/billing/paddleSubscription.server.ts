@@ -8,9 +8,10 @@
 import { catalogEntryByPriceId, PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
 import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
 
-export type SubscriptionOpResult<T = unknown> =
-  | ({ ok: true } & (T extends object ? T : Record<string, never>))
+export type SubscriptionOpResult<T extends object = { [k: string]: never }> =
+  | ({ ok: true } & Partial<T>)
   | { ok: false; error: string };
+
 
 
 /** Identyfikator subskrypcji u dostawcy (`sub_...`); inne wartości ignorujemy. */
