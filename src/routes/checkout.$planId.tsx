@@ -149,11 +149,17 @@ function CheckoutPage() {
         return;
       }
 
-      if (res.mode === "stripe") {
-        window.location.href = res.url;
+      if (res.mode === "paddle") {
+        await openCheckout({
+          transactionId: res.transactionId,
+          customerEmail: user?.email ?? undefined,
+          successPath: "/checkout/success",
+        });
+        setBusy(false);
       } else {
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
       }
+
     } catch {
       // Never surface a raw backend error string to the visitor.
       toast.error(t("checkout.stripeNotConfigured"));
