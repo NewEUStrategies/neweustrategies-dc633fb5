@@ -34,7 +34,9 @@ import { getPublicTenantId } from "@/lib/community/tenant";
 import { cn } from "@/lib/utils";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
+import { breadcrumbListJsonLd, qaPageJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
+
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 
 /** Skraca tytuł do limitu SERP (<60 zn.) bez ucinania w połowie wyrazu. */
