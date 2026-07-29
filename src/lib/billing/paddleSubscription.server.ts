@@ -8,9 +8,10 @@
 import { catalogEntryByPriceId, PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
 import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
 
-export type SubscriptionOpResult<T = Record<string, never>> =
-  | ({ ok: true } & T)
+export type SubscriptionOpResult<T = unknown> =
+  | ({ ok: true } & (T extends object ? T : Record<string, never>))
   | { ok: false; error: string };
+
 
 /** Identyfikator subskrypcji u dostawcy (`sub_...`); inne wartości ignorujemy. */
 export function isProviderSubscriptionRef(ref: string | null | undefined): ref is string {
