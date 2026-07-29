@@ -24,6 +24,9 @@
 
 import type { QueryClient, Query } from "@tanstack/react-query";
 
+import { sweepQueryCacheForSerialization } from "./postRenderSweep";
+
+
 export interface QueryStreamGuardOptions {
   /** Close once no query has been fetching for this long. */
   idleMs?: number;
@@ -143,12 +146,18 @@ export function guardQueryStream<T>(
       dumpPending("source");
     }
 
+    // Po zamknięciu strumienia nic już nie może dojechać do payloadu, więc
+    // każdy niezakończony fetch i każde martwe pending-query to wyłącznie
+    // koszt serializacji. Sprzątamy je deterministycznie.
+    sweepQueryCacheForSerialization(queryClient, { label, reason });
+
     try {
       controller?.close();
     } catch {
       /* already closed by the runtime */
     }
   };
+
 
 
   return new ReadableStream<T>({
