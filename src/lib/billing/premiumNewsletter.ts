@@ -4,6 +4,7 @@
 export type NewsletterLanguage = "pl" | "en";
 
 export interface NewsletterConsentEntry {
+  [key: string]: string | boolean;
   key: string;
   granted: boolean;
   granted_at: string;
