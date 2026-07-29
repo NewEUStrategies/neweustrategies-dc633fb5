@@ -21,6 +21,72 @@ export function PricingEditor({ c, lang, setContent }: Props) {
   const update = (next: Item[]) => setContent("plans", toJson(next));
   const upd = (i: number, patch: Item) =>
     update(plans.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const source = typeof c.source === "string" && c.source === "plans" ? "plans" : "manual";
+
+  // Źródło danych: ręczne karty albo katalog planów (access_plans) - ten sam,
+  // z którego korzysta /pricing i checkout u operatora płatności.
+  const sourceControls = (
+    <div className="space-y-2 rounded-md border border-border/60 p-2">
+      <PropField label={lang === "pl" ? "Źródło danych" : "Data source"}>
+        <select
+          value={source}
+          onChange={(e) => setContent("source", e.target.value)}
+          className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+        >
+          <option value="manual">{lang === "pl" ? "Ręcznie" : "Manual"}</option>
+          <option value="plans">
+            {lang === "pl" ? "Katalog planów (Paddle)" : "Plan catalog (Paddle)"}
+          </option>
+        </select>
+      </PropField>
+      {source === "plans" && (
+        <>
+          <PropField label={lang === "pl" ? "Okres" : "Interval"}>
+            <select
+              value={(c.planInterval as string) ?? "all"}
+              onChange={(e) => setContent("planInterval", e.target.value)}
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+            >
+              <option value="all">{lang === "pl" ? "Wszystkie" : "All"}</option>
+              <option value="month">{lang === "pl" ? "Miesięczne" : "Monthly"}</option>
+              <option value="quarter">{lang === "pl" ? "Kwartalne" : "Quarterly"}</option>
+              <option value="year">{lang === "pl" ? "Roczne" : "Yearly"}</option>
+              <option value="one_time">{lang === "pl" ? "Jednorazowe" : "One-time"}</option>
+            </select>
+          </PropField>
+          <div className="grid grid-cols-2 gap-2">
+            <PropField label={lang === "pl" ? "Warstwy (CSV)" : "Tier keys (CSV)"}>
+              <Input
+                value={(c.tierKeysCsv as string) ?? ""}
+                onChange={(e) => setContent("tierKeysCsv", e.target.value)}
+                placeholder="plus,pro"
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label={lang === "pl" ? "Limit kart" : "Card limit"}>
+              <Input
+                type="number"
+                min={0}
+                value={String(Number(c.planLimit ?? 0) || 0)}
+                onChange={(e) => setContent("planLimit", Number(e.target.value) || 0)}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          </div>
+          <PropField label={t("builder.pricingEditor.cta", { lang: lang.toUpperCase() })}>
+            <Input
+              value={(c[`cta_${lang}`] as string) ?? ""}
+              onChange={(e) => setContent(`cta_${lang}`, e.target.value)}
+              className="h-8 text-xs"
+            />
+          </PropField>
+        </>
+      )}
+    </div>
+  );
+
+  if (source === "plans") return sourceControls;
+
   return (
     <ListShell
       title={t("builder.pricingEditor.title")}
