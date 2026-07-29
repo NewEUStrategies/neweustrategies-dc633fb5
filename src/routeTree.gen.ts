@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ZwrotyIReklamacjeRouteImport } from './routes/zwroty-i-reklamacje'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
@@ -17,6 +18,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as RssDotxmlRouteImport } from './routes/rss[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as RegulaminRouteImport } from './routes/regulamin'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as QaRouteImport } from './routes/qa'
@@ -24,6 +26,7 @@ import { Route as PublicationsRouteImport } from './routes/publications'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PollsRouteImport } from './routes/polls'
+import { Route as PolitykaPrywatnosciRouteImport } from './routes/polityka-prywatnosci'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
 import { Route as NetworkRouteImport } from './routes/network'
@@ -252,6 +255,11 @@ import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.pub
 import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/public/hooks.refresh-og-image'
 import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
 
+const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
+  id: '/zwroty-i-reklamacje',
+  path: '/zwroty-i-reklamacje',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
   path: '/unsubscribe',
@@ -292,6 +300,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegulaminRoute = RegulaminRouteImport.update({
+  id: '/regulamin',
+  path: '/regulamin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReadingListRoute = ReadingListRouteImport.update({
   id: '/reading-list',
   path: '/reading-list',
@@ -325,6 +338,11 @@ const PricingRoute = PricingRouteImport.update({
 const PollsRoute = PollsRouteImport.update({
   id: '/polls',
   path: '/polls',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PolitykaPrywatnosciRoute = PolitykaPrywatnosciRouteImport.update({
+  id: '/polityka-prywatnosci',
+  path: '/polityka-prywatnosci',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PeopleRoute = PeopleRouteImport.update({
@@ -1510,6 +1528,7 @@ export interface FileRoutesByFullPath {
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
+  '/polityka-prywatnosci': typeof PolitykaPrywatnosciRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
@@ -1517,6 +1536,7 @@ export interface FileRoutesByFullPath {
   '/qa': typeof QaRouteWithChildren
   '/quiz': typeof QuizRoute
   '/reading-list': typeof ReadingListRoute
+  '/regulamin': typeof RegulaminRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rss.xml': typeof RssDotxmlRoute
@@ -1525,6 +1545,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRouteWithChildren
   '/unsubscribe': typeof UnsubscribeRoute
+  '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -1753,12 +1774,14 @@ export interface FileRoutesByTo {
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
+  '/polityka-prywatnosci': typeof PolitykaPrywatnosciRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
   '/quiz': typeof QuizRoute
   '/reading-list': typeof ReadingListRoute
+  '/regulamin': typeof RegulaminRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rss.xml': typeof RssDotxmlRoute
@@ -1767,6 +1790,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRouteWithChildren
   '/unsubscribe': typeof UnsubscribeRoute
+  '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -1989,6 +2013,7 @@ export interface FileRoutesById {
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
+  '/polityka-prywatnosci': typeof PolitykaPrywatnosciRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
@@ -1996,6 +2021,7 @@ export interface FileRoutesById {
   '/qa': typeof QaRouteWithChildren
   '/quiz': typeof QuizRoute
   '/reading-list': typeof ReadingListRoute
+  '/regulamin': typeof RegulaminRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/rss.xml': typeof RssDotxmlRoute
@@ -2004,6 +2030,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRouteWithChildren
   '/unsubscribe': typeof UnsubscribeRoute
+  '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -2235,6 +2262,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/news-sitemap.xml'
     | '/people'
+    | '/polityka-prywatnosci'
     | '/polls'
     | '/pricing'
     | '/profile'
@@ -2242,6 +2270,7 @@ export interface FileRouteTypes {
     | '/qa'
     | '/quiz'
     | '/reading-list'
+    | '/regulamin'
     | '/reset-password'
     | '/robots.txt'
     | '/rss.xml'
@@ -2250,6 +2279,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
@@ -2478,12 +2508,14 @@ export interface FileRouteTypes {
     | '/network'
     | '/news-sitemap.xml'
     | '/people'
+    | '/polityka-prywatnosci'
     | '/polls'
     | '/pricing'
     | '/publications'
     | '/qa'
     | '/quiz'
     | '/reading-list'
+    | '/regulamin'
     | '/reset-password'
     | '/robots.txt'
     | '/rss.xml'
@@ -2492,6 +2524,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
@@ -2713,6 +2746,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/news-sitemap.xml'
     | '/people'
+    | '/polityka-prywatnosci'
     | '/polls'
     | '/pricing'
     | '/profile'
@@ -2720,6 +2754,7 @@ export interface FileRouteTypes {
     | '/qa'
     | '/quiz'
     | '/reading-list'
+    | '/regulamin'
     | '/reset-password'
     | '/robots.txt'
     | '/rss.xml'
@@ -2728,6 +2763,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
@@ -2958,6 +2994,7 @@ export interface RootRouteChildren {
   NetworkRoute: typeof NetworkRouteWithChildren
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PeopleRoute: typeof PeopleRoute
+  PolitykaPrywatnosciRoute: typeof PolitykaPrywatnosciRoute
   PollsRoute: typeof PollsRoute
   PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRouteWithChildren
@@ -2965,6 +3002,7 @@ export interface RootRouteChildren {
   QaRoute: typeof QaRouteWithChildren
   QuizRoute: typeof QuizRoute
   ReadingListRoute: typeof ReadingListRoute
+  RegulaminRoute: typeof RegulaminRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   RssDotxmlRoute: typeof RssDotxmlRoute
@@ -2973,6 +3011,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRouteWithChildren
   UnsubscribeRoute: typeof UnsubscribeRoute
+  ZwrotyIReklamacjeRoute: typeof ZwrotyIReklamacjeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiSttRoute: typeof ApiSttRoute
@@ -3032,6 +3071,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/zwroty-i-reklamacje': {
+      id: '/zwroty-i-reklamacje'
+      path: '/zwroty-i-reklamacje'
+      fullPath: '/zwroty-i-reklamacje'
+      preLoaderRoute: typeof ZwrotyIReklamacjeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/unsubscribe': {
       id: '/unsubscribe'
       path: '/unsubscribe'
@@ -3088,6 +3134,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/regulamin': {
+      id: '/regulamin'
+      path: '/regulamin'
+      fullPath: '/regulamin'
+      preLoaderRoute: typeof RegulaminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reading-list': {
       id: '/reading-list'
       path: '/reading-list'
@@ -3135,6 +3188,13 @@ declare module '@tanstack/react-router' {
       path: '/polls'
       fullPath: '/polls'
       preLoaderRoute: typeof PollsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/polityka-prywatnosci': {
+      id: '/polityka-prywatnosci'
+      path: '/polityka-prywatnosci'
+      fullPath: '/polityka-prywatnosci'
+      preLoaderRoute: typeof PolitykaPrywatnosciRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/people': {
@@ -5296,6 +5356,7 @@ const rootRouteChildren: RootRouteChildren = {
   NetworkRoute: NetworkRouteWithChildren,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PeopleRoute: PeopleRoute,
+  PolitykaPrywatnosciRoute: PolitykaPrywatnosciRoute,
   PollsRoute: PollsRoute,
   PricingRoute: PricingRoute,
   ProfileRoute: ProfileRouteWithChildren,
@@ -5303,6 +5364,7 @@ const rootRouteChildren: RootRouteChildren = {
   QaRoute: QaRouteWithChildren,
   QuizRoute: QuizRoute,
   ReadingListRoute: ReadingListRoute,
+  RegulaminRoute: RegulaminRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   RssDotxmlRoute: RssDotxmlRoute,
@@ -5311,6 +5373,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRouteWithChildren,
   UnsubscribeRoute: UnsubscribeRoute,
+  ZwrotyIReklamacjeRoute: ZwrotyIReklamacjeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
