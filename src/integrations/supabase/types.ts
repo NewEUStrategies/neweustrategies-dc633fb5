@@ -6263,6 +6263,7 @@ export type Database = {
         Row: {
           created_at: string
           customer_id: string | null
+          duration_ms: number | null
           environment: string
           error: string | null
           event_id: string
@@ -6270,6 +6271,7 @@ export type Database = {
           id: string
           occurred_at: string | null
           payload: Json
+          processed_at: string | null
           status: string
           subscription_id: string | null
           user_id: string | null
@@ -6277,6 +6279,7 @@ export type Database = {
         Insert: {
           created_at?: string
           customer_id?: string | null
+          duration_ms?: number | null
           environment: string
           error?: string | null
           event_id: string
@@ -6284,6 +6287,7 @@ export type Database = {
           id?: string
           occurred_at?: string | null
           payload?: Json
+          processed_at?: string | null
           status?: string
           subscription_id?: string | null
           user_id?: string | null
@@ -6291,6 +6295,7 @@ export type Database = {
         Update: {
           created_at?: string
           customer_id?: string | null
+          duration_ms?: number | null
           environment?: string
           error?: string | null
           event_id?: string
@@ -6298,6 +6303,7 @@ export type Database = {
           id?: string
           occurred_at?: string | null
           payload?: Json
+          processed_at?: string | null
           status?: string
           subscription_id?: string | null
           user_id?: string | null
