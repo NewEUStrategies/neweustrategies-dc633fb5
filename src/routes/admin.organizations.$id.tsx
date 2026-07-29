@@ -19,7 +19,15 @@ import {
   Mail,
   MapPin,
 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
+import { setTeamSeatLimit } from "@/lib/organizations/teamSeats.functions";
+import {
+  clampSeats,
+  projectedSeatStatus,
+  seatsAtRisk,
+  summarizeSeats,
+} from "@/lib/organizations/teamSeats";
 import { billingKeys } from "@/lib/billing/keys";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -260,7 +268,12 @@ function AdminOrganizationDetailPage() {
         </TabsContent>
 
         <TabsContent value="seats" className="mt-4">
-          <SeatsPane lang={lang} orgId={id} seatsLimit={draft.seats_limit} />
+          <SeatsPane
+            lang={lang}
+            orgId={id}
+            seatsLimit={draft.seats_limit}
+            seatsSource={draft.seats_source}
+          />
         </TabsContent>
       </Tabs>
     </div>
