@@ -19,6 +19,7 @@ export type TxEmailType =
   | "subscription_renewal_reminder"
   | "subscription_expiring"
   | "team_seat_grace"
+  | "team_seat_grace_reminder"
   | "team_seat_access_ended"
   | "event_registered"
   | "donation_received"
@@ -275,6 +276,20 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  team_seat_grace_reminder: {
+    subject: (v) =>
+      `⏰ Przypomnienie: dostęp zespołowy wygasa${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "Okres karencji Twojego miejsca w zespole dobiega końca.",
+    eyebrow: "Dostęp zespołowy",
+    heading: "Przypomnienie o końcu karencji",
+    intro:
+      "Przypominamy, że okres karencji Twojego miejsca w zespole dobiega końca. Do podanej niżej daty korzystasz ze wszystkich treści bez zmian.",
+    cta: "Sprawdź swój dostęp",
+    note: "Co dalej: poproś administratora organizacji o przywrócenie miejsca albo wykup własną subskrypcję przed końcem karencji - historia czytania, zapisane materiały i ustawienia zostają nienaruszone.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
   team_seat_access_ended: {
     subject: (v) =>
       `🔒 Dostęp zespołowy zakończony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
@@ -497,6 +512,20 @@ const EN: Dict = {
     heading: "Your team seat is ending",
     intro:
       "Your organisation reduced the number of paid seats, so your seat has entered a grace period. Until the date below you keep full access to everything, unchanged.",
+    cta: "Check your access",
+    note: "What happens next: ask your organisation admin to restore the seat, or start your own subscription before the grace period ends - your reading history, saved items and settings stay intact.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  team_seat_grace_reminder: {
+    subject: (v) =>
+      `⏰ Reminder: your team access is ending${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "The grace period for your team seat is almost over.",
+    eyebrow: "Team access",
+    heading: "Reminder: your grace period ends soon",
+    intro:
+      "A quick reminder that the grace period for your team seat is coming to an end. Until the date below you keep full access to everything, unchanged.",
     cta: "Check your access",
     note: "What happens next: ask your organisation admin to restore the seat, or start your own subscription before the grace period ends - your reading history, saved items and settings stay intact.",
     labels: LABELS_EN,

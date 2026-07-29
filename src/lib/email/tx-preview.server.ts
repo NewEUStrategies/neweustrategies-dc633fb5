@@ -191,6 +191,19 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         ],
         ctaUrl: `${SITE_URL}/profile/subscription`,
       };
+    case "team_seat_grace_reminder":
+      return {
+        subjectName: "Acme Group",
+        details: [
+          { label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" },
+          { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
+          {
+            label: lang === "pl" ? "Pozostało" : "Time left",
+            value: lang === "pl" ? "7 dni" : "7 days",
+          },
+        ],
+        ctaUrl: `${SITE_URL}/profile/subscription`,
+      };
     case "team_seat_access_ended":
       return {
         subjectName: "Acme Group",
