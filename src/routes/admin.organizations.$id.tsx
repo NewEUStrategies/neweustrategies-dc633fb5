@@ -769,15 +769,62 @@ function PreviewTile({
 }
 
 // -------- Miejsca --------
-function SeatsPane({ lang, orgId, seatsLimit }: { lang: Lang; orgId: string; seatsLimit: number }) {
+function SeatsPane({
+  lang,
+  orgId,
+  seatsLimit,
+  seatsSource,
+}: {
+  lang: Lang;
+  orgId: string;
+  seatsLimit: number;
+  seatsSource: string;
+}) {
   const L = tr(lang);
   const qc = useQueryClient();
   const seatsKey = billingKeys.admin.orgSeats(orgId);
 
   const seatsQ = useQuery({ queryKey: seatsKey, queryFn: () => fetchAdminOrgSeats(orgId) });
-  const seats = seatsQ.data ?? [];
+  const seats = useMemo(() => seatsQ.data ?? [], [seatsQ.data]);
   const used = seats.length;
   const atLimit = used >= seatsLimit;
+
+  // Panel liczby miejsc: zmiana idzie przez funkcję serwerową (u operatora
+  // najpierw, potem limit), a podgląd pokazuje, kto straci dostęp.
+  const setSeats = useServerFn(setTeamSeatLimit);
+  const [nextSeats, setNextSeats] = useState(seatsLimit);
+  useEffect(() => setNextSeats(seatsLimit), [seatsLimit]);
+  const atRisk = useMemo(
+    () => seatsAtRisk(seats, nextSeats).map((s) => s.invited_email),
+    [seats, nextSeats],
+  );
+  const summary = useMemo(() => summarizeSeats(seats, seatsLimit), [seats, seatsLimit]);
+  const suspendedIds = useMemo(() => projectedSeatStatus(seats, seatsLimit), [seats, seatsLimit]);
+
+  const applySeats = useMutation({
+    mutationFn: async () => {
+      const res = await setSeats({ data: { org_id: orgId, seats: clampSeats(nextSeats) } });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(
+        L(
+          `Limit miejsc: ${res.seatsLimit} (zawieszone: ${res.suspended})`,
+          `Seat limit: ${res.seatsLimit} (suspended: ${res.suspended})`,
+        ),
+      );
+      void qc.invalidateQueries({ queryKey: seatsKey });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(orgId) });
+    },
+    onError: (err: Error) =>
+      toast.error(
+        err.message.includes("provider")
+          ? L("Operator odrzucił zmianę liczby miejsc", "The payment provider rejected the change")
+          : L("Nie udało się zmienić limitu miejsc", "Could not change the seat limit"),
+      ),
+  });
+
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"owner" | "member">("member");
