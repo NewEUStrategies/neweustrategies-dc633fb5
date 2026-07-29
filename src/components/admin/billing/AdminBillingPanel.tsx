@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface SubscriptionRow {
   id: string;
@@ -167,8 +166,8 @@ export function AdminBillingPanel() {
             <CardContent className="p-0">
               {subsQ.isLoading ? (
                 <div className="space-y-2 p-4">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
+                  <div className="h-8 w-full animate-pulse rounded-[6px] bg-muted" />
+                  <div className="h-8 w-full animate-pulse rounded-[6px] bg-muted" />
                 </div>
               ) : rows.length === 0 ? (
                 <p className="p-6 text-[0.8125rem] text-muted-foreground">
@@ -233,8 +232,8 @@ export function AdminBillingPanel() {
             <CardContent className="p-0">
               {eventsQ.isLoading ? (
                 <div className="space-y-2 p-4">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
+                  <div className="h-8 w-full animate-pulse rounded-[6px] bg-muted" />
+                  <div className="h-8 w-full animate-pulse rounded-[6px] bg-muted" />
                 </div>
               ) : (eventsQ.data ?? []).length === 0 ? (
                 <p className="p-6 text-[0.8125rem] text-muted-foreground">
