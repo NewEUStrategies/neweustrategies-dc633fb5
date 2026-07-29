@@ -1341,6 +1341,55 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       type: "color",
       label: "Kolor akcentu (opcjonalny)",
     },
+    {
+      key: "mode",
+      type: "select",
+      label: "Tryb akcji",
+      group: "Darowizna",
+      options: [
+        { value: "link", label: "link do /support" },
+        { value: "quick", label: "szybka darowizna (jedna kwota)" },
+        { value: "form", label: "formularz z wariantami kwot" },
+      ],
+      hint: "Każdy tryb uruchamia tę samą walidowaną płatność (createDonationCheckout).",
+    },
+    {
+      key: "quickAmountCents",
+      type: "number",
+      label: "Szybka darowizna - kwota (grosze)",
+      group: "Darowizna",
+      min: 500,
+      step: 500,
+      hint: "Używane tylko w trybie szybkiej darowizny. 5000 = 50 zł.",
+    },
+    {
+      key: "presetsCsv",
+      type: "text",
+      label: "Warianty kwot",
+      group: "Darowizna",
+      placeholder: "20, 50, 100, 250",
+      hint: "Kwoty w złotych/euro, po przecinku. Puste = domyślne. Maks. 6.",
+    },
+    {
+      key: "showCustomAmount",
+      type: "select",
+      label: "Pole 'inna kwota'",
+      group: "Darowizna",
+      options: [
+        { value: "true", label: "tak" },
+        { value: "false", label: "nie" },
+      ],
+    },
+    {
+      key: "showMessage",
+      type: "select",
+      label: "Pole wiadomości od darczyńcy",
+      group: "Darowizna",
+      options: [
+        { value: "false", label: "nie" },
+        { value: "true", label: "tak" },
+      ],
+    },
   ],
   // Legacy "contact" alias - same fields as the new "contact-form" widget.
   // Actual array is attached after WIDGET_SCHEMAS is constructed (see bottom of file).
