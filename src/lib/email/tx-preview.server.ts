@@ -22,6 +22,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "subscription_renewal_reminder",
   "subscription_expiring",
   "event_registered",
+  "donation_received",
   "newsletter_confirmed",
 ] as const;
 
@@ -162,6 +163,22 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.place, value: place },
         ],
         ctaUrl: `${SITE_URL}/events`,
+      };
+    case "donation_received":
+      return {
+        subjectName: lang === "pl" ? "100,00 PLN" : "EUR 50.00",
+        details: [
+          { label: l.price, value: lang === "pl" ? "100,00 PLN" : "EUR 50.00" },
+          { label: l.transaction, value: "txn_01j0demo0donation0nes" },
+          {
+            label: l.donorMessage,
+            value:
+              lang === "pl"
+                ? "Trzymajcie kurs na rzetelne analizy."
+                : "Keep up the rigorous analysis.",
+          },
+        ],
+        ctaUrl: `${SITE_URL}/analizy`,
       };
     case "newsletter_confirmed":
       return { subjectName: null, details: [], ctaUrl: SITE_URL };

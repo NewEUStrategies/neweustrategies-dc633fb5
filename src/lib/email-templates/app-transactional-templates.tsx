@@ -125,3 +125,36 @@ export const newsletterConfirmedTemplate = createAppEmailTemplate(
   "Potwierdzenie newslettera",
   { lang: "pl", firstName: "Anna", vocativePl: "Anno" },
 );
+
+export const donationReceivedPlTemplate = createAppEmailTemplate(
+  "donation_received",
+  "Potwierdzenie darowizny - PL",
+  {
+    lang: "pl",
+    firstName: "Anna",
+    vocativePl: "Anno",
+    subjectName: "100,00 PLN",
+    details: [
+      { label: "Kwota", value: "100,00 PLN" },
+      { label: "Numer transakcji", value: "txn_01j0demo0donation0nes" },
+      { label: "Twoja wiadomość", value: "Trzymajcie kurs na rzetelne analizy." },
+    ],
+    ctaUrl: `${SITE_URL}/analizy`,
+  },
+);
+
+export const donationReceivedEnTemplate = createAppEmailTemplate(
+  "donation_received",
+  "Donation receipt - EN",
+  {
+    lang: "en",
+    firstName: "Anna",
+    subjectName: "EUR 50.00",
+    details: [
+      { label: "Amount", value: "EUR 50.00" },
+      { label: "Transaction number", value: "txn_01j0demo0donation0nes" },
+      { label: "Your message", value: "Keep up the rigorous analysis." },
+    ],
+    ctaUrl: `${SITE_URL}/analizy`,
+  },
+);

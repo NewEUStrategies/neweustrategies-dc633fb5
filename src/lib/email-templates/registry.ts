@@ -1,6 +1,8 @@
 import type { ComponentType } from "react";
 
 import {
+  donationReceivedEnTemplate,
+  donationReceivedPlTemplate,
   freeRsvpEnTemplate,
   freeRsvpPlTemplate,
   newsletterConfirmedTemplate,
@@ -37,4 +39,6 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "subscription-upgraded": subscriptionUpgradedTemplate,
   "subscription-downgraded": subscriptionDowngradedTemplate,
   "newsletter-confirmed": newsletterConfirmedTemplate,
+  "donation-received-pl": donationReceivedPlTemplate,
+  "donation-received-en": donationReceivedEnTemplate,
 };

@@ -19,6 +19,7 @@ export type TxEmailType =
   | "subscription_renewal_reminder"
   | "subscription_expiring"
   | "event_registered"
+  | "donation_received"
   | "newsletter_confirmed";
 
 export interface TxSubjectVars {
@@ -53,6 +54,8 @@ export interface TxCopy {
     accessUntil: string;
     transaction: string;
     ticketCode: string;
+    /** Wiadomość darczyńcy przekazana w formularzu darowizny. */
+    donorMessage: string;
   };
   footerHelp: string;
 }
@@ -75,6 +78,7 @@ const LABELS_PL: TxCopy["labels"] = {
   accessUntil: "Dostęp aktywny do",
   transaction: "Numer transakcji",
   ticketCode: "Numer biletu",
+  donorMessage: "Twoja wiadomość",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -93,6 +97,7 @@ const LABELS_EN: TxCopy["labels"] = {
   accessUntil: "Access active until",
   transaction: "Transaction number",
   ticketCode: "Ticket number",
+  donorMessage: "Your message",
 };
 
 const HELP_PL =
@@ -266,6 +271,20 @@ const PL: Dict = {
       "Dziękujemy za rejestrację. Twoje miejsce jest zarezerwowane - poniżej znajdziesz najważniejsze szczegóły wydarzenia.",
     cta: "Szczegóły wydarzenia",
     note: "Przypomnienie z linkiem lub instrukcją wejścia wyślemy przed rozpoczęciem wydarzenia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  donation_received: {
+    subject: (v) =>
+      `❤️ Dziękujemy za darowiznę${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Twoja darowizna została zaksięgowana - dziękujemy za mecenat.",
+    eyebrow: "Mecenat obywatelski",
+    heading: "Dziękujemy za Twoją darowiznę",
+    intro:
+      "Twoja wpłata została zaksięgowana. Dzięki mecenatowi obywatelskiemu utrzymujemy niezależny tracker legislacyjny UE, raporty i debaty - bez zależności od jednego sponsora.",
+    cta: "Zobacz nasze analizy",
+    note: "Potwierdzenie płatności otrzymasz również od operatora płatności. W razie pytań o darowiznę odpisz na tę wiadomość.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -451,6 +470,20 @@ const EN: Dict = {
       "Thank you for registering. Your seat is reserved - the key details of the event are below.",
     cta: "Event details",
     note: "We will send a reminder with the joining link or entry instructions before the event starts.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  donation_received: {
+    subject: (v) =>
+      `❤️ Thank you for your donation${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Your donation has been recorded - thank you for your patronage.",
+    eyebrow: "Citizen patronage",
+    heading: "Thank you for your donation",
+    intro:
+      "Your contribution has been recorded. Citizen patronage keeps our EU legislative tracker, reports and debates independent - never tied to a single sponsor.",
+    cta: "Read our analysis",
+    note: "You will also receive a payment receipt from our payment provider. Reply to this message with any questions about your donation.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

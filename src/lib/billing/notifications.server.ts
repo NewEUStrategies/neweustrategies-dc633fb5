@@ -403,3 +403,60 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<v
     console.error("[billing-emails] reminder notify failed", input.kind, err);
   }
 }
+
+export interface DonationNotifyInput {
+  /** Adres podany przy płatności - darczyńca nie musi mieć konta. */
+  donorEmail: string | null;
+  /** Konto darczyńcy, gdy darowizna była złożona po zalogowaniu. */
+  userId?: string | null;
+  amountCents: number | null;
+  currency: string | null;
+  /** Wiadomość darczyńcy z formularza (custom_data transakcji). */
+  message?: string | null;
+  /** Język formularza darowizny - wygrywa z domyślnym PL. */
+  lang?: EmailLang | null;
+  transactionId: string;
+}
+
+/**
+ * Podziękowanie za darowiznę z kwotą, numerem transakcji i - gdy darczyńca ją
+ * zostawił - jego własną wiadomością. Nigdy nie rzuca (webhook ma zaksięgować
+ * wpłatę nawet gdy mail się nie uda), idempotentne po id transakcji.
+ */
+export async function notifyDonationReceived(input: DonationNotifyInput): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabase = supabaseAdmin as unknown as SupabaseClient;
+
+    const account = input.userId ? await resolveRecipient(supabase, input.userId) : null;
+    const to = (input.donorEmail ?? account?.email ?? "").trim();
+    if (!to) return;
+
+    const lang: EmailLang = input.lang ?? account?.lang ?? "pl";
+    const copy = txCopy("donation_received", lang);
+    const currency = (input.currency ?? "PLN").toUpperCase();
+    const amount = input.amountCents ? formatMoney(input.amountCents, currency, lang) : null;
+
+    const details: TxDetail[] = [];
+    if (amount) details.push({ label: copy.labels.price, value: amount });
+    details.push({ label: copy.labels.transaction, value: input.transactionId });
+    const message = input.message?.trim();
+    if (message) {
+      details.push({ label: copy.labels.donorMessage, value: message.slice(0, 480) });
+    }
+
+    await sendTxEmail({
+      type: "donation_received",
+      to,
+      lang,
+      metaName: account?.name ?? null,
+      subjectName: amount,
+      details,
+      bodyVars: { amount, donorMessage: message ?? null },
+      ctaPath: lang === "en" ? "/en/analyses" : "/analizy",
+      idempotencyKey: `donation_received:${input.transactionId}`,
+    });
+  } catch (err) {
+    console.error("[billing-emails] donation notify failed", err);
+  }
+}
