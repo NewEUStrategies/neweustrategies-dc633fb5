@@ -10,6 +10,8 @@ import { currentLang } from "./lib/i18n/localeRuntime";
 import { FriendlyErrorPage } from "./components/error/FriendlyErrorPage";
 import { errorCopy } from "./lib/errorCopy";
 import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
+import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
+
 
 
 // World-class defaults for a content-heavy public site:
@@ -106,7 +108,26 @@ export const getRouter = () => {
     // dehydrate stream open and truncate the HTML response. Also logs the
     // offending query keys. See lib/ssr/queryTimeout.
     installSsrQueryTimeout(queryClient);
+
+    // The integration closes its `queryStream` only from an
+    // `onRenderFinished` listener, which router-core silently drops in some
+    // states - the stream then never closes and the SSR document never
+    // finishes. Wrap it in a stream we close deterministically.
+    // See lib/ssr/queryStreamGuard.
+    const integrationDehydrate = router.options.dehydrate;
+    router.options.dehydrate = async () => {
+      const dehydrated = (await integrationDehydrate?.()) as
+        | (Record<string, unknown> & { queryStream?: ReadableStream<unknown> })
+        | undefined;
+      if (dehydrated?.queryStream) {
+
+        dehydrated.queryStream = guardQueryStream(dehydrated.queryStream, queryClient);
+      }
+      return dehydrated;
+    };
+
   }
+
 
   if (!isServer) {
 
