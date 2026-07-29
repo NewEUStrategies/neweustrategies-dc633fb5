@@ -3,9 +3,13 @@
 // i "payment_webhook_events admin read") - komponent nie ma żadnych uprawnień
 // ponad to, co baza przyzna zalogowanemu adminowi.
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CreditCard, RefreshCcw, Users } from "lucide-react";
+import { AlertTriangle, BellRing, CreditCard, RefreshCcw, Users } from "lucide-react";
+import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+
+import { runBillingRemindersNow } from "@/lib/billing/reminders.functions";
 
 import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
@@ -94,6 +98,19 @@ export function AdminBillingPanel() {
       if (error) throw error;
       return (data ?? []) as WebhookRow[];
     },
+  });
+
+  const runReminders = useServerFn(runBillingRemindersNow);
+  const remindersM = useMutation({
+    mutationFn: () => runReminders({ data: {} }),
+    onSuccess: (r) =>
+      toast.success(
+        L(
+          `Przypomnienia: ${r.renewal} odnowień, ${r.expiring} wygaśnięć`,
+          `Reminders: ${r.renewal} renewals, ${r.expiring} expirations`,
+        ),
+      ),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const rows = useMemo(() => subsQ.data ?? [], [subsQ.data]);
