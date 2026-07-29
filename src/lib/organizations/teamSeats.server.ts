@@ -258,13 +258,23 @@ export async function expireSeatGrace(): Promise<{ expired: number; notified: nu
 // Harmonogram przypomnień w trakcie karencji
 //
 // Poza mailem "wchodzisz w karencję" i mailem końcowym wysyłamy jeszcze
-// przypomnienia na N dni przed utratą dostępu (domyślnie 7 i 1). Uruchamiane
-// raz na dobę z crona rozliczeniowego; idempotencja opiera się na kluczu
-// (miejsce + termin karencji + próg), więc powtórne wywołania nie duplikują
-// wysyłki.
+// przypomnienia na N dni przed utratą dostępu. Progi są konfigurowalne per
+// organizacja (np. 14/7/3/1), a gdy nie ustawiono własnych - obowiązują
+// domyślne 7 i 1. Uruchamiane raz na dobę z crona rozliczeniowego; idempotencja
+// opiera się na kluczu (miejsce + termin karencji + próg), więc powtórne
+// wywołania nie duplikują wysyłki.
 
-/** Domyślne progi przypomnień - liczba dni przed końcem karencji. */
-export const DEFAULT_SEAT_GRACE_REMINDER_DAYS = [7, 1] as const;
+export {
+  DEFAULT_SEAT_GRACE_REMINDER_DAYS,
+  normalizeReminderDays,
+} from "@/lib/organizations/teamSeats";
+
+import {
+  DEFAULT_SEAT_GRACE_REMINDER_DAYS as DEFAULT_REMINDER_DAYS,
+  MAX_REMINDER_DAY,
+  effectiveReminderDays,
+  normalizeReminderDays as normalizeDays,
+} from "@/lib/organizations/teamSeats";
 
 const DAY_MS = 86_400_000;
 
@@ -275,34 +285,34 @@ function daysUntil(iso: string, now: number): number {
   return Math.max(0, Math.ceil((ts - now) / DAY_MS));
 }
 
-/** Normalizacja progów: liczby całkowite 1-90, malejąco, bez duplikatów. */
-export function normalizeReminderDays(input: readonly number[]): number[] {
-  const set = new Set<number>();
-  for (const raw of input) {
-    const n = Math.trunc(Number(raw));
-    if (Number.isFinite(n) && n >= 1 && n <= 90) set.add(n);
-  }
-  return [...set].sort((a, b) => b - a);
-}
-
 export interface SeatGraceReminderResult {
   checked: number;
   sent: number;
+  /** Progi użyte globalnie (override) lub domyślne, gdy liczą się per organizacja. */
   days: number[];
+  /** Czy progi pochodziły z konfiguracji organizacji. */
+  perOrg: boolean;
 }
+
 
 /**
  * Przypomnienia dla miejsc w karencji, którym zostało dokładnie N dni.
+ * Bez `offsets` progi bierzemy z konfiguracji każdej organizacji
+ * (`seats_grace_reminder_days`), z fallbackiem do wartości domyślnych.
  * Fail-soft: pojedynczy błąd wysyłki nie przerywa całej serii.
  */
 export async function sendSeatGraceReminders(
-  offsets: readonly number[] = DEFAULT_SEAT_GRACE_REMINDER_DAYS,
+  offsets?: readonly number[] | null,
 ): Promise<SeatGraceReminderResult> {
-  const days = normalizeReminderDays(offsets);
-  if (days.length === 0) return { checked: 0, sent: 0, days };
+  const override = offsets && offsets.length > 0 ? normalizeDays(offsets) : null;
+  const perOrg = override === null;
+  const days = override ?? [...DEFAULT_REMINDER_DAYS];
+  const empty = { checked: 0, sent: 0, days, perOrg };
+  if (!perOrg && days.length === 0) return empty;
 
   const now = Date.now();
-  const horizon = new Date(now + (days[0] + 1) * DAY_MS).toISOString();
+  const maxDay = perOrg ? MAX_REMINDER_DAY : days[0];
+  const horizon = new Date(now + (maxDay + 1) * DAY_MS).toISOString();
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
@@ -314,20 +324,25 @@ export async function sendSeatGraceReminders(
     .lte("grace_until", horizon);
   if (error) {
     console.error("[orgs] grace reminders query failed", error.message);
-    return { checked: 0, sent: 0, days };
+    return empty;
   }
 
   const rows = (data ?? []).filter((row) => typeof row.grace_until === "string");
-  if (rows.length === 0) return { checked: 0, sent: 0, days };
+  if (rows.length === 0) return empty;
 
-  // Nazwy organizacji jednym zapytaniem - mail musi pokazywać właściwą firmę.
+  // Nazwa i progi organizacji jednym zapytaniem - mail musi pokazywać właściwą
+  // firmę, a harmonogram respektować jej ustawienia.
   const orgIds = [...new Set(rows.map((row) => row.org_id))];
   const { data: orgs } = await supabaseAdmin
     .from("member_organizations")
-    .select("id, name")
+    .select("id, name, seats_grace_reminder_days")
     .in("id", orgIds);
   const orgNames = new Map<string, string>();
-  for (const org of orgs ?? []) if (org.name) orgNames.set(org.id, org.name);
+  const orgDays = new Map<string, number[]>();
+  for (const org of orgs ?? []) {
+    if (org.name) orgNames.set(org.id, org.name);
+    orgDays.set(org.id, effectiveReminderDays(org.seats_grace_reminder_days));
+  }
 
   const { sendTxEmail, formatDate } = await import("@/lib/email/transactional.server");
 
@@ -335,11 +350,13 @@ export async function sendSeatGraceReminders(
   for (const row of rows) {
     const graceUntil = row.grace_until as string;
     const left = daysUntil(graceUntil, now);
-    if (!days.includes(left)) continue;
+    const rowDays = override ?? orgDays.get(row.org_id) ?? [...DEFAULT_REMINDER_DAYS];
+    if (!rowDays.includes(left)) continue;
 
     const email = (row.invited_email ?? "").trim().toLowerCase();
     if (!email) continue;
     const orgName = orgNames.get(row.org_id) ?? null;
+
     const lang = await recipientLang(email);
     const until = formatDate(graceUntil, lang);
 
@@ -371,5 +388,5 @@ export async function sendSeatGraceReminders(
     if (res.ok && !res.skipped) sent += 1;
   }
 
-  return { checked: rows.length, sent, days };
+  return { checked: rows.length, sent, days, perOrg };
 }

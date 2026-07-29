@@ -20,6 +20,55 @@ export function clampGraceDays(value: number | null | undefined): number {
   return Math.max(MIN_GRACE_DAYS, Math.min(MAX_GRACE_DAYS, n));
 }
 
+// --- Progi przypomnień w trakcie karencji ---------------------------------
+// Ile dni przed utratą dostępu wysyłamy maila. Konfigurowalne per organizacja
+// (np. 14/7/3/1); pusta lista = brak przypomnień, sam mail końcowy.
+
+/** Domyślne progi przypomnień - liczba dni przed końcem karencji. */
+export const DEFAULT_SEAT_GRACE_REMINDER_DAYS = [7, 1] as const;
+/** Ile progów maksymalnie przyjmujemy (limit zgodny z bazą). */
+export const MAX_REMINDER_SLOTS = 10;
+export const MIN_REMINDER_DAY = 1;
+export const MAX_REMINDER_DAY = 90;
+
+/** Normalizacja progów: liczby całkowite 1-90, malejąco, bez duplikatów. */
+export function normalizeReminderDays(input: readonly number[]): number[] {
+  const set = new Set<number>();
+  for (const raw of input) {
+    const n = Math.trunc(Number(raw));
+    if (Number.isFinite(n) && n >= MIN_REMINDER_DAY && n <= MAX_REMINDER_DAY) set.add(n);
+  }
+  return [...set].sort((a, b) => b - a).slice(0, MAX_REMINDER_SLOTS);
+}
+
+/** "14, 7, 3, 1" -> [14, 7, 3, 1]. Akceptuje przecinki, spacje i średniki. */
+export function parseReminderDays(input: string): number[] {
+  return normalizeReminderDays(
+    input
+      .split(/[\s,;]+/)
+      .map((part) => Number(part))
+      .filter((n) => Number.isFinite(n)),
+  );
+}
+
+/** [14, 7, 3, 1] -> "14, 7, 3, 1" (do pola tekstowego w panelu). */
+export function formatReminderDays(days: readonly number[]): string {
+  return normalizeReminderDays(days).join(", ");
+}
+
+/** Progi zapisane dla organizacji albo wartości domyślne. */
+export function effectiveReminderDays(value: readonly number[] | null | undefined): number[] {
+  if (value == null) return [...DEFAULT_SEAT_GRACE_REMINDER_DAYS];
+  return normalizeReminderDays(value);
+}
+
+export function sameReminderDays(a: readonly number[], b: readonly number[]): boolean {
+  const x = normalizeReminderDays(a);
+  const y = normalizeReminderDays(b);
+  return x.length === y.length && x.every((n, i) => n === y[i]);
+}
+
+
 export interface SeatLike {
   id: string;
   role: string;

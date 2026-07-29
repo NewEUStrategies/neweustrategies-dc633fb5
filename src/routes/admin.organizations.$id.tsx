@@ -25,14 +25,22 @@ import {
   runSeatGraceExpiry,
   runSeatGraceReminders,
   setTeamSeatGraceDays,
+  setTeamSeatGraceReminderDays,
   setTeamSeatLimit,
 } from "@/lib/organizations/teamSeats.functions";
 import {
   DEFAULT_GRACE_DAYS,
   MAX_GRACE_DAYS,
+  MAX_REMINDER_SLOTS,
   MIN_GRACE_DAYS,
   clampGraceDays,
+  effectiveReminderDays,
+  formatReminderDays,
+  normalizeReminderDays,
+  parseReminderDays,
+  sameReminderDays,
 } from "@/lib/organizations/teamSeats";
+
 import {
   clampSeats,
   seatsAtRisk,
@@ -284,6 +292,8 @@ function AdminOrganizationDetailPage() {
             seatsLimit={draft.seats_limit}
             seatsSource={draft.seats_source}
             graceDays={draft.seats_grace_days ?? DEFAULT_GRACE_DAYS}
+            reminderDays={effectiveReminderDays(draft.seats_grace_reminder_days)}
+
           />
         </TabsContent>
       </Tabs>
@@ -799,13 +809,16 @@ function SeatsPane({
   seatsLimit,
   seatsSource,
   graceDays,
+  reminderDays,
 }: {
   lang: Lang;
   orgId: string;
   seatsLimit: number;
   seatsSource: string;
   graceDays: number;
+  reminderDays: number[];
 }) {
+
   const L = tr(lang);
   const qc = useQueryClient();
   const seatsKey = billingKeys.admin.orgSeats(orgId);
@@ -891,8 +904,41 @@ function SeatsPane({
     onError: () => toast.error(L("Nie udało się domknąć karencji", "Could not close grace periods")),
   });
 
-  // Przypomnienia w trakcie karencji (domyślnie 7 i 1 dzień przed końcem).
-  // Zaplecze wysyła je raz na dobę; tu można wymusić przebieg ręcznie.
+  // Progi przypomnień w trakcie karencji - konfigurowalne per organizacja
+  // (np. 14/7/3/1). Pole tekstowe + szybkie przełączniki popularnych wartości.
+  const setReminderDays = useServerFn(setTeamSeatGraceReminderDays);
+  const [daysText, setDaysText] = useState(() => formatReminderDays(reminderDays));
+  useEffect(() => setDaysText(formatReminderDays(reminderDays)), [reminderDays]);
+  const parsedDays = useMemo(() => parseReminderDays(daysText), [daysText]);
+  const daysDirty = !sameReminderDays(parsedDays, reminderDays);
+
+  const applyReminderDays = useMutation({
+    mutationFn: async () => {
+      const res = await setReminderDays({ data: { org_id: orgId, days: parsedDays } });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(
+        res.days.length > 0
+          ? L(`Przypomnienia: ${res.days.join(", ")} dni przed`, `Reminders: ${res.days.join(", ")} days before`)
+          : L("Przypomnienia wyłączone", "Reminders disabled"),
+      );
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(orgId) });
+    },
+    onError: () =>
+      toast.error(L("Nie udało się zapisać progów", "Could not save reminder days")),
+  });
+
+  const toggleDay = (day: number) => {
+    const next = parsedDays.includes(day)
+      ? parsedDays.filter((n) => n !== day)
+      : normalizeReminderDays([...parsedDays, day]);
+    setDaysText(formatReminderDays(next));
+  };
+
+  // Ręczny przebieg przypomnień - zaplecze robi to raz na dobę.
+
   const sendReminders = useMutation({
     mutationFn: async () => {
       const res = await runReminders({ data: {} });
@@ -1047,11 +1093,65 @@ function SeatsPane({
         </div>
         <p className="text-[10px] text-muted-foreground">
           {L(
-            "Po zmniejszeniu limitu osoby ponad limit zachowują pełny dostęp przez tyle dni i dostają maila z datą oraz informacją, co dalej. Przypomnienia wychodzą 7 i 1 dzień przed końcem. 0 = utrata dostępu od razu.",
-            "After a seat reduction, people above the limit keep full access for this many days and receive an email with the date and next steps. Reminders go out 7 and 1 day before access ends. 0 = access ends immediately.",
+            "Po zmniejszeniu limitu osoby ponad limit zachowują pełny dostęp przez tyle dni i dostają maila z datą oraz informacją, co dalej. 0 = utrata dostępu od razu.",
+            "After a seat reduction, people above the limit keep full access for this many days and receive an email with the date and next steps. 0 = access ends immediately.",
           )}
         </p>
       </div>
+
+      {/* Progi przypomnień w trakcie karencji (np. 14/7/3/1) */}
+      <div className="mb-3 space-y-2 rounded-md border border-border/60 bg-muted/20 p-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[30, 14, 7, 3, 1].map((day) => {
+            const on = parsedDays.includes(day);
+            return (
+              <Button
+                key={day}
+                type="button"
+                size="sm"
+                variant={on ? "default" : "outline"}
+                className="h-7 px-2 text-[11px] tabular-nums"
+                aria-pressed={on}
+                onClick={() => toggleDay(day)}
+              >
+                {L(`${day} dni`, `${day} d`)}
+              </Button>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Input
+            value={daysText}
+            onChange={(e) => setDaysText(e.target.value)}
+            placeholder="14, 7, 3, 1"
+            className="h-8 w-40 text-sm tabular-nums"
+            aria-label={L("Dni przypomnień", "Reminder days")}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8"
+            disabled={applyReminderDays.isPending || !daysDirty}
+            onClick={() => applyReminderDays.mutate()}
+          >
+            {applyReminderDays.isPending
+              ? L("Zapisywanie...", "Saving...")
+              : L("Zapisz przypomnienia", "Save reminders")}
+          </Button>
+          <Badge variant="outline" className="text-[10px] tabular-nums">
+            {parsedDays.length > 0
+              ? L(`${parsedDays.length}/${MAX_REMINDER_SLOTS} progów`, `${parsedDays.length}/${MAX_REMINDER_SLOTS} steps`)
+              : L("wyłączone", "disabled")}
+          </Badge>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          {L(
+            "Ile dni przed utratą dostępu wysyłamy przypomnienie (1-90, maks. 10 progów). Puste pole wyłącza przypomnienia - zostaje tylko mail o końcu dostępu.",
+            "How many days before access ends we send a reminder (1-90, up to 10 steps). Leave empty to disable reminders - only the final email remains.",
+          )}
+        </p>
+      </div>
+
 
       {seatsQ.isLoading ? (
         <p className="text-xs text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>

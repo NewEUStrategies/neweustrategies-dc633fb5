@@ -14,11 +14,16 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   MAX_GRACE_DAYS,
+  MAX_REMINDER_DAY,
+  MAX_REMINDER_SLOTS,
   MAX_TEAM_SEATS,
   MIN_GRACE_DAYS,
+  MIN_REMINDER_DAY,
   MIN_TEAM_SEATS,
+  normalizeReminderDays,
   type SeatsSource,
 } from "@/lib/organizations/teamSeats";
+
 
 const seatsSchema = z.object({
   org_id: z.string().uuid(),
@@ -260,14 +265,48 @@ export const runSeatGraceExpiry = createServerFn({ method: "POST" })
   });
 
 /**
- * Ręczne wysłanie przypomnień o kończącej się karencji (progi domyślne 7 i 1
- * dzień). Normalnie robi to cykliczne zaplecze - tu jako akcja awaryjna.
+ * Progi przypomnień w trakcie karencji dla organizacji (np. 14/7/3/1).
+ * Pusta lista = brak przypomnień, zostaje tylko mail o końcu dostępu.
+ * Autorytet ma baza (`org_set_seats_grace_reminder_days`), więc RPC wołamy
+ * klientem użytkownika.
+ */
+export const setTeamSeatGraceReminderDays = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        org_id: z.string().uuid(),
+        days: z
+          .array(z.number().int().min(MIN_REMINDER_DAY).max(MAX_REMINDER_DAY))
+          .max(MAX_REMINDER_SLOTS),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const days = normalizeReminderDays(data.days);
+    const { error } = await context.supabase.rpc("org_set_seats_grace_reminder_days", {
+      p_org: data.org_id,
+      p_days: days,
+    });
+    if (error) return { ok: false as const, error: error.message.slice(0, 160) };
+    return { ok: true as const, days };
+  });
+
+/**
+ * Ręczne wysłanie przypomnień o kończącej się karencji. Bez podanych progów
+ * używamy konfiguracji każdej organizacji. Normalnie robi to cykliczne
+ * zaplecze - tu jako akcja awaryjna.
  */
 export const runSeatGraceReminders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z
-      .object({ days: z.array(z.number().int().min(1).max(90)).max(10).optional() })
+      .object({
+        days: z
+          .array(z.number().int().min(MIN_REMINDER_DAY).max(MAX_REMINDER_DAY))
+          .max(MAX_REMINDER_SLOTS)
+          .optional(),
+      })
       .parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
@@ -277,11 +316,8 @@ export const runSeatGraceReminders = createServerFn({ method: "POST" })
     });
     if (!isAdmin) return { ok: false as const, error: "orgs: not allowed" };
 
-    const { sendSeatGraceReminders, DEFAULT_SEAT_GRACE_REMINDER_DAYS } = await import(
-      "@/lib/organizations/teamSeats.server"
-    );
-    const result = await sendSeatGraceReminders(
-      data.days && data.days.length > 0 ? data.days : [...DEFAULT_SEAT_GRACE_REMINDER_DAYS],
-    );
+    const { sendSeatGraceReminders } = await import("@/lib/organizations/teamSeats.server");
+    const result = await sendSeatGraceReminders(data.days ?? null);
     return { ok: true as const, ...result };
+
   });

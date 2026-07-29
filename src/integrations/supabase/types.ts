@@ -4444,6 +4444,7 @@ export type Database = {
           note: string | null
           paddle_subscription_id: string | null
           seats_grace_days: number
+          seats_grace_reminder_days: number[]
           seats_limit: number
           seats_source: string
           sector: string | null
@@ -4477,6 +4478,7 @@ export type Database = {
           note?: string | null
           paddle_subscription_id?: string | null
           seats_grace_days?: number
+          seats_grace_reminder_days?: number[]
           seats_limit?: number
           seats_source?: string
           sector?: string | null
@@ -4510,6 +4512,7 @@ export type Database = {
           note?: string | null
           paddle_subscription_id?: string | null
           seats_grace_days?: number
+          seats_grace_reminder_days?: number[]
           seats_limit?: number
           seats_source?: string
           sector?: string | null
@@ -13259,6 +13262,10 @@ export type Database = {
       org_reconcile_seats: { Args: { p_org: string }; Returns: Json }
       org_set_seats_grace_days: {
         Args: { p_days: number; p_org: string }
+        Returns: Json
+      }
+      org_set_seats_grace_reminder_days: {
+        Args: { p_days: number[]; p_org: string }
         Returns: Json
       }
       org_set_seats_limit: {
