@@ -135,6 +135,7 @@ function CheckoutPage() {
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",
           display_currency: displayCurrency,
+          environment: getPaddleEnvironment(),
           ...(coupon ? { coupon_code: coupon.code } : {}),
         },
       });
@@ -149,11 +150,17 @@ function CheckoutPage() {
         return;
       }
 
-      if (res.mode === "stripe") {
-        window.location.href = res.url;
+      if (res.mode === "paddle") {
+        await openCheckout({
+          transactionId: res.transactionId,
+          customerEmail: session?.user?.email ?? undefined,
+          successPath: "/checkout/success",
+        });
+        setBusy(false);
       } else {
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
       }
+
     } catch {
       // Never surface a raw backend error string to the visitor.
       toast.error(t("checkout.stripeNotConfigured"));

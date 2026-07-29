@@ -30,6 +30,8 @@ import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 // anglojęzyczny czytelnik widział polskie formatowanie cen na paywallu).
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { getPaddleEnvironment } from "@/lib/paddle";
+import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import { meterPaywallVariant, type MeterState, type MeteringSettings } from "@/lib/access/metering";
 import "@/lib/i18n-paywall";
 
@@ -67,6 +69,7 @@ export function Paywall({
   const { session } = useAuth();
   const navigate = useNavigate();
   const checkout = useServerFn(createCheckoutOrder);
+  const { openCheckout } = usePaddleCheckout();
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [pwdError, setPwdError] = useState(false);
@@ -176,6 +179,7 @@ export function Paywall({
           entity_id: rule.entity_id,
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",
+          environment: getPaddleEnvironment(),
         },
       });
       if (!res.ok) {
@@ -183,11 +187,17 @@ export function Paywall({
         setBusy(false);
         return;
       }
-      if (res.mode === "stripe") {
-        window.location.href = res.url;
+      if (res.mode === "paddle") {
+        await openCheckout({
+          transactionId: res.transactionId,
+          customerEmail: session.user?.email ?? undefined,
+          successPath: "/checkout/success",
+        });
+        setBusy(false);
       } else {
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
       }
+
     } catch {
       toast.error(t("paywall.checkoutFail"));
       setBusy(false);

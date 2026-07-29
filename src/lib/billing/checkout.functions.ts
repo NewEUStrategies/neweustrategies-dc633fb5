@@ -33,7 +33,12 @@ const createOrderSchema = z.object({
   // spójne z cennikiem i /support). Konwersja liczona jest serwerowo, więc
   // klient nie może zmienić kwoty - jedynie wybrać docelową walutę z listy.
   display_currency: z.enum(["PLN", "EUR"]).optional(),
+  // Bilet na płatne wydarzenie - webhook po zapłacie potwierdza RSVP.
+  event_id: z.string().uuid().nullable().optional(),
+  // Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu.
+  environment: z.enum(["sandbox", "live"]).optional(),
 });
+
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -172,12 +177,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     }
 
     // Fail-closed ZANIM powstanie zamówienie: produkcja bez działającej
-    // konfiguracji Stripe (brak klucza LUB brak origin do success_url) odmawia
-    // checkoutu zamiast po cichu wpaść w tryb mock i rozdać dostęp za darmo.
-    const stripeConfigured =
-      !!process.env.STRIPE_SECRET_KEY &&
-      !!(process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL);
-    if (!stripeConfigured && !mockCheckoutAllowed()) {
+    // konfiguracji dostawcy płatności odmawia checkoutu, zamiast po cichu
+    // wpaść w tryb mock i rozdać dostęp za darmo.
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
+    const paymentsReady = paymentsConfiguredServer();
+    if (!paymentsReady && !mockCheckoutAllowed()) {
       console.error("[checkout] billing unconfigured: refusing mock checkout in production");
       return {
         ok: false as const,
@@ -187,6 +191,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     }
 
     const receiptEmail = context.claims.email ?? null;
+
+    // Bilet na płatne wydarzenie: rozpoznawany po metadanych zamówienia -
+    // webhook po zaksięgowaniu potwierdza RSVP i wysyła mail rejestracyjny.
+    const eventId = data.event_id ?? null;
 
     // Insert pending order (z metadanymi kuponu - webhook potem policzy revenue netto).
     const { data: order, error: insertError } = await supabase
@@ -200,10 +208,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         plan_id: data.plan_id ?? null,
         entity_type: data.entity_type ?? null,
         entity_id: data.entity_id ?? null,
-        provider: "stripe",
+        provider: paymentsReady ? "paddle" : "mock",
         receipt_email: receiptEmail,
         metadata: {
           label,
+          ...(eventId ? { event_id: eventId } : {}),
           ...(couponCode
             ? {
                 coupon_code: couponCode,
@@ -239,88 +248,50 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       }
     }
 
-    // Stripe Checkout Session (best-effort - only if secret configured)
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    const origin = process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL ?? "";
-
-    if (stripeSecret && origin) {
-      try {
-        // Ustawienia checkoutu tenantu (kupony / Stripe Tax / NIP / faktury) -
-        // czytane serwerowo, więc klient nie ma jak ich nadpisać. Brak wiersza
-        // = konserwatywne domyślne (normalizeCheckoutSettings).
-        const { data: checkoutSettingsRow } = await supabase
-          .from("checkout_settings")
-          .select(
-            "allow_promotion_codes, automatic_tax, tax_id_collection, billing_address_collection, invoice_creation",
-          )
-          .maybeSingle();
-        const checkoutSettings = normalizeCheckoutSettings(checkoutSettingsRow);
-
-        const sessionMode = data.kind === "subscription" ? "subscription" : "payment";
-        const params = new URLSearchParams();
-        params.set("mode", sessionMode);
-        params.set("success_url", `${origin}${data.success_path}?order=${order.id}`);
-        params.set("cancel_url", `${origin}${data.cancel_path}?order=${order.id}`);
-        params.set("client_reference_id", order.id);
-        if (receiptEmail) params.set("customer_email", receiptEmail);
-        params.set("line_items[0][price_data][currency]", currency.toLowerCase());
-        params.set("line_items[0][price_data][unit_amount]", String(amountCents));
-        params.set("line_items[0][price_data][product_data][name]", label || "Order");
-        if (data.kind === "subscription") {
-          params.set("line_items[0][price_data][recurring][interval]", recurring.interval);
-          if (recurring.intervalCount > 1) {
-            // Kwartał = month x 3 (kanoniczna kadencja kwartalna Stripe).
-            params.set(
-              "line_items[0][price_data][recurring][interval_count]",
-              String(recurring.intervalCount),
-            );
-          }
-          if (trialDays > 0) {
-            // Stripe caps trial_period_days at 730; we clamp defensively so a
-            // misconfigured plan can't blow up the whole checkout call.
-            params.set("subscription_data[trial_period_days]", String(Math.min(trialDays, 730)));
-          }
-        }
-
-        params.set("line_items[0][quantity]", "1");
-        params.set("metadata[order_id]", order.id);
-        // Kupony, podatki, NIP i faktury - reguły zależności między parametrami
-        // żyją w jednej, czystej funkcji (unit-testy w checkoutSettings.test).
-        for (const [key, value] of checkoutSessionExtraParams(checkoutSettings, sessionMode)) {
-          params.set(key, value);
-        }
-
-        const resp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${stripeSecret}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: params.toString(),
-        });
-        if (!resp.ok) {
-          const txt = await resp.text();
-          throw new Error(`stripe_error: ${resp.status} ${txt.slice(0, 200)}`);
-        }
-        const session = (await resp.json()) as { id: string; url: string };
-        await supabase
-          .from("payment_orders")
-          .update({ provider_session_id: session.id, status: "processing" })
-          .eq("id", order.id);
-        return { ok: true as const, mode: "stripe" as const, url: session.url, orderId: order.id };
-      } catch (e) {
-        // Log server-side; surface generic error to client
-        console.error("[checkout] stripe session failed", e);
+    if (paymentsReady) {
+      // Kwota jest wyliczona serwerowo (plan / reguła dostępu / kupon /
+      // waluta prezentacji), więc zamiast ceny katalogowej tworzymy
+      // transakcję z ceną osadzoną i zwracamy jej identyfikator do nakładki.
+      const { createAdhocTransaction, resolveEnvironment } = await import(
+        "@/lib/billing/paddleTransaction.server"
+      );
+      const created = await createAdhocTransaction({
+        environment: resolveEnvironment(data.environment),
+        product: eventId ? "eventTicket" : "contentUnlock",
+        name: label || "Zamówienie",
+        amountCents,
+        currency,
+        customerEmail: receiptEmail,
+        customData: {
+          kind: "order",
+          order_id: order.id,
+          user_id: userId,
+          ...(eventId ? { event_id: eventId } : {}),
+        },
+      });
+      if (!created.ok) {
+        await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);
         return {
           ok: false as const,
-          mode: "stripe" as const,
-          error: "stripe_failed",
+          mode: "paddle" as const,
+          error: created.error,
           orderId: order.id,
         };
       }
+      await supabase
+        .from("payment_orders")
+        .update({ provider_session_id: created.transactionId, status: "processing" })
+        .eq("id", order.id);
+      return {
+        ok: true as const,
+        mode: "paddle" as const,
+        transactionId: created.transactionId,
+        orderId: order.id,
+      };
     }
 
-    // Mock mode - no Stripe configured. Return success URL directly so devs can test the flow.
+    // Tryb mock - brak dostawcy. Zwracamy adres sukcesu, żeby dało się
+    // przetestować lejek w dev.
     return {
       ok: true as const,
       mode: "mock" as const,
@@ -328,6 +299,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       orderId: order.id,
     };
   });
+
 
 // Finalise a mock-mode order (no Stripe configured). Marks the caller's own
 // pending order paid and grants the entitlement via the same shared path the
