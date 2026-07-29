@@ -12,6 +12,14 @@ export const resolvePaddlePrice = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => {
     const { gatewayFetch } = await import("@/lib/paddle.server");
+    // Restart integracji (nowe konto operatora, rotacja klucza) unieważnia
+    // wewnętrzne identyfikatory cen. Sprawdzenie odcisku jest tanie
+    // (debounce w izolacie), a pozwala odtworzyć katalog zanim ktoś kliknie
+    // "Kup" i zobaczy błąd.
+    const { ensureCatalogSynced } = await import("@/lib/billing/catalogAutoSync.server");
+    await ensureCatalogSynced(data.environment).catch((e: unknown) => {
+      console.error("[payments] auto-sync check failed", e);
+    });
     const response = await gatewayFetch(
       data.environment,
       `/prices?external_id=${encodeURIComponent(data.priceId)}`,

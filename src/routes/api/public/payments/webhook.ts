@@ -4,6 +4,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { verifyWebhook, EventName, type PaddleEnv } from "@/lib/paddle.server";
 import { planChangeDirection } from "@/lib/billing/paddleCatalog";
+import { runAfterResponse } from "@/lib/http/waitUntil.server";
 
 type SubscriptionData = {
   id: string;
@@ -276,6 +277,15 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
   // Czas obsługi trafia do dziennika - w panelu widać od razu, czy handler
   // zaczyna się ślimaczyć (operator ponawia po timeoucie).
   const startedAt = Date.now();
+
+  // Zdarzenie od operatora to najwcześniejszy sygnał, że integracja znowu
+  // żyje (np. po podłączeniu nowego konta). Kontrola odcisku i ewentualne
+  // odtworzenie katalogu idą "za odpowiedzią", żeby nie opóźniać ACK.
+  runAfterResponse(
+    import("@/lib/billing/catalogAutoSync.server")
+      .then(({ ensureCatalogSynced }) => ensureCatalogSynced(env))
+      .catch((e: unknown) => console.error("[payments] auto-sync check failed", e)),
+  );
 
   try {
     switch (event.eventType) {
