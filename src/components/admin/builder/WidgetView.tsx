@@ -1363,6 +1363,16 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           accent={getStr(c, "accent") || undefined}
           quickDonate={bool("quickDonate", false)}
           quickAmountCents={getNum(c, "quickAmountCents", 5000)}
+          mode={
+            getStr(c, "mode") === "quick" || getStr(c, "mode") === "form"
+              ? (getStr(c, "mode") as "quick" | "form")
+              : getStr(c, "mode") === "link"
+                ? "link"
+                : undefined
+          }
+          presetsCsv={getStr(c, "presetsCsv") || undefined}
+          showCustomAmount={bool("showCustomAmount", true)}
+          showMessage={bool("showMessage", false)}
           lang={lang}
         />,
       );

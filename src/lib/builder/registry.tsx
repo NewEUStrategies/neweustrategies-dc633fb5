@@ -1568,6 +1568,11 @@ export const WIDGETS: WidgetDef[] = [
       // Szybka darowizna: przycisk otwiera nakładkę operatora zamiast /support.
       quickDonate: false,
       quickAmountCents: 5000,
+      // Tryb akcji + warianty kwot formularza (konfigurowane w panelu edycji).
+      mode: "link",
+      presetsCsv: "20, 50, 100, 250",
+      showCustomAmount: true,
+      showMessage: false,
     }),
   },
   // News ticker (horizontal scrolling latest posts)
