@@ -15,6 +15,8 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "subscription_canceled",
   "subscription_upgraded",
   "subscription_downgraded",
+  "payment_failed",
+  "payment_recovered",
   "event_registered",
   "newsletter_confirmed",
 ] as const;
@@ -83,6 +85,28 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         details: [
           { label: l.previousPlan, value: plan },
           { label: l.newPlan, value: "Essential" },
+          { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
+        ],
+        ctaUrl: `${SITE_URL}/profile/subscription`,
+      };
+    case "payment_failed":
+      return {
+        subjectName: plan,
+        details: [
+          { label: l.plan, value: plan },
+          { label: l.price, value: "249,00 PLN" },
+          { label: l.attemptedAt, value: lang === "pl" ? "29 lipca 2026" : "29 July 2026" },
+          { label: l.retryAt, value: lang === "pl" ? "1 sierpnia 2026" : "1 August 2026" },
+          { label: l.accessUntil, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
+        ],
+        ctaUrl: `${SITE_URL}/profile/subscription`,
+      };
+    case "payment_recovered":
+      return {
+        subjectName: plan,
+        details: [
+          { label: l.plan, value: plan },
+          { label: l.price, value: "249,00 PLN" },
           { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
         ctaUrl: `${SITE_URL}/profile/subscription`,

@@ -12,6 +12,8 @@ export type TxEmailType =
   | "subscription_canceled"
   | "subscription_upgraded"
   | "subscription_downgraded"
+  | "payment_failed"
+  | "payment_recovered"
   | "event_registered"
   | "newsletter_confirmed";
 
@@ -42,6 +44,9 @@ export interface TxCopy {
     place: string;
     previousPlan: string;
     newPlan: string;
+    attemptedAt: string;
+    retryAt: string;
+    accessUntil: string;
   };
   footerHelp: string;
 }
@@ -59,6 +64,9 @@ const LABELS_PL: TxCopy["labels"] = {
   place: "Miejsce",
   previousPlan: "Dotychczasowy plan",
   newPlan: "Nowy plan",
+  attemptedAt: "Próba obciążenia",
+  retryAt: "Kolejna próba",
+  accessUntil: "Dostęp aktywny do",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -72,6 +80,9 @@ const LABELS_EN: TxCopy["labels"] = {
   place: "Location",
   previousPlan: "Previous plan",
   newPlan: "New plan",
+  attemptedAt: "Payment attempt",
+  retryAt: "Next attempt",
+  accessUntil: "Access active until",
 };
 
 const HELP_PL =
@@ -146,6 +157,34 @@ const PL: Dict = {
       "Zmiana planu została zapisana. Zakres dostępu odpowiada nowemu planowi, a kolejne rozliczenie będzie już według niższej stawki.",
     cta: "Zobacz szczegóły planu",
     note: "W każdej chwili możesz wrócić do wyższego planu - dostęp rozszerzy się natychmiast.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  payment_failed: {
+    subject: (v) =>
+      `⚠️ Płatność nie powiodła się${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "Nie udało się pobrać płatności za subskrypcję - zaktualizuj metodę płatności.",
+    eyebrow: "Płatność",
+    heading: "Nie udało się pobrać płatności",
+    intro:
+      "Operator płatności nie zdołał obciążyć zapisanej metody płatności. Dostęp pozostaje aktywny, a my ponowimy próbę automatycznie. Najszybszym rozwiązaniem jest aktualizacja karty w panelu subskrypcji.",
+    cta: "Zaktualizuj metodę płatności",
+    note: "Jeśli kolejne próby również się nie powiodą, subskrypcja zostanie wstrzymana po zakończeniu opłaconego okresu.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  payment_recovered: {
+    subject: (v) =>
+      `✅ Płatność zaksięgowana${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Zaległa płatność została rozliczona - subskrypcja działa normalnie.",
+    eyebrow: "Płatność",
+    heading: "Płatność została zaksięgowana",
+    intro:
+      "Dziękujemy - zaległa płatność została rozliczona, a Twoja subskrypcja wróciła do normalnego trybu. Nie musisz podejmować żadnych działań.",
+    cta: "Zobacz szczegóły subskrypcji",
+    note: "Fakturę za rozliczony okres znajdziesz w profilu w zakładce Zamówienia.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -246,6 +285,34 @@ const EN: Dict = {
       "Your plan change has been saved. Access now matches the new plan and the next invoice will use the lower rate.",
     cta: "View plan details",
     note: "You can move back to a higher plan at any time - access expands immediately.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  payment_failed: {
+    subject: (v) =>
+      `⚠️ Payment failed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "We could not take the payment for your subscription - please update your card.",
+    eyebrow: "Payment",
+    heading: "We could not take your payment",
+    intro:
+      "The payment provider could not charge your saved payment method. Your access stays active and we will retry automatically. Updating your card in the subscription panel is the fastest fix.",
+    cta: "Update payment method",
+    note: "If the following attempts fail as well, the subscription will be paused once the paid period ends.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  payment_recovered: {
+    subject: (v) =>
+      `✅ Payment received${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "The outstanding payment cleared - your subscription is back to normal.",
+    eyebrow: "Payment",
+    heading: "Your payment has been received",
+    intro:
+      "Thank you - the outstanding payment has cleared and your subscription is back to normal. No further action is needed.",
+    cta: "View subscription details",
+    note: "The invoice for this period is available in your profile under Orders.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
