@@ -112,7 +112,6 @@ describe("public routes declare their own head()", () => {
     "blog.index.tsx",
     "category.$slug.tsx",
     "tag.$slug.tsx",
-    "post.$slug.tsx",
     "programs.index.tsx",
     "glossary.tsx",
   ];
