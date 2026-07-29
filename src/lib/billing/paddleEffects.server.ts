@@ -125,20 +125,15 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     return;
   }
 
-  await grantEntitlement(
-    {
-      id: ctx.subscriptionId,
-      user_id: ctx.userId,
-      tenant_id: plan.tenantId,
-      kind: "subscription",
-      plan_id: plan.planId,
-      entity_type: null,
-      entity_id: null,
-      amount_cents: plan.priceCents,
-      currency: plan.currency,
-    },
-    ctx.subscriptionId,
-  );
+  await syncEntitlementState({
+    userId: ctx.userId,
+    tenantId: plan.tenantId,
+    planId: plan.planId,
+    externalRef: ctx.subscriptionId,
+    status: ctx.status ?? "active",
+    periodEnd: ctx.periodEnd,
+  });
+
 
   await notifySubscriptionEmail({
     kind: "subscription_confirmed",
