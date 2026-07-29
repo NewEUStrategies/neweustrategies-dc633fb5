@@ -49,6 +49,8 @@ export interface TxCopy {
     attemptedAt: string;
     retryAt: string;
     accessUntil: string;
+    transaction: string;
+    ticketCode: string;
   };
   footerHelp: string;
 }
@@ -69,6 +71,8 @@ const LABELS_PL: TxCopy["labels"] = {
   attemptedAt: "Próba obciążenia",
   retryAt: "Kolejna próba",
   accessUntil: "Dostęp aktywny do",
+  transaction: "Numer transakcji",
+  ticketCode: "Numer biletu",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -85,6 +89,8 @@ const LABELS_EN: TxCopy["labels"] = {
   attemptedAt: "Payment attempt",
   retryAt: "Next attempt",
   accessUntil: "Access active until",
+  transaction: "Transaction number",
+  ticketCode: "Ticket number",
 };
 
 const HELP_PL =
