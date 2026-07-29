@@ -58,7 +58,6 @@ export const Route = createFileRoute("/support")({
         .ensureQueryData(resolvedContentQueryOptions(SUPPORT_SEGMENTS))
         .catch(() => null),
       SUPPORT_DOC_BUDGET_MS,
-      null,
     );
   },
   head: () => {
@@ -88,6 +87,39 @@ function formatAmount(cents: number, lang: "pl" | "en", currency: DonationCurren
   }).format(cents / 100);
 }
 
+/**
+ * Widok strony zbudowanej w panelu (builder / bloki / HTML). Zwraca `null`,
+ * gdy dokumentu nie ma albo jest pusty - wtedy trasa pokazuje formularz.
+ */
+function SupportBuilderDocument({ page, lang }: { page: PageData; lang: "pl" | "en" }) {
+  const blocksData = (page.blocks_data as LocalizedBlocks | null) ?? null;
+  const blocksDoc: BlocksDoc | null = blocksData
+    ? (blocksData[lang] ?? blocksData.pl ?? blocksData.en ?? null)
+    : null;
+  const prepared = prepareContentForRender({
+    editor: page.editor,
+    builderDoc: parseBuilderDoc(page.builder_data),
+    blocksDoc,
+    rawHtml: (lang === "en" ? page.content_en || page.content_pl : page.content_pl || page.content_en) ?? "",
+    lang,
+  });
+
+  return (
+    <div data-cms-content>
+      <FootnoteTooltips notes={prepared.footnotes} lang={lang} />
+      <ContentRenderer
+        editor={page.editor}
+        builderDoc={prepared.builderDoc}
+        blocksDoc={prepared.blocksDoc}
+        html={prepared.html}
+        lang={lang}
+        stream
+      />
+      <FootnotesList notes={prepared.footnotes} lang={lang} />
+    </div>
+  );
+}
+
 function SupportPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureSupportI18n();
@@ -98,6 +130,24 @@ function SupportPage() {
   const { status } = Route.useSearch();
   const donate = useServerFn(createDonationCheckout);
   const { openCheckout } = usePaddleCheckout();
+
+  // Dokument z panelu wygrywa z wbudowanym formularzem - patrz komentarz przy
+  // SUPPORT_SEGMENTS. Zwykłe useQuery (nie suspense): brak dokumentu lub błąd
+  // sieci degraduje się do formularza zamiast wywracać stronę.
+  const docQ = useQuery({
+    ...resolvedContentQueryOptions(SUPPORT_SEGMENTS),
+    retry: false,
+  });
+  const builderPage =
+    docQ.data && docQ.data.kind === "page" ? (docQ.data.item as PageData) : null;
+  const hasBuilderDoc =
+    !!builderPage &&
+    hasRenderableBody({
+      content_pl: builderPage.content_pl,
+      content_en: builderPage.content_en,
+      builder_data: builderPage.builder_data,
+      blocks_data: builderPage.blocks_data ?? null,
+    });
 
   const [selectedCents, setSelectedCents] = useState<number>(presets[1]);
   const [customAmount, setCustomAmount] = useState("");
@@ -180,6 +230,10 @@ function SupportPage() {
         </div>
       </div>
     );
+  }
+
+  if (hasBuilderDoc && builderPage) {
+    return <SupportBuilderDocument page={builderPage} lang={lang} />;
   }
 
   return (
