@@ -11,7 +11,7 @@ const inputSchema = z.object({
 
 export const runBillingRemindersNow = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => inputSchema.parse(input ?? {}))
+  .validator((input: unknown) => inputSchema.parse(input ?? {}))
   .handler(async ({ data }) => {
     const { runBillingReminders, REMINDER_LEAD_DAYS } = await import(
       "@/lib/billing/reminders.server"
