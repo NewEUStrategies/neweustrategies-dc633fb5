@@ -39,22 +39,23 @@ import {
   Search,
 } from "@/lib/lucide-shim";
 import {
-  Clock,
-  Inbox,
-  MessageCircle,
-  ListChecks,
-  Radio,
-  Crown,
-  Landmark,
-  TrendingUp,
-  HandHeart,
-  Cable,
+  BadgePercent,
   BookOpen,
   Briefcase,
-  ShieldCheck,
-  Workflow,
+  Cable,
+  Clock,
+  CreditCard,
+  Crown,
   Gift,
-  BadgePercent,
+  HandHeart,
+  Inbox,
+  Landmark,
+  ListChecks,
+  MessageCircle,
+  Radio,
+  ShieldCheck,
+  TrendingUp,
+  Workflow,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -285,6 +286,13 @@ function AdminShellInner({
           }),
         },
         { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
+        {
+          to: "/admin/billing",
+          icon: CreditCard,
+          label: t("admin.nav.billing", {
+            defaultValue: lang === "pl" ? "Rozliczenia" : "Billing",
+          }),
+        },
         {
           to: "/admin/donations",
           icon: HandHeart,

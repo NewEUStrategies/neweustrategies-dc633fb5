@@ -149,6 +149,7 @@ import { Route as AdminCommunityRouteImport } from './routes/admin.community'
 import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminBillingRouteImport } from './routes/admin.billing'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
 import { Route as AdminAudienceRouteImport } from './routes/admin.audience'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
@@ -949,6 +950,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminBillingRoute = AdminBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminAuthorsRoute = AdminAuthorsRouteImport.update({
   id: '/authors',
   path: '/authors',
@@ -1513,6 +1519,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
+  '/admin/billing': typeof AdminBillingRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
@@ -1752,6 +1759,7 @@ export interface FileRoutesByTo {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
+  '/admin/billing': typeof AdminBillingRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
@@ -1986,6 +1994,7 @@ export interface FileRoutesById {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
+  '/admin/billing': typeof AdminBillingRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
@@ -2229,6 +2238,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/audience'
     | '/admin/authors'
+    | '/admin/billing'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
@@ -2468,6 +2478,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/audience'
     | '/admin/authors'
+    | '/admin/billing'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
@@ -2701,6 +2712,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/audience'
     | '/admin/authors'
+    | '/admin/billing'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
@@ -3975,6 +3987,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/billing': {
+      id: '/admin/billing'
+      path: '/billing'
+      fullPath: '/admin/billing'
+      preLoaderRoute: typeof AdminBillingRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/authors': {
       id: '/admin/authors'
       path: '/authors'
@@ -4936,6 +4955,7 @@ interface AdminRouteChildren {
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminAudienceRoute: typeof AdminAudienceRoute
   AdminAuthorsRoute: typeof AdminAuthorsRoute
+  AdminBillingRoute: typeof AdminBillingRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
   AdminCommentsRoute: typeof AdminCommentsRoute
@@ -5004,6 +5024,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminAudienceRoute: AdminAudienceRoute,
   AdminAuthorsRoute: AdminAuthorsRoute,
+  AdminBillingRoute: AdminBillingRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
   AdminCommentsRoute: AdminCommentsRoute,

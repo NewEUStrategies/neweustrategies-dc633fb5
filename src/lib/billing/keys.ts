@@ -75,6 +75,10 @@ export const billingKeys = {
     monetization: () => ["admin", "monetization"] as const,
     /** Rejestr darowizn w panelu. */
     donations: () => ["admin", "donations"] as const,
+    /** Subskrypcje u dostawcy płatności (panel /admin/billing). */
+    paddleSubscriptions: () => ["admin", "paddle-subscriptions"] as const,
+    /** Historia zdarzeń webhooka operatora płatności. */
+    paymentWebhookEvents: () => ["admin", "payment-webhook-events"] as const,
     /** Subskrypcje wszystkich użytkowników (lista /admin/users). */
     allUserSubscriptions: () => ["all-user-subscriptions"] as const,
   },
