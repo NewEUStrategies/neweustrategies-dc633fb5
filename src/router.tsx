@@ -11,6 +11,7 @@ import { FriendlyErrorPage } from "./components/error/FriendlyErrorPage";
 import { errorCopy } from "./lib/errorCopy";
 import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
 import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
+import { pruneUnresolvedQueries } from "./lib/ssr/pruneUnresolvedQueries";
 
 
 
@@ -48,6 +49,16 @@ export const getRouter = () => {
         refetchOnReconnect: "always",
       },
       mutations: { retry: 0 },
+      // SSR: never serialize a query that cannot settle on the server. A
+      // pending query with no in-flight fetch (typically one whose fetch was
+      // cancelled with `revert: true`) owns a promise nobody will ever
+      // resolve; seroval would wait on it until its hard limit and truncate
+      // the document. Such queries simply refetch after hydration.
+      dehydrate: {
+        shouldDehydrateQuery: (query) =>
+          query.state.status === "success" ||
+          (query.state.status === "pending" && query.state.fetchStatus !== "idle"),
+      },
     },
   });
 
@@ -116,6 +127,16 @@ export const getRouter = () => {
     // See lib/ssr/queryStreamGuard.
     const integrationDehydrate = router.options.dehydrate;
     router.options.dehydrate = async () => {
+      // Cancelled/never-started queries hold promises that never settle. Drop
+      // them before the integration snapshots the cache.
+      const pruned = pruneUnresolvedQueries(queryClient);
+      if (pruned.length > 0) {
+        console.warn(
+          `[ssr-dehydrate] pruned ${pruned.length} unresolvable queries on ` +
+            `${router.state.location.pathname}: ${pruned.join(", ")}`,
+        );
+      }
+
       const dehydrated = (await integrationDehydrate?.()) as
         | (Record<string, unknown> & { queryStream?: ReadableStream<unknown> })
         | undefined;

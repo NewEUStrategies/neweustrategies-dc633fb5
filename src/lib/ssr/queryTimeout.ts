@@ -19,6 +19,8 @@
 
 import type { QueryClient, Query } from "@tanstack/react-query";
 
+import { isUnresolvableQuery } from "./pruneUnresolvedQueries";
+
 /** How long a single server-side query may run before we cut it loose. */
 export const SSR_QUERY_TIMEOUT_MS = 5_000;
 
@@ -82,7 +84,12 @@ export function installSsrQueryTimeout(
         );
         // `revert: true` restores the pre-fetch state, so dehydration emits the
         // last known-good data (or an empty state) instead of hanging.
-        void query.cancel({ revert: true, silent: true });
+        void query.cancel({ revert: true, silent: true }).finally(() => {
+          // `revert: true` on a first-ever fetch leaves the query as
+          // pending/idle with an unresolved internal promise - exactly what
+          // stalls seroval during dehydration. Evict it instead.
+          if (isUnresolvableQuery(query)) cache.remove(query);
+        });
       }, timeoutMs),
     );
   });
