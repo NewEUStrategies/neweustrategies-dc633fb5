@@ -8,6 +8,9 @@
 //
 // Moduł server-only: wszystko idzie kluczem serwisowym po jawnym sprawdzeniu
 // roli admina w warstwie server fn.
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database } from "@/integrations/supabase/types";
 import { PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
 import type { PaddleEnv } from "@/lib/paddle.server";
 
@@ -38,6 +41,9 @@ export interface CouponDiscountStatus {
   validUntil: string | null;
   maxRedemptions: number | null;
   timesRedeemed: number;
+  /** Warstwa nadawana kuponem i długość nadania (dni) - „na jaki okres". */
+  grantsTierKey: string | null;
+  grantsDurationDays: number | null;
   /** Rabat u operatora - `null` oznacza "powstanie przy pierwszym użyciu". */
   providerDiscountId: string | null;
 }
@@ -68,7 +74,7 @@ async function admin() {
 
 /** Twardy warunek dostępu - wszystkie funkcje diagnostyczne go wołają. */
 export async function assertAdmin(
-  supabase: { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> },
+  supabase: SupabaseClient<Database>,
   userId: string,
 ): Promise<void> {
   const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
@@ -133,7 +139,7 @@ async function readCoupons(env: PaddleEnv): Promise<CouponDiscountStatus[]> {
   const { data } = await supabase
     .from("b2b_coupons")
     .select(
-      "code, active, discount_kind, discount_percent, discount_cents, currency, valid_from, valid_until, max_redemptions, times_redeemed",
+      "code, active, discount_kind, discount_percent, discount_cents, currency, valid_from, valid_until, max_redemptions, redemptions_count, grants_tier_key, grants_duration_days",
     )
     .order("created_at", { ascending: false })
     .limit(50);
@@ -153,7 +159,9 @@ async function readCoupons(env: PaddleEnv): Promise<CouponDiscountStatus[]> {
       validFrom: c.valid_from ?? null,
       validUntil: c.valid_until ?? null,
       maxRedemptions: c.max_redemptions ?? null,
-      timesRedeemed: c.times_redeemed ?? 0,
+      timesRedeemed: c.redemptions_count ?? 0,
+      grantsTierKey: c.grants_tier_key ?? null,
+      grantsDurationDays: c.grants_duration_days ?? null,
       providerDiscountId,
     });
   }
