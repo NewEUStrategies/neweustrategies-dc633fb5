@@ -46,7 +46,7 @@ export function EventTicketPurchase({
   const [busy, setBusy] = useState(false);
 
   const price = formatMoney(priceCents, currency, lang);
-  const successPath = `/events/${slug}?ticket=success`;
+  const successPath = `/events/${slug}`;
 
   if (hasTicket) {
     return (
