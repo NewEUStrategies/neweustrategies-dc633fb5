@@ -28,12 +28,15 @@ export interface PublicEvent {
   rsvp_opens_at: string | null;
   /** Ranga warstwy z pierwszeństwem rejestracji przed rsvp_opens_at. */
   early_rsvp_rank: number | null;
+  /** Cena biletu w groszach/centach; NULL lub 0 = wydarzenie bezpłatne. */
+  ticket_price_cents: number | null;
+  ticket_currency: string;
 }
 
 // join_url/recording_url są odcięte grantem kolumnowym (SELECT bez tych
 // kolumn dla anon/authenticated) - jedyną ścieżką jest RPC get_event_access.
 const EVENT_COLUMNS =
-  "id, slug, title_pl, title_en, description_pl, description_en, starts_at, ends_at, timezone, location, kind, capacity, status, chatham_house, cover_url, host_user_id, visibility, min_tier_rank, rsvp_opens_at, early_rsvp_rank";
+  "id, slug, title_pl, title_en, description_pl, description_en, starts_at, ends_at, timezone, location, kind, capacity, status, chatham_house, cover_url, host_user_id, visibility, min_tier_rank, rsvp_opens_at, early_rsvp_rank, ticket_price_cents, ticket_currency";
 
 export async function fetchPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await supabase
