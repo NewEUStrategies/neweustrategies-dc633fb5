@@ -3,9 +3,13 @@
 // i "payment_webhook_events admin read") - komponent nie ma żadnych uprawnień
 // ponad to, co baza przyzna zalogowanemu adminowi.
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CreditCard, RefreshCcw, Users } from "lucide-react";
+import { AlertTriangle, BellRing, CreditCard, RefreshCcw, Users } from "lucide-react";
+import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+
+import { runBillingRemindersNow } from "@/lib/billing/reminders.functions";
 
 import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
@@ -96,6 +100,19 @@ export function AdminBillingPanel() {
     },
   });
 
+  const runReminders = useServerFn(runBillingRemindersNow);
+  const remindersM = useMutation({
+    mutationFn: () => runReminders({ data: {} }),
+    onSuccess: (r) =>
+      toast.success(
+        L(
+          `Przypomnienia: ${r.renewal} odnowień, ${r.expiring} wygaśnięć`,
+          `Reminders: ${r.renewal} renewals, ${r.expiring} expirations`,
+        ),
+      ),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const rows = useMemo(() => subsQ.data ?? [], [subsQ.data]);
   const stats = useMemo(() => {
     const active = rows.filter((r) => ["active", "trialing"].includes(r.status)).length;
@@ -148,17 +165,30 @@ export function AdminBillingPanel() {
             <TabsTrigger value="subscriptions">{L("Subskrypcje", "Subscriptions")}</TabsTrigger>
             <TabsTrigger value="events">{L("Historia webhooków", "Webhook history")}</TabsTrigger>
           </TabsList>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-[6px]"
-            onClick={() => {
-              void subsQ.refetch();
-              void eventsQ.refetch();
-            }}
-          >
-            <RefreshCcw className="mr-2 h-4 w-4" /> {L("Odśwież", "Refresh")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-[6px]"
+              disabled={remindersM.isPending}
+              onClick={() => remindersM.mutate()}
+            >
+              <BellRing className="mr-2 h-4 w-4" />
+              {L("Wyślij przypomnienia", "Send reminders")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-[6px]"
+              onClick={() => {
+                void subsQ.refetch();
+                void eventsQ.refetch();
+              }}
+            >
+              <RefreshCcw className="mr-2 h-4 w-4" /> {L("Odśwież", "Refresh")}
+            </Button>
+          </div>
+
         </div>
 
         <TabsContent value="subscriptions" className="mt-4">
