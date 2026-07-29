@@ -120,9 +120,11 @@ export const getRouter = () => {
         | (Record<string, unknown> & { queryStream?: ReadableStream<unknown> })
         | undefined;
       if (dehydrated?.queryStream) {
-
-        dehydrated.queryStream = guardQueryStream(dehydrated.queryStream, queryClient);
+        dehydrated.queryStream = guardQueryStream(dehydrated.queryStream, queryClient, {
+          label: router.state.location.pathname,
+        });
       }
+
       return dehydrated;
     };
 
