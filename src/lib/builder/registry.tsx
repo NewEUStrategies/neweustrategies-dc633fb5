@@ -1286,6 +1286,14 @@ export const WIDGETS: WidgetDef[] = [
     category: "blocks",
     icon: Check,
     defaults: () => ({
+      // "manual" = ręcznie wpisane karty, "plans" = katalog access_plans
+      // (spójny z /pricing, panelem admina i cenami u operatora płatności).
+      source: "manual",
+      planInterval: "all",
+      tierKeysCsv: "",
+      planLimit: 0,
+      cta_pl: "Wybierz",
+      cta_en: "Choose",
       plans: [
         {
           name_pl: "Start",
@@ -1557,6 +1565,9 @@ export const WIDGETS: WidgetDef[] = [
       goalCents: 0,
       accent: "",
       currency: "PLN",
+      // Szybka darowizna: przycisk otwiera nakładkę operatora zamiast /support.
+      quickDonate: false,
+      quickAmountCents: 5000,
     }),
   },
   // News ticker (horizontal scrolling latest posts)

@@ -1361,6 +1361,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           showCount={bool("showCount", true)}
           showRecent={bool("showRecent", false)}
           accent={getStr(c, "accent") || undefined}
+          quickDonate={bool("quickDonate", false)}
+          quickAmountCents={getNum(c, "quickAmountCents", 5000)}
           lang={lang}
         />,
       );

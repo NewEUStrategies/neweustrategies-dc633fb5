@@ -47,6 +47,7 @@ import { SpeakersWidget } from "./SpeakersWidget";
 import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
 import { CounterWidget } from "./CounterWidget";
 import { TocWidget } from "./TocWidget";
+import { PricingPlansView } from "./PricingPlansView";
 export { ResizableBox } from "./resizeWrappers";
 
 // Wraps AnimatedHeadingRender with dynamic-token resolution. Runs on every
@@ -1273,6 +1274,19 @@ export function renderSimpleWidget(
       return <InteractiveCircleWidget node={node} lang={lang} />;
     }
     case "pricing": {
+      // Tryb „plans": karty czytane z katalogu access_plans (spójne z /pricing,
+      // panelem admina i cenami u operatora). Tryb domyślny: ręczne wartości.
+      if (getStr(c, "source") === "plans") {
+        return (
+          <PricingPlansView
+            lang={lang}
+            interval={getStr(c, "planInterval") || "all"}
+            tierKeysCsv={getStr(c, "tierKeysCsv")}
+            limit={Number(c.planLimit ?? 0) || 0}
+            ctaLabel={getStr(c, `cta_${lang}`) || undefined}
+          />
+        );
+      }
       const plans = Array.isArray(c.plans) ? (c.plans as Array<Record<string, unknown>>) : [];
       return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
