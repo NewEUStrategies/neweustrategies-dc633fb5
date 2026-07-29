@@ -6175,6 +6175,42 @@ export type Database = {
           },
         ]
       }
+      payment_integration_state: {
+        Row: {
+          created_at: string
+          environment: string
+          fingerprint: string | null
+          last_error: string | null
+          last_reason: string | null
+          last_report: Json | null
+          last_status: string | null
+          last_synced_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          environment: string
+          fingerprint?: string | null
+          last_error?: string | null
+          last_reason?: string | null
+          last_report?: Json | null
+          last_status?: string | null
+          last_synced_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          environment?: string
+          fingerprint?: string | null
+          last_error?: string | null
+          last_reason?: string | null
+          last_report?: Json | null
+          last_status?: string | null
+          last_synced_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payment_orders: {
         Row: {
           amount_cents: number
