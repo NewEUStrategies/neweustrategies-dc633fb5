@@ -134,7 +134,9 @@ export function guardQueryStream<T>(
     if (reason !== "source") {
       console.warn(`[ssr-query-stream] closed by guard (${reason}) route=${label}`);
       dumpPending(reason);
-      void reader?.cancel().catch(() => undefined);
+      // NIE anulujemy czytnika źródła: integracja zamyka swój pushable
+      // stream z onRenderFinished i podwójne zamknięcie rzuca ERR_INVALID_STATE
+      // wewnątrz listenera router-core.
     } else if (collectPendingQueries(queryClient).length > 0) {
       // Źródło się domknęło, a mimo to coś wisi - to właśnie te promisy
       // trzymają serializację seroval po zakończeniu renderu.
@@ -164,19 +166,6 @@ export function guardQueryStream<T>(
               return;
             }
             try {
-              try {
-                const queries = (value as { queries?: Array<Record<string, unknown>> })?.queries;
-                if (Array.isArray(queries)) {
-                  for (const q of queries) {
-                    console.warn(
-                      `[ssr-query-stream] chunk route=${label} hash=${String(q.queryHash)} ` +
-                        `hasPromise=${"promise" in q} state=${JSON.stringify((q.state as { status?: string; fetchStatus?: string })?.status)}`,
-                    );
-                  }
-                }
-              } catch {
-                /* diagnostics only */
-              }
               controller?.enqueue(value);
             } catch {
               /* consumer gone */

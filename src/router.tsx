@@ -37,25 +37,6 @@ function DefaultNotFoundComponent() {
   );
 }
 
-function findPendingRefs(value: unknown, path = "$", depth = 0, seen = new Set<unknown>()): string[] {
-  if (depth > 6 || value === null || typeof value !== "object") {
-    return typeof value === "function" ? [`${path}:function`] : [];
-  }
-  if (seen.has(value)) return [];
-  seen.add(value);
-  if (typeof (value as { then?: unknown }).then === "function") return [`${path}:promise`];
-  if (value instanceof ReadableStream) return [`${path}:stream`];
-  const out: string[] = [];
-  if (Array.isArray(value)) {
-    value.forEach((v, i) => out.push(...findPendingRefs(v, `${path}[${i}]`, depth + 1, seen)));
-    return out;
-  }
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    out.push(...findPendingRefs(v, `${path}.${k}`, depth + 1, seen));
-  }
-  return out;
-}
-
 export const getRouter = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -159,25 +140,10 @@ export const getRouter = () => {
         );
       }
 
-      // Diagnostyka: znajdź niezserializowane obietnice w payloadzie tras.
-      for (const match of router.state.matches) {
-        for (const [field, value] of [
-          ["loaderData", match.loaderData],
-          ["__beforeLoadContext", (match as { __beforeLoadContext?: unknown }).__beforeLoadContext],
-        ] as const) {
-          const found = findPendingRefs(value);
-          if (found.length > 0) {
-            console.warn(
-              `[ssr-dehydrate] match=${match.routeId} ${field} contains: ${found.join(", ")}`,
-            );
-          }
-        }
-      }
-
       const dehydrated = (await integrationDehydrate?.()) as
         | (Record<string, unknown> & { queryStream?: ReadableStream<unknown> })
         | undefined;
-      if (!process.env.SSR_NO_GUARD && dehydrated?.queryStream) {
+      if (dehydrated?.queryStream) {
         dehydrated.queryStream = guardQueryStream(dehydrated.queryStream, queryClient, {
           label: router.state.location.pathname,
         });
