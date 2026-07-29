@@ -6253,6 +6253,51 @@ export type Database = {
           },
         ]
       }
+      payment_webhook_events: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          environment: string
+          error: string | null
+          event_id: string
+          event_type: string
+          id: string
+          occurred_at: string | null
+          payload: Json
+          status: string
+          subscription_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          environment: string
+          error?: string | null
+          event_id: string
+          event_type: string
+          id?: string
+          occurred_at?: string | null
+          payload?: Json
+          status?: string
+          subscription_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          environment?: string
+          error?: string | null
+          event_id?: string
+          event_type?: string
+          id?: string
+          occurred_at?: string | null
+          payload?: Json
+          status?: string
+          subscription_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       personality_questions: {
         Row: {
           axis: string
@@ -9827,8 +9872,11 @@ export type Database = {
           current_period_start: string | null
           environment: string
           id: string
+          last_payment_at: string | null
+          last_payment_failed_at: string | null
           paddle_customer_id: string
           paddle_subscription_id: string
+          payment_failure_count: number
           price_id: string
           product_id: string
           quantity: number
@@ -9844,8 +9892,11 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
+          last_payment_at?: string | null
+          last_payment_failed_at?: string | null
           paddle_customer_id: string
           paddle_subscription_id: string
+          payment_failure_count?: number
           price_id: string
           product_id: string
           quantity?: number
@@ -9861,8 +9912,11 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
+          last_payment_at?: string | null
+          last_payment_failed_at?: string | null
           paddle_customer_id?: string
           paddle_subscription_id?: string
+          payment_failure_count?: number
           price_id?: string
           product_id?: string
           quantity?: number
