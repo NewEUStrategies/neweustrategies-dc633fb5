@@ -47,6 +47,8 @@ import { EventSpeakersSection } from "@/components/events/EventSpeakersSection";
 import { AddToCalendar } from "@/components/community/AddToCalendar";
 import { Button } from "@/components/ui/button";
 import { EventTicketPurchase } from "@/components/community/EventTicketPurchase";
+import { EventTicketCard } from "@/components/community/EventTicketCard";
+import { useEventSeatsRealtime } from "@/hooks/useEventSeatsRealtime";
 import { formatMoney } from "@/lib/billing/types";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
@@ -119,6 +121,8 @@ function EventDetail() {
     queryFn: () => fetchEventRsvpCounts([eventId!]),
     enabled: !!eventId,
   });
+
+  const { seats: liveSeats } = useEventSeatsRealtime(eventId ?? undefined);
 
   const tiersQ = useMembershipTiers();
   const currentTierQ = useCurrentTier();
@@ -221,8 +225,10 @@ function EventDetail() {
   const counts = countsQ.data?.get(ev.id);
   const going = counts?.going ?? 0;
   const waitlistCount = counts?.waitlist ?? 0;
-  const seatsLeft = ev.capacity !== null ? Math.max(0, ev.capacity - going) : null;
-  const isFull = seatsLeft !== null && seatsLeft === 0;
+  // Stan miejsc: autorytatywnie z backendu (realtime), z fallbackiem na liczby
+  // z listy, gdy odczyt jeszcze trwa.
+  const seatsLeft = liveSeats?.seatsLeft ?? (ev.capacity !== null ? Math.max(0, ev.capacity - going) : null);
+  const isFull = liveSeats?.isFull ?? (seatsLeft !== null && seatsLeft === 0);
   const isWaitlisted = rsvpQ.data?.status === "waitlist";
   const isProBriefing = ev.kind === "briefing" && ev.visibility === "members";
   const membersOnly = ev.visibility === "members";
@@ -429,6 +435,11 @@ function EventDetail() {
           />
         ) : null}
         {!isPast && <AddToCalendar event={ev} lang={lang} />}
+        <EventTicketCard
+          eventId={ev.id}
+          lang={lang}
+          enabled={!!user && rsvpQ.data?.status === "going"}
+        />
       </div>
       {!isPast && user && !rsvpLockedByWindow && rsvpBeforeOpen && hasEarlyAccess && (
         <p className="mt-3 text-sm text-amber-700 dark:text-amber-400" aria-live="polite">
