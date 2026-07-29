@@ -422,13 +422,12 @@ const changePlanSchema = z.object({
   newPlanId: z.string().uuid(),
 });
 
-// Samoobsługowy upgrade/downgrade planu (zmiana ceny pozycji subskrypcji
-// Stripe z proratą rozliczaną od razu). Kolejność jak przy cancel/resume:
-// najpierw Stripe (payment_behavior=error_if_incomplete - nieudana dopłata
-// NIE zmienia planu), potem DB. Zmiana planu czyści zaplanowane anulowanie
-// (klient zostaje). Waluta subskrypcji Stripe jest niezmienialna, więc cena
-// nowego planu jest konwertowana do waluty subskrypcji (parytet prezentacji
-// PLN/EUR - ta sama reguła co przy checkout'cie z display_currency).
+// Samoobsługowy upgrade/downgrade planu. Kolejność jak przy cancel/resume:
+// najpierw operator, potem baza. Reguła biznesowa: upgrade rozlicza się od
+// razu z proratą, downgrade wchodzi dopiero od nowego okresu. Nieudana dopłata
+// NIE zmienia planu (on_payment_failure=prevent_change). Zmiana planu czyści
+// zaplanowane anulowanie - klient zostaje. Cena i waluta pochodzą z katalogu
+// dostawcy (stały cennik per plan), więc nic nie przeliczamy tutaj.
 export const changeSubscriptionPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => changePlanSchema.parse(input))
@@ -452,7 +451,7 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
 
     const { data: newPlan, error: planErr } = await supabaseAdmin
       .from("access_plans")
-      .select("id, tenant_id, active, price_cents, currency, interval, name_pl, name_en")
+      .select("id, tenant_id, active, price_cents, currency, interval, tier_key, name_pl, name_en")
       .eq("id", data.newPlanId)
       .maybeSingle();
     if (planErr) throw new Error(planErr.message);
@@ -464,69 +463,45 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
       throw new Error("plan_not_recurring");
     }
 
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    let stripePeriodEnd: string | null = null;
+    const {
+      changeSubscriptionPrice,
+      catalogPriceFor,
+      fetchSubscriptionSnapshot,
+      isProviderSubscriptionRef,
+      subscriptionEnvironment,
+    } = await import("@/lib/billing/paddleSubscription.server");
+    const { planChangeDirection } = await import("@/lib/billing/paddleCatalog");
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
 
-    if (stripeSecret && sub.external_ref && sub.external_ref.startsWith("sub_")) {
-      const {
-        fetchStripeSubscriptionItem,
-        changeStripeSubscriptionPrice,
-        updateStripeProductName,
-      } = await import("@/lib/billing/stripe.server");
+    const providerConfigured = paymentsConfiguredServer();
+    let providerPeriodEnd: string | null = null;
 
-      const itemRes = await fetchStripeSubscriptionItem(sub.external_ref, stripeSecret);
-      if (!itemRes.ok) {
-        console.error("[billing] stripe item fetch failed", sub.external_ref, itemRes.error);
-        throw new Error("stripe_plan_change_failed");
+    if (providerConfigured && isProviderSubscriptionRef(sub.external_ref)) {
+      const env = subscriptionEnvironment();
+      const snap = await fetchSubscriptionSnapshot(env, sub.external_ref);
+      if (!snap.ok) {
+        console.error("[billing] subscription snapshot failed", sub.external_ref, snap.error);
+        throw new Error("provider_plan_change_failed");
       }
 
-      // Waluty subskrypcji nie da się zmienić - cenę nowego planu wyrażamy
-      // w walucie subskrypcji (konwersja parytetowa PLN<->EUR jak w cenniku).
-      let unitAmount = Number(newPlan.price_cents);
-      let currency = String(newPlan.currency).toUpperCase();
-      const subCurrency = itemRes.item.currency.toUpperCase();
-      if (subCurrency && subCurrency !== currency) {
-        if (subCurrency !== "PLN" && subCurrency !== "EUR") {
-          throw new Error("currency_mismatch");
-        }
-        const [{ convertToDisplayCurrency }, { ensureFxRateLoaded }] = await Promise.all([
-          import("@/lib/billing/displayCurrency"),
-          import("@/lib/billing/fxRate"),
-        ]);
-        await ensureFxRateLoaded();
-        const converted = convertToDisplayCurrency(unitAmount, currency, subCurrency);
-        if (converted.currency.toUpperCase() !== subCurrency) {
-          throw new Error("currency_mismatch");
-        }
-        unitAmount = converted.cents;
-        currency = converted.currency.toUpperCase();
-      }
+      const targetPriceId = catalogPriceFor(newPlan.tier_key, interval);
+      if (!targetPriceId) throw new Error("plan_not_switchable");
+      const direction = planChangeDirection(snap.snapshot.priceId, targetPriceId);
+      if (direction === "same") throw new Error("same_plan");
 
-      const recurring = stripeRecurringFor(interval);
-      const changeRes = await changeStripeSubscriptionPrice(
-        sub.external_ref,
-        {
-          itemId: itemRes.item.itemId,
-          productId: itemRes.item.productId,
-          currency,
-          unitAmountCents: unitAmount,
-          interval: recurring.interval,
-          intervalCount: recurring.intervalCount,
-        },
-        stripeSecret,
-      );
+      const changeRes = await changeSubscriptionPrice(env, sub.external_ref, {
+        newPriceExternalId: targetPriceId,
+        quantity: snap.snapshot.quantity,
+        direction,
+      });
       if (!changeRes.ok) {
-        console.error("[billing] stripe plan change failed", sub.external_ref, changeRes.error);
-        throw new Error("stripe_plan_change_failed");
+        console.error("[billing] provider plan change failed", sub.external_ref, changeRes.error);
+        throw new Error("provider_plan_change_failed");
       }
-      stripePeriodEnd = changeRes.currentPeriodEnd;
-
-      // Best-effort: etykieta produktu na fakturach podąża za nowym planem.
-      const label = String(newPlan.name_pl || newPlan.name_en || "");
-      if (label) void updateStripeProductName(itemRes.item.productId, label, stripeSecret);
-    } else if (stripeSecret) {
-      // Subskrypcja bez identyfikatora Stripe (np. dożywotnia z zakupu
-      // one-time) nie ma czego przełączać po stronie operatora.
+      providerPeriodEnd = changeRes.currentPeriodEnd ?? snap.snapshot.currentPeriodEnd;
+    } else if (providerConfigured) {
+      // Subskrypcja bez identyfikatora u dostawcy (np. dożywotnia z zakupu
+      // jednorazowego) nie ma czego przełączać po stronie operatora.
       throw new Error("subscription_not_switchable");
     } else if (!mockCheckoutAllowed()) {
       console.error("[checkout] billing unconfigured: refusing mock plan change in production");
@@ -538,10 +513,10 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
       .update({
         plan_id: newPlan.id,
         canceled_at: null,
-        // Stripe jest źródłem prawdy o kotwicy okresu; mock liczy od teraz.
+        // Operator jest źródłem prawdy o kotwicy okresu; mock liczy od teraz.
         current_period_end:
-          stripePeriodEnd ??
-          (stripeSecret
+          providerPeriodEnd ??
+          (providerConfigured
             ? (sub.current_period_end ?? undefined)
             : periodEndFor(interval, new Date()).toISOString()),
       })

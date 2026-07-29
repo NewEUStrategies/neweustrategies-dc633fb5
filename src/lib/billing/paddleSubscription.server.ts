@@ -5,7 +5,7 @@
 // Reguła kolejności obowiązująca wszystkich wywołujących: NAJPIERW dostawca,
 // potem baza. Jeśli operator odmówi, wiersz w bazie nie może twierdzić, że
 // subskrypcja jest anulowana/zmieniona - klient byłby dalej obciążany.
-import { catalogEntryByPriceId, PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
+import { PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
 import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
 
 // eslint-disable-next-line @typescript-eslint/ban-types
@@ -170,15 +170,4 @@ export async function changeSubscriptionPrice(
   } catch (e) {
     return { ok: false, error: String(e) };
   }
-}
-
-/** Kierunek zmiany planu na podstawie rang z katalogu dostawcy. */
-export function planChangeDirection(
-  fromPriceId: string | null,
-  toPriceId: string,
-): "upgrade" | "downgrade" {
-  const from = catalogEntryByPriceId(fromPriceId);
-  const to = catalogEntryByPriceId(toPriceId);
-  if (!from || !to) return "upgrade";
-  return to.rank >= from.rank ? "upgrade" : "downgrade";
 }
