@@ -4,7 +4,7 @@
 // I/O HTTP: usługi push przeglądarek i gateway Resend (jak newsletter).
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { mapWithConcurrency } from "@/lib/async/pool";
-import { sendTransactionalEmail } from "@/lib/server/email.server";
+import { enqueueRawEmail } from "@/lib/email/transactional.server";
 import {
   clampPushPayload,
   encodePushPayload,
@@ -333,7 +333,7 @@ export async function processDigests(
     // Digest idzie tą samą kolejką NES co maile transakcyjne/autoryzacyjne:
     // jeden nadawca (noreply@neweuropeanstrategies.com), jedna lista wykluczeń
     // i jeden log dostarczalności (email_send_log) zamiast osobnej ścieżki.
-    const window = new Date().toISOString().slice(0, frequency === "daily" ? 10 : 10);
+    const window = new Date().toISOString().slice(0, 10);
     const result = await enqueueRawEmail({
       to: row.email,
       subject: digestSubject(items.length, lang, frequency),
