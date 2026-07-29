@@ -1305,7 +1305,6 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       options: [
         { value: "PLN", label: "PLN (zł)" },
         { value: "EUR", label: "EUR (€)" },
-        { value: "USD", label: "USD ($)" },
       ],
     },
     {
