@@ -25,11 +25,13 @@ describe("harmonogram przypomnień o karencji miejsc", () => {
       expect(copy.subject({ subject: "Acme" })).toContain("Acme");
       expect(copy.heading.length).toBeGreaterThan(0);
 
-      const body = txBody("team_seat_grace_reminder", lang, {
-        orgName: "Acme",
-        accessUntil: "5.08.2026",
-        daysLeft: 1,
-      });
+      const body = txBody(
+        "team_seat_grace_reminder",
+        lang,
+        { orgName: "Acme", accessUntil: "5.08.2026", daysLeft: 1 },
+        "neutral",
+      );
+
       expect(body.intro).toContain("Acme");
     }
   });
