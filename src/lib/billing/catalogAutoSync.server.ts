@@ -5,6 +5,7 @@
 // samego klucza, tylko skrót SHA-256 (16 znaków hex wystarcza do wykrycia
 // zmiany konta). Gdy odcisk różni się od zapisanego w `payment_integration_state`,
 // katalog jest odtwarzany, zanim ktokolwiek zdąży trafić na "cena nie istnieje".
+import type { Json } from "@/integrations/supabase/types";
 import { getConnectionApiKey, type PaddleEnv } from "@/lib/paddle.server";
 
 import {
@@ -122,7 +123,7 @@ async function runEnsure(env: PaddleEnv, force: boolean): Promise<AutoSyncOutcom
         last_status: status,
         last_reason: reason,
         last_error: null,
-        last_report: report as unknown as Record<string, unknown>,
+        last_report: JSON.parse(JSON.stringify(report)) as Json,
       },
       { onConflict: "environment" },
     );
