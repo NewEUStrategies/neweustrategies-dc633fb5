@@ -877,11 +877,58 @@ function SeatsPane({
           <span
             className={`text-[10px] tabular-nums ${atLimit ? "font-semibold text-destructive" : "text-muted-foreground"}`}
           >
-            {used}/{seatsLimit}
+            {summary.active}/{seatsLimit}
+            {summary.suspended > 0 ? ` (+${summary.suspended})` : ""}
           </span>
         </span>
       }
     >
+      {/* Liczba opłaconych miejsc planu Zespół */}
+      <div className="mb-3 space-y-2 rounded-md border border-border/60 bg-muted/20 p-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Input
+            type="number"
+            min={1}
+            max={500}
+            value={nextSeats}
+            onChange={(e) => setNextSeats(clampSeats(Number(e.target.value)))}
+            className="h-8 w-24 text-sm"
+            aria-label={L("Liczba miejsc", "Seat count")}
+          />
+          <Button
+            size="sm"
+            className="h-8"
+            disabled={applySeats.isPending || clampSeats(nextSeats) === seatsLimit}
+            onClick={() => applySeats.mutate()}
+          >
+            {applySeats.isPending
+              ? L("Zapisywanie...", "Saving...")
+              : L("Ustaw liczbę miejsc", "Apply seat count")}
+          </Button>
+          <Badge variant="outline" className="text-[10px]">
+            {seatsSource === "subscription"
+              ? L("z subskrypcji", "from subscription")
+              : L("ręcznie", "manual")}
+          </Badge>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          {seatsSource === "subscription"
+            ? L(
+                "Zmiana przelicza subskrypcję u operatora: zwiększenie rozlicza się od razu, zmniejszenie od nowego okresu.",
+                "The change updates the paid subscription: increases bill immediately, decreases apply from the next period.",
+              )
+            : L(
+                "Miejsca ponad limit zostają w organizacji, ale tracą uprawnienia warstwy.",
+                "Seats above the limit stay in the organisation but lose their tier entitlements.",
+              )}
+        </p>
+        {atRisk.length > 0 ? (
+          <p className="text-[10px] font-medium text-destructive">
+            {L("Stracą dostęp:", "Will lose access:")} {atRisk.join(", ")}
+          </p>
+        ) : null}
+      </div>
+
       {seatsQ.isLoading ? (
         <p className="text-xs text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
       ) : seats.length === 0 ? (
