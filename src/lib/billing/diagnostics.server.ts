@@ -133,7 +133,7 @@ async function readCoupons(env: PaddleEnv): Promise<CouponDiscountStatus[]> {
   const { data } = await supabase
     .from("b2b_coupons")
     .select(
-      "code, is_active, discount_kind, discount_percent, discount_cents, currency, valid_from, valid_until, max_redemptions, times_redeemed",
+      "code, active, discount_kind, discount_percent, discount_cents, currency, valid_from, valid_until, max_redemptions, times_redeemed",
     )
     .order("created_at", { ascending: false })
     .limit(50);
@@ -145,7 +145,7 @@ async function readCoupons(env: PaddleEnv): Promise<CouponDiscountStatus[]> {
     const providerDiscountId = code ? await findDiscountByCode(env, code).catch(() => null) : null;
     rows.push({
       code,
-      active: c.is_active !== false,
+      active: c.active !== false,
       discountKind: c.discount_kind === "fixed" ? "fixed" : "percent",
       discountPercent: c.discount_percent ?? null,
       discountCents: c.discount_cents ?? null,
@@ -249,7 +249,7 @@ export async function syncCouponDiscounts(
     .select(
       "code, discount_kind, discount_percent, discount_cents, currency, valid_until, max_redemptions",
     )
-    .eq("is_active", true)
+    .eq("active", true)
     .limit(200);
 
   const { findDiscountByCode, createDiscount } = await import(
