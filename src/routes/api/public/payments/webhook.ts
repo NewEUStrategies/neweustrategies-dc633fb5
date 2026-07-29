@@ -4,6 +4,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { verifyWebhook, EventName, type PaddleEnv } from "@/lib/paddle.server";
 import { planChangeDirection } from "@/lib/billing/paddleCatalog";
+import { accessPeriodFromEvent } from "@/lib/billing/accessPeriod";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 
 type SubscriptionData = {
@@ -87,10 +88,19 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
 
   const { data: existing } = await supabase
     .from("subscriptions")
-    .select("user_id, price_id, status")
+    .select("user_id, price_id, status, current_period_end")
     .eq("paddle_subscription_id", data.id)
     .eq("environment", env)
     .maybeSingle();
+
+  // Zdarzenia stanu (pauza, wznowienie, past_due) bywają bez okresu
+  // rozliczeniowego - wtedy zapisana data końca dostępu musi zostać nietknięta.
+  const period = accessPeriodFromEvent({
+    kind: "updated",
+    eventPeriodEnd: data.currentBillingPeriod?.endsAt ?? null,
+    storedPeriodEnd: existing?.current_period_end ?? null,
+    status: data.status,
+  });
 
   const { error } = await supabase
     .from("subscriptions")
@@ -98,8 +108,10 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
       status: data.status,
       ...(eventPriceId ? { price_id: eventPriceId } : {}),
       quantity,
-      current_period_start: data.currentBillingPeriod?.startsAt ?? null,
-      current_period_end: data.currentBillingPeriod?.endsAt ?? null,
+      ...(data.currentBillingPeriod?.startsAt
+        ? { current_period_start: data.currentBillingPeriod.startsAt }
+        : {}),
+      current_period_end: period.periodEnd,
       cancel_at_period_end: data.scheduledChange?.action === "cancel",
       updated_at: new Date().toISOString(),
     })
@@ -136,7 +148,7 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
       planId: plan.planId,
       externalRef: data.id,
       status: data.status,
-      periodEnd: data.currentBillingPeriod?.endsAt ?? null,
+      periodEnd: period.accessUntil,
     });
   }
 
@@ -145,7 +157,7 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
     userId: existing.user_id,
     priceId,
     subscriptionId: data.id,
-    periodEnd: data.currentBillingPeriod?.endsAt ?? null,
+    periodEnd: period.accessUntil,
     previousStatus: existing.status ?? null,
     status: data.status,
   });
@@ -161,7 +173,7 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
     previousPriceId: existing.price_id,
     direction,
     subscriptionId: data.id,
-    periodEnd: data.currentBillingPeriod?.endsAt ?? null,
+    periodEnd: period.accessUntil,
     environment: env,
   });
 }
@@ -182,6 +194,13 @@ async function handleCanceled(data: SubscriptionData, env: PaddleEnv) {
     .eq("environment", env);
   if (error) throw new Error(`subscriptions cancel failed: ${error.message}`);
 
+  const canceledPeriod = accessPeriodFromEvent({
+    kind: "canceled",
+    eventPeriodEnd: data.currentBillingPeriod?.endsAt ?? null,
+    storedPeriodEnd: existing?.current_period_end ?? null,
+    status: "canceled",
+  });
+
   if (!existing?.user_id || !existing.price_id) return;
 
   // Anulowanie planu Zespół wstrzymuje organizację - miejsca zostają, ale
@@ -199,7 +218,7 @@ async function handleCanceled(data: SubscriptionData, env: PaddleEnv) {
     userId: existing.user_id,
     priceId: existing.price_id,
     subscriptionId: data.id,
-    periodEnd: existing.current_period_end ?? null,
+    periodEnd: canceledPeriod.accessUntil,
     environment: env,
   });
 }
