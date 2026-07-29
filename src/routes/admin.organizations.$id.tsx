@@ -876,7 +876,7 @@ function SeatsPane({
 
   const expireNow = useMutation({
     mutationFn: async () => {
-      const res = await runExpiry({ data: {} });
+      const res = await runExpiry();
       if (!res.ok) throw new Error(res.error);
       return res;
     },
