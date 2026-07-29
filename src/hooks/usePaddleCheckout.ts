@@ -8,6 +8,8 @@ export interface OpenCheckoutOptions {
   customerEmail?: string;
   userId: string;
   successPath?: string;
+  /** Identyfikator rabatu u dostawcy (kod promocyjny). */
+  discountId?: string | null;
 }
 
 /** Otwiera nakładkę płatności i wiąże zakup z zalogowanym użytkownikiem. */
@@ -22,6 +24,7 @@ export function usePaddleCheckout() {
       window.Paddle?.Checkout.open({
         items: [{ priceId: paddlePriceId, quantity: options.quantity ?? 1 }],
         ...(options.customerEmail ? { customer: { email: options.customerEmail } } : {}),
+        ...(options.discountId ? { discountId: options.discountId } : {}),
         customData: { userId: options.userId },
         settings: {
           displayMode: "overlay",

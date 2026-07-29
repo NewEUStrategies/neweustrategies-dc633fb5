@@ -26,6 +26,8 @@ import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { isPaymentsConfigured } from "@/lib/paddle";
 import { paddlePriceForPlan } from "@/lib/billing/paddleCatalog";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
+import { resolvePaddleDiscount } from "@/utils/payments.functions";
+import { getPaddleEnvironment } from "@/lib/paddle";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
@@ -91,11 +93,32 @@ function CheckoutPage() {
     const paddlePrice = isPaymentsConfigured() ? paddlePriceForPlan(plan.data) : null;
     if (paddlePrice && session?.user?.id) {
       try {
+        // Kod promocyjny: walidacja po stronie serwera i mapowanie na rabat
+        // dostawcy, żeby overlay pokazał tę samą kwotę co podsumowanie.
+        let discountId: string | null = null;
+        if (coupon?.code) {
+          const resolved = await resolvePaddleDiscount({
+            data: {
+              code: coupon.code,
+              planId: plan.data.id,
+              amountCents: plan.data.price_cents ?? 0,
+              currency: planCurrency,
+              environment: getPaddleEnvironment(),
+            },
+          });
+          if (!resolved.ok) {
+            toast.error(t("checkout.applyFailed"));
+            setBusy(false);
+            return;
+          }
+          discountId = resolved.discountId;
+        }
         await openCheckout({
           priceId: paddlePrice.priceId,
           userId: session.user.id,
           customerEmail: session.user.email ?? undefined,
           successPath: "/checkout/success",
+          discountId,
         });
       } catch {
         toast.error(t("checkout.stripeNotConfigured"));
