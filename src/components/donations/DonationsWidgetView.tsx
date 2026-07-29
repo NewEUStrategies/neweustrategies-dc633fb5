@@ -234,10 +234,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
             style={accent ? { background: accent, color: "#fff" } : undefined}
             icon={<Heart className="h-4 w-4" aria-hidden="true" />}
-            quick={props.quickDonate === true}
-            quickAmountCents={props.quickAmountCents}
-            currency={currency}
-            lang={lang}
+            {...actionProps}
           />
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
@@ -372,10 +369,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
             style={accent ? { background: accent, color: "#fff" } : undefined}
             icon={<Heart className="h-4 w-4" aria-hidden="true" />}
-            quick={props.quickDonate === true}
-            quickAmountCents={props.quickAmountCents}
-            currency={currency}
-            lang={lang}
+            {...actionProps}
           />
         </div>
       </div>
@@ -454,10 +448,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-md transition hover:opacity-90"
             style={accent ? { background: accent, color: "#fff" } : undefined}
             icon={<Heart className="h-4 w-4" aria-hidden="true" />}
-            quick={props.quickDonate === true}
-            quickAmountCents={props.quickAmountCents}
-            currency={currency}
-            lang={lang}
+            {...actionProps}
           />
         </div>
       </div>
