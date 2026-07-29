@@ -217,3 +217,72 @@ export async function notifyEventRegistration(input: EventNotifyInput): Promise<
     console.error("[billing-emails] event notify failed", err);
   }
 }
+
+export type PaymentEmailKind = Extract<TxEmailType, "payment_failed" | "payment_recovered">;
+
+export interface PaymentNotifyInput {
+  kind: PaymentEmailKind;
+  userId: string;
+  planId: string | null;
+  amountCents?: number | null;
+  currency?: string | null;
+  /** Data nieudanej próby obciążenia (tylko payment_failed). */
+  attemptedAt?: string | null;
+  /** Planowana kolejna próba (tylko payment_failed). */
+  retryAt?: string | null;
+  /** Koniec opłaconego okresu - do kiedy dostęp pozostaje aktywny. */
+  accessUntil?: string | null;
+  idempotencySeed: string;
+}
+
+/** Mail o nieudanej / odzyskanej płatności (miękka windykacja). Nigdy nie rzuca. */
+export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabase = supabaseAdmin as unknown as SupabaseClient;
+
+    const recipient = await resolveRecipient(supabase, input.userId);
+    if (!recipient) return;
+
+    const { lang } = recipient;
+    const copy = txCopy(input.kind, lang);
+    const plan = await loadPlan(supabase, input.planId, lang);
+
+    const details: TxDetail[] = [];
+    if (plan) details.push({ label: copy.labels.plan, value: plan.name });
+
+    const amount = input.amountCents ?? plan?.priceCents ?? null;
+    if (amount !== null) {
+      details.push({
+        label: copy.labels.price,
+        value: formatMoney(amount, input.currency ?? plan?.currency ?? "PLN", lang),
+      });
+    }
+    if (input.kind === "payment_failed") {
+      if (input.attemptedAt) {
+        details.push({ label: copy.labels.attemptedAt, value: formatDate(input.attemptedAt, lang) });
+      }
+      if (input.retryAt) {
+        details.push({ label: copy.labels.retryAt, value: formatDate(input.retryAt, lang) });
+      }
+      if (input.accessUntil) {
+        details.push({ label: copy.labels.accessUntil, value: formatDate(input.accessUntil, lang) });
+      }
+    } else if (input.accessUntil) {
+      details.push({ label: copy.labels.renewsAt, value: formatDate(input.accessUntil, lang) });
+    }
+
+    await sendTxEmail({
+      type: input.kind,
+      to: recipient.email,
+      lang,
+      metaName: recipient.name,
+      subjectName: plan?.name ?? null,
+      details,
+      ctaPath: "/profile/subscription",
+      idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
+    });
+  } catch (err) {
+    console.error("[billing-emails] payment notify failed", input.kind, err);
+  }
+}
