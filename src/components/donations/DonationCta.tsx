@@ -1,19 +1,22 @@
-// CTA darowizny: albo klasyczny link na /support, albo szybka płatność
-// otwierana od razu w nakładce operatora (Paddle) przez `createDonationCheckout`.
-// Ta sama ścieżka serwerowa co strona /support - kwota, waluta i tenant są
-// walidowane po stronie serwera, klient dostaje wyłącznie transactionId.
-import { useState, type CSSProperties, type ReactNode } from "react";
-import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+// Akcja darowizny w widgecie CMS. Trzy tryby konfigurowane w panelu edycji:
+//   * link  - przejście na /support (klasyczne CTA),
+//   * quick - jedna kwota, od razu w nakładce operatora,
+//   * form  - warianty kwot + (opcjonalnie) własna kwota i wiadomość.
+// Każdy z nich kończy się wywołaniem `createDonationCheckout` (tryb `link`
+// pośrednio - formularz /support korzysta z tej samej funkcji serwerowej),
+// więc kwota, waluta i tenant są zawsze walidowane po stronie serwera.
+import type { CSSProperties, ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
-import { createDonationCheckout } from "@/lib/billing/donations.functions";
-import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
-import { getPaddleEnvironment } from "@/lib/paddle";
+import { DonationAmountForm } from "./DonationAmountForm";
+import { useDonationCheckout } from "@/hooks/useDonationCheckout";
+import { defaultDonationPresets } from "@/lib/billing/donationPresets";
 import {
   DONATION_MAX_CENTS,
   DONATION_MIN_CENTS,
   type DonationCurrency,
 } from "@/lib/billing/donations.schema";
+
+export type DonationCtaMode = "link" | "quick" | "form";
 
 export interface DonationCtaProps {
   href: string;
@@ -21,14 +24,24 @@ export interface DonationCtaProps {
   className: string;
   style?: CSSProperties;
   icon?: ReactNode;
-  /** Szybka płatność w nakładce zamiast przejścia na /support. */
+  /** Tryb działania - domyślnie link na /support. */
+  mode?: DonationCtaMode;
+  /** Zgodność wstecz: `quick` = tryb szybkiej płatności jedną kwotą. */
   quick?: boolean;
   quickAmountCents?: number;
+  /** Warianty kwot dla trybu `form` (grosze). */
+  presetsCents?: number[];
+  showCustomAmount?: boolean;
+  showMessage?: boolean;
+  accent?: string;
   currency?: string;
   lang: "pl" | "en";
 }
 
-function normalizeCurrency(raw: string | undefined, lang: "pl" | "en"): DonationCurrency {
+export function normalizeDonationCurrency(
+  raw: string | undefined,
+  lang: "pl" | "en",
+): DonationCurrency {
   const v = (raw || "").toUpperCase();
   if (v === "EUR") return "EUR";
   if (v === "PLN") return "PLN";
@@ -41,16 +54,39 @@ export function DonationCta({
   className,
   style,
   icon,
+  mode,
   quick = false,
   quickAmountCents,
+  presetsCents,
+  showCustomAmount = true,
+  showMessage = false,
+  accent,
   currency,
   lang,
 }: DonationCtaProps) {
-  const donate = useServerFn(createDonationCheckout);
-  const { openCheckout } = usePaddleCheckout();
-  const [pending, setPending] = useState(false);
+  const resolvedMode: DonationCtaMode = mode ?? (quick ? "quick" : "link");
+  const donationCurrency = normalizeDonationCurrency(currency, lang);
+  const { start, pending } = useDonationCheckout();
 
-  if (!quick) {
+  if (resolvedMode === "form") {
+    return (
+      <DonationAmountForm
+        presetsCents={
+          presetsCents && presetsCents.length > 0
+            ? presetsCents
+            : defaultDonationPresets(donationCurrency)
+        }
+        currency={donationCurrency}
+        lang={lang}
+        submitLabel={label}
+        showCustomAmount={showCustomAmount}
+        showMessage={showMessage}
+        accent={accent}
+      />
+    );
+  }
+
+  if (resolvedMode === "link") {
     return (
       <AppLink href={href} className={className} style={style}>
         {icon}
@@ -64,49 +100,10 @@ export function DonationCta({
     Math.max(DONATION_MIN_CENTS, Math.round(Number(quickAmountCents ?? 0) || 5000)),
   );
 
-  const run = async () => {
-    setPending(true);
-    try {
-      const result = await donate({
-        data: {
-          amount_cents: cents,
-          currency: normalizeCurrency(currency, lang),
-          lang,
-          environment: getPaddleEnvironment(),
-        },
-      });
-      if (!result.ok) {
-        toast.error(lang === "pl" ? "Nie udało się rozpocząć płatności." : "Checkout failed.");
-        return;
-      }
-      if (result.mode === "paddle") {
-        await openCheckout({
-          transactionId: result.transactionId,
-          successPath: "/support?status=success",
-        });
-        return;
-      }
-      window.location.assign(result.url);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      toast.error(
-        msg.includes("rate_limited")
-          ? lang === "pl"
-            ? "Zbyt wiele prób - spróbuj za chwilę."
-            : "Too many attempts - try again shortly."
-          : lang === "pl"
-            ? "Nie udało się rozpocząć płatności."
-            : "Checkout failed.",
-      );
-    } finally {
-      setPending(false);
-    }
-  };
-
   return (
     <button
       type="button"
-      onClick={() => void run()}
+      onClick={() => void start({ amountCents: cents, currency: donationCurrency, lang })}
       disabled={pending}
       className={`${className} disabled:opacity-60`}
       style={style}
