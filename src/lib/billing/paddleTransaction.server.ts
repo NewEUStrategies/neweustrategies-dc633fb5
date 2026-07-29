@@ -121,3 +121,12 @@ export async function createAdhocTransaction(
     return { ok: false, error: "transaction_failed" };
   }
 }
+
+/**
+ * Środowisko bramki dla żądania. Klient przekazuje wartość wyprowadzoną
+ * z prefiksu tokenu; brak wartości oznacza produkcję w buildzie produkcyjnym.
+ */
+export function resolveEnvironment(requested?: PaddleEnv | null): PaddleEnv {
+  if (requested === "sandbox" || requested === "live") return requested;
+  return process.env.NODE_ENV === "production" ? "live" : "sandbox";
+}
