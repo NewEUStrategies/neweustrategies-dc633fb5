@@ -342,7 +342,7 @@ const pricingPl = {
         },
         {
           id: "partnerRecognition",
-          label: "Wyróżnienie jako partner na stronie NES",
+          label: "Wyróżnienie jako partner na stronie New European Strategies",
           values: { partner: "check", partner_general: "check", presidents_circle: "check" },
         },
         {
@@ -357,7 +357,7 @@ const pricingPl = {
         },
         {
           id: "conferenceSlot",
-          label: "Slot prelegencki na konferencji NES",
+          label: "Slot prelegencki na konferencji New European Strategies",
           values: { partner_general: "check", presidents_circle: "check" },
         },
         {
@@ -377,7 +377,7 @@ const pricingPl = {
         },
         {
           id: "privateMeetings",
-          label: "Prywatne spotkania z ekspertami i gośćmi NES",
+          label: "Prywatne spotkania z ekspertami i gośćmi New European Strategies",
           values: { presidents_circle: "check" },
         },
         {
@@ -387,7 +387,7 @@ const pricingPl = {
         },
         {
           id: "eduMaterials",
-          label: "Materiały edukacyjne NES + EuroChallenge",
+          label: "Materiały edukacyjne New European Strategies + EuroChallenge",
           values: { student: "check", educator: "check" },
         },
         {
@@ -412,7 +412,7 @@ const pricingPl = {
         },
         {
           id: "missionPartner",
-          label: "Wyróżnienie jako partner misyjny NES",
+          label: "Wyróżnienie jako partner misyjny New European Strategies",
           values: { ngo: "check" },
         },
         {
@@ -801,7 +801,7 @@ const pricingEn: typeof pricingPl = {
         },
         {
           id: "partnerRecognition",
-          label: "Recognition as a partner on the NES site",
+          label: "Recognition as a partner on the New European Strategies site",
           values: { partner: "check", partner_general: "check", presidents_circle: "check" },
         },
         {
@@ -816,7 +816,7 @@ const pricingEn: typeof pricingPl = {
         },
         {
           id: "conferenceSlot",
-          label: "A speaking slot at the NES conference",
+          label: "A speaking slot at the New European Strategies conference",
           values: { partner_general: "check", presidents_circle: "check" },
         },
         {
@@ -836,7 +836,7 @@ const pricingEn: typeof pricingPl = {
         },
         {
           id: "privateMeetings",
-          label: "Private meetings with NES experts and guests",
+          label: "Private meetings with New European Strategies experts and guests",
           values: { presidents_circle: "check" },
         },
         {
@@ -846,7 +846,7 @@ const pricingEn: typeof pricingPl = {
         },
         {
           id: "eduMaterials",
-          label: "NES educational materials + EuroChallenge",
+          label: "New European Strategies educational materials + EuroChallenge",
           values: { student: "check", educator: "check" },
         },
         {
@@ -871,7 +871,7 @@ const pricingEn: typeof pricingPl = {
         },
         {
           id: "missionPartner",
-          label: "Recognition as an NES mission partner",
+          label: "Recognition as an New European Strategies mission partner",
           values: { ngo: "check" },
         },
         {

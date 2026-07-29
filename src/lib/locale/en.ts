@@ -481,7 +481,7 @@ export const en = {
       fields: {
         name: "Name (shortcode)",
         label: "Label",
-        labelPh: "e.g. NES logo",
+        labelPh: "e.g. New European Strategies logo",
         defaultVariant: "Default variant",
       },
       variants: {

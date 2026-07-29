@@ -19,7 +19,7 @@
 import { parseCacheControl } from "./parseCacheControl";
 
 /** Marka mechanizmu - pojawia się w nagłówkach odpowiedzi i karcie admina. */
-export const NES_EDGE_CACHE_NAME = "NES Edge Cache";
+export const NES_EDGE_CACHE_NAME = "New European Strategies Edge Cache";
 /** Nagłówek diagnostyczny: HIT | STALE | MISS | BYPASS. */
 export const NES_CACHE_HEADER = "x-nes-cache";
 /** Wiek serwowanego wpisu w sekundach (tylko HIT/STALE). */
