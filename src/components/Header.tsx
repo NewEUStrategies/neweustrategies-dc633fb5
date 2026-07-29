@@ -260,6 +260,7 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
   const isPost = pathname.startsWith("/post/");
   const stickyShrink = !isPost;
   const [scrolled, setScrolled] = useState(false);
+  const headerRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!stickyShrink) return;
     const onScroll = () => setScrolled(window.scrollY > 80);
@@ -267,8 +268,32 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [stickyShrink]);
+
+  // Kotwice (#newsletter itd.) nie mogą chować się pod sticky headerem -
+  // mierzymy realną wysokość i publikujemy ją jako --sticky-header-h.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!stickyShrink) {
+      root.style.setProperty("--sticky-header-h", "0px");
+      return () => root.style.removeProperty("--sticky-header-h");
+    }
+    const el = headerRef.current;
+    if (!el) return;
+    const apply = () => {
+      root.style.setProperty("--sticky-header-h", `${Math.round(el.getBoundingClientRect().height)}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty("--sticky-header-h");
+    };
+  }, [stickyShrink, scrolled]);
+
   return (
     <header
+      ref={headerRef}
       data-site-header
       data-scrolled={scrolled ? "true" : "false"}
       className={
@@ -281,6 +306,7 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
         <HeaderInner adPageType={adPageType} isHome={isHome} />
       </Suspense>
     </header>
+
   );
 });
 
