@@ -23,6 +23,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import {
   runSeatGraceExpiry,
+  runSeatGraceReminders,
   setTeamSeatGraceDays,
   setTeamSeatLimit,
 } from "@/lib/organizations/teamSeats.functions";
@@ -854,6 +855,7 @@ function SeatsPane({
   // faktycznie go stracą. 0 = odcięcie od razu przy zmianie limitu.
   const setGrace = useServerFn(setTeamSeatGraceDays);
   const runExpiry = useServerFn(runSeatGraceExpiry);
+  const runReminders = useServerFn(runSeatGraceReminders);
   const [nextGrace, setNextGrace] = useState(graceDays);
   useEffect(() => setNextGrace(graceDays), [graceDays]);
 
@@ -887,6 +889,22 @@ function SeatsPane({
       void qc.invalidateQueries({ queryKey: seatsKey });
     },
     onError: () => toast.error(L("Nie udało się domknąć karencji", "Could not close grace periods")),
+  });
+
+  // Przypomnienia w trakcie karencji (domyślnie 7 i 1 dzień przed końcem).
+  // Zaplecze wysyła je raz na dobę; tu można wymusić przebieg ręcznie.
+  const sendReminders = useMutation({
+    mutationFn: async () => {
+      const res = await runReminders({ data: {} });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: (res) =>
+      toast.success(
+        L(`Wysłano przypomnień: ${res.sent}`, `Reminders sent: ${res.sent}`),
+      ),
+    onError: () =>
+      toast.error(L("Nie udało się wysłać przypomnień", "Could not send reminders")),
   });
 
   const [email, setEmail] = useState("");
@@ -1017,11 +1035,20 @@ function SeatsPane({
           >
             {L("Domknij zaległe", "Close overdue")}
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8"
+            disabled={sendReminders.isPending}
+            onClick={() => sendReminders.mutate()}
+          >
+            {L("Wyślij przypomnienia", "Send reminders")}
+          </Button>
         </div>
         <p className="text-[10px] text-muted-foreground">
           {L(
-            "Po zmniejszeniu limitu osoby ponad limit zachowują pełny dostęp przez tyle dni i dostają maila z datą oraz informacją, co dalej. 0 = utrata dostępu od razu.",
-            "After a seat reduction, people above the limit keep full access for this many days and receive an email with the date and next steps. 0 = access ends immediately.",
+            "Po zmniejszeniu limitu osoby ponad limit zachowują pełny dostęp przez tyle dni i dostają maila z datą oraz informacją, co dalej. Przypomnienia wychodzą 7 i 1 dzień przed końcem. 0 = utrata dostępu od razu.",
+            "After a seat reduction, people above the limit keep full access for this many days and receive an email with the date and next steps. Reminders go out 7 and 1 day before access ends. 0 = access ends immediately.",
           )}
         </p>
       </div>
