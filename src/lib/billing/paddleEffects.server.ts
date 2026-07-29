@@ -2,7 +2,10 @@
 // Jedno miejsce, w którym „opłacona subskrypcja” zamienia się w: dostęp do
 // treści, mail transakcyjny, wpis w CRM i powiadomienie w aplikacji.
 // Moduł jest server-only (klient service_role) - importuj wyłącznie z handlerów.
-import { grantEntitlement } from "@/lib/billing/grant.server";
+import {
+  syncEntitlementState,
+  type ProviderSubscriptionStatus,
+} from "@/lib/billing/entitlementSync.server";
 import { notifySubscriptionEmail } from "@/lib/billing/notifications.server";
 import { catalogEntryByPriceId } from "@/lib/billing/paddleCatalog";
 
@@ -12,6 +15,8 @@ export interface PurchaseContext {
   subscriptionId: string;
   periodEnd: string | null;
   environment: "sandbox" | "live";
+  /** Status subskrypcji u operatora; domyślnie `active`. */
+  status?: ProviderSubscriptionStatus;
 }
 
 interface ResolvedPlan {
@@ -167,20 +172,14 @@ export async function applyPlanChangeEffects(
   if (!plan) return;
   const previous = ctx.previousPriceId ? await resolvePlanForPrice(ctx.previousPriceId) : null;
 
-  await grantEntitlement(
-    {
-      id: ctx.subscriptionId,
-      user_id: ctx.userId,
-      tenant_id: plan.tenantId,
-      kind: "subscription",
-      plan_id: plan.planId,
-      entity_type: null,
-      entity_id: null,
-      amount_cents: plan.priceCents,
-      currency: plan.currency,
-    },
-    ctx.subscriptionId,
-  );
+  await syncEntitlementState({
+    userId: ctx.userId,
+    tenantId: plan.tenantId,
+    planId: plan.planId,
+    externalRef: ctx.subscriptionId,
+    status: ctx.status ?? "active",
+    periodEnd: ctx.periodEnd,
+  });
 
   await notifySubscriptionEmail({
     kind: ctx.direction === "upgrade" ? "subscription_upgraded" : "subscription_downgraded",
@@ -213,6 +212,16 @@ export async function applyPlanChangeEffects(
 export async function applyCancellationEffects(ctx: PurchaseContext): Promise<void> {
   const plan = await resolvePlanForPrice(ctx.priceId);
   if (!plan) return;
+
+  // Dostęp gaśnie z końcem opłaconego okresu - uprawnienie musi to odzwierciedlać.
+  await syncEntitlementState({
+    userId: ctx.userId,
+    tenantId: plan.tenantId,
+    planId: plan.planId,
+    externalRef: ctx.subscriptionId,
+    status: "canceled",
+    periodEnd: ctx.periodEnd,
+  });
 
   await notifySubscriptionEmail({
     kind: "subscription_canceled",
