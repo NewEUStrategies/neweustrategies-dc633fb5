@@ -130,7 +130,7 @@ const ROWS: Row[] = [
   },
 ];
 
-const CONFLUENCE_URL = "https://neweuropeanstrategies.atlassian.net/wiki/spaces/NES/pages/52363266";
+const CONFLUENCE_URL = "https://neweuropeanstrategies.atlassian.net/wiki/spaces/New European Strategies/pages/52363266";
 
 export function ConfluenceReconciliationCard({ lang }: { lang: "pl" | "en" }) {
   const { t } = useTranslation();

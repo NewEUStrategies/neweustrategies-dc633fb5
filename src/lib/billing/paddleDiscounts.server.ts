@@ -57,7 +57,7 @@ export async function createDiscount(
   const { gatewayFetch } = await import("@/lib/paddle.server");
   const isPercent = def.discount_kind === "percent";
   const payload: Record<string, unknown> = {
-    description: `NES coupon ${code}`,
+    description: `New European Strategies coupon ${code}`,
     type: isPercent ? "percentage" : "flat",
     amount: isPercent
       ? String(def.discount_percent ?? 0)

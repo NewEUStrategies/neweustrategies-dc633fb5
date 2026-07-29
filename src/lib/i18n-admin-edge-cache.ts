@@ -6,8 +6,8 @@ import i18n from "@/lib/i18n";
 
 const pl = {
   adminEdgeCache: {
-    tab: "NES Edge Cache",
-    title: "NES Edge Cache",
+    tab: "New European Strategies Edge Cache",
+    title: "New European Strategies Edge Cache",
     subtitle:
       "Wbudowany cache dokumentów SSR: anonimowe strony publiczne serwowane z pamięci procesu " +
       "(HIT), z oknem stale-while-revalidate i unieważnianiem przy publikacji.",
@@ -76,8 +76,8 @@ const pl = {
 
 const en = {
   adminEdgeCache: {
-    tab: "NES Edge Cache",
-    title: "NES Edge Cache",
+    tab: "New European Strategies Edge Cache",
+    title: "New European Strategies Edge Cache",
     subtitle:
       "Built-in SSR document cache: anonymous public pages served from process memory (HIT), " +
       "with a stale-while-revalidate window and purge-on-publish invalidation.",

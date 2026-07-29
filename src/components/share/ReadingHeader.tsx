@@ -245,7 +245,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
               />
             ) : (
               <span className="font-display text-[12px] lg:text-[13px] font-bold tracking-tight text-foreground">
-                NES
+                New European Strategies
               </span>
             )}
           </Link>

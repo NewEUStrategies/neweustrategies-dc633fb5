@@ -795,14 +795,14 @@ function SidebarBrand({ compact }: { compact: boolean }) {
     return iconSrc ? (
       <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />
     ) : (
-      <span className="text-base">NES</span>
+      <span className="text-base">New European Strategies</span>
     );
   }
   return expandedSrc ? (
     <img src={expandedSrc} alt="Logo" className="max-h-9 max-w-full object-contain" />
   ) : (
     <span>
-      NES <span className="text-brand">Admin</span>
+      New European Strategies <span className="text-brand">Admin</span>
     </span>
   );
 }

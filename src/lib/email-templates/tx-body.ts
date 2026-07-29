@@ -55,9 +55,9 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
       `Dziękujemy za darowiznę${v.amount ? ` w kwocie ${v.amount}` : ""}. Twoje wsparcie finansuje niezależne analizy polityki europejskiej - bez paywalla tam, gdzie to możliwe.` +
       (v.donorMessage ? " Twoją wiadomość przekazaliśmy redakcji." : ""),
     extra: g(
-      "Dołączyłeś do grona mecenasów NES.",
-      "Dołączyłaś do grona mecenasów NES.",
-      "Dołączyłeś/aś do grona mecenasów NES.",
+      "Dołączyłeś do grona mecenasów New European Strategies.",
+      "Dołączyłaś do grona mecenasów New European Strategies.",
+      "Dołączyłeś/aś do grona mecenasów New European Strategies.",
       gender,
     ),
   }),
@@ -70,7 +70,7 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
           : "";
     return {
       intro:
-        `Dziękujemy - płatność za plan ${plan(v, "pl")} została zaksięgowana, a pełny dostęp do analiz, danych i materiałów eksperckich NES jest już aktywny na Twoim koncie.${price}` +
+        `Dziękujemy - płatność za plan ${plan(v, "pl")} została zaksięgowana, a pełny dostęp do analiz, danych i materiałów eksperckich New European Strategies jest już aktywny na Twoim koncie.${price}` +
         (v.renewsAt ? ` Kolejne odnowienie nastąpi ${v.renewsAt}.` : ""),
       extra: g(
         "Od tej chwili możesz czytać wszystkie materiały premium, pobierać raporty w PDF i zapisywać się na wydarzenia dla subskrybentów - dostęp otrzymałeś natychmiast.",
@@ -159,11 +159,11 @@ const EN: Partial<Record<TxEmailType, Builder>> = {
     intro:
       `Thank you for your donation${v.amount ? ` of ${v.amount}` : ""}. Your support funds independent European policy analysis - kept outside the paywall wherever possible.` +
       (v.donorMessage ? " We have passed your message on to the editorial team." : ""),
-    extra: "You are now part of the NES patron community.",
+    extra: "You are now part of the New European Strategies patron community.",
   }),
   subscription_confirmed: (v) => ({
     intro:
-      `Thank you - your payment for the ${plan(v, "en")} plan has been processed and full access to NES analysis, data and expert briefings is now active on your account.` +
+      `Thank you - your payment for the ${plan(v, "en")} plan has been processed and full access to New European Strategies analysis, data and expert briefings is now active on your account.` +
       (v.amount && v.interval ? ` You are billed ${v.amount} ${v.interval}.` : "") +
       (v.renewsAt ? ` Your next renewal is on ${v.renewsAt}.` : ""),
     extra:

@@ -17,7 +17,7 @@ export const membershipPl = {
     sources: {
       heading: "Skąd wynika Twój poziom",
       subscription: "Aktywna subskrypcja",
-      grant_manual: "Nadanie przez zespół NES",
+      grant_manual: "Nadanie przez zespół New European Strategies",
       grant_donation: "Status wspierającego (darowizna)",
       grant_import: "Nadanie (import)",
       organization: "Członkostwo organizacji",
@@ -131,7 +131,7 @@ export const membershipEn: typeof membershipPl = {
     sources: {
       heading: "Where your level comes from",
       subscription: "Active subscription",
-      grant_manual: "Granted by the NES team",
+      grant_manual: "Granted by the New European Strategies team",
       grant_donation: "Supporter status (donation)",
       grant_import: "Grant (import)",
       organization: "Organisation membership",

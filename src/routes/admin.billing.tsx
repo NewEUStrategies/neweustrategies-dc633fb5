@@ -9,7 +9,7 @@ export const Route = createFileRoute("/admin/billing")({
   component: AdminBillingPage,
   head: () => ({
     meta: [
-      { title: "Rozliczenia subskrypcji | Panel NES" },
+      { title: "Rozliczenia subskrypcji | Panel New European Strategies" },
       {
         name: "description",
         content:
