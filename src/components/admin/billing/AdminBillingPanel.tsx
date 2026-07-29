@@ -10,7 +10,10 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 
 import { runBillingRemindersNow } from "@/lib/billing/reminders.functions";
-import { syncPaymentCatalogNow } from "@/lib/billing/paddleCatalogSync.functions";
+import {
+  getCatalogSyncState,
+  syncPaymentCatalogNow,
+} from "@/lib/billing/paddleCatalogSync.functions";
 import { getJobRunnerSettings } from "@/lib/newsletter-admin.functions";
 import { Link } from "@tanstack/react-router";
 
@@ -127,6 +130,15 @@ export function AdminBillingPanel() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Stan automatu: po restarcie integracji (nowe konto operatora, rotacja
+  // klucza) odcisk przestaje się zgadzać i katalog odtwarza się sam.
+  const loadCatalogState = useServerFn(getCatalogSyncState);
+  const catalogStateQ = useQuery({
+    queryKey: ["admin", "billing", "catalog-state"],
+    queryFn: () => loadCatalogState({ data: {} }),
+    staleTime: 60_000,
+  });
+
   const syncCatalog = useServerFn(syncPaymentCatalogNow);
   const catalogM = useMutation({
     mutationFn: () => syncCatalog({ data: {} }),
@@ -138,6 +150,7 @@ export function AdminBillingPanel() {
         ),
       ),
     onError: (e: Error) => toast.error(e.message),
+    onSettled: () => void catalogStateQ.refetch(),
   });
 
   const rows = useMemo(() => subsQ.data ?? [], [subsQ.data]);
@@ -217,6 +230,49 @@ export function AdminBillingPanel() {
                 .
               </p>
             )
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-[6px]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-[0.9375rem]">
+            {L("Katalog produktów i cen", "Product and price catalog")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1 pt-0 text-[0.8125rem] text-muted-foreground">
+          <p>
+            {L(
+              "Katalog odtwarza się automatycznie po restarcie integracji operatora - przed pierwszym zakupem i po pierwszym zdarzeniu webhooka.",
+              "The catalog is rebuilt automatically after the payment integration restarts - before the first purchase and after the first webhook event.",
+            )}
+          </p>
+          {catalogStateQ.data ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant={catalogStateQ.data.fingerprintCurrent ? "secondary" : "destructive"}
+                className="rounded-[6px]"
+              >
+                {catalogStateQ.data.fingerprintCurrent
+                  ? L("Integracja zsynchronizowana", "Integration in sync")
+                  : L("Wykryto restart integracji", "Integration restart detected")}
+              </Badge>
+              <span>
+                {catalogStateQ.data.lastSyncedAt
+                  ? `${L("Ostatnia synchronizacja", "Last sync")}: ${new Date(
+                      catalogStateQ.data.lastSyncedAt,
+                    ).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB")}`
+                  : L("Jeszcze nie synchronizowano", "Not synced yet")}
+              </span>
+              {catalogStateQ.data.lastStatus ? (
+                <span>
+                  {L("Status", "Status")}: {catalogStateQ.data.lastStatus}
+                </span>
+              ) : null}
+              {catalogStateQ.data.lastError ? (
+                <span className="text-destructive">{catalogStateQ.data.lastError}</span>
+              ) : null}
+            </div>
           ) : null}
         </CardContent>
       </Card>
