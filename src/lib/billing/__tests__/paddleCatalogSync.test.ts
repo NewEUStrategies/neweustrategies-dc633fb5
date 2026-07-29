@@ -31,8 +31,8 @@ describe("syncPaddleCatalog", () => {
 
   it("tworzy brakujący produkt i cenę dla planu z bazy", async () => {
     gatewayFetch.mockImplementation((...args: unknown[]) => {
-      const path = args[1] as string;
-      const init = args[2] as RequestInit | undefined;
+      const path = (args.find((a) => typeof a === "string" && a.startsWith("/")) ?? "") as string;
+      const init = args.find((a) => typeof a === "object" && a !== null) as RequestInit | undefined;
       if (path.startsWith("/products?")) return Promise.resolve(ok({ data: [] }));
       if (path.startsWith("/prices?")) return Promise.resolve(ok({ data: [] }));
       if (path === "/products" && init?.method === "POST")
@@ -54,8 +54,8 @@ describe("syncPaddleCatalog", () => {
 
   it("koryguje rozjechaną kwotę istniejącej ceny", async () => {
     gatewayFetch.mockImplementation((...args: unknown[]) => {
-      const path = args[1] as string;
-      const init = args[2] as RequestInit | undefined;
+      const path = (args.find((a) => typeof a === "string" && a.startsWith("/")) ?? "") as string;
+      const init = args.find((a) => typeof a === "object" && a !== null) as RequestInit | undefined;
       if (path.startsWith("/products?")) return Promise.resolve(ok({ data: [{ id: "pro_1" }] }));
       if (path.startsWith("/prices?"))
         return Promise.resolve(
