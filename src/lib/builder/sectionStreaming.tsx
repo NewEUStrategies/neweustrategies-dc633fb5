@@ -22,7 +22,7 @@
 // keeps its scroll-driven, lazy prefetch for client-side navigations and any
 // budget-fallback tail.
 import { Suspense, type ReactElement, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { SectionNode } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
@@ -39,6 +39,78 @@ import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/wid
  * - and its render-phase prefetch - is eliminated from the client bundle.
  */
 const IS_SSR: boolean = import.meta.env.SSR;
+
+/**
+ * Hard cap for a single below-the-fold section's render-phase prefetch. This is
+ * intentionally shorter than the global query watchdog: the section stream is a
+ * progressive enhancement, while the document itself must never wait on a dead
+ * render-phase promise before router dehydration can even start.
+ */
+export const SERVER_SECTION_STREAM_BUDGET_MS = 2_000;
+
+type SectionGateRecord = {
+  exhausted: boolean;
+  promise?: Promise<void>;
+};
+
+const sectionGateRecords = new WeakMap<QueryClient, Map<string, SectionGateRecord>>();
+
+function safeKey(key: QueryKey): string {
+  try {
+    return JSON.stringify(key);
+  } catch {
+    return String(key);
+  }
+}
+
+function sectionGateKey(section: SectionNode, lang: Lang, pendingKeys: readonly QueryKey[]): string {
+  return `${lang}:${section.id}:${pendingKeys.map(safeKey).join("|")}`;
+}
+
+function recordsFor(queryClient: QueryClient): Map<string, SectionGateRecord> {
+  const existing = sectionGateRecords.get(queryClient);
+  if (existing) return existing;
+  const created = new Map<string, SectionGateRecord>();
+  sectionGateRecords.set(queryClient, created);
+  return created;
+}
+
+function removeDeadSectionQueries(queryClient: QueryClient, keys: readonly QueryKey[]): void {
+  for (const queryKey of keys) {
+    const state = queryClient.getQueryState(queryKey);
+    if (!state) continue;
+    if (state.status === "pending" && state.data === undefined) {
+      queryClient.removeQueries({ queryKey, exact: true });
+    }
+  }
+}
+
+function createBoundedSectionPrefetch(
+  queryClient: QueryClient,
+  record: SectionGateRecord,
+  pending: ReturnType<typeof pendingSectionQueries>,
+): Promise<void> {
+  const pendingKeys = pending.map((options) => options.queryKey);
+  const pendingKeySet = new Set(pendingKeys.map(safeKey));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const work = Promise.allSettled(
+    pending.map((options) => prefetchBuilderSectionQuery(queryClient, options)),
+  ).then(() => undefined);
+
+  const budget = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      record.exhausted = true;
+      void queryClient.cancelQueries({ predicate: (query) => pendingKeySet.has(safeKey(query.queryKey)) });
+      removeDeadSectionQueries(queryClient, pendingKeys);
+      resolve();
+    }, SERVER_SECTION_STREAM_BUDGET_MS);
+  });
+
+  return Promise.race([work, budget]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
 
 /**
  * Server-only data gate. Suspends the enclosing `<Suspense>` boundary until
@@ -63,7 +135,21 @@ export function ServerSectionGate({
   const queryClient = useQueryClient();
   const pending = pendingSectionQueries(queryClient, section, lang);
   if (pending.length > 0) {
-    throw Promise.all(pending.map((options) => prefetchBuilderSectionQuery(queryClient, options)));
+    const pendingKeys = pending.map((options) => options.queryKey);
+    const key = sectionGateKey(section, lang, pendingKeys);
+    const records = recordsFor(queryClient);
+    const record = records.get(key) ?? { exhausted: false };
+    records.set(key, record);
+
+    if (record.exhausted) {
+      removeDeadSectionQueries(queryClient, pendingKeys);
+      return <>{children}</>;
+    }
+
+    if (!record.promise) {
+      record.promise = createBoundedSectionPrefetch(queryClient, record, pending);
+    }
+    throw record.promise;
   }
   return <>{children}</>;
 }
