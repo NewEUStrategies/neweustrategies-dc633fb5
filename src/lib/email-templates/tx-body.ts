@@ -55,10 +55,10 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
       `Dziękujemy za darowiznę${v.amount ? ` w kwocie ${v.amount}` : ""}. Twoje wsparcie finansuje niezależne analizy polityki europejskiej - bez paywalla tam, gdzie to możliwe.` +
       (v.donorMessage ? " Twoją wiadomość przekazaliśmy redakcji." : ""),
     extra: g(
-      gender,
       "Dołączyłeś do grona mecenasów NES.",
       "Dołączyłaś do grona mecenasów NES.",
       "Dołączyłeś/aś do grona mecenasów NES.",
+      gender,
     ),
   }),
   subscription_confirmed: (v, gender) => {
