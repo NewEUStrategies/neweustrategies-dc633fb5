@@ -8,6 +8,13 @@ import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import { TxEmail, type TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
 import type { PolishGender } from "@/lib/i18n/polishVocative";
+import { txBody } from "@/lib/email-templates/tx-body";
+import {
+  overrideFor,
+  resolvedField,
+  TX_OVERRIDES_DEFAULTS,
+  type TxOverrides,
+} from "@/lib/email/txOverrides";
 
 export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "subscription_confirmed",
@@ -21,6 +28,9 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "payment_recovered",
   "subscription_renewal_reminder",
   "subscription_expiring",
+  "team_seat_grace",
+  "team_seat_grace_reminder",
+  "team_seat_access_ended",
   "event_registered",
   "donation_received",
   "newsletter_confirmed",
@@ -222,9 +232,27 @@ export async function renderTxEmailPreview(
   lang: EmailLang,
   firstName: string | null,
   gender: PolishGender,
+  overrides: TxOverrides = TX_OVERRIDES_DEFAULTS,
 ): Promise<TxEmailPreview> {
   const c = txCopy(type, lang);
   const demo = demoData(type, lang);
+  const body = txBody(type, lang, gender, {
+    planName: demo.subjectName,
+    orgName: demo.subjectName,
+    accessUntil: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026",
+    daysLeft: 7,
+  });
+
+  const override = overrideFor(overrides, type, lang);
+  const tokens = {
+    planName: demo.subjectName,
+    orgName: demo.subjectName,
+    accessUntil: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026",
+    daysLeft: 7,
+    subject: demo.subjectName,
+    firstName,
+  };
+  const ov = (key: Parameters<typeof resolvedField>[1]) => resolvedField(override, key, tokens);
 
   const element = React.createElement(TxEmail, {
     type,
@@ -234,6 +262,13 @@ export async function renderTxEmailPreview(
     firstName,
     gender,
     details: demo.details,
+    intro: ov("intro") ?? body.intro ?? null,
+    extra: ov("extra") ?? body.extra ?? null,
+    note: ov("note") ?? body.note ?? null,
+    preview: ov("preview"),
+    eyebrow: ov("eyebrow"),
+    heading: ov("heading"),
+    ctaLabel: ov("cta") ?? undefined,
   });
 
   const [html, text] = await Promise.all([
@@ -244,8 +279,8 @@ export async function renderTxEmailPreview(
   return {
     type,
     lang,
-    subject: txSubject(type, lang, { subject: demo.subjectName }),
-    preview: c.preview,
+    subject: ov("subject") ?? txSubject(type, lang, { subject: demo.subjectName }),
+    preview: ov("preview") ?? c.preview,
     html,
     text,
   };
@@ -256,8 +291,9 @@ export async function renderAllTxEmailPreviews(
   lang: EmailLang,
   firstName: string | null,
   gender: PolishGender,
+  overrides: TxOverrides = TX_OVERRIDES_DEFAULTS,
 ): Promise<TxEmailPreview[]> {
   return Promise.all(
-    TX_EMAIL_TYPES.map((type) => renderTxEmailPreview(type, lang, firstName, gender)),
+    TX_EMAIL_TYPES.map((type) => renderTxEmailPreview(type, lang, firstName, gender, overrides)),
   );
 }

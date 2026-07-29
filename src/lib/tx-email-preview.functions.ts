@@ -3,6 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
+import { loadTxOverrides } from "@/lib/email/txOverrides.server";
 import { renderAllTxEmailPreviews, type TxEmailPreview } from "@/lib/email/tx-preview.server";
 
 export type { TxEmailPreview } from "@/lib/email/tx-preview.server";
@@ -19,7 +20,7 @@ export const getTxEmailPreviews = createServerFn({ method: "GET" })
       .default({})
       .parse(data ?? {}),
   )
-  .handler(
-    async ({ data }): Promise<TxEmailPreview[]> =>
-      renderAllTxEmailPreviews(data.lang, data.firstName, data.gender),
-  );
+  .handler(async ({ data, context }): Promise<TxEmailPreview[]> => {
+    const overrides = await loadTxOverrides(context.supabase);
+    return renderAllTxEmailPreviews(data.lang, data.firstName, data.gender, overrides);
+  });
