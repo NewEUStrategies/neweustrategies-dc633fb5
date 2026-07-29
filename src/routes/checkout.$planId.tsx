@@ -121,7 +121,7 @@ function CheckoutPage() {
           discountId,
         });
       } catch {
-        toast.error(t("checkout.stripeNotConfigured"));
+        toast.error(t("checkout.paymentsNotConfigured"));
       }
       setBusy(false);
       return;
@@ -144,7 +144,7 @@ function CheckoutPage() {
         if (res.mode === "coupon") {
           toast.error(t("checkout.applyFailed"));
         } else {
-          toast.error(t("checkout.stripeNotConfigured"));
+          toast.error(t("checkout.paymentsNotConfigured"));
         }
         setBusy(false);
         return;
@@ -163,7 +163,7 @@ function CheckoutPage() {
 
     } catch {
       // Never surface a raw backend error string to the visitor.
-      toast.error(t("checkout.stripeNotConfigured"));
+      toast.error(t("checkout.paymentsNotConfigured"));
       setBusy(false);
     }
   };
