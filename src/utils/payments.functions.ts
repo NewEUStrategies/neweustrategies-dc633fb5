@@ -98,5 +98,69 @@ export const createPaddlePortalSession = createServerFn({ method: "POST" })
       sub.paddle_customer_id,
       sub.paddle_subscription_id ? [sub.paddle_subscription_id] : [],
     );
-    return { url: session.urls.general.overview };
+
+    // Portal wystawia osobne, jednorazowe adresy per akcja - dzięki temu
+    // profil może otworzyć od razu właściwy ekran (metoda płatności /
+    // anulowanie) zamiast zrzucać użytkownika na ogólny pulpit.
+    const perSubscription = session.urls.subscriptions?.[0];
+    return {
+      url: session.urls.general.overview,
+      overviewUrl: session.urls.general.overview,
+      updatePaymentMethodUrl: perSubscription?.updateSubscriptionPaymentMethod ?? null,
+      cancelUrl: perSubscription?.cancelSubscription ?? null,
+    };
+  });
+
+/**
+ * Anulowanie subskrypcji z zachowaniem opłaconego okresu.
+ * Dostawca planuje zmianę na koniec bieżącego cyklu - webhook
+ * `subscription.updated` domyka stan w bazie.
+ */
+export const cancelPaddleSubscription = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { environment: PaddleEnv }) =>
+    z.object({ environment: envSchema }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: sub, error } = await context.supabase
+      .from("subscriptions")
+      .select("paddle_subscription_id")
+      .eq("user_id", context.userId)
+      .eq("environment", data.environment)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
+
+    const { getPaddleClient } = await import("@/lib/paddle.server");
+    await getPaddleClient(data.environment).subscriptions.cancel(sub.paddle_subscription_id, {
+      effectiveFrom: "next_billing_period",
+    });
+    return { ok: true as const };
+  });
+
+/** Cofnięcie zaplanowanego anulowania, dopóki okres jeszcze trwa. */
+export const resumePaddleSubscription = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { environment: PaddleEnv }) =>
+    z.object({ environment: envSchema }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: sub, error } = await context.supabase
+      .from("subscriptions")
+      .select("paddle_subscription_id")
+      .eq("user_id", context.userId)
+      .eq("environment", data.environment)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
+
+    const { getPaddleClient } = await import("@/lib/paddle.server");
+    await getPaddleClient(data.environment).subscriptions.update(sub.paddle_subscription_id, {
+      scheduledChange: null,
+    });
+    return { ok: true as const };
   });

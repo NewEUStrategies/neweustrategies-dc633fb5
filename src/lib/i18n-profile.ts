@@ -356,6 +356,27 @@ const pl = {
         success: "Plan zmieniony",
         error: "Nie udało się zmienić planu. Spróbuj ponownie lub skontaktuj się z nami.",
       },
+      portal: {
+        changeHint:
+          "Przejście na wyższy plan działa od razu (dopłata proporcjonalna), niższy plan zacznie obowiązywać od kolejnego okresu.",
+        upgradeNote: "Wyższy plan: dopłata proporcjonalna zostanie pobrana od razu.",
+        downgradeNote: "Niższy plan: zmiana wejdzie w życie po zakończeniu opłaconego okresu.",
+        downgradeScheduled: "Zmiana planu zaplanowana na koniec okresu rozliczeniowego",
+        updatePayment: "Zaktualizuj metodę płatności",
+        openPortal: "Faktury i dane płatnika",
+        error: "Nie udało się otworzyć portalu płatności. Spróbuj ponownie.",
+        pastDue:
+          "Ostatnia płatność się nie powiodła. Zaktualizuj metodę płatności, aby zachować dostęp.",
+        secureNote:
+          "Dane karty obsługuje operator płatności - nie przechowujemy ich w serwisie.",
+        status: {
+          active: "Aktywna",
+          trialing: "Okres próbny",
+          past_due: "Zaległa płatność",
+          paused: "Wstrzymana",
+          canceled: "Anulowana",
+        },
+      },
     },
     orders: {
       title: "Historia płatności",
@@ -857,6 +878,26 @@ const en: typeof pl = {
         cta: "Change plan",
         success: "Plan changed",
         error: "Could not change the plan. Please try again or contact us.",
+      },
+      portal: {
+        changeHint:
+          "Upgrades apply immediately with a prorated charge; downgrades take effect at the start of your next billing period.",
+        upgradeNote: "Upgrade: the prorated difference is charged right away.",
+        downgradeNote: "Downgrade: the change applies once the paid period ends.",
+        downgradeScheduled: "Plan change scheduled for the end of the billing period",
+        updatePayment: "Update payment method",
+        openPortal: "Invoices and billing details",
+        error: "Could not open the payment portal. Please try again.",
+        pastDue:
+          "Your last payment failed. Update your payment method to keep access.",
+        secureNote: "Card details are handled by the payment provider - we never store them.",
+        status: {
+          active: "Active",
+          trialing: "Trial",
+          past_due: "Payment overdue",
+          paused: "Paused",
+          canceled: "Canceled",
+        },
       },
     },
     orders: {

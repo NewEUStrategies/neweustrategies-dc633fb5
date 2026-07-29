@@ -15,6 +15,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChangePlanCard } from "@/components/billing/ChangePlanCard";
+import {
+  PaddleSubscriptionCard,
+  useMyPaddleSubscription,
+} from "@/components/billing/PaddleSubscriptionCard";
 import { RetentionDialog } from "@/components/billing/RetentionDialog";
 import { toast } from "sonner";
 
@@ -34,6 +38,13 @@ function SubscriptionPage() {
     queryFn: fetchMySubscription,
     enabled: !!session,
   });
+
+  // Portal klienta dostawcy płatności ma pierwszeństwo: jeśli istnieje wiersz
+  // subskrypcji z bramki, cała obsługa (plan, karta, anulowanie) dzieje się
+  // inline w jednej karcie. Starszy przepływ zostaje dla subskrypcji sprzed
+  // migracji, żeby nikt nie stracił możliwości anulowania.
+  const paddleQ = useMyPaddleSubscription();
+  const paddleSub = paddleQ.data ?? null;
 
   const onCancel = async () => {
     if (!data) return;
@@ -73,6 +84,14 @@ function SubscriptionPage() {
   const periodStillRunning =
     !!data?.current_period_end && new Date(data.current_period_end).getTime() > Date.now();
   const canResume = !!data?.canceled_at && data.status === "active" && periodStillRunning;
+
+  if (paddleSub) {
+    return (
+      <div className="space-y-6">
+        <PaddleSubscriptionCard subscription={paddleSub} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

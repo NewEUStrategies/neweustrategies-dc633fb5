@@ -23,6 +23,10 @@ export const billingKeys = {
   /** Aktywna subskrypcja bieżącego użytkownika. */
   mySubscription: (uid: string | undefined) => ["my-subscription", uid ?? "anon"] as const,
   mySubscriptionAll: () => ["my-subscription"] as const,
+  /** Subskrypcja u dostawcy płatności (tabela `subscriptions`, per środowisko). */
+  myPaddleSubscription: (uid: string | undefined, env: string) =>
+    ["my-paddle-subscription", uid ?? "anon", env] as const,
+  myPaddleSubscriptionAll: () => ["my-paddle-subscription"] as const,
   /** Historia zamówień bieżącego użytkownika. */
   myOrders: (uid: string | undefined) => ["my-orders", uid ?? "anon"] as const,
   myOrdersAll: () => ["my-orders"] as const,
