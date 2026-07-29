@@ -14,10 +14,30 @@ export function isPushSupported(): boolean {
   );
 }
 
-export function vapidPublicKey(): string | null {
-  const key = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
-  return key && key.length > 0 ? key : null;
+/**
+ * Klucz publiczny VAPID. Najpierw zmienna build-time (jeśli projekt ją ma),
+ * w przeciwnym razie serwer (sekret VAPID_PUBLIC_KEY). Wynik jest cache'owany
+ * na czas życia karty - to stała konfiguracyjna, nie dane użytkownika.
+ */
+let cachedKey: string | null | undefined;
+
+export async function vapidPublicKey(): Promise<string | null> {
+  if (cachedKey !== undefined) return cachedKey;
+  const buildTime = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+  if (buildTime && buildTime.length > 0) {
+    cachedKey = buildTime;
+    return cachedKey;
+  }
+  try {
+    const { getPushPublicKey } = await import("./pushConfig.functions");
+    const { publicKey } = await getPushPublicKey();
+    cachedKey = publicKey && publicKey.length > 0 ? publicKey : null;
+  } catch {
+    cachedKey = null;
+  }
+  return cachedKey;
 }
+
 
 function b64urlToUint8(base64url: string): Uint8Array {
   const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
@@ -44,7 +64,7 @@ export async function enablePushForThisBrowser(userId: string): Promise<void> {
   if (!isPushSupported()) {
     throw new Error("push_unsupported");
   }
-  const publicKey = vapidPublicKey();
+  const publicKey = await vapidPublicKey();
   if (!publicKey) {
     throw new Error("push_not_configured");
   }

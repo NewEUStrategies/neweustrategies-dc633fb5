@@ -58,36 +58,61 @@ async function runJobStep<T>(
   }
 }
 
+/**
+ * Cykl pracy: tick biegnie co minutę (push musi być natychmiastowy), ale joby
+ * kosztowne sieciowo nie mają sensu z taką częstotliwością - link-check i
+ * embeddingi mielą wtedy ten sam budżet co minutę i zjadają czas potrzebny
+ * na wysyłki. Bramkujemy je po minucie zegara UTC: praca jest watermarkowa,
+ * więc rzadszy rytm niczego nie gubi, jedynie rozkłada koszt.
+ */
+export function everyNthMinute(n: number, now = new Date()): boolean {
+  return now.getUTCMinutes() % n === 0;
+}
+
 export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
   const startedAt = Date.now();
   const overBudget = () => Date.now() - startedAt > JOBS_TICK_DEADLINE_MS;
+  const skipped = { error: "skipped_duty_cycle" } as const;
 
   // Kolejność: tanie joby (DB-only) najpierw, kosztowne sieciowe (link-check,
   // integracje, embeddingi) na końcu - to one są pomijane pierwsze przy
   // wyczerpaniu budżetu, a nie krytyczne wysyłki/przypomnienia.
   const newsletter = await runJobStep(overBudget, () => tickNewsletterCampaigns(admin, {}));
   const push = await runJobStep(overBudget, () => processPushJobs(100));
-  const digestDaily = await runJobStep(overBudget, () => processDigests("daily", 50));
-  const digestWeekly = await runJobStep(overBudget, () => processDigests("weekly", 50));
+  // Digesty mają własne okna czasowe w claim_due_digests - wystarczy zaglądać
+  // co 5 minut zamiast co minutę (dwa RPC mniej na tick).
+  const digestsDue = everyNthMinute(5);
+  const digestDaily = digestsDue
+    ? await runJobStep(overBudget, () => processDigests("daily", 50))
+    : skipped;
+  const digestWeekly = digestsDue
+    ? await runJobStep(overBudget, () => processDigests("weekly", 50))
+    : skipped;
   // Follow-upy CRM: skaner watermarkowy (run_crm_task_reminders) enqueue'uje
   // notyfikacje kind 'crm_task' + emituje crm_task.due.v1 na szynę.
   const eventReminders = await runJobStep(overBudget, () => runEventReminders());
   const crmTaskReminders = await runJobStep(overBudget, () => runCrmTaskReminders());
-  // Rotacyjny skan linków wychodzących (B7): 3 wpisy per tick.
-  const linkCheck = await runJobStep(overBudget, async () => {
-    const { runLinkCheckBatch } = await import("@/lib/server/linkCheck.server");
-    return runLinkCheckBatch(admin, 3);
-  });
+  // Rotacyjny skan linków wychodzących (B7): 6 wpisów co 15 minut zamiast 3 co
+  // minutę - ta sama przepustowość dzienna przy ~15x mniejszym ruchu HTTP.
+  const linkCheck = everyNthMinute(15)
+    ? await runJobStep(overBudget, async () => {
+        const { runLinkCheckBatch } = await import("@/lib/server/linkCheck.server");
+        return runLinkCheckBatch(admin, 6);
+      })
+    : skipped;
   // Dren outboxu integracji (D2): dostawy webhooków płyną cronem.
   const integrations = await runJobStep(overBudget, async () => {
     const { runIntegrationDispatch } = await import("@/lib/integrations/dispatch.functions");
     return runIntegrationDispatch(20);
   });
-  // Warstwa semantyczna wyszukiwarki: embeddingi tytuł+zajawka (24 per tick).
-  const semanticIndex = await runJobStep(overBudget, async () => {
-    const { runSemanticIndexBatch } = await import("@/lib/server/embeddings.server");
-    return runSemanticIndexBatch(admin, 24);
-  });
+  // Warstwa semantyczna wyszukiwarki: embeddingi tytuł+zajawka, co 5 minut.
+  const semanticIndex = everyNthMinute(5)
+    ? await runJobStep(overBudget, async () => {
+        const { runSemanticIndexBatch } = await import("@/lib/server/embeddings.server");
+        return runSemanticIndexBatch(admin, 24);
+      })
+    : skipped;
+
 
   return {
     newsletter,
