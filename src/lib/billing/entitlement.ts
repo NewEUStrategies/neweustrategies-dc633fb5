@@ -1,6 +1,18 @@
 // Pure entitlement helpers shared by the payments webhook and the mock-mode
 // finaliser. Kept side-effect free so the period maths is unit-testable.
 
+/**
+ * Dodanie miesięcy z docięciem dnia (31 stycznia + 1 miesiąc = 28/29 lutego),
+ * żeby okres rozliczeniowy nie "przeskakiwał" na kolejny miesiąc.
+ */
+function addMonthsClamped(d: Date, months: number): void {
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDay));
+}
+
 export type PlanInterval = "day" | "week" | "month" | "quarter" | "year" | "one_time" | string;
 
 export function periodEndFor(interval: PlanInterval | null | undefined, from: Date): Date {
