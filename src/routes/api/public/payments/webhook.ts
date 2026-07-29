@@ -182,7 +182,8 @@ type TransactionData = {
   subscriptionId?: string | null;
   customerId?: string | null;
   currencyCode?: string | null;
-  customData?: { userId?: string } | null;
+  customData?: Record<string, unknown> | null;
+  customer?: { email?: string | null } | null;
   details?: { totals?: { grandTotal?: string | null } | null } | null;
   payments?: Array<{ errorCode?: string | null }> | null;
   billingPeriod?: { endsAt?: string | null } | null;
@@ -201,7 +202,21 @@ async function handleTransaction(
   occurredAt: string,
   kind: "failed" | "paid",
 ) {
-  if (!data.subscriptionId) return;
+  // Transakcja bez subskrypcji = płatność jednorazowa (odblokowanie treści,
+  // bilet, darowizna). Rozpoznanie idzie po `custom_data`, które ustawia
+  // serwer przy tworzeniu transakcji - klient nie ma jak go podmienić.
+  if (!data.subscriptionId) {
+    if (kind !== "paid") return;
+    const { fulfilOneTimeTransaction } = await import("@/lib/billing/oneTimeFulfilment.server");
+    await fulfilOneTimeTransaction({
+      id: data.id,
+      amountCents: amountFromTransaction(data),
+      currency: data.currencyCode ?? null,
+      customerEmail: data.customer?.email ?? null,
+      customData: data.customData ?? null,
+    });
+    return;
+  }
   const ctx = {
     subscriptionId: data.subscriptionId,
     environment: env,
@@ -213,6 +228,7 @@ async function handleTransaction(
   if (kind === "failed") await dunning.applyPaymentFailedEffects(ctx);
   else await dunning.applyPaymentRecoveredEffects(ctx);
 }
+
 
 async function handleWebhookRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
