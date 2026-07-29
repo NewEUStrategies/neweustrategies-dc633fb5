@@ -57,6 +57,45 @@ test.describe("SEO surfaces", () => {
     expect(errors, `page errors: ${errors.join("; ")}`).toHaveLength(0);
   });
 
+  // Regresyjny kontrakt <head>: og:image / og:title / viewport / lang muszą byc
+  // obecne na kazdej publicznej powierzchni - to te same findingi, ktore wracaly.
+  for (const path of ["/", "/en", "/blog", "/qa"]) {
+    test(`head contract on ${path}`, async ({ page }) => {
+      const res = await page.goto(path);
+      expect(res?.status(), "status").toBeLessThan(400);
+      const lang = await page.locator("html").getAttribute("lang");
+      expect(lang, "html[lang]").toMatch(/^(pl|en)$/);
+      const viewport = await page.locator('meta[name="viewport"]').first().getAttribute("content");
+      expect(viewport ?? "", "viewport").toContain("width=device-width");
+      const ogTitle = await page.locator('meta[property="og:title"]').first().getAttribute("content");
+      expect((ogTitle ?? "").length, "og:title").toBeGreaterThan(3);
+      const ogImage = await page.locator('meta[property="og:image"]').first().getAttribute("content");
+      expect(ogImage ?? "", "og:image absolute").toMatch(/^https?:\/\//);
+      const canonical = await page.locator('link[rel="canonical"]').first().getAttribute("href");
+      expect(canonical ?? "", "canonical absolute").toMatch(/^https?:\/\//);
+      const title = await page.title();
+      expect(title.toLowerCase()).not.toContain("lovable");
+    });
+  }
+
+  test("Q&A session emits QAPage or breadcrumb JSON-LD", async ({ page }) => {
+    await page.goto("/qa");
+    const first = page.locator('a[href^="/qa/"]').first();
+    if ((await first.count()) === 0) test.skip(true, "brak publicznych sesji Q&A w tym srodowisku");
+    await first.click();
+    await page.waitForLoadState("domcontentloaded");
+    const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+    const types = blocks.flatMap((b) => {
+      try {
+        const parsed: unknown = JSON.parse(b);
+        return [(parsed as { "@type"?: string })["@type"] ?? ""];
+      } catch {
+        return [];
+      }
+    });
+    expect(types).toContain("BreadcrumbList");
+  });
+
   test("/admin/seo is auth-gated (redirects to /auth or /login)", async ({ page }) => {
     await page.goto("/admin/seo");
     await page.waitForLoadState("domcontentloaded");
@@ -66,3 +105,4 @@ test.describe("SEO surfaces", () => {
     await expect.poll(() => page.url(), { timeout: 5_000 }).toMatch(/\/(auth|login)/);
   });
 });
+

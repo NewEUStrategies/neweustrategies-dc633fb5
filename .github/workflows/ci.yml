@@ -52,6 +52,15 @@ jobs:
       - name: Test + coverage gate
         run: bun run test:coverage
 
+      # Blokujący kontrakt SEO: og:image / og:title / viewport / lang, kanoniki
+      # i klaster hreflang PL/EN oraz markup schema.org Q&A. Uruchamiany osobno,
+      # żeby regresja SEO była widoczna jako własny, nazwany krok w CI (te same
+      # findingi wracały wcześniej z audytów zewnętrznych).
+      - name: SEO head + schema contract
+        run: bunx vitest run src/lib/seo/__tests__ src/routes/-sitemap.xml.test.ts
+
+
+
       - name: Build
         run: bun run build
         env:

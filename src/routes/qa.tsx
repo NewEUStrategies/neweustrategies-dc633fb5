@@ -8,28 +8,72 @@ import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
+import { breadcrumbListJsonLd, qaCollectionJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
+
+interface QaListHeadData {
+  sessions: Array<{ slug: string; titlePl: string; titleEn: string }>;
+}
+
 export const Route = createFileRoute("/qa")({
   component: QaListPage,
-  head: () => {
+  // Loader zwraca wyłącznie serializowalne stringi i nigdy nie wywraca trasy -
+  // markup listy jest opcjonalny, awaria backendu degraduje do samych metatagów.
+  loader: async (): Promise<QaListHeadData> => {
+    try {
+      const sessions = await fetchPublicQaSessions();
+      return {
+        sessions: sessions.slice(0, 50).map((s) => ({
+          slug: s.slug,
+          titlePl: s.title_pl,
+          titleEn: s.title_en,
+        })),
+      };
+    } catch {
+      return { sessions: [] };
+    }
+  },
+  head: ({ loaderData }) => {
     const url = getRequestUrl() || "/qa";
     const lang = activeLang(url);
     const title = lang === "en" ? "Q&A sessions" : "Sesje Q&A";
-    return buildContentHead({
+    const description =
+      lang === "en"
+        ? "Ask questions to experts and upvote the best community questions."
+        : "Zadawaj pytania ekspertom i głosuj na najlepsze pytania społeczności.";
+    const head = buildContentHead({
       url,
       lang,
       type: "website",
       title,
       // Marka w tytule karty przeglądarki/SERP; og:title zostaje krótki.
       documentTitle: `${title} - ${SITE_NAME}`,
-      description:
-        lang === "en"
-          ? "Ask questions to experts and upvote the best community questions."
-          : "Zadawaj pytania ekspertom i głosuj na najlepsze pytania społeczności.",
+      description,
     });
+    const { origin } = splitUrl(url);
+    const collection = qaCollectionJsonLd({
+      origin,
+      lang,
+      path: "/qa",
+      name: title,
+      description,
+      sessions: (loaderData?.sessions ?? []).map((s) => ({
+        slug: s.slug,
+        title: (lang === "en" ? s.titleEn : s.titlePl) || s.slug,
+      })),
+    });
+    const breadcrumbs = breadcrumbListJsonLd([{ label: title, href: "/qa" }], origin, lang);
+    return {
+      ...head,
+      scripts: [
+        { type: "application/ld+json", children: safeJsonLd(collection) },
+        { type: "application/ld+json", children: safeJsonLd(breadcrumbs) },
+      ],
+    };
   },
 });
+
 
 
 function statusBadge(status: string, t: (k: string) => string) {

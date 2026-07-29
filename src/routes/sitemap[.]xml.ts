@@ -321,7 +321,25 @@ export const Route = createFileRoute("/sitemap.xml")({
             });
           }
 
+          // Publiczne sesje Q&A (poza szkicami) - strony z markupem QAPage,
+          // więc muszą być odkrywalne dla crawlerów.
+          const { data: qaSessions } = await supabaseAdmin
+            .from("qa_sessions")
+            .select("slug, updated_at, opens_at")
+            .eq("tenant_id", tenantId)
+            .neq("status", "draft");
+          for (const row of qaSessions ?? []) {
+            const qa = row as { slug: string; updated_at: string | null; opens_at: string | null };
+            entries.push({
+              loc: `${origin}/qa/${qa.slug}`,
+              lastmod: (qa.updated_at ?? qa.opens_at ?? "").slice(0, 10) || undefined,
+              changefreq: "weekly",
+              priority: "0.5",
+            });
+          }
+
           // Huby ekspertów - profile z odznaką 'expert' i publicznym profilem
+
           // autorskim są pełnoprawnymi landing page (indeksowalne).
           const { data: expertBadges } = await supabaseAdmin
             .from("profile_badges")
