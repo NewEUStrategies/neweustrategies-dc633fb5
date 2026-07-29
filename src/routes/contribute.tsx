@@ -150,11 +150,16 @@ function ContributePage() {
             />
           </div>
           <div className="space-y-2">
-            <Label>{t("community.contribute.languageLabel")}</Label>
+            <Label htmlFor="contribute-language">{t("community.contribute.languageLabel")}</Label>
             <Select value={language} onValueChange={(v) => setLanguage(v as "pl" | "en")}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger
+                id="contribute-language"
+                aria-label={t("community.contribute.languageLabel")}
+                className="w-40"
+              >
                 <SelectValue />
               </SelectTrigger>
+
               <SelectContent>
                 <SelectItem value="pl">Polski</SelectItem>
                 <SelectItem value="en">English</SelectItem>

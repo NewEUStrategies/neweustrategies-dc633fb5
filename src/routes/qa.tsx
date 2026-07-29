@@ -8,18 +8,21 @@ import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead } from "@/lib/seo/meta";
+import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 export const Route = createFileRoute("/qa")({
   component: QaListPage,
   head: () => {
     const url = getRequestUrl() || "/qa";
     const lang = activeLang(url);
+    const title = lang === "en" ? "Q&A sessions" : "Sesje Q&A";
     return buildContentHead({
       url,
       lang,
       type: "website",
-      title: lang === "en" ? "Q&A sessions" : "Sesje Q&A",
+      title,
+      // Marka w tytule karty przeglądarki/SERP; og:title zostaje krótki.
+      documentTitle: `${title} - ${SITE_NAME}`,
       description:
         lang === "en"
           ? "Ask questions to experts and upvote the best community questions."
@@ -27,6 +30,7 @@ export const Route = createFileRoute("/qa")({
     });
   },
 });
+
 
 function statusBadge(status: string, t: (k: string) => string) {
   if (status === "open" || status === "answering") return t("community.qa.openSession");
