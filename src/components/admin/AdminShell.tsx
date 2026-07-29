@@ -286,6 +286,13 @@ function AdminShellInner({
         },
         { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
         {
+          to: "/admin/billing",
+          icon: CreditCard,
+          label: t("admin.nav.billing", {
+            defaultValue: lang === "pl" ? "Rozliczenia" : "Billing",
+          }),
+        },
+        {
           to: "/admin/donations",
           icon: HandHeart,
           label: t("admin.nav.donations", {
