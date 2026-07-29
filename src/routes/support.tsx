@@ -1,6 +1,6 @@
 // Publiczna strona darowizn / mecenatu obywatelskiego. URL: /support
 // Darowizna nie nadaje uprawnień (to nie zakup) - patrz donations.functions.ts.
-// Stany ?status=success|cancelled wracają ze Stripe Checkout.
+// Stan ?status=cancelled wraca z nakładki płatności; sukces prowadzi do /support/thank-you.
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -107,7 +107,8 @@ function SupportPage() {
           // klient przekazuje wyłącznie jej identyfikator.
           await openCheckout({
             transactionId: result.transactionId,
-            successPath: "/support?status=success",
+            // Strona podziękowania sama dopyta operatora o status transakcji.
+            successPath: `/support/thank-you?txn=${encodeURIComponent(result.transactionId)}`,
           });
           return;
         }
