@@ -11,7 +11,7 @@ import { FriendlyErrorPage } from "./components/error/FriendlyErrorPage";
 import { errorCopy } from "./lib/errorCopy";
 import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
 import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
-import { pruneUnresolvedQueries } from "./lib/ssr/pruneUnresolvedQueries";
+import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
 
 
 
@@ -130,15 +130,14 @@ export const getRouter = () => {
     // See lib/ssr/queryStreamGuard.
     const integrationDehydrate = router.options.dehydrate;
     router.options.dehydrate = async () => {
-      // Cancelled/never-started queries hold promises that never settle. Drop
-      // them before the integration snapshots the cache.
-      const pruned = pruneUnresolvedQueries(queryClient);
-      if (pruned.length > 0) {
-        console.warn(
-          `[ssr-dehydrate] pruned ${pruned.length} unresolvable queries on ` +
-            `${router.state.location.pathname}: ${pruned.join(", ")}`,
-        );
-      }
+      // Render się zakończył: anulujemy wiszące fetch-e i usuwamy zapytania,
+      // które nigdy się nie rozstrzygną, ZANIM integracja zrobi snapshot
+      // cache'u. Inaczej seroval czeka na ich promisy do twardego limitu.
+      sweepQueryCacheForSerialization(queryClient, {
+        label: router.state.location.pathname,
+        reason: "dehydrate",
+      });
+
 
       const dehydrated = (await integrationDehydrate?.()) as
         | (Record<string, unknown> & { queryStream?: ReadableStream<unknown> })
