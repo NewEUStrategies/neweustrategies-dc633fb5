@@ -30,6 +30,10 @@ export interface TxBodyVars {
   graceDays?: number | null;
   /** Sformatowana kwota doliczonej proraty przy zmianie planu w trakcie okresu. */
   prorationAmount?: string | null;
+  /** Ile dni zostało do końca karencji miejsca zespołowego. */
+  daysLeft?: number | null;
+  /** Nazwa organizacji przy miejscach zespołowych. */
+  orgName?: string | null;
   /** Wiadomość darczyńcy z formularza darowizny (już przycięta). */
   donorMessage?: string | null;
 }
@@ -46,6 +50,9 @@ const g = (male: string, female: string, neutral: string, gender: PolishGender):
 
 const plan = (v: TxBodyVars, lang: EmailLang): string =>
   (v.planName ?? "").trim() || (lang === "pl" ? "wybranego planu" : "your plan");
+
+const plDays = (n: number): string =>
+  n === 1 ? "1 dzień" : n >= 2 && n <= 4 ? `${n} dni` : `${n} dni`;
 
 type Builder = (v: TxBodyVars, gender: PolishGender) => TxBodyCopy;
 
@@ -135,6 +142,18 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
       gender,
     ),
   }),
+  team_seat_grace_reminder: (v, gender) => ({
+    intro:
+      `Przypominamy, że okres karencji Twojego miejsca${v.orgName ? ` w organizacji ${v.orgName}` : " w zespole"} dobiega końca${v.daysLeft ? ` - pozostało ${plDays(v.daysLeft)}` : ""}.` +
+      (v.accessUntil ? ` Pełny dostęp masz jeszcze do ${v.accessUntil}.` : ""),
+    extra: g(
+      "Do tego czasu nic się nie zmienia - czytasz wszystkie treści premium i korzystasz z zapisanych materiałów.",
+      "Do tego czasu nic się nie zmienia - czytasz wszystkie treści premium i korzystasz z zapisanych materiałów.",
+      "Do tego czasu dostęp pozostaje pełny - treści premium i zapisane materiały działają bez zmian.",
+      gender,
+    ),
+    note: "Aby zachować dostęp: poproś administratora organizacji o przywrócenie miejsca albo wykup własną subskrypcję przed upływem karencji.",
+  }),
   payment_failed: (v, gender) => ({
     intro:
       `Nie udało nam się pobrać płatności za plan ${plan(v, "pl")}${v.amount ? ` na kwotę ${v.amount}` : ""}. Najczęstsze przyczyny to wygasła karta, przekroczony limit lub odrzucenie transakcji przez bank.` +
@@ -202,6 +221,14 @@ const EN: Partial<Record<TxEmailType, Builder>> = {
         ? `From the next period your subscription will be ${v.amount} ${v.interval}.`
         : undefined,
     note: "You can revert the change any time before the current period ends.",
+  }),
+  team_seat_grace_reminder: (v) => ({
+    intro:
+      `A reminder that the grace period for your seat${v.orgName ? ` at ${v.orgName}` : ""} is ending${v.daysLeft ? ` in ${v.daysLeft} day${v.daysLeft === 1 ? "" : "s"}` : ""}.` +
+      (v.accessUntil ? ` You keep full access until ${v.accessUntil}.` : ""),
+    extra:
+      "Until then nothing changes - all premium content and your saved items work exactly as before.",
+    note: "To keep access: ask your organisation admin to restore the seat, or start your own subscription before the grace period ends.",
   }),
   payment_failed: (v) => ({
     intro:
