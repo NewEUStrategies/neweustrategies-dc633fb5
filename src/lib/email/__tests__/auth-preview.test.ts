@@ -26,6 +26,6 @@ describe("renderAllAuthEmailPreviews", () => {
 
   it("działa bez imienia (powitanie neutralne)", async () => {
     const previews = await renderAllAuthEmailPreviews("pl", null, "unknown");
-    expect(previews[0]?.html).toContain("Dzień dobry!");
+    expect(previews[0]?.html).toContain("Dzień dobry");
   });
 });

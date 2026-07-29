@@ -4,7 +4,7 @@
 // I/O HTTP: usługi push przeglądarek i gateway Resend (jak newsletter).
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { mapWithConcurrency } from "@/lib/async/pool";
-import { sendTransactionalEmail } from "@/lib/server/email.server";
+import { enqueueRawEmail } from "@/lib/email/transactional.server";
 import {
   clampPushPayload,
   encodePushPayload,
@@ -330,12 +330,16 @@ export async function processDigests(
       siteUrl: base,
       frequency,
     });
-    const result = await sendTransactionalEmail({
+    // Digest idzie tą samą kolejką NES co maile transakcyjne/autoryzacyjne:
+    // jeden nadawca (noreply@neweuropeanstrategies.com), jedna lista wykluczeń
+    // i jeden log dostarczalności (email_send_log) zamiast osobnej ścieżki.
+    const window = new Date().toISOString().slice(0, 10);
+    const result = await enqueueRawEmail({
       to: row.email,
       subject: digestSubject(items.length, lang, frequency),
       html,
-      tenantId: recipient?.tenantId ?? null,
-      tags: recipient?.tenantId ? { tenant: recipient.tenantId, stream: "digest" } : undefined,
+      label: `digest_${frequency}`,
+      idempotencyKey: `digest:${frequency}:${row.user_id}:${window}`,
     });
     if (!result.ok) {
       console.error("[community] digest send failed", result.error);
