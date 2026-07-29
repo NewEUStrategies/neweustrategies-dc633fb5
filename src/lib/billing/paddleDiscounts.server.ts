@@ -21,7 +21,7 @@ export interface PaddleDiscountResolution {
   readonly discountCents: number;
 }
 
-interface CouponDefinition {
+export interface CouponDefinition {
   discount_kind: "percent" | "fixed";
   discount_percent: number | null;
   discount_cents: number | null;
