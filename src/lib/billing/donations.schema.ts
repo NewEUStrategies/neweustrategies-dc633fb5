@@ -2,7 +2,7 @@
 // przez server fn i formularz /support, testowalny jednostkowo.
 import { z } from "zod";
 
-/** 5 zł / 5 EUR - poniżej prowizja Stripe zjada sens darowizny. */
+/** 5 zł / 5 EUR - poniżej prowizja operatora zjada sens darowizny. */
 export const DONATION_MIN_CENTS = 500;
 /** 50 000 zł / 50 000 EUR - twardy sufit anty-pomyłkowy. */
 export const DONATION_MAX_CENTS = 5_000_000;
@@ -16,6 +16,8 @@ export const DONATION_CURRENCIES = ["PLN", "EUR"] as const;
 export type DonationCurrency = (typeof DONATION_CURRENCIES)[number];
 
 export const donationInputSchema = z.object({
+  /** Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu. */
+  environment: z.enum(["sandbox", "live"]).optional(),
   amount_cents: z.number().int().min(DONATION_MIN_CENTS).max(DONATION_MAX_CENTS),
   currency: z.enum(DONATION_CURRENCIES).default("PLN"),
   message: z.string().trim().max(500).optional(),

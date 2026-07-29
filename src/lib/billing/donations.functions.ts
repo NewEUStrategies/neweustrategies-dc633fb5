@@ -9,9 +9,10 @@
 //
 // Darowizny NIE przechodzą przez payment_orders (wymaga user_id i zasila
 // grantEntitlement). Ścieżka zapisu:
-//   - Stripe: webhook checkout.session.completed z metadata.kind=donation
-//     -> INSERT do public.donations (idempotentnie po provider_session_id),
-//   - mock (brak klucza Stripe): INSERT bezpośrednio tutaj.
+//   - dostawca: transakcja ad-hoc z `custom_data.kind=donation`, a po jej
+//     opłaceniu webhook (oneTimeFulfilment) robi INSERT do public.donations
+//     idempotentnie po identyfikatorze transakcji,
+//   - mock (brak konfiguracji dostawcy): INSERT bezpośrednio tutaj.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { donationInputSchema } from "@/lib/billing/donations.schema";
@@ -82,49 +83,47 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
 
     const label =
       data.lang === "en"
-        ? "Donation — New European Strategies"
-        : "Darowizna — New European Strategies";
+        ? "Donation - New European Strategies"
+        : "Darowizna - New European Strategies";
     const message = data.message?.trim() ? data.message.trim() : null;
 
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    const origin = process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL ?? "";
-
-    if (stripeSecret && origin) {
-      const params = new URLSearchParams();
-      params.set("mode", "payment");
-      params.set("success_url", `${origin}/support?status=success`);
-      params.set("cancel_url", `${origin}/support?status=cancelled`);
-      params.set("line_items[0][price_data][currency]", data.currency.toLowerCase());
-      params.set("line_items[0][price_data][unit_amount]", String(data.amount_cents));
-      params.set("line_items[0][price_data][product_data][name]", label);
-      params.set("line_items[0][quantity]", "1");
-      // Rozpoznanie darowizny w webhooku + atrybucja najemcy i nota darczyńcy.
-      params.set("metadata[kind]", "donation");
-      params.set("metadata[tenant_id]", hostTenantId);
-      if (donorUserId) params.set("metadata[user_id]", donorUserId);
-      if (message) params.set("metadata[message]", message.slice(0, 480));
-      params.set("submit_type", "donate");
-
-      const resp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${stripeSecret}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
+    if (paymentsConfiguredServer()) {
+      // Kwota jest dowolna (darczyńca ją wybiera), więc katalog cen nic tu nie
+      // daje - tworzymy transakcję z ceną osadzoną i otwieramy nakładkę po
+      // identyfikatorze transakcji. Kwota jest ponownie walidowana schematem
+      // po stronie serwera, klient nie ustala niczego innego.
+      const { createAdhocTransaction, resolveEnvironment } = await import(
+        "@/lib/billing/paddleTransaction.server"
+      );
+      const created = await createAdhocTransaction({
+        environment: resolveEnvironment(data.environment),
+        product: "donation",
+        name: label,
+        amountCents: data.amount_cents,
+        currency: data.currency,
+        quantity: 1,
+        customData: {
+          kind: "donation",
+          tenant_id: hostTenantId,
+          ...(donorUserId ? { user_id: donorUserId } : {}),
+          ...(message ? { message: message.slice(0, 480) } : {}),
         },
-        body: params.toString(),
       });
-      if (!resp.ok) {
-        const txt = await resp.text().catch(() => "");
-        console.error("[donations] stripe session failed", resp.status, txt.slice(0, 200));
-        return { ok: false as const, error: "stripe_failed" as const };
+      if (!created.ok) {
+        console.error("[donations] transaction failed", created.error);
+        return { ok: false as const, error: "provider_failed" as const };
       }
-      const session = (await resp.json()) as { url: string };
-      return { ok: true as const, mode: "stripe" as const, url: session.url };
+      return {
+        ok: true as const,
+        mode: "paddle" as const,
+        transactionId: created.transactionId,
+      };
     }
 
-    // Tryb mock (dev bez Stripe): zapis od razu, żeby lejek dało się testować.
-    // Fail-closed na produkcji (ten sam bezpiecznik co checkout) - darowizna
-    // "mock" w realnym serwisie fałszowałaby statystyki i księgowość.
+    // Tryb mock (dev bez dostawcy): zapis od razu, żeby lejek dało się
+    // przetestować. Fail-closed na produkcji (ten sam bezpiecznik co checkout) -
+    // darowizna "mock" w realnym serwisie fałszowałaby statystyki i księgowość.
     const { mockCheckoutAllowed } = await import("@/lib/billing/mockMode.server");
     if (!mockCheckoutAllowed()) {
       console.error("[donations] billing unconfigured: refusing mock donation in production");
