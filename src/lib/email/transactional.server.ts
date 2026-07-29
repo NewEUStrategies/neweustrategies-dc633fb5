@@ -25,6 +25,11 @@ export interface TxSendInput {
   subjectName?: string | null;
   details?: TxDetail[];
   ctaPath?: string;
+  /**
+   * Bezwzględny adres CTA (np. jednorazowy link do portalu operatora płatności).
+   * Ma pierwszeństwo przed `ctaPath`, bo prowadzi poza domenę serwisu.
+   */
+  ctaUrl?: string;
   ctaLabel?: string;
   extra?: string | null;
   /**
@@ -131,7 +136,7 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
       type: input.type,
       lang,
       siteUrl: SITE_URL,
-      ctaUrl: input.ctaPath ? `${SITE_URL}${input.ctaPath}` : undefined,
+      ctaUrl: input.ctaUrl ?? (input.ctaPath ? `${SITE_URL}${input.ctaPath}` : undefined),
       details: input.details ?? [],
       extra: ov("extra") ?? input.extra ?? body.extra ?? null,
       intro: ov("intro") ?? body.intro ?? null,

@@ -23,7 +23,8 @@ export type TxEmailType =
   | "team_seat_access_ended"
   | "event_registered"
   | "donation_received"
-  | "newsletter_confirmed";
+  | "newsletter_confirmed"
+  | "customer_portal_link";
 
 export interface TxSubjectVars {
   /** Nazwa planu subskrypcji lub tytuł wydarzenia. */
@@ -108,6 +109,20 @@ const HELP_PL =
 const HELP_EN = "Questions about billing or access? Write to us - we reply on business days.";
 
 const PL: Dict = {
+  customer_portal_link: {
+    subject: () => "🔐 Link do portalu płatności | New European Strategies",
+    icon: "hero-key",
+    preview: "Jedno kliknięcie do faktur, metody płatności i zarządzania subskrypcją.",
+    eyebrow: "Portal płatności",
+    heading: "Twój link do portalu płatności",
+    intro:
+      "Przyciskiem poniżej otworzysz bezpieczny portal płatności. Pobierzesz w nim faktury, zmienisz metodę płatności oraz zarządzisz subskrypcją lub ją anulujesz.",
+    cta: "Otwórz portal płatności",
+    note: "Link jest jednorazowy i wygasa po krótkim czasie. Jeśli przestanie działać, poproś o nowy w swoim profilu.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+
   subscription_confirmed: {
     subject: (v) =>
       `✅ Subskrypcja aktywna${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
@@ -349,6 +364,20 @@ const PL: Dict = {
 };
 
 const EN: Dict = {
+  customer_portal_link: {
+    subject: () => "🔐 Your billing portal link | New European Strategies",
+    icon: "hero-key",
+    preview: "One-click access to invoices, payment method and your subscription.",
+    eyebrow: "Billing portal",
+    heading: "Your billing portal link",
+    intro:
+      "Use the button below to open the secure billing portal. You can download invoices, update your payment method and manage or cancel your subscription there.",
+    cta: "Open billing portal",
+    note: "The link is single-use and expires after a short time. If it stops working, request a new one from your profile.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+
   subscription_confirmed: {
     subject: (v) =>
       `✅ Subscription active${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,

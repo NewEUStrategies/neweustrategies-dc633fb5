@@ -34,6 +34,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_registered",
   "donation_received",
   "newsletter_confirmed",
+  "customer_portal_link",
 ] as const;
 
 export interface TxEmailPreview {
@@ -192,6 +193,15 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
       };
     case "newsletter_confirmed":
       return { subjectName: null, details: [], ctaUrl: SITE_URL };
+    case "customer_portal_link":
+      return {
+        subjectName: plan,
+        details: [
+          { label: l.plan, value: plan },
+          { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
+        ],
+        ctaUrl: `${SITE_URL}/profile/subscription`,
+      };
     case "team_seat_grace":
       return {
         subjectName: "Acme Group",
