@@ -12,9 +12,12 @@ import { Button } from "@/components/ui/button";
 import { PostListCard } from "@/components/molecules/PostListCard";
 import { blogListQueryOptions, resolvePostsPerPage } from "@/lib/queries/public";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { withBudget } from "@/lib/asyncBudget";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
+
+const BLOG_LOADER_BUDGET_MS = 4_000;
 
 export const Route = createFileRoute("/blog/")({
   // SSR prefetches only the first page; "load more" pages are fetched
@@ -22,8 +25,24 @@ export const Route = createFileRoute("/blog/")({
   // strony honoruje ustawienie czytania (posts_per_page) - ustawienia są już
   // ciepłe z root loadera, więc to odczyt z cache, nie dodatkowy fetch.
   loader: async ({ context }) => {
-    const settings = await context.queryClient.ensureQueryData(siteSettingsQueryOptions);
-    await context.queryClient.ensureQueryData(blogListQueryOptions(resolvePostsPerPage(settings)));
+    await withBudget(
+      context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
+      BLOG_LOADER_BUDGET_MS,
+    );
+    const settings =
+      context.queryClient.getQueryData<Record<string, unknown>>(siteSettingsQueryOptions.queryKey) ??
+      Object.freeze({});
+    if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
+      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, settings);
+    }
+    const listOptions = blogListQueryOptions(resolvePostsPerPage(settings));
+    await withBudget(
+      context.queryClient.ensureQueryData(listOptions).catch(() => undefined),
+      BLOG_LOADER_BUDGET_MS,
+    );
+    if (!context.queryClient.getQueryData(listOptions.queryKey)) {
+      context.queryClient.setQueryData(listOptions.queryKey, { posts: [] });
+    }
   },
 
   head: () => {

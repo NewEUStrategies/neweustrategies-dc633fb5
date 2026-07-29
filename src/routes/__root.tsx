@@ -51,6 +51,7 @@ import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
 import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
+import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColors";
 import type { HeaderSettings } from "../components/Header";
 import type { BuilderDocument } from "../lib/builder/types";
 import { defaultDocFor } from "../lib/builder/chromeDefaults";
@@ -60,6 +61,11 @@ import { GlobalAudioPlayerProvider, useGlobalAudioPlayer } from "../lib/audio/gl
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 import { AppDialogHost } from "../components/AppDialogHost";
 import { ExpertRequestDialogHost } from "../components/chat/ExpertRequestDialogHost";
+import { EMPTY_TOKENS } from "../lib/builder/designTokens";
+import { defaultPostLayoutSettings } from "../lib/postLayouts";
+import { withBudget } from "../lib/asyncBudget";
+
+const ROOT_WARM_BUDGET_MS = 2_500;
 
 // Nakładki (popupy, paleta komend, pasek audio) nie są potrzebne do pierwszego
 // malowania ŻADNEJ strony - React.lazy trzyma je poza bundlem wejściowym
@@ -215,12 +221,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // backend, one corrupt row) must degrade to defaults, never throw and 500
     // the whole site. `allSettled` never rejects; per-route content loaders
     // still fail loud (and render the localized error boundary) as before.
-    await Promise.allSettled([
+    await withBudget(Promise.allSettled([
       context.queryClient.ensureQueryData(siteSettingsQueryOptions),
       context.queryClient.ensureQueryData(designTokensQueryOptions),
       context.queryClient.ensureQueryData(globalColorsQueryOptions),
       context.queryClient.ensureQueryData(postLayoutSettingsQueryOptions()),
-    ]);
+    ]), ROOT_WARM_BUDGET_MS);
+    if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
+      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, Object.freeze({}));
+    }
+    if (!context.queryClient.getQueryData(designTokensQueryOptions.queryKey)) {
+      context.queryClient.setQueryData(designTokensQueryOptions.queryKey, EMPTY_TOKENS);
+    }
+    if (!context.queryClient.getQueryData(globalColorsQueryOptions.queryKey)) {
+      context.queryClient.setQueryData(globalColorsQueryOptions.queryKey, EMPTY_GLOBAL_COLORS);
+    }
+    const postLayoutKey = postLayoutSettingsQueryOptions().queryKey;
+    if (!context.queryClient.getQueryData(postLayoutKey)) {
+      context.queryClient.setQueryData(postLayoutKey, defaultPostLayoutSettings());
+    }
     const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
       siteSettingsQueryOptions.queryKey,
     );

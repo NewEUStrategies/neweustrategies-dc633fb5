@@ -134,6 +134,7 @@ import { withBudget } from "@/lib/asyncBudget";
 // primary content query is already awaited; these warmers are best-effort and
 // must never hang the SSR response - views fall back to their client fetch.
 const SECONDARY_PREFETCH_BUDGET_MS = 3000;
+const PRIMARY_CONTENT_BUDGET_MS = 5_000;
 // Non-2xx / redirect responses must never be CDN-cached as the content itself.
 const NO_STORE = contentCacheControl({ preview: true });
 
@@ -184,8 +185,14 @@ export const Route = createFileRoute("/$")({
       setCacheControlHeader(NO_STORE);
       throw redirect({ to, params: { slug: last }, replace: true });
     }
-    const data = await context.queryClient.ensureQueryData(resolvedContentQueryOptions(segments));
+    const contentOptions = resolvedContentQueryOptions(segments);
+    await withBudget(
+      context.queryClient.ensureQueryData(contentOptions).catch(() => undefined),
+      PRIMARY_CONTENT_BUDGET_MS,
+    );
+    const data = context.queryClient.getQueryData(contentOptions.queryKey) ?? null;
     if (!data) {
+      context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
       // Taxonomy fallback: /<slug> may point at a category or tag archive.
       // Categories/tags live at /category/<slug> and /tag/<slug>; if the bare
       // slug matches one, redirect there instead of 404-ing.
@@ -267,7 +274,17 @@ export const Route = createFileRoute("/$")({
     // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
     // logo). The root loader warms the same bulk query, so this resolves from
     // cache; head() is synchronous and cannot fetch on its own.
-    const settingsMap = await context.queryClient.ensureQueryData(siteSettingsQueryOptions);
+    await withBudget(
+      context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
+      PRIMARY_CONTENT_BUDGET_MS,
+    );
+    const emptySettings: Record<string, unknown> = Object.freeze({});
+    const settingsMap =
+      context.queryClient.getQueryData<Record<string, unknown>>(siteSettingsQueryOptions.queryKey) ??
+      emptySettings;
+    if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
+      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, settingsMap);
+    }
     const seoSettings = parseSeoSettings(settingsMap["seo"]);
     // Posts: attach the LCP cover preload so head() can emit it. The layout
     // settings were just warmed above, so this reads from cache (no extra
