@@ -164,6 +164,19 @@ export function guardQueryStream<T>(
               return;
             }
             try {
+              try {
+                const queries = (value as { queries?: Array<Record<string, unknown>> })?.queries;
+                if (Array.isArray(queries)) {
+                  for (const q of queries) {
+                    console.warn(
+                      `[ssr-query-stream] chunk route=${label} hash=${String(q.queryHash)} ` +
+                        `hasPromise=${"promise" in q} state=${JSON.stringify((q.state as { status?: string; fetchStatus?: string })?.status)}`,
+                    );
+                  }
+                }
+              } catch {
+                /* diagnostics only */
+              }
               controller?.enqueue(value);
             } catch {
               /* consumer gone */
