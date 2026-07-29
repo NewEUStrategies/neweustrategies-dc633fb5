@@ -45,26 +45,62 @@ function clampTitle(value: string, max = 60): string {
   return `${(space > 24 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
+interface QaSessionHeadQuestion {
+  id: string;
+  body: string;
+  answer: string | null;
+  authorName: string | null;
+  createdAt: string | null;
+  answeredAt: string | null;
+  upvotes: number;
+}
+
 interface QaSessionHeadData {
   titlePl: string;
   titleEn: string;
   introPl: string | null;
   introEn: string | null;
+  openedAt: string | null;
+  closedAt: string | null;
+  /** Wyłącznie pytania z opublikowaną odpowiedzią - tylko takie trafiają
+   *  do markupu QAPage (pytanie bez odpowiedzi jest nieważne w rich results). */
+  answered: QaSessionHeadQuestion[];
 }
 
 export const Route = createFileRoute("/qa/$slug")({
   component: QaDetail,
-  // Loader zwraca WYŁĄCZNIE stringi (serializowalne) i nigdy nie wywraca
+  // Loader zwraca WYŁĄCZNIE stringi/liczby (serializowalne) i nigdy nie wywraca
   // trasy - brak sesji / błąd backendu degraduje do brandowego fallbacku.
   loader: async ({ params }): Promise<QaSessionHeadData | null> => {
     try {
       const session = await fetchPublicQaSessionBySlug(params.slug);
       if (!session) return null;
+      let answered: QaSessionHeadQuestion[] = [];
+      try {
+        const questions = await fetchPublicQaQuestions(session.id);
+        answered = questions
+          .filter((q) => (q.answer_body ?? "").trim().length > 0)
+          .slice(0, 20)
+          .map((q) => ({
+            id: q.id,
+            body: q.body,
+            answer: q.answer_body,
+            authorName: q.is_anonymous ? null : q.author_display,
+            createdAt: q.created_at,
+            answeredAt: q.answered_at,
+            upvotes: q.votes,
+          }));
+      } catch {
+        /* markup Q&A jest opcjonalny - brak pytań nie może psuć trasy */
+      }
       return {
         titlePl: session.title_pl,
         titleEn: session.title_en,
         introPl: session.intro_pl,
         introEn: session.intro_en,
+        openedAt: session.opens_at,
+        closedAt: session.closes_at,
+        answered,
       };
     } catch {
       return null;
@@ -77,20 +113,57 @@ export const Route = createFileRoute("/qa/$slug")({
     const sessionIntro = lang === "en" ? loaderData?.introEn : loaderData?.introPl;
     const fallbackTitle = lang === "en" ? "Q&A session" : "Sesja Q&A";
     const title = clampTitle(sessionTitle?.trim() || fallbackTitle);
-    return buildContentHead({
+    const description =
+      sessionIntro?.trim() ||
+      (lang === "en"
+        ? "Community Q&A session - ask, upvote, and read expert answers."
+        : "Sesja Q&A - zadawaj pytania, głosuj i czytaj odpowiedzi ekspertów.");
+    const head = buildContentHead({
       url,
       lang,
       type: "article",
       title,
       documentTitle: clampTitle(`${title} - ${SITE_NAME}`),
-      description:
-        sessionIntro?.trim() ||
-        (lang === "en"
-          ? "Community Q&A session - ask, upvote, and read expert answers."
-          : "Sesja Q&A - zadawaj pytania, głosuj i czytaj odpowiedzi ekspertów."),
+      description,
     });
+    const { origin } = splitUrl(url);
+    const path = `/qa/${params.slug}`;
+    const qaPage = qaPageJsonLd({
+      origin,
+      lang,
+      path,
+      name: title,
+      description,
+      datePublished: loaderData?.openedAt ?? null,
+      dateModified: loaderData?.closedAt ?? loaderData?.openedAt ?? null,
+      questions: (loaderData?.answered ?? []).map((q) => ({
+        id: q.id,
+        body: q.body,
+        answer: q.answer,
+        authorName: q.authorName,
+        createdAt: q.createdAt,
+        answeredAt: q.answeredAt,
+        upvotes: q.upvotes,
+      })),
+    });
+    const breadcrumbs = breadcrumbListJsonLd(
+      [
+        { label: lang === "en" ? "Q&A sessions" : "Sesje Q&A", href: "/qa" },
+        { label: title, href: path },
+      ],
+      origin,
+      lang,
+    );
+    return {
+      ...head,
+      scripts: [
+        ...(qaPage ? [{ type: "application/ld+json", children: safeJsonLd(qaPage) }] : []),
+        { type: "application/ld+json", children: safeJsonLd(breadcrumbs) },
+      ],
+    };
   },
 });
+
 
 
 function QaDetail() {
