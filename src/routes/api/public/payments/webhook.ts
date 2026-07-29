@@ -110,7 +110,17 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
   // Zdarzenia stanu (pauza, wznowienie, past_due) potrafią nie nieść pozycji
   // cennika - wtedy pracujemy na cenie zapisanej przy subskrypcji.
   const priceId = eventPriceId ?? existing?.price_id ?? null;
+
+  // Plan Zespół: zmiana liczby opłaconych miejsc oraz stanu subskrypcji musi
+  // natychmiast przełożyć się na limit i uprawnienia całego zespołu.
+  const { applySubscriptionSeats, applySubscriptionOrgState } = await import(
+    "@/lib/organizations/teamSeats.server"
+  );
+  await applySubscriptionOrgState({ subscriptionId: data.id, status: data.status, priceId });
+  await applySubscriptionSeats({ subscriptionId: data.id, quantity, priceId });
+
   if (!existing?.user_id || !priceId) return;
+
 
   // Każda aktualizacja (pauza, wznowienie, past_due, nowy okres) musi trafić do
   // uprawnień, nie tylko zmiana planu.
