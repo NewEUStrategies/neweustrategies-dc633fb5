@@ -107,6 +107,8 @@ export interface SubscriptionNotifyInput {
   periodEnd?: string | null;
   amountCents?: number | null;
   currency?: string | null;
+  /** Dopłata proporcjonalna przy upgrade w trakcie okresu (w groszach/centach). */
+  prorationCents?: number | null;
   /** Stabilny identyfikator zdarzenia (id zamówienia, faktury, subskrypcji). */
   idempotencySeed: string;
 }
@@ -149,6 +151,8 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
       });
     }
 
+    const intervalLabel = plan?.interval ? INTERVAL_LABEL[lang][plan.interval] : null;
+
     await sendTxEmail({
       type: input.kind,
       to: recipient.email,
@@ -156,6 +160,25 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
       metaName: recipient.name,
       subjectName: plan?.name ?? null,
       details,
+      bodyVars: {
+        planName: plan?.name ?? null,
+        previousPlanName: previous?.name ?? null,
+        amount: amount !== null ? formatMoney(amount, currency, lang) : null,
+        interval: intervalLabel,
+        renewsAt:
+          input.kind === "subscription_canceled" || !input.periodEnd
+            ? null
+            : formatDate(input.periodEnd, lang),
+        accessUntil:
+          (input.kind === "subscription_canceled" || input.kind === "subscription_downgraded") &&
+          input.periodEnd
+            ? formatDate(input.periodEnd, lang)
+            : null,
+        prorationAmount:
+          input.kind === "subscription_upgraded" && input.prorationCents
+            ? formatMoney(input.prorationCents, currency, lang)
+            : null,
+      },
       ctaPath: input.kind === "subscription_canceled" ? "/cennik" : "/profile/subscription",
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
@@ -232,6 +255,8 @@ export interface PaymentNotifyInput {
   retryAt?: string | null;
   /** Koniec opłaconego okresu - do kiedy dostęp pozostaje aktywny. */
   accessUntil?: string | null;
+  /** Długość karencji w dniach (miękka windykacja). */
+  graceDays?: number | null;
   idempotencySeed: string;
 }
 
@@ -279,6 +304,17 @@ export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<voi
       metaName: recipient.name,
       subjectName: plan?.name ?? null,
       details,
+      bodyVars: {
+        planName: plan?.name ?? null,
+        amount:
+          amount !== null
+            ? formatMoney(amount, input.currency ?? plan?.currency ?? "PLN", lang)
+            : null,
+        interval: plan?.interval ? INTERVAL_LABEL[lang][plan.interval] : null,
+        retryAt: input.retryAt ? formatDate(input.retryAt, lang) : null,
+        accessUntil: input.accessUntil ? formatDate(input.accessUntil, lang) : null,
+        graceDays: input.graceDays ?? null,
+      },
       ctaPath: "/profile/subscription",
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
@@ -337,6 +373,12 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<v
       metaName: recipient.name,
       subjectName: plan?.name ?? null,
       details,
+      bodyVars: {
+        planName: plan?.name ?? null,
+        amount: plan?.priceCents != null ? formatMoney(plan.priceCents, plan.currency, lang) : null,
+        interval: plan?.interval ? INTERVAL_LABEL[lang][plan.interval] : null,
+      },
+
       ctaPath: "/profile/subscription",
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });

@@ -261,6 +261,27 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
   });
 }
 
+/**
+ * Proporcjonalna dopłata za pozostałe dni bieżącego okresu (upgrade).
+ * Zwraca `null`, gdy danych nie da się wiarygodnie policzyć - lepiej pominąć
+ * zdanie o proracie niż podać kwotę niezgodną z fakturą operatora.
+ */
+function proratedDifferenceCents(
+  previousCents: number | null | undefined,
+  newCents: number | null | undefined,
+  periodEnd: string | null,
+): number | null {
+  if (!periodEnd || previousCents == null || newCents == null) return null;
+  const diff = newCents - previousCents;
+  if (diff <= 0) return null;
+  const end = new Date(periodEnd).getTime();
+  if (Number.isNaN(end)) return null;
+  const daysLeft = Math.max(0, Math.ceil((end - Date.now()) / 86_400_000));
+  if (daysLeft <= 0) return null;
+  const share = Math.min(1, daysLeft / 30);
+  return Math.round(diff * share);
+}
+
 /** Zmiana planu: aktualizacja dostępu + mail o upgrade/downgrade. */
 export async function applyPlanChangeEffects(
   ctx: PurchaseContext & { previousPriceId: string | null; direction: "upgrade" | "downgrade" },
@@ -278,12 +299,23 @@ export async function applyPlanChangeEffects(
     periodEnd: ctx.periodEnd,
   });
 
+  // Upgrade rozlicza się od razu: różnica cen za pozostałą część okresu to
+  // realna kwota dopłaty, którą pokazujemy w mailu (bez niej klient widzi samą
+  // nową cenę i zgłasza reklamację o "podwójne obciążenie").
+  const prorationCents =
+    ctx.direction === "upgrade" && previous
+      ? proratedDifferenceCents(previous.priceCents, plan.priceCents, ctx.periodEnd)
+      : null;
+
   await notifySubscriptionEmail({
     kind: ctx.direction === "upgrade" ? "subscription_upgraded" : "subscription_downgraded",
     userId: ctx.userId,
     planId: plan.planId,
     previousPlanId: previous?.planId ?? null,
     periodEnd: ctx.periodEnd,
+    amountCents: plan.priceCents,
+    currency: plan.currency,
+    prorationCents,
     idempotencySeed: `${ctx.subscriptionId}:${ctx.priceId}`,
   });
 

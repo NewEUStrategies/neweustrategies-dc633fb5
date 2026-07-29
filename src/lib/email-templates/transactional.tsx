@@ -34,6 +34,10 @@ export interface TxEmailProps {
   details?: TxDetail[];
   /** Dodatkowy akapit specyficzny dla zdarzenia (np. informacja o proracie). */
   extra?: string | null;
+  /** Nadpisanie akapitu wstępnego treścią spersonalizowaną (`tx-body`). */
+  intro?: string | null;
+  /** Nadpisanie ramki "co dalej" treścią spersonalizowaną (`tx-body`). */
+  note?: string | null;
 }
 
 const rowLabel: React.CSSProperties = {
@@ -83,6 +87,8 @@ export const TxEmail = ({
   vocativePl,
   details = [],
   extra,
+  intro,
+  note,
 }: TxEmailProps) => {
   const c = txCopy(type, lang);
   return (
@@ -95,7 +101,7 @@ export const TxEmail = ({
       icon={c.icon}
     >
       <Text style={greeting}>{emailGreeting(lang, firstName, gender, vocativePl)}</Text>
-      <Text style={text}>{c.intro}</Text>
+      <Text style={text}>{intro ?? c.intro}</Text>
 
       {details.length > 0 && (
         <Section style={infoBox}>
@@ -115,7 +121,7 @@ export const TxEmail = ({
 
       <Section style={noteBox}>
         <IconRow name="info" textStyle={infoText}>
-          {c.note}
+          {note ?? c.note}
         </IconRow>
       </Section>
 
