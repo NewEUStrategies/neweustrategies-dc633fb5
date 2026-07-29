@@ -192,6 +192,10 @@ export interface EventNotifyInput {
   eventId: string;
   amountCents?: number | null;
   currency?: string | null;
+  /** Identyfikator transakcji u operatora - tylko dla biletów płatnych. */
+  transactionId?: string | null;
+  /** Ziarno numeru biletu (id zamówienia lub wiersza RSVP). */
+  ticketSeed?: string | null;
   idempotencySeed: string;
 }
 
@@ -225,6 +229,15 @@ export async function notifyEventRegistration(input: EventNotifyInput): Promise<
         value: formatMoney(input.amountCents, input.currency ?? "PLN", lang),
       });
     }
+    // Numer biletu i numer transakcji - to po nich obsługa wydarzenia
+    // identyfikuje zakup, więc trafiają do maila zawsze, gdy są znane.
+    const { ticketCodeFrom } = await import("@/lib/events/ticketCode");
+    if (input.ticketSeed) {
+      details.push({ label: copy.labels.ticketCode, value: ticketCodeFrom(input.ticketSeed) });
+    }
+    if (input.transactionId) {
+      details.push({ label: copy.labels.transaction, value: input.transactionId });
+    }
 
     await sendTxEmail({
       type: "event_registered",
@@ -233,7 +246,7 @@ export async function notifyEventRegistration(input: EventNotifyInput): Promise<
       metaName: recipient.name,
       subjectName: title,
       details,
-      ctaPath: event.slug ? `/events/${event.slug}` : "/events",
+      ctaPath: event.slug ? `/events/${event.slug}?ticket=1` : "/events",
       idempotencyKey: `event_registered:${input.idempotencySeed}`,
     });
   } catch (err) {

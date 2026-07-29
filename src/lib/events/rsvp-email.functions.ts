@@ -36,6 +36,7 @@ export const confirmFreeRsvpEmail = createServerFn({ method: "POST" })
     await notifyEventRegistration({
       userId,
       eventId: data.eventId,
+      ticketSeed: rsvp.id,
       // Bezpłatne RSVP - brak kwoty; klucz idempotencji po wierszu RSVP, więc
       // ponowny klik "idę" po anulowaniu nie duplikuje maila.
       idempotencySeed: `rsvp:${rsvp.id}`,
