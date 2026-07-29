@@ -273,6 +273,10 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
   });
   if (!fresh) return Response.json({ received: true, duplicate: true });
 
+  // Czas obsługi trafia do dziennika - w panelu widać od razu, czy handler
+  // zaczyna się ślimaczyć (operator ponawia po timeoucie).
+  const startedAt = Date.now();
+
   try {
     switch (event.eventType) {
       case EventName.SubscriptionCreated:
@@ -291,15 +295,16 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
         await handleTransaction(event.data as unknown as TransactionData, env, occurredAt, "paid");
         break;
       default:
-        await finishWebhookEvent(ref, "skipped");
+        await finishWebhookEvent(ref, "skipped", { durationMs: Date.now() - startedAt });
         return Response.json({ received: true });
     }
-    await finishWebhookEvent(ref, "processed");
+    await finishWebhookEvent(ref, "processed", { durationMs: Date.now() - startedAt });
     return Response.json({ received: true });
   } catch (e) {
     console.error("[payments] webhook error", e);
     await finishWebhookEvent(ref, "failed", {
       error: e instanceof Error ? e.message : String(e),
+      durationMs: Date.now() - startedAt,
     });
     return new Response("Webhook error", { status: 500 });
   }

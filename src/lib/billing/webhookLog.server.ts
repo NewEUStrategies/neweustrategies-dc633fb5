@@ -54,7 +54,13 @@ export async function claimWebhookEvent(ref: WebhookEventRef): Promise<boolean> 
 export async function finishWebhookEvent(
   ref: Pick<WebhookEventRef, "eventId" | "environment">,
   status: WebhookEventStatus,
-  patch?: { error?: string | null; subscriptionId?: string | null; userId?: string | null },
+  patch?: {
+    error?: string | null;
+    subscriptionId?: string | null;
+    userId?: string | null;
+    /** Czas obsługi zdarzenia w ms - panel diagnostyczny pokazuje go wprost. */
+    durationMs?: number | null;
+  },
 ): Promise<void> {
   try {
     const supabase = await admin();
@@ -63,6 +69,10 @@ export async function finishWebhookEvent(
       .update({
         status,
         error: patch?.error ?? null,
+        processed_at: new Date().toISOString(),
+        ...(typeof patch?.durationMs === "number"
+          ? { duration_ms: Math.max(0, Math.round(patch.durationMs)) }
+          : {}),
         ...(patch?.subscriptionId ? { subscription_id: patch.subscriptionId } : {}),
         ...(patch?.userId ? { user_id: patch.userId } : {}),
       })
