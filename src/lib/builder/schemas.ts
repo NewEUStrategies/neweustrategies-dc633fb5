@@ -1510,6 +1510,67 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   "event-countdown": [],
   // Karta odliczania - dedykowany edytor (EventCountdownCardEditor).
   "event-countdown-card": [],
+  // Potwierdzenie zakupu: treść nagłówka/opisu + przełączniki bloków.
+  // Dane (data końca dostępu, portal klienta) pochodzą z konta kupującego.
+  "purchase-confirmation": [
+    { key: "heading", type: "i18nText", label: "Nagłówek", placeholder: "Dziękujemy za zakup" },
+    {
+      key: "body",
+      type: "i18nText",
+      label: "Opis",
+      placeholder: "Dostęp jest już aktywny na Twoim koncie.",
+    },
+    {
+      key: "showAccessEnd",
+      type: "select",
+      label: "Data końca dostępu",
+      options: [
+        { value: "true", label: "pokaż" },
+        { value: "false", label: "ukryj" },
+      ],
+      hint: "Dla subskrypcji pokazuje datę odnowienia, dla zakupu jednorazowego - datę wygaśnięcia.",
+    },
+    {
+      key: "showPortalLink",
+      type: "select",
+      label: "Portal klienta",
+      options: [
+        { value: "true", label: "pokaż" },
+        { value: "false", label: "ukryj" },
+      ],
+      hint: "Przycisk otwiera portal operatora płatności (faktury, metoda płatności, anulowanie).",
+    },
+    {
+      key: "showOrdersLink",
+      type: "select",
+      label: "Link do historii zamówień",
+      options: [
+        { value: "true", label: "pokaż" },
+        { value: "false", label: "ukryj" },
+      ],
+    },
+    {
+      key: "showReference",
+      type: "select",
+      label: "Numer transakcji",
+      options: [
+        { value: "true", label: "pokaż" },
+        { value: "false", label: "ukryj" },
+      ],
+    },
+    {
+      key: "showSecureNote",
+      type: "select",
+      label: "Nota o bezpieczeństwie płatności",
+      options: [
+        { value: "true", label: "pokaż" },
+        { value: "false", label: "ukryj" },
+      ],
+    },
+    { key: "accentColor", type: "color", label: "Kolor akcentu" },
+    { key: "href", type: "url", label: "Dodatkowy przycisk - adres" },
+    { key: "ctaLabel", type: "i18nText", label: "Dodatkowy przycisk - etykieta" },
+  ],
   // Networking 1-1 i sponsorzy - dedykowane edytory (MeetingBookingEditor /
   // SponsorsEditor).
   "meeting-booking": [],
