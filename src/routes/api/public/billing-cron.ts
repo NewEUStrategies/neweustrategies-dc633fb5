@@ -22,12 +22,38 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function secretMatches(provided: string | null): boolean {
-  const expected = process.env.BILLING_CRON_SECRET || process.env.COMMUNITY_CRON_SECRET;
-  if (!expected || !provided) return false;
+function constantEquals(provided: string, expected: string): boolean {
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function envSecretMatches(provided: string | null): boolean {
+  const expected = process.env.BILLING_CRON_SECRET || process.env.COMMUNITY_CRON_SECRET;
+  if (!expected || !provided) return false;
+  return constantEquals(provided, expected);
+}
+
+/**
+ * Fallback dla harmonogramu w bazie (pg_cron -> net.http_post): kiedy sekret nie
+ * jest wstrzyknięty do środowiska, akceptujemy współdzielony sekret runnera
+ * zadań przechowywany w `job_runner_settings` (odczyt wyłącznie service-role).
+ */
+async function dbSecretMatches(provided: string | null): Promise<boolean> {
+  if (!provided) return false;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("job_runner_settings")
+      .select("enabled, secret")
+      .eq("id", 1)
+      .maybeSingle();
+    const cfg = (data ?? null) as { enabled: boolean; secret: string } | null;
+    if (!cfg?.enabled || !cfg.secret) return false;
+    return constantEquals(provided, cfg.secret);
+  } catch {
+    return false;
+  }
 }
 
 export const Route = createFileRoute("/api/public/billing-cron")({
@@ -38,7 +64,8 @@ export const Route = createFileRoute("/api/public/billing-cron")({
         if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) {
           return new Response(null, { status: 429 });
         }
-        if (!secretMatches(req.headers.get("x-billing-cron-secret"))) {
+        const provided = req.headers.get("x-billing-cron-secret");
+        if (!envSecretMatches(provided) && !(await dbSecretMatches(provided))) {
           return json({ error: "unauthorized" }, 401);
         }
 
