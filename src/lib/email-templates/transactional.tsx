@@ -38,6 +38,12 @@ export interface TxEmailProps {
   intro?: string | null;
   /** Nadpisanie ramki "co dalej" treścią spersonalizowaną (`tx-body`). */
   note?: string | null;
+  /** Nadpisanie preheadera (edytowalne treści z panelu). */
+  preview?: string | null;
+  /** Nadpisanie etykiety nad nagłówkiem (edytowalne treści z panelu). */
+  eyebrow?: string | null;
+  /** Nadpisanie nagłówka (edytowalne treści z panelu). */
+  heading?: string | null;
 }
 
 const rowLabel: React.CSSProperties = {
@@ -89,15 +95,18 @@ export const TxEmail = ({
   extra,
   intro,
   note,
+  preview,
+  eyebrow,
+  heading,
 }: TxEmailProps) => {
   const c = txCopy(type, lang);
   return (
     <NesEmailLayout
       lang={lang}
-      preview={c.preview}
+      preview={preview ?? c.preview}
       siteUrl={siteUrl}
-      eyebrow={c.eyebrow}
-      heading={c.heading}
+      eyebrow={eyebrow ?? c.eyebrow}
+      heading={heading ?? c.heading}
       icon={c.icon}
     >
       <Text style={greeting}>{emailGreeting(lang, firstName, gender, vocativePl)}</Text>

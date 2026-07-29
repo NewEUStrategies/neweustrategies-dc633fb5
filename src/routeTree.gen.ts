@@ -213,6 +213,7 @@ import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newslet
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminNewsletterEmailPreviewRouteImport } from './routes/admin.newsletter.email-preview'
+import { Route as AdminNewsletterEmailContentRouteImport } from './routes/admin.newsletter.email-content'
 import { Route as AdminNewsletterDeliverabilityRouteImport } from './routes/admin.newsletter.deliverability'
 import { Route as AdminNewsletterCampaignsRouteImport } from './routes/admin.newsletter.campaigns'
 import { Route as AdminNewsletterAuthLogsRouteImport } from './routes/admin.newsletter.auth-logs'
@@ -1277,6 +1278,12 @@ const AdminNewsletterEmailPreviewRoute =
     path: '/email-preview',
     getParentRoute: () => AdminNewsletterRoute,
   } as any)
+const AdminNewsletterEmailContentRoute =
+  AdminNewsletterEmailContentRouteImport.update({
+    id: '/email-content',
+    path: '/email-content',
+    getParentRoute: () => AdminNewsletterRoute,
+  } as any)
 const AdminNewsletterDeliverabilityRoute =
   AdminNewsletterDeliverabilityRouteImport.update({
     id: '/deliverability',
@@ -1656,6 +1663,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
+  '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -1889,6 +1897,7 @@ export interface FileRoutesByTo {
   '/admin/crm/$id': typeof AdminCrmIdRoute
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
+  '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -2133,6 +2142,7 @@ export interface FileRoutesById {
   '/admin/newsletter/auth-logs': typeof AdminNewsletterAuthLogsRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsRouteWithChildren
   '/admin/newsletter/deliverability': typeof AdminNewsletterDeliverabilityRoute
+  '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
@@ -2378,6 +2388,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/deliverability'
+    | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -2611,6 +2622,7 @@ export interface FileRouteTypes {
     | '/admin/crm/$id'
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/deliverability'
+    | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -2854,6 +2866,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/auth-logs'
     | '/admin/newsletter/campaigns'
     | '/admin/newsletter/deliverability'
+    | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
     | '/admin/newsletter/overview'
@@ -4447,6 +4460,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterEmailPreviewRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
+    '/admin/newsletter/email-content': {
+      id: '/admin/newsletter/email-content'
+      path: '/email-content'
+      fullPath: '/admin/newsletter/email-content'
+      preLoaderRoute: typeof AdminNewsletterEmailContentRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/newsletter/deliverability': {
       id: '/admin/newsletter/deliverability'
       path: '/deliverability'
@@ -4829,6 +4849,7 @@ interface AdminNewsletterRouteChildren {
   AdminNewsletterAuthLogsRoute: typeof AdminNewsletterAuthLogsRoute
   AdminNewsletterCampaignsRoute: typeof AdminNewsletterCampaignsRouteWithChildren
   AdminNewsletterDeliverabilityRoute: typeof AdminNewsletterDeliverabilityRoute
+  AdminNewsletterEmailContentRoute: typeof AdminNewsletterEmailContentRoute
   AdminNewsletterEmailPreviewRoute: typeof AdminNewsletterEmailPreviewRoute
   AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
@@ -4842,6 +4863,7 @@ const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
   AdminNewsletterAuthLogsRoute: AdminNewsletterAuthLogsRoute,
   AdminNewsletterCampaignsRoute: AdminNewsletterCampaignsRouteWithChildren,
   AdminNewsletterDeliverabilityRoute: AdminNewsletterDeliverabilityRoute,
+  AdminNewsletterEmailContentRoute: AdminNewsletterEmailContentRoute,
   AdminNewsletterEmailPreviewRoute: AdminNewsletterEmailPreviewRoute,
   AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,

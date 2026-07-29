@@ -8,6 +8,8 @@ import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-co
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import { resolveRecipientName } from "@/lib/email/recipient-name.server";
 import { txBody, type TxBodyVars } from "@/lib/email-templates/tx-body";
+import { loadTxOverrides } from "@/lib/email/txOverrides.server";
+import { overrideFor, resolvedField } from "@/lib/email/txOverrides";
 
 const SITE_NAME = "New European Strategies";
 const SITE_URL = "https://neweuropeanstrategies.com";
@@ -112,23 +114,40 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
 
     const body = txBody(input.type, lang, name.gender, input.bodyVars ?? {});
 
+    // Treści edytowalne w panelu (karencja / koniec dostępu zespołowego).
+    const override = overrideFor(await loadTxOverrides(supabase), input.type, lang);
+    const tokens = {
+      planName: input.bodyVars?.planName ?? null,
+      orgName: input.bodyVars?.orgName ?? null,
+      accessUntil: input.bodyVars?.accessUntil ?? null,
+      daysLeft: input.bodyVars?.daysLeft ?? null,
+      subject: input.subjectName ?? null,
+      firstName: name.firstName ?? null,
+    };
+    const ov = (key: Parameters<typeof resolvedField>[1]) =>
+      resolvedField(override, key, tokens);
+
     const element = React.createElement(TxEmail, {
       type: input.type,
       lang,
       siteUrl: SITE_URL,
       ctaUrl: input.ctaPath ? `${SITE_URL}${input.ctaPath}` : undefined,
-      ctaLabel: input.ctaLabel,
       details: input.details ?? [],
-      extra: input.extra ?? body.extra ?? null,
-      intro: body.intro ?? null,
-      note: body.note ?? null,
+      extra: ov("extra") ?? input.extra ?? body.extra ?? null,
+      intro: ov("intro") ?? body.intro ?? null,
+      note: ov("note") ?? body.note ?? null,
+      preview: ov("preview"),
+      eyebrow: ov("eyebrow"),
+      heading: ov("heading"),
+      ctaLabel: ov("cta") ?? input.ctaLabel,
       firstName: name.firstName,
       gender: name.gender,
       vocativePl: name.vocativePl,
     });
     const html = await render(element);
     const text = await render(element, { plainText: true });
-    const subject = txSubject(input.type, lang, { subject: input.subjectName ?? null });
+    const subject =
+      ov("subject") ?? txSubject(input.type, lang, { subject: input.subjectName ?? null });
 
     await supabase.from("email_send_log").insert({
       message_id: messageId,
