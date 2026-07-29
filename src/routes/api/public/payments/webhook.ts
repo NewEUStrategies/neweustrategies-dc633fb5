@@ -74,7 +74,12 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv) {
     environment: env,
     status: data.status,
   });
+
+  // Plan Zespół: liczba opłaconych miejsc ustala limit organizacji.
+  const { applySubscriptionSeats } = await import("@/lib/organizations/teamSeats.server");
+  await applySubscriptionSeats({ subscriptionId: data.id, quantity, priceId });
 }
+
 
 async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
   const supabase = await admin();
