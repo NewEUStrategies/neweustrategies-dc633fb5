@@ -21,7 +21,17 @@ import {
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
-import { setTeamSeatLimit } from "@/lib/organizations/teamSeats.functions";
+import {
+  runSeatGraceExpiry,
+  setTeamSeatGraceDays,
+  setTeamSeatLimit,
+} from "@/lib/organizations/teamSeats.functions";
+import {
+  DEFAULT_GRACE_DAYS,
+  MAX_GRACE_DAYS,
+  MIN_GRACE_DAYS,
+  clampGraceDays,
+} from "@/lib/organizations/teamSeats";
 import {
   clampSeats,
   seatsAtRisk,
@@ -272,6 +282,7 @@ function AdminOrganizationDetailPage() {
             orgId={id}
             seatsLimit={draft.seats_limit}
             seatsSource={draft.seats_source}
+            graceDays={draft.seats_grace_days ?? DEFAULT_GRACE_DAYS}
           />
         </TabsContent>
       </Tabs>
@@ -786,11 +797,13 @@ function SeatsPane({
   orgId,
   seatsLimit,
   seatsSource,
+  graceDays,
 }: {
   lang: Lang;
   orgId: string;
   seatsLimit: number;
   seatsSource: string;
+  graceDays: number;
 }) {
   const L = tr(lang);
   const qc = useQueryClient();
@@ -836,6 +849,45 @@ function SeatsPane({
       ),
   });
 
+
+  // Okres karencji: ile dni osoby ponad limit zachowują dostęp, zanim
+  // faktycznie go stracą. 0 = odcięcie od razu przy zmianie limitu.
+  const setGrace = useServerFn(setTeamSeatGraceDays);
+  const runExpiry = useServerFn(runSeatGraceExpiry);
+  const [nextGrace, setNextGrace] = useState(graceDays);
+  useEffect(() => setNextGrace(graceDays), [graceDays]);
+
+  const applyGrace = useMutation({
+    mutationFn: async () => {
+      const res = await setGrace({ data: { org_id: orgId, days: clampGraceDays(nextGrace) } });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(
+        L(`Okres karencji: ${res.graceDays} dni`, `Grace period: ${res.graceDays} days`),
+      );
+      void qc.invalidateQueries({ queryKey: seatsKey });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(orgId) });
+    },
+    onError: () =>
+      toast.error(L("Nie udało się zmienić karencji", "Could not change the grace period")),
+  });
+
+  const expireNow = useMutation({
+    mutationFn: async () => {
+      const res = await runExpiry({ data: {} });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(
+        L(`Wygaszono miejsc: ${res.expired}`, `Seats moved out of grace: ${res.expired}`),
+      );
+      void qc.invalidateQueries({ queryKey: seatsKey });
+    },
+    onError: () => toast.error(L("Nie udało się domknąć karencji", "Could not close grace periods")),
+  });
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"owner" | "member">("member");
@@ -922,9 +974,56 @@ function SeatsPane({
         </p>
         {atRisk.length > 0 ? (
           <p className="text-[10px] font-medium text-destructive">
-            {L("Stracą dostęp:", "Will lose access:")} {atRisk.join(", ")}
+            {clampGraceDays(graceDays) > 0
+              ? L(
+                  `Wejdą w karencję (${clampGraceDays(graceDays)} dni):`,
+                  `Will enter grace (${clampGraceDays(graceDays)} days):`,
+                )
+              : L("Stracą dostęp od razu:", "Will lose access immediately:")}{" "}
+            {atRisk.join(", ")}
           </p>
         ) : null}
+      </div>
+
+      {/* Okres karencji po zmniejszeniu liczby miejsc */}
+      <div className="mb-3 space-y-2 rounded-md border border-border/60 bg-muted/20 p-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Input
+            type="number"
+            min={MIN_GRACE_DAYS}
+            max={MAX_GRACE_DAYS}
+            value={nextGrace}
+            onChange={(e) => setNextGrace(clampGraceDays(Number(e.target.value)))}
+            className="h-8 w-24 text-sm"
+            aria-label={L("Okres karencji w dniach", "Grace period in days")}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8"
+            disabled={applyGrace.isPending || clampGraceDays(nextGrace) === clampGraceDays(graceDays)}
+            onClick={() => applyGrace.mutate()}
+          >
+            {applyGrace.isPending
+              ? L("Zapisywanie...", "Saving...")
+              : L("Ustaw karencję", "Apply grace period")}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8"
+            disabled={expireNow.isPending}
+            onClick={() => expireNow.mutate()}
+          >
+            {L("Domknij zaległe", "Close overdue")}
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          {L(
+            "Po zmniejszeniu limitu osoby ponad limit zachowują pełny dostęp przez tyle dni i dostają maila z datą oraz informacją, co dalej. 0 = utrata dostępu od razu.",
+            "After a seat reduction, people above the limit keep full access for this many days and receive an email with the date and next steps. 0 = access ends immediately.",
+          )}
+        </p>
       </div>
 
       {seatsQ.isLoading ? (
@@ -952,6 +1051,20 @@ function SeatsPane({
                   <Badge variant="outline" className="text-[10px]">
                     {seat.claimed_at ? L("aktywne", "active") : L("zaproszony", "invited")}
                   </Badge>
+                  {seat.status === "grace" ? (
+                    <Badge className="bg-[#FA9346] text-[10px] text-white hover:bg-[#FA9346]">
+                      {seat.grace_until
+                        ? L(
+                            `karencja do ${new Date(seat.grace_until).toLocaleDateString("pl-PL")}`,
+                            `grace until ${new Date(seat.grace_until).toLocaleDateString("en-GB")}`,
+                          )
+                        : L("karencja", "grace")}
+                    </Badge>
+                  ) : seat.status === "suspended" ? (
+                    <Badge variant="destructive" className="text-[10px]">
+                      {L("bez dostępu", "no access")}
+                    </Badge>
+                  ) : null}
                 </span>
               </div>
               {seat.role !== "owner" ? (

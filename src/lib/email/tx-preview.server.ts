@@ -182,8 +182,26 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
       };
     case "newsletter_confirmed":
       return { subjectName: null, details: [], ctaUrl: SITE_URL };
+    case "team_seat_grace":
+      return {
+        subjectName: "Acme Group",
+        details: [
+          { label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" },
+          { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
+        ],
+        ctaUrl: `${SITE_URL}/profile/subscription`,
+      };
+    case "team_seat_access_ended":
+      return {
+        subjectName: "Acme Group",
+        details: [
+          { label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" },
+        ],
+        ctaUrl: `${SITE_URL}/pricing`,
+      };
   }
 }
+
 
 /** Renderuje pojedynczy mail transakcyjny z danymi demonstracyjnymi. */
 export async function renderTxEmailPreview(

@@ -7,7 +7,18 @@
 export const MIN_TEAM_SEATS = 1;
 export const MAX_TEAM_SEATS = 500;
 
-export type SeatStatus = "active" | "suspended";
+export type SeatStatus = "active" | "grace" | "suspended";
+
+/** Zakres okresu karencji ustawianego dla organizacji (w dniach). */
+export const MIN_GRACE_DAYS = 0;
+export const MAX_GRACE_DAYS = 90;
+export const DEFAULT_GRACE_DAYS = 7;
+
+export function clampGraceDays(value: number | null | undefined): number {
+  const n = Math.trunc(Number(value ?? DEFAULT_GRACE_DAYS));
+  if (!Number.isFinite(n)) return DEFAULT_GRACE_DAYS;
+  return Math.max(MIN_GRACE_DAYS, Math.min(MAX_GRACE_DAYS, n));
+}
 
 export interface SeatLike {
   id: string;
@@ -15,6 +26,7 @@ export interface SeatLike {
   claimed_at: string | null;
   created_at: string;
   status?: string | null;
+  grace_until?: string | null;
 }
 
 export interface SeatsSummary {
@@ -22,7 +34,9 @@ export interface SeatsSummary {
   total: number;
   /** Miejsca mieszczące się w limicie (mają uprawnienia warstwy). */
   active: number;
-  /** Miejsca ponad limit - zachowane, ale bez uprawnień. */
+  /** Miejsca ponad limit w okresie karencji - nadal z dostępem. */
+  grace: number;
+  /** Miejsca ponad limit po karencji - zachowane, ale bez uprawnień. */
   suspended: number;
   /** Wolne miejsca do zaproszenia kolejnych osób. */
   free: number;
@@ -85,11 +99,13 @@ export function summarizeSeats<T extends SeatLike>(
   const cap = clampSeats(limit);
   const total = seats.length;
   const active = Math.min(total, cap);
+  const beyond = seats.filter((s) => s.status === "grace" || s.status === "suspended");
   return {
     limit: cap,
     total,
     active,
-    suspended: Math.max(0, total - cap),
+    grace: beyond.filter((s) => s.status === "grace").length,
+    suspended: beyond.filter((s) => s.status === "suspended").length || Math.max(0, total - cap - beyond.filter((s) => s.status === "grace").length),
     free: Math.max(0, cap - total),
     atLimit: active >= cap,
   };
@@ -103,6 +119,41 @@ export function summarizeSeats<T extends SeatLike>(
 export function seatsAtRisk<T extends SeatLike>(seats: readonly T[], nextLimit: number): T[] {
   const cap = clampSeats(nextLimit);
   return rankSeats(seats).slice(cap);
+}
+
+/**
+ * Data, do której miejsce ponad limit zachowa dostęp po zmianie limitu.
+ * Odwzorowuje regułę bazy: karencja liczy się od chwili zmiany, a raz nadana
+ * data nie jest przedłużana kolejnym przeliczeniem.
+ */
+export function graceDeadline(
+  seat: Pick<SeatLike, "grace_until">,
+  graceDays: number,
+  now: Date = new Date(),
+): string | null {
+  const days = clampGraceDays(graceDays);
+  if (days === 0) return null;
+  if (seat.grace_until) return seat.grace_until;
+  return new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** Czy karencja miejsca już minęła (dostęp powinien być wygaszony). */
+export function isGraceExpired(
+  seat: Pick<SeatLike, "status" | "grace_until">,
+  now: Date = new Date(),
+): boolean {
+  if (seat.status !== "grace" || !seat.grace_until) return false;
+  const until = new Date(seat.grace_until).getTime();
+  return Number.isFinite(until) && until <= now.getTime();
+}
+
+/** Czy miejsce nadal nadaje uprawnienia (aktywne albo w trwającej karencji). */
+export function seatGrantsAccess(
+  seat: Pick<SeatLike, "status" | "grace_until">,
+  now: Date = new Date(),
+): boolean {
+  if (seat.status === "grace") return !isGraceExpired(seat, now);
+  return seat.status !== "suspended";
 }
 
 export type SeatsSource = "manual" | "subscription";
