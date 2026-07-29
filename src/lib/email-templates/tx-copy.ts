@@ -160,6 +160,34 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  payment_failed: {
+    subject: (v) =>
+      `⚠️ Płatność nie powiodła się${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "Nie udało się pobrać płatności za subskrypcję - zaktualizuj metodę płatności.",
+    eyebrow: "Płatność",
+    heading: "Nie udało się pobrać płatności",
+    intro:
+      "Operator płatności nie zdołał obciążyć zapisanej metody płatności. Dostęp pozostaje aktywny, a my ponowimy próbę automatycznie. Najszybszym rozwiązaniem jest aktualizacja karty w panelu subskrypcji.",
+    cta: "Zaktualizuj metodę płatności",
+    note: "Jeśli kolejne próby również się nie powiodą, subskrypcja zostanie wstrzymana po zakończeniu opłaconego okresu.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  payment_recovered: {
+    subject: (v) =>
+      `✅ Płatność zaksięgowana${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Zaległa płatność została rozliczona - subskrypcja działa normalnie.",
+    eyebrow: "Płatność",
+    heading: "Płatność została zaksięgowana",
+    intro:
+      "Dziękujemy - zaległa płatność została rozliczona, a Twoja subskrypcja wróciła do normalnego trybu. Nie musisz podejmować żadnych działań.",
+    cta: "Zobacz szczegóły subskrypcji",
+    note: "Fakturę za rozliczony okres znajdziesz w profilu w zakładce Zamówienia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
   event_registered: {
     subject: (v) =>
       `🎟️ Potwierdzenie zapisu${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
