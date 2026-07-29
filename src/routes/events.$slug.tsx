@@ -45,6 +45,8 @@ import { EventGroupButton } from "@/components/network/EventGroupButton";
 import { EventSpeakersSection } from "@/components/events/EventSpeakersSection";
 import { AddToCalendar } from "@/components/community/AddToCalendar";
 import { Button } from "@/components/ui/button";
+import { EventTicketPurchase } from "@/components/community/EventTicketPurchase";
+import { formatMoney } from "@/lib/billing/types";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -210,6 +212,10 @@ function EventDetail() {
   const desc = lang === "en" ? ev.description_en : ev.description_pl;
   const startsAt = new Date(ev.starts_at);
   const isPast = startsAt.getTime() < Date.now();
+  // Wydarzenie płatne: bezpłatny RSVP jest wtedy wyłączony - wejściówkę
+  // potwierdza dopiero webhook po opłaceniu biletu.
+  const ticketCents = ev.ticket_price_cents ?? 0;
+  const isPaidEvent = ticketCents > 0;
   const access = accessQ.data ?? null;
   const counts = countsQ.data?.get(ev.id);
   const going = counts?.going ?? 0;
@@ -346,6 +352,11 @@ function EventDetail() {
             )}
           </MetaRow>
         )}
+        {isPaidEvent && (
+          <MetaRow icon={<Ticket className="h-4 w-4" />} label={lang === "pl" ? "Bilet" : "Ticket"}>
+            {formatMoney(ticketCents, ev.ticket_currency || "PLN", lang)}
+          </MetaRow>
+        )}
         {ev.chatham_house && (
           <MetaRow icon={<ShieldQuestion className="h-4 w-4" />} label="">
             {t("community.events.chathamHouse")}
@@ -397,6 +408,17 @@ function EventDetail() {
                 })
               : t("community.events.rsvpNotOpen", { when: whenOpens })}
           </p>
+        ) : !isPast && user && isPaidEvent ? (
+          <EventTicketPurchase
+            eventId={ev.id}
+            slug={ev.slug}
+            priceCents={ticketCents}
+            currency={ev.ticket_currency || "PLN"}
+            lang={lang}
+            hasTicket={rsvpQ.data?.status === "going"}
+            isPast={isPast}
+            isFull={isFull}
+          />
         ) : !isPast && user ? (
           <RsvpControls
             current={rsvpQ.data?.status ?? null}
