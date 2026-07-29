@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { HandHeart, Heart, Target, TrendingUp, Users } from "@/lib/lucide-shim";
-import { AppLink } from "@/components/atoms/AppLink";
+import { DonationCta } from "./DonationCta";
 import { getDonationsPublicStats } from "@/lib/billing/donations.functions";
 import "@/lib/i18n-donations-widget";
 
@@ -33,6 +33,9 @@ export interface DonationsWidgetProps {
   showCount?: boolean;
   showRecent?: boolean;
   accent?: string;
+  /** Szybka płatność w nakładce operatora zamiast przejścia na /support. */
+  quickDonate?: boolean;
+  quickAmountCents?: number;
   lang?: "pl" | "en";
 }
 
@@ -146,14 +149,17 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             </div>
           </div>
         </div>
-        <AppLink
+        <DonationCta
           href={href}
+          label={cta}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
           style={accent ? { background: accent, color: "#fff" } : undefined}
-        >
-          <Heart className="h-3.5 w-3.5" aria-hidden="true" />
-          {cta}
-        </AppLink>
+          icon={<Heart className="h-3.5 w-3.5" aria-hidden="true" />}
+          quick={props.quickDonate === true}
+          quickAmountCents={props.quickAmountCents}
+          currency={currency}
+          lang={lang}
+        />
       </div>
     );
   }
@@ -182,14 +188,17 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           </div>
         )}
         {subtitle && <p className="mt-3 text-sm text-muted-foreground">{subtitle}</p>}
-        <AppLink
+        <DonationCta
           href={href}
+          label={cta}
           className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
           style={accent ? { background: accent, color: "#fff" } : undefined}
-        >
-          <Heart className="h-4 w-4" aria-hidden="true" />
-          {cta}
-        </AppLink>
+          icon={<Heart className="h-4 w-4" aria-hidden="true" />}
+          quick={props.quickDonate === true}
+          quickAmountCents={props.quickAmountCents}
+          currency={currency}
+          lang={lang}
+        />
       </aside>
     );
   }
@@ -204,14 +213,17 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             </div>
             <div className="font-display text-2xl font-bold">{title}</div>
           </div>
-          <AppLink
+          <DonationCta
             href={href}
+            label={cta}
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
             style={accent ? { background: accent, color: "#fff" } : undefined}
-          >
-            <Heart className="h-4 w-4" aria-hidden="true" />
-            {cta}
-          </AppLink>
+            icon={<Heart className="h-4 w-4" aria-hidden="true" />}
+            quick={props.quickDonate === true}
+            quickAmountCents={props.quickAmountCents}
+            currency={currency}
+            lang={lang}
+          />
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
           <StatBox
@@ -285,14 +297,17 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           </div>
         )}
         {subtitle && <p className="mt-3 text-sm text-muted-foreground">{subtitle}</p>}
-        <AppLink
+        <DonationCta
           href={href}
+          label={cta}
           className="mt-5 inline-flex items-center gap-1.5 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
           style={accent ? { background: accent, color: "#fff" } : undefined}
-        >
-          <Heart className="h-4 w-4" aria-hidden="true" />
-          {cta}
-        </AppLink>
+          icon={<Heart className="h-4 w-4" aria-hidden="true" />}
+          quick={props.quickDonate === true}
+          quickAmountCents={props.quickAmountCents}
+          currency={currency}
+          lang={lang}
+        />
       </div>
     );
   }
@@ -339,14 +354,17 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
               ))}
             </ul>
           )}
-          <AppLink
+          <DonationCta
             href={href}
+            label={cta}
             className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
             style={accent ? { background: accent, color: "#fff" } : undefined}
-          >
-            <Heart className="h-4 w-4" aria-hidden="true" />
-            {cta}
-          </AppLink>
+            icon={<Heart className="h-4 w-4" aria-hidden="true" />}
+            quick={props.quickDonate === true}
+            quickAmountCents={props.quickAmountCents}
+            currency={currency}
+            lang={lang}
+          />
         </div>
       </div>
     );
@@ -418,14 +436,17 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           )}
         </div>
         <div className="shrink-0">
-          <AppLink
+          <DonationCta
             href={href}
+            label={cta}
             className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-md transition hover:opacity-90"
             style={accent ? { background: accent, color: "#fff" } : undefined}
-          >
-            <Heart className="h-4 w-4" aria-hidden="true" />
-            {cta}
-          </AppLink>
+            icon={<Heart className="h-4 w-4" aria-hidden="true" />}
+            quick={props.quickDonate === true}
+            quickAmountCents={props.quickAmountCents}
+            currency={currency}
+            lang={lang}
+          />
         </div>
       </div>
     </div>
