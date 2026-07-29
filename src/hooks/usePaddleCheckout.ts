@@ -1,18 +1,36 @@
 import { useCallback, useState } from "react";
 import { initializePaddle, getPaddlePriceId } from "@/lib/paddle";
 
-export interface OpenCheckoutOptions {
-  /** Czytelny identyfikator ceny z katalogu (np. `pro_monthly`). */
-  priceId: string;
-  quantity?: number;
+interface CommonOptions {
   customerEmail?: string;
-  userId: string;
   successPath?: string;
   /** Identyfikator rabatu u dostawcy (kod promocyjny). */
   discountId?: string | null;
 }
 
-/** Otwiera nakładkę płatności i wiąże zakup z zalogowanym użytkownikiem. */
+export interface PriceCheckoutOptions extends CommonOptions {
+  /** Czytelny identyfikator ceny z katalogu (np. `pro_monthly`). */
+  priceId: string;
+  quantity?: number;
+  userId: string;
+}
+
+export interface TransactionCheckoutOptions extends CommonOptions {
+  /**
+   * Identyfikator transakcji utworzonej serwerowo (kwota ad-hoc: darowizna,
+   * odblokowanie treści, bilet). Kwota i `custom_data` są już w transakcji,
+   * więc klient nie przekazuje ich ponownie.
+   */
+  transactionId: string;
+}
+
+export type OpenCheckoutOptions = PriceCheckoutOptions | TransactionCheckoutOptions;
+
+function isTransactionCheckout(o: OpenCheckoutOptions): o is TransactionCheckoutOptions {
+  return "transactionId" in o;
+}
+
+/** Otwiera nakładkę płatności - katalogową ceną albo gotową transakcją. */
 export function usePaddleCheckout() {
   const [loading, setLoading] = useState(false);
 
@@ -20,18 +38,28 @@ export function usePaddleCheckout() {
     setLoading(true);
     try {
       await initializePaddle();
+      const settings = {
+        displayMode: "overlay",
+        variant: "one-page",
+        allowLogout: false,
+        successUrl: `${window.location.origin}${options.successPath ?? "/checkout/success"}`,
+      };
+      const shared = {
+        ...(options.customerEmail ? { customer: { email: options.customerEmail } } : {}),
+        ...(options.discountId ? { discountId: options.discountId } : {}),
+        settings,
+      };
+
+      if (isTransactionCheckout(options)) {
+        window.Paddle?.Checkout.open({ transactionId: options.transactionId, ...shared });
+        return;
+      }
+
       const paddlePriceId = await getPaddlePriceId(options.priceId);
       window.Paddle?.Checkout.open({
         items: [{ priceId: paddlePriceId, quantity: options.quantity ?? 1 }],
-        ...(options.customerEmail ? { customer: { email: options.customerEmail } } : {}),
-        ...(options.discountId ? { discountId: options.discountId } : {}),
         customData: { userId: options.userId },
-        settings: {
-          displayMode: "overlay",
-          variant: "one-page",
-          allowLogout: false,
-          successUrl: `${window.location.origin}${options.successPath ?? "/checkout/success"}`,
-        },
+        ...shared,
       });
     } finally {
       setLoading(false);
