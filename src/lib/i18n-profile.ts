@@ -434,7 +434,7 @@ const pl = {
     compareTitle: "Porównanie planów",
     compareFeature: "Funkcja",
     trust: {
-      secure: "Bezpieczne płatności Stripe",
+      secure: "Bezpieczne płatności online",
       cancel: "Anuluj w każdej chwili",
       instant: "Natychmiastowy dostęp po opłaceniu",
     },
@@ -446,7 +446,7 @@ const pl = {
       },
       {
         q: "Jakie metody płatności akceptujecie?",
-        a: "Płatności obsługuje Stripe - karty Visa, Mastercard oraz popularne metody lokalne.",
+        a: "Płatności obsługuje nasz operator płatności - karty Visa, Mastercard oraz popularne metody lokalne.",
       },
       {
         q: "Czy otrzymam fakturę?",
@@ -469,7 +469,7 @@ const pl = {
     paymentMethod: "Metoda płatności",
     payNow: "Zapłać {{amount}}",
     processing: "Przetwarzanie...",
-    secured: "Płatność zabezpieczona przez Stripe",
+    secured: "Płatność zabezpieczona przez operatora płatności",
     terms: 'Klikając "Zapłać" akceptujesz regulamin i politykę prywatności.',
     successTitle: "Dziękujemy za zakup!",
     successBody:
@@ -481,10 +481,10 @@ const pl = {
     notFound: "Nie znaleziono planu.",
     loginRequired: "Zaloguj się, aby kontynuować zakup.",
     fillBilling: "Uzupełnij dane rozliczeniowe.",
-    stripeNotConfigured:
+    paymentsNotConfigured:
       "Bramka płatności nie jest jeszcze skonfigurowana. Skontaktuj się z administratorem.",
     trialLine: "Pierwsze {{days}} dni za darmo - pierwsza płatność po okresie próbnym.",
-    promoHint: "Masz kupon? Kod rabatowy wpiszesz na bezpiecznej stronie płatności Stripe.",
+    promoHint: "Masz kupon? Kod rabatowy wpiszesz na bezpiecznej stronie płatności.",
     taxHint: "VAT zostanie naliczony automatycznie według Twojego adresu.",
     taxIdHint: "NIP/VAT ID do faktury podasz na stronie płatności.",
     subtotal: "Wartość",
@@ -956,7 +956,7 @@ const en: typeof pl = {
     compareTitle: "Compare plans",
     compareFeature: "Feature",
     trust: {
-      secure: "Secure payments by Stripe",
+      secure: "Secure payments online",
       cancel: "Cancel anytime",
       instant: "Instant access after payment",
     },
@@ -968,7 +968,7 @@ const en: typeof pl = {
       },
       {
         q: "Which payment methods do you accept?",
-        a: "Payments are handled by Stripe - Visa, Mastercard and popular local methods.",
+        a: "Payments are handled by our payment provider - Visa, Mastercard and popular local methods.",
       },
       {
         q: "Will I get an invoice?",
@@ -991,7 +991,7 @@ const en: typeof pl = {
     paymentMethod: "Payment method",
     payNow: "Pay {{amount}}",
     processing: "Processing...",
-    secured: "Secured by Stripe",
+    secured: "Secured by our payment provider",
     terms: 'By clicking "Pay" you agree to the terms and privacy policy.',
     successTitle: "Thank you!",
     successBody: "Your order was received. We will update its status once payment is confirmed.",
@@ -1002,9 +1002,9 @@ const en: typeof pl = {
     notFound: "Plan not found.",
     loginRequired: "Please sign in to continue.",
     fillBilling: "Fill in your billing details first.",
-    stripeNotConfigured: "Payment gateway is not configured yet. Please contact the administrator.",
+    paymentsNotConfigured: "Payment gateway is not configured yet. Please contact the administrator.",
     trialLine: "First {{days}} days free - the first charge comes after the trial.",
-    promoHint: "Have a coupon? Enter your promo code on Stripe's secure payment page.",
+    promoHint: "Have a coupon? Enter your promo code on the secure payment page.",
     taxHint: "VAT is calculated automatically based on your address.",
     taxIdHint: "You can provide your VAT ID for the invoice on the payment page.",
     subtotal: "Subtotal",

@@ -1,53 +1,20 @@
-// Pure entitlement helpers shared by the Stripe webhook and the mock-mode
+// Pure entitlement helpers shared by the payments webhook and the mock-mode
 // finaliser. Kept side-effect free so the period maths is unit-testable.
 
-export type PlanInterval = "day" | "week" | "month" | "quarter" | "year" | "one_time" | string;
-
-/** The cadence values Stripe accepts for `recurring[interval]`. */
-export type StripeRecurringInterval = "day" | "week" | "month" | "year";
-
-export interface StripeRecurringParams {
-  interval: StripeRecurringInterval;
-  /** Stripe's `recurring[interval_count]`; 1 for plain cadences. */
-  intervalCount: number;
-}
-
 /**
- * Map a plan interval to Stripe `recurring[interval]` (+ `interval_count`).
- * Stripe only accepts day/week/month/year, so:
- * - "quarter" is expressed as month x 3 (the canonical Stripe quarterly cadence),
- * - "once"/"one_time"/unknown fall back to monthly (a subscription has to recur
- *   on some cadence).
- * This keeps the Checkout Session's billing cadence in lockstep with the plan
- * instead of charging every plan monthly regardless of its real interval.
- */
-export function stripeRecurringFor(
-  interval: PlanInterval | null | undefined,
-): StripeRecurringParams {
-  if (interval === "quarter") return { interval: "month", intervalCount: 3 };
-  if (interval === "day" || interval === "week" || interval === "month" || interval === "year") {
-    return { interval, intervalCount: 1 };
-  }
-  return { interval: "month", intervalCount: 1 };
-}
-
-/**
- * Add calendar months without JS's month-end overflow (Jan 31 + 1 month must be
- * Feb 28/29, not Mar 3). Clamps the day to the last valid day of the target
- * month so a month-end signup doesn't over-grant a few days of access.
+ * Dodanie miesięcy z docięciem dnia (31 stycznia + 1 miesiąc = 28/29 lutego),
+ * żeby okres rozliczeniowy nie "przeskakiwał" na kolejny miesiąc.
  */
 function addMonthsClamped(d: Date, months: number): void {
   const day = d.getDate();
   d.setDate(1);
   d.setMonth(d.getMonth() + months);
-  const lastDayOfTarget = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(day, lastDayOfTarget));
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDay));
 }
 
-/**
- * End of the access window for a subscription, given its plan interval.
- * Defaults to one month for unknown/missing intervals.
- */
+export type PlanInterval = "day" | "week" | "month" | "quarter" | "year" | "one_time" | string;
+
 export function periodEndFor(interval: PlanInterval | null | undefined, from: Date): Date {
   const d = new Date(from.getTime());
   switch (interval) {

@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createDonationCheckout } from "@/lib/billing/donations.functions";
+import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
+import { getPaddleEnvironment } from "@/lib/paddle";
 import {
   DONATION_MAX_CENTS,
   DONATION_MIN_CENTS,
@@ -68,6 +70,7 @@ function SupportPage() {
   const presets = lang === "en" ? DONATION_PRESETS_CENTS_EUR : DONATION_PRESETS_CENTS;
   const { status } = Route.useSearch();
   const donate = useServerFn(createDonationCheckout);
+  const { openCheckout } = usePaddleCheckout();
 
   const [selectedCents, setSelectedCents] = useState<number>(presets[1]);
   const [customAmount, setCustomAmount] = useState("");
@@ -95,9 +98,19 @@ function SupportPage() {
           currency,
           message: message.trim() || undefined,
           lang,
+          environment: getPaddleEnvironment(),
         },
       });
       if (result.ok) {
+        if (result.mode === "paddle") {
+          // Nakładka operatora: kwota i dane darowizny są już w transakcji,
+          // klient przekazuje wyłącznie jej identyfikator.
+          await openCheckout({
+            transactionId: result.transactionId,
+            successPath: "/support?status=success",
+          });
+          return;
+        }
         window.location.assign(result.url);
         return;
       }

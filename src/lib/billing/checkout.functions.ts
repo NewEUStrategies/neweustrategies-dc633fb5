@@ -1,22 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import {
-  periodEndFor,
-  stripeRecurringFor,
-  type StripeRecurringParams,
-} from "@/lib/billing/entitlement";
+import { periodEndFor } from "@/lib/billing/entitlement";
 import {
   checkoutSessionExtraParams,
   normalizeCheckoutSettings,
 } from "@/lib/billing/checkoutSettings";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 
-// Create a payment order (server-side, RLS as user).
-// Stripe wiring is intentionally pluggable: if STRIPE_SECRET_KEY is set we create a Checkout Session,
-// otherwise we return a mock URL so the UX can be tested end-to-end. Mock mode
-// is fail-closed on production (mockCheckoutAllowed) - a misconfigured env can
-// no longer hand out paid entitlements for free.
+// Zamówienie płatnicze (server-side, RLS jako użytkownik).
+// Kwota jest zawsze wyliczana serwerowo (plan / reguła dostępu / bilet /
+// kupon / waluta prezentacji) i osadzana w transakcji u dostawcy, więc klient
+// nie może jej podmienić. Bez konfiguracji dostawcy zwracamy adres mock, żeby
+// dało się przetestować lejek w dev; na produkcji tryb mock jest fail-closed
+// (mockCheckoutAllowed) - błędna konfiguracja nie rozdaje płatnego dostępu.
 
 const createOrderSchema = z.object({
   kind: z.enum(["subscription", "one_time"]),
@@ -50,16 +47,14 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let amountCents = 0;
     let currency = "PLN";
     let label = "";
-    // Billing cadence for a subscription Checkout Session. Resolved from the
-    // plan below (default monthly) so a yearly/quarterly/weekly plan is billed
-    // on its real interval rather than always monthly.
-    let recurring: StripeRecurringParams = { interval: "month", intervalCount: 1 };
     let trialDays = 0;
 
-    // One-time PLAN purchase: kind=one_time with a plan_id and no entity. The
-    // price comes from the plan; the Stripe session is a one-off payment (no
-    // recurring), and the grant is lifetime plan access (see entitlementForOrder).
+    // Zakup jednorazowy PLANU: kind=one_time z plan_id i bez encji. Cena
+    // pochodzi z planu, płatność jest jednorazowa, a uprawnienie dożywotnie
+    // (patrz entitlementForOrder).
     const isOneTimePlan = data.kind === "one_time" && !!data.plan_id && !data.entity_id;
+    // Bilet na płatne wydarzenie: kind=one_time z event_id i bez planu/encji.
+    const isEventTicket = data.kind === "one_time" && !!data.event_id && !data.plan_id && !data.entity_id;
 
     if (data.kind === "subscription" || isOneTimePlan) {
       if (!data.plan_id) throw new Error("plan_id_required");
@@ -73,8 +68,26 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       amountCents = Number(plan.price_cents);
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
-      recurring = stripeRecurringFor(String(plan.interval));
       trialDays = data.kind === "subscription" ? Math.max(0, Number(plan.trial_days ?? 0)) : 0;
+    } else if (isEventTicket) {
+      // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
+      // klient przekazuje wyłącznie identyfikator wydarzenia.
+      const { data: ev, error: evErr } = await supabase
+        .from("events")
+        .select("id, title_pl, title_en, ticket_price_cents, ticket_currency, status, starts_at")
+        .eq("id", data.event_id ?? "")
+        .maybeSingle();
+      if (evErr) throw evErr;
+      if (!ev || !ev.ticket_price_cents || ev.ticket_price_cents <= 0) {
+        throw new Error("ticket_not_available");
+      }
+      if (ev.status !== "published") throw new Error("ticket_not_available");
+      if (ev.starts_at && new Date(ev.starts_at).getTime() < Date.now()) {
+        throw new Error("event_finished");
+      }
+      amountCents = Number(ev.ticket_price_cents);
+      currency = String(ev.ticket_currency ?? "PLN");
+      label = String(ev.title_pl || ev.title_en || "");
     } else {
       if (!data.entity_type || !data.entity_id) throw new Error("entity_required");
       // Price is taken from the per-entity access rule server-side, so the
@@ -136,7 +149,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       couponDiscountCents = row.discount_cents;
       amountCents = row.final_cents;
       // Bezpiecznik: rabat 100% (final=0) traktujemy jak darmowy przydział -
-      // najpierw i tak minimalna kwota Stripe, więc odrzucamy < 100 gr.
+      // i tak nie przejdzie minimalnej kwoty transakcji, więc odrzucamy < 50 gr.
       if (amountCents < 50) {
         return {
           ok: false as const,
@@ -148,8 +161,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     // Konwersja waluty prezentacji (EN → EUR) PO wyliczeniu kuponu, żeby
     // walidacja kuponu B2B odbyła się w oryginalnej walucie planu (kupony
-    // są zdefiniowane per waluta). Sam koszyk/Stripe zawsze widzi już
-    // walutę wybraną przez klienta.
+    // są zdefiniowane per waluta). Koszyk u dostawcy widzi już walutę
+    // wybraną przez klienta.
     //
     // WAŻNE (spójność walutowa audytu kuponu): kwoty zapisywane w redemption
     // Konwertujemy po AKTUALNYM kursie NBP (tabela A) - `ensureFxRateLoaded()`
@@ -301,18 +314,19 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
   });
 
 
-// Finalise a mock-mode order (no Stripe configured). Marks the caller's own
-// pending order paid and grants the entitlement via the same shared path the
-// webhook uses. When STRIPE_SECRET_KEY is set this is a deliberate no-op - the
-// webhook is authoritative - so it can never bypass real payments in production.
+// Finalizacja zamówienia w trybie mock (brak skonfigurowanego dostawcy).
+// Oznacza własne zamówienie jako opłacone i nadaje uprawnienie tą samą ścieżką
+// co webhook. Gdy dostawca jest skonfigurowany, funkcja jest świadomym no-opem -
+// źródłem prawdy jest webhook - więc nie da się nią ominąć realnej płatności.
 export const finalizeCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ order_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    if (process.env.STRIPE_SECRET_KEY) {
-      return { ok: false as const, reason: "stripe_mode" as const };
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
+    if (paymentsConfiguredServer()) {
+      return { ok: false as const, reason: "provider_mode" as const };
     }
-    // Ten sam bezpiecznik co przy tworzeniu zamówienia: produkcja bez Stripe
+    // Ten sam bezpiecznik co przy tworzeniu zamówienia: produkcja bez dostawcy
     // nie może finalizować zamówień mock (rozdanie uprawnień bez płatności).
     if (!mockCheckoutAllowed()) {
       console.error("[checkout] billing unconfigured: refusing mock finalize in production");
@@ -338,7 +352,7 @@ export const finalizeCheckout = createServerFn({ method: "POST" })
 
     await grantEntitlement(order, order.id);
     // Efekty kuponu B2B po zaksięgowaniu płatności (ta gałąź już ustawiła
-    // status='paid' powyżej) - ta sama ścieżka co w webhooku Stripe, żeby kupon
+    // status='paid' powyżej) - ta sama ścieżka co w webhooku dostawcy, żeby kupon
     // z `grants_tier_key` działał identycznie w obu trybach.
     const { applyCouponEffectsForOrder } = await import("@/lib/billing/couponEffects.server");
     await applyCouponEffectsForOrder(order.id);
@@ -353,12 +367,12 @@ const cancelSubscriptionSchema = z.object({ subscriptionId: z.string().uuid() })
 // canceled_at and keep status 'active': has_content_access already ends access
 // at current_period_end, so paid time is preserved and the UI shows "cancels at".
 //
-// In live Stripe mode the Stripe subscription is canceled FIRST
-// (cancel_at_period_end=true). Order matters: if Stripe refuses, we must NOT
-// mark the row canceled - the previous DB-only implementation told the user
-// "canceled" while Stripe kept charging them every period. The webhook
-// (customer.subscription.updated/deleted) remains the reconciliation source of
-// truth for changes made on the Stripe side.
+// Przy realnym dostawcy subskrypcja jest anulowana NAJPIERW u operatora
+// (effective_from=next_billing_period). Kolejność ma znaczenie: jeśli operator
+// odmówi, wiersza NIE wolno oznaczyć jako anulowany - inaczej UI mówi
+// "anulowano", a klient jest dalej obciążany. Webhook subscription.updated /
+// subscription.canceled pozostaje źródłem prawdy przy zmianach po stronie
+// operatora.
 export const cancelSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => cancelSubscriptionSchema.parse(input))
@@ -375,13 +389,20 @@ export const cancelSubscription = createServerFn({ method: "POST" })
     if (!sub) throw new Error("subscription_not_found");
     if (sub.canceled_at) return { ok: true as const, alreadyCanceled: true as const };
 
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    if (stripeSecret && sub.external_ref && sub.external_ref.startsWith("sub_")) {
-      const { cancelStripeSubscriptionAtPeriodEnd } = await import("@/lib/billing/stripe.server");
-      const result = await cancelStripeSubscriptionAtPeriodEnd(sub.external_ref, stripeSecret);
+    const {
+      cancelSubscriptionAtPeriodEnd,
+      isProviderSubscriptionRef,
+      subscriptionEnvironment,
+    } = await import("@/lib/billing/paddleSubscription.server");
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
+    if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
+      const result = await cancelSubscriptionAtPeriodEnd(
+        subscriptionEnvironment(),
+        sub.external_ref,
+      );
       if (!result.ok) {
-        console.error("[billing] stripe cancel failed", sub.external_ref, result.error);
-        throw new Error("stripe_cancel_failed");
+        console.error("[billing] provider cancel failed", sub.external_ref, result.error);
+        throw new Error("provider_cancel_failed");
       }
     }
 
@@ -401,13 +422,12 @@ const changePlanSchema = z.object({
   newPlanId: z.string().uuid(),
 });
 
-// Samoobsługowy upgrade/downgrade planu (zmiana ceny pozycji subskrypcji
-// Stripe z proratą rozliczaną od razu). Kolejność jak przy cancel/resume:
-// najpierw Stripe (payment_behavior=error_if_incomplete - nieudana dopłata
-// NIE zmienia planu), potem DB. Zmiana planu czyści zaplanowane anulowanie
-// (klient zostaje). Waluta subskrypcji Stripe jest niezmienialna, więc cena
-// nowego planu jest konwertowana do waluty subskrypcji (parytet prezentacji
-// PLN/EUR - ta sama reguła co przy checkout'cie z display_currency).
+// Samoobsługowy upgrade/downgrade planu. Kolejność jak przy cancel/resume:
+// najpierw operator, potem baza. Reguła biznesowa: upgrade rozlicza się od
+// razu z proratą, downgrade wchodzi dopiero od nowego okresu. Nieudana dopłata
+// NIE zmienia planu (on_payment_failure=prevent_change). Zmiana planu czyści
+// zaplanowane anulowanie - klient zostaje. Cena i waluta pochodzą z katalogu
+// dostawcy (stały cennik per plan), więc nic nie przeliczamy tutaj.
 export const changeSubscriptionPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => changePlanSchema.parse(input))
@@ -431,7 +451,7 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
 
     const { data: newPlan, error: planErr } = await supabaseAdmin
       .from("access_plans")
-      .select("id, tenant_id, active, price_cents, currency, interval, name_pl, name_en")
+      .select("id, tenant_id, active, price_cents, currency, interval, tier_key, name_pl, name_en")
       .eq("id", data.newPlanId)
       .maybeSingle();
     if (planErr) throw new Error(planErr.message);
@@ -443,69 +463,45 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
       throw new Error("plan_not_recurring");
     }
 
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    let stripePeriodEnd: string | null = null;
+    const {
+      changeSubscriptionPrice,
+      catalogPriceFor,
+      fetchSubscriptionSnapshot,
+      isProviderSubscriptionRef,
+      subscriptionEnvironment,
+    } = await import("@/lib/billing/paddleSubscription.server");
+    const { planChangeDirection } = await import("@/lib/billing/paddleCatalog");
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
 
-    if (stripeSecret && sub.external_ref && sub.external_ref.startsWith("sub_")) {
-      const {
-        fetchStripeSubscriptionItem,
-        changeStripeSubscriptionPrice,
-        updateStripeProductName,
-      } = await import("@/lib/billing/stripe.server");
+    const providerConfigured = paymentsConfiguredServer();
+    let providerPeriodEnd: string | null = null;
 
-      const itemRes = await fetchStripeSubscriptionItem(sub.external_ref, stripeSecret);
-      if (!itemRes.ok) {
-        console.error("[billing] stripe item fetch failed", sub.external_ref, itemRes.error);
-        throw new Error("stripe_plan_change_failed");
+    if (providerConfigured && isProviderSubscriptionRef(sub.external_ref)) {
+      const env = subscriptionEnvironment();
+      const snap = await fetchSubscriptionSnapshot(env, sub.external_ref);
+      if (!snap.ok) {
+        console.error("[billing] subscription snapshot failed", sub.external_ref, snap.error);
+        throw new Error("provider_plan_change_failed");
       }
 
-      // Waluty subskrypcji nie da się zmienić - cenę nowego planu wyrażamy
-      // w walucie subskrypcji (konwersja parytetowa PLN<->EUR jak w cenniku).
-      let unitAmount = Number(newPlan.price_cents);
-      let currency = String(newPlan.currency).toUpperCase();
-      const subCurrency = itemRes.item.currency.toUpperCase();
-      if (subCurrency && subCurrency !== currency) {
-        if (subCurrency !== "PLN" && subCurrency !== "EUR") {
-          throw new Error("currency_mismatch");
-        }
-        const [{ convertToDisplayCurrency }, { ensureFxRateLoaded }] = await Promise.all([
-          import("@/lib/billing/displayCurrency"),
-          import("@/lib/billing/fxRate"),
-        ]);
-        await ensureFxRateLoaded();
-        const converted = convertToDisplayCurrency(unitAmount, currency, subCurrency);
-        if (converted.currency.toUpperCase() !== subCurrency) {
-          throw new Error("currency_mismatch");
-        }
-        unitAmount = converted.cents;
-        currency = converted.currency.toUpperCase();
-      }
+      const targetPriceId = catalogPriceFor(newPlan.tier_key, interval);
+      if (!targetPriceId) throw new Error("plan_not_switchable");
+      const direction = planChangeDirection(snap.snapshot.priceId, targetPriceId);
+      if (direction === "same") throw new Error("same_plan");
 
-      const recurring = stripeRecurringFor(interval);
-      const changeRes = await changeStripeSubscriptionPrice(
-        sub.external_ref,
-        {
-          itemId: itemRes.item.itemId,
-          productId: itemRes.item.productId,
-          currency,
-          unitAmountCents: unitAmount,
-          interval: recurring.interval,
-          intervalCount: recurring.intervalCount,
-        },
-        stripeSecret,
-      );
+      const changeRes = await changeSubscriptionPrice(env, sub.external_ref, {
+        newPriceExternalId: targetPriceId,
+        quantity: snap.snapshot.quantity,
+        direction,
+      });
       if (!changeRes.ok) {
-        console.error("[billing] stripe plan change failed", sub.external_ref, changeRes.error);
-        throw new Error("stripe_plan_change_failed");
+        console.error("[billing] provider plan change failed", sub.external_ref, changeRes.error);
+        throw new Error("provider_plan_change_failed");
       }
-      stripePeriodEnd = changeRes.currentPeriodEnd;
-
-      // Best-effort: etykieta produktu na fakturach podąża za nowym planem.
-      const label = String(newPlan.name_pl || newPlan.name_en || "");
-      if (label) void updateStripeProductName(itemRes.item.productId, label, stripeSecret);
-    } else if (stripeSecret) {
-      // Subskrypcja bez identyfikatora Stripe (np. dożywotnia z zakupu
-      // one-time) nie ma czego przełączać po stronie operatora.
+      providerPeriodEnd = changeRes.currentPeriodEnd ?? snap.snapshot.currentPeriodEnd;
+    } else if (providerConfigured) {
+      // Subskrypcja bez identyfikatora u dostawcy (np. dożywotnia z zakupu
+      // jednorazowego) nie ma czego przełączać po stronie operatora.
       throw new Error("subscription_not_switchable");
     } else if (!mockCheckoutAllowed()) {
       console.error("[checkout] billing unconfigured: refusing mock plan change in production");
@@ -517,10 +513,10 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
       .update({
         plan_id: newPlan.id,
         canceled_at: null,
-        // Stripe jest źródłem prawdy o kotwicy okresu; mock liczy od teraz.
+        // Operator jest źródłem prawdy o kotwicy okresu; mock liczy od teraz.
         current_period_end:
-          stripePeriodEnd ??
-          (stripeSecret
+          providerPeriodEnd ??
+          (providerConfigured
             ? (sub.current_period_end ?? undefined)
             : periodEndFor(interval, new Date()).toISOString()),
       })
@@ -533,9 +529,9 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
   });
 
 // Wznowienie subskrypcji anulowanej "na koniec okresu": dopóki opłacony okres
-// trwa, Stripe pozwala cofnąć cancel_at_period_end. Lustrzane do
-// cancelSubscription - najpierw Stripe, potem DB, żeby UI nigdy nie pokazywał
-// wznowienia, którego Stripe nie wykonał.
+// trwa, operator pozwala cofnąć zaplanowaną zmianę. Lustrzane do
+// cancelSubscription - najpierw operator, potem baza, żeby UI nigdy nie
+// pokazywał wznowienia, którego operator nie wykonał.
 export const resumeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => cancelSubscriptionSchema.parse(input))
@@ -557,13 +553,20 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       throw new Error("subscription_period_ended");
     }
 
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    if (stripeSecret && sub.external_ref && sub.external_ref.startsWith("sub_")) {
-      const { resumeStripeSubscriptionAtPeriodEnd } = await import("@/lib/billing/stripe.server");
-      const result = await resumeStripeSubscriptionAtPeriodEnd(sub.external_ref, stripeSecret);
+    const {
+      resumeScheduledCancellation,
+      isProviderSubscriptionRef,
+      subscriptionEnvironment,
+    } = await import("@/lib/billing/paddleSubscription.server");
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
+    if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
+      const result = await resumeScheduledCancellation(
+        subscriptionEnvironment(),
+        sub.external_ref,
+      );
       if (!result.ok) {
-        console.error("[billing] stripe resume failed", sub.external_ref, result.error);
-        throw new Error("stripe_resume_failed");
+        console.error("[billing] provider resume failed", sub.external_ref, result.error);
+        throw new Error("provider_resume_failed");
       }
     }
 

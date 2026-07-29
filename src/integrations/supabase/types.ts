@@ -3349,6 +3349,8 @@ export type Database = {
           starts_at: string
           status: string
           tenant_id: string
+          ticket_currency: string
+          ticket_price_cents: number | null
           timezone: string
           title_en: string
           title_pl: string
@@ -3380,6 +3382,8 @@ export type Database = {
           starts_at: string
           status?: string
           tenant_id?: string
+          ticket_currency?: string
+          ticket_price_cents?: number | null
           timezone?: string
           title_en: string
           title_pl: string
@@ -3411,6 +3415,8 @@ export type Database = {
           starts_at?: string
           status?: string
           tenant_id?: string
+          ticket_currency?: string
+          ticket_price_cents?: number | null
           timezone?: string
           title_en?: string
           title_pl?: string
