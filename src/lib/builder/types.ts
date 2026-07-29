@@ -460,7 +460,8 @@ export type WidgetType =
   | "contact-form"
   | "toc"
   | "tailored-must-reads"
-  | "event-countdown-card";
+  | "event-countdown-card"
+  | "purchase-confirmation";
 
 // JSON-safe primitives that may live inside a widget's content map.
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };

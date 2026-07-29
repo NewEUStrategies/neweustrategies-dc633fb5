@@ -82,6 +82,7 @@ import { Editable } from "./ui/molecules/Editable";
 import { PostListView } from "./ui/organisms/widget-view/PostListView";
 import { TailoredMustReadsView } from "./ui/organisms/widget-view/TailoredMustReadsView";
 import { EventCountdownCardView } from "./ui/organisms/widget-view/EventCountdownCardView";
+import { PurchaseConfirmationView } from "./ui/organisms/widget-view/PurchaseConfirmationView";
 import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import { SiteMenu } from "@/components/menu/SiteMenu";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
@@ -774,6 +775,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(<EventCountdownView c={c} lang={lang} />);
     case "event-countdown-card":
       return wrap(<EventCountdownCardView c={c} lang={lang} />);
+    case "purchase-confirmation":
+      return wrap(<PurchaseConfirmationView c={c} lang={lang} />);
     case "meeting-booking":
       return wrap(<MeetingBookingView c={c} lang={lang} />);
     case "event-sponsors":
