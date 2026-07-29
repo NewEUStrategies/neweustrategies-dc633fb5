@@ -73,7 +73,7 @@ const h = vi.hoisted(() => {
 });
 
 
-vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.chain }));
+vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.client }));
 vi.mock("@/lib/paddle.server", () => ({
   verifyWebhook: async () => h.event.value,
   EventName: {
