@@ -55,9 +55,12 @@ export const getRouter = () => {
       // resolve; seroval would wait on it until its hard limit and truncate
       // the document. Such queries simply refetch after hydration.
       dehydrate: {
-        shouldDehydrateQuery: (query) =>
-          query.state.status === "success" ||
-          (query.state.status === "pending" && query.state.fetchStatus !== "idle"),
+        // Only settled data crosses the wire. A dehydrated *pending* query
+        // serializes its in-flight promise, and seroval then blocks the whole
+        // document until that promise settles - which never happens once the
+        // fetch is cancelled (SSR timeout, request teardown, `revert: true`).
+        // Anything unsettled at render time simply refetches after hydration.
+        shouldDehydrateQuery: (query) => query.state.status === "success",
       },
     },
   });
