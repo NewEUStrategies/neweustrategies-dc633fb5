@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminTicketOrdersPanel } from "@/components/admin/billing/AdminTicketOrdersPanel";
+
 
 interface SubscriptionRow {
   id: string;
@@ -221,7 +223,9 @@ export function AdminBillingPanel() {
         <div className="flex items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="subscriptions">{L("Subskrypcje", "Subscriptions")}</TabsTrigger>
+            <TabsTrigger value="tickets">{L("Bilety", "Tickets")}</TabsTrigger>
             <TabsTrigger value="events">{L("Historia webhooków", "Webhook history")}</TabsTrigger>
+
           </TabsList>
           <div className="flex items-center gap-2">
             <Button
@@ -370,7 +374,12 @@ export function AdminBillingPanel() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="tickets" className="mt-4">
+          <AdminTicketOrdersPanel />
+        </TabsContent>
       </Tabs>
+
     </div>
   );
 }
