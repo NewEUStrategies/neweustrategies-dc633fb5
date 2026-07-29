@@ -3,7 +3,7 @@
 // Dokument jest jednym plikiem HTML z osadzonym kodem QR (data URL) - otwiera
 // się bez internetu i drukuje do PDF, a przy tym nie wymaga ciężkiej
 // biblioteki PDF w bundlu przeglądarki.
-import type { MyEventTicket } from "@/lib/events/ticket.server";
+import type { MyEventTicket } from "@/lib/events/ticketTypes";
 
 export interface TicketDocumentInput {
   ticket: MyEventTicket;
