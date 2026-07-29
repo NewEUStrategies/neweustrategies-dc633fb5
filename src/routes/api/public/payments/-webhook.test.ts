@@ -63,10 +63,15 @@ const h = vi.hoisted(() => {
     then: (ok, err) => Promise.resolve(state.write).then(ok, err),
   };
 
+  // Klient NIE może być thenable - `async function admin() { return supabase }`
+  // rozpakowałoby go do wyniku zapisu zamiast zwrócić builder.
+  const client = { from: (t: string) => chain.from(t) };
+
   const event: { value: unknown } = { value: null };
   const emails = { subscription: vi.fn(async () => {}), payment: vi.fn(async () => {}) };
-  return { state, chain, event, emails };
+  return { state, chain, client, event, emails };
 });
+
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.chain }));
 vi.mock("@/lib/paddle.server", () => ({
