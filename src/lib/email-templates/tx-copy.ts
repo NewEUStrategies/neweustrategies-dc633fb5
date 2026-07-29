@@ -18,6 +18,8 @@ export type TxEmailType =
   | "payment_recovered"
   | "subscription_renewal_reminder"
   | "subscription_expiring"
+  | "team_seat_grace"
+  | "team_seat_access_ended"
   | "event_registered"
   | "donation_received"
   | "newsletter_confirmed";
@@ -259,6 +261,34 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  team_seat_grace: {
+    subject: (v) =>
+      `⏳ Twój dostęp zespołowy kończy się wkrótce${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "Liczba miejsc w zespole została zmniejszona - masz jeszcze dostęp przez okres karencji.",
+    eyebrow: "Dostęp zespołowy",
+    heading: "Twoje miejsce w zespole wygasa",
+    intro:
+      "Organizacja zmniejszyła liczbę wykupionych miejsc, dlatego Twoje miejsce zostało objęte okresem karencji. Do podanej niżej daty korzystasz ze wszystkich treści bez zmian.",
+    cta: "Sprawdź swój dostęp",
+    note: "Co dalej: poproś administratora organizacji o przywrócenie miejsca albo wykup własną subskrypcję przed końcem karencji - historia czytania, zapisane materiały i ustawienia zostają nienaruszone.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  team_seat_access_ended: {
+    subject: (v) =>
+      `🔒 Dostęp zespołowy zakończony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "Okres karencji minął - miejsce w zespole nie nadaje już dostępu do treści płatnych.",
+    eyebrow: "Dostęp zespołowy",
+    heading: "Twój dostęp zespołowy został zakończony",
+    intro:
+      "Okres karencji po zmniejszeniu liczby miejsc w organizacji dobiegł końca, więc Twoje miejsce nie nadaje już dostępu do treści płatnych. Konto pozostaje aktywne, nic nie zostało usunięte.",
+    cta: "Zobacz plany dostępu",
+    note: "Co dalej: administrator organizacji może w każdej chwili przywrócić Ci miejsce, a Ty możesz wykupić własną subskrypcję - wszystkie zapisane materiały wrócą od razu.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
   event_registered: {
 
     subject: (v) =>
@@ -455,6 +485,34 @@ const EN: Dict = {
       "Your subscription has been cancelled and access will end on the date below. Resuming before that date keeps your history and settings intact.",
     cta: "Resume subscription",
     note: "After the end date, paid content stays locked until you start a new subscription.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  team_seat_grace: {
+    subject: (v) =>
+      `⏳ Your team access ends soon${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "Your organisation reduced its seats - you keep access during a grace period.",
+    eyebrow: "Team access",
+    heading: "Your team seat is ending",
+    intro:
+      "Your organisation reduced the number of paid seats, so your seat has entered a grace period. Until the date below you keep full access to everything, unchanged.",
+    cta: "Check your access",
+    note: "What happens next: ask your organisation admin to restore the seat, or start your own subscription before the grace period ends - your reading history, saved items and settings stay intact.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  team_seat_access_ended: {
+    subject: (v) =>
+      `🔒 Team access ended${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "The grace period has ended - your team seat no longer unlocks paid content.",
+    eyebrow: "Team access",
+    heading: "Your team access has ended",
+    intro:
+      "The grace period after your organisation reduced its seats has ended, so your seat no longer unlocks paid content. Your account stays active and nothing has been deleted.",
+    cta: "See access plans",
+    note: "What happens next: your organisation admin can restore the seat at any time, or you can start your own subscription - everything you saved comes back immediately.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

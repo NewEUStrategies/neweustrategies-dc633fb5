@@ -82,11 +82,16 @@ export const Route = createFileRoute("/api/public/billing-cron")({
         try {
           const { runBillingReminders } = await import("@/lib/billing/reminders.server");
           const result = await runBillingReminders(leadDays);
-          return json({ ok: true, leadDays, ...result });
+          // Ta sama doba: domykamy karencje miejsc zespołowych, którym minął
+          // termin - dostęp gaśnie dopiero tutaj, wraz z mailem końcowym.
+          const { expireSeatGrace } = await import("@/lib/organizations/teamSeats.server");
+          const seats = await expireSeatGrace().catch(() => ({ expired: 0, notified: 0 }));
+          return json({ ok: true, leadDays, ...result, seatGrace: seats });
         } catch (err) {
           console.error("[billing-cron] failed", err);
           return json({ error: "cron_failed" }, 500);
         }
+
       },
     },
   },

@@ -4443,6 +4443,7 @@ export type Database = {
           name: string
           note: string | null
           paddle_subscription_id: string | null
+          seats_grace_days: number
           seats_limit: number
           seats_source: string
           sector: string | null
@@ -4475,6 +4476,7 @@ export type Database = {
           name: string
           note?: string | null
           paddle_subscription_id?: string | null
+          seats_grace_days?: number
           seats_limit?: number
           seats_source?: string
           sector?: string | null
@@ -4507,6 +4509,7 @@ export type Database = {
           name?: string
           note?: string | null
           paddle_subscription_id?: string | null
+          seats_grace_days?: number
           seats_limit?: number
           seats_source?: string
           sector?: string | null
@@ -5952,6 +5955,7 @@ export type Database = {
         Row: {
           claimed_at: string | null
           created_at: string
+          grace_until: string | null
           id: string
           invited_by: string | null
           invited_email: string
@@ -5967,6 +5971,7 @@ export type Database = {
         Insert: {
           claimed_at?: string | null
           created_at?: string
+          grace_until?: string | null
           id?: string
           invited_by?: string | null
           invited_email: string
@@ -5982,6 +5987,7 @@ export type Database = {
         Update: {
           claimed_at?: string | null
           created_at?: string
+          grace_until?: string | null
           id?: string
           invited_by?: string | null
           invited_email?: string
@@ -13249,7 +13255,12 @@ export type Database = {
         Args: { p_quantity: number; p_subscription_id: string }
         Returns: Json
       }
+      org_expire_seat_grace: { Args: never; Returns: Json }
       org_reconcile_seats: { Args: { p_org: string }; Returns: Json }
+      org_set_seats_grace_days: {
+        Args: { p_days: number; p_org: string }
+        Returns: Json
+      }
       org_set_seats_limit: {
         Args: { p_limit: number; p_org: string; p_source?: string }
         Returns: Json
