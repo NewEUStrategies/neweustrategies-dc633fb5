@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 
 import { runBillingRemindersNow } from "@/lib/billing/reminders.functions";
+import { getJobRunnerSettings } from "@/lib/newsletter-admin.functions";
+import { Link } from "@tanstack/react-router";
 
 import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
@@ -100,6 +102,13 @@ export function AdminBillingPanel() {
     },
   });
 
+  const loadRunner = useServerFn(getJobRunnerSettings);
+  const runnerQ = useQuery({
+    queryKey: ["admin", "billing", "job-runner"],
+    queryFn: () => loadRunner(),
+    staleTime: 60_000,
+  });
+
   const runReminders = useServerFn(runBillingRemindersNow);
   const remindersM = useMutation({
     mutationFn: () => runReminders({ data: {} }),
@@ -158,6 +167,41 @@ export function AdminBillingPanel() {
           <CardContent className="text-2xl font-semibold">{stats.canceling}</CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
+            <BellRing className="h-4 w-4" />
+            {L("Automatyczne przypomnienia", "Automated reminders")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1 text-[0.8125rem]">
+          <p className="text-muted-foreground">
+            {L(
+              "Harmonogram bazy uruchamia przypomnienia o odnowieniu i wygaśnięciu dostępu codziennie o 7:10 (3 dni wyprzedzenia).",
+              "The database scheduler sends renewal and access-expiry reminders daily at 07:10 (3-day lead time).",
+            )}
+          </p>
+          {runnerQ.data ? (
+            runnerQ.data.enabled && runnerQ.data.base_url ? (
+              <p className="text-emerald-700 dark:text-emerald-300">
+                {L("Harmonogram aktywny:", "Scheduler active:")} {runnerQ.data.base_url}
+              </p>
+            ) : (
+              <p className="text-amber-700 dark:text-amber-300">
+                {L(
+                  "Harmonogram nieaktywny - włącz „Job runner” (adres i sekret) w",
+                  "Scheduler inactive - enable the job runner (URL and secret) in",
+                )}{" "}
+                <Link to="/admin/newsletter/campaigns" className="underline">
+                  /admin/newsletter/campaigns
+                </Link>
+                .
+              </p>
+            )
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Tabs value={tab} onValueChange={setTab}>
         <div className="flex items-center justify-between gap-3">
