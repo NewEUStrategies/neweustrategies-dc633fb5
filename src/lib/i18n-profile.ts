@@ -356,6 +356,27 @@ const pl = {
         success: "Plan zmieniony",
         error: "Nie udało się zmienić planu. Spróbuj ponownie lub skontaktuj się z nami.",
       },
+      portal: {
+        changeHint:
+          "Przejście na wyższy plan działa od razu (dopłata proporcjonalna), niższy plan zacznie obowiązywać od kolejnego okresu.",
+        upgradeNote: "Wyższy plan: dopłata proporcjonalna zostanie pobrana od razu.",
+        downgradeNote: "Niższy plan: zmiana wejdzie w życie po zakończeniu opłaconego okresu.",
+        downgradeScheduled: "Zmiana planu zaplanowana na koniec okresu rozliczeniowego",
+        updatePayment: "Zaktualizuj metodę płatności",
+        openPortal: "Faktury i dane płatnika",
+        error: "Nie udało się otworzyć portalu płatności. Spróbuj ponownie.",
+        pastDue:
+          "Ostatnia płatność się nie powiodła. Zaktualizuj metodę płatności, aby zachować dostęp.",
+        secureNote:
+          "Dane karty obsługuje operator płatności - nie przechowujemy ich w serwisie.",
+        status: {
+          active: "Aktywna",
+          trialing: "Okres próbny",
+          past_due: "Zaległa płatność",
+          paused: "Wstrzymana",
+          canceled: "Anulowana",
+        },
+      },
     },
     orders: {
       title: "Historia płatności",
