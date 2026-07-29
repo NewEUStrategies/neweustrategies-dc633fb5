@@ -258,3 +258,30 @@ export const runSeatGraceExpiry = createServerFn({ method: "POST" })
     const { expireSeatGrace } = await import("@/lib/organizations/teamSeats.server");
     return { ok: true as const, ...(await expireSeatGrace()) };
   });
+
+/**
+ * Ręczne wysłanie przypomnień o kończącej się karencji (progi domyślne 7 i 1
+ * dzień). Normalnie robi to cykliczne zaplecze - tu jako akcja awaryjna.
+ */
+export const runSeatGraceReminders = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({ days: z.array(z.number().int().min(1).max(90)).max(10).optional() })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) return { ok: false as const, error: "orgs: not allowed" };
+
+    const { sendSeatGraceReminders, DEFAULT_SEAT_GRACE_REMINDER_DAYS } = await import(
+      "@/lib/organizations/teamSeats.server"
+    );
+    const result = await sendSeatGraceReminders(
+      data.days && data.days.length > 0 ? data.days : [...DEFAULT_SEAT_GRACE_REMINDER_DAYS],
+    );
+    return { ok: true as const, ...result };
+  });

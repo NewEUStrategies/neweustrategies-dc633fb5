@@ -70,13 +70,23 @@ export const Route = createFileRoute("/api/public/billing-cron")({
         }
 
         let leadDays = 3;
+        let seatGraceReminderDays: number[] | null = null;
         try {
-          const body = (await req.json()) as { leadDays?: number };
+          const body = (await req.json()) as {
+            leadDays?: number;
+            seatGraceReminderDays?: unknown;
+          };
           if (typeof body?.leadDays === "number" && body.leadDays >= 1 && body.leadDays <= 30) {
             leadDays = Math.round(body.leadDays);
           }
+          if (Array.isArray(body?.seatGraceReminderDays)) {
+            const parsed = body.seatGraceReminderDays.filter(
+              (value): value is number => typeof value === "number",
+            );
+            if (parsed.length > 0) seatGraceReminderDays = parsed;
+          }
         } catch {
-          // brak body = domyślne 3 dni
+          // brak body = domyślne 3 dni i progi 7/1
         }
 
         try {
@@ -84,9 +94,24 @@ export const Route = createFileRoute("/api/public/billing-cron")({
           const result = await runBillingReminders(leadDays);
           // Ta sama doba: domykamy karencje miejsc zespołowych, którym minął
           // termin - dostęp gaśnie dopiero tutaj, wraz z mailem końcowym.
-          const { expireSeatGrace } = await import("@/lib/organizations/teamSeats.server");
+          const {
+            expireSeatGrace,
+            sendSeatGraceReminders,
+            DEFAULT_SEAT_GRACE_REMINDER_DAYS,
+          } = await import("@/lib/organizations/teamSeats.server");
+          // Najpierw przypomnienia (7 i 1 dzień przed), potem domknięcie karencji,
+          // żeby ta sama doba nie wysłała przypomnienia i maila końcowego naraz.
+          const reminders = await sendSeatGraceReminders(
+            seatGraceReminderDays ?? [...DEFAULT_SEAT_GRACE_REMINDER_DAYS],
+          ).catch(() => ({ checked: 0, sent: 0, days: [] as number[] }));
           const seats = await expireSeatGrace().catch(() => ({ expired: 0, notified: 0 }));
-          return json({ ok: true, leadDays, ...result, seatGrace: seats });
+          return json({
+            ok: true,
+            leadDays,
+            ...result,
+            seatGraceReminders: reminders,
+            seatGrace: seats,
+          });
         } catch (err) {
           console.error("[billing-cron] failed", err);
           return json({ error: "cron_failed" }, 500);
