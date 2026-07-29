@@ -30,6 +30,8 @@ import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 // anglojęzyczny czytelnik widział polskie formatowanie cen na paywallu).
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { getPaddleEnvironment } from "@/lib/paddle";
+import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import { meterPaywallVariant, type MeterState, type MeteringSettings } from "@/lib/access/metering";
 import "@/lib/i18n-paywall";
 
@@ -67,6 +69,7 @@ export function Paywall({
   const { session } = useAuth();
   const navigate = useNavigate();
   const checkout = useServerFn(createCheckoutOrder);
+  const { openCheckout } = usePaddleCheckout();
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [pwdError, setPwdError] = useState(false);
