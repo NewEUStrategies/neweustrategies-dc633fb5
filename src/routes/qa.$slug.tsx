@@ -34,25 +34,64 @@ import { getPublicTenantId } from "@/lib/community/tenant";
 import { cn } from "@/lib/utils";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead } from "@/lib/seo/meta";
+import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
+
+/** Skraca tytuł do limitu SERP (<60 zn.) bez ucinania w połowie wyrazu. */
+function clampTitle(value: string, max = 60): string {
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 24 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+interface QaSessionHeadData {
+  titlePl: string;
+  titleEn: string;
+  introPl: string | null;
+  introEn: string | null;
+}
+
 export const Route = createFileRoute("/qa/$slug")({
   component: QaDetail,
-  head: ({ params }) => {
+  // Loader zwraca WYŁĄCZNIE stringi (serializowalne) i nigdy nie wywraca
+  // trasy - brak sesji / błąd backendu degraduje do brandowego fallbacku.
+  loader: async ({ params }): Promise<QaSessionHeadData | null> => {
+    try {
+      const session = await fetchPublicQaSessionBySlug(params.slug);
+      if (!session) return null;
+      return {
+        titlePl: session.title_pl,
+        titleEn: session.title_en,
+        introPl: session.intro_pl,
+        introEn: session.intro_en,
+      };
+    } catch {
+      return null;
+    }
+  },
+  head: ({ params, loaderData }) => {
     const url = getRequestUrl() || `/qa/${params.slug}`;
     const lang = activeLang(url);
+    const sessionTitle = lang === "en" ? loaderData?.titleEn : loaderData?.titlePl;
+    const sessionIntro = lang === "en" ? loaderData?.introEn : loaderData?.introPl;
+    const fallbackTitle = lang === "en" ? "Q&A session" : "Sesja Q&A";
+    const title = clampTitle(sessionTitle?.trim() || fallbackTitle);
     return buildContentHead({
       url,
       lang,
       type: "article",
-      title: lang === "en" ? "Q&A session" : "Sesja Q&A",
+      title,
+      documentTitle: clampTitle(`${title} - ${SITE_NAME}`),
       description:
-        lang === "en"
+        sessionIntro?.trim() ||
+        (lang === "en"
           ? "Community Q&A session - ask, upvote, and read expert answers."
-          : "Sesja Q&A - zadawaj pytania, głosuj i czytaj odpowiedzi ekspertów.",
+          : "Sesja Q&A - zadawaj pytania, głosuj i czytaj odpowiedzi ekspertów."),
     });
   },
 });
+
 
 function QaDetail() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
