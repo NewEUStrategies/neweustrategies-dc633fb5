@@ -148,17 +148,30 @@ export function AdminBillingPanel() {
             <TabsTrigger value="subscriptions">{L("Subskrypcje", "Subscriptions")}</TabsTrigger>
             <TabsTrigger value="events">{L("Historia webhooków", "Webhook history")}</TabsTrigger>
           </TabsList>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-[6px]"
-            onClick={() => {
-              void subsQ.refetch();
-              void eventsQ.refetch();
-            }}
-          >
-            <RefreshCcw className="mr-2 h-4 w-4" /> {L("Odśwież", "Refresh")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-[6px]"
+              disabled={remindersM.isPending}
+              onClick={() => remindersM.mutate()}
+            >
+              <BellRing className="mr-2 h-4 w-4" />
+              {L("Wyślij przypomnienia", "Send reminders")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-[6px]"
+              onClick={() => {
+                void subsQ.refetch();
+                void eventsQ.refetch();
+              }}
+            >
+              <RefreshCcw className="mr-2 h-4 w-4" /> {L("Odśwież", "Refresh")}
+            </Button>
+          </div>
+
         </div>
 
         <TabsContent value="subscriptions" className="mt-4">
