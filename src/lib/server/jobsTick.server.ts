@@ -65,7 +65,7 @@ async function runJobStep<T>(
  * na wysyłki. Bramkujemy je po minucie zegara UTC: praca jest watermarkowa,
  * więc rzadszy rytm niczego nie gubi, jedynie rozkłada koszt.
  */
-function everyNthMinute(n: number, now = new Date()): boolean {
+export function everyNthMinute(n: number, now = new Date()): boolean {
   return now.getUTCMinutes() % n === 0;
 }
 
