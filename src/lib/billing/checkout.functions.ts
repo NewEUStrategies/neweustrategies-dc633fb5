@@ -367,12 +367,12 @@ const cancelSubscriptionSchema = z.object({ subscriptionId: z.string().uuid() })
 // canceled_at and keep status 'active': has_content_access already ends access
 // at current_period_end, so paid time is preserved and the UI shows "cancels at".
 //
-// In live Stripe mode the Stripe subscription is canceled FIRST
-// (cancel_at_period_end=true). Order matters: if Stripe refuses, we must NOT
-// mark the row canceled - the previous DB-only implementation told the user
-// "canceled" while Stripe kept charging them every period. The webhook
-// (customer.subscription.updated/deleted) remains the reconciliation source of
-// truth for changes made on the Stripe side.
+// Przy realnym dostawcy subskrypcja jest anulowana NAJPIERW u operatora
+// (effective_from=next_billing_period). Kolejność ma znaczenie: jeśli operator
+// odmówi, wiersza NIE wolno oznaczyć jako anulowany - inaczej UI mówi
+// "anulowano", a klient jest dalej obciążany. Webhook subscription.updated /
+// subscription.canceled pozostaje źródłem prawdy przy zmianach po stronie
+// operatora.
 export const cancelSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => cancelSubscriptionSchema.parse(input))
@@ -389,13 +389,20 @@ export const cancelSubscription = createServerFn({ method: "POST" })
     if (!sub) throw new Error("subscription_not_found");
     if (sub.canceled_at) return { ok: true as const, alreadyCanceled: true as const };
 
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    if (stripeSecret && sub.external_ref && sub.external_ref.startsWith("sub_")) {
-      const { cancelStripeSubscriptionAtPeriodEnd } = await import("@/lib/billing/stripe.server");
-      const result = await cancelStripeSubscriptionAtPeriodEnd(sub.external_ref, stripeSecret);
+    const {
+      cancelSubscriptionAtPeriodEnd,
+      isProviderSubscriptionRef,
+      subscriptionEnvironment,
+    } = await import("@/lib/billing/paddleSubscription.server");
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
+    if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
+      const result = await cancelSubscriptionAtPeriodEnd(
+        subscriptionEnvironment(),
+        sub.external_ref,
+      );
       if (!result.ok) {
-        console.error("[billing] stripe cancel failed", sub.external_ref, result.error);
-        throw new Error("stripe_cancel_failed");
+        console.error("[billing] provider cancel failed", sub.external_ref, result.error);
+        throw new Error("provider_cancel_failed");
       }
     }
 
@@ -547,9 +554,9 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
   });
 
 // Wznowienie subskrypcji anulowanej "na koniec okresu": dopóki opłacony okres
-// trwa, Stripe pozwala cofnąć cancel_at_period_end. Lustrzane do
-// cancelSubscription - najpierw Stripe, potem DB, żeby UI nigdy nie pokazywał
-// wznowienia, którego Stripe nie wykonał.
+// trwa, operator pozwala cofnąć zaplanowaną zmianę. Lustrzane do
+// cancelSubscription - najpierw operator, potem baza, żeby UI nigdy nie
+// pokazywał wznowienia, którego operator nie wykonał.
 export const resumeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => cancelSubscriptionSchema.parse(input))
@@ -571,13 +578,20 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       throw new Error("subscription_period_ended");
     }
 
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    if (stripeSecret && sub.external_ref && sub.external_ref.startsWith("sub_")) {
-      const { resumeStripeSubscriptionAtPeriodEnd } = await import("@/lib/billing/stripe.server");
-      const result = await resumeStripeSubscriptionAtPeriodEnd(sub.external_ref, stripeSecret);
+    const {
+      resumeScheduledCancellation,
+      isProviderSubscriptionRef,
+      subscriptionEnvironment,
+    } = await import("@/lib/billing/paddleSubscription.server");
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
+    if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
+      const result = await resumeScheduledCancellation(
+        subscriptionEnvironment(),
+        sub.external_ref,
+      );
       if (!result.ok) {
-        console.error("[billing] stripe resume failed", sub.external_ref, result.error);
-        throw new Error("stripe_resume_failed");
+        console.error("[billing] provider resume failed", sub.external_ref, result.error);
+        throw new Error("provider_resume_failed");
       }
     }
 
