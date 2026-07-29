@@ -183,7 +183,18 @@ async function handleCanceled(data: SubscriptionData, env: PaddleEnv) {
   if (error) throw new Error(`subscriptions cancel failed: ${error.message}`);
 
   if (!existing?.user_id || !existing.price_id) return;
+
+  // Anulowanie planu Zespół wstrzymuje organizację - miejsca zostają, ale
+  // przestają nadawać uprawnienia.
+  const { applySubscriptionOrgState } = await import("@/lib/organizations/teamSeats.server");
+  await applySubscriptionOrgState({
+    subscriptionId: data.id,
+    status: "canceled",
+    priceId: existing.price_id,
+  });
+
   const { applyCancellationEffects } = await import("@/lib/billing/paddleEffects.server");
+
   await applyCancellationEffects({
     userId: existing.user_id,
     priceId: existing.price_id,
