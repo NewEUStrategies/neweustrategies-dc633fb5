@@ -23,6 +23,9 @@ import { FxRateNotice } from "@/components/checkout/FxRateNotice";
 import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
+import { isPaymentsConfigured } from "@/lib/paddle";
+import { paddlePriceForPlan } from "@/lib/billing/paddleCatalog";
+import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
@@ -43,6 +46,7 @@ function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const checkout = useServerFn(createCheckoutOrder);
+  const { openCheckout } = usePaddleCheckout();
 
   const plan = useQuery({
     queryKey: ["plan", planId],
@@ -82,6 +86,24 @@ function CheckoutPage() {
   const submit = async () => {
     if (!plan.data || !hasBilling) return;
     setBusy(true);
+
+    // Wbudowane płatności mają pierwszeństwo, gdy plan ma odpowiednik w katalogu.
+    const paddlePrice = isPaymentsConfigured() ? paddlePriceForPlan(plan.data) : null;
+    if (paddlePrice && session?.user?.id) {
+      try {
+        await openCheckout({
+          priceId: paddlePrice.priceId,
+          userId: session.user.id,
+          customerEmail: session.user.email ?? undefined,
+          successPath: "/checkout/success",
+        });
+      } catch {
+        toast.error(t("checkout.stripeNotConfigured"));
+      }
+      setBusy(false);
+      return;
+    }
+
     try {
       const res = await checkout({
         data: {
