@@ -171,3 +171,38 @@ export async function changeSubscriptionPrice(
     return { ok: false, error: String(e) };
   }
 }
+
+/**
+ * Zmiana LICZBY MIEJSC w planie za miejsce (plan Zespół). Cena zostaje ta sama,
+ * zmienia się tylko ilość. Zwiększenie rozliczamy natychmiast proporcjonalnie
+ * (klient dostaje miejsca od razu), zmniejszenie dopiero od nowego okresu -
+ * opłacony okres należy się klientowi w całości.
+ */
+export async function updateSubscriptionQuantity(
+  env: PaddleEnv,
+  subscriptionId: string,
+  params: { priceExternalId: string; quantity: number; previousQuantity: number },
+): Promise<SubscriptionOpResult<{ quantity: number }>> {
+  const quantity = Math.max(1, Math.min(500, Math.trunc(params.quantity)));
+  if (quantity === params.previousQuantity) return { ok: true, quantity };
+
+  const providerPriceId = await resolveProviderPriceId(env, params.priceExternalId);
+  if (!providerPriceId) return { ok: false, error: "price_missing" };
+
+  const isIncrease = quantity > params.previousQuantity;
+  try {
+    const res = await gatewayFetch(env, `/subscriptions/${subscriptionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        items: [{ price_id: providerPriceId, quantity }],
+        proration_billing_mode: isIncrease ? "prorated_immediately" : "do_not_bill",
+        ...(isIncrease ? {} : { billing_cycle: { effective_from: "next_billing_period" } }),
+        on_payment_failure: "prevent_change",
+      }),
+    });
+    if (!res.ok) return { ok: false, error: await readError(res) };
+    return { ok: true, quantity };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}

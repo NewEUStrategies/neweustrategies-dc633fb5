@@ -19,7 +19,14 @@ import {
   Mail,
   MapPin,
 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
+import { setTeamSeatLimit } from "@/lib/organizations/teamSeats.functions";
+import {
+  clampSeats,
+  seatsAtRisk,
+  summarizeSeats,
+} from "@/lib/organizations/teamSeats";
 import { billingKeys } from "@/lib/billing/keys";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -260,7 +267,12 @@ function AdminOrganizationDetailPage() {
         </TabsContent>
 
         <TabsContent value="seats" className="mt-4">
-          <SeatsPane lang={lang} orgId={id} seatsLimit={draft.seats_limit} />
+          <SeatsPane
+            lang={lang}
+            orgId={id}
+            seatsLimit={draft.seats_limit}
+            seatsSource={draft.seats_source}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -411,18 +423,24 @@ function GeneralPane({
             <Field label={L("Limit miejsc", "Seat limit")}>
               <Input
                 type="number"
-                min={1}
-                max={500}
                 value={draft.seats_limit}
-                onChange={(e) =>
-                  patch((d) => ({
-                    ...d,
-                    seats_limit: Math.max(1, Math.min(500, Number(e.target.value) || 1)),
-                  }))
-                }
+                readOnly
+                disabled
                 className="h-8 text-sm"
               />
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {draft.seats_source === "subscription"
+                  ? L(
+                      "Liczba miejsc pochodzi z opłaconej subskrypcji Zespół - zmień ją w zakładce Miejsca.",
+                      "Seat count comes from the paid Team subscription - change it in the Seats tab.",
+                    )
+                  : L(
+                      "Liczbę miejsc zmieniasz w zakładce Miejsca - uprawnienia dopasują się od razu.",
+                      "Change the seat count in the Seats tab - entitlements adjust immediately.",
+                    )}
+              </p>
             </Field>
+
           </div>
         </Card>
 
@@ -763,15 +781,61 @@ function PreviewTile({
 }
 
 // -------- Miejsca --------
-function SeatsPane({ lang, orgId, seatsLimit }: { lang: Lang; orgId: string; seatsLimit: number }) {
+function SeatsPane({
+  lang,
+  orgId,
+  seatsLimit,
+  seatsSource,
+}: {
+  lang: Lang;
+  orgId: string;
+  seatsLimit: number;
+  seatsSource: string;
+}) {
   const L = tr(lang);
   const qc = useQueryClient();
   const seatsKey = billingKeys.admin.orgSeats(orgId);
 
   const seatsQ = useQuery({ queryKey: seatsKey, queryFn: () => fetchAdminOrgSeats(orgId) });
-  const seats = seatsQ.data ?? [];
+  const seats = useMemo(() => seatsQ.data ?? [], [seatsQ.data]);
   const used = seats.length;
   const atLimit = used >= seatsLimit;
+
+  // Panel liczby miejsc: zmiana idzie przez funkcję serwerową (u operatora
+  // najpierw, potem limit), a podgląd pokazuje, kto straci dostęp.
+  const setSeats = useServerFn(setTeamSeatLimit);
+  const [nextSeats, setNextSeats] = useState(seatsLimit);
+  useEffect(() => setNextSeats(seatsLimit), [seatsLimit]);
+  const atRisk = useMemo(
+    () => seatsAtRisk(seats, nextSeats).map((s) => s.invited_email),
+    [seats, nextSeats],
+  );
+  const summary = useMemo(() => summarizeSeats(seats, seatsLimit), [seats, seatsLimit]);
+
+  const applySeats = useMutation({
+    mutationFn: async () => {
+      const res = await setSeats({ data: { org_id: orgId, seats: clampSeats(nextSeats) } });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(
+        L(
+          `Limit miejsc: ${res.seatsLimit} (zawieszone: ${res.suspended})`,
+          `Seat limit: ${res.seatsLimit} (suspended: ${res.suspended})`,
+        ),
+      );
+      void qc.invalidateQueries({ queryKey: seatsKey });
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(orgId) });
+    },
+    onError: (err: Error) =>
+      toast.error(
+        err.message.includes("provider")
+          ? L("Operator odrzucił zmianę liczby miejsc", "The payment provider rejected the change")
+          : L("Nie udało się zmienić limitu miejsc", "Could not change the seat limit"),
+      ),
+  });
+
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"owner" | "member">("member");
@@ -811,11 +875,58 @@ function SeatsPane({ lang, orgId, seatsLimit }: { lang: Lang; orgId: string; sea
           <span
             className={`text-[10px] tabular-nums ${atLimit ? "font-semibold text-destructive" : "text-muted-foreground"}`}
           >
-            {used}/{seatsLimit}
+            {summary.active}/{seatsLimit}
+            {summary.suspended > 0 ? ` (+${summary.suspended})` : ""}
           </span>
         </span>
       }
     >
+      {/* Liczba opłaconych miejsc planu Zespół */}
+      <div className="mb-3 space-y-2 rounded-md border border-border/60 bg-muted/20 p-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Input
+            type="number"
+            min={1}
+            max={500}
+            value={nextSeats}
+            onChange={(e) => setNextSeats(clampSeats(Number(e.target.value)))}
+            className="h-8 w-24 text-sm"
+            aria-label={L("Liczba miejsc", "Seat count")}
+          />
+          <Button
+            size="sm"
+            className="h-8"
+            disabled={applySeats.isPending || clampSeats(nextSeats) === seatsLimit}
+            onClick={() => applySeats.mutate()}
+          >
+            {applySeats.isPending
+              ? L("Zapisywanie...", "Saving...")
+              : L("Ustaw liczbę miejsc", "Apply seat count")}
+          </Button>
+          <Badge variant="outline" className="text-[10px]">
+            {seatsSource === "subscription"
+              ? L("z subskrypcji", "from subscription")
+              : L("ręcznie", "manual")}
+          </Badge>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          {seatsSource === "subscription"
+            ? L(
+                "Zmiana przelicza subskrypcję u operatora: zwiększenie rozlicza się od razu, zmniejszenie od nowego okresu.",
+                "The change updates the paid subscription: increases bill immediately, decreases apply from the next period.",
+              )
+            : L(
+                "Miejsca ponad limit zostają w organizacji, ale tracą uprawnienia warstwy.",
+                "Seats above the limit stay in the organisation but lose their tier entitlements.",
+              )}
+        </p>
+        {atRisk.length > 0 ? (
+          <p className="text-[10px] font-medium text-destructive">
+            {L("Stracą dostęp:", "Will lose access:")} {atRisk.join(", ")}
+          </p>
+        ) : null}
+      </div>
+
       {seatsQ.isLoading ? (
         <p className="text-xs text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
       ) : seats.length === 0 ? (

@@ -74,7 +74,12 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv) {
     environment: env,
     status: data.status,
   });
+
+  // Plan Zespół: liczba opłaconych miejsc ustala limit organizacji.
+  const { applySubscriptionSeats } = await import("@/lib/organizations/teamSeats.server");
+  await applySubscriptionSeats({ subscriptionId: data.id, quantity, priceId });
 }
+
 
 async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
   const supabase = await admin();
@@ -105,7 +110,17 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
   // Zdarzenia stanu (pauza, wznowienie, past_due) potrafią nie nieść pozycji
   // cennika - wtedy pracujemy na cenie zapisanej przy subskrypcji.
   const priceId = eventPriceId ?? existing?.price_id ?? null;
+
+  // Plan Zespół: zmiana liczby opłaconych miejsc oraz stanu subskrypcji musi
+  // natychmiast przełożyć się na limit i uprawnienia całego zespołu.
+  const { applySubscriptionSeats, applySubscriptionOrgState } = await import(
+    "@/lib/organizations/teamSeats.server"
+  );
+  await applySubscriptionOrgState({ subscriptionId: data.id, status: data.status, priceId });
+  await applySubscriptionSeats({ subscriptionId: data.id, quantity, priceId });
+
   if (!existing?.user_id || !priceId) return;
+
 
   // Każda aktualizacja (pauza, wznowienie, past_due, nowy okres) musi trafić do
   // uprawnień, nie tylko zmiana planu.
@@ -168,7 +183,18 @@ async function handleCanceled(data: SubscriptionData, env: PaddleEnv) {
   if (error) throw new Error(`subscriptions cancel failed: ${error.message}`);
 
   if (!existing?.user_id || !existing.price_id) return;
+
+  // Anulowanie planu Zespół wstrzymuje organizację - miejsca zostają, ale
+  // przestają nadawać uprawnienia.
+  const { applySubscriptionOrgState } = await import("@/lib/organizations/teamSeats.server");
+  await applySubscriptionOrgState({
+    subscriptionId: data.id,
+    status: "canceled",
+    priceId: existing.price_id,
+  });
+
   const { applyCancellationEffects } = await import("@/lib/billing/paddleEffects.server");
+
   await applyCancellationEffects({
     userId: existing.user_id,
     priceId: existing.price_id,

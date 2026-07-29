@@ -4442,7 +4442,9 @@ export type Database = {
           logo_v_light: string | null
           name: string
           note: string | null
+          paddle_subscription_id: string | null
           seats_limit: number
+          seats_source: string
           sector: string | null
           slug: string | null
           starts_at: string
@@ -4472,7 +4474,9 @@ export type Database = {
           logo_v_light?: string | null
           name: string
           note?: string | null
+          paddle_subscription_id?: string | null
           seats_limit?: number
+          seats_source?: string
           sector?: string | null
           slug?: string | null
           starts_at?: string
@@ -4502,7 +4506,9 @@ export type Database = {
           logo_v_light?: string | null
           name?: string
           note?: string | null
+          paddle_subscription_id?: string | null
           seats_limit?: number
+          seats_source?: string
           sector?: string | null
           slug?: string | null
           starts_at?: string
@@ -5952,6 +5958,9 @@ export type Database = {
           last_invited_at: string | null
           org_id: string
           role: string
+          status: string
+          suspended_at: string | null
+          suspended_reason: string | null
           tenant_id: string
           user_id: string | null
         }
@@ -5964,6 +5973,9 @@ export type Database = {
           last_invited_at?: string | null
           org_id: string
           role?: string
+          status?: string
+          suspended_at?: string | null
+          suspended_reason?: string | null
           tenant_id: string
           user_id?: string | null
         }
@@ -5976,6 +5988,9 @@ export type Database = {
           last_invited_at?: string | null
           org_id?: string
           role?: string
+          status?: string
+          suspended_at?: string | null
+          suspended_reason?: string | null
           tenant_id?: string
           user_id?: string | null
         }
@@ -13229,6 +13244,15 @@ export type Database = {
       org_add_seat: {
         Args: { p_email: string; p_org: string; p_role?: string }
         Returns: string
+      }
+      org_apply_subscription_seats: {
+        Args: { p_quantity: number; p_subscription_id: string }
+        Returns: Json
+      }
+      org_reconcile_seats: { Args: { p_org: string }; Returns: Json }
+      org_set_seats_limit: {
+        Args: { p_limit: number; p_org: string; p_source?: string }
+        Returns: Json
       }
       org_touch_seat_invite: {
         Args: { p_seat: string }
