@@ -77,11 +77,11 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv) {
 
 async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
   const supabase = await admin();
-  const { priceId, quantity } = readIds(data);
+  const { priceId: eventPriceId, quantity } = readIds(data);
 
   const { data: existing } = await supabase
     .from("subscriptions")
-    .select("user_id, price_id")
+    .select("user_id, price_id, status")
     .eq("paddle_subscription_id", data.id)
     .eq("environment", env)
     .maybeSingle();
@@ -90,7 +90,7 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
     .from("subscriptions")
     .update({
       status: data.status,
-      ...(priceId ? { price_id: priceId } : {}),
+      ...(eventPriceId ? { price_id: eventPriceId } : {}),
       quantity,
       current_period_start: data.currentBillingPeriod?.startsAt ?? null,
       current_period_end: data.currentBillingPeriod?.endsAt ?? null,
@@ -101,11 +101,16 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
     .eq("environment", env);
   if (error) throw new Error(`subscriptions update failed: ${error.message}`);
 
+  // Zdarzenia stanu (pauza, wznowienie, past_due) potrafią nie nieść pozycji
+  // cennika - wtedy pracujemy na cenie zapisanej przy subskrypcji.
+  const priceId = eventPriceId ?? existing?.price_id ?? null;
   if (!existing?.user_id || !priceId) return;
 
   // Każda aktualizacja (pauza, wznowienie, past_due, nowy okres) musi trafić do
   // uprawnień, nie tylko zmiana planu.
-  const { resolvePlanForPrice } = await import("@/lib/billing/paddleEffects.server");
+  const { resolvePlanForPrice, applyStatusTransitionEffects } = await import(
+    "@/lib/billing/paddleEffects.server"
+  );
   const plan = await resolvePlanForPrice(priceId);
   if (plan) {
     const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
@@ -119,8 +124,19 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
     });
   }
 
-  const direction = planChangeDirection(existing.price_id, priceId);
+  // CRM + powiadomienie użytkownika przy zmianie samego stanu.
+  await applyStatusTransitionEffects({
+    userId: existing.user_id,
+    priceId,
+    subscriptionId: data.id,
+    periodEnd: data.currentBillingPeriod?.endsAt ?? null,
+    previousStatus: existing.status ?? null,
+    status: data.status,
+  });
+
+  const direction = eventPriceId ? planChangeDirection(existing.price_id, eventPriceId) : "same";
   if (direction === "same") return;
+
 
   const { applyPlanChangeEffects } = await import("@/lib/billing/paddleEffects.server");
   await applyPlanChangeEffects({
@@ -198,94 +214,90 @@ async function handleTransaction(
   else await dunning.applyPaymentRecoveredEffects(ctx);
 }
 
+async function handleWebhookRequest(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const env = (url.searchParams.get("env") === "live" ? "live" : "sandbox") as PaddleEnv;
+
+  let event: Awaited<ReturnType<typeof verifyWebhook>>;
+  try {
+    event = await verifyWebhook(request, env);
+  } catch (e) {
+    console.error("[payments] webhook signature rejected", e);
+    return new Response("Invalid signature", { status: 400 });
+  }
+
+  const { claimWebhookEvent, finishWebhookEvent } = await import(
+    "@/lib/billing/webhookLog.server"
+  );
+  const raw = event.data as unknown as Record<string, unknown>;
+  const occurredAt =
+    typeof event.occurredAt === "string" ? event.occurredAt : new Date().toISOString();
+  const ref = {
+    eventId: event.eventId,
+    eventType: String(event.eventType),
+    environment: env,
+    occurredAt,
+    subscriptionId:
+      (typeof raw.subscriptionId === "string" ? raw.subscriptionId : null) ??
+      (typeof raw.id === "string" && String(event.eventType).startsWith("subscription.")
+        ? raw.id
+        : null),
+    customerId: typeof raw.customerId === "string" ? raw.customerId : null,
+    userId:
+      typeof (raw.customData as { userId?: string } | null)?.userId === "string"
+        ? (raw.customData as { userId?: string }).userId ?? null
+        : null,
+    payload: event as unknown,
+  };
+
+  // Idempotencja: operator ponawia dostarczenie tego samego zdarzenia.
+  const fresh = await claimWebhookEvent(ref).catch((e) => {
+    console.error("[payments] webhook log failed", e);
+    return true;
+  });
+  if (!fresh) return Response.json({ received: true, duplicate: true });
+
+  try {
+    switch (event.eventType) {
+      case EventName.SubscriptionCreated:
+        await handleCreated(event.data as unknown as SubscriptionData, env);
+        break;
+      case EventName.SubscriptionUpdated:
+        await handleUpdated(event.data as unknown as SubscriptionData, env);
+        break;
+      case EventName.SubscriptionCanceled:
+        await handleCanceled(event.data as unknown as SubscriptionData, env);
+        break;
+      case EventName.TransactionPaymentFailed:
+        await handleTransaction(event.data as unknown as TransactionData, env, occurredAt, "failed");
+        break;
+      case EventName.TransactionCompleted:
+        await handleTransaction(event.data as unknown as TransactionData, env, occurredAt, "paid");
+        break;
+      default:
+        await finishWebhookEvent(ref, "skipped");
+        return Response.json({ received: true });
+    }
+    await finishWebhookEvent(ref, "processed");
+    return Response.json({ received: true });
+  } catch (e) {
+    console.error("[payments] webhook error", e);
+    await finishWebhookEvent(ref, "failed", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return new Response("Webhook error", { status: 500 });
+  }
+}
+
+/** Wejście dla testów - identyczna ścieżka jak trasa HTTP. */
+export const __handleForTests = handleWebhookRequest;
+
 export const Route = createFileRoute("/api/public/payments/webhook")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
-        const url = new URL(request.url);
-        const env = (url.searchParams.get("env") === "live" ? "live" : "sandbox") as PaddleEnv;
-
-        let event: Awaited<ReturnType<typeof verifyWebhook>>;
-        try {
-          event = await verifyWebhook(request, env);
-        } catch (e) {
-          console.error("[payments] webhook signature rejected", e);
-          return new Response("Invalid signature", { status: 400 });
-        }
-
-        const { claimWebhookEvent, finishWebhookEvent } = await import(
-          "@/lib/billing/webhookLog.server"
-        );
-        const raw = event.data as unknown as Record<string, unknown>;
-        const occurredAt =
-          typeof event.occurredAt === "string" ? event.occurredAt : new Date().toISOString();
-        const ref = {
-          eventId: event.eventId,
-          eventType: String(event.eventType),
-          environment: env,
-          occurredAt,
-          subscriptionId:
-            (typeof raw.subscriptionId === "string" ? raw.subscriptionId : null) ??
-            (typeof raw.id === "string" && String(event.eventType).startsWith("subscription.")
-              ? raw.id
-              : null),
-          customerId: typeof raw.customerId === "string" ? raw.customerId : null,
-          userId:
-            typeof (raw.customData as { userId?: string } | null)?.userId === "string"
-              ? (raw.customData as { userId?: string }).userId ?? null
-              : null,
-          payload: event as unknown,
-        };
-
-        // Idempotencja: operator ponawia dostarczenie tego samego zdarzenia.
-        const fresh = await claimWebhookEvent(ref).catch((e) => {
-          console.error("[payments] webhook log failed", e);
-          return true;
-        });
-        if (!fresh) return Response.json({ received: true, duplicate: true });
-
-        try {
-          switch (event.eventType) {
-            case EventName.SubscriptionCreated:
-              await handleCreated(event.data as unknown as SubscriptionData, env);
-              break;
-            case EventName.SubscriptionUpdated:
-              await handleUpdated(event.data as unknown as SubscriptionData, env);
-              break;
-            case EventName.SubscriptionCanceled:
-              await handleCanceled(event.data as unknown as SubscriptionData, env);
-              break;
-            case EventName.TransactionPaymentFailed:
-              await handleTransaction(
-                event.data as unknown as TransactionData,
-                env,
-                occurredAt,
-                "failed",
-              );
-              break;
-            case EventName.TransactionCompleted:
-              await handleTransaction(
-                event.data as unknown as TransactionData,
-                env,
-                occurredAt,
-                "paid",
-              );
-              break;
-            default:
-              await finishWebhookEvent(ref, "skipped");
-              return Response.json({ received: true });
-          }
-          await finishWebhookEvent(ref, "processed");
-          return Response.json({ received: true });
-        } catch (e) {
-          console.error("[payments] webhook error", e);
-          await finishWebhookEvent(ref, "failed", {
-            error: e instanceof Error ? e.message : String(e),
-          });
-          return new Response("Webhook error", { status: 500 });
-        }
-      },
+      POST: async ({ request }) => handleWebhookRequest(request),
     },
   },
 });
+
 
