@@ -8,9 +8,11 @@
 import { catalogEntryByPriceId, PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
 import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
 
-export type SubscriptionOpResult<T extends object = { [k: string]: never }> =
-  | ({ ok: true } & Partial<T>)
+// eslint-disable-next-line @typescript-eslint/ban-types
+export type SubscriptionOpResult<T extends object = {}> =
+  | ({ ok: true } & T)
   | { ok: false; error: string };
+
 
 
 
