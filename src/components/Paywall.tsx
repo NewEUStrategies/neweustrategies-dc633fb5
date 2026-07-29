@@ -176,6 +176,7 @@ export function Paywall({
           entity_id: rule.entity_id,
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",
+          environment: getPaddleEnvironment(),
         },
       });
       if (!res.ok) {
@@ -183,11 +184,17 @@ export function Paywall({
         setBusy(false);
         return;
       }
-      if (res.mode === "stripe") {
-        window.location.href = res.url;
+      if (res.mode === "paddle") {
+        await openCheckout({
+          transactionId: res.transactionId,
+          customerEmail: session.user?.email ?? undefined,
+          successPath: "/checkout/success",
+        });
+        setBusy(false);
       } else {
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
       }
+
     } catch {
       toast.error(t("paywall.checkoutFail"));
       setBusy(false);
