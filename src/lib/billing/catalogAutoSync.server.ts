@@ -91,6 +91,27 @@ export async function getIntegrationState(env: PaddleEnv): Promise<IntegrationSt
   };
 }
 
+/** Zapis wyniku ręcznej synchronizacji z panelu (odświeża odcisk integracji). */
+export async function recordManualSync(
+  env: PaddleEnv,
+  report: CatalogSyncReport,
+): Promise<void> {
+  const [supabase, fingerprint] = await Promise.all([admin(), integrationFingerprint(env)]);
+  await supabase.from("payment_integration_state").upsert(
+    {
+      environment: env,
+      fingerprint,
+      last_synced_at: report.ranAt,
+      last_status: syncStatusFrom(report),
+      last_reason: "manual",
+      last_error: null,
+      last_report: JSON.parse(JSON.stringify(report)) as Json,
+    },
+    { onConflict: "environment" },
+  );
+  checkedAt.set(env, Date.now());
+}
+
 /** Pamięć izolatu: nie pytamy bazy przy każdym zapytaniu o cenę. */
 const inFlight = new Map<PaddleEnv, Promise<AutoSyncOutcome>>();
 const checkedAt = new Map<PaddleEnv, number>();
