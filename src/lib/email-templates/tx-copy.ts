@@ -14,6 +14,8 @@ export type TxEmailType =
   | "subscription_downgraded"
   | "payment_failed"
   | "payment_recovered"
+  | "subscription_renewal_reminder"
+  | "subscription_expiring"
   | "event_registered"
   | "newsletter_confirmed";
 
@@ -188,7 +190,36 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  subscription_renewal_reminder: {
+    subject: (v) =>
+      `🗓️ Zbliża się odnowienie${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Twoja subskrypcja odnowi się wkrótce - poniżej szczegóły.",
+    eyebrow: "Przypomnienie",
+    heading: "Zbliża się odnowienie subskrypcji",
+    intro:
+      "Przypominamy, że Twoja subskrypcja odnowi się automatycznie w podanym niżej terminie. Jeśli chcesz ją kontynuować, nie musisz nic robić.",
+    cta: "Zarządzaj subskrypcją",
+    note: "Zmiany planu lub rezygnacji możesz dokonać w profilu przed datą odnowienia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  subscription_expiring: {
+    subject: (v) =>
+      `⏳ Dostęp wkrótce wygasa${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "Anulowana subskrypcja wkrótce się kończy - możesz ją wznowić.",
+    eyebrow: "Przypomnienie",
+    heading: "Twój dostęp wkrótce wygasa",
+    intro:
+      "Twoja subskrypcja została anulowana, a dostęp zakończy się w podanym niżej terminie. Wznowienie przed tą datą zachowuje pełną historię i ustawienia.",
+    cta: "Wznów subskrypcję",
+    note: "Po tej dacie treści płatne pozostaną zamknięte do czasu ponownego wykupienia subskrypcji.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
   event_registered: {
+
     subject: (v) =>
       `🎟️ Potwierdzenie zapisu${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
@@ -316,7 +347,36 @@ const EN: Dict = {
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
+  subscription_renewal_reminder: {
+    subject: (v) =>
+      `🗓️ Upcoming renewal${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Your subscription renews soon - here are the details.",
+    eyebrow: "Reminder",
+    heading: "Your subscription renews soon",
+    intro:
+      "This is a courtesy reminder that your subscription will renew automatically on the date below. No action is needed if you wish to continue.",
+    cta: "Manage subscription",
+    note: "If you would like to change or cancel your plan, you can do it before the renewal date in your profile.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  subscription_expiring: {
+    subject: (v) =>
+      `⏳ Access ends soon${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "Your cancelled subscription ends soon - you can resume it at any time.",
+    eyebrow: "Reminder",
+    heading: "Your access ends soon",
+    intro:
+      "Your subscription has been cancelled and access will end on the date below. Resuming before that date keeps your history and settings intact.",
+    cta: "Resume subscription",
+    note: "After the end date, paid content stays locked until you start a new subscription.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
   event_registered: {
+
     subject: (v) =>
       `🎟️ Registration confirmed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",

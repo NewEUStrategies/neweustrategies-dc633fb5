@@ -164,3 +164,37 @@ export const resumePaddleSubscription = createServerFn({ method: "POST" })
     });
     return { ok: true as const };
   });
+
+/**
+ * Kod promocyjny dla nakładki płatności: waliduje kupon w bazie i zwraca
+ * identyfikator rabatu u dostawcy (tworząc go leniwie, gdy jeszcze nie istnieje).
+ */
+export const resolvePaddleDiscount = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      code: string;
+      planId: string;
+      amountCents: number;
+      currency: string;
+      environment: PaddleEnv;
+    }) =>
+      z
+        .object({
+          code: z.string().trim().min(1).max(64),
+          planId: z.string().uuid(),
+          amountCents: z.number().int().positive(),
+          currency: z.string().trim().length(3),
+          environment: envSchema,
+        })
+        .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { resolveDiscountForCoupon } = await import("@/lib/billing/paddleDiscounts.server");
+    return await resolveDiscountForCoupon({
+      environment: data.environment,
+      code: data.code,
+      planId: data.planId,
+      amountCents: data.amountCents,
+      currency: data.currency.toUpperCase(),
+    });
+  });

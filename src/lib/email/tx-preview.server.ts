@@ -17,6 +17,8 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "subscription_downgraded",
   "payment_failed",
   "payment_recovered",
+  "subscription_renewal_reminder",
+  "subscription_expiring",
   "event_registered",
   "newsletter_confirmed",
 ] as const;
@@ -111,7 +113,27 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         ],
         ctaUrl: `${SITE_URL}/profile/subscription`,
       };
+    case "subscription_renewal_reminder":
+      return {
+        subjectName: plan,
+        details: [
+          { label: l.plan, value: plan },
+          { label: l.price, value: "249,00 PLN" },
+          { label: l.renewsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
+        ],
+        ctaUrl: `${SITE_URL}/profile/subscription`,
+      };
+    case "subscription_expiring":
+      return {
+        subjectName: plan,
+        details: [
+          { label: l.plan, value: plan },
+          { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
+        ],
+        ctaUrl: `${SITE_URL}/profile/subscription`,
+      };
     case "event_registered":
+
       return {
         subjectName: eventTitle,
         details: [
