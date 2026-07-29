@@ -20,13 +20,14 @@ export function defaultDonationPresets(currency: DonationCurrency): number[] {
 }
 
 /**
- * "20, 50, 100" -> [2000, 5000, 10000]. Wartości spoza zakresu i duplikaty
+ * "20, 50, 100" -> [2000, 5000, 10000]. Przecinek i średnik są separatorami
+ * listy (część dziesiętna zapisywana kropką). Wartości spoza zakresu i duplikaty
  * odpadają; pusty/niepoprawny zapis wraca do domyślnych kwot dla waluty.
  */
 export function parseDonationPresets(csv: string | undefined, currency: DonationCurrency): number[] {
   const parsed = (csv ?? "")
     .split(/[,;\s]+/)
-    .map((raw) => raw.replace(",", ".").trim())
+    .map((raw) => raw.trim())
     .filter(Boolean)
     .map((raw) => Math.round(Number(raw) * 100))
     .filter(

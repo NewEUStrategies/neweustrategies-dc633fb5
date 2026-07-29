@@ -10,7 +10,8 @@ describe("parseDonationPresets", () => {
   it("zamienia zapis redaktora na grosze", () => {
     expect(parseDonationPresets("20, 50, 100, 250", "PLN")).toEqual([2000, 5000, 10000, 25000]);
     expect(parseDonationPresets("10;25 50", "EUR")).toEqual([1000, 2500, 5000]);
-    expect(parseDonationPresets("12,50", "PLN")).toEqual([1250]);
+    // Przecinek jest separatorem listy - część dziesiętna zapisywana kropką.
+    expect(parseDonationPresets("12.50", "PLN")).toEqual([1250]);
   });
 
   it("odrzuca kwoty spoza zakresu, duplikaty i nadmiar", () => {
