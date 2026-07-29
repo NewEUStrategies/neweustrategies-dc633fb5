@@ -126,7 +126,7 @@ export const PLACEHOLDER = {
     programs: [
       { name: "Program badawczy: Bezpieczeństwo Europy", role: "Kierowniczka" },
       { name: "Inicjatywa Europa 2030", role: "Ekspertka" },
-      { name: "Panel gospodarczy NES", role: "Członkini" },
+      { name: "Panel gospodarczy New European Strategies", role: "Członkini" },
       { name: "Projekt energetyczny", role: "Konsultantka" },
     ],
   },
@@ -178,7 +178,7 @@ export const PLACEHOLDER = {
     programs: [
       { name: "Research programme: European Security", role: "Lead" },
       { name: "Europe 2030 initiative", role: "Expert" },
-      { name: "NES economic panel", role: "Member" },
+      { name: "New European Strategies economic panel", role: "Member" },
       { name: "Energy project", role: "Consultant" },
     ],
   },

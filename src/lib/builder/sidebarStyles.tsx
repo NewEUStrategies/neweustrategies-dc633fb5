@@ -195,7 +195,7 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
             ...p.brand,
           }}
         >
-          {p.showLabels ? "NES" : "N"}
+          {p.showLabels ? "New European Strategies" : "N"}
         </div>
         {p.showLabels && (
           <div

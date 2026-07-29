@@ -109,7 +109,7 @@ const PL: Dict = {
     subject: (v) =>
       `✅ Subskrypcja aktywna${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
-    preview: "Twoja subskrypcja jest aktywna - pełny dostęp do analiz i danych NES.",
+    preview: "Twoja subskrypcja jest aktywna - pełny dostęp do analiz i danych New European Strategies.",
     eyebrow: "Subskrypcja",
     heading: "Twoja subskrypcja jest aktywna",
     intro:
@@ -291,7 +291,7 @@ const PL: Dict = {
   newsletter_confirmed: {
     subject: () => "📨 Zapis do newslettera potwierdzony | New European Strategies",
     icon: "hero-mail",
-    preview: "Jesteś na liście - analizy NES trafią prosto do Twojej skrzynki.",
+    preview: "Jesteś na liście - analizy New European Strategies trafią prosto do Twojej skrzynki.",
     eyebrow: "Newsletter",
     heading: "Zapis do newslettera potwierdzony",
     intro:
@@ -308,7 +308,7 @@ const EN: Dict = {
     subject: (v) =>
       `✅ Subscription active${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
-    preview: "Your subscription is active - full access to NES analysis and data.",
+    preview: "Your subscription is active - full access to New European Strategies analysis and data.",
     eyebrow: "Subscription",
     heading: "Your subscription is active",
     intro:
@@ -490,7 +490,7 @@ const EN: Dict = {
   newsletter_confirmed: {
     subject: () => "📨 Newsletter subscription confirmed | New European Strategies",
     icon: "hero-mail",
-    preview: "You are on the list - NES analysis delivered straight to your inbox.",
+    preview: "You are on the list - New European Strategies analysis delivered straight to your inbox.",
     eyebrow: "Newsletter",
     heading: "Newsletter subscription confirmed",
     intro:

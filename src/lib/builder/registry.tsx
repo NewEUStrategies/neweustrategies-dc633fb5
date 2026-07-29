@@ -370,8 +370,8 @@ export const WIDGETS: WidgetDef[] = [
       deltaTone: "positive",
       // Sparkline: liczby rozdzielone ";" lub nowymi liniami.
       spark: "58; 61; 60; 64; 67; 69; 72,4",
-      source_pl: "Źródło: NES",
-      source_en: "Source: NES",
+      source_pl: "Źródło: New European Strategies",
+      source_en: "Source: New European Strategies",
       href: "",
     }),
   },
@@ -402,8 +402,8 @@ export const WIDGETS: WidgetDef[] = [
       ].join("\n"),
       height: 420,
       animate: "on",
-      source_pl: "Źródło: opracowanie NES",
-      source_en: "Source: NES analysis",
+      source_pl: "Źródło: opracowanie New European Strategies",
+      source_en: "Source: New European Strategies analysis",
     }),
   },
   {
