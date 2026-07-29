@@ -143,14 +143,90 @@ async function handleCanceled(data: SubscriptionData, env: PaddleEnv) {
   });
 }
 
+type TransactionData = {
+  id: string;
+  subscriptionId?: string | null;
+  customerId?: string | null;
+  currencyCode?: string | null;
+  customData?: { userId?: string } | null;
+  details?: { totals?: { grandTotal?: string | null } | null } | null;
+  payments?: Array<{ errorCode?: string | null }> | null;
+  billingPeriod?: { endsAt?: string | null } | null;
+};
+
+function amountFromTransaction(data: TransactionData): number | null {
+  const raw = data.details?.totals?.grandTotal;
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function handleTransaction(
+  data: TransactionData,
+  env: PaddleEnv,
+  occurredAt: string,
+  kind: "failed" | "paid",
+) {
+  if (!data.subscriptionId) return;
+  const ctx = {
+    subscriptionId: data.subscriptionId,
+    environment: env,
+    occurredAt,
+    amountCents: amountFromTransaction(data),
+    currency: data.currencyCode ?? null,
+  };
+  const dunning = await import("@/lib/billing/dunning.server");
+  if (kind === "failed") await dunning.applyPaymentFailedEffects(ctx);
+  else await dunning.applyPaymentRecoveredEffects(ctx);
+}
+
 export const Route = createFileRoute("/api/public/payments/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
         const url = new URL(request.url);
         const env = (url.searchParams.get("env") === "live" ? "live" : "sandbox") as PaddleEnv;
+
+        let event: Awaited<ReturnType<typeof verifyWebhook>>;
         try {
-          const event = await verifyWebhook(request, env);
+          event = await verifyWebhook(request, env);
+        } catch (e) {
+          console.error("[payments] webhook signature rejected", e);
+          return new Response("Invalid signature", { status: 400 });
+        }
+
+        const { claimWebhookEvent, finishWebhookEvent } = await import(
+          "@/lib/billing/webhookLog.server"
+        );
+        const raw = event.data as unknown as Record<string, unknown>;
+        const occurredAt =
+          typeof event.occurredAt === "string" ? event.occurredAt : new Date().toISOString();
+        const ref = {
+          eventId: event.eventId,
+          eventType: String(event.eventType),
+          environment: env,
+          occurredAt,
+          subscriptionId:
+            (typeof raw.subscriptionId === "string" ? raw.subscriptionId : null) ??
+            (typeof raw.id === "string" && String(event.eventType).startsWith("subscription.")
+              ? raw.id
+              : null),
+          customerId: typeof raw.customerId === "string" ? raw.customerId : null,
+          userId:
+            typeof (raw.customData as { userId?: string } | null)?.userId === "string"
+              ? (raw.customData as { userId?: string }).userId ?? null
+              : null,
+          payload: event as unknown,
+        };
+
+        // Idempotencja: operator ponawia dostarczenie tego samego zdarzenia.
+        const fresh = await claimWebhookEvent(ref).catch((e) => {
+          console.error("[payments] webhook log failed", e);
+          return true;
+        });
+        if (!fresh) return Response.json({ received: true, duplicate: true });
+
+        try {
           switch (event.eventType) {
             case EventName.SubscriptionCreated:
               await handleCreated(event.data as unknown as SubscriptionData, env);
@@ -161,15 +237,37 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
             case EventName.SubscriptionCanceled:
               await handleCanceled(event.data as unknown as SubscriptionData, env);
               break;
+            case EventName.TransactionPaymentFailed:
+              await handleTransaction(
+                event.data as unknown as TransactionData,
+                env,
+                occurredAt,
+                "failed",
+              );
+              break;
+            case EventName.TransactionCompleted:
+              await handleTransaction(
+                event.data as unknown as TransactionData,
+                env,
+                occurredAt,
+                "paid",
+              );
+              break;
             default:
-              console.log("[payments] unhandled event", event.eventType);
+              await finishWebhookEvent(ref, "skipped");
+              return Response.json({ received: true });
           }
+          await finishWebhookEvent(ref, "processed");
           return Response.json({ received: true });
         } catch (e) {
           console.error("[payments] webhook error", e);
-          return new Response("Webhook error", { status: 400 });
+          await finishWebhookEvent(ref, "failed", {
+            error: e instanceof Error ? e.message : String(e),
+          });
+          return new Response("Webhook error", { status: 500 });
         }
       },
     },
   },
 });
+
