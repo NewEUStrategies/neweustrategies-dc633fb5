@@ -172,4 +172,86 @@ async function deterministicId(key: string): Promise<string> {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+export interface RawEmailInput {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  /** Etykieta w logu dostarczalności (np. "digest_daily"). */
+  label: string;
+  /** Klucz idempotencji - ten sam klucz nie wyśle maila dwa razy. */
+  idempotencyKey: string;
+}
+
+/**
+ * Wysyła gotowy HTML tą samą kolejką co maile transakcyjne/autoryzacyjne
+ * (`transactional_emails` + `email_send_log`). Używane przez kanały, które
+ * budują własny szablon (digest powiadomień) - dzięki temu KAŻDY mail systemu
+ * ma jeden nadawca, jedną listę wykluczeń i jeden log dostarczalności.
+ */
+export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResult> {
+  const to = input.to?.trim().toLowerCase();
+  if (!to) return { ok: false, skipped: "no_recipient" };
+
+  const supabase = serviceClient();
+  if (!supabase) return { ok: false, error: "supabase_unavailable" };
+
+  try {
+    const { data: suppressed } = await supabase
+      .from("suppressed_emails")
+      .select("email")
+      .eq("email", to)
+      .maybeSingle();
+    if (suppressed) return { ok: false, skipped: "suppressed" };
+
+    const messageId = await deterministicId(input.idempotencyKey);
+    const { data: already } = await supabase
+      .from("email_send_log")
+      .select("id")
+      .eq("message_id", messageId)
+      .maybeSingle();
+    if (already) return { ok: true, skipped: "duplicate" };
+
+    await supabase.from("email_send_log").insert({
+      message_id: messageId,
+      template_name: input.label,
+      recipient_email: to,
+      status: "pending",
+    });
+
+    const { error } = await supabase.rpc("enqueue_email", {
+      queue_name: QUEUE,
+      payload: {
+        run_id: crypto.randomUUID(),
+        message_id: messageId,
+        to,
+        from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+        sender_domain: SENDER_DOMAIN,
+        subject: input.subject,
+        html: input.html,
+        text: input.text ?? "",
+        purpose: "transactional",
+        label: input.label,
+        idempotency_key: input.idempotencyKey,
+        queued_at: new Date().toISOString(),
+      },
+    });
+
+    if (error) {
+      await supabase.from("email_send_log").insert({
+        message_id: messageId,
+        template_name: input.label,
+        recipient_email: to,
+        status: "failed",
+        error_message: error.message,
+      });
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error("[tx-email] raw enqueue failed", input.label, err);
+    return { ok: false, error: String(err) };
+  }
+}
+
 export const __txCopyForTests = txCopy;
