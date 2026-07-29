@@ -134,7 +134,9 @@ export function guardQueryStream<T>(
     if (reason !== "source") {
       console.warn(`[ssr-query-stream] closed by guard (${reason}) route=${label}`);
       dumpPending(reason);
-      void reader?.cancel().catch(() => undefined);
+      // NIE anulujemy czytnika źródła: integracja zamyka swój pushable
+      // stream z onRenderFinished i podwójne zamknięcie rzuca ERR_INVALID_STATE
+      // wewnątrz listenera router-core.
     } else if (collectPendingQueries(queryClient).length > 0) {
       // Źródło się domknęło, a mimo to coś wisi - to właśnie te promisy
       // trzymają serializację seroval po zakończeniu renderu.
