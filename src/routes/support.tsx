@@ -1,7 +1,7 @@
 // Publiczna strona darowizn / mecenatu obywatelskiego. URL: /support
 // Darowizna nie nadaje uprawnień (to nie zakup) - patrz donations.functions.ts.
 // Stan ?status=cancelled wraca z nakładki płatności; sukces prowadzi do /support/thank-you.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -104,9 +104,11 @@ function SupportBuilderDocument({ page, lang }: { page: PageData; lang: "pl" | "
     lang,
   });
 
+  const contentRef = useRef<HTMLDivElement>(null);
+
   return (
-    <div data-cms-content>
-      <FootnoteTooltips notes={prepared.footnotes} lang={lang} />
+    <div ref={contentRef} data-cms-content>
+      <FootnoteTooltips notes={prepared.footnotes} containerRef={contentRef} />
       <ContentRenderer
         editor={page.editor}
         builderDoc={prepared.builderDoc}
