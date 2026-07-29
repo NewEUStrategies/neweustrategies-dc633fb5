@@ -40,9 +40,12 @@ export const FOOTER_LINKS: readonly FooterLink[] = [
   { group: "institute", href: "/wspieraj-nas", label: { pl: "Wspieraj nas", en: "Support us" } },
   { group: "institute", href: "/reklamuj-sie-u-nas", label: { pl: "Reklama", en: "Advertise" } },
   // Legal
-  { group: "legal", href: "/polityka-prywatnosci", label: { pl: "Polityka prywatności", en: "Privacy policy" } },
+  { group: "legal", href: "/regulamin", label: { pl: "Regulamin", en: "Terms & conditions" } },
+  { group: "legal", href: "/polityka-prywatnosci", label: { pl: "Polityka prywatności", en: "Privacy notice" } },
+  { group: "legal", href: "/zwroty-i-reklamacje", label: { pl: "Zwroty i reklamacje", en: "Refund policy" } },
   { group: "legal", href: "/cookies", label: { pl: "Polityka cookies", en: "Cookie policy" } },
   { group: "legal", href: "/wytyczne-dotyczace-reklam", label: { pl: "Wytyczne reklam", en: "Advertising guidelines" } },
+
 ];
 
 export function footerLinksByGroup(group: FooterLinkGroup): readonly FooterLink[] {
