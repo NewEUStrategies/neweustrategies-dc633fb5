@@ -3,6 +3,7 @@
 // Stan ?status=cancelled wraca z nakładki płatności; sukces prowadzi do /support/thank-you.
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -26,6 +27,23 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureSupportI18n } from "@/lib/i18n-support";
+import { resolvedContentQueryOptions, type PageData } from "@/lib/queries/public";
+import { ContentRenderer } from "@/components/content/ContentRenderer";
+import { prepareContentForRender } from "@/lib/content/prepareContent";
+import { parseBuilderDoc } from "@/lib/builder/parse";
+import { hasRenderableBody } from "@/lib/access/gating";
+import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
+import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
+import { withBudget } from "@/lib/asyncBudget";
+
+// Dokument buildera dla /support jest opcjonalny: gdy redakcja opublikuje
+// stronę o tym adresie, jest ona ŹRÓDŁEM PRAWDY dla całego widoku (włącznie
+// z widżetem darowizn wstawionym w panelu). Bez takiej strony trasa renderuje
+// wbudowany formularz - żaden krok konfiguracji nie jest wymagany do zbierania
+// wpłat.
+const SUPPORT_SEGMENTS = ["support"];
+// Twardy budżet SSR: brak dokumentu nie może opóźnić formularza darowizn.
+const SUPPORT_DOC_BUDGET_MS = 2_500;
 export const Route = createFileRoute("/support")({
   validateSearch: (search: Record<string, unknown>) => ({
     status:
@@ -34,6 +52,15 @@ export const Route = createFileRoute("/support")({
         : undefined,
   }),
   component: SupportPage,
+  loader: async ({ context }) => {
+    await withBudget(
+      context.queryClient
+        .ensureQueryData(resolvedContentQueryOptions(SUPPORT_SEGMENTS))
+        .catch(() => null),
+      SUPPORT_DOC_BUDGET_MS,
+      null,
+    );
+  },
   head: () => {
     const url = getRequestUrl() || "/support";
     const lang = activeLang(url);
