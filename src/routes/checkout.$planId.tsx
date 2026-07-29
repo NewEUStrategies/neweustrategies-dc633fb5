@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
-import { AuthGate } from "@/components/profile/AuthGate";
 import { fetchMyBillingProfile, fetchPlanById } from "@/lib/billing/queries";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import {
@@ -17,6 +16,7 @@ import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { GuestCheckoutGate } from "@/components/checkout/GuestCheckoutGate";
 import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
 import { CouponInput } from "@/components/checkout/CouponInput";
 import { FxRateNotice } from "@/components/checkout/FxRateNotice";
@@ -169,7 +169,7 @@ function CheckoutPage() {
   };
 
   return (
-    <AuthGate fallbackBody={t("checkout.loginRequired")}>
+    <GuestCheckoutGate>
       <div className="container mx-auto max-w-4xl px-4 py-12">
         <h1 className="text-3xl font-bold mb-8">{t("checkout.title")}</h1>
         <div className="grid gap-8 md:grid-cols-[1fr_360px]">
@@ -331,6 +331,6 @@ function CheckoutPage() {
           </aside>
         </div>
       </div>
-    </AuthGate>
+    </GuestCheckoutGate>
   );
 }
