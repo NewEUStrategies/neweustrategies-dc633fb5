@@ -253,3 +253,123 @@ export async function expireSeatGrace(): Promise<{ expired: number; notified: nu
   }
   return { expired: rows.length, notified };
 }
+
+// ---------------------------------------------------------------------------
+// Harmonogram przypomnień w trakcie karencji
+//
+// Poza mailem "wchodzisz w karencję" i mailem końcowym wysyłamy jeszcze
+// przypomnienia na N dni przed utratą dostępu (domyślnie 7 i 1). Uruchamiane
+// raz na dobę z crona rozliczeniowego; idempotencja opiera się na kluczu
+// (miejsce + termin karencji + próg), więc powtórne wywołania nie duplikują
+// wysyłki.
+
+/** Domyślne progi przypomnień - liczba dni przed końcem karencji. */
+export const DEFAULT_SEAT_GRACE_REMINDER_DAYS = [7, 1] as const;
+
+const DAY_MS = 86_400_000;
+
+/** Ile pełnych dni zostało do terminu (zaokrąglone w górę, min. 0). */
+function daysUntil(iso: string, now: number): number {
+  const ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return -1;
+  return Math.max(0, Math.ceil((ts - now) / DAY_MS));
+}
+
+/** Normalizacja progów: liczby całkowite 1-90, malejąco, bez duplikatów. */
+export function normalizeReminderDays(input: readonly number[]): number[] {
+  const set = new Set<number>();
+  for (const raw of input) {
+    const n = Math.trunc(Number(raw));
+    if (Number.isFinite(n) && n >= 1 && n <= 90) set.add(n);
+  }
+  return [...set].sort((a, b) => b - a);
+}
+
+export interface SeatGraceReminderResult {
+  checked: number;
+  sent: number;
+  days: number[];
+}
+
+/**
+ * Przypomnienia dla miejsc w karencji, którym zostało dokładnie N dni.
+ * Fail-soft: pojedynczy błąd wysyłki nie przerywa całej serii.
+ */
+export async function sendSeatGraceReminders(
+  offsets: readonly number[] = DEFAULT_SEAT_GRACE_REMINDER_DAYS,
+): Promise<SeatGraceReminderResult> {
+  const days = normalizeReminderDays(offsets);
+  if (days.length === 0) return { checked: 0, sent: 0, days };
+
+  const now = Date.now();
+  const horizon = new Date(now + (days[0] + 1) * DAY_MS).toISOString();
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("organization_seats")
+    .select("id, org_id, invited_email, grace_until")
+    .eq("status", "grace")
+    .not("grace_until", "is", null)
+    .gt("grace_until", new Date(now).toISOString())
+    .lte("grace_until", horizon);
+  if (error) {
+    console.error("[orgs] grace reminders query failed", error.message);
+    return { checked: 0, sent: 0, days };
+  }
+
+  const rows = (data ?? []).filter((row) => typeof row.grace_until === "string");
+  if (rows.length === 0) return { checked: 0, sent: 0, days };
+
+  // Nazwy organizacji jednym zapytaniem - mail musi pokazywać właściwą firmę.
+  const orgIds = [...new Set(rows.map((row) => row.org_id))];
+  const { data: orgs } = await supabaseAdmin
+    .from("member_organizations")
+    .select("id, name")
+    .in("id", orgIds);
+  const orgNames = new Map<string, string>();
+  for (const org of orgs ?? []) if (org.name) orgNames.set(org.id, org.name);
+
+  const { sendTxEmail, formatDate } = await import("@/lib/email/transactional.server");
+
+  let sent = 0;
+  for (const row of rows) {
+    const graceUntil = row.grace_until as string;
+    const left = daysUntil(graceUntil, now);
+    if (!days.includes(left)) continue;
+
+    const email = (row.invited_email ?? "").trim().toLowerCase();
+    if (!email) continue;
+    const orgName = orgNames.get(row.org_id) ?? null;
+    const lang = await recipientLang(email);
+    const until = formatDate(graceUntil, lang);
+
+    const res = await sendTxEmail({
+      type: "team_seat_grace_reminder",
+      to: email,
+      lang,
+      subjectName: orgName,
+      details: [
+        ...(orgName
+          ? [{ label: lang === "pl" ? "Organizacja" : "Organisation", value: orgName }]
+          : []),
+        { label: lang === "pl" ? "Dostęp do" : "Access until", value: until },
+        {
+          label: lang === "pl" ? "Pozostało" : "Time left",
+          value:
+            lang === "pl"
+              ? `${left} ${left === 1 ? "dzień" : "dni"}`
+              : `${left} day${left === 1 ? "" : "s"}`,
+        },
+      ],
+      ctaPath: "/profile/subscription",
+      bodyVars: { planName: orgName, orgName, accessUntil: until, daysLeft: left },
+      idempotencyKey: `team-seat-grace-reminder:${row.id}:${graceUntil}:${left}`,
+    }).catch((err: unknown) => {
+      console.error("[orgs] grace reminder send failed", row.id, err);
+      return { ok: false as const, skipped: false };
+    });
+    if (res.ok && !res.skipped) sent += 1;
+  }
+
+  return { checked: rows.length, sent, days };
+}
