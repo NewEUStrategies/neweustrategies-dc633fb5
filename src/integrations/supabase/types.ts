@@ -12759,6 +12759,7 @@ export type Database = {
         Args: { _endpoint_id: string; _plaintext: string }
         Returns: undefined
       }
+      invoke_billing_cron: { Args: never; Returns: undefined }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_connected_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_conversation_member: {
