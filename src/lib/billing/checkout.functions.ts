@@ -85,6 +85,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       if (ev.starts_at && new Date(ev.starts_at).getTime() < Date.now()) {
         throw new Error("event_finished");
       }
+      // Limit miejsc egzekwujemy serwerowo tuż przed utworzeniem zamówienia -
+      // przycisk w UI jest tylko podpowiedzią, autorytetem jest backend.
+      const { assertSeatAvailable } = await import("@/lib/events/ticket.server");
+      await assertSeatAvailable(supabase, String(ev.id), userId);
       amountCents = Number(ev.ticket_price_cents);
       currency = String(ev.ticket_currency ?? "PLN");
       label = String(ev.title_pl || ev.title_en || "");
