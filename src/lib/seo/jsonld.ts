@@ -168,3 +168,142 @@ export function breadcrumbListJsonLd(
     })),
   };
 }
+
+/** Jedno pytanie sesji Q&A w postaci nadającej się do markupu schema.org. */
+export interface QaJsonLdQuestion {
+  id: string;
+  body: string;
+  answer: string | null;
+  authorName?: string | null;
+  createdAt?: string | null;
+  answeredAt?: string | null;
+  upvotes?: number | null;
+}
+
+export interface QaSessionJsonLdInput {
+  origin: string;
+  lang: Lang;
+  /** Kanoniczna ścieżka sesji, np. "/qa/moja-sesja" (bez prefiksu języka). */
+  path: string;
+  name: string;
+  description?: string | null;
+  questions: readonly QaJsonLdQuestion[];
+  datePublished?: string | null;
+  dateModified?: string | null;
+}
+
+/** Odpowiedź (Answer) jako węzeł schema.org - używana przez QAPage i FAQPage. */
+function answerNode(q: QaJsonLdQuestion): Record<string, unknown> {
+  return {
+    "@type": "Answer",
+    text: (q.answer ?? "").trim(),
+    ...(q.answeredAt ? { dateCreated: q.answeredAt } : {}),
+  };
+}
+
+/**
+ * QAPage - właściwy typ dla sesji Q&A z wieloma pytaniami społeczności
+ * (Google wymaga QAPage tam, gdzie pytania zadają użytkownicy; FAQPage jest
+ * zarezerwowany dla treści redakcyjnych). Emitujemy wyłącznie pytania
+ * z opublikowaną odpowiedzią - pytanie bez `acceptedAnswer`/`suggestedAnswer`
+ * jest nieważne w rich results i psuje walidację całej strony.
+ */
+export function qaPageJsonLd(input: QaSessionJsonLdInput): Record<string, unknown> | null {
+  const answered = input.questions.filter((q) => (q.answer ?? "").trim().length > 0);
+  if (answered.length === 0) return null;
+  const url = absoluteUrl(input.origin, localizedPath(input.path, input.lang));
+  const [main, ...rest] = answered;
+  const question = (q: QaJsonLdQuestion, accepted: boolean): Record<string, unknown> => ({
+    "@type": "Question",
+    "@id": `${url}#q-${q.id}`,
+    name: q.body.trim().slice(0, 300),
+    text: q.body.trim(),
+    answerCount: 1,
+    ...(typeof q.upvotes === "number" ? { upvoteCount: q.upvotes } : {}),
+    ...(q.createdAt ? { dateCreated: q.createdAt } : {}),
+    ...(q.authorName?.trim() ? { author: { "@type": "Person", name: q.authorName.trim() } } : {}),
+    ...(accepted ? { acceptedAnswer: answerNode(q) } : { suggestedAnswer: answerNode(q) }),
+  });
+  return {
+    "@context": "https://schema.org",
+    "@type": "QAPage",
+    "@id": `${url}#qapage`,
+    url,
+    inLanguage: input.lang,
+    name: input.name,
+    ...(input.description?.trim() ? { description: input.description.trim() } : {}),
+    ...(input.datePublished ? { datePublished: input.datePublished } : {}),
+    ...(input.dateModified ? { dateModified: input.dateModified } : {}),
+    isPartOf: { "@id": `${input.origin}/#website` },
+    publisher: { "@id": `${input.origin}/#organization` },
+    mainEntity: question(main, true),
+    ...(rest.length ? { hasPart: rest.map((q) => question(q, true)) } : {}),
+  };
+}
+
+export interface FaqJsonLdInput {
+  origin: string;
+  lang: Lang;
+  path: string;
+  items: ReadonlyArray<{ question: string; answer: string }>;
+}
+
+/**
+ * FAQPage - dla redakcyjnych par pytanie/odpowiedź (np. podsumowanie sesji
+ * przygotowane przez zespół). Zwraca null, gdy nie ma kompletnej pary.
+ */
+export function faqPageJsonLd(input: FaqJsonLdInput): Record<string, unknown> | null {
+  const items = input.items
+    .map((i) => ({ question: i.question.trim(), answer: i.answer.trim() }))
+    .filter((i) => i.question.length > 0 && i.answer.length > 0);
+  if (items.length === 0) return null;
+  const url = absoluteUrl(input.origin, localizedPath(input.path, input.lang));
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": `${url}#faq`,
+    url,
+    inLanguage: input.lang,
+    mainEntity: items.map((i) => ({
+      "@type": "Question",
+      name: i.question.slice(0, 300),
+      acceptedAnswer: { "@type": "Answer", text: i.answer },
+    })),
+  };
+}
+
+export interface QaListJsonLdInput {
+  origin: string;
+  lang: Lang;
+  path: string;
+  name: string;
+  description?: string | null;
+  sessions: ReadonlyArray<{ slug: string; title: string }>;
+}
+
+/**
+ * CollectionPage + ItemList dla listy sesji Q&A - crawler dostaje z SSR
+ * komplet adresów sesji zamiast listy renderowanej dopiero po hydracji.
+ */
+export function qaCollectionJsonLd(input: QaListJsonLdInput): Record<string, unknown> {
+  const url = absoluteUrl(input.origin, localizedPath(input.path, input.lang));
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${url}#collection`,
+    url,
+    name: input.name,
+    inLanguage: input.lang,
+    ...(input.description?.trim() ? { description: input.description.trim() } : {}),
+    isPartOf: { "@id": `${input.origin}/#website` },
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: input.sessions.map((s, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: s.title,
+        url: absoluteUrl(input.origin, localizedPath(`/qa/${s.slug}`, input.lang)),
+      })),
+    },
+  };
+}
