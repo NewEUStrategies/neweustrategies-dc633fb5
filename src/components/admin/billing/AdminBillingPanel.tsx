@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminTicketOrdersPanel } from "@/components/admin/billing/AdminTicketOrdersPanel";
+import { AdminWebhookLogPanel } from "@/components/admin/billing/AdminWebhookLogPanel";
+import { AdminPaymentsDiagnosticsPanel } from "@/components/admin/billing/AdminPaymentsDiagnosticsPanel";
 
 
 interface SubscriptionRow {
@@ -224,7 +226,8 @@ export function AdminBillingPanel() {
           <TabsList>
             <TabsTrigger value="subscriptions">{L("Subskrypcje", "Subscriptions")}</TabsTrigger>
             <TabsTrigger value="tickets">{L("Bilety", "Tickets")}</TabsTrigger>
-            <TabsTrigger value="events">{L("Historia webhooków", "Webhook history")}</TabsTrigger>
+            <TabsTrigger value="events">{L("Dziennik zdarzeń", "Event log")}</TabsTrigger>
+            <TabsTrigger value="diagnostics">{L("Diagnostyka", "Diagnostics")}</TabsTrigger>
 
           </TabsList>
           <div className="flex items-center gap-2">
@@ -330,49 +333,11 @@ export function AdminBillingPanel() {
         </TabsContent>
 
         <TabsContent value="events" className="mt-4">
-          <Card>
-            <CardContent className="p-0">
-              {eventsQ.isLoading ? (
-                <div className="space-y-2 p-4">
-                  <div className="h-8 w-full animate-pulse rounded-[6px] bg-muted" />
-                  <div className="h-8 w-full animate-pulse rounded-[6px] bg-muted" />
-                </div>
-              ) : (eventsQ.data ?? []).length === 0 ? (
-                <p className="p-6 text-[0.8125rem] text-muted-foreground">
-                  {L("Brak zdarzeń.", "No events yet.")}
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[0.8125rem]">
-                    <thead className="border-b bg-muted/40 text-left text-muted-foreground">
-                      <tr>
-                        <th className="px-4 py-2 font-medium">{L("Zdarzenie", "Event")}</th>
-                        <th className="px-4 py-2 font-medium">{L("Status", "Status")}</th>
-                        <th className="px-4 py-2 font-medium">{L("Kiedy", "When")}</th>
-                        <th className="px-4 py-2 font-medium">{L("Subskrypcja", "Subscription")}</th>
-                        <th className="px-4 py-2 font-medium">{L("Błąd", "Error")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(eventsQ.data ?? []).map((e) => (
-                        <tr key={e.id} className="border-b last:border-0">
-                          <td className="px-4 py-2">{e.event_type}</td>
-                          <td className="px-4 py-2">
-                            <StatusBadge value={e.status} />
-                          </td>
-                          <td className="px-4 py-2">{fmtDate(e.occurred_at ?? e.created_at)}</td>
-                          <td className="px-4 py-2 font-mono text-[0.75rem] text-muted-foreground">
-                            {e.subscription_id ?? "-"}
-                          </td>
-                          <td className="px-4 py-2 text-destructive">{e.error ?? ""}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <AdminWebhookLogPanel />
+        </TabsContent>
+
+        <TabsContent value="diagnostics" className="mt-4">
+          <AdminPaymentsDiagnosticsPanel />
         </TabsContent>
 
         <TabsContent value="tickets" className="mt-4">
