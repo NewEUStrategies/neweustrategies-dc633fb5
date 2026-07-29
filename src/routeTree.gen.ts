@@ -183,6 +183,7 @@ import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs-
 import { Route as ApiPublicFxRateRouteImport } from './routes/api/public/fx-rate'
 import { Route as ApiPublicCommunityCronRouteImport } from './routes/api/public/community-cron'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
+import { Route as ApiPublicBillingCronRouteImport } from './routes/api/public/billing-cron'
 import { Route as ApiPublicAdEventRouteImport } from './routes/api/public/ad-event'
 import { Route as AdminUsersInvitationsRouteImport } from './routes/admin.users.invitations'
 import { Route as AdminUsersIdRouteImport } from './routes/admin.users.$id'
@@ -1122,6 +1123,11 @@ const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
   path: '/api/public/client-errors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicBillingCronRoute = ApiPublicBillingCronRouteImport.update({
+  id: '/api/public/billing-cron',
+  path: '/api/public/billing-cron',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAdEventRoute = ApiPublicAdEventRouteImport.update({
   id: '/api/public/ad-event',
   path: '/api/public/ad-event',
@@ -1677,6 +1683,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/admin/users/invitations': typeof AdminUsersInvitationsRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
+  '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
@@ -1909,6 +1916,7 @@ export interface FileRoutesByTo {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/admin/users/invitations': typeof AdminUsersInvitationsRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
+  '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
@@ -2152,6 +2160,7 @@ export interface FileRoutesById {
   '/admin/users/$id': typeof AdminUsersIdRoute
   '/admin/users/invitations': typeof AdminUsersInvitationsRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
+  '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
@@ -2396,6 +2405,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/admin/users/invitations'
     | '/api/public/ad-event'
+    | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
     | '/api/public/fx-rate'
@@ -2628,6 +2638,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/admin/users/invitations'
     | '/api/public/ad-event'
+    | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
     | '/api/public/fx-rate'
@@ -2870,6 +2881,7 @@ export interface FileRouteTypes {
     | '/admin/users/$id'
     | '/admin/users/invitations'
     | '/api/public/ad-event'
+    | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
     | '/api/public/fx-rate'
@@ -2979,6 +2991,7 @@ export interface RootRouteChildren {
   WebStoriesIndexRoute: typeof WebStoriesIndexRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiPublicAdEventRoute: typeof ApiPublicAdEventRoute
+  ApiPublicBillingCronRoute: typeof ApiPublicBillingCronRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
   ApiPublicCommunityCronRoute: typeof ApiPublicCommunityCronRoute
   ApiPublicFxRateRoute: typeof ApiPublicFxRateRoute
@@ -4225,6 +4238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicClientErrorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/billing-cron': {
+      id: '/api/public/billing-cron'
+      path: '/api/public/billing-cron'
+      fullPath: '/api/public/billing-cron'
+      preLoaderRoute: typeof ApiPublicBillingCronRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/ad-event': {
       id: '/api/public/ad-event'
       path: '/api/public/ad-event'
@@ -5291,6 +5311,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebStoriesIndexRoute: WebStoriesIndexRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiPublicAdEventRoute: ApiPublicAdEventRoute,
+  ApiPublicBillingCronRoute: ApiPublicBillingCronRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
   ApiPublicCommunityCronRoute: ApiPublicCommunityCronRoute,
   ApiPublicFxRateRoute: ApiPublicFxRateRoute,
@@ -5319,13 +5340,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

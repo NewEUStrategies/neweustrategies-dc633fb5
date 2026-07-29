@@ -286,3 +286,61 @@ export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<voi
     console.error("[billing-emails] payment notify failed", input.kind, err);
   }
 }
+
+export type ReminderEmailKind = Extract<
+  TxEmailType,
+  "subscription_renewal_reminder" | "subscription_expiring"
+>;
+
+export interface ReminderNotifyInput {
+  kind: ReminderEmailKind;
+  userId: string;
+  planId: string | null;
+  /** Data odnowienia (renewal) albo końca dostępu (expiring). */
+  periodEnd: string;
+  idempotencySeed: string;
+}
+
+/** Przypomnienie o zbliżającym się odnowieniu / wygaśnięciu. Nigdy nie rzuca. */
+export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabase = supabaseAdmin as unknown as SupabaseClient;
+
+    const recipient = await resolveRecipient(supabase, input.userId);
+    if (!recipient) return;
+
+    const { lang } = recipient;
+    const copy = txCopy(input.kind, lang);
+    const plan = await loadPlan(supabase, input.planId, lang);
+
+    const details: TxDetail[] = [];
+    if (plan) {
+      details.push({ label: copy.labels.plan, value: plan.name });
+      if (plan.priceCents !== null && input.kind === "subscription_renewal_reminder") {
+        details.push({
+          label: copy.labels.price,
+          value: formatMoney(plan.priceCents, plan.currency, lang),
+        });
+      }
+    }
+    details.push({
+      label:
+        input.kind === "subscription_renewal_reminder" ? copy.labels.renewsAt : copy.labels.endsAt,
+      value: formatDate(input.periodEnd, lang),
+    });
+
+    await sendTxEmail({
+      type: input.kind,
+      to: recipient.email,
+      lang,
+      metaName: recipient.name,
+      subjectName: plan?.name ?? null,
+      details,
+      ctaPath: "/profile/subscription",
+      idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
+    });
+  } catch (err) {
+    console.error("[billing-emails] reminder notify failed", input.kind, err);
+  }
+}
