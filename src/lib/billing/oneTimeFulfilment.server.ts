@@ -126,13 +126,18 @@ async function fulfilDonation(txn: OneTimeTransaction): Promise<OneTimeOutcome> 
     return "skipped";
   }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // Wiadomość darczyńcy jedzie w `custom_data` transakcji (zapisane przy
+  // tworzeniu w createDonationCheckout) - trafia i do wiersza darowizny,
+  // i do maila z podziękowaniem poniżej.
+  const donorMessage = str(txn.customData, "message");
+  const donorUserId = str(txn.customData, "user_id");
   const { error } = await supabaseAdmin.from("donations").upsert(
     {
       tenant_id: tenantId,
       amount_cents: txn.amountCents ?? 0,
       currency: (txn.currency ?? "PLN").toUpperCase(),
-      message: str(txn.customData, "message"),
-      user_id: str(txn.customData, "user_id"),
+      message: donorMessage,
+      user_id: donorUserId,
       donor_email: txn.customerEmail,
       provider: "paddle",
       provider_session_id: txn.id,
@@ -142,6 +147,20 @@ async function fulfilDonation(txn: OneTimeTransaction): Promise<OneTimeOutcome> 
     { onConflict: "provider_session_id", ignoreDuplicates: true },
   );
   if (error) throw new Error(`one-time: donation insert failed: ${error.message}`);
+
+  // Podziękowanie (fail-soft, idempotentne po id transakcji) - z kwotą,
+  // numerem transakcji i wiadomością darczyńcy, jeśli ją zostawił.
+  const rawLang = str(txn.customData, "lang");
+  const { notifyDonationReceived } = await import("@/lib/billing/notifications.server");
+  await notifyDonationReceived({
+    donorEmail: txn.customerEmail,
+    userId: donorUserId,
+    amountCents: txn.amountCents,
+    currency: txn.currency,
+    message: donorMessage,
+    lang: rawLang === "en" ? "en" : rawLang === "pl" ? "pl" : null,
+    transactionId: txn.id,
+  });
   return "donation";
 }
 

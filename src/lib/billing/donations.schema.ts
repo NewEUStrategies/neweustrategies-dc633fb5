@@ -25,3 +25,18 @@ export const donationInputSchema = z.object({
 });
 
 export type DonationInput = z.infer<typeof donationInputSchema>;
+
+/**
+ * Wejście odczytu statusu transakcji darowizny (strona podziękowania).
+ * Format identyfikatora jest przypięty do konwencji operatora, żeby endpoint
+ * nie służył jako proxy do dowolnej ścieżki API bramki.
+ */
+export const donationStatusInputSchema = z.object({
+  transaction_id: z
+    .string()
+    .trim()
+    .min(8)
+    .max(64)
+    .regex(/^txn_[a-zA-Z0-9]+$/, "invalid_transaction_id"),
+  environment: z.enum(["sandbox", "live"]).optional(),
+});

@@ -15,7 +15,10 @@
 //   - mock (brak konfiguracji dostawcy): INSERT bezpośrednio tutaj.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { donationInputSchema } from "@/lib/billing/donations.schema";
+import {
+  donationInputSchema,
+  donationStatusInputSchema,
+} from "@/lib/billing/donations.schema";
 
 /**
  * Best-effort user id z tokenu Bearer żądania. Darowizna nie WYMAGA logowania,
@@ -106,6 +109,8 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
         customData: {
           kind: "donation",
           tenant_id: hostTenantId,
+          // Język formularza - webhook wysyła podziękowanie w tym samym języku.
+          lang: data.lang,
           ...(donorUserId ? { user_id: donorUserId } : {}),
           ...(message ? { message: message.slice(0, 480) } : {}),
         },
@@ -220,3 +225,59 @@ export const getDonationsPublicStats = createServerFn({ method: "GET" }).handler
     recent,
   };
 });
+
+/**
+ * Status transakcji darowizny u operatora - zasila stronę podziękowania po
+ * powrocie z nakładki płatności.
+ *
+ * Publiczny odczyt bez logowania (darczyńca może być anonimowy), więc
+ * ujawniamy WYŁĄCZNIE dane, które płacący i tak właśnie widział: status,
+ * kwotę i walutę. Bez adresu e-mail, danych klienta i wiadomości. Identyfikator
+ * transakcji jest nieodgadywalny (`txn_` + ULID), a odczyt jest limitowany.
+ */
+export const getDonationTransactionStatus = createServerFn({ method: "GET" })
+  .validator((input: unknown) => donationStatusInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { rateLimit } = await import("@/lib/server/rate-limit.server");
+    const ok = await rateLimit({
+      scope: "donation.status",
+      subjectId: data.transaction_id,
+      max: 30,
+      windowMinutes: 10,
+    });
+    if (!ok) throw new Error("rate_limited");
+
+    const [{ gatewayFetch }, { resolveEnvironment }] = await Promise.all([
+      import("@/lib/paddle.server"),
+      import("@/lib/billing/paddleTransaction.server"),
+    ]);
+    try {
+      const res = await gatewayFetch(
+        resolveEnvironment(data.environment),
+        `/transactions/${encodeURIComponent(data.transaction_id)}`,
+      );
+      if (!res.ok) {
+        console.error("[donations] status lookup failed", res.status);
+        return { ok: false as const, error: "not_found" as const };
+      }
+      const json = (await res.json()) as {
+        data?: {
+          status?: string;
+          currency_code?: string;
+          details?: { totals?: { grand_total?: string } };
+        };
+      };
+      const txn = json.data;
+      if (!txn?.status) return { ok: false as const, error: "not_found" as const };
+      const grandTotal = Number(txn.details?.totals?.grand_total ?? NaN);
+      return {
+        ok: true as const,
+        status: txn.status,
+        amountCents: Number.isFinite(grandTotal) ? grandTotal : null,
+        currency: txn.currency_code ?? null,
+      };
+    } catch (e) {
+      console.error("[donations] status lookup threw", e);
+      return { ok: false as const, error: "provider_failed" as const };
+    }
+  });
