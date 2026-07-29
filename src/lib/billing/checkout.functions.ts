@@ -1,22 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import {
-  periodEndFor,
-  stripeRecurringFor,
-  type StripeRecurringParams,
-} from "@/lib/billing/entitlement";
+import { periodEndFor } from "@/lib/billing/entitlement";
 import {
   checkoutSessionExtraParams,
   normalizeCheckoutSettings,
 } from "@/lib/billing/checkoutSettings";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 
-// Create a payment order (server-side, RLS as user).
-// Stripe wiring is intentionally pluggable: if STRIPE_SECRET_KEY is set we create a Checkout Session,
-// otherwise we return a mock URL so the UX can be tested end-to-end. Mock mode
-// is fail-closed on production (mockCheckoutAllowed) - a misconfigured env can
-// no longer hand out paid entitlements for free.
+// Zamówienie płatnicze (server-side, RLS jako użytkownik).
+// Kwota jest zawsze wyliczana serwerowo (plan / reguła dostępu / bilet /
+// kupon / waluta prezentacji) i osadzana w transakcji u dostawcy, więc klient
+// nie może jej podmienić. Bez konfiguracji dostawcy zwracamy adres mock, żeby
+// dało się przetestować lejek w dev; na produkcji tryb mock jest fail-closed
+// (mockCheckoutAllowed) - błędna konfiguracja nie rozdaje płatnego dostępu.
 
 const createOrderSchema = z.object({
   kind: z.enum(["subscription", "one_time"]),
@@ -50,16 +47,14 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let amountCents = 0;
     let currency = "PLN";
     let label = "";
-    // Billing cadence for a subscription Checkout Session. Resolved from the
-    // plan below (default monthly) so a yearly/quarterly/weekly plan is billed
-    // on its real interval rather than always monthly.
-    let recurring: StripeRecurringParams = { interval: "month", intervalCount: 1 };
     let trialDays = 0;
 
-    // One-time PLAN purchase: kind=one_time with a plan_id and no entity. The
-    // price comes from the plan; the Stripe session is a one-off payment (no
-    // recurring), and the grant is lifetime plan access (see entitlementForOrder).
+    // Zakup jednorazowy PLANU: kind=one_time z plan_id i bez encji. Cena
+    // pochodzi z planu, płatność jest jednorazowa, a uprawnienie dożywotnie
+    // (patrz entitlementForOrder).
     const isOneTimePlan = data.kind === "one_time" && !!data.plan_id && !data.entity_id;
+    // Bilet na płatne wydarzenie: kind=one_time z event_id i bez planu/encji.
+    const isEventTicket = data.kind === "one_time" && !!data.event_id && !data.plan_id && !data.entity_id;
 
     if (data.kind === "subscription" || isOneTimePlan) {
       if (!data.plan_id) throw new Error("plan_id_required");
@@ -73,8 +68,26 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       amountCents = Number(plan.price_cents);
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
-      recurring = stripeRecurringFor(String(plan.interval));
       trialDays = data.kind === "subscription" ? Math.max(0, Number(plan.trial_days ?? 0)) : 0;
+    } else if (isEventTicket) {
+      // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
+      // klient przekazuje wyłącznie identyfikator wydarzenia.
+      const { data: ev, error: evErr } = await supabase
+        .from("events")
+        .select("id, title_pl, title_en, ticket_price_cents, ticket_currency, status, starts_at")
+        .eq("id", data.event_id ?? "")
+        .maybeSingle();
+      if (evErr) throw evErr;
+      if (!ev || !ev.ticket_price_cents || ev.ticket_price_cents <= 0) {
+        throw new Error("ticket_not_available");
+      }
+      if (ev.status !== "published") throw new Error("ticket_not_available");
+      if (ev.starts_at && new Date(ev.starts_at).getTime() < Date.now()) {
+        throw new Error("event_finished");
+      }
+      amountCents = Number(ev.ticket_price_cents);
+      currency = String(ev.ticket_currency ?? "PLN");
+      label = String(ev.title_pl || ev.title_en || "");
     } else {
       if (!data.entity_type || !data.entity_id) throw new Error("entity_required");
       // Price is taken from the per-entity access rule server-side, so the
@@ -136,7 +149,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       couponDiscountCents = row.discount_cents;
       amountCents = row.final_cents;
       // Bezpiecznik: rabat 100% (final=0) traktujemy jak darmowy przydział -
-      // najpierw i tak minimalna kwota Stripe, więc odrzucamy < 100 gr.
+      // i tak nie przejdzie minimalnej kwoty transakcji, więc odrzucamy < 50 gr.
       if (amountCents < 50) {
         return {
           ok: false as const,
@@ -148,8 +161,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     // Konwersja waluty prezentacji (EN → EUR) PO wyliczeniu kuponu, żeby
     // walidacja kuponu B2B odbyła się w oryginalnej walucie planu (kupony
-    // są zdefiniowane per waluta). Sam koszyk/Stripe zawsze widzi już
-    // walutę wybraną przez klienta.
+    // są zdefiniowane per waluta). Koszyk u dostawcy widzi już walutę
+    // wybraną przez klienta.
     //
     // WAŻNE (spójność walutowa audytu kuponu): kwoty zapisywane w redemption
     // Konwertujemy po AKTUALNYM kursie NBP (tabela A) - `ensureFxRateLoaded()`
@@ -301,18 +314,19 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
   });
 
 
-// Finalise a mock-mode order (no Stripe configured). Marks the caller's own
-// pending order paid and grants the entitlement via the same shared path the
-// webhook uses. When STRIPE_SECRET_KEY is set this is a deliberate no-op - the
-// webhook is authoritative - so it can never bypass real payments in production.
+// Finalizacja zamówienia w trybie mock (brak skonfigurowanego dostawcy).
+// Oznacza własne zamówienie jako opłacone i nadaje uprawnienie tą samą ścieżką
+// co webhook. Gdy dostawca jest skonfigurowany, funkcja jest świadomym no-opem -
+// źródłem prawdy jest webhook - więc nie da się nią ominąć realnej płatności.
 export const finalizeCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ order_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    if (process.env.STRIPE_SECRET_KEY) {
-      return { ok: false as const, reason: "stripe_mode" as const };
+    const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
+    if (paymentsConfiguredServer()) {
+      return { ok: false as const, reason: "provider_mode" as const };
     }
-    // Ten sam bezpiecznik co przy tworzeniu zamówienia: produkcja bez Stripe
+    // Ten sam bezpiecznik co przy tworzeniu zamówienia: produkcja bez dostawcy
     // nie może finalizować zamówień mock (rozdanie uprawnień bez płatności).
     if (!mockCheckoutAllowed()) {
       console.error("[checkout] billing unconfigured: refusing mock finalize in production");
@@ -338,7 +352,7 @@ export const finalizeCheckout = createServerFn({ method: "POST" })
 
     await grantEntitlement(order, order.id);
     // Efekty kuponu B2B po zaksięgowaniu płatności (ta gałąź już ustawiła
-    // status='paid' powyżej) - ta sama ścieżka co w webhooku Stripe, żeby kupon
+    // status='paid' powyżej) - ta sama ścieżka co w webhooku dostawcy, żeby kupon
     // z `grants_tier_key` działał identycznie w obu trybach.
     const { applyCouponEffectsForOrder } = await import("@/lib/billing/couponEffects.server");
     await applyCouponEffectsForOrder(order.id);
