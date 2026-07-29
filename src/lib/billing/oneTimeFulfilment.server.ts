@@ -111,6 +111,8 @@ async function fulfilOrder(txn: OneTimeTransaction, orderId: string): Promise<On
       eventId,
       amountCents,
       currency,
+      transactionId: txn.id,
+      ticketSeed: order.id,
       idempotencySeed: order.id,
     });
   }
