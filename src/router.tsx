@@ -119,11 +119,13 @@ export const getRouter = () => {
       const dehydrated = (await integrationDehydrate?.()) as
         | (Record<string, unknown> & { queryStream?: ReadableStream<unknown> })
         | undefined;
+      console.error("[ssr-dbg] dehydrate keys", Object.keys(dehydrated ?? {}).join(","));
       if (dehydrated?.queryStream) {
         dehydrated.queryStream = guardQueryStream(dehydrated.queryStream, queryClient);
       }
       return dehydrated;
     };
+
   }
 
 
