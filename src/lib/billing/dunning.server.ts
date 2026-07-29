@@ -68,6 +68,12 @@ async function pushNotification(params: {
   }
 }
 
+/**
+ * Okres karencji miękkiej windykacji: dostęp działa mimo nieudanej płatności,
+ * dopóki operator ponawia próby obciążenia.
+ */
+export const PAYMENT_GRACE_DAYS = 14;
+
 /** Nieudane obciążenie: licznik prób + mail + powiadomienie. */
 export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<void> {
   const sub = await loadSubscription(ctx);
@@ -99,6 +105,7 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     attemptedAt: ctx.occurredAt,
     retryAt: ctx.retryAt ?? null,
     accessUntil: sub.current_period_end,
+    graceDays: PAYMENT_GRACE_DAYS,
     idempotencySeed: `${ctx.subscriptionId}:${attempt}`,
   });
 

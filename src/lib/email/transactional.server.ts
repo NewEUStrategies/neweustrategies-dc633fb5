@@ -7,6 +7,7 @@ import { TxEmail, type TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import { resolveRecipientName } from "@/lib/email/recipient-name.server";
+import { txBody, type TxBodyVars } from "@/lib/email-templates/tx-body";
 
 const SITE_NAME = "New European Strategies";
 const SITE_URL = "https://neweuropeanstrategies.com";
@@ -24,6 +25,12 @@ export interface TxSendInput {
   ctaPath?: string;
   ctaLabel?: string;
   extra?: string | null;
+  /**
+   * Zmienne personalizacji treści (plan, kwota, daty, prorata, karencja).
+   * Na ich podstawie `tx-body` buduje akapity odmienione przez rodzaj
+   * gramatyczny odbiorcy - bez nich mail wraca do treści ogólnej.
+   */
+  bodyVars?: TxBodyVars;
   /** Imię z metadanych (gdy znane) - inaczej rozwiązywane ze słownika. */
   metaName?: string | null;
   /** Klucz idempotencji - ten sam klucz nie wyśle maila dwa razy. */
@@ -103,6 +110,8 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
 
     const name = await resolveRecipientName(supabase, to, input.metaName ?? null);
 
+    const body = txBody(input.type, lang, name.gender, input.bodyVars ?? {});
+
     const element = React.createElement(TxEmail, {
       type: input.type,
       lang,
@@ -110,7 +119,9 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
       ctaUrl: input.ctaPath ? `${SITE_URL}${input.ctaPath}` : undefined,
       ctaLabel: input.ctaLabel,
       details: input.details ?? [],
-      extra: input.extra ?? null,
+      extra: input.extra ?? body.extra ?? null,
+      intro: body.intro ?? null,
+      note: body.note ?? null,
       firstName: name.firstName,
       gender: name.gender,
       vocativePl: name.vocativePl,
