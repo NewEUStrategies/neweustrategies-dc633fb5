@@ -135,6 +135,7 @@ function CheckoutPage() {
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",
           display_currency: displayCurrency,
+          environment: getPaddleEnvironment(),
           ...(coupon ? { coupon_code: coupon.code } : {}),
         },
       });
@@ -152,7 +153,7 @@ function CheckoutPage() {
       if (res.mode === "paddle") {
         await openCheckout({
           transactionId: res.transactionId,
-          customerEmail: user?.email ?? undefined,
+          customerEmail: session?.user?.email ?? undefined,
           successPath: "/checkout/success",
         });
         setBusy(false);
