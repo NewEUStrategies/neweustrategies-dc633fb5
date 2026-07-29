@@ -411,6 +411,15 @@ export async function applyStatusTransitionEffects(
       href: "/profile/subscription",
       icon: "pause-circle",
     });
+    await notifySubscriptionEmail({
+      kind: "subscription_paused",
+      userId: ctx.userId,
+      planId: plan.planId,
+      periodEnd: ctx.periodEnd,
+      amountCents: plan.priceCents,
+      currency: plan.currency,
+      idempotencySeed: `${ctx.subscriptionId}:paused:${ctx.periodEnd ?? ""}`,
+    });
     return;
   }
 
@@ -426,6 +435,15 @@ export async function applyStatusTransitionEffects(
         bodyEn: "Premium access is active again.",
         href: "/profile/subscription",
         icon: "badge-check",
+      });
+      await notifySubscriptionEmail({
+        kind: "subscription_resumed",
+        userId: ctx.userId,
+        planId: plan.planId,
+        periodEnd: ctx.periodEnd,
+        amountCents: plan.priceCents,
+        currency: plan.currency,
+        idempotencySeed: `${ctx.subscriptionId}:resumed:${ctx.periodEnd ?? ""}`,
       });
     }
   }

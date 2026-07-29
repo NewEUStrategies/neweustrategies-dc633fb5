@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 
 import { runBillingRemindersNow } from "@/lib/billing/reminders.functions";
+import { syncPaymentCatalogNow } from "@/lib/billing/paddleCatalogSync.functions";
 import { getJobRunnerSettings } from "@/lib/newsletter-admin.functions";
 import { Link } from "@tanstack/react-router";
 
@@ -122,6 +123,19 @@ export function AdminBillingPanel() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const syncCatalog = useServerFn(syncPaymentCatalogNow);
+  const catalogM = useMutation({
+    mutationFn: () => syncCatalog({ data: {} }),
+    onSuccess: (r) =>
+      toast.success(
+        L(
+          `Katalog zsynchronizowany: ${r.created} nowych, ${r.updated} zaktualizowanych, ${r.failed} błędów`,
+          `Catalog synced: ${r.created} created, ${r.updated} updated, ${r.failed} failed`,
+        ),
+      ),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const rows = useMemo(() => subsQ.data ?? [], [subsQ.data]);
   const stats = useMemo(() => {
     const active = rows.filter((r) => ["active", "trialing"].includes(r.status)).length;
@@ -219,6 +233,16 @@ export function AdminBillingPanel() {
             >
               <BellRing className="mr-2 h-4 w-4" />
               {L("Wyślij przypomnienia", "Send reminders")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-[6px]"
+              disabled={catalogM.isPending}
+              onClick={() => catalogM.mutate()}
+            >
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              {L("Synchronizuj katalog", "Sync catalog")}
             </Button>
             <Button
               variant="outline"

@@ -22,7 +22,22 @@ export const resolvePaddlePrice = createServerFn({ method: "GET" })
       throw new Error("price_lookup_failed");
     }
     const result = (await response.json()) as { data?: Array<{ id: string }> };
-    const id = result.data?.[0]?.id;
+    let id = result.data?.[0]?.id;
+    if (!id) {
+      // Brak ceny to typowy objaw restartu integracji (nowe konto operatora,
+      // odtworzone środowisko). Odtwarzamy katalog i próbujemy raz jeszcze,
+      // zamiast blokować użytkownikowi zakup.
+      const { healCatalogOnce } = await import("@/lib/billing/paddleCatalogSync.server");
+      await healCatalogOnce(data.environment);
+      const retry = await gatewayFetch(
+        data.environment,
+        `/prices?external_id=${encodeURIComponent(data.priceId)}`,
+      );
+      if (retry.ok) {
+        const retried = (await retry.json()) as { data?: Array<{ id: string }> };
+        id = retried.data?.[0]?.id;
+      }
+    }
     if (!id) throw new Error("price_not_found");
     return id;
   });

@@ -12,6 +12,8 @@ export type TxEmailType =
   | "subscription_canceled"
   | "subscription_upgraded"
   | "subscription_downgraded"
+  | "subscription_paused"
+  | "subscription_resumed"
   | "payment_failed"
   | "payment_recovered"
   | "subscription_renewal_reminder"
@@ -165,6 +167,34 @@ const PL: Dict = {
       "Zmiana planu została zapisana. Zakres dostępu odpowiada nowemu planowi, a kolejne rozliczenie będzie już według niższej stawki.",
     cta: "Zobacz szczegóły planu",
     note: "W każdej chwili możesz wrócić do wyższego planu - dostęp rozszerzy się natychmiast.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  subscription_paused: {
+    subject: (v) =>
+      `⏸️ Subskrypcja wstrzymana${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Twoja subskrypcja została wstrzymana - wznowisz ją jednym kliknięciem.",
+    eyebrow: "Wstrzymanie subskrypcji",
+    heading: "Subskrypcja została wstrzymana",
+    intro:
+      "Zgodnie z dyspozycją wstrzymaliśmy Twoją subskrypcję. W czasie pauzy nie pobieramy płatności, a Twoje dane, historia i zapisane materiały pozostają nienaruszone.",
+    cta: "Wznów subskrypcję",
+    note: "Subskrypcję możesz wznowić w dowolnym momencie - dostęp premium wraca natychmiast.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  subscription_resumed: {
+    subject: (v) =>
+      `▶️ Subskrypcja wznowiona${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-handshake",
+    preview: "Twoja subskrypcja znów działa - pełny dostęp premium jest aktywny.",
+    eyebrow: "Wznowienie subskrypcji",
+    heading: "Subskrypcja została wznowiona",
+    intro:
+      "Twoja subskrypcja została wznowiona, a pełny dostęp do materiałów premium jest już aktywny. Kolejne rozliczenie odbędzie się w standardowym cyklu.",
+    cta: "Przejdź do subskrypcji",
+    note: "Jeśli to nie Ty wznowiłeś subskrypcję, skontaktuj się z nami natychmiast.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -322,6 +352,34 @@ const EN: Dict = {
       "Your plan change has been saved. Access now matches the new plan and the next invoice will use the lower rate.",
     cta: "View plan details",
     note: "You can move back to a higher plan at any time - access expands immediately.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  subscription_paused: {
+    subject: (v) =>
+      `⏸️ Subscription paused${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Your subscription is paused - you can resume it in one click.",
+    eyebrow: "Subscription paused",
+    heading: "Your subscription has been paused",
+    intro:
+      "As requested, your subscription is now paused. We take no payments while it is paused, and your data, history and saved material stay exactly as they are.",
+    cta: "Resume subscription",
+    note: "You can resume at any time - premium access comes back immediately.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  subscription_resumed: {
+    subject: (v) =>
+      `▶️ Subscription resumed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-handshake",
+    preview: "Your subscription is active again - full premium access is back.",
+    eyebrow: "Subscription resumed",
+    heading: "Your subscription has been resumed",
+    intro:
+      "Your subscription is active again and full access to premium material is restored. Billing continues on the regular cycle.",
+    cta: "Go to your subscription",
+    note: "If you did not resume this subscription, contact us straight away.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

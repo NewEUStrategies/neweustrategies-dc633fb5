@@ -32,6 +32,8 @@ const TYPE_LABELS: Record<string, { pl: string; en: string }> = {
   subscription_canceled: { pl: "Subskrypcja - anulowanie", en: "Subscription canceled" },
   subscription_upgraded: { pl: "Subskrypcja - upgrade", en: "Subscription upgraded" },
   subscription_downgraded: { pl: "Subskrypcja - downgrade", en: "Subscription downgraded" },
+  subscription_paused: { pl: "Subskrypcja - pauza", en: "Subscription paused" },
+  subscription_resumed: { pl: "Subskrypcja - wznowienie", en: "Subscription resumed" },
   event_registered: { pl: "Zapis na wydarzenie", en: "Event registration" },
   newsletter_confirmed: { pl: "Newsletter - potwierdzenie", en: "Newsletter confirmed" },
 };

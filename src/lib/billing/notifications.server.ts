@@ -96,6 +96,8 @@ export type SubscriptionEmailKind = Extract<
   | "subscription_canceled"
   | "subscription_upgraded"
   | "subscription_downgraded"
+  | "subscription_paused"
+  | "subscription_resumed"
 >;
 
 export interface SubscriptionNotifyInput {
@@ -137,7 +139,9 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
 
     const amount = input.amountCents ?? plan?.priceCents ?? null;
     const currency = input.currency ?? plan?.currency ?? "PLN";
-    if (amount !== null && input.kind !== "subscription_canceled") {
+    const skipsAmount =
+      input.kind === "subscription_canceled" || input.kind === "subscription_paused";
+    if (amount !== null && !skipsAmount) {
       const interval = plan?.interval ? INTERVAL_LABEL[lang][plan.interval] : null;
       details.push({
         label: copy.labels.price,
@@ -146,7 +150,7 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
     }
     if (input.periodEnd) {
       details.push({
-        label: input.kind === "subscription_canceled" ? copy.labels.endsAt : copy.labels.renewsAt,
+        label: skipsAmount ? copy.labels.endsAt : copy.labels.renewsAt,
         value: formatDate(input.periodEnd, lang),
       });
     }
