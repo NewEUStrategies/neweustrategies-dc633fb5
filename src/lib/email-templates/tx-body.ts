@@ -30,6 +30,8 @@ export interface TxBodyVars {
   graceDays?: number | null;
   /** Sformatowana kwota doliczonej proraty przy zmianie planu w trakcie okresu. */
   prorationAmount?: string | null;
+  /** Wiadomość darczyńcy z formularza darowizny (już przycięta). */
+  donorMessage?: string | null;
 }
 
 export interface TxBodyCopy {
@@ -48,6 +50,17 @@ const plan = (v: TxBodyVars, lang: EmailLang): string =>
 type Builder = (v: TxBodyVars, gender: PolishGender) => TxBodyCopy;
 
 const PL: Partial<Record<TxEmailType, Builder>> = {
+  donation_received: (v, gender) => ({
+    intro:
+      `Dziękujemy za darowiznę${v.amount ? ` w kwocie ${v.amount}` : ""}. Twoje wsparcie finansuje niezależne analizy polityki europejskiej - bez paywalla tam, gdzie to możliwe.` +
+      (v.donorMessage ? " Twoją wiadomość przekazaliśmy redakcji." : ""),
+    extra: g(
+      gender,
+      "Dołączyłeś do grona mecenasów NES.",
+      "Dołączyłaś do grona mecenasów NES.",
+      "Dołączyłeś/aś do grona mecenasów NES.",
+    ),
+  }),
   subscription_confirmed: (v, gender) => {
     const price =
       v.amount && v.interval
@@ -142,6 +155,12 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
 };
 
 const EN: Partial<Record<TxEmailType, Builder>> = {
+  donation_received: (v) => ({
+    intro:
+      `Thank you for your donation${v.amount ? ` of ${v.amount}` : ""}. Your support funds independent European policy analysis - kept outside the paywall wherever possible.` +
+      (v.donorMessage ? " We have passed your message on to the editorial team." : ""),
+    extra: "You are now part of the NES patron community.",
+  }),
   subscription_confirmed: (v) => ({
     intro:
       `Thank you - your payment for the ${plan(v, "en")} plan has been processed and full access to NES analysis, data and expert briefings is now active on your account.` +
