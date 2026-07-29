@@ -1093,11 +1093,65 @@ function SeatsPane({
         </div>
         <p className="text-[10px] text-muted-foreground">
           {L(
-            "Po zmniejszeniu limitu osoby ponad limit zachowują pełny dostęp przez tyle dni i dostają maila z datą oraz informacją, co dalej. Przypomnienia wychodzą 7 i 1 dzień przed końcem. 0 = utrata dostępu od razu.",
-            "After a seat reduction, people above the limit keep full access for this many days and receive an email with the date and next steps. Reminders go out 7 and 1 day before access ends. 0 = access ends immediately.",
+            "Po zmniejszeniu limitu osoby ponad limit zachowują pełny dostęp przez tyle dni i dostają maila z datą oraz informacją, co dalej. 0 = utrata dostępu od razu.",
+            "After a seat reduction, people above the limit keep full access for this many days and receive an email with the date and next steps. 0 = access ends immediately.",
           )}
         </p>
       </div>
+
+      {/* Progi przypomnień w trakcie karencji (np. 14/7/3/1) */}
+      <div className="mb-3 space-y-2 rounded-md border border-border/60 bg-muted/20 p-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[30, 14, 7, 3, 1].map((day) => {
+            const on = parsedDays.includes(day);
+            return (
+              <Button
+                key={day}
+                type="button"
+                size="sm"
+                variant={on ? "default" : "outline"}
+                className="h-7 px-2 text-[11px] tabular-nums"
+                aria-pressed={on}
+                onClick={() => toggleDay(day)}
+              >
+                {L(`${day} dni`, `${day} d`)}
+              </Button>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Input
+            value={daysText}
+            onChange={(e) => setDaysText(e.target.value)}
+            placeholder="14, 7, 3, 1"
+            className="h-8 w-40 text-sm tabular-nums"
+            aria-label={L("Dni przypomnień", "Reminder days")}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8"
+            disabled={applyReminderDays.isPending || !daysDirty}
+            onClick={() => applyReminderDays.mutate()}
+          >
+            {applyReminderDays.isPending
+              ? L("Zapisywanie...", "Saving...")
+              : L("Zapisz przypomnienia", "Save reminders")}
+          </Button>
+          <Badge variant="outline" className="text-[10px] tabular-nums">
+            {parsedDays.length > 0
+              ? L(`${parsedDays.length}/${MAX_REMINDER_SLOTS} progów`, `${parsedDays.length}/${MAX_REMINDER_SLOTS} steps`)
+              : L("wyłączone", "disabled")}
+          </Badge>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          {L(
+            "Ile dni przed utratą dostępu wysyłamy przypomnienie (1-90, maks. 10 progów). Puste pole wyłącza przypomnienia - zostaje tylko mail o końcu dostępu.",
+            "How many days before access ends we send a reminder (1-90, up to 10 steps). Leave empty to disable reminders - only the final email remains.",
+          )}
+        </p>
+      </div>
+
 
       {seatsQ.isLoading ? (
         <p className="text-xs text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
