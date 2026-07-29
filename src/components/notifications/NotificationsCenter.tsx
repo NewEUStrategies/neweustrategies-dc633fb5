@@ -311,7 +311,20 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   const { user } = useAuth();
   const actorProfiles = useNotificationActorProfiles(items, !!user);
   const [pushBusy, setPushBusy] = useState(false);
-  const pushAvailable = isPushSupported() && !!vapidPublicKey();
+  // Klucz VAPID pobierany jest z serwera (sekret), więc dostępność push
+  // ustala się po hydracji - do tego czasu przełącznik pozostaje ukryty.
+  const [pushKeyReady, setPushKeyReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    if (!isPushSupported()) return;
+    void vapidPublicKey().then((key) => {
+      if (alive) setPushKeyReady(!!key);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const pushAvailable = isPushSupported() && pushKeyReady;
   const handlePushToggle = async (enabled: boolean) => {
     if (!user) return;
     setPushBusy(true);
