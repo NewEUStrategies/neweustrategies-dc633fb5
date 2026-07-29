@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import { setTeamSeatLimit } from "@/lib/organizations/teamSeats.functions";
 import {
   clampSeats,
-  projectedSeatStatus,
   seatsAtRisk,
   summarizeSeats,
 } from "@/lib/organizations/teamSeats";
