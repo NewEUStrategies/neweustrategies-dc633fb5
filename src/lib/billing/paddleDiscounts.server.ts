@@ -37,7 +37,7 @@ const fail = (error: string): PaddleDiscountResolution => ({
   discountCents: 0,
 });
 
-async function findDiscountByCode(env: PaddleEnv, code: string): Promise<string | null> {
+export async function findDiscountByCode(env: PaddleEnv, code: string): Promise<string | null> {
   const { gatewayFetch } = await import("@/lib/paddle.server");
   const res = await gatewayFetch(env, `/discounts?code=${encodeURIComponent(code)}&status=active`);
   if (!res.ok) {
@@ -49,7 +49,7 @@ async function findDiscountByCode(env: PaddleEnv, code: string): Promise<string 
   return match?.id ?? null;
 }
 
-async function createDiscount(
+export async function createDiscount(
   env: PaddleEnv,
   code: string,
   def: CouponDefinition,
