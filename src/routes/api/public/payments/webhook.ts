@@ -71,6 +71,7 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv) {
     subscriptionId: data.id,
     periodEnd: data.currentBillingPeriod?.endsAt ?? null,
     environment: env,
+    status: data.status,
   });
 }
 
@@ -101,6 +102,23 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
   if (error) throw new Error(`subscriptions update failed: ${error.message}`);
 
   if (!existing?.user_id || !priceId) return;
+
+  // Każda aktualizacja (pauza, wznowienie, past_due, nowy okres) musi trafić do
+  // uprawnień, nie tylko zmiana planu.
+  const { resolvePlanForPrice } = await import("@/lib/billing/paddleEffects.server");
+  const plan = await resolvePlanForPrice(priceId);
+  if (plan) {
+    const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
+    await syncEntitlementState({
+      userId: existing.user_id,
+      tenantId: plan.tenantId,
+      planId: plan.planId,
+      externalRef: data.id,
+      status: data.status,
+      periodEnd: data.currentBillingPeriod?.endsAt ?? null,
+    });
+  }
+
   const direction = planChangeDirection(existing.price_id, priceId);
   if (direction === "same") return;
 
