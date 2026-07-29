@@ -64,7 +64,7 @@ export async function enablePushForThisBrowser(userId: string): Promise<void> {
   if (!isPushSupported()) {
     throw new Error("push_unsupported");
   }
-  const publicKey = vapidPublicKey();
+  const publicKey = await vapidPublicKey();
   if (!publicKey) {
     throw new Error("push_not_configured");
   }
