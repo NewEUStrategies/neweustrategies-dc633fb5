@@ -160,8 +160,56 @@ export async function syncCrmSubscriptionState(
 const syncCrmCustomer = (userId: string, tierKey: string) =>
   syncCrmSubscriptionState(userId, tierKey, "customer");
 
+/**
+ * Zapis płacącego klienta na newsletter premium. Nigdy nie rzuca.
+ *
+ * Świadome wypisanie się jest nadrzędne - automat nie reaktywuje takiej osoby.
+ */
+async function subscribePremiumNewsletter(params: {
+  userId: string;
+  tenantId: string;
+  tierKey: string;
+  subscriptionId: string;
+}): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("email, first_name, last_name")
+      .eq("id", params.userId)
+      .maybeSingle();
+    const email = profile?.email?.trim().toLowerCase();
+    if (!email) return;
 
-/** Nowa subskrypcja: dostęp + mail + CRM + powiadomienie. */
+    const { data: existing } = await supabaseAdmin
+      .from("newsletter_subscribers")
+      .select("id, status, unsubscribed_at, language")
+      .eq("tenant_id", params.tenantId)
+      .eq("email", email)
+      .maybeSingle();
+
+    if (!canAutoSubscribe(existing)) return;
+
+    const row = buildPremiumNewsletterRow({
+      tenantId: params.tenantId,
+      userId: params.userId,
+      email,
+      firstName: profile?.first_name ?? null,
+      lastName: profile?.last_name ?? null,
+      language: existing?.language ?? null,
+      tierKey: params.tierKey,
+      subscriptionId: params.subscriptionId,
+    });
+
+    await supabaseAdmin
+      .from("newsletter_subscribers")
+      .upsert(row, { onConflict: "tenant_id,email" });
+  } catch (err) {
+    console.error("[payments] premium newsletter opt-in failed", err);
+  }
+}
+
+/** Nowa subskrypcja: dostęp + mail + CRM + newsletter + powiadomienie. */
 export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> {
   const entry = catalogEntryByPriceId(ctx.priceId);
   const plan = await resolvePlanForPrice(ctx.priceId);
@@ -191,6 +239,14 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
   });
 
   await syncCrmCustomer(ctx.userId, entry.tierKey);
+
+  await subscribePremiumNewsletter({
+    userId: ctx.userId,
+    tenantId: plan.tenantId,
+    tierKey: entry.tierKey,
+    subscriptionId: ctx.subscriptionId,
+  });
+
 
   await pushAppNotification({
     userId: ctx.userId,
