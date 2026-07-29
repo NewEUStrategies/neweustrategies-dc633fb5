@@ -411,18 +411,24 @@ function GeneralPane({
             <Field label={L("Limit miejsc", "Seat limit")}>
               <Input
                 type="number"
-                min={1}
-                max={500}
                 value={draft.seats_limit}
-                onChange={(e) =>
-                  patch((d) => ({
-                    ...d,
-                    seats_limit: Math.max(1, Math.min(500, Number(e.target.value) || 1)),
-                  }))
-                }
+                readOnly
+                disabled
                 className="h-8 text-sm"
               />
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {draft.seats_source === "subscription"
+                  ? L(
+                      "Liczba miejsc pochodzi z opłaconej subskrypcji Zespół - zmień ją w zakładce Miejsca.",
+                      "Seat count comes from the paid Team subscription - change it in the Seats tab.",
+                    )
+                  : L(
+                      "Liczbę miejsc zmieniasz w zakładce Miejsca - uprawnienia dopasują się od razu.",
+                      "Change the seat count in the Seats tab - entitlements adjust immediately.",
+                    )}
+              </p>
             </Field>
+
           </div>
         </Card>
 
