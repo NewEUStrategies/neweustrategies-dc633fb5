@@ -171,9 +171,25 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
       gender,
     ),
   }),
+  payment_refunded: (v, gender) => ({
+    intro:
+      `Potwierdzamy zwrot płatności${v.amount ? ` na kwotę ${v.amount}` : ""}${v.planName ? ` za plan ${plan(v, "pl")}` : ""}. Środki wracają na tę samą metodę płatności, z której wykonano zakup.`,
+    extra: g(
+      `Dostęp premium powiązany z tą płatnością został zakończony${v.accessUntil ? ` (${v.accessUntil})` : ""}. Zachowujesz konto, zapisane materiały i historię czytania - w każdej chwili możesz wykupić dostęp ponownie.`,
+      `Dostęp premium powiązany z tą płatnością został zakończony${v.accessUntil ? ` (${v.accessUntil})` : ""}. Zachowujesz konto, zapisane materiały i historię czytania - w każdej chwili możesz wykupić dostęp ponownie.`,
+      `Dostęp premium powiązany z tą płatnością został zakończony${v.accessUntil ? ` (${v.accessUntil})` : ""}. Konto, zapisane materiały i historia czytania pozostają nienaruszone.`,
+      gender,
+    ),
+    note: "Jeśli zwrot nastąpił przez pomyłkę albo chcesz omówić szczegóły rozliczenia - odpisz na tę wiadomość, zajmiemy się tym od ręki.",
+  }),
 };
 
 const EN: Partial<Record<TxEmailType, Builder>> = {
+  payment_refunded: (v) => ({
+    intro: `We are confirming a refund${v.amount ? ` of ${v.amount}` : ""}${v.planName ? ` for your ${plan(v, "en")} plan` : ""}. The funds are returning to the payment method used for the purchase.`,
+    extra: `Premium access tied to this payment has ended${v.accessUntil ? ` (${v.accessUntil})` : ""}. Your account, saved items and reading history stay intact - you can subscribe again at any time.`,
+    note: "If this refund was issued in error, or you would like to discuss the billing details, just reply to this email and we will sort it out straight away.",
+  }),
   donation_received: (v) => ({
     intro:
       `Thank you for your donation${v.amount ? ` of ${v.amount}` : ""}. Your support funds independent European policy analysis - kept outside the paywall wherever possible.` +

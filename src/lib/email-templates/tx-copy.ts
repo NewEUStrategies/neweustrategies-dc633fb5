@@ -16,6 +16,7 @@ export type TxEmailType =
   | "subscription_resumed"
   | "payment_failed"
   | "payment_recovered"
+  | "payment_refunded"
   | "subscription_renewal_reminder"
   | "subscription_expiring"
   | "team_seat_grace"
@@ -232,6 +233,20 @@ const PL: Dict = {
       "Operator płatności nie zdołał obciążyć zapisanej metody płatności. Dostęp pozostaje aktywny, a my ponowimy próbę automatycznie. Najszybszym rozwiązaniem jest aktualizacja karty w panelu subskrypcji.",
     cta: "Zaktualizuj metodę płatności",
     note: "Jeśli kolejne próby również się nie powiodą, subskrypcja zostanie wstrzymana po zakończeniu opłaconego okresu.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  payment_refunded: {
+    subject: (v) =>
+      `↩️ Zwrot płatności${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Zwróciliśmy płatność - poniżej szczegóły rozliczenia.",
+    eyebrow: "Zwrot",
+    heading: "Płatność została zwrócona",
+    intro:
+      "Potwierdzamy zwrot płatności. Środki wracają na tę samą metodę płatności, którą zrealizowano zakup - w zależności od banku księgowanie zajmuje zwykle od 3 do 10 dni roboczych.",
+    cta: "Zobacz historię płatności",
+    note: "Dostęp powiązany ze zwróconą płatnością został zakończony. Jeśli zwrot jest pomyłką, napisz do nas - przywrócimy dostęp od ręki.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -487,6 +502,20 @@ const EN: Dict = {
       "The payment provider could not charge your saved payment method. Your access stays active and we will retry automatically. Updating your card in the subscription panel is the fastest fix.",
     cta: "Update payment method",
     note: "If the following attempts fail as well, the subscription will be paused once the paid period ends.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  payment_refunded: {
+    subject: (v) =>
+      `↩️ Payment refunded${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Your payment has been refunded - here are the details.",
+    eyebrow: "Refund",
+    heading: "Your payment has been refunded",
+    intro:
+      "We are confirming that your payment has been refunded. The funds return to the payment method used for the purchase - depending on your bank this usually takes 3 to 10 working days.",
+    cta: "View payment history",
+    note: "Access linked to the refunded payment has ended. If this refund was issued in error, reply to this email and we will restore access straight away.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
