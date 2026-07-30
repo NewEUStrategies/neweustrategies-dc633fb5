@@ -390,9 +390,18 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
       case EventName.SubscriptionCreated:
         await handleCreated(event.data as unknown as SubscriptionData, env);
         break;
+      // Wszystkie zdarzenia zmiany stanu subskrypcji dzielą jedną obsługę -
+      // operator wysyła je jako osobne typy, ale autorytatywny jest `status`.
       case EventName.SubscriptionUpdated:
+      case EventName.SubscriptionActivated:
+      case EventName.SubscriptionTrialing:
+      case EventName.SubscriptionPastDue:
+      case EventName.SubscriptionPaused:
+      case EventName.SubscriptionResumed:
+      case EventName.SubscriptionImported:
         await handleUpdated(event.data as unknown as SubscriptionData, env);
         break;
+
       case EventName.SubscriptionCanceled:
         await handleCanceled(event.data as unknown as SubscriptionData, env);
         break;
