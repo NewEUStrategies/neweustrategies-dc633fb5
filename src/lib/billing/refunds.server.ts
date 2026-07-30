@@ -37,7 +37,9 @@ export type RefundOutcome =
   | "skipped"
   | "subscription_refunded"
   | "order_refunded"
-  | "donation_refunded";
+  | "donation_refunded"
+  | "subscription_restored"
+  | "order_restored";
 
 /**
  * Korekty, które odbierają dostęp.
