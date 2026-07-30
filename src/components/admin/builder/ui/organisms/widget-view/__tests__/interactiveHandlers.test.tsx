@@ -142,10 +142,11 @@ describe("document-level listeners", () => {
   });
 
   it("language toggle przelacza bezposrednio - zero dropdownu i listenerow dokumentu", () => {
-    // Redesign: segmentowy przycisk PL|EN nie otwiera zadnej nakladki, wiec
-    // nie zostawia po sobie document-level listenerow do zamykania.
+    // Redesign: pill PL|EN nie otwiera zadnej nakladki, wiec nie zostawia po
+    // sobie document-level listenerow do zamykania.
     const { container } = widget("lang-switcher", { label_pl: "Język" });
-    fireEvent.click(screen.getByRole("button", { name: "Język: PL → EN" }));
+    const [, enBtn] = screen.getAllByRole("button");
+    fireEvent.click(enBtn);
     expect(container.querySelector('[role="listbox"]')).toBeNull();
     act(() => {
       document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));

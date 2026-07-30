@@ -122,7 +122,6 @@ describe("social-icons active/inactive/background permutations", () => {
   it("renders active links without backgrounds (bgMode none)", () => {
     renderNode("social-icons", {
       facebook: "https://facebook.com/x",
-      email: "a@b.co",
       bgMode: "none",
       colorMode: "custom",
       customColor: "#abc",
@@ -130,9 +129,17 @@ describe("social-icons active/inactive/background permutations", () => {
     expect(screen.getByLabelText("Facebook")).toBeTruthy();
   });
 
-  it("renders the email link on an official-color background (contrast text)", () => {
-    renderNode("social-icons", { email: "a@b.co", bgMode: "official", colorMode: "official" });
-    expect(screen.getByLabelText("Email").getAttribute("href")).toBe("mailto:a@b.co");
+  it("renders a social link on an official-color background (contrast text)", () => {
+    // Widget nie obsluguje juz pozycji e-mail - zostaly wylacznie profile
+    // social, wiec kontrast tla sprawdzamy na LinkedIn.
+    renderNode("social-icons", {
+      linkedin: "https://linkedin.com/in/x",
+      bgMode: "official",
+      colorMode: "official",
+    });
+    expect(screen.getByLabelText("LinkedIn").getAttribute("href")).toBe(
+      "https://linkedin.com/in/x",
+    );
   });
 });
 

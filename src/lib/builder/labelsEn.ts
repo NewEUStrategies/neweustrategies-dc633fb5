@@ -402,7 +402,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Pokaż nagłówek": "Show the heading",
   "Pokaż kicker": "Show the kicker",
   "Pokaż autora (zdjęcie + imię i nazwisko)": "Show the author (photo + full name)",
-  "Pokaż zdjęcie autora (wariant ranked)": "Show the author photo (ranked variant)",
   "Pokaż opis (zajawkę)": "Show the description (excerpt)",
   "Pokaż odtwarzacz": "Show the player",
   "Pokaż wybór zainteresowań": "Show the interest picker",
@@ -491,8 +490,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "The list renders every platform as its own row with a label and a CTA (Like / Follow / Subscribe).",
   "Lista tematów do pokazania (po jednym slug na linię; puste = wszystkie z katalogu)":
     "Topics to display (one slug per line; empty = all from the catalogue)",
-  "Miniatura 20×20 px, zaokrąglenie 5px, pobrana z profilu autora.":
-    "20×20 px thumbnail, 5 px radius, taken from the author profile.",
   "Możesz użyć składni [tekst linku](https://adres.pl) aby wstawić inline hiperłącze.":
     "You can use the [link text](https://example.com) syntax to insert an inline hyperlink.",
   "Nazwa ikony Lucide. Domyślnie: Flame.": "Lucide icon name. Defaults to: Flame.",
@@ -823,7 +820,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   // ------------------------------------------------------------ currencies
   "PLN (zł)": "PLN (zł)",
   "EUR (€)": "EUR (€)",
-  "USD ($)": "USD ($)",
 
   // ----------------------------------------------------------- placeholders
   "/o-nas lub https://…": "/about or https://…",
@@ -878,7 +874,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Placeholder: Powtórz hasło": "Placeholder: Repeat password",
   "Placeholder: Powtórz nowe hasło": "Placeholder: Repeat new password",
   "Placeholder: Zapamiętaj mnie": "Placeholder: Remember me",
-  'Pokaż etykietę (np. „Autor")': 'Show the label (e.g. “Author”)',
   'Puste = domyślnie „Autor" (PL) / „By" (EN). Wpisz własne słowo, np. „Pisze", „Rozmawia", „Words by".':
     'Empty = defaults to “Autor” (PL) / “By” (EN). Enter your own wording, e.g. “Written by”, “In conversation with”, “Words by”.',
   'Ikona Lucide „Check" - zmienia się tylko kolor, kształt pozostaje bez zmian. Puste = brand (lub biały w wariancie split-image).':
@@ -1013,6 +1008,46 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "Background of the tooltip shown when hovering [N].",
   "Kolor i typografia tekstu w tooltipie przypisu.":
     "Colour and typography of the text inside the footnote tooltip.",
+  // ------------------------------------------- post-list / donations / events
+  "Pokaż okładkę (cover)": "Show the cover",
+  "Wyświetlanie": "Display",
+  "Pokaż tytuł": "Show the title",
+  "Pokaż opis (excerpt)": "Show the excerpt",
+  "Autor (wariant ranked)": "Author (ranked variant)",
+  "Wybierz sposób prezentacji autora pod tytułem.":
+    "Choose how the author is presented under the title.",
+  "Zdjęcie + imię i nazwisko": "Photo + full name",
+  'Etykieta „Autor: Imię Nazwisko"': 'Label “Author: Full Name”',
+  "Bez autora": "No author",
+  "Tryb akcji": "Action mode",
+  "Każdy tryb uruchamia tę samą walidowaną płatność (createDonationCheckout).":
+    "Every mode triggers the same validated payment (createDonationCheckout).",
+  "Używane tylko w trybie szybkiej darowizny. 5000 = 50 zł.":
+    "Used only in quick-donation mode. 5000 = 50 PLN.",
+  "Kwoty w złotych/euro, po przecinku. Puste = domyślne. Maks. 6.":
+    "Amounts in PLN/EUR, comma-separated. Empty = defaults. Max 6.",
+  "Pole 'inna kwota'": "'Other amount' field",
+  "Pole wiadomości od darczyńcy": "Donor message field",
+  "Dziękujemy za zakup": "Thank you for your purchase",
+  "Dostęp jest już aktywny na Twoim koncie.": "Access is already active on your account.",
+  "Data końca dostępu": "Access end date",
+  "Dla subskrypcji pokazuje datę odnowienia, dla zakupu jednorazowego - datę wygaśnięcia.":
+    "For subscriptions it shows the renewal date, for one-off purchases the expiry date.",
+  "Przycisk otwiera portal operatora płatności (faktury, metoda płatności, anulowanie).":
+    "The button opens the payment provider portal (invoices, payment method, cancellation).",
+  "Link do historii zamówień": "Order history link",
+  "Nota o bezpieczeństwie płatności": "Payment security note",
+  "Kolor akcentu": "Accent colour",
+  "Dodatkowy przycisk - adres": "Extra button - URL",
+  "Dodatkowy przycisk - etykieta": "Extra button - label",
+  "Nadchodzące wydarzenia": "Upcoming events",
+  "Nadchodzące": "Upcoming",
+  "Okrągły stół": "Roundtable",
+  "Liczba wydarzeń": "Number of events",
+  "Kolumny (karty)": "Columns (cards)",
+  "Tekst pustej listy": "Empty-state text",
+  "Brak zaplanowanych wydarzeń.": "No scheduled events.",
+  "Lista wydarzeń": "Event list",
 };
 /* eslint-enable prettier/prettier */
 

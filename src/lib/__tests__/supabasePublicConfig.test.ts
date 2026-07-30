@@ -3,9 +3,19 @@
 // Node environment: the resolver's window branch is exercised through an
 // explicit stubGlobal, and the process.env branch through stubEnv - matching
 // how the module behaves in the Worker (no window) and in the browser.
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 
 import { resolveSupabasePublicConfig, supabasePublicConfigScript } from "../supabasePublicConfig";
+
+// Sandbox i lokalny .env NIOSĄ prawdziwe VITE_SUPABASE_* - a to pierwszy
+// stopień w kolejności rozwiązywania. Bez wyzerowania ich w każdym teście
+// gałęzie `window` i `process.env` nigdy nie zostałyby wykonane.
+beforeEach(() => {
+  vi.stubEnv("VITE_SUPABASE_URL", "");
+  vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "");
+  vi.stubEnv("SUPABASE_URL", "");
+  vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "");
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
