@@ -132,7 +132,9 @@ export function PostLayoutRenderer({
         ? ""
         : "h-[50vh] md:h-[55vh] lg:h-[60vh] min-h-[320px] md:min-h-[400px] lg:min-h-[460px]";
     return (
-      <div className={`relative ${isFullBleed ? "-mx-4 lg:-mx-8" : ""} ${extraWrapClass}`}>
+      <div
+        className={`relative min-w-0 max-w-full ${isFullBleed ? "sm:-mx-4 lg:-mx-8" : ""} ${extraWrapClass}`}
+      >
         <div className="relative mb-8">
           <div
             className={`relative ${heightClass} overflow-hidden bg-neutral-900`}
@@ -222,22 +224,28 @@ function LayoutBody({
 }) {
   if (sidebar) {
     return (
-      <div className="grid lg:grid-cols-[1fr_320px] gap-10">
-        <div>
-          <div style={{ maxWidth: `${contentMaxW}px` }} className="w-full mx-auto">
+      <div className="grid min-w-0 max-w-full lg:grid-cols-[minmax(0,1fr)_320px] gap-10">
+        <div className="min-w-0 max-w-full">
+          <div
+            style={{ maxWidth: `${contentMaxW}px` }}
+            className="min-w-0 w-full max-w-full mx-auto"
+          >
             {content}
           </div>
           {footer}
         </div>
-        <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:[scrollbar-width:thin]">
+        <aside className="min-w-0 max-w-full space-y-6 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:[scrollbar-width:thin]">
           {sidebar}
         </aside>
       </div>
     );
   }
   return (
-    <div>
-      <div style={{ maxWidth: `${contentMaxW}px` }} className="w-full mx-auto">
+    <div className="min-w-0 max-w-full">
+      <div
+        style={{ maxWidth: `${contentMaxW}px` }}
+        className="min-w-0 w-full max-w-full mx-auto"
+      >
         {content}
       </div>
       {footer}
