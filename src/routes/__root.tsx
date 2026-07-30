@@ -304,7 +304,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         if (footerDoc?.sections?.length) {
           chromeWarm.push(prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, 2500));
         }
-        await Promise.allSettled(chromeWarm);
+        // Ten sam twardy budżet obowiązuje przy pierwszym SSR i przy każdej
+        // nawigacji klientowej. Menu/ticker/widget chrome są dekoracją i nie
+        // mogą zatrzymać rozwiązania trasy (objaw: URL i przyciski reagują na
+        // klik, ale ekran pozostaje bezczynny, bo jeden fetch czeka bez końca).
+        // Niedokończone zapytania pozostają w React Query i mogą uzupełnić UI
+        // po rozwiązaniu trasy; render ma bezpieczne wartości domyślne.
+        await withBudget(Promise.allSettled(chromeWarm), ROOT_WARM_BUDGET_MS);
         // Sanity-guard: jeżeli którekolwiek zapytanie menu zostało anulowane
         // przez HMR i zostało w stanie `pending`, zresetuj je - inaczej klient
         // po hydratacji zawiesi się czekając na strumień, który już nie wróci.
