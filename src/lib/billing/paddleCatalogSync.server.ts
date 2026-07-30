@@ -36,6 +36,7 @@ interface PlanRow {
   name_pl: string | null;
   name_en: string | null;
   description_pl: string | null;
+  trial_days: number | null;
   active: boolean | null;
 }
 
@@ -56,6 +57,16 @@ async function findByExternalId(
 
 function billingCycle(entry: PaddlePriceEntry): { interval: string; frequency: number } {
   return { interval: entry.interval, frequency: 1 };
+}
+
+/**
+ * Okres próbny z `access_plans.trial_days` w formacie operatora.
+ * `null` = plan bez triala; operator wymaga wtedy pominięcia pola przy
+ * tworzeniu ceny i jawnego `null` przy jego zdejmowaniu.
+ */
+function trialPeriod(plan: PlanRow): { interval: "day"; frequency: number } | null {
+  const days = Math.max(0, Math.round(plan.trial_days ?? 0));
+  return days > 0 ? { interval: "day", frequency: days } : null;
 }
 
 async function syncOne(
@@ -81,6 +92,7 @@ async function syncOne(
   const name = plan.name_pl || plan.name_en || entry.tierKey;
   const amount = String(Math.max(0, Math.round(plan.price_cents ?? 0)));
   const currency = (plan.currency || "PLN").toUpperCase();
+  const trial = trialPeriod(plan);
 
   // 1. Produkt
   let product = await findByExternalId(env, "products", entry.productId);
@@ -111,6 +123,9 @@ async function syncOne(
         description: `${name} (${entry.interval})`,
         unit_price: { amount, currency_code: currency },
         billing_cycle: billingCycle(entry),
+        // Okres próbny jest własnością ceny u operatora - bez tego pola
+        // checkout obciąża od razu, mimo `trial_days` w planie.
+        ...(trial ? { trial_period: trial } : {}),
         quantity: entry.perSeat ? { minimum: 1, maximum: 500 } : { minimum: 1, maximum: 1 },
         custom_data: { external_id: entry.priceId },
       }),
@@ -123,10 +138,24 @@ async function syncOne(
   // 3. Korekta rozjechanej kwoty/waluty - checkout musi pobierać tyle, ile
   // pokazuje cennik w aplikacji.
   const unit = (price.raw.unit_price ?? {}) as { amount?: string; currency_code?: string };
-  if (unit.amount !== amount || (unit.currency_code ?? "").toUpperCase() !== currency) {
+  const remoteTrial = (price.raw.trial_period ?? null) as {
+    interval?: string;
+    frequency?: number;
+  } | null;
+  const trialDrifted =
+    (trial?.frequency ?? null) !== (remoteTrial?.frequency ?? null) ||
+    (trial?.interval ?? null) !== (remoteTrial?.interval ?? null);
+  const priceDrifted =
+    unit.amount !== amount || (unit.currency_code ?? "").toUpperCase() !== currency;
+
+  if (priceDrifted || trialDrifted) {
     const res = await gatewayFetch(env, `/prices/${price.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ unit_price: { amount, currency_code: currency } }),
+      body: JSON.stringify({
+        unit_price: { amount, currency_code: currency },
+        // Jawny `null` zdejmuje trial, gdy plan przestał go oferować.
+        trial_period: trial,
+      }),
     });
     if (!res.ok) throw new Error(`price_update_${res.status}:${await res.text()}`);
     item.price = "updated";
@@ -143,7 +172,9 @@ export async function syncPaddleCatalog(env: PaddleEnv = "sandbox"): Promise<Cat
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("access_plans")
-    .select("tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, active");
+    .select(
+      "tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active",
+    );
   const plans = (data ?? []) as PlanRow[];
 
   const planFor = (entry: PaddlePriceEntry): PlanRow | undefined =>
