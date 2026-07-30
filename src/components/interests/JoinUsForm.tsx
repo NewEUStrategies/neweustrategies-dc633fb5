@@ -37,6 +37,8 @@ import {
 import { CountryCombobox } from "@/components/interests/CountryCombobox";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { buildJoinUsSizeCss } from "@/lib/interests/joinUsSizeCss";
+
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
