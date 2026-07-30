@@ -153,7 +153,11 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
       payment_failure_count: 0,
       last_payment_failed_at: null,
       last_payment_at: ctx.occurredAt,
+      // Zwolnienie klucza deduplikacji - kolejne nieudane obciążenie w nowym
+      // cyklu ma znowu uruchomić pełną windykację.
+      last_dunning_transaction_id: null,
       updated_at: new Date().toISOString(),
+
     })
     .eq("paddle_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment);
