@@ -221,7 +221,6 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
           const text = e.clipboardData.getData("text/plain");
           exec("insertText", text);
         }}
-
         className="cms-richhtml-field cms-elementor-richtext prose prose-sm dark:prose-invert max-w-none px-2 py-2 text-xs leading-relaxed focus:outline-none [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2 [&_blockquote]:italic [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_a]:text-brand [&_a]:underline"
         style={{ minHeight }}
       />

@@ -95,7 +95,11 @@ export function ParagraphBlock({
         }
         event.preventDefault();
         const keepCurrent = !ed.isEmpty;
-        transform(keepCurrent ? [{ ...block, data: { ...block.data, html: ed.getHTML() } }, ...blocks] : blocks);
+        transform(
+          keepCurrent
+            ? [{ ...block, data: { ...block.data, html: ed.getHTML() } }, ...blocks]
+            : blocks,
+        );
         return true;
       },
 

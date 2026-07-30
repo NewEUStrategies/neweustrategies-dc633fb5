@@ -84,7 +84,8 @@ function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void
     const replacement = a.ownerDocument.createTextNode(body ? `[fn]${body}[/fn]` : "");
     // Marker Worda bywa opakowany w <sup> - usuwamy cały wrapper, nie tylko <a>.
     const sup = a.closest("sup");
-    const target: Element = sup && (sup.textContent ?? "").trim() === (a.textContent ?? "").trim() ? sup : a;
+    const target: Element =
+      sup && (sup.textContent ?? "").trim() === (a.textContent ?? "").trim() ? sup : a;
     target.replaceWith(replacement);
   }
 }
@@ -294,7 +295,10 @@ function convertChildren(parent: Element, out: Block[]): void {
     if (tag === "DIV" || tag === "SECTION" || tag === "ARTICLE" || tag === "BODY") {
       flush();
       // Kontener z samą treścią inline (typowe dla Google Docs) - jeden akapit.
-      if (child.children.length === 0 || !child.querySelector("p,div,ul,ol,table,h1,h2,h3,h4,h5,h6")) {
+      if (
+        child.children.length === 0 ||
+        !child.querySelector("p,div,ul,ol,table,h1,h2,h3,h4,h5,h6")
+      ) {
         const html = inlineHtml(child).trim();
         if (!isBlank(html)) out.push(paragraph(html));
       } else {

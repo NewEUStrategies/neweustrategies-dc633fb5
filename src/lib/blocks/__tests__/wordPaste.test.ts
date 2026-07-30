@@ -43,7 +43,9 @@ describe("wordPaste", () => {
   });
 
   it("czyści style i klasy, zostawiając formatowanie semantyczne", () => {
-    const blocks = parseWordHtml(`<p style="font-size:40px"><span style="font-weight:bold">X</span></p>`);
+    const blocks = parseWordHtml(
+      `<p style="font-size:40px"><span style="font-weight:bold">X</span></p>`,
+    );
     expect(String(blocks[0].data.html)).toBe("<strong>X</strong>");
   });
 
