@@ -13359,6 +13359,29 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      pricing_catalog_business_rows: {
+        Args: never
+        Returns: {
+          audience_key: string
+          badge_en: string
+          badge_pl: string
+          benefits: Json
+          cta_mode: string
+          desc_en: string
+          desc_pl: string
+          features: Json
+          highlight: boolean
+          is_default: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          per_seat: boolean
+          price_note_en: string
+          price_note_pl: string
+          rank: number
+          sort_order: number
+        }[]
+      }
       pricing_catalog_v3_rows: {
         Args: never
         Returns: {
