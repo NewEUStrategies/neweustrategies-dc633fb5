@@ -88,6 +88,8 @@ export default defineConfig({
         "react/jsx-dev-runtime",
         "react-dom",
         "react-dom/client",
+        "use-sync-external-store",
+        "use-sync-external-store/shim",
         "@tanstack/react-router",
         "@tanstack/react-router-ssr-query",
         "@tanstack/react-query",
