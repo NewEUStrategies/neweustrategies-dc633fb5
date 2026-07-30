@@ -40,6 +40,22 @@ vi.mock("@/lib/billing/grant.server", () => ({
     grants.push(o);
   },
 }));
+let seatsFull = false;
+vi.mock("@/lib/events/ticket.server", () => ({
+  assertSeatAvailable: async () => {
+    if (seatsFull) throw new Error("event_full");
+  },
+}));
+const refunds: string[] = [];
+vi.mock("@/lib/billing/paddleRefund.server", () => ({
+  refundTransactionFully: async (_env: string, txnId: string) => {
+    refunds.push(txnId);
+    return { ok: true as const, adjustmentId: "adj_1" };
+  },
+}));
+vi.mock("@/lib/billing/paddleTransaction.server", () => ({
+  resolveEnvironment: () => "sandbox" as const,
+}));
 vi.mock("@/lib/billing/couponEffects.server", () => ({
   applyCouponEffectsForOrder: async () => undefined,
 }));
@@ -51,6 +67,9 @@ vi.mock("@/lib/billing/notifications.server", () => ({
   notifyEventRegistration: async () => {
     emails.push("event");
   },
+  notifyRefundEmail: async () => {
+    emails.push("refund");
+  },
 }));
 
 beforeEach(() => {
@@ -58,6 +77,8 @@ beforeEach(() => {
   rsvps.length = 0;
   grants.length = 0;
   emails.length = 0;
+  refunds.length = 0;
+  seatsFull = false;
 });
 
 describe("fulfilOneTimeTransaction - bilet na wydarzenie", () => {
@@ -94,5 +115,26 @@ describe("fulfilOneTimeTransaction - bilet na wydarzenie", () => {
     });
     expect(outcome).toBe("skipped");
     expect(grants).toHaveLength(0);
+  });
+}
+
+  it("zwraca płatność, gdy ostatnie miejsce zajęto przed webhookiem", async () => {
+    seatsFull = true;
+    const { fulfilOneTimeTransaction } = await import("@/lib/billing/oneTimeFulfilment.server");
+    const outcome = await fulfilOneTimeTransaction({
+      id: "txn_789",
+      amountCents: 12000,
+      currency: "PLN",
+      customerEmail: "kupujacy@example.com",
+      customData: { kind: "order", order_id: order.id },
+    });
+
+    expect(outcome).toBe("oversold_refunded");
+    expect(refunds).toEqual(["txn_789"]);
+    // Bez uprawnienia i bez RSVP - nikt nie dostaje wejścia, którego nie ma.
+    expect(grants).toHaveLength(0);
+    expect(rsvps).toHaveLength(0);
+    expect(emails).toContain("refund");
+    expect(updates[0]).toMatchObject({ table: "payment_orders", status: "refunded" });
   });
 });

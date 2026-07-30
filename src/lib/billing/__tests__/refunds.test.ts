@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isRevokingAdjustment, type RefundEvent } from "@/lib/billing/refunds.server";
+import {
+  isDisputeReversed,
+  isRevokingAdjustment,
+  type RefundEvent,
+} from "@/lib/billing/refunds.server";
 
 const base: RefundEvent = {
   adjustmentId: "adj_1",
@@ -46,5 +50,28 @@ describe("isRevokingAdjustment", () => {
     expect(
       isRevokingAdjustment({ ...base, action: "chargeback_warning", status: "rejected" }),
     ).toBe(false);
+  });
+});
+
+describe("isDisputeReversed", () => {
+  const base: RefundEvent = {
+    adjustmentId: "adj_1",
+    transactionId: "txn_1",
+    subscriptionId: null,
+    action: "chargeback",
+    status: "reversed",
+    amountCents: 1000,
+    currency: "PLN",
+    environment: "sandbox",
+  };
+
+  it("rozpoznaje wygrany spór", () => {
+    expect(isDisputeReversed(base)).toBe(true);
+    expect(isDisputeReversed({ ...base, action: "chargeback_warning" })).toBe(true);
+  });
+
+  it("nie myli zwrotu ze sporem", () => {
+    expect(isDisputeReversed({ ...base, action: "refund" })).toBe(false);
+    expect(isDisputeReversed({ ...base, status: "approved" })).toBe(false);
   });
 });
