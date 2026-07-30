@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchMyOrders } from "@/lib/billing/queries";
 import { BillingDocumentsCard } from "@/components/billing/BillingDocumentsCard";
+import { InvoiceLookupCard } from "@/components/billing/InvoiceLookupCard";
+
 import { formatMoney } from "@/lib/billing/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
