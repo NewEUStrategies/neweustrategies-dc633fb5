@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   CATALOG_SYNC_RETRY_MS,
   CATALOG_SYNC_TTL_MS,
+  catalogFingerprintSource,
   resyncReason,
   syncStatusFrom,
 } from "@/lib/billing/catalogAutoSync";
@@ -99,5 +100,78 @@ describe("syncStatusFrom", () => {
 
   it("wszystkie pozycje nieudane - failed", () => {
     expect(syncStatusFrom({ failed: 2, items: [1, 2] })).toBe("failed");
+  });
+});
+
+describe("catalog_changed", () => {
+  const base = {
+    fingerprint: "abc",
+    currentFingerprint: "abc",
+    lastSyncedAt: ago(60_000),
+    lastStatus: "ok" as const,
+    now,
+  };
+
+  it("zmiana cennika po wdrożeniu wymusza synchronizację", () => {
+    expect(
+      resyncReason({ ...base, catalogFingerprint: "cat1", currentCatalogFingerprint: "cat2" }),
+    ).toBe("catalog_changed");
+  });
+
+  it("ten sam cennik nie uruchamia synchronizacji", () => {
+    expect(
+      resyncReason({ ...base, catalogFingerprint: "cat1", currentCatalogFingerprint: "cat1" }),
+    ).toBeNull();
+  });
+
+  it("brak policzonego odcisku cennika nie wymusza synchronizacji", () => {
+    expect(
+      resyncReason({ ...base, catalogFingerprint: "cat1", currentCatalogFingerprint: null }),
+    ).toBeNull();
+  });
+
+  it("restart integracji ma pierwszeństwo przed zmianą cennika", () => {
+    expect(
+      resyncReason({
+        ...base,
+        currentFingerprint: "new",
+        catalogFingerprint: "cat1",
+        currentCatalogFingerprint: "cat2",
+      }),
+    ).toBe("integration_restarted");
+  });
+});
+
+describe("catalogFingerprintSource", () => {
+  const entry = {
+    priceId: "pro_monthly",
+    productId: "plan_pro",
+    interval: "month",
+    amountCents: 4900,
+    currency: "pln",
+    name: "Pro",
+    description: null,
+    trialDays: 7,
+    active: true,
+  };
+
+  it("kolejność pozycji nie zmienia odcisku", () => {
+    const other = { ...entry, priceId: "plus_monthly", productId: "plan_plus" };
+    expect(catalogFingerprintSource([entry, other])).toBe(catalogFingerprintSource([other, entry]));
+  });
+
+  it("zmiana kwoty zmienia źródło odcisku", () => {
+    expect(catalogFingerprintSource([entry])).not.toBe(
+      catalogFingerprintSource([{ ...entry, amountCents: 5900 }]),
+    );
+  });
+
+  it("zmiana triala lub dostępności zmienia źródło odcisku", () => {
+    expect(catalogFingerprintSource([entry])).not.toBe(
+      catalogFingerprintSource([{ ...entry, trialDays: 14 }]),
+    );
+    expect(catalogFingerprintSource([entry])).not.toBe(
+      catalogFingerprintSource([{ ...entry, active: false }]),
+    );
   });
 });
