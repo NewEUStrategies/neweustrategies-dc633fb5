@@ -20,6 +20,8 @@ function intervalLabel(interval: AccessPlan["interval"], t: (key: string) => str
       return t("pricing.perDay");
     case "week":
       return t("pricing.perWeek");
+    case "two_weeks":
+      return t("pricing.perTwoWeeks");
     case "month":
       return t("pricing.perMonth");
     case "quarter":

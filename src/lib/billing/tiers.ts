@@ -56,6 +56,7 @@ export const TIER_RANKS = {
   ngo: 20,
   vip: 25,
   team: 25,
+  business: 28,
   corporate: 30,
   partner: 40,
   partner_general: 50,

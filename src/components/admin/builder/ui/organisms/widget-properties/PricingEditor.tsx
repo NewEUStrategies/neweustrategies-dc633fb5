@@ -48,6 +48,7 @@ export function PricingEditor({ c, lang, setContent }: Props) {
               className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
             >
               <option value="all">{lang === "pl" ? "Wszystkie" : "All"}</option>
+              <option value="two_weeks">{lang === "pl" ? "Dwutygodniowe" : "Every 2 weeks"}</option>
               <option value="month">{lang === "pl" ? "Miesięczne" : "Monthly"}</option>
               <option value="quarter">{lang === "pl" ? "Kwartalne" : "Quarterly"}</option>
               <option value="year">{lang === "pl" ? "Roczne" : "Yearly"}</option>

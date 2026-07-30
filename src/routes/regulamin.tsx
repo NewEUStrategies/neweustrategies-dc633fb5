@@ -63,7 +63,7 @@ const COPY = {
           "Dostęp do analiz, wywiadów, policy papers i podcastów - w części bezpłatnie, w części w ramach płatnej subskrypcji.",
           "Konto użytkownika wraz z profilem, siecią kontaktów i wiadomościami.",
           "Newsletter oraz powiadomienia o wydarzeniach.",
-          "Płatne bilety na wydarzenia i darowizny wspierające redakcję.",
+          "Płatne bilety na wydarzenia. Dobrowolne darowizny wspierające redakcję zbieramy poza Serwisem, w zewnętrznym serwisie zbiórkowym (zrzutka.pl).",
         ],
         paragraphs: [
           "Dokładamy należytej staranności, aby Serwis działał nieprzerwanie, ale nie gwarantujemy działania wolnego od przerw i błędów. Możemy prowadzić prace serwisowe i rozwijać funkcje.",
@@ -189,7 +189,7 @@ const COPY = {
           "Access to analyses, interviews, policy papers and podcasts - partly free, partly under a paid subscription.",
           "A user account with a profile, professional connections and messaging.",
           "Newsletter and event notifications.",
-          "Paid event tickets and donations supporting the editorial team.",
+          "Paid event tickets. Voluntary donations supporting the editorial team are collected outside the service, via an external fundraising platform (zrzutka.pl).",
         ],
         paragraphs: [
           "We take due care to keep the service available, but we do not guarantee uninterrupted or error-free performance. We may run maintenance and change features.",

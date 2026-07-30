@@ -371,8 +371,7 @@ const pl = {
         error: "Nie udało się otworzyć portalu płatności. Spróbuj ponownie.",
         pastDue:
           "Ostatnia płatność się nie powiodła. Zaktualizuj metodę płatności, aby zachować dostęp.",
-        secureNote:
-          "Dane karty obsługuje operator płatności - nie przechowujemy ich w serwisie.",
+        secureNote: "Dane karty obsługuje operator płatności - nie przechowujemy ich w serwisie.",
         status: {
           active: "Aktywna",
           trialing: "Okres próbny",
@@ -437,7 +436,8 @@ const pl = {
         cta: "Wyślij link do portalu",
         sent: "Link wysłany na {{email}}",
         errors: {
-          no_customer: "Brak powiązanego konta płatnika - link będzie dostępny po pierwszej płatności.",
+          no_customer:
+            "Brak powiązanego konta płatnika - link będzie dostępny po pierwszej płatności.",
           portal_failed: "Nie udało się utworzyć linku do portalu. Spróbuj ponownie.",
           no_recipient: "Brak adresu e-mail na koncie.",
           send_failed: "Nie udało się wysłać wiadomości. Spróbuj ponownie.",
@@ -468,6 +468,7 @@ const pl = {
     title: "Cennik",
     subtitle: "Wybierz plan dopasowany do Twoich potrzeb.",
     perMonth: "/ mies.",
+    perTwoWeeks: "/ 2 tyg.",
     perQuarter: "/ kwartał",
     perYear: "/ rok",
     perDay: "/ dzień",
@@ -478,7 +479,9 @@ const pl = {
     trial: "{{days}} dni za darmo",
     popular: "Najpopularniejszy",
     empty: "Brak dostępnych planów.",
+    intervalTwoWeeks: "Co 2 tygodnie",
     intervalMonthly: "Miesięcznie",
+    intervalQuarterly: "Kwartalnie",
     intervalYearly: "Rocznie",
     compareTitle: "Porównanie planów",
     compareFeature: "Funkcja",
@@ -941,8 +944,7 @@ const en: typeof pl = {
         updatePayment: "Update payment method",
         openPortal: "Invoices and billing details",
         error: "Could not open the payment portal. Please try again.",
-        pastDue:
-          "Your last payment failed. Update your payment method to keep access.",
+        pastDue: "Your last payment failed. Update your payment method to keep access.",
         secureNote: "Card details are handled by the payment provider - we never store them.",
         status: {
           active: "Active",
@@ -960,7 +962,8 @@ const en: typeof pl = {
           loading: "Calculating the cost of this change...",
           upgrade: "Due now: {{amount}}",
           downgrade: "From {{date}} you will pay {{amount}}",
-          unavailable: "We could not fetch the exact amount - the provider calculates it on change.",
+          unavailable:
+            "We could not fetch the exact amount - the provider calculates it on change.",
         },
         seats: {
           title: "Seats",
@@ -1008,7 +1011,8 @@ const en: typeof pl = {
         cta: "Email me the portal link",
         sent: "Link sent to {{email}}",
         errors: {
-          no_customer: "No billing customer yet - the link becomes available after your first payment.",
+          no_customer:
+            "No billing customer yet - the link becomes available after your first payment.",
           portal_failed: "Could not create the portal link. Please try again.",
           no_recipient: "No email address on the account.",
           send_failed: "Could not send the message. Please try again.",
@@ -1039,6 +1043,7 @@ const en: typeof pl = {
     title: "Pricing",
     subtitle: "Choose the plan that fits your needs.",
     perMonth: "/ mo",
+    perTwoWeeks: "/ 2 wks",
     perQuarter: "/ quarter",
     perYear: "/ yr",
     perDay: "/ day",
@@ -1049,7 +1054,9 @@ const en: typeof pl = {
     trial: "{{days}}-day free trial",
     popular: "Most popular",
     empty: "No plans available.",
+    intervalTwoWeeks: "Every 2 weeks",
     intervalMonthly: "Monthly",
+    intervalQuarterly: "Quarterly",
     intervalYearly: "Yearly",
     compareTitle: "Compare plans",
     compareFeature: "Feature",
@@ -1100,7 +1107,8 @@ const en: typeof pl = {
     notFound: "Plan not found.",
     loginRequired: "Please sign in to continue.",
     fillBilling: "Fill in your billing details first.",
-    paymentsNotConfigured: "Payment gateway is not configured yet. Please contact the administrator.",
+    paymentsNotConfigured:
+      "Payment gateway is not configured yet. Please contact the administrator.",
     trialLine: "First {{days}} days free - the first charge comes after the trial.",
     promoHint: "Have a coupon? Enter your promo code on the secure payment page.",
     taxHint: "VAT is calculated automatically based on your address.",

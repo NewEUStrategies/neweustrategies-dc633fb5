@@ -1,28 +1,15 @@
 // Publiczna strona darowizn / mecenatu obywatelskiego. URL: /support
-// Darowizna nie nadaje uprawnień (to nie zakup) - patrz donations.functions.ts.
-// Stan ?status=cancelled wraca z nakładki płatności; sukces prowadzi do /support/thank-you.
-import { useRef, useState } from "react";
+// Wpłaty obsługuje zewnętrzna zbiórka (zrzutka.pl) - serwis nie tworzy
+// transakcji darowizn u operatora płatności (wymóg AUP Paddle: darowizny są
+// poza wspieranymi kategoriami). Strona wyłącznie informuje i linkuje.
+import { useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, HandHeart, ShieldCheck, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ExternalLink, HandHeart, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { createDonationCheckout } from "@/lib/billing/donations.functions";
-import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
-import { getPaddleEnvironment } from "@/lib/paddle";
-import {
-  DONATION_MAX_CENTS,
-  DONATION_MIN_CENTS,
-  DONATION_PRESETS_CENTS,
-  DONATION_PRESETS_CENTS_EUR,
-  type DonationCurrency,
-} from "@/lib/billing/donations.schema";
+import { EXTERNAL_DONATIONS_URL } from "@/lib/billing/donationsExternal";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -37,20 +24,12 @@ import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { withBudget } from "@/lib/asyncBudget";
 
 // Dokument buildera dla /support jest opcjonalny: gdy redakcja opublikuje
-// stronę o tym adresie, jest ona ŹRÓDŁEM PRAWDY dla całego widoku (włącznie
-// z widżetem darowizn wstawionym w panelu). Bez takiej strony trasa renderuje
-// wbudowany formularz - żaden krok konfiguracji nie jest wymagany do zbierania
-// wpłat.
+// stronę o tym adresie, jest ona ŹRÓDŁEM PRAWDY dla całego widoku. Bez takiej
+// strony trasa renderuje wbudowaną sekcję mecenatu z linkiem do zbiórki.
 const SUPPORT_SEGMENTS = ["support"];
-// Twardy budżet SSR: brak dokumentu nie może opóźnić formularza darowizn.
+// Twardy budżet SSR: brak dokumentu nie może opóźnić strony wsparcia.
 const SUPPORT_DOC_BUDGET_MS = 2_500;
 export const Route = createFileRoute("/support")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    status:
-      search.status === "success" || search.status === "cancelled"
-        ? (search.status as "success" | "cancelled")
-        : undefined,
-  }),
   component: SupportPage,
   loader: async ({ context }) => {
     await withBudget(
@@ -79,17 +58,9 @@ export const Route = createFileRoute("/support")({
   },
 });
 
-function formatAmount(cents: number, lang: "pl" | "en", currency: DonationCurrency): string {
-  return new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
-}
-
 /**
  * Widok strony zbudowanej w panelu (builder / bloki / HTML). Zwraca `null`,
- * gdy dokumentu nie ma albo jest pusty - wtedy trasa pokazuje formularz.
+ * gdy dokumentu nie ma albo jest pusty - wtedy trasa pokazuje sekcję wbudowaną.
  */
 function SupportBuilderDocument({ page, lang }: { page: PageData; lang: "pl" | "en" }) {
   const blocksData = (page.blocks_data as LocalizedBlocks | null) ?? null;
@@ -100,7 +71,9 @@ function SupportBuilderDocument({ page, lang }: { page: PageData; lang: "pl" | "
     editor: page.editor,
     builderDoc: parseBuilderDoc(page.builder_data),
     blocksDoc,
-    rawHtml: (lang === "en" ? page.content_en || page.content_pl : page.content_pl || page.content_en) ?? "",
+    rawHtml:
+      (lang === "en" ? page.content_en || page.content_pl : page.content_pl || page.content_en) ??
+      "",
     lang,
   });
 
@@ -127,21 +100,15 @@ function SupportPage() {
   ensureSupportI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  const currency: DonationCurrency = lang === "en" ? "EUR" : "PLN";
-  const presets = lang === "en" ? DONATION_PRESETS_CENTS_EUR : DONATION_PRESETS_CENTS;
-  const { status } = Route.useSearch();
-  const donate = useServerFn(createDonationCheckout);
-  const { openCheckout } = usePaddleCheckout();
 
-  // Dokument z panelu wygrywa z wbudowanym formularzem - patrz komentarz przy
+  // Dokument z panelu wygrywa z sekcją wbudowaną - patrz komentarz przy
   // SUPPORT_SEGMENTS. Zwykłe useQuery (nie suspense): brak dokumentu lub błąd
-  // sieci degraduje się do formularza zamiast wywracać stronę.
+  // sieci degraduje się do sekcji wbudowanej zamiast wywracać stronę.
   const docQ = useQuery({
     ...resolvedContentQueryOptions(SUPPORT_SEGMENTS),
     retry: false,
   });
-  const builderPage =
-    docQ.data && docQ.data.kind === "page" ? (docQ.data.item as PageData) : null;
+  const builderPage = docQ.data && docQ.data.kind === "page" ? (docQ.data.item as PageData) : null;
   const hasBuilderDoc =
     !!builderPage &&
     hasRenderableBody({
@@ -150,89 +117,6 @@ function SupportPage() {
       builder_data: builderPage.builder_data,
       blocks_data: builderPage.blocks_data ?? null,
     });
-
-  const [selectedCents, setSelectedCents] = useState<number>(presets[1]);
-  const [customAmount, setCustomAmount] = useState("");
-  const [message, setMessage] = useState("");
-  const [pending, setPending] = useState(false);
-
-  const effectiveCents = customAmount.trim()
-    ? Math.round(Number(customAmount.replace(",", ".")) * 100)
-    : selectedCents;
-  const amountValid =
-    Number.isFinite(effectiveCents) &&
-    effectiveCents >= DONATION_MIN_CENTS &&
-    effectiveCents <= DONATION_MAX_CENTS;
-
-  const submit = async () => {
-    if (!amountValid) {
-      toast.error(t("support.amountError"));
-      return;
-    }
-    setPending(true);
-    try {
-      const result = await donate({
-        data: {
-          amount_cents: effectiveCents,
-          currency,
-          message: message.trim() || undefined,
-          lang,
-          environment: getPaddleEnvironment(),
-        },
-      });
-      if (result.ok) {
-        if (result.mode === "paddle") {
-          // Nakładka operatora: kwota i dane darowizny są już w transakcji,
-          // klient przekazuje wyłącznie jej identyfikator.
-          await openCheckout({
-            transactionId: result.transactionId,
-            // Strona podziękowania sama dopyta operatora o status transakcji.
-            successPath: `/support/thank-you?txn=${encodeURIComponent(result.transactionId)}`,
-          });
-          return;
-        }
-        window.location.assign(result.url);
-        return;
-      }
-      toast.error(t("support.genericError"));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      toast.error(
-        msg.includes("rate_limited") ? t("support.rateLimited") : t("support.genericError"),
-      );
-    } finally {
-      setPending(false);
-    }
-  };
-
-  if (status === "success" || status === "cancelled") {
-    const ok = status === "success";
-    return (
-      <div className="container mx-auto max-w-xl px-4 py-16 text-center">
-        {ok ? (
-          <CheckCircle2 className="mx-auto h-12 w-12 text-primary" aria-hidden="true" />
-        ) : (
-          <XCircle className="mx-auto h-12 w-12 text-muted-foreground" aria-hidden="true" />
-        )}
-        <h1 className="mt-4 text-2xl font-bold">
-          {ok ? t("support.successTitle") : t("support.cancelledTitle")}
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          {ok ? t("support.successBody") : t("support.cancelledBody")}
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Button asChild variant="outline">
-            <Link to="/">{t("support.backHome")}</Link>
-          </Button>
-          <Button asChild>
-            <Link to="/support" search={{ status: undefined }}>
-              {t("support.another")}
-            </Link>
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   if (hasBuilderDoc && builderPage) {
     return <SupportBuilderDocument page={builderPage} lang={lang} />;
@@ -259,71 +143,18 @@ function SupportPage() {
       <p className="mt-3 text-muted-foreground">{t("support.intro")}</p>
 
       <Card className="mt-8">
-        <CardContent className="space-y-5 pt-6">
-          <fieldset>
-            <legend className="text-sm font-medium">{t("support.presetsLabel")}</legend>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {presets.map((cents) => {
-                const active = !customAmount.trim() && selectedCents === cents;
-                return (
-                  <Button
-                    key={cents}
-                    type="button"
-                    variant={active ? "default" : "outline"}
-                    aria-pressed={active}
-                    onClick={() => {
-                      setSelectedCents(cents);
-                      setCustomAmount("");
-                    }}
-                  >
-                    {formatAmount(cents, lang, currency)}
-                  </Button>
-                );
-              })}
-            </div>
-          </fieldset>
-
-          <div>
-            <Label htmlFor="donation-custom" className="text-sm font-medium">
-              {t("support.customLabel", { currency })}
-            </Label>
-            <Input
-              id="donation-custom"
-              inputMode="decimal"
-              className="mt-1"
-              placeholder={t("support.customPlaceholder")}
-              value={customAmount}
-              onChange={(e) => setCustomAmount(e.target.value)}
-              aria-invalid={customAmount.trim() !== "" && !amountValid}
-            />
-            {customAmount.trim() !== "" && !amountValid && (
-              <p className="mt-1 text-xs text-destructive">{t("support.amountError")}</p>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="donation-message" className="text-sm font-medium">
-              {t("support.messageLabel")}
-            </Label>
-            <Textarea
-              id="donation-message"
-              className="mt-1"
-              rows={2}
-              maxLength={500}
-              placeholder={t("support.messagePlaceholder")}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-            />
-          </div>
-
-          <Button className="w-full" size="lg" disabled={pending || !amountValid} onClick={submit}>
-            {pending
-              ? t("support.submitting")
-              : `${t("support.submit")} - ${amountValid ? formatAmount(effectiveCents, lang, currency) : "…"}`}
+        <CardContent className="space-y-4 pt-6 text-center">
+          <p className="text-sm text-muted-foreground">{t("support.ctaLead")}</p>
+          <Button asChild className="w-full" size="lg">
+            <a href={EXTERNAL_DONATIONS_URL} target="_blank" rel="noopener noreferrer">
+              <HandHeart className="h-4 w-4" aria-hidden="true" />
+              {t("support.cta")}
+              <ExternalLink className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
+            </a>
           </Button>
           <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-            {t("support.secureNote")}
+            {t("support.ctaNote")}
           </p>
         </CardContent>
       </Card>

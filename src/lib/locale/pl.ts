@@ -1227,6 +1227,7 @@ export const pl = {
       priceCents: "Cena (w groszach/centach)",
       currency: "Waluta",
       interval: "Interwał",
+      intervalTwoWeeks: "Co 2 tygodnie",
       intervalMonth: "Miesięcznie",
       intervalQuarter: "Kwartalnie",
       intervalYear: "Rocznie",

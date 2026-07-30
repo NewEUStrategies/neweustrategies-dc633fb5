@@ -2,11 +2,13 @@
 //
 // Jedno miejsce, w którym „transakcja opłacona” zamienia się w skutek
 // biznesowy - tak jak grant.server jest jedynym miejscem nadawania uprawnień:
-//   - `kind=order`     -> payment_orders: nadanie uprawnienia, zaksięgowanie,
-//                         efekty kuponu B2B, maile (subskrypcja / wydarzenie),
-//                         potwierdzenie RSVP dla biletu na wydarzenie,
-//   - `kind=donation`  -> INSERT do public.donations (idempotentnie po id
-//                         transakcji).
+//   - `kind=order` -> payment_orders: nadanie uprawnienia, zaksięgowanie,
+//                     efekty kuponu B2B, maile (subskrypcja / wydarzenie),
+//                     potwierdzenie RSVP dla biletu na wydarzenie.
+//
+// Darowizny NIE przechodzą przez dostawcę (AUP Paddle) - zbiera je zewnętrzny
+// serwis zbiórkowy (donationsExternal.ts). Zabłąkany webhook `kind=donation`
+// z historycznej transakcji jest logowany i pomijany bez zapisu.
 //
 // Kontrakt błędów: funkcja RZUCA przy awarii zapisu. Webhook zamienia wyjątek
 // na 500, więc dostawca ponawia dostarczenie i realizacja się dokończy.
@@ -22,7 +24,7 @@ export interface OneTimeTransaction {
   customData: Record<string, unknown> | null;
 }
 
-export type OneTimeOutcome = "skipped" | "order" | "donation" | "oversold_refunded";
+export type OneTimeOutcome = "skipped" | "order" | "oversold_refunded";
 
 function str(source: Record<string, unknown> | null, key: string): string | null {
   const v = source?.[key];
@@ -142,7 +144,6 @@ async function fulfilOrder(txn: OneTimeTransaction, orderId: string): Promise<On
   // 1. Uprawnienie (idempotentne) - zanim cokolwiek uzna zamówienie za opłacone.
   await grantEntitlement({ ...order, amount_cents: amountCents }, txn.id);
 
-
   // 2. Księgowanie - `paid_at` stemplowane dokładnie raz mimo ponowień.
   const { error: updateErr } = await supabaseAdmin
     .from("payment_orders")
@@ -183,9 +184,8 @@ async function fulfilOrder(txn: OneTimeTransaction, orderId: string): Promise<On
   }
 
   // 5. Powiadomienia (fail-soft, idempotentne po id zamówienia).
-  const { notifySubscriptionEmail, notifyEventRegistration } = await import(
-    "@/lib/billing/notifications.server"
-  );
+  const { notifySubscriptionEmail, notifyEventRegistration } =
+    await import("@/lib/billing/notifications.server");
   if (order.kind === "subscription") {
     await notifySubscriptionEmail({
       kind: "subscription_confirmed",
@@ -210,55 +210,16 @@ async function fulfilOrder(txn: OneTimeTransaction, orderId: string): Promise<On
   return "order";
 }
 
-async function fulfilDonation(txn: OneTimeTransaction): Promise<OneTimeOutcome> {
-  const tenantId = str(txn.customData, "tenant_id");
-  if (!tenantId) {
-    console.warn("[payments] donation without tenant_id", txn.id);
-    return "skipped";
-  }
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  // Wiadomość darczyńcy jedzie w `custom_data` transakcji (zapisane przy
-  // tworzeniu w createDonationCheckout) - trafia i do wiersza darowizny,
-  // i do maila z podziękowaniem poniżej.
-  const donorMessage = str(txn.customData, "message");
-  const donorUserId = str(txn.customData, "user_id");
-  const { error } = await supabaseAdmin.from("donations").upsert(
-    {
-      tenant_id: tenantId,
-      amount_cents: txn.amountCents ?? 0,
-      currency: (txn.currency ?? "PLN").toUpperCase(),
-      message: donorMessage,
-      user_id: donorUserId,
-      donor_email: txn.customerEmail,
-      provider: "paddle",
-      provider_session_id: txn.id,
-      provider_intent_id: txn.id,
-      status: "paid",
-    },
-    { onConflict: "provider_session_id", ignoreDuplicates: true },
-  );
-  if (error) throw new Error(`one-time: donation insert failed: ${error.message}`);
-
-  // Podziękowanie (fail-soft, idempotentne po id transakcji) - z kwotą,
-  // numerem transakcji i wiadomością darczyńcy, jeśli ją zostawił.
-  const rawLang = str(txn.customData, "lang");
-  const { notifyDonationReceived } = await import("@/lib/billing/notifications.server");
-  await notifyDonationReceived({
-    donorEmail: txn.customerEmail,
-    userId: donorUserId,
-    amountCents: txn.amountCents,
-    currency: txn.currency,
-    message: donorMessage,
-    lang: rawLang === "en" ? "en" : rawLang === "pl" ? "pl" : null,
-    transactionId: txn.id,
-  });
-  return "donation";
-}
-
 /** Rozdziela opłaconą transakcję jednorazową na właściwy skutek biznesowy. */
 export async function fulfilOneTimeTransaction(txn: OneTimeTransaction): Promise<OneTimeOutcome> {
   const kind = str(txn.customData, "kind");
-  if (kind === "donation") return fulfilDonation(txn);
+  if (kind === "donation") {
+    // Darowizny przeniesione do zewnętrznego serwisu zbiórkowego - dostawca
+    // nie tworzy już takich transakcji, więc to może być tylko ponowienie
+    // historycznego webhooka. Bez zapisu; wpłata jest już zaksięgowana.
+    console.warn("[payments] donation webhook ignored (donations moved off-provider)", txn.id);
+    return "skipped";
+  }
 
   const orderId = str(txn.customData, "order_id");
   if (orderId) return fulfilOrder(txn, orderId);

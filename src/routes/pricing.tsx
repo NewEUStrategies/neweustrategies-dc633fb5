@@ -36,7 +36,7 @@ import {
   audienceTrust,
   distinguishingBenefits,
   faqForAudience,
-  hasBothIntervals,
+  availableIntervals,
   maxYearlySavingsPct,
   passPlans,
   plansByTierKey,
@@ -193,7 +193,15 @@ function PricingPage() {
     () => cardTiers.flatMap((tier) => plansMap.get(tier.key) ?? []),
     [cardTiers, plansMap],
   );
-  const showToggle = hasBothIntervals(audiencePlans);
+  // Przełącznik pokazuje wyłącznie cykle obecne w segmencie (mies./rok dla
+  // ofert indywidualnych, 2 tyg./mies./kwartał dla oferty biznesowej), a
+  // wybrany cykl spoza segmentu spada na najdłuższy dostępny - karty i tak
+  // uczciwie podpisują realny cykl rozliczenia.
+  const intervalOptions = useMemo(() => availableIntervals(audiencePlans), [audiencePlans]);
+  const showToggle = intervalOptions.length > 1;
+  const effectiveInterval: BillingInterval = intervalOptions.includes(interval)
+    ? interval
+    : (intervalOptions[intervalOptions.length - 1] ?? interval);
   const toggleSavings = maxYearlySavingsPct(audiencePlans);
 
   // Siatka bez martwych łączy danych: przepustki (dzień/tydzień/jednorazowe)
@@ -319,9 +327,10 @@ function PricingPage() {
           {showToggle && (
             <div className="mt-8">
               <IntervalToggle
-                value={interval}
+                value={effectiveInterval}
                 onChange={setIntervalValue}
                 savingsPct={toggleSavings}
+                options={intervalOptions}
               />
             </div>
           )}
@@ -335,7 +344,7 @@ function PricingPage() {
                   key={tier.id}
                   tier={tier}
                   plans={plansMap.get(tier.key) ?? []}
-                  interval={interval}
+                  interval={effectiveInterval}
                   lang={lang}
                   isCurrentTier={currentTierKey === tier.key}
                   currentPlanId={currentPlanId}

@@ -133,7 +133,10 @@ export const WidgetView = memo(function WidgetView({
   // reużywalne między stronami, więc nie mogą uczestniczyć w licznikach
   // dokumentowych) - marker + tooltip w atrybucie title wystarczy do UX.
   const node = useMemo(
-    () => (instanceNode.globalId && globalData ? processWidgetFootnotes(overlaid, lang).widget : overlaid),
+    () =>
+      instanceNode.globalId && globalData
+        ? processWidgetFootnotes(overlaid, lang).widget
+        : overlaid,
     [overlaid, instanceNode.globalId, globalData, lang],
   );
   const { theme } = useTheme();
@@ -578,13 +581,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       }
       // RichHtmlView sanitizes + injects the HTML and re-mounts footnote tooltips
       // for migrated content whose footnote refs/list are baked into the markup.
-      return wrap(
-        <RichHtmlView
-          html={html}
-          className={proseCls}
-          style={colStyle}
-        />,
-      );
+      return wrap(<RichHtmlView html={html} className={proseCls} style={colStyle} />);
     }
     case "button": {
       const key = `label_${lang}`;
@@ -1365,7 +1362,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           showRecent={bool("showRecent", false)}
           accent={getStr(c, "accent") || undefined}
           quickDonate={bool("quickDonate", false)}
-          quickAmountCents={getNum(c, "quickAmountCents", 5000)}
           mode={
             getStr(c, "mode") === "quick" || getStr(c, "mode") === "form"
               ? (getStr(c, "mode") as "quick" | "form")
@@ -1373,9 +1369,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
                 ? "link"
                 : undefined
           }
-          presetsCsv={getStr(c, "presetsCsv") || undefined}
-          showCustomAmount={bool("showCustomAmount", true)}
-          showMessage={bool("showMessage", false)}
           lang={lang}
         />,
       );

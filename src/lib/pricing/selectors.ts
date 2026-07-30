@@ -9,7 +9,15 @@ import type { AccessPlan } from "@/lib/billing/types";
 import { parseTierBenefits, type MembershipTierRow, type TierBenefit } from "@/lib/billing/tiers";
 import type { PricingAudienceRow, PricingFaqItemRow } from "./queries";
 
-export type BillingInterval = "month" | "year";
+export type BillingInterval = "two_weeks" | "month" | "quarter" | "year";
+
+/** Kolejność prezentacji cykli na przełączniku (rosnąco po długości). */
+export const RECURRING_INTERVAL_ORDER: readonly BillingInterval[] = [
+  "two_weeks",
+  "month",
+  "quarter",
+  "year",
+] as const;
 
 const AUDIENCE_KEY_RE = /^[a-z0-9_-]{2,32}$/;
 
@@ -123,11 +131,25 @@ function cheapest(plans: AccessPlan[]): AccessPlan | null {
   return [...plans].sort((a, b) => a.price_cents - b.price_cents)[0];
 }
 
-/** Plany cykliczne (miesiąc/kwartał/rok) - budują karty warstw. */
+/** Plany cykliczne (2 tygodnie/miesiąc/kwartał/rok) - budują karty warstw. */
 export function recurringPlans(plans: AccessPlan[]): AccessPlan[] {
   return plans.filter(
-    (p) => p.interval === "month" || p.interval === "quarter" || p.interval === "year",
+    (p) =>
+      p.interval === "two_weeks" ||
+      p.interval === "month" ||
+      p.interval === "quarter" ||
+      p.interval === "year",
   );
+}
+
+/**
+ * Cykle rozliczeniowe dostępne w zbiorze planów, w kolejności prezentacji.
+ * Zasila przełącznik interwałów: segment z planami 2-tyg./mies./kwartał
+ * (oferta biznesowa) dostaje trzy opcje, segment indywidualny - mies./rok.
+ */
+export function availableIntervals(plans: AccessPlan[]): BillingInterval[] {
+  const present = new Set(recurringPlans(plans).map((p) => p.interval));
+  return RECURRING_INTERVAL_ORDER.filter((interval) => present.has(interval));
 }
 
 /** Przepustki: dostęp jednorazowy / dzienny / tygodniowy. */
@@ -157,6 +179,8 @@ export function monthlyEquivalentCents(plan: AccessPlan): number | null {
   if (plan.interval === "month") return plan.price_cents;
   if (plan.interval === "quarter") return Math.round(plan.price_cents / 3);
   if (plan.interval === "year") return Math.round(plan.price_cents / 12);
+  // 26 cykli dwutygodniowych w roku / 12 miesięcy - uczciwa średnia, nie x2.
+  if (plan.interval === "two_weeks") return Math.round((plan.price_cents * 26) / 12);
   return null;
 }
 

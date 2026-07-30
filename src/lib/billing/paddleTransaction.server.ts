@@ -1,5 +1,6 @@
-// Transakcje jednorazowe o dowolnej kwocie (darowizny, odblokowanie treści,
-// bilety na wydarzenia).
+// Transakcje jednorazowe o dowolnej kwocie (odblokowanie treści, bilety na
+// wydarzenia). Darowizny NIE przechodzą przez dostawcę - zbiera je zewnętrzny
+// serwis zbiórkowy (patrz donationsExternal.ts, wymóg AUP Paddle).
 //
 // Katalog dostawcy trzyma tylko ceny stałe, a tutaj kwota jest wyliczana
 // serwerowo dla konkretnego zamówienia (kupon, waluta prezentacji, cena
@@ -13,14 +14,13 @@ import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
 /** Produkty jednorazowe utworzone w katalogu dostawcy. */
 export const ONE_TIME_PRODUCTS = {
   contentUnlock: "content_unlock",
-  donation: "donation",
   eventTicket: "event_ticket",
 } as const;
 
 export type OneTimeProductKey = keyof typeof ONE_TIME_PRODUCTS;
 
 /** Rodzaj transakcji przenoszony w `custom_data` i odczytywany przez webhook. */
-export type OneTimeKind = "order" | "donation" | "event_ticket";
+export type OneTimeKind = "order" | "event_ticket";
 
 export interface AdhocTransactionInput {
   environment: PaddleEnv;

@@ -1586,14 +1586,9 @@ export const WIDGETS: WidgetDef[] = [
       goalCents: 0,
       accent: "",
       currency: "PLN",
-      // Szybka darowizna: przycisk otwiera nakładkę operatora zamiast /support.
-      quickDonate: false,
-      quickAmountCents: 5000,
-      // Tryb akcji + warianty kwot formularza (konfigurowane w panelu edycji).
+      // Tryb akcji: link na /support albo bezpośrednio do zewnętrznej zbiórki
+      // (zrzutka.pl). Wpłat nie obsługuje operator płatności (AUP Paddle).
       mode: "link",
-      presetsCsv: "20, 50, 100, 250",
-      showCustomAmount: true,
-      showMessage: false,
     }),
   },
   // News ticker (horizontal scrolling latest posts)

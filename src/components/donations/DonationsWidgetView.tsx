@@ -9,8 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { HandHeart, Heart, Target, TrendingUp, Users } from "@/lib/lucide-shim";
-import { DonationCta, normalizeDonationCurrency, type DonationCtaMode } from "./DonationCta";
-import { parseDonationPresets } from "@/lib/billing/donationPresets";
+import { DonationCta, type DonationCtaMode } from "./DonationCta";
 import { getDonationsPublicStats } from "@/lib/billing/donations.functions";
 import "@/lib/i18n-donations-widget";
 
@@ -34,15 +33,10 @@ export interface DonationsWidgetProps {
   showCount?: boolean;
   showRecent?: boolean;
   accent?: string;
-  /** Szybka płatność w nakładce operatora zamiast przejścia na /support. */
+  /** Zgodność wstecz: `quick` = dawna szybka płatność, dziś link do zbiórki. */
   quickDonate?: boolean;
-  quickAmountCents?: number;
-  /** Tryb akcji: link na /support, szybka kwota albo formularz kwot. */
+  /** Tryb akcji: link na /support albo bezpośredni link do zewnętrznej zbiórki. */
   mode?: DonationCtaMode;
-  /** Warianty kwot dla trybu `form` - zapis redaktora, np. "20, 50, 100". */
-  presetsCsv?: string;
-  showCustomAmount?: boolean;
-  showMessage?: boolean;
   lang?: "pl" | "en";
 }
 
@@ -112,18 +106,10 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
   const stats: StatsShape = statsQ.data ?? FALLBACK;
   const currency = props.currency?.trim() || stats.currency || "PLN";
 
-  // Wspólna konfiguracja akcji darowizny - jeden zestaw propsów dla każdego
-  // wariantu wizualnego, żeby tryb i kwoty nie rozjechały się między nimi.
-  const donationCurrency = normalizeDonationCurrency(currency, lang);
+  // Wspólna konfiguracja akcji darowizny - jeden tryb dla każdego wariantu
+  // wizualnego, żeby CTA nie rozjechało się między nimi.
   const actionProps = {
     mode: (props.mode ?? (props.quickDonate === true ? "quick" : "link")) as DonationCtaMode,
-    quickAmountCents: props.quickAmountCents,
-    presetsCents: parseDonationPresets(props.presetsCsv, donationCurrency),
-    showCustomAmount: props.showCustomAmount !== false,
-    showMessage: props.showMessage === true,
-    accent: accent || undefined,
-    currency,
-    lang,
   };
 
   const money = (cents: number) => fmtMoney(cents, currency, lang);

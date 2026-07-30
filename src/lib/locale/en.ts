@@ -1216,6 +1216,7 @@ export const en = {
       priceCents: "Price (in cents)",
       currency: "Currency",
       interval: "Interval",
+      intervalTwoWeeks: "Every 2 weeks",
       intervalMonth: "Monthly",
       intervalQuarter: "Quarterly",
       intervalYear: "Yearly",
