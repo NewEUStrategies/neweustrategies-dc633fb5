@@ -19,11 +19,17 @@ describe("buildJoinUsSizeCss", () => {
     expect(css).toContain("font-size:inherit !important");
   });
 
-  it("wiąże placeholder, floating label i input", () => {
+  it("wiąże placeholder i input bez nadpisywania osobnego rozmiaru etykiety", () => {
     const css = buildJoinUsSizeCss("jus-1", { placeholderSize: 18 });
     expect(css).toContain('[data-edit-target="placeholderSize"]::placeholder');
-    expect(css).toContain(".user-label{font-size:18px !important;}");
+    expect(css).not.toContain(".user-label{font-size:18px !important;}");
     expect(css).not.toContain("@media");
+  });
+
+  it("stosuje rozmiar etykiet do nagłówka zainteresowań i floating labels", () => {
+    const css = buildJoinUsSizeCss("jus-1", { labelSize: 15 });
+    expect(css).toContain('[data-edit-target="labelSize"]{font-size:15px !important;}');
+    expect(css).toContain(".user-label{font-size:15px !important;}");
   });
 
   it("chroni iOS przed auto-zoomem przy małych polach", () => {

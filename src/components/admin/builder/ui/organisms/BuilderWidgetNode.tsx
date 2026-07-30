@@ -49,11 +49,10 @@ function shallowEqual(a: unknown, b: unknown): boolean {
 function widgetsEqual(prev: WidgetNode, next: WidgetNode): boolean {
   if (prev === next) return true;
   if (prev.id !== next.id || prev.type !== next.type) return false;
-  const prevUpdatedAt = (prev as { updatedAt?: unknown }).updatedAt;
-  const nextUpdatedAt = (next as { updatedAt?: unknown }).updatedAt;
-  if (prevUpdatedAt !== undefined || nextUpdatedAt !== undefined) {
-    return prevUpdatedAt === nextUpdatedAt;
-  }
+  // `updatedAt` identifies the persisted revision, not every local builder
+  // mutation. Property controls update `content` optimistically before save,
+  // so treating an unchanged timestamp as equality freezes the canvas until a
+  // reload. Always compare the editable records as the source of truth.
   return (
     shallowEqual(prev.content, next.content) &&
     shallowEqual(prev.style, next.style) &&

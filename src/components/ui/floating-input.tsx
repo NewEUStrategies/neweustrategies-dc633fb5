@@ -24,6 +24,7 @@ export interface FloatingInputProps extends BaseInputProps {
   label: string;
   error?: string | null;
   containerClassName?: string;
+  labelEditTarget?: string;
 }
 
 let __fidCounter = 0;
@@ -33,7 +34,7 @@ function useFallbackId(prefix: string, provided?: string) {
 }
 
 export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(
-  ({ label, error, id, className, containerClassName, required, ...rest }, ref) => {
+  ({ label, error, id, className, containerClassName, required, labelEditTarget, ...rest }, ref) => {
     const inputId = useFallbackId("fi", id);
     const errorId = error ? `${inputId}-err` : undefined;
     return (
@@ -51,7 +52,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
           aria-describedby={errorId}
           className={cn("input", className)}
         />
-        <label htmlFor={inputId} className="user-label">
+        <label htmlFor={inputId} className="user-label" data-edit-target={labelEditTarget}>
           {label}
         </label>
         {error ? (

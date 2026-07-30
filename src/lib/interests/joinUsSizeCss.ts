@@ -60,6 +60,10 @@ export function buildJoinUsSizeCss(jusId: string, sizes: JoinUsSizes): string {
   simple("descriptionSize", "span,a,strong,em");
   simple("perkSize", "li,span,p,a,strong,em");
   simple("labelSize", "span,a");
+  const label = normalize(sizes.labelSize);
+  if (label !== null) {
+    rules.push(`${root} .user-label{font-size:${label}px !important;}`);
+  }
   simple("buttonSize", "span,svg");
   simple("consentSize", "span,a,strong,em");
 
@@ -68,10 +72,6 @@ export function buildJoinUsSizeCss(jusId: string, sizes: JoinUsSizes): string {
     const input = `${root} [data-edit-target="placeholderSize"]`;
     rules.push(`${input}{font-size:${field}px !important;}`);
     rules.push(`${input}::placeholder{font-size:${field}px !important;}`);
-    // Floating label jest wizualnym placeholderem pola - musi iść za nim.
-    rules.push(
-      `${root} .input-group:has(> [data-edit-target="placeholderSize"]) .user-label{font-size:${field}px !important;}`,
-    );
     // iOS Safari zoomuje przy focusie, gdy font-size < 16px na wąskim ekranie.
     if (field < 16) {
       rules.push(`@media (max-width:767px){${input}{font-size:16px !important;}}`);

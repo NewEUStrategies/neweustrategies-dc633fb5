@@ -739,6 +739,7 @@ export function JoinUsForm({
         maxLength={254}
         style={inputStyle}
         data-edit-target="placeholderSize"
+        labelEditTarget="labelSize"
         autoComplete="email"
       />,
     );
@@ -756,6 +757,7 @@ export function JoinUsForm({
         maxLength={200}
         style={inputStyle}
         data-edit-target="placeholderSize"
+        labelEditTarget="labelSize"
         autoComplete="organization-title"
       />,
     );
@@ -773,6 +775,7 @@ export function JoinUsForm({
         maxLength={300}
         style={inputStyle}
         data-edit-target="placeholderSize"
+        labelEditTarget="labelSize"
         autoComplete="url"
       />,
     );
@@ -790,6 +793,7 @@ export function JoinUsForm({
         maxLength={40}
         style={inputStyle}
         data-edit-target="placeholderSize"
+        labelEditTarget="labelSize"
         autoComplete="tel"
       />,
     );
@@ -807,6 +811,7 @@ export function JoinUsForm({
         maxLength={200}
         style={inputStyle}
         data-edit-target="placeholderSize"
+        labelEditTarget="labelSize"
         autoComplete="organization"
       />,
     );
@@ -842,6 +847,7 @@ export function JoinUsForm({
               maxLength={100}
               style={inputStyle}
               data-edit-target="placeholderSize"
+              labelEditTarget="labelSize"
               autoComplete="given-name"
             />
           )}
@@ -856,6 +862,7 @@ export function JoinUsForm({
               maxLength={100}
               style={inputStyle}
               data-edit-target="placeholderSize"
+              labelEditTarget="labelSize"
               autoComplete="family-name"
             />
           )}
@@ -870,6 +877,7 @@ export function JoinUsForm({
             maxLength={120}
             style={inputStyle}
             data-edit-target="placeholderSize"
+            labelEditTarget="labelSize"
             autoComplete="name"
           />
           <FloatingInput
@@ -882,6 +890,7 @@ export function JoinUsForm({
             maxLength={254}
             style={inputStyle}
             data-edit-target="placeholderSize"
+            labelEditTarget="labelSize"
             autoComplete="email"
           />
         </div>
