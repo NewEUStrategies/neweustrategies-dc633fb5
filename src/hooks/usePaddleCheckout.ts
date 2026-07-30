@@ -43,7 +43,7 @@ export function usePaddleCheckout() {
   const openCheckout = useCallback(async (options: OpenCheckoutOptions) => {
     setLoading(true);
     try {
-      await initializePaddle();
+      await initializePaddle({ retainCustomerId: options.retainCustomerId ?? null });
       const settings = {
         displayMode: "overlay",
         variant: "one-page",
