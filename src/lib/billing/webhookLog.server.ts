@@ -27,9 +27,20 @@ async function admin() {
   return supabaseAdmin;
 }
 
+/** Po tylu ms zdarzenie w stanie `received` uznajemy za porzucone (padł worker). */
+const STUCK_AFTER_MS = 5 * 60 * 1000;
+
 /**
  * Rezerwuje zdarzenie do przetworzenia.
- * @returns `true` gdy to pierwsze wystąpienie, `false` gdy duplikat.
+ *
+ * Duplikat blokuje ponowne wykonanie TYLKO wtedy, gdy poprzednie podejście
+ * zakończyło się statusem końcowym (`processed`/`skipped`). Zdarzenie, które
+ * padło (`failed`) albo utknęło w `received` (worker zginął w trakcie), musi
+ * dać się przejąć ponownie - inaczej ponowna wysyłka od operatora zostałaby
+ * zignorowana i klient zostałby bez uprawnień mimo obciążenia.
+ *
+ * @returns `true` gdy zdarzenie jest nasze do przetworzenia, `false` gdy
+ *          zostało już domknięte.
  */
 export async function claimWebhookEvent(ref: WebhookEventRef): Promise<boolean> {
   const supabase = await admin();
@@ -46,9 +57,44 @@ export async function claimWebhookEvent(ref: WebhookEventRef): Promise<boolean> 
   });
   if (!error) return true;
   // 23505 = unique_violation -> zdarzenie już zarejestrowane
-  if (error.code === "23505") return false;
-  throw new Error(`webhook log insert failed: ${error.message}`);
+  if (error.code !== "23505") throw new Error(`webhook log insert failed: ${error.message}`);
+
+  const { data: existing, error: readErr } = await supabase
+    .from("payment_webhook_events")
+    .select("id, status, created_at, retry_count")
+    .eq("event_id", ref.eventId)
+    .eq("environment", ref.environment)
+    .maybeSingle();
+  if (readErr) throw new Error(`webhook log lookup failed: ${readErr.message}`);
+  if (!existing) return false;
+
+  const status = existing.status as WebhookEventStatus | null;
+  if (status === "processed" || status === "skipped") return false;
+
+  if (status === "received") {
+    const startedAt = existing.created_at ? Date.parse(existing.created_at) : Number.NaN;
+    const stuck = Number.isFinite(startedAt) && Date.now() - startedAt > STUCK_AFTER_MS;
+    // Zdarzenie może być obsługiwane właśnie teraz przez równoległą dostawę -
+    // przejmujemy je dopiero po upływie okna bezpieczeństwa.
+    if (!stuck) return false;
+  }
+
+  // `failed` albo porzucone `received`: przejmujemy do ponownej próby.
+  const { error: retryErr } = await supabase
+    .from("payment_webhook_events")
+    .update({
+      status: "received",
+      error: null,
+      processed_at: null,
+      retry_count: Number(existing.retry_count ?? 0) + 1,
+      last_retried_at: new Date().toISOString(),
+      payload: (ref.payload ?? {}) as Json,
+    })
+    .eq("id", existing.id);
+  if (retryErr) throw new Error(`webhook log reclaim failed: ${retryErr.message}`);
+  return true;
 }
+
 
 /** Domyka wiersz zdarzenia statusem końcowym. Nigdy nie rzuca. */
 export async function finishWebhookEvent(

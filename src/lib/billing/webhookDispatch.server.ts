@@ -63,7 +63,53 @@ function readIds(data: SubscriptionData) {
   };
 }
 
-async function handleCreated(data: SubscriptionData, env: PaddleEnv) {
+/**
+ * Strażnik kolejności zdarzeń subskrypcji.
+ *
+ * Operator nie gwarantuje kolejności dostarczenia, a ponowna dostawa starego
+ * zdarzenia potrafi cofnąć stan (np. `past_due` po `activated`). Kolumna
+ * `last_event_at` przechowuje znacznik NAJŚWIEŻSZEGO zastosowanego zdarzenia;
+ * warunkowy UPDATE (`last_event_at < occurredAt`) jest atomowy, więc dwa
+ * równoległe zdarzenia nie przeskoczą się nawzajem.
+ *
+ * @returns `true` gdy zdarzenie jest świeższe niż zapisany stan (lub wiersza
+ *          jeszcze nie ma - wtedy przetwarzamy, bo to ścieżka zakładania).
+ */
+async function claimSubscriptionEvent(
+  subscriptionId: string,
+  env: PaddleEnv,
+  occurredAt: string,
+): Promise<boolean> {
+  const iso = new Date(occurredAt);
+  if (Number.isNaN(iso.getTime())) return true; // brak wiarygodnego czasu - nie blokujemy
+  const stamp = iso.toISOString();
+
+  const supabase = await admin();
+  const { data: claimed, error } = await supabase
+    .from("subscriptions")
+    .update({ last_event_at: stamp })
+    .eq("paddle_subscription_id", subscriptionId)
+    .eq("environment", env)
+    .or(`last_event_at.is.null,last_event_at.lt.${stamp}`)
+    .select("id");
+  if (error) throw new Error(`subscription event claim failed: ${error.message}`);
+  if (claimed && claimed.length > 0) return true;
+
+  // Zero zaktualizowanych wierszy: albo subskrypcji jeszcze nie ma (zdarzenie
+  // wyprzedziło `created`), albo zapisany stan jest nowszy.
+  const { data: exists, error: existsErr } = await supabase
+    .from("subscriptions")
+    .select("id")
+    .eq("paddle_subscription_id", subscriptionId)
+    .eq("environment", env)
+    .maybeSingle();
+  if (existsErr) throw new Error(`subscription lookup failed: ${existsErr.message}`);
+  return !exists;
+}
+
+
+
+async function handleCreated(data: SubscriptionData, env: PaddleEnv, occurredAt?: string) {
   const userId = data.customData?.userId;
   const { priceId, productId, quantity, trialEndsAt } = readIds(data);
   if (!userId) {
@@ -91,6 +137,9 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv) {
       // "trial do ...", a przypomnienia potrafiły uprzedzić pierwsze obciążenie.
       trial_ends_at: trialEndsAt,
       environment: env,
+      // Znacznik ostatniego zastosowanego zdarzenia - podstawa strażnika
+      // kolejności przy późniejszych aktualizacjach.
+      ...(occurredAt ? { last_event_at: new Date(occurredAt).toISOString() } : {}),
       updated_at: new Date().toISOString(),
     },
     { onConflict: "paddle_subscription_id" },
@@ -120,7 +169,7 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv) {
  * Operator wysyła je jako osobne typy, ale ładunek ma identyczny kształt, a
  * autorytatywne jest pole `status` - dlatego obsługa jest jedna i idempotentna.
  */
-async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
+async function handleUpdated(data: SubscriptionData, env: PaddleEnv, occurredAt: string) {
   const supabase = await admin();
   const { priceId: eventPriceId, quantity, trialEndsAt } = readIds(data);
 
@@ -136,7 +185,7 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
   // zakup przepadłby po cichu - dlatego zakładamy go tą samą ścieżką co przy
   // utworzeniu (upsert, więc późniejsze `created` niczego nie zdubluje).
   if (!existing && data.customData?.userId) {
-    await handleCreated(data, env);
+    await handleCreated(data, env, occurredAt);
     return;
   }
 
@@ -380,7 +429,7 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
   const { eventType, environment: env, occurredAt } = input;
   switch (eventType) {
     case "subscription.created":
-      await handleCreated(input.data as SubscriptionData, env);
+      await handleCreated(input.data as SubscriptionData, env, occurredAt);
       return "processed";
     // Wszystkie zdarzenia zmiany stanu subskrypcji dzielą jedną obsługę -
     // operator wysyła je jako osobne typy, ale autorytatywny jest `status`.
@@ -390,12 +439,19 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
     case "subscription.past_due":
     case "subscription.paused":
     case "subscription.resumed":
-    case "subscription.imported":
-      await handleUpdated(input.data as SubscriptionData, env);
+    case "subscription.imported": {
+      const sub = input.data as SubscriptionData;
+      // Spóźnione zdarzenie nie może cofnąć nowszego stanu subskrypcji.
+      if (!(await claimSubscriptionEvent(sub.id, env, occurredAt))) return "skipped";
+      await handleUpdated(sub, env, occurredAt);
       return "processed";
-    case "subscription.canceled":
-      await handleCanceled(input.data as SubscriptionData, env);
+    }
+    case "subscription.canceled": {
+      const sub = input.data as SubscriptionData;
+      if (!(await claimSubscriptionEvent(sub.id, env, occurredAt))) return "skipped";
+      await handleCanceled(sub, env);
       return "processed";
+    }
     // Nieudane obciążenie: operator sygnalizuje je dwoma zdarzeniami
     // (`payment_failed` przy odrzuceniu, `past_due` przy wejściu transakcji w
     // zaległość). Obsługa jest ta sama, a warstwa windykacji odsiewa duplikat

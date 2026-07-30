@@ -288,6 +288,18 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       });
       if (!created.ok) {
         await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);
+        // Kupon został zarezerwowany PRZED utworzeniem transakcji. Skoro
+        // dostawca odmówił, użycie musi wrócić do puli - inaczej limit
+        // przepadłby za zamówienie, którego nikt nigdy nie opłaci.
+        if (couponId) {
+          const { error: releaseErr } = await supabase.rpc("release_b2b_coupon", {
+            _coupon_id: couponId,
+            _order_id: order.id,
+          });
+          if (releaseErr) {
+            console.error("[checkout] coupon release failed", order.id, releaseErr.message);
+          }
+        }
         return {
           ok: false as const,
           mode: "paddle" as const,
@@ -295,6 +307,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           orderId: order.id,
         };
       }
+
       await supabase
         .from("payment_orders")
         .update({ provider_session_id: created.transactionId, status: "processing" })

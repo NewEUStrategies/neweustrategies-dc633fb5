@@ -37,16 +37,34 @@ export type RefundOutcome =
   | "skipped"
   | "subscription_refunded"
   | "order_refunded"
-  | "donation_refunded";
+  | "donation_refunded"
+  | "subscription_restored"
+  | "order_restored";
 
-/** Korekty, które faktycznie odbierają pieniądze klientowi. */
+/**
+ * Korekty, które odbierają dostęp.
+ *
+ * Spór (`chargeback_warning`) liczy się od chwili otwarcia: bank już wycofuje
+ * środki, a rozstrzygnięcie trwa tygodniami. Trzymanie dostępu przez ten czas
+ * oznaczałoby darmową treść na koszt serwisu - dlatego odbieramy od razu i
+ * przywracamy, gdy spór zostanie wygrany (`reversed`).
+ */
 export function isRevokingAdjustment(event: RefundEvent): boolean {
-  if (event.action === "chargeback_warning" || event.action === "credit") return false;
-  if (event.action !== "refund" && event.action !== "chargeback") return false;
+  if (event.action === "credit" || event.action === "other") return false;
+  if (event.action === "chargeback_warning") {
+    return event.status !== "reversed" && event.status !== "rejected";
+  }
   // `pending_approval` to dopiero wniosek - dostęp odbieramy po zatwierdzeniu.
   // `reversed` / `rejected` oznaczają, że zwrot nie doszedł do skutku.
   return event.status === null || event.status === "approved";
 }
+
+/** Spór rozstrzygnięty na naszą korzyść - dostęp wraca. */
+export function isDisputeReversed(event: RefundEvent): boolean {
+  if (event.action !== "chargeback" && event.action !== "chargeback_warning") return false;
+  return event.status === "reversed";
+}
+
 
 /** Mapuje akcję operatora na czytelny powód w dzienniku i CRM. */
 function reasonLabel(action: AdjustmentAction): string {
@@ -199,13 +217,135 @@ async function pushRefundNotification(
 }
 
 /**
- * Jedno wejście dla zwrotów. Kieruje korektę do właściwego skutku:
- * subskrypcja -> zamówienie jednorazowe -> darowizna.
+ * Alert dla zespołu przy sporze. Spór wymaga ludzkiej reakcji (dowody dla
+ * banku w terminie), więc zawsze musi zostawić ślad w panelu. Nigdy nie rzuca.
+ */
+async function alertAdminsAboutDispute(event: RefundEvent, phase: "opened" | "won"): Promise<void> {
+  try {
+    const supabase = await admin();
+    const { data: admins } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
+    if (!admins || admins.length === 0) return;
+
+    const ids = admins.map((r) => r.user_id);
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, tenant_id")
+      .in("id", ids);
+    if (!profiles || profiles.length === 0) return;
+
+    const ref = event.transactionId ?? event.subscriptionId ?? event.adjustmentId;
+    const rows = profiles
+      .filter((p) => Boolean(p.tenant_id))
+      .map((p) => ({
+        user_id: p.id,
+        tenant_id: p.tenant_id as string,
+        kind: "billing",
+        title_pl: phase === "opened" ? "Otwarto spór płatniczy" : "Spór płatniczy rozstrzygnięty",
+        title_en: phase === "opened" ? "Payment dispute opened" : "Payment dispute resolved",
+        body_pl:
+          phase === "opened"
+            ? `Bank otworzył spór dla ${ref}. Dostęp klienta został wstrzymany - przygotuj dowody.`
+            : `Spór dla ${ref} rozstrzygnięto na naszą korzyść. Dostęp klienta przywrócono.`,
+        body_en:
+          phase === "opened"
+            ? `A dispute was opened for ${ref}. Customer access is suspended - prepare evidence.`
+            : `The dispute for ${ref} was won. Customer access has been restored.`,
+        href: "/admin/billing",
+        icon: "shield-alert",
+      }));
+    if (rows.length > 0) await supabase.from("notifications").insert(rows);
+  } catch (err) {
+    console.error("[payments] dispute admin alert failed", err);
+  }
+}
+
+/**
+ * Przywrócenie dostępu po wygranym sporze. Odwraca dokładnie to, co zrobiło
+ * odebranie: status źródła płatności wraca na opłacony, a uprawnienie jest
+ * nadawane ponownie na tych samych zasadach co przy pierwotnym zakupie.
+ */
+async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
+  const supabase = await admin();
+  const nowIso = new Date().toISOString();
+
+  if (event.subscriptionId) {
+    const { data: sub, error } = await supabase
+      .from("subscriptions")
+      .select("user_id, price_id, status, current_period_end")
+      .eq("paddle_subscription_id", event.subscriptionId)
+      .eq("environment", event.environment)
+      .maybeSingle();
+    if (error) throw new Error(`dispute: subscription lookup failed: ${error.message}`);
+    if (!sub?.user_id || !sub.price_id) return "skipped";
+
+    const { resolvePlanForPrice } = await import("@/lib/billing/paddleEffects.server");
+    const plan = await resolvePlanForPrice(sub.price_id);
+    if (plan) {
+      const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
+      await syncEntitlementState({
+        userId: sub.user_id,
+        tenantId: plan.tenantId,
+        planId: plan.planId,
+        externalRef: event.subscriptionId,
+        status: sub.status ?? "active",
+        periodEnd: sub.current_period_end ?? null,
+      });
+    }
+    await alertAdminsAboutDispute(event, "won");
+    return "subscription_restored";
+  }
+
+  if (!event.transactionId) return "skipped";
+
+  const { data: order, error: orderErr } = await supabase
+    .from("payment_orders")
+    .select("id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, currency")
+    .eq("provider_intent_id", event.transactionId)
+    .maybeSingle();
+  if (orderErr) throw new Error(`dispute: order lookup failed: ${orderErr.message}`);
+  if (!order) return "skipped";
+
+  const { error: flipErr } = await supabase
+    .from("payment_orders")
+    .update({ status: "paid", updated_at: nowIso })
+    .eq("id", order.id);
+  if (flipErr) throw new Error(`dispute: order status flip failed: ${flipErr.message}`);
+
+  const { grantEntitlement } = await import("@/lib/billing/grant.server");
+  await grantEntitlement(order, event.transactionId);
+
+  const metadata = (order.metadata ?? {}) as Record<string, unknown>;
+  const eventId = typeof metadata.event_id === "string" ? metadata.event_id : null;
+  if (eventId && order.user_id) {
+    const { error: rsvpErr } = await supabase
+      .from("event_rsvps")
+      .update({ status: "going", updated_at: nowIso })
+      .eq("event_id", eventId)
+      .eq("user_id", order.user_id);
+    if (rsvpErr) throw new Error(`dispute: rsvp restore failed: ${rsvpErr.message}`);
+  }
+
+  await alertAdminsAboutDispute(event, "won");
+  return "order_restored";
+}
+
+/**
+ * Jedno wejście dla zwrotów i sporów. Kieruje korektę do właściwego skutku:
+ * wygrany spór -> przywrócenie; zwrot/spór otwarty -> odebranie dostępu
+ * (subskrypcja -> zamówienie jednorazowe -> darowizna).
  */
 export async function applyRefundEffects(event: RefundEvent): Promise<RefundOutcome> {
+  if (isDisputeReversed(event)) return restoreAccess(event);
   if (!isRevokingAdjustment(event)) return "skipped";
+  if (event.action === "chargeback" || event.action === "chargeback_warning") {
+    await alertAdminsAboutDispute(event, "opened");
+  }
   if (event.subscriptionId) return revokeSubscription(event);
   if (event.transactionId) return revokeOrder(event);
   console.warn("[payments] adjustment without transaction or subscription", event.adjustmentId);
   return "skipped";
+
 }

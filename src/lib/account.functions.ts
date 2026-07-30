@@ -37,11 +37,18 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
       throw new Error("Nieprawidłowe hasło.");
     }
 
+    // Najpierw pieniądze: aktywna subskrypcja musi zostać anulowana u
+    // operatora, zanim skasujemy konto - inaczej klient płaciłby dalej za
+    // dostęp, którego już nie ma. Błąd tutaj przerywa usuwanie.
+    const { closeBillingForUser } = await import("@/lib/billing/accountClosure.server");
+    await closeBillingForUser(userId, email);
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (deleteError) {
       throw new Error(`Nie udało się usunąć konta: ${deleteError.message}`);
     }
+
 
     return { ok: true as const };
   });
