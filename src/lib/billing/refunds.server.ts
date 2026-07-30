@@ -39,14 +39,30 @@ export type RefundOutcome =
   | "order_refunded"
   | "donation_refunded";
 
-/** Korekty, które faktycznie odbierają pieniądze klientowi. */
+/**
+ * Korekty, które odbierają dostęp.
+ *
+ * Spór (`chargeback_warning`) liczy się od chwili otwarcia: bank już wycofuje
+ * środki, a rozstrzygnięcie trwa tygodniami. Trzymanie dostępu przez ten czas
+ * oznaczałoby darmową treść na koszt serwisu - dlatego odbieramy od razu i
+ * przywracamy, gdy spór zostanie wygrany (`reversed`).
+ */
 export function isRevokingAdjustment(event: RefundEvent): boolean {
-  if (event.action === "chargeback_warning" || event.action === "credit") return false;
-  if (event.action !== "refund" && event.action !== "chargeback") return false;
+  if (event.action === "credit" || event.action === "other") return false;
+  if (event.action === "chargeback_warning") {
+    return event.status !== "reversed" && event.status !== "rejected";
+  }
   // `pending_approval` to dopiero wniosek - dostęp odbieramy po zatwierdzeniu.
   // `reversed` / `rejected` oznaczają, że zwrot nie doszedł do skutku.
   return event.status === null || event.status === "approved";
 }
+
+/** Spór rozstrzygnięty na naszą korzyść - dostęp wraca. */
+export function isDisputeReversed(event: RefundEvent): boolean {
+  if (event.action !== "chargeback" && event.action !== "chargeback_warning") return false;
+  return event.status === "reversed";
+}
+
 
 /** Mapuje akcję operatora na czytelny powód w dzienniku i CRM. */
 function reasonLabel(action: AdjustmentAction): string {
