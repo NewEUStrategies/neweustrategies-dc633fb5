@@ -79,10 +79,17 @@ vi.mock("@/lib/paddle.server", () => ({
   EventName: {
     SubscriptionCreated: "subscription.created",
     SubscriptionUpdated: "subscription.updated",
+    SubscriptionActivated: "subscription.activated",
+    SubscriptionTrialing: "subscription.trialing",
+    SubscriptionPastDue: "subscription.past_due",
+    SubscriptionPaused: "subscription.paused",
+    SubscriptionResumed: "subscription.resumed",
+    SubscriptionImported: "subscription.imported",
     SubscriptionCanceled: "subscription.canceled",
     TransactionCompleted: "transaction.completed",
     TransactionPaymentFailed: "transaction.payment_failed",
   },
+
 }));
 vi.mock("@/lib/billing/notifications.server", () => ({
   notifySubscriptionEmail: (...a: unknown[]) => h.emails.subscription(...(a as [])),
