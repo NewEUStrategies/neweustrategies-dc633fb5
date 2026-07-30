@@ -22,6 +22,44 @@ import { TENANT_HOST_HEADER } from "@/lib/http/host";
 import { currentTenantHost } from "@/lib/http/requestHost";
 
 /**
+ * Twardy deadline round-tripu DB podczas SSR. Drabinka budżetów SSR:
+ * queryTimeout (5 s) anuluje ZAPYTANIE, ale nie ubija samego fetcha - a na
+ * Workers niedomknięty fetch trzyma slot połączenia (limit 6 równoległych
+ * subrequestów na żądanie) i głodzi kolejne zapytania renderu. Deadline na
+ * poziomie fetcha zwalnia slot deterministycznie. 8 s = powyżej queryTimeout
+ * (anulowanie zapytania pozostaje mechanizmem pierwszego wyboru), poniżej
+ * strażnika dokumentu (12/20 s). Nastawa: SSR_DB_DEADLINE_MS (0/off wyłącza).
+ */
+const SSR_DB_DEADLINE_MS = 8_000;
+
+function ssrDeadlineMs(): number {
+  const raw = typeof process !== "undefined" ? process.env.SSR_DB_DEADLINE_MS : undefined;
+  if (raw === undefined || raw === "") return SSR_DB_DEADLINE_MS;
+  const lowered = raw.toLowerCase();
+  if (lowered === "off" || lowered === "false") return 0;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : SSR_DB_DEADLINE_MS;
+}
+
+/**
+ * Sygnał deadline'u złożony z ewentualnym sygnałem wywołującego. Defensywnie:
+ * starszy runtime bez AbortSignal.timeout/any po prostu nie dostaje deadline'u
+ * (zachowanie sprzed zmiany), zamiast wywracać potok SSR.
+ */
+function withSsrDeadline(input: RequestInfo | URL, init?: RequestInit): RequestInit | undefined {
+  const deadlineMs = ssrDeadlineMs();
+  if (deadlineMs <= 0) return init;
+  if (typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function") return init;
+  const deadline = AbortSignal.timeout(deadlineMs);
+  const existing = init?.signal ?? (input instanceof Request ? input.signal : null);
+  const signal =
+    existing && typeof AbortSignal.any === "function"
+      ? AbortSignal.any([existing, deadline])
+      : (existing ?? deadline);
+  return { ...init, signal };
+}
+
+/**
  * Telemetria SSR (Server-Timing `db;dur`): każdy round-trip planu anon jest
  * mierzony i doliczany do bieżącego żądania dokumentu. Wyłącznie na serwerze -
  * import telemetrii jest dynamiczny za bramką SSR (ten sam wzorzec co
@@ -32,7 +70,7 @@ async function timedFetch(input: RequestInfo | URL, init?: RequestInit): Promise
   if (typeof window !== "undefined" || !import.meta.env.SSR) return fetch(input, init);
   const startedAt = Date.now();
   try {
-    return await fetch(input, init);
+    return await fetch(input, withSsrDeadline(input, init));
   } finally {
     try {
       const timing = await import("@/lib/http/ssrTiming.server");
