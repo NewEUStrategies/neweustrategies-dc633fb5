@@ -257,8 +257,11 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
           supabase.from("expert_expertise_areas").select("area_id").eq("user_id", userId),
         ]);
       if (rowErr) {
+        // i18n.t (stabilna instancja) zamiast t z useTranslation: identyczność
+        // t zmienia się przy przełączeniu języka i wpięta w deps przeładowałaby
+        // formularz w trakcie edycji, gubiąc niezapisane zmiany.
         toast.error(
-          t("profile.author.loadError", {
+          i18n.t("profile.author.loadError", {
             defaultValue: "Nie udało się wczytać profilu autora. Odśwież stronę.",
           }),
         );
@@ -307,7 +310,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
       setBulletsPl(bioToBullets(canonicalBio.bio_pl));
       setBulletsEn(bioToBullets(canonicalBio.bio_en));
     })();
-  }, [userId, mode, t]);
+  }, [userId, mode, i18n]);
 
   const upload = async (blob: Blob) => {
     if (!tenantId) return;

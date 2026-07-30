@@ -49,13 +49,18 @@ interface ExpertHydration {
  *  do widgetu. Zapytanie robimy on-demand, bo dane trafiają do content i
  *  później renderer nie potrzebuje żadnej dodatkowej sieci.
  *
- *  Pełny wiersz author_profiles (z contact_email - kolumna z odebranym
- *  SELECT role-wide) czytamy przez SECURITY DEFINER admin_get_author_profile():
- *  bezpośredni select rzucał tu 42501 dla każdego zalogowanego, także admina.
- *  Skopiowanie e-maila do treści widgetu to jawna decyzja redakcyjna admina -
- *  funkcja zwraca wiersz wyłącznie adminowi tego samego tenanta. */
+ *  Dwa źródła author_profiles scalane priorytetem:
+ *  1) admin_get_author_profile() (SECURITY DEFINER) - pełny wiersz z
+ *     contact_email, ale WYŁĄCZNIE dla admina tego samego tenanta
+ *     (skopiowanie e-maila do treści widgetu to jawna decyzja redakcyjna);
+ *  2) fallback dla staffu bez roli admin (editor/author): bezpośredni select
+ *     ograniczony do kolumn publicznych (objętych grantem role-wide), żeby
+ *     hydratacja nie gubiła stanowiska, pełnego bio i socjali - bez kolumn
+ *     kontaktowych, których SELECT jest odebrany (42501).
+ *  Wcześniejszy pojedynczy select z contact_email rzucał 42501 dla każdego
+ *  zalogowanego, także admina. */
 async function fetchExpertHydration(userId: string): Promise<ExpertHydration | null> {
-  const [{ data: prof, error: profErr }, { data: ap, error: apErr }] = await Promise.all([
+  const [{ data: prof, error: profErr }, adminRes, publicRes] = await Promise.all([
     supabase
       .from("profiles")
       .select(
@@ -64,12 +69,17 @@ async function fetchExpertHydration(userId: string): Promise<ExpertHydration | n
       .eq("id", userId)
       .maybeSingle(),
     supabase.rpc("admin_get_author_profile", { _user_id: userId }).maybeSingle(),
+    supabase
+      .from("author_profiles")
+      .select("job_title, website_url, x_url, linkedin_url, full_bio_pl, full_bio_en")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
   if (profErr) throw profErr;
-  if (apErr) throw apErr;
+  if (adminRes.error && publicRes.error) throw adminRes.error;
   if (!prof) return null;
   const p = prof as Record<string, unknown>;
-  const a = (ap ?? {}) as Record<string, unknown>;
+  const a = (adminRes.data ?? publicRes.data ?? {}) as Record<string, unknown>;
   const pick = (...vals: unknown[]): string | null => {
     for (const v of vals) {
       if (typeof v === "string" && v.trim().length > 0) return v;
