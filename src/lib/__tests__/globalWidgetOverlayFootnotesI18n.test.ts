@@ -53,7 +53,7 @@ describe("footnote tooltip snapshots - PL vs EN", () => {
     const { widget, notes } = processWidgetFootnotes(raw, "pl");
 
     expect(readHtml(widget, "pl")).toMatchInlineSnapshot(
-      `"Kot<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="ssak domowy" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup> pije mleko<sup class="fn-ref"><a href="#fn-2" id="fnref-2" data-fn="2" title="płyn" aria-describedby="footnotes-heading" role="doc-noteref">[2]</a></sup>."`,
+      `"Kot<sup class="fn-ref"><span title="ssak domowy" role="note">[1]</span></sup> pije mleko<sup class="fn-ref"><span title="płyn" role="note">[2]</span></sup>."`,
     );
     expect(notes.map((n) => `${n.id}:${n.html}`)).toEqual([
       "1:ssak domowy",
@@ -69,7 +69,7 @@ describe("footnote tooltip snapshots - PL vs EN", () => {
     const { widget, notes } = processWidgetFootnotes(raw, "en");
 
     expect(readHtml(widget, "en")).toMatchInlineSnapshot(
-      `"Cat<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="domestic mammal" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup> drinks milk<sup class="fn-ref"><a href="#fn-2" id="fnref-2" data-fn="2" title="liquid" aria-describedby="footnotes-heading" role="doc-noteref">[2]</a></sup>."`,
+      `"Cat<sup class="fn-ref"><span title="domestic mammal" role="note">[1]</span></sup> drinks milk<sup class="fn-ref"><span title="liquid" role="note">[2]</span></sup>."`,
     );
     expect(notes.map((n) => `${n.id}:${n.html}`)).toEqual([
       "1:domestic mammal",
@@ -102,7 +102,7 @@ describe("footnote tooltip snapshots - PL vs EN", () => {
       "pl",
     );
     expect(readHtml(widget, "pl")).toMatchInlineSnapshot(
-      `"Zażółć<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="gęślą jaźń — &quot;cytat&quot; &amp; tag" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup>."`,
+      `"Zażółć<sup class="fn-ref"><span title="gęślą jaźń — &quot;cytat&quot; &amp; tag" role="note">[1]</span></sup>."`,
     );
   });
 
@@ -115,7 +115,7 @@ describe("footnote tooltip snapshots - PL vs EN", () => {
       "en",
     );
     expect(readHtml(widget, "en")).toMatchInlineSnapshot(
-      `"Note<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="“smart quotes” — em‑dash &amp; bold" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup>."`,
+      `"Note<sup class="fn-ref"><span title="“smart quotes” — em‑dash &amp; bold" role="note">[1]</span></sup>."`,
     );
   });
 
@@ -146,10 +146,10 @@ describe("footnote tooltip snapshots - PL vs EN", () => {
     const pl = processWidgetFootnotes(rawPl, "pl", createCounter(1));
 
     expect(readHtml(pl.widget, "pl")).toMatchInlineSnapshot(
-      `"PL-A<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="pl-a" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup> PL-B<sup class="fn-ref"><a href="#fn-2" id="fnref-2" data-fn="2" title="pl-b" aria-describedby="footnotes-heading" role="doc-noteref">[2]</a></sup>"`,
+      `"PL-A<sup class="fn-ref"><span title="pl-a" role="note">[1]</span></sup> PL-B<sup class="fn-ref"><span title="pl-b" role="note">[2]</span></sup>"`,
     );
     expect(readHtml(pl.widget, "en")).toMatchInlineSnapshot(
-      `"EN-A<sup class="fn-ref"><a href="#fn-3" id="fnref-3" data-fn="3" title="en-a" aria-describedby="footnotes-heading" role="doc-noteref">[3]</a></sup> EN-B<sup class="fn-ref"><a href="#fn-4" id="fnref-4" data-fn="4" title="en-b" aria-describedby="footnotes-heading" role="doc-noteref">[4]</a></sup>"`,
+      `"EN-A<sup class="fn-ref"><span title="en-a" role="note">[3]</span></sup> EN-B<sup class="fn-ref"><span title="en-b" role="note">[4]</span></sup>"`,
     );
 
     // Odwrotny wybór języka: EN idzie pierwsze (1..2), PL jako fallback (3..4).
@@ -161,10 +161,10 @@ describe("footnote tooltip snapshots - PL vs EN", () => {
     const en = processWidgetFootnotes(rawEn, "en", createCounter(1));
 
     expect(readHtml(en.widget, "en")).toMatchInlineSnapshot(
-      `"EN-A<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="en-a" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup> EN-B<sup class="fn-ref"><a href="#fn-2" id="fnref-2" data-fn="2" title="en-b" aria-describedby="footnotes-heading" role="doc-noteref">[2]</a></sup>"`,
+      `"EN-A<sup class="fn-ref"><span title="en-a" role="note">[1]</span></sup> EN-B<sup class="fn-ref"><span title="en-b" role="note">[2]</span></sup>"`,
     );
     expect(readHtml(en.widget, "pl")).toMatchInlineSnapshot(
-      `"PL-A<sup class="fn-ref"><a href="#fn-3" id="fnref-3" data-fn="3" title="pl-a" aria-describedby="footnotes-heading" role="doc-noteref">[3]</a></sup> PL-B<sup class="fn-ref"><a href="#fn-4" id="fnref-4" data-fn="4" title="pl-b" aria-describedby="footnotes-heading" role="doc-noteref">[4]</a></sup>"`,
+      `"PL-A<sup class="fn-ref"><span title="pl-a" role="note">[3]</span></sup> PL-B<sup class="fn-ref"><span title="pl-b" role="note">[4]</span></sup>"`,
     );
   });
 });

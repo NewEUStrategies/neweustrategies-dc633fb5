@@ -1,11 +1,12 @@
-// Regresja: overlay globalnych widgetów rozwija `[fn]…[/fn]` w różnych typach
-// widgetów redakcyjnych (callout/CTA, accordion, podpis obrazka, tabelaryczna
-// rated-list). Kontrakt taki sam jak `globalWidgetOverlayFootnotes` -
-// markery `<sup class="fn-ref">` z `data-fn`/`title`/`role="doc-noteref"`
-// i sekwencyjna numeracja w kolejności występowania w dokumencie.
+// Regresja: overlay globalnych widgetów rozwija `[fn]…[/fn]` w tych typach
+// widgetów, które renderują treść jako HTML (`WIDGET_TEXT_FIELDS`), i NIE
+// rusza pól renderowanych jako węzeł tekstowy - inaczej czytelnik zobaczyłby
+// dosłowny `<sup class="fn-ref">…`. Kontrakt markera: SAMODZIELNY
+// (src/test/footnoteMarker.ts).
 
 import { describe, it, expect } from "vitest";
 import { createCounter, processWidgetFootnotes } from "@/lib/footnotes";
+import { hasMarker } from "@/test/footnoteMarker";
 import type { WidgetNode } from "@/lib/builder/types";
 
 function widget<T extends Record<string, unknown>>(
@@ -21,136 +22,98 @@ function html(w: WidgetNode, key: string): string {
 }
 
 describe("global widget overlay footnotes - widget-type coverage", () => {
-  it("callout (cta): title + description + text share document counter", () => {
-    const raw = widget("cta", {
-      title_pl: "Wezwanie[fn]t1[/fn]",
-      description_pl: "Opis[fn]d1[/fn] z [fn]d2[/fn]",
-      text_pl: "CTA[fn]x1[/fn]",
+  it("text: html_pl + html_en (fallback) dzielą licznik widgetu", () => {
+    const raw = widget("text", {
+      html_pl: "Akapit[fn]p1[/fn] i[fn]p2[/fn]",
+      html_en: "Paragraph[fn]p3[/fn]",
     });
     const { widget: out, notes } = processWidgetFootnotes(raw, "pl");
 
-    expect(notes.map((n) => n.id)).toEqual([1, 2, 3, 4]);
-    expect(notes.map((n) => n.html)).toEqual(["t1", "d1", "d2", "x1"]);
-    expect(html(out, "title_pl")).toMatch(/data-fn="1"/);
-    expect(html(out, "description_pl")).toMatch(/data-fn="2"/);
-    expect(html(out, "description_pl")).toMatch(/data-fn="3"/);
-    expect(html(out, "text_pl")).toMatch(/data-fn="4"/);
-    for (const key of ["title_pl", "description_pl", "text_pl"] as const) {
+    expect(notes.map((n) => n.id)).toEqual([1, 2, 3]);
+    expect(notes.map((n) => n.html)).toEqual(["p1", "p2", "p3"]);
+    expect(hasMarker(html(out, "html_pl"), 1)).toBe(true);
+    expect(hasMarker(html(out, "html_pl"), 2)).toBe(true);
+    expect(hasMarker(html(out, "html_en"), 3)).toBe(true);
+    for (const key of ["html_pl", "html_en"] as const) {
       expect(html(out, key)).not.toContain("[fn]");
-      expect(html(out, key)).toMatch(/role="doc-noteref"/);
+      expect(html(out, key)).toMatch(/role="note"/);
     }
   });
 
-  it("accordion: numeracja stabilna w polach title/content wielu itemów", () => {
+  it("accordion: numeracja stabilna w odpowiedziach `a_*` wielu itemów", () => {
     const raw: WidgetNode = {
       kind: "widget",
       id: "acc",
       type: "accordion",
       content: {
         items: [
-          { title_pl: "A[fn]a-t[/fn]", content_pl: "AA[fn]a-c[/fn]" },
-          { title_pl: "B", content_pl: "BB[fn]b-c[/fn]" },
-          { title_pl: "C[fn]c-t[/fn]", content_pl: "CC" },
+          { q_pl: "A", a_pl: "AA[fn]a-c[/fn] plus[fn]a-c2[/fn]" },
+          { q_pl: "B", a_pl: "BB[fn]b-c[/fn]" },
+          { q_pl: "C", a_pl: "CC[fn]c-c[/fn]" },
         ],
       },
     } as unknown as WidgetNode;
 
     const { widget: out, notes } = processWidgetFootnotes(raw, "pl");
     const items = (out.content as { items: Array<Record<string, string>> }).items;
-    const joined = items.map((i) => `${i.title_pl}|${i.content_pl}`).join("\n");
+    const joined = items.map((i) => `${i.q_pl}|${i.a_pl}`).join("\n");
 
     expect(joined).not.toContain("[fn]");
-    expect(notes.map((n) => n.html)).toEqual(["a-t", "a-c", "b-c", "c-t"]);
-    for (const n of [1, 2, 3, 4]) {
-      expect(joined).toMatch(new RegExp(`data-fn="${n}"`));
-    }
+    expect(notes.map((n) => n.html)).toEqual(["a-c", "a-c2", "b-c", "c-c"]);
+    for (const n of [1, 2, 3, 4]) expect(hasMarker(joined, n)).toBe(true);
   });
 
-  it("image caption: [fn] w podpisie obrazka rozwija się do tooltipa", () => {
-    const raw = widget("image", {
-      caption_pl: "Wykres 1[fn]źródło: NBP[/fn] - dane wstępne.",
-      caption_en: "Chart 1[fn]source: NBP[/fn].",
+  it("tabs: panel zakładki (`html_*`) rozwija przypisy, etykieta nie", () => {
+    const raw = widget("tabs", {
+      items: [
+        { label_pl: "Zakładka[fn]nie[/fn]", html_pl: "Treść[fn]t1[/fn]" },
+        { label_pl: "Druga", html_pl: "Więcej[fn]t2[/fn]" },
+      ],
     });
-    const { widget: out, notes } = processWidgetFootnotes(raw, "pl");
-
-    expect(html(out, "caption_pl")).not.toContain("[fn]");
-    // Fallback do drugiego języka też jest przetwarzany, żeby przełącznik
-    // języka nie odsłonił surowego shortcodu.
-    expect(html(out, "caption_en")).not.toContain("[fn]");
-    expect(notes.map((n) => n.html)).toEqual(["źródło: NBP", "source: NBP"]);
-    expect(html(out, "caption_pl")).toMatch(/title="źródło: NBP"/);
-    expect(html(out, "caption_pl")).toMatch(/data-fn="1"/);
-  });
-
-  it("rated-list (tabelaryczna): title + description każdego wiersza numerowane w kolejności", () => {
-    const raw: WidgetNode = {
-      kind: "widget",
-      id: "rl",
-      type: "rated-list",
-      content: {
-        items: [
-          { title_pl: "Wiersz 1[fn]r1-t[/fn]", description_pl: "opis 1[fn]r1-d[/fn]" },
-          { title_pl: "Wiersz 2[fn]r2-t[/fn]", description_pl: "opis 2" },
-          { title_pl: "Wiersz 3", description_pl: "opis 3[fn]r3-d[/fn]" },
-        ],
-      },
-    } as unknown as WidgetNode;
-
     const { widget: out, notes } = processWidgetFootnotes(raw, "pl");
     const items = (out.content as { items: Array<Record<string, string>> }).items;
 
-    expect(notes.map((n) => n.id)).toEqual([1, 2, 3, 4]);
-    expect(notes.map((n) => n.html)).toEqual(["r1-t", "r1-d", "r2-t", "r3-d"]);
-    // Sanity: numeracja odpowiada kolejności title→description w wierszu.
-    expect(items[0].title_pl).toMatch(/data-fn="1"/);
-    expect(items[0].description_pl).toMatch(/data-fn="2"/);
-    expect(items[1].title_pl).toMatch(/data-fn="3"/);
-    expect(items[2].description_pl).toMatch(/data-fn="4"/);
-    for (const it of items) {
-      expect(`${it.title_pl}|${it.description_pl}`).not.toContain("[fn]");
-    }
+    expect(notes.map((n) => n.html)).toEqual(["t1", "t2"]);
+    expect(items[0]?.label_pl).toBe("Zakładka[fn]nie[/fn]");
+    expect(hasMarker(items[0]?.html_pl ?? "", 1)).toBe(true);
+    expect(hasMarker(items[1]?.html_pl ?? "", 2)).toBe(true);
   });
 
-  it("wspólny licznik między callout + image caption + accordion + rated-list", () => {
+  it("interactive-circle + team-member: opisy i biogram są polami HTML", () => {
     const col = createCounter(1);
-    const cta = processWidgetFootnotes(
-      widget("cta", { title_pl: "T[fn]cta[/fn]" }, "w-cta"),
+    const circle = processWidgetFootnotes(
+      widget(
+        "interactive-circle",
+        { desc_pl: "Opis[fn]d1[/fn]", items: [{ desc_pl: "Element[fn]d2[/fn]" }] },
+        "ic",
+      ),
       "pl",
       col,
     );
-    const img = processWidgetFootnotes(
-      widget("image", { caption_pl: "C[fn]img[/fn]" }, "w-img"),
-      "pl",
-      col,
-    );
-    const acc = processWidgetFootnotes(
-      {
-        kind: "widget",
-        id: "w-acc",
-        type: "accordion",
-        content: { items: [{ title_pl: "A[fn]acc[/fn]", content_pl: "" }] },
-      } as unknown as WidgetNode,
-      "pl",
-      col,
-    );
-    const rl = processWidgetFootnotes(
-      {
-        kind: "widget",
-        id: "w-rl",
-        type: "rated-list",
-        content: { items: [{ title_pl: "R[fn]rl[/fn]", description_pl: "" }] },
-      } as unknown as WidgetNode,
+    const member = processWidgetFootnotes(
+      widget("team-member", { name_pl: "Jan[fn]nie[/fn]", bio_pl: "Biogram[fn]b1[/fn]" }, "tm"),
       "pl",
       col,
     );
 
-    expect(html(cta.widget, "title_pl")).toMatch(/data-fn="1"/);
-    expect(html(img.widget, "caption_pl")).toMatch(/data-fn="2"/);
-    const accItems = (acc.widget.content as { items: Array<Record<string, string>> }).items;
-    const rlItems = (rl.widget.content as { items: Array<Record<string, string>> }).items;
-    expect(accItems[0].title_pl).toMatch(/data-fn="3"/);
-    expect(rlItems[0].title_pl).toMatch(/data-fn="4"/);
-    // Ostatni zwrot niesie skumulowany zbiór.
-    expect(rl.notes.map((n) => n.html)).toEqual(["cta", "img", "acc", "rl"]);
+    expect(member.notes.map((n) => n.html)).toEqual(["d1", "d2", "b1"]);
+    expect(hasMarker(html(circle.widget, "desc_pl"), 1)).toBe(true);
+    const circleItems = (circle.widget.content as { items: Array<Record<string, string>> }).items;
+    expect(hasMarker(circleItems[0]?.desc_pl ?? "", 2)).toBe(true);
+    expect(hasMarker(html(member.widget, "bio_pl"), 3)).toBe(true);
+    // `name_*` renderuje się jako tekst - shortcode zostaje nietknięty.
+    expect(html(member.widget, "name_pl")).toBe("Jan[fn]nie[/fn]");
+  });
+
+  it("widgety spoza mapy (cta, image, rated-list) pozostają nietknięte", () => {
+    // Fail-safe niezmiennika `WIDGET_TEXT_FIELDS`: pola renderowane jako tekst
+    // nie mogą dostać markera, bo pokazałby się dosłownie.
+    for (const type of ["cta", "image", "rated-list"] as const) {
+      const raw = widget(type, { title_pl: "T[fn]x[/fn]", caption_pl: "C[fn]y[/fn]" }, type);
+      const { widget: out, notes } = processWidgetFootnotes(raw, "pl");
+      expect(notes).toEqual([]);
+      expect(html(out, "title_pl")).toBe("T[fn]x[/fn]");
+      expect(html(out, "caption_pl")).toBe("C[fn]y[/fn]");
+    }
   });
 });

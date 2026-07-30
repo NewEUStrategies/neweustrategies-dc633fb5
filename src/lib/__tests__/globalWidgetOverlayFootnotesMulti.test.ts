@@ -1,11 +1,12 @@
 // Regresja: wielokrotne przypisy `[fn]…[/fn]` w overlay globalnych widgetów
 // muszą być numerowane sekwencyjnie w kolejności wystąpienia, a wielokrotna
-// hydratacja tego samego payloadu NIE może duplikować numeracji ani rosnąc
-// zbiorów przypisów. Kontrakt: processWidgetFootnotes jest idempotentne dla
-// stabilnego payloadu i zwraca deterministyczną numerację 1..N.
+// hydratacja tego samego payloadu NIE może duplikować numeracji ani rosnąć
+// zbiorów przypisów. Kontrakt: `processWidgetFootnotes` jest idempotentne dla
+// stabilnego payloadu i produkuje marker SAMODZIELNY (src/test/footnoteMarker.ts).
 
 import { describe, it, expect } from "vitest";
 import { createCounter, processWidgetFootnotes } from "@/lib/footnotes";
+import { hasMarker } from "@/test/footnoteMarker";
 import type { WidgetNode } from "@/lib/builder/types";
 
 function makeTextWidget(html: string, id = "w-1"): WidgetNode {
@@ -34,9 +35,7 @@ describe("global widget overlay footnotes - multi + rehydration", () => {
       "czwarty",
       "piąty",
     ]);
-    for (const n of [1, 2, 3, 4, 5]) {
-      expect(html).toMatch(new RegExp(`data-fn="${n}"`));
-    }
+    for (const n of [1, 2, 3, 4, 5]) expect(hasMarker(html, n)).toBe(true);
   });
 
   it("re-processing the same widget N times does not duplicate numbering", () => {
@@ -48,38 +47,19 @@ describe("global widget overlay footnotes - multi + rehydration", () => {
     for (let i = 0; i < 5; i += 1) {
       const step = processWidgetFootnotes(current, "pl");
       const stepHtml = String((step.widget.content as Record<string, unknown>).html_pl);
-      // Payload nie może rosnąć ani zmieniać numeracji przy stabilnym wejściu.
       expect(stepHtml).toBe(firstHtml);
-      // Rehydratacja już rozwiniętego HTML nie odkrywa nowych przypisów -
-      // markery [1..3] pozostają, ale kolektor nie dostaje kolejnych wpisów.
       expect(step.notes).toEqual([]);
-      // Nie ma nowych markerów [4], [5], … przy rehydratacji.
-      expect(stepHtml).not.toMatch(/data-fn="4"/);
+      expect(hasMarker(stepHtml, 4)).toBe(false);
       current = step.widget;
     }
   });
 
   it("shares a counter across sibling global widgets in document order", () => {
-    // Overlay wielu globalnych widgetów pod jednym dokumentem: numeracja
-    // musi być globalna, nie per-widget.
     const col = createCounter(1);
-    const w1 = processWidgetFootnotes(
-      makeTextWidget("A[fn]a1[/fn] B[fn]a2[/fn]", "w-a"),
-      "pl",
-      col,
-    );
-    const w2 = processWidgetFootnotes(
-      makeTextWidget("C[fn]b1[/fn]", "w-b"),
-      "pl",
-      col,
-    );
-    const w3 = processWidgetFootnotes(
-      makeTextWidget("D[fn]c1[/fn] E[fn]c2[/fn]", "w-c"),
-      "pl",
-      col,
-    );
+    const w1 = processWidgetFootnotes(makeTextWidget("A[fn]a1[/fn] B[fn]a2[/fn]", "w-a"), "pl", col);
+    const w2 = processWidgetFootnotes(makeTextWidget("C[fn]b1[/fn]", "w-b"), "pl", col);
+    const w3 = processWidgetFootnotes(makeTextWidget("D[fn]c1[/fn] E[fn]c2[/fn]", "w-c"), "pl", col);
 
-    // Ostatni zwrot niesie skumulowany zbiór przypisów całego dokumentu.
     expect(w3.notes.map((n) => n.id)).toEqual([1, 2, 3, 4, 5]);
     expect(w3.notes.map((n) => n.html)).toEqual(["a1", "a2", "b1", "c1", "c2"]);
 
@@ -87,41 +67,40 @@ describe("global widget overlay footnotes - multi + rehydration", () => {
     const h2 = String((w2.widget.content as Record<string, unknown>).html_pl);
     const h3 = String((w3.widget.content as Record<string, unknown>).html_pl);
 
-    expect(h1).toMatch(/data-fn="1"/);
-    expect(h1).toMatch(/data-fn="2"/);
-    expect(h2).toMatch(/data-fn="3"/);
-    expect(h2).not.toMatch(/data-fn="1"/);
-    expect(h3).toMatch(/data-fn="4"/);
-    expect(h3).toMatch(/data-fn="5"/);
+    expect(hasMarker(h1, 1)).toBe(true);
+    expect(hasMarker(h1, 2)).toBe(true);
+    expect(hasMarker(h2, 3)).toBe(true);
+    expect(hasMarker(h2, 1)).toBe(false);
+    expect(hasMarker(h3, 4)).toBe(true);
+    expect(hasMarker(h3, 5)).toBe(true);
   });
 
-  it("keeps numbering stable in accordion items across rehydrations", () => {
+  it("keeps numbering stable in accordion answers across rehydrations", () => {
+    // Tylko `a_*` jest polem HTML akordeonu - `q_*` renderuje się jako tekst.
     const acc: WidgetNode = {
       kind: "widget",
       id: "w-acc",
       type: "accordion",
       content: {
         items: [
-          { title_pl: "T1[fn]t1[/fn]", content_pl: "C1[fn]c1[/fn]" },
-          { title_pl: "T2[fn]t2[/fn]", content_pl: "C2[fn]c2[/fn]" },
-          { title_pl: "T3", content_pl: "C3[fn]c3[/fn]" },
+          { q_pl: "T1", a_pl: "C1[fn]c1[/fn] i[fn]c1b[/fn]" },
+          { q_pl: "T2", a_pl: "C2[fn]c2[/fn]" },
+          { q_pl: "T3", a_pl: "C3[fn]c3[/fn]" },
         ],
       },
     } as unknown as WidgetNode;
 
     const first = processWidgetFootnotes(acc, "pl");
-    expect(first.notes.map((n) => n.id)).toEqual([1, 2, 3, 4, 5]);
-    expect(first.notes.map((n) => n.html)).toEqual(["t1", "c1", "t2", "c2", "c3"]);
+    expect(first.notes.map((n) => n.id)).toEqual([1, 2, 3, 4]);
+    expect(first.notes.map((n) => n.html)).toEqual(["c1", "c1b", "c2", "c3"]);
 
     const second = processWidgetFootnotes(first.widget, "pl");
     const third = processWidgetFootnotes(second.widget, "pl");
 
-    const serialize = (w: WidgetNode) =>
-      JSON.stringify((w.content as { items: unknown[] }).items);
+    const serialize = (w: WidgetNode) => JSON.stringify((w.content as { items: unknown[] }).items);
 
     expect(serialize(second.widget)).toBe(serialize(first.widget));
     expect(serialize(third.widget)).toBe(serialize(first.widget));
-    // Rehydratacja rozwiniętego payloadu nie dokłada duplikatów do kolektora.
     expect(second.notes).toEqual([]);
     expect(third.notes).toEqual([]);
   });

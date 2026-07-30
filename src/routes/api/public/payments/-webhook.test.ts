@@ -20,27 +20,45 @@ const h = vi.hoisted(() => {
   const state: {
     ops: Op[];
     table: string;
+    /** Bieżący łańcuch (od `from` do terminala) - rozróżnia UPDATE...RETURNING. */
+    current: string[];
     /** Wynik `maybeSingle()` per tabela (kolejka - kolejne odczyty). */
     lookups: Record<string, QueryResult[]>;
     write: QueryResult;
-  } = { ops: [], table: "", lookups: {}, write: { data: null, error: null } };
+    /**
+     * Wynik warunkowego UPDATE strażnika kolejności (`claimSubscriptionEvent`).
+     * Domyślnie zdarzenie jest ŚWIEŻSZE od zapisanego stanu (jeden wiersz
+     * zaktualizowany). Test spóźnionego webhooka ustawia `[]`.
+     */
+    claim: QueryResult;
+  } = {
+    ops: [],
+    table: "",
+    current: [],
+    lookups: {},
+    write: { data: null, error: null },
+    claim: { data: [{ id: "row_1" }], error: null },
+  };
 
   interface Chain extends PromiseLike<QueryResult> {
     from: (t: string) => Chain;
-    select: (...a: unknown[]) => Chain;
-    insert: (...a: unknown[]) => Chain;
-    update: (...a: unknown[]) => Chain;
-    upsert: (...a: unknown[]) => Chain;
-    eq: (...a: unknown[]) => Chain;
-    limit: (...a: unknown[]) => Chain;
     maybeSingle: () => Promise<QueryResult>;
     single: () => Promise<QueryResult>;
+    // Pozostałe operatory PostgREST (select/eq/or/is/in/order/...) są
+    // dostarczane dynamicznie przez proxy - handler dokłada filtry (np.
+    // strażnik `last_event_at` używa `.or(...)`), a test nie ma powodu
+    // pilnować ich listy ręcznie.
+    [method: string]: unknown;
   }
 
   const record =
     (method: string) =>
     (...args: unknown[]): Chain => {
-      if (method === "from") state.table = String(args[0]);
+      if (method === "from") {
+        state.table = String(args[0]);
+        state.current = [];
+      }
+      state.current.push(method);
       state.ops.push({ table: state.table, method, args });
       return chain;
     };
@@ -50,18 +68,37 @@ const h = vi.hoisted(() => {
     return Promise.resolve(queue && queue.length > 0 ? queue.shift()! : { data: null, error: null });
   };
 
-  const chain: Chain = {
-    from: record("from") as (t: string) => Chain,
-    select: record("select"),
-    insert: record("insert"),
-    update: record("update"),
-    upsert: record("upsert"),
-    eq: record("eq"),
-    limit: record("limit"),
+  const settle = (): QueryResult =>
+    // `update(...).select(...)` to RETURNING - zwraca wiersze, nie pusty zapis.
+    state.current.includes("update") && state.current.includes("select")
+      ? state.claim
+      : state.write;
+
+  const terminals: Record<string, unknown> = {
     maybeSingle: lookup,
     single: lookup,
-    then: (ok, err) => Promise.resolve(state.write).then(ok, err),
+    then: (ok: unknown, err: unknown) =>
+      Promise.resolve(settle()).then(
+        ok as (v: QueryResult) => unknown,
+        err as (e: unknown) => unknown,
+      ),
   };
+
+
+  const methodCache = new Map<string, unknown>();
+  const chain: Chain = new Proxy({} as Chain, {
+    get(_t, prop: string | symbol) {
+      if (typeof prop !== "string") return undefined;
+      if (prop in terminals) return terminals[prop];
+      let fn = methodCache.get(prop);
+      if (!fn) {
+        fn = record(prop);
+        methodCache.set(prop, fn);
+      }
+      return fn;
+    },
+  });
+
 
   // Klient NIE może być thenable - `async function admin() { return supabase }`
   // rozpakowałoby go do wyniku zapisu zamiast zwrócić builder.
@@ -76,6 +113,8 @@ const h = vi.hoisted(() => {
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.client }));
 vi.mock("@/lib/paddle.server", () => ({
   verifyWebhook: async () => h.event.value,
+  // catalogAutoSync liczy odcisk integracji na starcie handlera.
+  getConnectionApiKey: () => "test_key",
   EventName: {
     SubscriptionCreated: "subscription.created",
     SubscriptionUpdated: "subscription.updated",
@@ -151,8 +190,16 @@ function seed(existing: Record<string, unknown> | null, extra?: Partial<Record<s
 
 const opsOn = (table: string, method: string) =>
   h.state.ops.filter((o) => o.table === table && o.method === method);
+/** Czy to wyłącznie zapis strażnika kolejności zdarzeń (`last_event_at`). */
+const isClaimOnly = (arg: unknown): boolean =>
+  typeof arg === "object" &&
+  arg !== null &&
+  Object.keys(arg as Record<string, unknown>).every((k) => k === "last_event_at");
 const payload = <T,>(table: string, method: string): T =>
-  (opsOn(table, method)[0]?.args[0] ?? {}) as T;
+  (opsOn(table, method)
+    .map((o) => o.args[0])
+    .find((a) => !isClaimOnly(a)) ?? {}) as T;
+
 
 describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   beforeEach(() => {
