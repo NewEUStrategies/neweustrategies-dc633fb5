@@ -174,16 +174,20 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
             <span className="text-base font-bold tracking-tight truncate min-w-0">{siteName}</span>
           )}
         </AppLink>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label={openA11y}
-          aria-expanded={open}
-          aria-controls="mobile-header-drawer"
-          className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
-        >
-          <Menu className="w-5 h-5" aria-hidden />
-        </button>
+        <div className="flex items-center gap-2 justify-self-end">
+          <LangToggle />
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label={openA11y}
+            aria-expanded={open}
+            aria-controls="mobile-header-drawer"
+            className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+          >
+            <Menu className="w-5 h-5" aria-hidden />
+          </button>
+        </div>
+
       </div>
 
       {/* Full builder-authored header - visible from lg up. */}
