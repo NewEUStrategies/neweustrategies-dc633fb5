@@ -14,7 +14,7 @@ import { newBlockId } from "./types";
 import { toJson } from "@/lib/builder/types";
 
 /** Znaczniki, po których poznajemy że schowek niesie realną strukturę. */
-const RICH_MARKERS = /<(h[1-6]|ul|ol|li|table|blockquote|pre|p|br|strong|b|em|i|u|sup|sub|a)\b/i;
+const RICH_MARKERS = /<(h[1-6]|ul|ol|li|table|tr|td|th|figure|img|blockquote|pre|p|br|strong|b|em|i|u|sup|sub|a)\b/i;
 
 /** Czy warto uruchamiać import strukturalny dla danego HTML ze schowka. */
 export function looksLikeRichPaste(html: string): boolean {
