@@ -1239,6 +1239,42 @@ export type Database = {
           },
         ]
       }
+      builder_revisions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: Json
+          entity_id: string
+          entity_type: string
+          id: string
+          name: string
+          note: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data: Json
+          entity_id: string
+          entity_type: string
+          id?: string
+          name: string
+          note?: string | null
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          name?: string
+          note?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       builder_template_revisions: {
         Row: {
           created_at: string
@@ -4132,6 +4168,51 @@ export type Database = {
           enabled?: boolean
           id?: number
           secret?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      legal_document_versions: {
+        Row: {
+          content: Json
+          created_at: string
+          created_by: string | null
+          doc_key: string
+          effective_from: string | null
+          id: string
+          label: string
+          note: string | null
+          published_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          created_by?: string | null
+          doc_key: string
+          effective_from?: string | null
+          id?: string
+          label: string
+          note?: string | null
+          published_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          doc_key?: string
+          effective_from?: string | null
+          id?: string
+          label?: string
+          note?: string | null
+          published_at?: string | null
+          status?: string
+          tenant_id?: string
           updated_at?: string
         }
         Relationships: []
@@ -13455,6 +13536,29 @@ export type Database = {
       public_tenant_id: { Args: never; Returns: string }
       publish_due_pages: { Args: never; Returns: number }
       publish_due_posts: { Args: never; Returns: number }
+      publish_legal_version: {
+        Args: { _id: string }
+        Returns: {
+          content: Json
+          created_at: string
+          created_by: string | null
+          doc_key: string
+          effective_from: string | null
+          id: string
+          label: string
+          note: string | null
+          published_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "legal_document_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       publish_qa_session_summary: {
         Args: { p_publish?: boolean; p_session_id: string }
         Returns: Json

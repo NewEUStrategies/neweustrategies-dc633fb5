@@ -34,6 +34,7 @@ import {
   Share2,
   Gauge,
   MousePointerClick,
+  History as HistoryIcon,
   FlaskConical,
   Link as LinkIcon,
   Search,
@@ -311,6 +312,13 @@ function AdminShellInner({
           to: "/admin/popups",
           icon: MousePointerClick,
           label: t("admin.nav.popups", { defaultValue: lang === "pl" ? "Popupy" : "Popups" }),
+        },
+        {
+          to: "/admin/versions",
+          icon: History,
+          label: t("admin.nav.versions", {
+            defaultValue: lang === "pl" ? "Wersje i polityki" : "Versions & policies",
+          }),
         },
         {
           to: "/admin/experiments",
