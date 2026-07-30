@@ -71,6 +71,12 @@ export default defineConfig({
     // @tanstack/react-start stays out because its server entry must never be
     // pulled into the browser dependency graph.
     optimizeDeps: {
+      // Projekt ma setki tras i leniwych widgetów CMS. Automatyczny crawler
+      // przechodził cały graf przed zatwierdzeniem `deps_temp`, blokując w tym
+      // czasie kolejne dokumenty i moduły klienta. Prebundle jest w pełni
+      // jawny poniżej; zależności ekranów otwieranych później Vite transformuje
+      // normalnie bez globalnego restartu optimizer-a.
+      noDiscovery: true,
       // Pełna lista "gorących" zależności klienta. Bez niej Vite odkrywa je
       // dopiero w trakcie ładowania strony, przeładowuje optimizer w locie i
       // żądania modułów wysłane ze starym `?v=` hashem nigdy się nie kończą -
@@ -108,6 +114,7 @@ export default defineConfig({
     //    module-graph i mniej pracy transformera przy każdym renderze.
     ssr: {
       optimizeDeps: {
+        noDiscovery: true,
         include: [
           "react",
           "react-dom",
