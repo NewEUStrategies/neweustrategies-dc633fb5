@@ -10,7 +10,8 @@
 // testowalna bez montowania edytora.
 
 import type { Block } from "./types";
-import { newBlockId, toJson } from "./types";
+import { newBlockId } from "./types";
+import { toJson } from "@/lib/builder/types";
 
 /** Znaczniki, po których poznajemy że schowek niesie realną strukturę. */
 const RICH_MARKERS = /<(h[1-6]|ul|ol|li|table|blockquote|pre|p|br|strong|b|em|i|u|sup|sub|a)\b/i;
