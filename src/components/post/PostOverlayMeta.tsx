@@ -37,6 +37,8 @@ interface Props {
   publishedAt: string | null;
   readMinutes: number | null;
   customMeta?: ReactNode;
+  /** Akcje renderowane pod autorem i datą - tylko mobile (np. "Udostępnij pełny artykuł"). */
+  mobileActions?: ReactNode;
 }
 
 function fmtDate(iso: string, lang: Lang): string {
@@ -55,7 +57,14 @@ function authorName(a: AuthorLite, lang: Lang): string {
   );
 }
 
-export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, customMeta }: Props) {
+export function PostOverlayMeta({
+  lang,
+  author,
+  publishedAt,
+  readMinutes,
+  customMeta,
+  mobileActions,
+}: Props) {
   const t = L[lang];
   const name = author ? authorName(author, lang) : null;
   const authorHref = author?.slug ? `/${lang === "en" ? "en/" : ""}author/${author.slug}` : null;
@@ -129,6 +138,9 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
         <ReadingTimeView lang={lang} cls="!text-inherit" />
       )}
       {customMeta}
+      {mobileActions ? (
+        <span className="no-print mt-2 flex w-full basis-full sm:hidden">{mobileActions}</span>
+      ) : null}
     </span>
   );
 }
