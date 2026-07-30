@@ -568,7 +568,7 @@ export function FloatingShareBar({
         </div>
       </aside>
 
-      {/* Mobile floating progress FAB - bottom-right */}
+      {/* Mobile floating progress FAB - bottom-left */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
@@ -576,7 +576,7 @@ export function FloatingShareBar({
         aria-expanded={mobileOpen}
         data-floating-share-fab
         className={[
-          "lg:hidden fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40",
+          "lg:hidden fixed left-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40",
           "h-14 w-14 rounded-full grid place-items-center",
           "bg-background/95 border border-border/70 backdrop-blur-xl",
           "shadow-[0_10px_30px_-8px_rgba(0,0,0,0.35)] active:scale-95",
