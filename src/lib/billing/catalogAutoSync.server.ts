@@ -213,7 +213,6 @@ async function runEnsure(env: PaddleEnv, force: boolean): Promise<AutoSyncOutcom
         currentCatalogFingerprint: catalog,
       });
 
-
   if (!reason) return { environment: env, ran: false, reason: null, report: null };
 
   const supabase = await admin();
@@ -226,7 +225,11 @@ async function runEnsure(env: PaddleEnv, force: boolean): Promise<AutoSyncOutcom
       {
         environment: env,
         fingerprint,
+        // Odcisk cennika zapisujemy dopiero po udanej synchronizacji - inaczej
+        // częściowa porażka uznałaby zmieniony cennik za wdrożony.
+        catalog_fingerprint: status === "ok" ? catalog : state.catalogFingerprint,
         last_synced_at: report.ranAt,
+
         last_status: status,
         last_reason: reason,
         last_error: null,
