@@ -21,15 +21,12 @@ export function ListBlockEdit({ block, onChange }: Props) {
   const nested = levels.some((l) => l > 1);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const commit = (nextItems: string[], nextLevels: number[]) =>
-    onChange({
-      ...block,
-      data: {
-        ...block.data,
-        items: nextItems,
-        ...(nextLevels.some((l) => l > 1) ? { levels: nextLevels } : { levels: undefined }),
-      },
-    });
+  const commit = (nextItems: string[], nextLevels: number[]) => {
+    const data: Record<string, typeof block.data.items> = { ...block.data, items: nextItems };
+    if (nextLevels.some((l) => l > 1)) data.levels = nextLevels;
+    else delete data.levels;
+    onChange({ ...block, data });
+  };
 
   const update = (idx: number, value: string) => {
     const next = [...items];
