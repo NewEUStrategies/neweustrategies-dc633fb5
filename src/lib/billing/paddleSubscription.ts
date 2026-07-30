@@ -49,9 +49,14 @@ export function isPaddleSubscriptionActive(row: PaddleSubscriptionRow | null): b
   return row.status === "canceled" && endsAt !== null && endsAt > Date.now();
 }
 
-/** Czy da się jeszcze cofnąć anulowanie (opłacony okres trwa). */
+/**
+ * Czy da się wznowić subskrypcję: cofnąć zaplanowane anulowanie (opłacony
+ * okres jeszcze trwa) albo odwiesić subskrypcję wstrzymaną.
+ */
 export function canResumePaddleSubscription(row: PaddleSubscriptionRow | null): boolean {
-  if (!row?.cancel_at_period_end) return false;
+  if (!row) return false;
+  if (row.status === "paused") return true;
+  if (!row.cancel_at_period_end) return false;
   const endsAt = row.current_period_end ? new Date(row.current_period_end).getTime() : null;
   return row.status !== "canceled" && (endsAt === null || endsAt > Date.now());
 }

@@ -27,6 +27,9 @@ export const billingKeys = {
   myPaddleSubscription: (uid: string | undefined, env: string) =>
     ["my-paddle-subscription", uid ?? "anon", env] as const,
   myPaddleSubscriptionAll: () => ["my-paddle-subscription"] as const,
+  /** Podgląd kosztu zmiany planu (kwota liczona przez operatora). */
+  planChangePreview: (subscriptionId: string, targetPriceId: string, env: string) =>
+    ["plan-change-preview", subscriptionId, targetPriceId, env] as const,
   /** Historia zamówień bieżącego użytkownika. */
   myOrders: (uid: string | undefined) => ["my-orders", uid ?? "anon"] as const,
   myOrdersAll: () => ["my-orders"] as const,

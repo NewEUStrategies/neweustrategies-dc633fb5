@@ -163,7 +163,11 @@ export const cancelPaddleSubscription = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Cofnięcie zaplanowanego anulowania, dopóki okres jeszcze trwa. */
+/**
+ * Wznowienie subskrypcji. Dwa różne stany, jedna intencja użytkownika:
+ * - zaplanowane anulowanie -> kasujemy zmianę, okres biegnie dalej,
+ * - subskrypcja wstrzymana  -> wznawiamy ją u operatora od zaraz.
+ */
 export const resumePaddleSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: PaddleEnv }) =>
@@ -172,7 +176,7 @@ export const resumePaddleSubscription = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("paddle_subscription_id")
+      .select("paddle_subscription_id, status")
       .eq("user_id", context.userId)
       .eq("environment", data.environment)
       .order("created_at", { ascending: false })
@@ -182,10 +186,17 @@ export const resumePaddleSubscription = createServerFn({ method: "POST" })
     if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
 
     const { getPaddleClient } = await import("@/lib/paddle.server");
-    await getPaddleClient(data.environment).subscriptions.update(sub.paddle_subscription_id, {
-      scheduledChange: null,
-    });
-    return { ok: true as const };
+    const paddle = getPaddleClient(data.environment);
+
+    if (sub.status === "paused") {
+      await paddle.subscriptions.resume(sub.paddle_subscription_id, {
+        effectiveFrom: "immediately",
+      });
+      return { ok: true as const, mode: "unpaused" as const };
+    }
+
+    await paddle.subscriptions.update(sub.paddle_subscription_id, { scheduledChange: null });
+    return { ok: true as const, mode: "cancellation_reverted" as const };
   });
 
 /**
@@ -220,4 +231,136 @@ export const resolvePaddleDiscount = createServerFn({ method: "POST" })
       amountCents: data.amountCents,
       currency: data.currency.toUpperCase(),
     });
+  });
+
+/**
+ * Podgląd kosztu zmiany planu PRZED potwierdzeniem.
+ *
+ * Operator liczy proratę po swojej stronie (kredyt za niewykorzystany okres,
+ * podatek wg adresu klienta), więc jedynym uczciwym źródłem kwoty jest jego
+ * endpoint podglądu. Upgrade pokazuje dopłatę do zapłaty od razu, downgrade -
+ * datę i kwotę następnego rozliczenia.
+ */
+export const previewPaddlePlanChange = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { targetPriceId: string; environment: PaddleEnv }) =>
+    z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { catalogEntryByPriceId, planChangeDirection } = await import(
+      "@/lib/billing/paddleCatalog"
+    );
+    const target = catalogEntryByPriceId(data.targetPriceId);
+    if (!target) throw new Error("unknown_price");
+
+    const { data: sub, error } = await context.supabase
+      .from("subscriptions")
+      .select("paddle_subscription_id, price_id, quantity")
+      .eq("user_id", context.userId)
+      .eq("environment", data.environment)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
+
+    const direction = planChangeDirection(sub.price_id, target.priceId);
+    if (direction === "same") {
+      return { ok: true as const, direction, amountCents: null, currency: null, nextBilledAt: null };
+    }
+
+    const paddlePriceId = await resolvePaddlePrice({
+      data: { priceId: target.priceId, environment: data.environment },
+    });
+    const { gatewayFetch } = await import("@/lib/paddle.server");
+    const res = await gatewayFetch(
+      data.environment,
+      `/subscriptions/${encodeURIComponent(sub.paddle_subscription_id)}/preview`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          items: [{ price_id: paddlePriceId, quantity: Math.max(1, sub.quantity ?? 1) }],
+          proration_billing_mode:
+            direction === "upgrade" ? "prorated_immediately" : "do_not_bill",
+          ...(direction === "downgrade"
+            ? { billing_cycle: { effective_from: "next_billing_period" } }
+            : {}),
+        }),
+      },
+    );
+    if (!res.ok) {
+      console.error("[payments] plan preview failed", res.status, await res.text());
+      // Brak podglądu nie może blokować zmiany planu - UI pokaże samą regułę.
+      return { ok: false as const, direction, amountCents: null, currency: null, nextBilledAt: null };
+    }
+    const json = (await res.json()) as {
+      data?: {
+        next_billed_at?: string | null;
+        immediate_transaction?: {
+          details?: { totals?: { grand_total?: string; currency_code?: string } | null } | null;
+        } | null;
+        next_transaction?: {
+          details?: { totals?: { grand_total?: string; currency_code?: string } | null } | null;
+        } | null;
+      };
+    };
+    const totals =
+      direction === "upgrade"
+        ? json.data?.immediate_transaction?.details?.totals
+        : json.data?.next_transaction?.details?.totals;
+    const parsed = totals?.grand_total ? Number.parseInt(totals.grand_total, 10) : NaN;
+    return {
+      ok: true as const,
+      direction,
+      amountCents: Number.isFinite(parsed) ? parsed : null,
+      currency: totals?.currency_code ?? null,
+      nextBilledAt: json.data?.next_billed_at ?? null,
+    };
+  });
+
+/**
+ * Samodzielna zmiana liczby miejsc w planie rozliczanym za miejsce.
+ * Zwiększenie rozlicza się proporcjonalnie od razu, zmniejszenie obowiązuje od
+ * nowego okresu - opłacony okres należy się klientowi w całości.
+ */
+export const updatePaddleSubscriptionSeats = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { quantity: number; environment: PaddleEnv }) =>
+    z.object({ quantity: z.number().int().min(1).max(500), environment: envSchema }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: sub, error } = await context.supabase
+      .from("subscriptions")
+      .select("paddle_subscription_id, price_id, quantity, status")
+      .eq("user_id", context.userId)
+      .eq("environment", data.environment)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
+
+    const { catalogEntryByPriceId } = await import("@/lib/billing/paddleCatalog");
+    const entry = catalogEntryByPriceId(sub.price_id);
+    if (!entry?.perSeat) throw new Error("not_per_seat_plan");
+
+    const { updateSubscriptionQuantity } = await import(
+      "@/lib/billing/paddleSubscription.server"
+    );
+    const result = await updateSubscriptionQuantity(data.environment, sub.paddle_subscription_id, {
+      priceExternalId: entry.priceId,
+      quantity: data.quantity,
+      previousQuantity: sub.quantity ?? 1,
+    });
+    if (!result.ok) {
+      console.error("[payments] seat change failed", sub.paddle_subscription_id, result.error);
+      throw new Error("seat_change_failed");
+    }
+    // Stan w bazie domknie webhook `subscription.updated`; zwracamy wartość
+    // docelową, żeby panel nie migotał starą liczbą do czasu dostarczenia.
+    return {
+      ok: true as const,
+      quantity: result.quantity,
+      immediate: data.quantity > (sub.quantity ?? 1),
+    };
   });
