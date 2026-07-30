@@ -5,7 +5,8 @@ import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { ChevronLeft, ChevronRight, Loader2, MapPin } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { submitContactMessage } from "@/lib/contact.functions";
 
 type Lang = "pl" | "en";
 
@@ -406,6 +407,7 @@ export function ContactFormView({
   cls,
 }: ContactFormProps) {
   const t = CONTACT_L[lang];
+  const submit = useServerFn(submitContactMessage);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -425,15 +427,25 @@ export function ContactFormView({
     setStatus("loading");
     setErrMsg("");
     try {
-      const payload = {
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || null,
-        subject: subject.trim() || null,
-        message: message.trim(),
-      };
-      const { error } = await supabase.from("contact_messages").insert(payload);
-      if (error) throw error;
+      // Publiczny INSERT do contact_messages jest zablokowany na poziomie RLS
+      // (migracja 20260730130000) - zapis musi iść przez utwardzony server fn
+      // (walidacja + rate limit + tenant pinowany po hoście + service_role).
+      await submit({
+        data: {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim() || undefined,
+          subject: subject.trim() || undefined,
+          message: message.trim(),
+          consent,
+          lang,
+          source: typeof window !== "undefined" ? window.location.pathname : undefined,
+          pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
+          consents: requireConsent
+            ? [{ key: "rodo", text: t.consent, given: consent, lang }]
+            : undefined,
+        },
+      });
       setStatus("ok");
       setName("");
       setEmail("");
@@ -441,9 +453,9 @@ export function ContactFormView({
       setSubject("");
       setMessage("");
       if (requireConsent) setConsent(false);
-    } catch (err) {
+    } catch {
       setStatus("err");
-      setErrMsg(err instanceof Error ? err.message : t.error);
+      setErrMsg(t.error);
     }
   };
 
