@@ -5,14 +5,14 @@
 //   2. Kogo i dlaczego nie da się już dowieźć? (lista wykluczeń)
 //   3. Czy pętla zwrotna w ogóle działa? (status webhooka)
 //
-// Autoryzacja: requireStaff + RPC/RLS pinowane po current_tenant_id() - dane
+// Autoryzacja: requireAdminEditor + RPC/RLS pinowane po current_tenant_id() - dane
 // nigdy nie przekraczają granicy tenanta, także dla super admina przełączonego
 // kontekstem. Tabele i funkcje pochodzą z migracji 20260725120000 (nowszej niż
 // wygenerowane typy Supabase), więc nazwy są rzutowane przy wywołaniu -
 // precedens: newsletter_campaign_events w getCampaignEngagement.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+import { requireAdminEditor } from "@/integrations/supabase/require-staff";
 import {
   computeReputation,
   EMPTY_COUNTS,
@@ -119,7 +119,7 @@ function scopeOf(value: unknown): SuppressionScope {
 // METRYKI + REPUTACJA
 // ----------------------------------------------------------------------------
 export const getDeliverabilityMetrics = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .validator((data: unknown) =>
     z
       .object({ days: z.number().int().min(1).max(365).default(30) })
@@ -189,7 +189,7 @@ const SuppressionQuery = z.object({
 });
 
 export const listSuppressions = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .validator((data: unknown) => SuppressionQuery.parse(data ?? {}))
   .handler(async ({ data, context }): Promise<SuppressionRow[]> => {
     let query = context.supabase
@@ -231,7 +231,7 @@ export const listSuppressions = createServerFn({ method: "GET" })
   });
 
 export const addSuppression = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .validator((data: unknown) =>
     z
       .object({
@@ -257,7 +257,7 @@ export const addSuppression = createServerFn({ method: "POST" })
   });
 
 export const releaseSuppression = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .validator((data: unknown) =>
     z
       .object({
@@ -295,7 +295,7 @@ export interface DeliverabilitySetup {
 }
 
 export const getDeliverabilitySetup = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .handler(async ({ context }): Promise<DeliverabilitySetup> => {
     const origin = (
       process.env.PUBLIC_SITE_URL ??
