@@ -693,7 +693,6 @@ export function JoinUsForm({
     : "";
   const bgStyleTag = bgCss || sizeCss ? <style>{bgCss + sizeCss}</style> : null;
 
-
   if (state === "ok") {
     return (
       <section data-jus-id={jusId} className={cn(containerCls, className)} aria-live="polite">

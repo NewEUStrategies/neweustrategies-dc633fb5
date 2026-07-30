@@ -34,7 +34,10 @@ function useFallbackId(prefix: string, provided?: string) {
 }
 
 export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(
-  ({ label, error, id, className, containerClassName, required, labelEditTarget, ...rest }, ref) => {
+  (
+    { label, error, id, className, containerClassName, required, labelEditTarget, ...rest },
+    ref,
+  ) => {
     const inputId = useFallbackId("fi", id);
     const errorId = error ? `${inputId}-err` : undefined;
     return (
