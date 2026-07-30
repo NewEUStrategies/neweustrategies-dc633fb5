@@ -122,7 +122,6 @@ interface AuthorProfileOverlay {
   company: string | null;
   bio_pl: string | null;
   bio_en: string | null;
-  contact_email: string | null;
   website_url: string | null;
   x_url: string | null;
   linkedin_url: string | null;
@@ -561,14 +560,19 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
     let author: PostAuthor | null = null;
     let authors: PostAuthorRef[] = [];
     if (orderedAuthorIds.length > 0) {
+      // Nakładka autora z author_profiles_public - publicznej projekcji BEZ
+      // kolumn kontaktowych (contact_email/phone/media_contact_* są PII i mają
+      // odebrany SELECT role-wide). Bezpośredni select z author_profiles
+      // z contact_email kończył się tu 42501 (połykanym), więc nakładka
+      // znikała z każdej strony wpisu; widok filtruje też is_public = true
+      // oraz tenant = public_tenant_id() po stronie bazy.
       const overlayQuery = mainAuthorId
         ? supabase
-            .from("author_profiles")
+            .from("author_profiles_public")
             .select(
-              "avatar_url, job_title, company, bio_pl, bio_en, contact_email, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
+              "avatar_url, job_title, company, bio_pl, bio_en, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
             )
             .eq("user_id", mainAuthorId)
-            .eq("is_public", true)
             .maybeSingle()
         : null;
       const [{ data: profileRows }, overlayRes] = await Promise.all([

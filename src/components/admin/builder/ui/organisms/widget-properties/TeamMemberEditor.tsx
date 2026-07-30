@@ -47,7 +47,13 @@ interface ExpertHydration {
 
 /** Pobiera scalone dane eksperta (profiles + author_profiles) do skopiowania
  *  do widgetu. Zapytanie robimy on-demand, bo dane trafiają do content i
- *  później renderer nie potrzebuje żadnej dodatkowej sieci. */
+ *  później renderer nie potrzebuje żadnej dodatkowej sieci.
+ *
+ *  Pełny wiersz author_profiles (z contact_email - kolumna z odebranym
+ *  SELECT role-wide) czytamy przez SECURITY DEFINER admin_get_author_profile():
+ *  bezpośredni select rzucał tu 42501 dla każdego zalogowanego, także admina.
+ *  Skopiowanie e-maila do treści widgetu to jawna decyzja redakcyjna admina -
+ *  funkcja zwraca wiersz wyłącznie adminowi tego samego tenanta. */
 async function fetchExpertHydration(userId: string): Promise<ExpertHydration | null> {
   const [{ data: prof, error: profErr }, { data: ap, error: apErr }] = await Promise.all([
     supabase
@@ -57,13 +63,7 @@ async function fetchExpertHydration(userId: string): Promise<ExpertHydration | n
       )
       .eq("id", userId)
       .maybeSingle(),
-    supabase
-      .from("author_profiles")
-      .select(
-        "job_title, contact_email, website_url, x_url, linkedin_url, full_bio_pl, full_bio_en",
-      )
-      .eq("user_id", userId)
-      .maybeSingle(),
+    supabase.rpc("admin_get_author_profile", { _user_id: userId }).maybeSingle(),
   ]);
   if (profErr) throw profErr;
   if (apErr) throw apErr;

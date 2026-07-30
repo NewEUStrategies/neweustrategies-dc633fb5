@@ -515,8 +515,6 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
               company: string | null;
               bio_pl: string | null;
               bio_en: string | null;
-              contact_email: string | null;
-              phone: string | null;
               website_url: string | null;
               x_url: string | null;
               linkedin_url: string | null;
@@ -766,7 +764,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             preferCanonicalBio(postAuthor.bio_pl, postAuthor.author_profile?.bio_pl) ?? undefined,
           bio_en:
             preferCanonicalBio(postAuthor.bio_en, postAuthor.author_profile?.bio_en) ?? undefined,
-          contactEmail: postAuthor.author_profile?.contact_email ?? undefined,
+          // contactEmail celowo pominięty: publiczna nakładka autora nie niesie
+          // już PII kontaktowego (widok author_profiles_public bez contact_email);
+          // wartość może nadal pochodzić z jawnego nadpisania w bloku admina.
           websiteUrl: postAuthor.author_profile?.website_url ?? undefined,
           xUrl: postAuthor.author_profile?.x_url ?? undefined,
           linkedinUrl: postAuthor.author_profile?.linkedin_url ?? undefined,
@@ -995,7 +995,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                                     postAuthor?.bio_pl ?? null,
                                     postAuthor?.author_profile?.bio_pl ?? null,
                                   )) ?? null,
-                            authorEmail: postAuthor?.author_profile?.contact_email ?? null,
+                            // E-mail autora nie płynie już z publicznej nakładki
+                            // (PII poza publicznym gruntem od 20260730120000).
+                            authorEmail: null,
                             authorXUrl: postAuthor?.author_profile?.x_url ?? null,
                             authorLinkedinUrl: postAuthor?.author_profile?.linkedin_url ?? null,
                             authorFacebookUrl: postAuthor?.author_profile?.facebook_url ?? null,

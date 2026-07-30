@@ -181,14 +181,15 @@ async function fetchExpertHubLegacy(slugOrId: string): Promise<ExpertHubData | n
     // SELECT na phone/contact_email/media_contact_email/media_contact_phone) -
     // a że błąd był tu połykany (`{ data: ap }` bez sprawdzenia), CAŁA nakładka
     // autora (tytuł, firma, pełne bio, org_functions, socjale, media_contact_name)
-    // znikała z każdej strony /author/$slug. Widok zwraca dokładnie kolumny
-    // publiczne; PII kontaktowe zostaje prywatne z premedytacją (owner edytuje
-    // je w edytorze profilu). Nakładka jest best-effort: gdy jej brak, hub
-    // degraduje się do danych z profiles_public zamiast 500-ować stronę.
+    // znikała z każdej strony /author/$slug. Od 20260730120000 widok nie niesie
+    // też contact_email - żadne PII kontaktowe nie jest publiczne; owner czyta
+    // je przez get_own_author_profile(), staff przez admin_get_author_profile().
+    // Nakładka jest best-effort: gdy jej brak, hub degraduje się do danych
+    // z profiles_public zamiast 500-ować stronę.
     supabase
       .from("author_profiles_public")
       .select(
-        "job_title, company, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials, contact_email, full_bio_pl, full_bio_en, org_functions, media_contact_name, is_public",
+        "job_title, company, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials, full_bio_pl, full_bio_en, org_functions, media_contact_name, is_public",
       )
       .eq("user_id", expertId)
       .maybeSingle(),
