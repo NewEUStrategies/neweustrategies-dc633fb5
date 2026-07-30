@@ -9,12 +9,16 @@ import type { Json } from "@/integrations/supabase/types";
 import { getConnectionApiKey, type PaddleEnv } from "@/lib/paddle.server";
 
 import {
+  catalogFingerprintSource,
   resyncReason,
   syncStatusFrom,
+  type CatalogFingerprintEntry,
   type IntegrationSyncState,
   type ResyncReason,
 } from "./catalogAutoSync";
+import { PADDLE_CATALOG } from "./paddleCatalog";
 import type { CatalogSyncReport } from "./paddleCatalogSync.server";
+
 
 export interface AutoSyncOutcome {
   environment: PaddleEnv;
