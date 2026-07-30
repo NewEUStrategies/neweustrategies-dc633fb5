@@ -18,6 +18,8 @@ import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { AppLink } from "@/components/atoms/AppLink";
+import { LangToggle } from "@/components/atoms/LangToggle";
+
 import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
