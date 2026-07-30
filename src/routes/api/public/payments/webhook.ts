@@ -275,6 +275,34 @@ async function handleTransaction(
   else await dunning.applyPaymentRecoveredEffects(ctx);
 }
 
+/**
+ * Korekty rozliczeniowe operatora: zwrot, obciążenie zwrotne, kredyt.
+ *
+ * Payload korekty jest luźniejszy niż subskrypcyjny (SDK nie eksportuje dla
+ * niego stabilnego typu), więc czytamy pola defensywnie i całą decyzję
+ * przekazujemy do `applyRefundEffects`.
+ */
+async function handleAdjustment(data: Record<string, unknown>, env: PaddleEnv): Promise<void> {
+  const str = (key: string): string | null =>
+    typeof data[key] === "string" ? (data[key] as string) : null;
+
+  const totals = data.totals as { total?: string; currencyCode?: string } | undefined;
+  const totalRaw = totals?.total;
+  const amountCents = totalRaw !== undefined ? Math.round(Number(totalRaw)) : null;
+
+  const { applyRefundEffects } = await import("@/lib/billing/refunds.server");
+  await applyRefundEffects({
+    adjustmentId: str("id") ?? "",
+    transactionId: str("transactionId"),
+    subscriptionId: str("subscriptionId"),
+    action: (str("action") ?? "other") as "refund" | "chargeback" | "chargeback_warning" | "credit" | "other",
+    status: str("status"),
+    amountCents: Number.isFinite(amountCents) ? amountCents : null,
+    currency: str("currencyCode") ?? totals?.currencyCode ?? null,
+    environment: env,
+  });
+}
+
 
 async function handleWebhookRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
