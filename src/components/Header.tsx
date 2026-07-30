@@ -148,7 +148,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
       <AdZone position="header_banner" pageType={adPageType} className="py-2 text-center" />
 
       {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
-      <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-3 px-4 py-3 border-b border-border bg-background">
+      <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_auto] items-center gap-3 px-4 py-3 border-b border-border bg-background">
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
