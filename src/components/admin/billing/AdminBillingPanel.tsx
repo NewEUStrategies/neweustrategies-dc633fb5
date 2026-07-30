@@ -27,6 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminTicketOrdersPanel } from "@/components/admin/billing/AdminTicketOrdersPanel";
 import { AdminWebhookLogPanel } from "@/components/admin/billing/AdminWebhookLogPanel";
 import { AdminPaymentsDiagnosticsPanel } from "@/components/admin/billing/AdminPaymentsDiagnosticsPanel";
+import { ResendPortalLinkButton } from "@/components/admin/billing/ResendPortalLinkButton";
+
 
 
 interface SubscriptionRow {
@@ -345,6 +347,10 @@ export function AdminBillingPanel() {
                         <th className="px-4 py-2 font-medium">{L("Nieudane próby", "Failed attempts")}</th>
                         <th className="px-4 py-2 font-medium">{L("Środowisko", "Environment")}</th>
                         <th className="px-4 py-2 font-medium">ID</th>
+                        <th className="px-4 py-2 font-medium text-right">
+                          {L("Portal klienta", "Customer portal")}
+                        </th>
+
                       </tr>
                     </thead>
                     <tbody>
@@ -378,6 +384,14 @@ export function AdminBillingPanel() {
                           <td className="px-4 py-2 font-mono text-[0.75rem] text-muted-foreground">
                             {r.paddle_subscription_id}
                           </td>
+                          <td className="px-4 py-2 text-right">
+                            <ResendPortalLinkButton
+                              userId={r.user_id}
+                              environment={r.environment === "live" ? "live" : "sandbox"}
+                              label={L("Wyślij link", "Send link")}
+                            />
+                          </td>
+
                         </tr>
                       ))}
                     </tbody>
