@@ -37,6 +37,8 @@ interface Props {
   publishedAt: string | null;
   readMinutes: number | null;
   customMeta?: ReactNode;
+  /** Akcje renderowane pod autorem i datą - tylko mobile (np. "Udostępnij pełny artykuł"). */
+  mobileActions?: ReactNode;
 }
 
 function fmtDate(iso: string, lang: Lang): string {
