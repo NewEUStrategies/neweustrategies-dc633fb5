@@ -382,6 +382,14 @@ export function AdminBillingPanel() {
                           <td className="px-4 py-2 font-mono text-[0.75rem] text-muted-foreground">
                             {r.paddle_subscription_id}
                           </td>
+                          <td className="px-4 py-2 text-right">
+                            <ResendPortalLinkButton
+                              userId={r.user_id}
+                              environment={r.environment === "live" ? "live" : "sandbox"}
+                              label={L("Wyślij link", "Send link")}
+                            />
+                          </td>
+
                         </tr>
                       ))}
                     </tbody>
