@@ -1,23 +1,19 @@
-// Górny pas narzędzi drawera: wyszukiwarka, motyw, język.
-// Wyszukiwarka otwiera istniejący `SearchOverlay` w trybie fullscreen,
-// żeby zachować spójność z resztą chrome-u.
-import { useState } from "react";
-import { Search, Sun, Moon } from "lucide-react";
+// Górny pas narzędzi drawera: motyw, język.
+// Wyszukiwarka została usunięta z menu mobilnego na prośbę UX.
+import { Sun, Moon } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { LangToggle } from "@/components/atoms/LangToggle";
-import { SearchOverlay } from "@/components/SearchOverlay";
 import type { TopTools } from "@/lib/mobileDrawer";
 
 type Props = {
   tools: TopTools;
   isPl: boolean;
-  onNavigate: () => void;
+  onNavigate?: () => void;
 };
 
-export function MobileTopTools({ tools, isPl, onNavigate }: Props) {
+export function MobileTopTools({ tools, isPl }: Props) {
   const { theme, toggle } = useTheme();
-  const [searchOpen, setSearchOpen] = useState(false);
-  const anyTool = tools.search || tools.theme || tools.language;
+  const anyTool = tools.theme || tools.language;
   if (!anyTool) return null;
 
   const t = (pl: string, en: string) => (isPl ? pl : en);
@@ -28,19 +24,7 @@ export function MobileTopTools({ tools, isPl, onNavigate }: Props) {
       role="group"
       aria-label={t("Narzędzia", "Tools")}
     >
-      <div className="flex items-center gap-2">
-        {tools.search && (
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            aria-label={t("Otwórz wyszukiwarkę", "Open search")}
-            className="flex-1 inline-flex items-center gap-2 h-10 px-3 rounded-md border border-border bg-muted/40 text-sm text-muted-foreground hover:bg-muted transition"
-          >
-            <Search className="w-4 h-4" aria-hidden />
-            <span>{t("Szukaj…", "Search…")}</span>
-          </button>
-        )}
-
+      <div className="flex items-center justify-end gap-2">
         {tools.theme && (
           <button
             type="button"
@@ -62,21 +46,6 @@ export function MobileTopTools({ tools, isPl, onNavigate }: Props) {
           </div>
         )}
       </div>
-
-      {tools.search && (
-        <SearchOverlay
-          open={searchOpen}
-          onClose={() => {
-            setSearchOpen(false);
-            onNavigate();
-          }}
-          mode="fullscreen"
-          heading={t("Szukaj", "Search")}
-          liveResults={true}
-          limit={8}
-          lang={isPl ? "pl" : "en"}
-        />
-      )}
     </div>
   );
 }
