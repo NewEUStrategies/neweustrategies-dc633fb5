@@ -673,12 +673,24 @@ export function JoinUsForm({
           : `rounded-xl border border-border ${bgClass} p-6 sm:p-8`) +
     ` join-us-shell join-us-shell--${variant}`;
 
-  const bgStyleTag = hasCustomBg ? (
-    <style>
-      {`[data-jus-id="${jusId}"]{background:${bgLight || "var(--card)"} !important;}` +
-        `.dark [data-jus-id="${jusId}"]{background:${bgDark || bgLight || "var(--card)"} !important;}`}
-    </style>
-  ) : null;
+  // Scoped <style>: tło + rozmiary czcionek. Rozmiary muszą lecieć przez CSS
+  // (a nie tylko inline), żeby wygrać z globalnymi regułami platformy i dawać
+  // ten sam efekt w podglądzie buildera oraz na stronie publicznej.
+  const sizeCss = buildJoinUsSizeCss(jusId, {
+    titleSize,
+    descriptionSize,
+    perkSize,
+    labelSize,
+    placeholderSize,
+    buttonSize,
+    consentSize,
+  });
+  const bgCss = hasCustomBg
+    ? `[data-jus-id="${jusId}"]{background:${bgLight || "var(--card)"} !important;}` +
+      `.dark [data-jus-id="${jusId}"]{background:${bgDark || bgLight || "var(--card)"} !important;}`
+    : "";
+  const bgStyleTag = bgCss || sizeCss ? <style>{bgCss + sizeCss}</style> : null;
+
 
   if (state === "ok") {
     return (
