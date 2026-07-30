@@ -17,6 +17,7 @@ const order = {
 
 const updates: Array<Record<string, unknown>> = [];
 const rsvps: Array<Record<string, unknown>> = [];
+const inserts: Array<Record<string, unknown>> = [];
 const grants: Array<unknown> = [];
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -25,7 +26,13 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: order, error: null }) }) }),
       update: (patch: Record<string, unknown>) => {
         updates.push({ table, ...patch });
-        return { eq: () => ({ neq: async () => ({ error: null }) }) };
+        const done = async () => ({ error: null });
+        const eq = () => Object.assign(done(), { neq: done, eq });
+        return { eq };
+      },
+      insert: async (row: Record<string, unknown>) => {
+        inserts.push({ table, ...row });
+        return { error: null };
       },
       upsert: async (row: Record<string, unknown>) => {
         rsvps.push({ table, ...row });
@@ -77,6 +84,7 @@ beforeEach(() => {
   rsvps.length = 0;
   grants.length = 0;
   emails.length = 0;
+  inserts.length = 0;
   refunds.length = 0;
   seatsFull = false;
 });
