@@ -7,7 +7,17 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowRightLeft, CreditCard, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
+import {
+  ArrowRightLeft,
+  CreditCard,
+  ExternalLink,
+  Loader2,
+  Minus,
+  PauseCircle,
+  Plus,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans } from "@/lib/billing/queries";
@@ -25,7 +35,9 @@ import {
   cancelPaddleSubscription,
   changePaddlePlan,
   createPaddlePortalSession,
+  previewPaddlePlanChange,
   resumePaddleSubscription,
+  updatePaddleSubscriptionSeats,
 } from "@/utils/payments.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +67,7 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
   const qc = useQueryClient();
   const environment = getPaddleEnvironment();
   const [targetPriceId, setTargetPriceId] = useState("");
+  const [seats, setSeats] = useState(Math.max(1, subscription.quantity ?? 1));
 
   const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
   const entry = catalogEntryFor(subscription);
@@ -107,11 +120,34 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
 
   const resume = useMutation({
     mutationFn: () => resumePaddleSubscription({ data: { environment } }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       refresh();
-      toast.success(t("profile.subscription.resumed"));
+      toast.success(
+        result.mode === "unpaused"
+          ? t("profile.subscription.portal.paused.success")
+          : t("profile.subscription.resumed"),
+      );
     },
     onError: () => toast.error(t("profile.subscription.resumeError")),
+  });
+
+  // Podgląd kosztu liczy operator - pokazujemy go zanim klient potwierdzi
+  // zmianę, żeby nikt nie zobaczył dopłaty dopiero na wyciągu z karty.
+  const previewQ = useQuery({
+    queryKey: billingKeys.planChangePreview(subscription.id, targetPriceId, environment),
+    queryFn: () => previewPaddlePlanChange({ data: { targetPriceId, environment } }),
+    enabled: !!targetPriceId,
+    staleTime: 60_000,
+  });
+
+  const seatsMutation = useMutation({
+    mutationFn: (quantity: number) =>
+      updatePaddleSubscriptionSeats({ data: { quantity, environment } }),
+    onSuccess: () => {
+      refresh();
+      toast.success(t("profile.subscription.portal.seats.success"));
+    },
+    onError: () => toast.error(t("profile.subscription.portal.seats.error")),
   });
 
   const portal = useMutation({
@@ -129,7 +165,14 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
   });
 
   const busy =
-    changePlan.isPending || cancel.isPending || resume.isPending || portal.isPending;
+    changePlan.isPending ||
+    cancel.isPending ||
+    resume.isPending ||
+    portal.isPending ||
+    seatsMutation.isPending;
+
+  const perSeat = !!entry?.perSeat;
+  const currentSeats = Math.max(1, subscription.quantity ?? 1);
 
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL") : "-";
@@ -182,6 +225,20 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
           <p className="rounded-[6px] border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm">
             {t("profile.subscription.portal.pastDue")}
           </p>
+        )}
+
+        {/* Wstrzymana subskrypcja - dostęp wraca dopiero po wznowieniu. */}
+        {subscription.status === "paused" && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-border/60 bg-muted/30 px-3 py-2.5">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <PauseCircle className="h-4 w-4 shrink-0" aria-hidden />
+              {t("profile.subscription.portal.paused.note")}
+            </p>
+            <Button size="sm" disabled={busy} onClick={() => resume.mutate()}>
+              {resume.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("profile.subscription.portal.paused.cta")}
+            </Button>
+          </div>
         )}
 
         {subscription.cancel_at_period_end && (
@@ -237,7 +294,79 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
                 : t("profile.subscription.portal.downgradeNote")}
             </p>
           )}
+          {targetPriceId && (
+            <p className="text-xs font-medium">
+              {previewQ.isLoading
+                ? t("profile.subscription.portal.preview.loading")
+                : previewQ.data?.amountCents != null && previewQ.data.currency
+                  ? previewQ.data.direction === "upgrade"
+                    ? t("profile.subscription.portal.preview.upgrade", {
+                        amount: formatMoney(
+                          previewQ.data.amountCents,
+                          previewQ.data.currency,
+                          lang,
+                        ),
+                      })
+                    : t("profile.subscription.portal.preview.downgrade", {
+                        amount: formatMoney(
+                          previewQ.data.amountCents,
+                          previewQ.data.currency,
+                          lang,
+                        ),
+                        date: fmtDate(previewQ.data.nextBilledAt ?? null),
+                      })
+                  : t("profile.subscription.portal.preview.unavailable")}
+            </p>
+          )}
         </div>
+
+        {/* Miejsca w planie zespołowym - w górę i w dół, bez kontaktu z nami. */}
+        {perSeat && (
+          <div className="space-y-2 rounded-[6px] border border-border/60 p-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Users className="h-4 w-4" aria-hidden />
+              {t("profile.subscription.portal.seats.title")}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("profile.subscription.portal.seats.hint")}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  aria-label={`${t("profile.subscription.portal.seats.label")} -1`}
+                  disabled={busy || seats <= 1}
+                  onClick={() => setSeats((n) => Math.max(1, n - 1))}
+                >
+                  <Minus className="h-4 w-4" aria-hidden />
+                </Button>
+                <span className="min-w-10 text-center text-lg font-semibold tabular-nums">
+                  {seats}
+                </span>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  aria-label={`${t("profile.subscription.portal.seats.label")} +1`}
+                  disabled={busy || seats >= 500}
+                  onClick={() => setSeats((n) => Math.min(500, n + 1))}
+                >
+                  <Plus className="h-4 w-4" aria-hidden />
+                </Button>
+              </div>
+              <Button
+                disabled={busy || seats === currentSeats}
+                onClick={() => seatsMutation.mutate(seats)}
+              >
+                {seatsMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t("profile.subscription.portal.seats.cta")}
+              </Button>
+            </div>
+          </div>
+        )}
+
 
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={busy} onClick={() => portal.mutate("payment")}>

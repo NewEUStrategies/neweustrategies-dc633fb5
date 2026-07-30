@@ -395,6 +395,23 @@ async function handleAdjustment(data: Record<string, unknown>, env: PaddleEnv): 
   });
 }
 
+/**
+ * Zapis faktury dla transakcji. Zwraca `true`, gdy coś faktycznie zapisano -
+ * `transaction.updated` bez zmian traktujemy jako pominięte zdarzenie.
+ */
+async function recordDocument(data: unknown, env: PaddleEnv): Promise<boolean> {
+  const { documentInputFromTransaction, recordTransactionDocument } = await import(
+    "@/lib/billing/billingDocuments.server"
+  );
+  const input = documentInputFromTransaction(data, env);
+  if (!input) return false;
+  const outcome = await recordTransactionDocument(input).catch((e: unknown) => {
+    console.error("[payments] billing document failed", input.transactionId, e);
+    return "skipped" as const;
+  });
+  return outcome !== "skipped";
+}
+
 /** Typy zdarzeń obsługiwane przez integrację (jedno miejsce prawdy). */
 export const HANDLED_EVENT_TYPES = [
   "subscription.created",
@@ -407,10 +424,14 @@ export const HANDLED_EVENT_TYPES = [
   "subscription.imported",
   "subscription.canceled",
   "transaction.completed",
+  "transaction.updated",
   "transaction.payment_failed",
   "transaction.past_due",
   "adjustment.created",
   "adjustment.updated",
+  "customer.updated",
+  "address.updated",
+  "business.updated",
 ] as const;
 
 export interface DispatchInput {
@@ -461,12 +482,34 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
       await handleTransaction(input.data as TransactionData, env, occurredAt, "failed");
       return "processed";
     case "transaction.completed":
+      await recordDocument(input.data, env);
       await handleTransaction(input.data as TransactionData, env, occurredAt, "paid");
       return "processed";
+    // Operator nadaje numer faktury i domyka kwoty osobnym zdarzeniem - bez
+    // niego dokument w panelu klienta zostałby bez numeru.
+    case "transaction.updated":
+      return (await recordDocument(input.data, env)) ? "processed" : "skipped";
     case "adjustment.created":
     case "adjustment.updated":
       await handleAdjustment(input.data as Record<string, unknown>, env);
       return "processed";
+    // Zmiany danych klienta u operatora (e-mail, adres, dane firmy) wracają do
+    // profilu rozliczeniowego - inaczej faktury i stawka podatku rozjeżdżają się.
+    case "customer.updated": {
+      const { syncCustomerProfile } = await import("@/lib/billing/customerSync.server");
+      await syncCustomerProfile(input.data, env);
+      return "processed";
+    }
+    case "address.updated": {
+      const { syncCustomerAddress } = await import("@/lib/billing/customerSync.server");
+      await syncCustomerAddress(input.data, env);
+      return "processed";
+    }
+    case "business.updated": {
+      const { syncCustomerBusiness } = await import("@/lib/billing/customerSync.server");
+      await syncCustomerBusiness(input.data, env);
+      return "processed";
+    }
     default:
       return "skipped";
   }
