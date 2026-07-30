@@ -367,7 +367,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 top-[64px] z-[60] bg-background sm:inset-0 sm:top-0 sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
+      className="fixed inset-x-0 bottom-0 z-[60] bg-background top-[var(--sticky-header-h,64px)] sm:inset-0 sm:top-0 sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="absolute inset-x-0 top-0 flex h-full max-h-full justify-center overflow-y-auto px-0 pt-0 pb-0 sm:h-auto sm:max-h-screen sm:px-4 sm:pt-[12vh] sm:pb-8">
