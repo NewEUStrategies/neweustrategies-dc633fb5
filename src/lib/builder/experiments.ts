@@ -3,8 +3,9 @@
 // The page document is the source of truth for WHAT is tested: two sibling
 // sections tagged `advanced.abTest = { experimentId, variant: "a" | "b" }`.
 // The tables hold the registry (builder_experiments) and the funnel events
-// (builder_experiment_events, written anonymously - RLS only accepts events
-// for running experiments).
+// (builder_experiment_events, written ONLY through the
+// /api/public/experiment-event beacon - direct anon inserts are blocked at
+// the RLS layer, see migration 20260730140000).
 //
 // Assignment is deterministic per visitor (FNV-1a over visitorId+experimentId)
 // and computed client-side after hydration: SSR and the first client render
@@ -130,7 +131,10 @@ const sessionDedup = (kind: ExperimentEvent, experimentId: string) =>
 
 /**
  * Record an experiment event (deduplicated per browser session). Fire and
- * forget - tracking must never affect rendering.
+ * forget - tracking must never affect rendering. Zapis idzie przez beacon
+ * /api/public/experiment-event (walidacja + rate limit + insert service_role)
+ * - bezpośredni INSERT do builder_experiment_events kluczem anon jest
+ * zablokowany na poziomie RLS (migracja 20260730140000).
  */
 export function recordExperimentEvent(
   experimentId: string,
@@ -147,18 +151,30 @@ export function recordExperimentEvent(
   }
   const visitorId = getVisitorId();
   if (!visitorId) return;
-  void supabase
-    .from("builder_experiment_events")
-    .insert({
-      experiment_id: experimentId,
+  try {
+    const url = "/api/public/experiment-event";
+    const payload = JSON.stringify({
+      experimentId,
       variant,
       event,
-      visitor_id: visitorId,
+      visitorId,
       path: window.location.pathname,
-    })
-    .then(({ error }) => {
-      if (error && import.meta.env.DEV) console.warn("[ab] event insert failed", error.message);
     });
+    // sendBeacon nie blokuje nawigacji (konwersja to zwykle klik w link)
+    const blob = new Blob([payload], { type: "application/json" });
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      navigator.sendBeacon(url, blob);
+      return;
+    }
+    void fetch(url, {
+      method: "POST",
+      body: payload,
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    // silent - beacon jest opcjonalny, nie może psuć UX
+  }
 }
 
 // ---------- admin: registry CRUD + results ----------

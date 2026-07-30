@@ -185,6 +185,7 @@ import { Route as ApiPublicNlOpenRouteImport } from './routes/api/public/nl-open
 import { Route as ApiPublicNlClickRouteImport } from './routes/api/public/nl-click'
 import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs-tick'
 import { Route as ApiPublicFxRateRouteImport } from './routes/api/public/fx-rate'
+import { Route as ApiPublicExperimentEventRouteImport } from './routes/api/public/experiment-event'
 import { Route as ApiPublicCommunityCronRouteImport } from './routes/api/public/community-cron'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as ApiPublicBillingCronRouteImport } from './routes/api/public/billing-cron'
@@ -1137,6 +1138,12 @@ const ApiPublicFxRateRoute = ApiPublicFxRateRouteImport.update({
   path: '/api/public/fx-rate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicExperimentEventRoute =
+  ApiPublicExperimentEventRouteImport.update({
+    id: '/api/public/experiment-event',
+    path: '/api/public/experiment-event',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCommunityCronRoute = ApiPublicCommunityCronRouteImport.update({
   id: '/api/public/community-cron',
   path: '/api/public/community-cron',
@@ -1716,6 +1723,7 @@ export interface FileRoutesByFullPath {
   '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/experiment-event': typeof ApiPublicExperimentEventRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
@@ -1953,6 +1961,7 @@ export interface FileRoutesByTo {
   '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/experiment-event': typeof ApiPublicExperimentEventRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
@@ -2201,6 +2210,7 @@ export interface FileRoutesById {
   '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/experiment-event': typeof ApiPublicExperimentEventRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
@@ -2450,6 +2460,7 @@ export interface FileRouteTypes {
     | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/experiment-event'
     | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
     | '/api/public/nl-click'
@@ -2687,6 +2698,7 @@ export interface FileRouteTypes {
     | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/experiment-event'
     | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
     | '/api/public/nl-click'
@@ -2934,6 +2946,7 @@ export interface FileRouteTypes {
     | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/experiment-event'
     | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
     | '/api/public/nl-click'
@@ -3046,6 +3059,7 @@ export interface RootRouteChildren {
   ApiPublicBillingCronRoute: typeof ApiPublicBillingCronRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
   ApiPublicCommunityCronRoute: typeof ApiPublicCommunityCronRoute
+  ApiPublicExperimentEventRoute: typeof ApiPublicExperimentEventRoute
   ApiPublicFxRateRoute: typeof ApiPublicFxRateRoute
   ApiPublicJobsTickRoute: typeof ApiPublicJobsTickRoute
   ApiPublicNlClickRoute: typeof ApiPublicNlClickRoute
@@ -4303,6 +4317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFxRateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/experiment-event': {
+      id: '/api/public/experiment-event'
+      path: '/api/public/experiment-event'
+      fullPath: '/api/public/experiment-event'
+      preLoaderRoute: typeof ApiPublicExperimentEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/community-cron': {
       id: '/api/public/community-cron'
       path: '/api/public/community-cron'
@@ -5409,6 +5430,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicBillingCronRoute: ApiPublicBillingCronRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
   ApiPublicCommunityCronRoute: ApiPublicCommunityCronRoute,
+  ApiPublicExperimentEventRoute: ApiPublicExperimentEventRoute,
   ApiPublicFxRateRoute: ApiPublicFxRateRoute,
   ApiPublicJobsTickRoute: ApiPublicJobsTickRoute,
   ApiPublicNlClickRoute: ApiPublicNlClickRoute,
