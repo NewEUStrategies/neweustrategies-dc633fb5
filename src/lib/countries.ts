@@ -8,14 +8,16 @@ import plLocale from "i18n-iso-countries/langs/pl.json";
 
 export type SupportedLang = "pl" | "en";
 
+type CountryValue = string | string[];
+
 interface LocaleData {
   locale: string;
-  countries: Record<string, string>;
+  countries: Record<string, CountryValue>;
 }
 
 const locales: Record<SupportedLang, LocaleData> = {
-  en: enLocale as LocaleData,
-  pl: plLocale as LocaleData,
+  en: enLocale as unknown as LocaleData,
+  pl: plLocale as unknown as LocaleData,
 };
 
 function normalizeForMatch(s: string): string {
@@ -25,9 +27,18 @@ function normalizeForMatch(s: string): string {
     .replace(/\p{Diacritic}/gu, "");
 }
 
+function asNames(value: CountryValue): string[] {
+  return Array.isArray(value) ? value : [value];
+}
+
 /** Returns the official country-name map for the given language. */
 export function getNames(lang: SupportedLang): Record<string, string> {
-  return locales[lang].countries;
+  const result: Record<string, string> = {};
+  for (const [code, value] of Object.entries(locales[lang].countries)) {
+    const names = asNames(value);
+    result[code] = names[0] ?? code;
+  }
+  return result;
 }
 
 /**
@@ -46,13 +57,15 @@ export function getAlpha2Code(
   for (const tryLang of tryLangs) {
     const entries = Object.entries(locales[tryLang].countries);
 
-    // Exact match (after diacritics stripping).
-    const exact = entries.find(([, value]) => normalizeForMatch(value) === target);
+    // Exact match (after diacritics stripping) against any alias.
+    const exact = entries.find(([, value]) =>
+      asNames(value).some((n) => normalizeForMatch(n) === target)
+    );
     if (exact) return exact[0];
 
     // Prefix match, so typing "Pol" still resolves to "PL".
     const prefix = entries.find(([, value]) =>
-      normalizeForMatch(value).startsWith(target)
+      asNames(value).some((n) => normalizeForMatch(n).startsWith(target))
     );
     if (prefix) return prefix[0];
   }
