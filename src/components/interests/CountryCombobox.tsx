@@ -35,7 +35,7 @@ interface CountryComboboxProps {
 
 function useCountryList(lang: "pl" | "en"): string[] {
   return useMemo(() => {
-    const map = countries.getNames(lang, { select: "official" });
+    const map = getNames(lang);
     return Object.values(map).sort((a, b) => a.localeCompare(b, lang));
   }, [lang]);
 }
