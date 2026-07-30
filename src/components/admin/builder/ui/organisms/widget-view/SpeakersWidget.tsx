@@ -460,9 +460,14 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
                   ? lang === "pl"
                     ? "Nie masz jeszcze zapisanych prelegentów."
                     : "You haven't saved any speakers yet."
-                  : lang === "pl"
-                    ? "Brak prelegentów w tej kategorii."
-                    : "No speakers in this category."}
+                  : source !== "manual"
+                    ? lang === "pl"
+                      ? "Brak publicznych profili prelegentów."
+                      : "No public speaker profiles."
+                    : lang === "pl"
+                      ? "Brak prelegentów w tej kategorii."
+                      : "No speakers in this category."}
+
             </p>
             {hasActiveFilters && (
               <button
@@ -662,11 +667,18 @@ function SpeakerCard({
           aria-hidden
           className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/45 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         />
+        {isExpert && (
+          <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-[6px] bg-background/90 px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-sm backdrop-blur-sm">
+            <ShieldCheck aria-hidden className="h-3 w-3" />
+            {lang === "pl" ? "Ekspert" : "Expert"}
+          </span>
+        )}
         {category && (
           <span className="absolute bottom-2 left-2 z-10 rounded-full bg-black/55 px-2.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
             {category}
           </span>
         )}
+
         {bookmarkBtn}
       </div>
 
