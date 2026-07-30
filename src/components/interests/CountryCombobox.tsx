@@ -156,7 +156,7 @@ export function CountryCombobox({
     "h-10 pl-9 pr-3 rounded border border-border bg-background font-sans leading-none w-full";
 
   const codeFor = (name: string): string | undefined => {
-    const c = countries.getAlpha2Code(name, lang) || countries.getAlpha2Code(name, "en");
+    const c = getAlpha2Code(name, lang) || getAlpha2Code(name, "en");
     return c ? c.toLowerCase() : undefined;
   };
   const selectedCode = codeFor(value.trim());
