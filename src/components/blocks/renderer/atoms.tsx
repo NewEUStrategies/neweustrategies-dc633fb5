@@ -67,28 +67,76 @@ function legacyAnchorsHtml(ids: readonly string[], canonicalId: string): string 
     .join("");
 }
 
-/** Lista numerowana lub punktowana (elementy mogą nieść przypisy). */
+/**
+ * Lista numerowana lub punktowana (elementy mogą nieść przypisy).
+ * Obsługuje listy wielopoziomowe: opcjonalne `levels` (1-based poziom
+ * zagnieżdżenia per pozycja) i `itemsOrdered` (typ listy per pozycja) pochodzą
+ * z importu Worda; `start` zachowuje numerację startową.
+ */
 export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
   const items = strList(block.data, "items");
   const ordered = bool(block.data, "ordered", false);
-  const Tag = ordered ? "ol" : "ul";
-  const kept = items.map((it, i) => ({ it, i })).filter(({ it }) => Boolean(it));
-  return (
-    <Tag
-      className={`my-0 pl-6 ${ordered ? "list-decimal" : "list-disc"} marker:text-foreground ${cls}`}
-    >
-      {kept.map(({ it, i }) => {
-        const withFn = fnHtml.get(`${block.id}:item:${i}`);
-        return withFn !== undefined ? (
-          <li key={i} className="my-0 pl-1" dangerouslySetInnerHTML={{ __html: withFn }} />
-        ) : (
-          <li key={i} className="my-0 pl-1">
-            {it}
-          </li>
-        );
-      })}
-    </Tag>
-  );
+  const start = num(block.data, "start", 1);
+  const levelsRaw = Array.isArray(block.data.levels) ? block.data.levels : [];
+  const orderedRaw = Array.isArray(block.data.itemsOrdered) ? block.data.itemsOrdered : [];
+  const kept = items
+    .map((it, i) => ({
+      it,
+      i,
+      level: typeof levelsRaw[i] === "number" ? Math.max(1, Math.min(6, levelsRaw[i])) : 1,
+      ordered: typeof orderedRaw[i] === "boolean" ? orderedRaw[i] : ordered,
+    }))
+    .filter(({ it }) => Boolean(it));
+
+  const renderItem = (entry: (typeof kept)[number]) => {
+    const withFn = fnHtml.get(`${block.id}:item:${entry.i}`);
+    return withFn !== undefined ? (
+      <span dangerouslySetInnerHTML={{ __html: withFn }} />
+    ) : (
+      <>{entry.it}</>
+    );
+  };
+
+  /** Renderuje jeden poziom listy, rekurencyjnie schodząc do zagnieżdżeń. */
+  const renderLevel = (
+    entries: (typeof kept)[number][],
+    level: number,
+    isOrdered: boolean,
+    top: boolean,
+  ): JSX.Element => {
+    const Tag = isOrdered ? "ol" : "ul";
+    const nodes: JSX.Element[] = [];
+    for (let k = 0; k < entries.length; k++) {
+      const entry = entries[k];
+      if (entry.level !== level) continue;
+      const childEntries: (typeof kept)[number][] = [];
+      let j = k + 1;
+      while (j < entries.length && entries[j].level > level) {
+        childEntries.push(entries[j]);
+        j++;
+      }
+      const childLevel = childEntries.find((c) => c.level === level + 1) ?? childEntries[0];
+      nodes.push(
+        <li key={entry.i} className="my-0 pl-1">
+          {renderItem(entry)}
+          {childEntries.length > 0 &&
+            renderLevel(childEntries, level + 1, childLevel?.ordered ?? isOrdered, false)}
+        </li>,
+      );
+      k = j - 1;
+    }
+    return (
+      <Tag
+        className={`my-0 pl-6 ${isOrdered ? "list-decimal" : "list-disc"} marker:text-foreground ${top ? cls : ""}`}
+        start={top && isOrdered && start > 1 ? start : undefined}
+      >
+        {nodes}
+      </Tag>
+    );
+  };
+
+  if (!kept.length) return renderLevel([], 1, ordered, true);
+  return renderLevel(kept, 1, kept[0].ordered, true);
 };
 
 /** Cytat blokowy z opcjonalnym autorem (oba pola mogą nieść przypisy).
