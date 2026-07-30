@@ -349,6 +349,10 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
       case EventName.TransactionCompleted:
         await handleTransaction(event.data as unknown as TransactionData, env, occurredAt, "paid");
         break;
+      case EventName.AdjustmentCreated:
+      case EventName.AdjustmentUpdated:
+        await handleAdjustment(event.data as unknown as Record<string, unknown>, env);
+        break;
       default:
         await finishWebhookEvent(ref, "skipped", { durationMs: Date.now() - startedAt });
         return Response.json({ received: true });
