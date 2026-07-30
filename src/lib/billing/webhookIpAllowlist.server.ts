@@ -50,7 +50,10 @@ async function loadAllowlist(env: PaddleEnv): Promise<ReadonlySet<string> | null
 }
 
 /** Pierwszy adres z łańcucha proxy - dopiero on pochodzi od operatora. */
-export function clientIpFromHeaders(headers: Headers): string | null {
+export function clientIpFromHeaders(headers: Headers | null | undefined): string | null {
+  // Środowiska bez pełnego `Request` (testy, runtime bez proxy) nie muszą mieć
+  // nagłówków - brak adresu oznacza po prostu brak przesłanki do odrzucenia.
+  if (!headers || typeof headers.get !== "function") return null;
   const forwarded = headers.get("x-forwarded-for");
   if (forwarded) {
     const first = forwarded.split(",")[0]?.trim();
@@ -58,6 +61,7 @@ export function clientIpFromHeaders(headers: Headers): string | null {
   }
   return headers.get("cf-connecting-ip") ?? headers.get("x-real-ip");
 }
+
 
 /**
  * Sprawdza, czy żądanie przyszło z adresu operatora.
