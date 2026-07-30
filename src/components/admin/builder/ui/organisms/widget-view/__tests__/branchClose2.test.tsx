@@ -199,12 +199,14 @@ describe("EN language chrome", () => {
       { label_pl: "Język", label_en: "Language" },
       { lang: "en" },
     );
-    // Redesign: segmentowy przycisk PL|EN - przy aktywnym EN etykieta ARIA
-    // wskazuje kierunek EN -> PL, a aktywna polowka (druga) jest wytluszczona.
-    const btn = container.querySelector("button");
-    expect(btn?.getAttribute("aria-label")).toBe("Language: EN → PL");
-    const halves = btn ? Array.from(btn.querySelectorAll("span")) : [];
-    expect(halves[1]?.className).toContain("font-bold");
+    // Redesign: pill z dwoma przyciskami (PL / EN) zamiast jednego togglera.
+    // Aktywny jezyk niesie aria-pressed=true; zadnej nakladki nie ma.
+    const group = container.querySelector('[role="group"]');
+    expect(group).not.toBeNull();
+    const [plBtn, enBtn] = Array.from(container.querySelectorAll("button"));
+    expect(plBtn?.getAttribute("aria-pressed")).toBe("false");
+    expect(enBtn?.getAttribute("aria-pressed")).toBe("true");
+    expect(enBtn?.className).toContain("is-active");
     expect(container.querySelector('[role="listbox"]')).toBeNull();
   });
 });

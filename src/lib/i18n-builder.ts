@@ -654,6 +654,11 @@ const pl = {
       viewAllLink: "Link 'Zobacz wszystkie'",
     },
     sliderEditor: {
+      showTitle: "Pokaż tytuł",
+      authorDisplay: "Autor",
+      authorAvatar: "Zdjęcie + imię i nazwisko",
+      authorLabel: "Etykieta „Autor: Imię Nazwisko”",
+      authorNone: "Bez autora",
       variant: "Wariant slidera",
       autoHint: "Animacja odtwarza się automatycznie",
       carouselLayout: "Układ karuzeli",
@@ -743,6 +748,19 @@ const pl = {
       showCover: "Pokaż zdjęcie (cover)",
     },
     postListEditor: {
+      livePreview: "Podgląd na żywo",
+      showCover: "Okładka",
+      showTitle: "Tytuł",
+      showExcerpt: "Opis",
+      yes: "Tak",
+      no: "Nie",
+      authorDisplay: "Autor",
+      authorDisplayHint: "Sposób prezentacji autora pod tytułem.",
+      authorAvatar: "Zdjęcie + imię i nazwisko",
+      authorLabelMode: "Etykieta: „Autor: Imię Nazwisko”",
+      authorNone: "Bez autora",
+      authorLabelText: "Etykieta autora (i18n)",
+      authorLabelHint: "Puste = „Autor” (PL) / „By” (EN).",
       varCard: "Karty (grid)",
       varBoxedGrid: "Karty boxed (tło)",
       varMinimal: "Minimalny",
@@ -1051,6 +1069,8 @@ const pl = {
     },
     widgetProps: {
       dimensions: "Wymiary widgetu",
+      dimensionsRatioLock:
+        "Wysokość jest wyznaczana automatycznie przez proporcje obrazu ({{ratio}}). Usuń proporcje, aby ustawić własną wysokość.",
       dimensionsHint:
         "Desktop jest wiodący. Na tabletach i telefonach wysokość dostosowuje się automatycznie do treści.",
       dimensionsPreview: "Podgląd wysokości widgetu",
@@ -1993,6 +2013,11 @@ const en: typeof pl = {
       viewAllLink: "'View all' link",
     },
     sliderEditor: {
+      showTitle: "Show title",
+      authorDisplay: "Author",
+      authorAvatar: "Photo + full name",
+      authorLabel: "Label \"Author: Full Name\"",
+      authorNone: "No author",
       variant: "Slider variant",
       autoHint: "Animation plays automatically",
       carouselLayout: "Carousel layout",
@@ -2081,6 +2106,19 @@ const en: typeof pl = {
       showCover: "Show the cover image",
     },
     postListEditor: {
+      livePreview: "Live preview",
+      showCover: "Cover",
+      showTitle: "Title",
+      showExcerpt: "Excerpt",
+      yes: "Yes",
+      no: "No",
+      authorDisplay: "Author",
+      authorDisplayHint: "How the author is presented under the title.",
+      authorAvatar: "Photo + full name",
+      authorLabelMode: "Label: \"Author: Full Name\"",
+      authorNone: "No author",
+      authorLabelText: "Author label (i18n)",
+      authorLabelHint: "Empty = \"Autor\" (PL) / \"By\" (EN).",
       varCard: "Cards (grid)",
       varBoxedGrid: "Boxed cards (background)",
       varMinimal: "Minimal",
@@ -2388,6 +2426,8 @@ const en: typeof pl = {
     },
     widgetProps: {
       dimensions: "Widget dimensions",
+      dimensionsRatioLock:
+        "Height follows the image aspect ratio ({{ratio}}). Clear the ratio to set a custom height.",
       dimensionsHint:
         "Desktop leads. On tablets and phones the height adapts to the content automatically.",
       dimensionsPreview: "Widget height preview",

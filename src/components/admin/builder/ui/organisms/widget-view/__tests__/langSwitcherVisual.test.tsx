@@ -77,7 +77,7 @@ describe("LangSwitcherDropdown — visual regression", () => {
     expect(normalize(container.innerHTML)).toMatchSnapshot();
   });
 
-  it("light + EN aktywne: thumb translateX(56px), aria-pressed na EN", async () => {
+  it("light + EN aktywne: thumb translateX(32px), aria-pressed na EN", async () => {
     await setLang("en");
     const { container } = render(
       <ThemeProvider>
@@ -86,7 +86,8 @@ describe("LangSwitcherDropdown — visual regression", () => {
     );
     const thumb = container.querySelector(".lang__thumb") as HTMLElement;
     const [plBtn, enBtn] = Array.from(container.querySelectorAll("button"));
-    expect(thumb.style.transform).toBe("translateX(56px)");
+    // Nieaktywna połowa zwija się do w-8, więc przesunięcie kciuka to 32px.
+    expect(thumb.style.transform).toBe("translateX(32px)");
     expect(plBtn.getAttribute("aria-pressed")).toBe("false");
     expect(enBtn.getAttribute("aria-pressed")).toBe("true");
     expect(normalize(container.innerHTML)).toMatchSnapshot();
