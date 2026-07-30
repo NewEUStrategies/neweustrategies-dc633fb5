@@ -34,7 +34,10 @@ export interface IntegrationStateRow extends IntegrationSyncState {
   lastError: string | null;
   lastReport: CatalogSyncReport | null;
   fingerprintCurrent: boolean;
+  /** Czy zsynchronizowany katalog odpowiada aktualnemu cennikowi w bazie. */
+  catalogCurrent: boolean;
 }
+
 
 async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
