@@ -308,6 +308,14 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const env = (url.searchParams.get("env") === "live" ? "live" : "sandbox") as PaddleEnv;
 
+  // Warstwa 1: adres nadawcy musi należeć do operatora (lista pobierana z jego
+  // API, nigdy zaszyta w kodzie). Warstwa 2: podpis kryptograficzny poniżej.
+  const { isAllowedWebhookIp } = await import("@/lib/billing/webhookIpAllowlist.server");
+  if (!(await isAllowedWebhookIp(request, env))) {
+    console.warn("[payments] webhook rejected - IP spoza allowlisty");
+    return new Response("Forbidden", { status: 403 });
+  }
+
   let event: Awaited<ReturnType<typeof verifyWebhook>>;
   try {
     event = await verifyWebhook(request, env);
@@ -315,6 +323,7 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
     console.error("[payments] webhook signature rejected", e);
     return new Response("Invalid signature", { status: 400 });
   }
+
 
   const { claimWebhookEvent, finishWebhookEvent } = await import(
     "@/lib/billing/webhookLog.server"
