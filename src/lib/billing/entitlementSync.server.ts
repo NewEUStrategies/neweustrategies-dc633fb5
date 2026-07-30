@@ -74,7 +74,7 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
 
   const { data: existing, error: readErr } = await supabaseAdmin
     .from("user_subscriptions")
-    .select("id")
+    .select("id, status")
     .eq("external_ref", input.externalRef)
     .maybeSingle();
   if (readErr) {
@@ -82,6 +82,11 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
   }
 
   if (existing) {
+    // Uprawnienie odebrane po zwrocie / obciążeniu zwrotnym jest ostateczne:
+    // spóźnione zdarzenie od operatora (retry, `subscription.updated` tuż po
+    // korekcie) nie może przywrócić płatnego dostępu. Ponowny zakup zakłada
+    // nową subskrypcję, czyli inny `external_ref`, więc nic nie tracimy.
+    if (existing.status === "refunded") return;
     const { error } = await supabaseAdmin
       .from("user_subscriptions")
       .update({
@@ -96,6 +101,7 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
     }
     return;
   }
+
 
   const { error } = await supabaseAdmin.from("user_subscriptions").insert({
     user_id: input.userId,

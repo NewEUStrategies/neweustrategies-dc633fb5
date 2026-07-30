@@ -79,10 +79,17 @@ vi.mock("@/lib/paddle.server", () => ({
   EventName: {
     SubscriptionCreated: "subscription.created",
     SubscriptionUpdated: "subscription.updated",
+    SubscriptionActivated: "subscription.activated",
+    SubscriptionTrialing: "subscription.trialing",
+    SubscriptionPastDue: "subscription.past_due",
+    SubscriptionPaused: "subscription.paused",
+    SubscriptionResumed: "subscription.resumed",
+    SubscriptionImported: "subscription.imported",
     SubscriptionCanceled: "subscription.canceled",
     TransactionCompleted: "transaction.completed",
     TransactionPaymentFailed: "transaction.payment_failed",
   },
+
 }));
 vi.mock("@/lib/billing/notifications.server", () => ({
   notifySubscriptionEmail: (...a: unknown[]) => h.emails.subscription(...(a as [])),
@@ -213,7 +220,57 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
     );
   });
 
+  it("dedykowane zdarzenia stanu (past_due, paused, resumed, activated) są obsługiwane", async () => {
+    const cases: Array<[string, string]> = [
+      ["subscription.past_due", "past_due"],
+      ["subscription.paused", "paused"],
+      ["subscription.resumed", "active"],
+      ["subscription.activated", "active"],
+    ];
+    for (const [eventType, status] of cases) {
+      h.state.ops = [];
+      seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+      h.event.value = subEvent(eventType, {
+        status,
+        currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+      });
+
+      await handle(req());
+      expect(payload<{ status: string }>("subscriptions", "update").status).toBe(status);
+    }
+  });
+
+  it("aktywacja przed utworzeniem subskrypcji zakłada wiersz zamiast go zgubić", async () => {
+    seed(null);
+    h.event.value = subEvent("subscription.activated", {
+      status: "active",
+      customData: { userId: "u1" },
+      currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+    });
+
+    await handle(req());
+
+    const up = payload<{ user_id: string; status: string }>("subscriptions", "upsert");
+    expect(up.user_id).toBe("u1");
+    expect(up.status).toBe("active");
+  });
+
+  it("uprawnienie po zwrocie nie wraca do życia na spóźnionym zdarzeniu", async () => {
+    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" }, {
+      user_subscriptions: [{ data: { id: "us_1", status: "refunded" }, error: null }],
+    });
+    h.event.value = subEvent("subscription.updated", {
+      status: "active",
+      currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+    });
+
+    await handle(req());
+
+    expect(opsOn("user_subscriptions", "update")).toHaveLength(0);
+  });
+
   it("past_due: nie odbiera dostępu, ale zapisuje stan w panelu", async () => {
+
     seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
     h.event.value = subEvent("subscription.updated", {
       status: "past_due",

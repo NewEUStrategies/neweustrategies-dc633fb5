@@ -82,6 +82,12 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv) {
 }
 
 
+/**
+ * Wspólna ścieżka dla wszystkich zdarzeń zmieniających stan subskrypcji:
+ * `updated`, `activated`, `trialing`, `past_due`, `paused`, `resumed`.
+ * Operator wysyła je jako osobne typy, ale ładunek ma identyczny kształt, a
+ * autorytatywne jest pole `status` - dlatego obsługa jest jedna i idempotentna.
+ */
 async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
   const supabase = await admin();
   const { priceId: eventPriceId, quantity } = readIds(data);
@@ -92,6 +98,16 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv) {
     .eq("paddle_subscription_id", data.id)
     .eq("environment", env)
     .maybeSingle();
+
+  // Kolejność dostarczenia zdarzeń nie jest gwarantowana: `activated` potrafi
+  // wyprzedzić `created`. Bez wiersza subskrypcji UPDATE trafiłby w pustkę i
+  // zakup przepadłby po cichu - dlatego zakładamy go tą samą ścieżką co przy
+  // utworzeniu (upsert, więc późniejsze `created` niczego nie zdubluje).
+  if (!existing && data.customData?.userId) {
+    await handleCreated(data, env);
+    return;
+  }
+
 
   // Zdarzenia stanu (pauza, wznowienie, past_due) bywają bez okresu
   // rozliczeniowego - wtedy zapisana data końca dostępu musi zostać nietknięta.
@@ -374,9 +390,18 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
       case EventName.SubscriptionCreated:
         await handleCreated(event.data as unknown as SubscriptionData, env);
         break;
+      // Wszystkie zdarzenia zmiany stanu subskrypcji dzielą jedną obsługę -
+      // operator wysyła je jako osobne typy, ale autorytatywny jest `status`.
       case EventName.SubscriptionUpdated:
+      case EventName.SubscriptionActivated:
+      case EventName.SubscriptionTrialing:
+      case EventName.SubscriptionPastDue:
+      case EventName.SubscriptionPaused:
+      case EventName.SubscriptionResumed:
+      case EventName.SubscriptionImported:
         await handleUpdated(event.data as unknown as SubscriptionData, env);
         break;
+
       case EventName.SubscriptionCanceled:
         await handleCanceled(event.data as unknown as SubscriptionData, env);
         break;
