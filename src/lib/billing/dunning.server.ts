@@ -20,6 +20,13 @@ export interface DunningContext {
   retryAt?: string | null;
   amountCents?: number | null;
   currency?: string | null;
+  /**
+   * Identyfikator transakcji, której dotyczy zdarzenie. Operator opisuje jedno
+   * nieudane obciążenie dwoma zdarzeniami (`transaction.payment_failed` oraz
+   * `transaction.past_due`) - ten identyfikator jest kluczem deduplikacji, więc
+   * licznik prób rośnie o jeden, a mail i dzwonek idą dokładnie raz.
+   */
+  transactionId?: string | null;
 }
 
 interface SubRow {
@@ -28,18 +35,22 @@ interface SubRow {
   price_id: string;
   current_period_end: string | null;
   payment_failure_count: number;
+  last_dunning_transaction_id: string | null;
 }
 
 async function loadSubscription(ctx: DunningContext): Promise<SubRow | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("subscriptions")
-    .select("user_id, tenant_id, price_id, current_period_end, payment_failure_count")
+    .select(
+      "user_id, tenant_id, price_id, current_period_end, payment_failure_count, last_dunning_transaction_id",
+    )
     .eq("paddle_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment)
     .maybeSingle();
   return (data as SubRow | null) ?? null;
 }
+
 
 async function pushNotification(params: {
   userId: string;
