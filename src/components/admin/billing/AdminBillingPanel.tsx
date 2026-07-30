@@ -345,6 +345,10 @@ export function AdminBillingPanel() {
                         <th className="px-4 py-2 font-medium">{L("Nieudane próby", "Failed attempts")}</th>
                         <th className="px-4 py-2 font-medium">{L("Środowisko", "Environment")}</th>
                         <th className="px-4 py-2 font-medium">ID</th>
+                        <th className="px-4 py-2 font-medium text-right">
+                          {L("Portal klienta", "Customer portal")}
+                        </th>
+
                       </tr>
                     </thead>
                     <tbody>
