@@ -30,8 +30,21 @@ describe("isRevokingAdjustment", () => {
     expect(isRevokingAdjustment({ ...base, status: "reversed" })).toBe(false);
   });
 
-  it("ignoruje ostrzeżenie o chargebacku i kredyt", () => {
-    expect(isRevokingAdjustment({ ...base, action: "chargeback_warning" })).toBe(false);
+  it("odbiera dostęp od chwili otwarcia sporu, ale nie przy kredycie", () => {
+    // Otwarty spór = bank już wycofał środki, dostęp musi zniknąć od razu.
+    expect(isRevokingAdjustment({ ...base, action: "chargeback_warning" })).toBe(true);
+    expect(
+      isRevokingAdjustment({ ...base, action: "chargeback_warning", status: "pending_approval" }),
+    ).toBe(true);
     expect(isRevokingAdjustment({ ...base, action: "credit" })).toBe(false);
+  });
+
+  it("nie odbiera dostępu przy sporze cofniętym lub odrzuconym", () => {
+    expect(
+      isRevokingAdjustment({ ...base, action: "chargeback_warning", status: "reversed" }),
+    ).toBe(false);
+    expect(
+      isRevokingAdjustment({ ...base, action: "chargeback_warning", status: "rejected" }),
+    ).toBe(false);
   });
 });
