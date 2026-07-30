@@ -61,7 +61,7 @@ export async function claimWebhookEvent(ref: WebhookEventRef): Promise<boolean> 
 
   const { data: existing, error: readErr } = await supabase
     .from("payment_webhook_events")
-    .select("id, status, created_at")
+    .select("id, status, created_at, retry_count")
     .eq("event_id", ref.eventId)
     .eq("environment", ref.environment)
     .maybeSingle();
@@ -86,9 +86,8 @@ export async function claimWebhookEvent(ref: WebhookEventRef): Promise<boolean> 
       status: "received",
       error: null,
       processed_at: null,
-      retry_count: (existing as { retry_count?: number | null }).retry_count
-        ? Number((existing as { retry_count?: number | null }).retry_count) + 1
-        : 1,
+      retry_count: Number(existing.retry_count ?? 0) + 1,
+      last_retried_at: new Date().toISOString(),
       payload: (ref.payload ?? {}) as Json,
     })
     .eq("id", existing.id);
