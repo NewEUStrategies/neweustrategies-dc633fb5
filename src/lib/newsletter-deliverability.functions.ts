@@ -5,7 +5,7 @@
 //   2. Kogo i dlaczego nie da się już dowieźć? (lista wykluczeń)
 //   3. Czy pętla zwrotna w ogóle działa? (status webhooka)
 //
-// Autoryzacja: requireStaff + RPC/RLS pinowane po current_tenant_id() - dane
+// Autoryzacja: requireAdminEditor + RPC/RLS pinowane po current_tenant_id() - dane
 // nigdy nie przekraczają granicy tenanta, także dla super admina przełączonego
 // kontekstem. Tabele i funkcje pochodzą z migracji 20260725120000 (nowszej niż
 // wygenerowane typy Supabase), więc nazwy są rzutowane przy wywołaniu -
