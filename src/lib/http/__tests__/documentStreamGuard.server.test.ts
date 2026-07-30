@@ -1,0 +1,204 @@
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+  HtmlEndScanner,
+  getDocumentGuardSnapshot,
+  guardDocumentResponse,
+  guardDocumentStream,
+  resetDocumentGuardForTests,
+} from "../documentStreamGuard.server";
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+/** Strumień, który emituje chunki i - jak wiszący SSR - NIGDY się nie zamyka. */
+function neverClosingStream(chunks: string[], intervalMs = 0): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      let index = 0;
+      const push = () => {
+        if (index >= chunks.length) return; // zostaje otwarty w nieskończoność
+        controller.enqueue(encoder.encode(chunks[index]!));
+        index += 1;
+        if (intervalMs > 0) setTimeout(push, intervalMs);
+        else push();
+      };
+      push();
+    },
+  });
+}
+
+/** Strumień zamykający się naturalnie po wyemitowaniu chunków. */
+function closingStream(chunks: string[]): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+      controller.close();
+    },
+  });
+}
+
+async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
+  const reader = stream.getReader();
+  let out = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return out;
+    out += decoder.decode(value, { stream: true });
+  }
+}
+
+afterEach(() => {
+  resetDocumentGuardForTests();
+});
+
+describe("HtmlEndScanner", () => {
+  it("wykrywa sentinel w jednym chunku", () => {
+    const scanner = new HtmlEndScanner();
+    expect(scanner.push(encoder.encode("<html><body>x</body></html>"))).toBe(true);
+  });
+
+  it("wykrywa sentinel rozcięty granicą chunków", () => {
+    const scanner = new HtmlEndScanner();
+    expect(scanner.push(encoder.encode("</body></ht"))).toBe(false);
+    expect(scanner.push(encoder.encode("ml>"))).toBe(true);
+  });
+
+  it("jest niewrażliwy na wielkość liter", () => {
+    const scanner = new HtmlEndScanner();
+    expect(scanner.push(encoder.encode("</BODY></HTML>"))).toBe(true);
+  });
+
+  it("nie daje fałszywych trafień", () => {
+    const scanner = new HtmlEndScanner();
+    expect(scanner.push(encoder.encode("</head><body>html> </html"))).toBe(false);
+  });
+});
+
+describe("guardDocumentStream", () => {
+  it("happy path: źródło zamyka się samo, bajty przechodzą nietknięte", async () => {
+    const html = "<html><body>ok</body></html>";
+    const out = await readAll(
+      guardDocumentStream(closingStream(["<html><body>", "ok</body></html>"])),
+    );
+    expect(out).toBe(html);
+    const snapshot = getDocumentGuardSnapshot();
+    expect(snapshot.closedBySource).toBe(1);
+    expect(snapshot.incidents).toHaveLength(0);
+  });
+
+  it("sentinel: kompletny dokument na wiecznie otwartym źródle zamyka się po łasce", async () => {
+    const stream = guardDocumentStream(neverClosingStream(["<html><body>ok", "</body></html>"]), {
+      sentinelGraceMs: 30,
+      idleMs: 5_000,
+      maxMs: 5_000,
+      label: "test/sentinel",
+    });
+    const startedAt = Date.now();
+    const out = await readAll(stream);
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
+    // Dokument był kompletny - ogon awaryjny NIE jest dosztukowywany.
+    expect(out).toBe("<html><body>ok</body></html>");
+    expect(getDocumentGuardSnapshot().closedBySentinel).toBe(1);
+  });
+
+  it("idle: ucięty dokument dostaje parsowalny ogon i incydent", async () => {
+    const stream = guardDocumentStream(neverClosingStream(["<html><body>partial"]), {
+      idleMs: 40,
+      maxMs: 5_000,
+      label: "test/idle",
+    });
+    const out = await readAll(stream);
+    expect(out).toBe("<html><body>partial\n</body></html>");
+    const snapshot = getDocumentGuardSnapshot();
+    expect(snapshot.closedByIdle).toBe(1);
+    expect(snapshot.incidents[0]).toMatchObject({
+      label: "test/idle",
+      reason: "idle",
+      sawHtmlEnd: false,
+    });
+  });
+
+  it("timeout: stały strumyczek chunków nie odracza twardego sufitu", async () => {
+    const trickle = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const tick = () => {
+          try {
+            controller.enqueue(encoder.encode("<p>chunk</p>"));
+          } catch {
+            return; // strumień domknięty przez strażnika
+          }
+          setTimeout(tick, 20);
+        };
+        tick();
+      },
+    });
+    const out = await readAll(
+      guardDocumentStream(trickle, { idleMs: 5_000, maxMs: 120, label: "test/timeout" }),
+    );
+    expect(out.endsWith("\n</body></html>")).toBe(true);
+    expect(getDocumentGuardSnapshot().closedByTimeout).toBe(1);
+  });
+
+  it("timeout przed pierwszym bajtem zamyka pusty strumień z ogonem", async () => {
+    const silent = new ReadableStream<Uint8Array>({ start() {} });
+    const out = await readAll(guardDocumentStream(silent, { maxMs: 40, label: "test/empty" }));
+    expect(out).toBe("\n</body></html>");
+    expect(getDocumentGuardSnapshot().closedByTimeout).toBe(1);
+  });
+});
+
+describe("guardDocumentResponse", () => {
+  const request = new Request("https://tenant.example.com/blog");
+
+  it("opakowuje dokument HTML i wymusza domknięcie", async () => {
+    const response = new Response(neverClosingStream(["<html><body>x</body></html>"]), {
+      headers: { "content-type": "text/html; charset=utf-8", "x-nes-cache": "MISS" },
+    });
+    const guarded = guardDocumentResponse(request, response, { sentinelGraceMs: 20 });
+    expect(guarded).not.toBe(response);
+    // Nagłówki i status przechodzą bez zmian.
+    expect(guarded.headers.get("x-nes-cache")).toBe("MISS");
+    expect(guarded.status).toBe(200);
+    const out = await readAll(guarded.body!);
+    expect(out).toBe("<html><body>x</body></html>");
+  });
+
+  it("etykieta incydentu niesie host tenanta i ścieżkę", async () => {
+    const response = new Response(neverClosingStream(["<html>partial"]), {
+      headers: { "content-type": "text/html" },
+    });
+    const guarded = guardDocumentResponse(request, response, { idleMs: 30 });
+    await readAll(guarded.body!);
+    expect(getDocumentGuardSnapshot().incidents[0]?.label).toBe("tenant.example.com/blog");
+  });
+
+  it("nie dotyka odpowiedzi nie-HTML, bez body i metod nie-GET/HEAD", () => {
+    const json = new Response("{}", { headers: { "content-type": "application/json" } });
+    expect(guardDocumentResponse(request, json)).toBe(json);
+
+    const empty = new Response(null, {
+      status: 301,
+      headers: { "content-type": "text/html", location: "/en" },
+    });
+    expect(guardDocumentResponse(request, empty)).toBe(empty);
+
+    const post = new Request("https://tenant.example.com/api", { method: "POST" });
+    const html = new Response("<html></html>", { headers: { "content-type": "text/html" } });
+    expect(guardDocumentResponse(post, html)).toBe(html);
+  });
+
+  it("kill-switch SSR_DOC_GUARD=off wyłącza opakowanie", () => {
+    const previous = process.env.SSR_DOC_GUARD;
+    process.env.SSR_DOC_GUARD = "off";
+    try {
+      const response = new Response("<html></html>", {
+        headers: { "content-type": "text/html" },
+      });
+      expect(guardDocumentResponse(request, response)).toBe(response);
+    } finally {
+      if (previous === undefined) delete process.env.SSR_DOC_GUARD;
+      else process.env.SSR_DOC_GUARD = previous;
+    }
+  });
+});

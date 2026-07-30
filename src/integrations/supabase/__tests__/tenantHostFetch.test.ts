@@ -82,3 +82,60 @@ describe("fetchWithTenantHost", () => {
     expect(headers.get("apikey")).toBe("anon-key");
   });
 });
+
+describe("fetchWithTenantHost - deadline SSR", () => {
+  afterEach(() => {
+    delete process.env.SSR_DB_DEADLINE_MS;
+  });
+
+  it("uzbraja sygnał deadline'u na wywołaniach SSR", async () => {
+    await fetchWithTenantHost("https://db.example/rest/v1/posts");
+    expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("przerywa wiszący fetch po przekroczeniu deadline'u", async () => {
+    process.env.SSR_DB_DEADLINE_MS = "30";
+    vi.stubGlobal(
+      "fetch",
+      (input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), {
+            once: true,
+          });
+        }),
+    );
+    await expect(fetchWithTenantHost("https://db.example/rest/v1/hang")).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+  });
+
+  it("sygnał wywołującego dalej działa obok deadline'u", async () => {
+    const controller = new AbortController();
+    vi.stubGlobal(
+      "fetch",
+      (input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          // Abort może wyprzedzić rejestrację listenera (fetch woła się po
+          // asynchronicznej rezolucji hosta) - honoruj stan `aborted`.
+          if (init?.signal?.aborted) {
+            reject(init.signal.reason);
+            return;
+          }
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), {
+            once: true,
+          });
+        }),
+    );
+    const pending = fetchWithTenantHost("https://db.example/rest/v1/posts", {
+      signal: controller.signal,
+    });
+    controller.abort(new Error("caller-abort"));
+    await expect(pending).rejects.toMatchObject({ message: "caller-abort" });
+  });
+
+  it("SSR_DB_DEADLINE_MS=off wyłącza deadline", async () => {
+    process.env.SSR_DB_DEADLINE_MS = "off";
+    await fetchWithTenantHost("https://db.example/rest/v1/posts");
+    expect(calls[0]?.init?.signal ?? undefined).toBeUndefined();
+  });
+});

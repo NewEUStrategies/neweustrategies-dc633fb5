@@ -11,10 +11,18 @@
 //      kształt, konsumujemy ostatni globalThis-error (patrz error-capture)
 //      i renderujemy przyjazną stronę zamiast surowego JSON-a.
 //
+//   4. Strażnik strumienia DOKUMENTU (lib/http/documentStreamGuard.server):
+//      każda odpowiedź text/html ma zagwarantowane domknięcie body. Bez tego
+//      wisząca serializacja seroval trzyma strumień otwarty do wewnętrznego
+//      limitu frameworka (60 s) i ubija go błędem - każda strona "odpowiada"
+//      po ~61 s, a monitory (Paddle) raportują serwis jako offline.
+//
 // Wpięcie: vite.config.ts -> tanstackStart.server.entry: "server".
 import "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { consumeLastCapturedError } from "./lib/error-capture";
+import { guardDocumentResponse } from "./lib/http/documentStreamGuard.server";
+import { applyDeferredDocumentStore } from "./lib/http/documentCache.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -68,7 +76,16 @@ export default {
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const normalized = await normalizeCatastrophicSsrResponse(response);
+      // Odroczony zapis NES Edge Cache: tee strumienia dokumentu MUSI się
+      // wydarzyć dopiero tutaj, ZA egzekutorem middleware TanStack Start -
+      // tee w środku łańcucha łamie tożsamość body koperty SSR i egzekutor
+      // wołał serverSsr.cleanup() w trakcie streamowania (incydent ~61 s,
+      // patrz documentCache.server.ts).
+      const stored = applyDeferredDocumentStore(normalized);
+      // Dokumenty HTML wychodzą wyłącznie przez strażnika strumienia - body
+      // ZAWSZE się kończy, niezależnie od stanu serializacji frameworka.
+      return guardDocumentResponse(request, stored);
     } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {
