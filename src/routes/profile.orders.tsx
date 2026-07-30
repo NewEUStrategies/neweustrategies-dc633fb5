@@ -110,6 +110,10 @@ function OrdersPage() {
       {/* Rejestr dokumentów rozliczeniowych (faktury z odnowień, paragony) -
           zasilany webhookiem Stripe, odświeżany zdarzeniem z szyny. */}
       <BillingDocumentsCard />
+
+      {/* Odzyskanie faktury po numerze transakcji + mail z linkiem do portalu. */}
+      <InvoiceLookupCard />
+
     </div>
   );
 }
