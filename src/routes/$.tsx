@@ -908,7 +908,6 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 customMeta={
                   <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
                 }
-                mobileActions={giftButton}
               />
             }
             categoryBadges={
@@ -925,12 +924,20 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     publishedAt={it.published_at}
                     updatedAt={it.updated_at}
                     primaryCategory={postCategories[0]}
-                    trailing={giftButton ? <span className="hidden sm:inline-flex">{giftButton}</span> : null}
+                    trailing={
+                      giftButton ? <span className="hidden sm:inline-flex">{giftButton}</span> : null
+                    }
                   />
-                ) : (
-                  giftButton && (
-                    <div className="no-print mb-4 hidden justify-end sm:flex">{giftButton}</div>
-                  )
+                ) : null}
+                {/* Mobile: akcja "Udostepnij pelny artykul" pod paskiem czasu
+                    czytania i daty aktualizacji, zamiast nakladki na okladce. */}
+                {giftButton && (
+                  <div className="no-print mb-6 flex sm:hidden">
+                    <span className="[&_button]:w-full w-full">{giftButton}</span>
+                  </div>
+                )}
+                {!merged.quick_view_info && giftButton && (
+                  <div className="no-print mb-4 hidden justify-end sm:flex">{giftButton}</div>
                 )}
                 {contentBlock}
                 {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
