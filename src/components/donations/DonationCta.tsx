@@ -6,6 +6,7 @@
 //   * quick / form - bezpośredni link do zbiórki w nowej karcie.
 import type { CSSProperties, ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
+import { ExternalLink } from "@/lib/lucide-shim";
 import { EXTERNAL_DONATIONS_URL } from "@/lib/billing/donationsExternal";
 
 export type DonationCtaMode = "link" | "quick" | "form";
@@ -52,6 +53,7 @@ export function DonationCta({
     >
       {icon}
       {label}
+      <ExternalLink className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
     </a>
   );
 }

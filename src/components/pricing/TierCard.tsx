@@ -306,7 +306,7 @@ function TierCardCta({
   if (tier.key === "supporter") {
     return (
       <Button asChild className={ctaClass} variant="outline">
-        <Link to="/support" search={{ status: undefined }}>
+        <Link to="/support">
           <HandHeart className="mr-2 h-4 w-4" aria-hidden="true" />
           {t("pricing.tiers.supporterCta")}
         </Link>

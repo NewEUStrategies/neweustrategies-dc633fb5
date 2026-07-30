@@ -23,9 +23,7 @@ export function SupporterStrip({ tier, lang }: { tier: MembershipTierRow; lang: 
         </div>
       </div>
       <Button asChild size="sm" variant="outline" className="shrink-0">
-        <Link to="/support" search={{ status: undefined }}>
-          {t("pricing.tiers.supporterCta")}
-        </Link>
+        <Link to="/support">{t("pricing.tiers.supporterCta")}</Link>
       </Button>
     </div>
   );

@@ -79,6 +79,7 @@ const COPY = {
         ],
         paragraphs: [
           "Nie sprzedajemy danych osobowych i nie udostępniamy ich do celów marketingowych podmiotów trzecich.",
+          "Dobrowolne darowizny zbieramy w zewnętrznym serwisie zbiórkowym zrzutka.pl. Wpłacając, przekazujesz dane bezpośrednio operatorowi tego serwisu, który jest ich odrębnym administratorem - zasady przetwarzania opisuje polityka prywatności zrzutka.pl. Serwis nie otrzymuje od operatora zbiórki danych płatniczych darczyńców.",
         ],
       },
       {
@@ -100,9 +101,7 @@ const COPY = {
           "Logi bezpieczeństwa i zdarzenia techniczne - do 12 miesięcy.",
           "Korespondencja i zgłoszenia - do 24 miesięcy od zakończenia sprawy.",
         ],
-        paragraphs: [
-          "Po upływie tych okresów dane usuwamy lub nieodwracalnie anonimizujemy.",
-        ],
+        paragraphs: ["Po upływie tych okresów dane usuwamy lub nieodwracalnie anonimizujemy."],
       },
       {
         id: "prawa",
@@ -145,7 +144,7 @@ const COPY = {
         Icon: Mail,
         heading: "Kontakt",
         paragraphs: [
-          `W sprawach prywatności napisz na ${LEGAL_CONTACT_EMAIL}. W sprawach dotyczących płatności, faktur i zwrotów obsługę prowadzi Paddle - nasz Merchant of Record - pod adresem paddle.net.`,
+          `W sprawach prywatności napisz na ${LEGAL_CONTACT_EMAIL}. W sprawach dotyczących płatności za subskrypcje, bilety i zakupy w Serwisie (faktury, zwroty) obsługę prowadzi Paddle - nasz Merchant of Record - pod adresem paddle.net. W sprawach wpłat na zbiórkę właściwy jest serwis zrzutka.pl.`,
         ],
       },
     ] satisfies readonly LegalSection[],
@@ -207,6 +206,7 @@ const COPY = {
         ],
         paragraphs: [
           "We do not sell personal data and do not share it for third-party marketing.",
+          "Voluntary donations are collected on the external fundraising platform zrzutka.pl. When donating, you provide your data directly to that platform's operator, which acts as an independent controller - see the zrzutka.pl privacy policy for details. We do not receive donors' payment data from the fundraising platform.",
         ],
       },
       {
@@ -271,7 +271,7 @@ const COPY = {
         Icon: Mail,
         heading: "Contact",
         paragraphs: [
-          `For privacy matters write to ${LEGAL_CONTACT_EMAIL}. Payments, invoices and refunds are handled by Paddle, our Merchant of Record, at paddle.net.`,
+          `For privacy matters write to ${LEGAL_CONTACT_EMAIL}. Payments for subscriptions, tickets and in-service purchases (invoices, refunds) are handled by Paddle, our Merchant of Record, at paddle.net. For fundraiser donations, zrzutka.pl is the right contact.`,
         ],
       },
     ] satisfies readonly LegalSection[],

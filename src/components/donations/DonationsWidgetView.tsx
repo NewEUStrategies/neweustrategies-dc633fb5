@@ -111,6 +111,14 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
   const actionProps = {
     mode: (props.mode ?? (props.quickDonate === true ? "quick" : "link")) as DonationCtaMode,
   };
+  // Tryby inne niż `link` prowadzą bezpośrednio do zewnętrznej zbiórki
+  // (zrzutka.pl) - czytelnik musi wiedzieć, że opuszcza serwis, zanim kliknie.
+  const externalNote =
+    actionProps.mode !== "link" ? (
+      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+        {t("donationsWidget.externalNote")}
+      </p>
+    ) : null;
 
   const money = (cents: number) => fmtMoney(cents, currency, lang);
   const progressPct = useMemo(() => {
@@ -200,6 +208,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           icon={<Heart className="h-4 w-4" aria-hidden="true" />}
           {...actionProps}
         />
+        {externalNote}
       </aside>
     );
   }
@@ -248,6 +257,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           )}
         </div>
         {subtitle && <p className="mt-4 text-sm text-muted-foreground">{subtitle}</p>}
+        {externalNote}
       </div>
     );
   }
@@ -303,6 +313,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
           icon={<Heart className="h-4 w-4" aria-hidden="true" />}
           {...actionProps}
         />
+        {externalNote}
       </div>
     );
   }
@@ -357,6 +368,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             icon={<Heart className="h-4 w-4" aria-hidden="true" />}
             {...actionProps}
           />
+          {externalNote}
         </div>
       </div>
     );
@@ -436,6 +448,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
             icon={<Heart className="h-4 w-4" aria-hidden="true" />}
             {...actionProps}
           />
+          {externalNote}
         </div>
       </div>
     </div>

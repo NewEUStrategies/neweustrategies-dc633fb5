@@ -104,7 +104,7 @@ const COPY = {
         Icon: CreditCard,
         heading: "Płatności i subskrypcje",
         bullets: [
-          "Subskrypcje odnawiają się automatycznie w wybranym okresie rozliczeniowym do momentu anulowania.",
+          "Subskrypcje odnawiają się automatycznie w wybranym okresie rozliczeniowym do momentu anulowania. Dostępne cykle zależą od planu: dwutygodniowy, miesięczny, kwartalny lub roczny.",
           "Ceny prezentujemy w Serwisie; podatki nalicza i rozlicza Paddle zgodnie z Twoją jurysdykcją.",
           "Subskrypcję możesz anulować w dowolnej chwili w portalu klienta - dostęp zachowujesz do końca opłaconego okresu.",
           "Szczegółowe warunki płatności, rozliczeń i anulowania określa regulamin kupującego Paddle.",
@@ -230,7 +230,7 @@ const COPY = {
         Icon: CreditCard,
         heading: "Payments and subscriptions",
         bullets: [
-          "Subscriptions renew automatically for the selected billing period until cancelled.",
+          "Subscriptions renew automatically for the selected billing period until cancelled. Available cycles depend on the plan: every 2 weeks, monthly, quarterly or yearly.",
           "Prices are shown in the service; taxes are calculated and remitted by Paddle for your jurisdiction.",
           "You can cancel at any time in the customer portal - access continues until the end of the paid period.",
           "Detailed payment, billing and cancellation mechanics are governed by the Paddle buyer terms.",
