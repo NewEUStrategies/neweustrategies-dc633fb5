@@ -943,7 +943,33 @@ const en: typeof pl = {
         kind: { invoice: "Invoice", receipt: "Receipt", credit_note: "Credit note" },
         status: { paid: "Paid", open: "Open", void: "Void", refunded: "Refunded" },
       },
+      invoiceLookup: {
+        title: "Invoice by transaction ID",
+        hint: "You will find the transaction ID (txn_...) in your payment confirmation email. The file link is single-use and short-lived.",
+        label: "Transaction ID",
+        cta: "Find invoice",
+        found: "Invoice ready to download",
+        download: "Download invoice (PDF)",
+        errors: {
+          invalid_transaction: "Invalid transaction ID - it should start with txn_.",
+          not_found: "No such transaction was found.",
+          forbidden: "This transaction does not belong to your account.",
+          invoice_unavailable: "Could not fetch the invoice. Please try again shortly.",
+        },
+      },
+      portalEmail: {
+        hint: "We will email your account address a single-use link to the billing portal - update your payment method, download invoices or cancel your subscription there.",
+        cta: "Email me the portal link",
+        sent: "Link sent to {{email}}",
+        errors: {
+          no_customer: "No billing customer yet - the link becomes available after your first payment.",
+          portal_failed: "Could not create the portal link. Please try again.",
+          no_recipient: "No email address on the account.",
+          send_failed: "Could not send the message. Please try again.",
+        },
+      },
       colDate: "Date",
+
       colItem: "Item",
       colAmount: "Amount",
       colStatus: "Status",
