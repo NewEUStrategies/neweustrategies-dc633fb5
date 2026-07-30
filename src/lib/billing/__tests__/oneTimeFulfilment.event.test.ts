@@ -116,7 +116,8 @@ describe("fulfilOneTimeTransaction - bilet na wydarzenie", () => {
     expect(outcome).toBe("skipped");
     expect(grants).toHaveLength(0);
   });
-}
+
+
 
   it("zwraca płatność, gdy ostatnie miejsce zajęto przed webhookiem", async () => {
     seatsFull = true;
