@@ -42,7 +42,15 @@ export default defineConfig({
   // normalizacją h3-swallowed 500 (skill: tanstack-ssr-error-handling).
   tanstackStart: {
     server: { entry: "server" },
+    // Pliki testowe/snapshoty pod src/routes nie są trasami. Bez tego wzorca
+    // generator próbuje je zarejestrować, loguje ostrzeżenie i przy każdej
+    // zmianie przebudowuje routeTree.gen.ts => pełny "program reload" w dev,
+    // co objawia się migotaniem / niestabilnym renderowaniem podglądu.
+    router: {
+      routeFileIgnorePattern: "(__tests__|__snapshots__)|\\.(test|spec)\\.[jt]sx?$",
+    },
   },
+
   vite: {
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
     // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz

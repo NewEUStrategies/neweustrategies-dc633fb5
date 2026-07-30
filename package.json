@@ -9,7 +9,7 @@
   "type": "module",
   "scripts": {
     "predev": "node scripts/clean-vite-cache.mjs",
-    "dev": "NODE_OPTIONS=\"--max-old-space-size=4096\" vite dev",
+    "dev": "NODE_OPTIONS=\"--max-old-space-size=6144\" vite dev",
     "clean:vite-cache": "node scripts/clean-vite-cache.mjs",
     "build": "NODE_OPTIONS=\"--max-old-space-size=8192\" vite build",
     "build:dev": "NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --mode development",
