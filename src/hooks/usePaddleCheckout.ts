@@ -6,7 +6,13 @@ interface CommonOptions {
   successPath?: string;
   /** Identyfikator rabatu u dostawcy (kod promocyjny). */
   discountId?: string | null;
+  /**
+   * Identyfikator klienta u operatora (`ctm_...`) dla Paddle Retain.
+   * Nie przekazuj tu e-maila ani naszego identyfikatora użytkownika.
+   */
+  retainCustomerId?: string | null;
 }
+
 
 export interface PriceCheckoutOptions extends CommonOptions {
   /** Czytelny identyfikator ceny z katalogu (np. `pro_monthly`). */

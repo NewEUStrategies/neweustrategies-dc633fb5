@@ -2,11 +2,17 @@ import { resolvePaddlePrice } from "@/utils/payments.functions";
 
 const clientToken = import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN as string | undefined;
 
+/** Identyfikator klienta u operatora - wymagany przez Paddle Retain. */
+export interface RetainCustomer {
+  id: string;
+}
+
 declare global {
   interface Window {
     Paddle?: {
       Environment: { set: (env: string) => void };
-      Initialize: (opts: { token: string }) => void;
+      Initialize: (opts: { token: string; pwCustomer?: RetainCustomer }) => void;
+      Update?: (opts: { pwCustomer?: RetainCustomer | Record<string, never> }) => void;
       Checkout: { open: (opts: Record<string, unknown>) => void };
     };
   }
@@ -21,8 +27,30 @@ export function getPaddleEnvironment(): "sandbox" | "live" {
 }
 
 let initialized = false;
+/** Ostatnio przekazany klient Retain - unikamy zbędnych wywołań `Update`. */
+let retainCustomerId: string | null = null;
 
-export async function initializePaddle(): Promise<void> {
+/**
+ * Ustawia klienta dla Paddle Retain (odzyskiwanie płatności, anulowania).
+ *
+ * Musi to być identyfikator klienta u operatora (`ctm_...`) - nie e-mail ani
+ * nasz wewnętrzny identyfikator użytkownika. Wołane po inicjalizacji, bo
+ * `Initialize` można wykonać tylko raz na sesję strony; kolejne zmiany
+ * (logowanie, wylogowanie) idą przez `Paddle.Update`.
+ */
+export function setRetainCustomer(customerId: string | null): void {
+  const next = customerId && customerId.startsWith("ctm_") ? customerId : null;
+  if (next === retainCustomerId) return;
+  retainCustomerId = next;
+  if (!initialized) return;
+  window.Paddle?.Update?.({ pwCustomer: next ? { id: next } : {} });
+}
+
+export async function initializePaddle(options?: {
+  /** Identyfikator klienta u operatora dla Retain, jeśli znany przy starcie. */
+  retainCustomerId?: string | null;
+}): Promise<void> {
+  if (options?.retainCustomerId !== undefined) setRetainCustomer(options.retainCustomerId);
   if (initialized) return;
   if (!clientToken) throw new Error("payments_not_configured");
 
@@ -35,8 +63,12 @@ export async function initializePaddle(): Promise<void> {
         reject(new Error("paddle_unavailable"));
         return;
       }
-      paddle.Environment.set(getPaddleEnvironment() === "sandbox" ? "sandbox" : "production");
-      paddle.Initialize({ token: clientToken });
+      // Środowisko live jest domyślne - `set` wołamy wyłącznie dla testów.
+      if (getPaddleEnvironment() === "sandbox") paddle.Environment.set("sandbox");
+      paddle.Initialize({
+        token: clientToken,
+        ...(retainCustomerId ? { pwCustomer: { id: retainCustomerId } } : {}),
+      });
       initialized = true;
       resolve();
     };
