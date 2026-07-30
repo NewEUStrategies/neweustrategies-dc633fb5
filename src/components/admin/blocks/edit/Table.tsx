@@ -16,24 +16,55 @@ function readRows(block: Block): string[][] {
   return raw.map((r) => (Array.isArray(r) ? r.map((c) => String(c ?? "")) : [""]));
 }
 
+/** Metadane komórek z importu (spans/aligns) - trzymane równolegle do `rows`. */
+function readMeta<T>(block: Block, key: "spans" | "aligns", fallback: T): T[][] {
+  const raw = block.data[key];
+  if (!Array.isArray(raw)) return [];
+  return raw.map((r) => (Array.isArray(r) ? r.map((c) => (c as T) ?? fallback) : []));
+}
+
 export function TableBlockEdit({ block, onChange }: Props) {
   const bt = useBlocksI18n();
   const rows = readRows(block);
   const header = Boolean(block.data.header);
   const cols = Math.max(1, ...rows.map((r) => r.length));
+  const spans = readMeta<[number, number]>(block, "spans", [1, 1]);
+  const aligns = readMeta<string>(block, "aligns", "");
+  const hasMeta = spans.length > 0 || aligns.length > 0;
 
-  const set = (rows: string[][]) =>
-    onChange({ ...block, data: { ...block.data, rows: toJson(rows) } });
+  const set = (nextRows: string[][], mapMeta?: <T>(meta: T[][], filler: T) => T[][]) => {
+    const data: Record<string, ReturnType<typeof toJson>> = {
+      ...block.data,
+      rows: toJson(nextRows),
+    };
+    if (hasMeta && mapMeta) {
+      if (spans.length) data.spans = toJson(mapMeta<[number, number]>(spans, [1, 1]));
+      if (aligns.length) data.aligns = toJson(mapMeta<string>(aligns, ""));
+    }
+    onChange({ ...block, data });
+  };
 
   const updateCell = (r: number, c: number, v: string) => {
     set(rows.map((row, i) => (i === r ? row.map((cell, j) => (j === c ? v : cell)) : row)));
   };
 
-  const addRow = () => set([...rows, Array(cols).fill("")]);
-  const addCol = () => set(rows.map((r) => [...r, ""]));
-  const removeRow = (i: number) => set(rows.length > 1 ? rows.filter((_, j) => j !== i) : rows);
+  const addRow = () =>
+    set([...rows, Array(cols).fill("")], (meta, filler) => [...meta, Array(cols).fill(filler)]);
+  const addCol = () =>
+    set(
+      rows.map((r) => [...r, ""]),
+      (meta, filler) => meta.map((r) => [...r, filler]),
+    );
+  const removeRow = (i: number) =>
+    set(
+      rows.length > 1 ? rows.filter((_, j) => j !== i) : rows,
+      (meta) => (rows.length > 1 ? meta.filter((_, j) => j !== i) : meta),
+    );
   const removeCol = (i: number) =>
-    set(rows.map((r) => (r.length > 1 ? r.filter((_, j) => j !== i) : r)));
+    set(
+      rows.map((r) => (r.length > 1 ? r.filter((_, j) => j !== i) : r)),
+      (meta) => meta.map((r) => (r.length > 1 ? r.filter((_, j) => j !== i) : r)),
+    );
 
   return (
     <div className="space-y-2">

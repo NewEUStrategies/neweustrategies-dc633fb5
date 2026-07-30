@@ -419,7 +419,11 @@ export const renderMediaText: BlockRenderer = ({ block, cls }) => {
 // Tabela
 // ---------------------------------------------------------------------------
 
-/** Tabela z opcjonalnym wierszem nagłówka (komórki mogą nieść przypisy). */
+/**
+ * Tabela z opcjonalnym wierszem nagłówka (komórki mogą nieść przypisy).
+ * Obsługuje metadane z importu Worda / Excela: `spans` (`[colSpan, rowSpan]`
+ * per komórka) oraz `aligns` (wyrównanie poziome per komórka).
+ */
 export const renderTable: BlockRenderer = ({ block, fnHtml, cls }) => {
   const rowsRaw = Array.isArray(block.data.rows) ? block.data.rows : [];
   const rows: string[][] = rowsRaw.map((r) =>
@@ -427,6 +431,21 @@ export const renderTable: BlockRenderer = ({ block, fnHtml, cls }) => {
   );
   const header = bool(block.data, "header", false);
   if (rows.length === 0) return null;
+  const spansRaw = Array.isArray(block.data.spans) ? block.data.spans : [];
+  const alignsRaw = Array.isArray(block.data.aligns) ? block.data.aligns : [];
+  const spanAt = (ri: number, ci: number): { colSpan?: number; rowSpan?: number } => {
+    const row = spansRaw[ri];
+    const cell = Array.isArray(row) ? row[ci] : undefined;
+    if (!Array.isArray(cell)) return {};
+    const col = typeof cell[0] === "number" ? cell[0] : 1;
+    const rowSpan = typeof cell[1] === "number" ? cell[1] : 1;
+    return { colSpan: col > 1 ? col : undefined, rowSpan: rowSpan > 1 ? rowSpan : undefined };
+  };
+  const alignAt = (ri: number, ci: number): string | undefined => {
+    const row = alignsRaw[ri];
+    const value = Array.isArray(row) ? row[ci] : undefined;
+    return value === "center" || value === "right" ? `text-${value}` : undefined;
+  };
   // Zachowujemy oryginalne indeksy wierszy, by klucze przypisów
   // (`${id}:cell:${ri}:${ci}`) pozostały zgodne z precomputeFootnotes.
   const headIdx = header ? 0 : -1;
@@ -436,10 +455,13 @@ export const renderTable: BlockRenderer = ({ block, fnHtml, cls }) => {
     : rows.map((r, i) => ({ r, ri: i }));
   const renderCell = (Tag: "th" | "td", ri: number, ci: number, c: string) => {
     const withFn = fnHtml.get(`${block.id}:cell:${ri}:${ci}`);
+    const attrs = { ...spanAt(ri, ci), className: alignAt(ri, ci) };
     return withFn !== undefined ? (
-      <Tag key={ci} dangerouslySetInnerHTML={{ __html: withFn }} />
+      <Tag key={ci} {...attrs} dangerouslySetInnerHTML={{ __html: withFn }} />
     ) : (
-      <Tag key={ci}>{c}</Tag>
+      <Tag key={ci} {...attrs}>
+        {c}
+      </Tag>
     );
   };
   return (

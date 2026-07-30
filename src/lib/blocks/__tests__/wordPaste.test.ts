@@ -61,3 +61,92 @@ describe("wordPaste", () => {
     expect(parseWordInlineHtml("<p>A</p><p>B</p>")).toBe("A<br>B");
   });
 });
+
+describe("wordPaste - media, listy wielopoziomowe, tabele", () => {
+  it("zamienia obrazek z podpisem na blok image", () => {
+    const blocks = parseWordHtml(
+      `<p><img src="https://x.test/a.png" alt="Wykres"></p><p class=MsoCaption>Rysunek 1. Wynik</p>`,
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe("image");
+    expect(blocks[0].data).toMatchObject({
+      url: "https://x.test/a.png",
+      alt: "Wykres",
+      caption: "Rysunek 1. Wynik",
+    });
+  });
+
+  it("obsługuje <figure> oraz obrazek inline w akapicie z tekstem", () => {
+    const fig = parseWordHtml(
+      `<figure><img src="data:image/png;base64,AAA"><figcaption>Podpis</figcaption></figure>`,
+    );
+    expect(fig[0].data).toMatchObject({ url: "data:image/png;base64,AAA", caption: "Podpis" });
+
+    const inline = parseWordHtml(`<p>Tekst <img src="https://x.test/b.jpg" alt="B"> dalej</p>`);
+    expect(inline.map((b) => b.type)).toEqual(["paragraph", "image"]);
+    expect(String(inline[0].data.html)).not.toContain("img");
+  });
+
+  it("pomija nieosadzalne źródła (file:///)", () => {
+    expect(parseWordHtml(`<p><img src="file:///C:/tmp/i.png"></p>`)).toHaveLength(0);
+  });
+
+  it("zachowuje poziomy zagnieżdżenia list Worda i numer startowy", () => {
+    const blocks = parseWordHtml(
+      `<p class=MsoListParagraph style='mso-list:l0 level1 lfo1'>3. Trzy</p>` +
+        `<p class=MsoListParagraph style='mso-list:l0 level2 lfo1'>a) Podpunkt</p>` +
+        `<p class=MsoListParagraph style='mso-list:l0 level1 lfo1'>4. Cztery</p>`,
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].data).toMatchObject({
+      ordered: true,
+      items: ["Trzy", "Podpunkt", "Cztery"],
+      levels: [1, 2, 1],
+      start: 3,
+    });
+  });
+
+  it("spłaszcza zagnieżdżone <ul>/<ol> do modelu z poziomami", () => {
+    const blocks = parseWordHtml(`<ul><li>A<ol><li>A1</li></ol></li><li>B</li></ul>`);
+    expect(blocks[0].data).toMatchObject({
+      ordered: false,
+      items: ["A", "A1", "B"],
+      levels: [1, 2, 1],
+      itemsOrdered: [false, true, false],
+    });
+  });
+
+  it("zachowuje scalone komórki, wyrównanie i nagłówek bez <th>", () => {
+    const blocks = parseWordHtml(
+      `<table><tr><td style="font-weight:bold">A</td><td style="font-weight:bold">B</td></tr>` +
+        `<tr><td colspan="2" align="right">Razem</td></tr></table>`,
+    );
+    expect(blocks[0].type).toBe("table");
+    expect(blocks[0].data).toMatchObject({
+      header: true,
+      rows: [
+        ["A", "B"],
+        ["Razem"],
+      ],
+      spans: [
+        [
+          [1, 1],
+          [1, 1],
+        ],
+        [[2, 1]],
+      ],
+      aligns: [
+        ["", ""],
+        ["right"],
+      ],
+    });
+  });
+
+  it("nie miesza wierszy tabeli zagnieżdżonej z tabelą nadrzędną", () => {
+    const blocks = parseWordHtml(
+      `<table><tr><td><table><tr><td>wewn</td></tr></table></td></tr></table>`,
+    );
+    expect(blocks.filter((b) => b.type === "table")).toHaveLength(1);
+    expect(blocks[0].data.rows).toEqual([["wewn"]]);
+  });
+});

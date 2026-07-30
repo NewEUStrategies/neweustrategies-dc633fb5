@@ -6,55 +6,105 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
+/** Poziomy zagnieżdżenia (1-based) dopasowane długością do listy pozycji. */
+function readLevels(block: Block, count: number): number[] {
+  const raw = Array.isArray(block.data.levels) ? block.data.levels : [];
+  return Array.from({ length: count }, (_, i) =>
+    typeof raw[i] === "number" ? Math.max(1, Math.min(6, raw[i])) : 1,
+  );
+}
+
 export function ListBlockEdit({ block, onChange }: Props) {
   const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : [""];
   const ordered = Boolean(block.data.ordered);
+  const levels = readLevels(block, items.length);
+  const nested = levels.some((l) => l > 1);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const commit = (nextItems: string[], nextLevels: number[]) => {
+    const data: Record<string, typeof block.data.items> = { ...block.data, items: nextItems };
+    if (nextLevels.some((l) => l > 1)) data.levels = nextLevels;
+    else delete data.levels;
+    onChange({ ...block, data });
+  };
 
   const update = (idx: number, value: string) => {
     const next = [...items];
     next[idx] = value;
-    onChange({ ...block, data: { ...block.data, items: next } });
+    commit(next, levels);
+  };
+
+  const setLevel = (idx: number, delta: number) => {
+    const next = [...levels];
+    const max = idx === 0 ? 1 : Math.min(6, (levels[idx - 1] ?? 1) + 1);
+    next[idx] = Math.max(1, Math.min(max, (levels[idx] ?? 1) + delta));
+    commit(items, next);
   };
 
   const onKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === "Tab") {
       e.preventDefault();
-      const next = [...items];
-      next.splice(idx + 1, 0, "");
-      onChange({ ...block, data: { ...block.data, items: next } });
+      setLevel(idx, e.shiftKey ? -1 : 1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const nextItems = [...items];
+      const nextLevels = [...levels];
+      nextItems.splice(idx + 1, 0, "");
+      nextLevels.splice(idx + 1, 0, levels[idx] ?? 1);
+      commit(nextItems, nextLevels);
       setTimeout(() => refs.current[idx + 1]?.focus(), 0);
     } else if (e.key === "Backspace" && items[idx] === "" && items.length > 1) {
       e.preventDefault();
-      const next = items.filter((_, i) => i !== idx);
-      onChange({ ...block, data: { ...block.data, items: next } });
+      commit(
+        items.filter((_, i) => i !== idx),
+        levels.filter((_, i) => i !== idx),
+      );
       setTimeout(() => refs.current[Math.max(idx - 1, 0)]?.focus(), 0);
     }
   };
 
   const ListTag = ordered ? "ol" : "ul";
-  const marker = ordered
-    ? (i: number) => <span className="w-6 text-right tabular-nums text-foreground">{i + 1}.</span>
-    : () => <span className="w-6 text-center text-foreground">•</span>;
+  // Numeracja liczona w obrębie poziomu, żeby import wielopoziomowy z Worda
+  // zachowywał porządek 1., 1.1., 1.2., 2. …
+  const counters: number[] = [];
+  const numberFor = (idx: number): number => {
+    const level = levels[idx] ?? 1;
+    counters.length = level;
+    counters[level - 1] = (counters[level - 1] ?? 0) + 1;
+    return counters[level - 1];
+  };
 
   return (
     <ListTag className="list-none pl-0 m-0 p-0 text-foreground text-base leading-relaxed">
-      {items.map((it, i) => (
-        <li key={i} className="flex items-baseline gap-2 m-0 p-0">
-          {marker(i)}
-          <input
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            type="text"
-            value={it}
-            placeholder="Pozycja listy…"
-            onChange={(e) => update(i, e.target.value)}
-            onKeyDown={(e) => onKeyDown(i, e)}
-            className="flex-1 bg-transparent border-0 outline-none focus:ring-0 p-0 m-0 text-foreground text-base leading-relaxed"
-          />
-        </li>
-      ))}
+      {items.map((it, i) => {
+        const level = levels[i] ?? 1;
+        const n = ordered ? numberFor(i) : 0;
+        return (
+          <li
+            key={i}
+            className="flex items-baseline gap-2 m-0 p-0"
+            style={nested ? { paddingLeft: `${(level - 1) * 20}px` } : undefined}
+            data-level={level}
+          >
+            {ordered ? (
+              <span className="w-6 text-right tabular-nums text-foreground">{n}.</span>
+            ) : (
+              <span className="w-6 text-center text-foreground">{level > 1 ? "◦" : "•"}</span>
+            )}
+            <input
+              ref={(el) => {
+                refs.current[i] = el;
+              }}
+              type="text"
+              value={it}
+              placeholder="Pozycja listy…"
+              onChange={(e) => update(i, e.target.value)}
+              onKeyDown={(e) => onKeyDown(i, e)}
+              className="flex-1 bg-transparent border-0 outline-none focus:ring-0 p-0 m-0 text-foreground text-base leading-relaxed"
+            />
+          </li>
+        );
+      })}
     </ListTag>
   );
 }

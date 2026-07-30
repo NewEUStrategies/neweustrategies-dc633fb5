@@ -14,7 +14,7 @@ import { newBlockId } from "./types";
 import { toJson } from "@/lib/builder/types";
 
 /** Znaczniki, po których poznajemy że schowek niesie realną strukturę. */
-const RICH_MARKERS = /<(h[1-6]|ul|ol|li|table|blockquote|pre|p|br|strong|b|em|i|u|sup|sub|a)\b/i;
+const RICH_MARKERS = /<(h[1-6]|ul|ol|li|table|tr|td|th|figure|img|blockquote|pre|p|br|strong|b|em|i|u|sup|sub|a)\b/i;
 
 /** Czy warto uruchamiać import strukturalny dla danego HTML ze schowka. */
 export function looksLikeRichPaste(html: string): boolean {
@@ -180,6 +180,31 @@ function isOrderedWordItem(el: Element): boolean {
   return /^(\d+|[a-z]|[ivx]+)\s*[.)]/i.test(text);
 }
 
+/**
+ * Poziom zagnieżdżenia punktu Worda. Priorytet: jawne `mso-list:… levelN`,
+ * potem wcięcie `margin-left` (Word stosuje ok. 36 pt na poziom, LibreOffice
+ * 1,27 cm), a w ostateczności poziom 1.
+ */
+function wordListLevel(el: Element): number {
+  const style = (el.getAttribute("style") ?? "").toLowerCase();
+  const explicit = style.match(/mso-list:[^;]*level(\d+)/);
+  if (explicit) return Math.min(6, Math.max(1, Number(explicit[1])));
+  const margin = style.match(/margin-left\s*:\s*([\d.]+)\s*(pt|in|cm)/);
+  if (margin) {
+    const value = Number(margin[1]);
+    const pt = margin[2] === "in" ? value * 72 : margin[2] === "cm" ? value * 28.35 : value;
+    return Math.min(6, Math.max(1, Math.round(pt / 36) + 1));
+  }
+  return 1;
+}
+
+/** Numer startowy listy uporządkowanej odczytany z pierwszego punktu Worda. */
+function wordListStart(el: Element): number {
+  const m = (el.textContent ?? "").trimStart().match(/^(\d+)\s*[.)]/);
+  const n = m ? Number(m[1]) : 1;
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
 /** Usuwa wiodący punktor („·", „1.", „a)") wygenerowany przez Worda. */
 function stripBullet(html: string): string {
   return html
@@ -202,49 +227,259 @@ const paragraph = (html: string): Block => ({
   data: { html },
 });
 
-function tableBlock(el: Element): Block | null {
-  const rows: string[][] = [];
-  let header = false;
-  const trs = Array.from(el.querySelectorAll("tr"));
-  trs.forEach((tr, i) => {
-    const cells = Array.from(tr.querySelectorAll("th,td"));
-    if (!cells.length) return;
-    if (i === 0 && cells.some((c) => c.tagName === "TH")) header = true;
-    rows.push(cells.map((c) => (c.textContent ?? "").replace(/\u00A0/g, " ").trim()));
-  });
-  if (!rows.length) return null;
-  return { id: newBlockId(), type: "table", data: { rows: toJson(rows), header } };
+// --- media ze schowka -----------------------------------------------------
+
+/** Osadzalne źródła obrazu: zdalne URL-e i base64. `file:///` z Worda odpada. */
+const EMBEDDABLE_IMG = /^(https?:\/\/|\/\/|data:image\/)/i;
+
+interface PastedImage {
+  url: string;
+  alt: string;
 }
 
-function pushList(out: Block[], items: string[], ordered: boolean): void {
-  const clean = items.filter((i) => i.trim().length > 0);
-  if (!clean.length) return;
-  out.push({ id: newBlockId(), type: "list", data: { ordered, items: toJson(clean) } });
+function readImage(el: Element): PastedImage | null {
+  const raw = (el.getAttribute("src") ?? el.getAttribute("data-src") ?? "").trim();
+  if (!raw || !EMBEDDABLE_IMG.test(raw)) return null;
+  return {
+    url: raw.startsWith("//") ? `https:${raw}` : raw,
+    alt: (el.getAttribute("alt") ?? "").replace(/\u00A0/g, " ").trim(),
+  };
+}
+
+const imageBlock = (img: PastedImage, caption: string): Block => ({
+  id: newBlockId(),
+  type: "image",
+  data: {
+    url: img.url,
+    alt: img.alt || caption,
+    caption,
+    align: "center",
+    size: "full",
+    rounded: true,
+    shadow: false,
+  },
+});
+
+/** Wyciąga obrazy z poddrzewa i USUWA je, żeby nie dublowały się w tekście. */
+function extractImages(root: Element): PastedImage[] {
+  const out: PastedImage[] = [];
+  for (const el of Array.from(root.querySelectorAll("img"))) {
+    const img = readImage(el);
+    if (img) out.push(img);
+    el.remove();
+  }
+  // Word osadza starą grafikę VML - `<v:shape><v:imagedata src=…>`.
+  for (const el of Array.from(root.querySelectorAll("[src]"))) {
+    if (!/imagedata/i.test(el.tagName)) continue;
+    const img = readImage(el);
+    if (img) out.push(img);
+    el.remove();
+  }
+  return out;
+}
+
+/** Akapit podpisu (Word: `MsoCaption`, edytory web: `.caption`, `<figcaption>`). */
+function isCaptionEl(el: Element): boolean {
+  if (el.tagName === "FIGCAPTION") return true;
+  const cls = el.getAttribute("class") ?? "";
+  const style = (el.getAttribute("style") ?? "").toLowerCase();
+  return /MsoCaption|(^|\s|-)caption(\s|$|-)/i.test(cls) || style.includes("mso-style-name:caption");
+}
+
+const plainText = (el: Element): string => (el.textContent ?? "").replace(/\u00A0/g, " ").trim();
+
+/** Emituje bloki obrazów; pierwszy dostaje podpis (Word ma jeden na grafikę). */
+function pushImages(out: Block[], images: PastedImage[], caption: string): void {
+  images.forEach((img, i) => out.push(imageBlock(img, i === 0 ? caption : "")));
+}
+
+// --- tabele (Word / Excel) ------------------------------------------------
+
+interface PastedCell {
+  text: string;
+  colSpan: number;
+  rowSpan: number;
+  align: string;
+}
+
+function cellAlign(el: Element): string {
+  const attr = (el.getAttribute("align") ?? "").toLowerCase();
+  const style = (el.getAttribute("style") ?? "").toLowerCase();
+  const m = style.match(/text-align\s*:\s*(left|center|right|justify)/);
+  const value = m ? m[1] : attr;
+  return value === "center" || value === "right" ? value : value === "justify" ? "left" : "";
+}
+
+function spanOf(el: Element, attr: "colspan" | "rowspan"): number {
+  const n = Number(el.getAttribute(attr) ?? "1");
+  return Number.isFinite(n) && n > 1 ? Math.min(20, Math.round(n)) : 1;
+}
+
+/**
+ * Czy pierwszy wiersz jest nagłówkiem. Excel i Word nie emitują `<th>` -
+ * rozpoznajemy pogrubienie całego wiersza lub styl `MsoTableHeader`.
+ */
+function looksLikeHeaderRow(cells: Element[]): boolean {
+  if (cells.some((c) => c.tagName === "TH")) return true;
+  const withText = cells.filter((c) => plainText(c).length > 0);
+  if (!withText.length) return false;
+  return withText.every((c) => {
+    const cls = c.getAttribute("class") ?? "";
+    if (/MsoTableHeader|heading/i.test(cls)) return true;
+    const style = (c.getAttribute("style") ?? "").toLowerCase();
+    if (/font-weight\s*:\s*(bold|[6-9]00)/.test(style)) return true;
+    const bold = c.querySelector("b,strong");
+    return Boolean(bold) && plainText(bold as Element) === plainText(c);
+  });
+}
+
+/** Bezpośrednie wiersze tabeli (bez wierszy tabel zagnieżdżonych w komórkach). */
+function ownRows(table: Element): Element[] {
+  return Array.from(table.querySelectorAll("tr")).filter((tr) => tr.closest("table") === table);
+}
+
+function tableBlock(el: Element): Block | null {
+  const rows: string[][] = [];
+  const spans: number[][][] = [];
+  const aligns: string[][] = [];
+  let header = false;
+  ownRows(el).forEach((tr, i) => {
+    const cells = Array.from(tr.children).filter((c) => c.tagName === "TH" || c.tagName === "TD");
+    if (!cells.length) return;
+    if (rows.length === 0 && looksLikeHeaderRow(cells)) header = true;
+    const parsed: PastedCell[] = cells.map((c) => ({
+      text: plainText(c),
+      colSpan: spanOf(c, "colspan"),
+      rowSpan: spanOf(c, "rowspan"),
+      align: cellAlign(c),
+    }));
+    void i;
+    rows.push(parsed.map((c) => c.text));
+    spans.push(parsed.map((c) => [c.colSpan, c.rowSpan]));
+    aligns.push(parsed.map((c) => c.align));
+  });
+  if (!rows.length) return null;
+  const hasSpans = spans.some((r) => r.some(([c, rs]) => c > 1 || rs > 1));
+  const hasAligns = aligns.some((r) => r.some((a) => a !== ""));
+  return {
+    id: newBlockId(),
+    type: "table",
+    data: {
+      rows: toJson(rows),
+      header,
+      ...(hasSpans ? { spans: toJson(spans) } : {}),
+      ...(hasAligns ? { aligns: toJson(aligns) } : {}),
+    },
+  };
+}
+
+// --- listy: model płaski z poziomami --------------------------------------
+
+interface PendingList {
+  ordered: boolean;
+  items: string[];
+  levels: number[];
+  itemsOrdered: boolean[];
+  start: number;
+}
+
+function pushList(out: Block[], list: PendingList | null): void {
+  if (!list) return;
+  const keep = list.items
+    .map((text, i) => ({ text, level: list.levels[i] ?? 1, ordered: list.itemsOrdered[i] ?? false }))
+    .filter((x) => x.text.trim().length > 0);
+  if (!keep.length) return;
+  const nested = keep.some((x) => x.level > 1);
+  const mixed = keep.some((x) => x.ordered !== list.ordered);
+  out.push({
+    id: newBlockId(),
+    type: "list",
+    data: {
+      ordered: list.ordered,
+      items: toJson(keep.map((x) => x.text)),
+      ...(nested ? { levels: toJson(keep.map((x) => x.level)) } : {}),
+      ...(nested && mixed ? { itemsOrdered: toJson(keep.map((x) => x.ordered)) } : {}),
+      ...(list.start > 1 ? { start: list.start } : {}),
+    },
+  });
+}
+
+/** Spłaszcza `<ul>/<ol>` z zagnieżdżeniami do modelu (tekst, poziom, ordered). */
+function collectHtmlList(el: Element, level: number, into: PendingList): void {
+  const ordered = el.tagName === "OL";
+  for (const li of Array.from(el.children)) {
+    if (li.tagName !== "LI") continue;
+    const clone = li.cloneNode(true) as Element;
+    clone.querySelectorAll("ul,ol").forEach((n) => n.remove());
+    const text = inlineHtml(clone).trim();
+    into.items.push(text);
+    into.levels.push(level);
+    into.itemsOrdered.push(ordered);
+    for (const sub of Array.from(li.children)) {
+      if (sub.tagName === "UL" || sub.tagName === "OL") collectHtmlList(sub, level + 1, into);
+    }
+  }
 }
 
 function convertChildren(parent: Element, out: Block[]): void {
-  let pending: { ordered: boolean; items: string[] } | null = null;
+  let pending: PendingList | null = null;
   const flush = () => {
-    if (pending) pushList(out, pending.items, pending.ordered);
+    pushList(out, pending);
     pending = null;
   };
 
-  for (const child of Array.from(parent.children)) {
+  const kids = Array.from(parent.children);
+  /** Podpis stojący bezpośrednio po grafice - konsumujemy go razem z obrazem. */
+  const takeCaption = (i: number): { caption: string; skip: number } => {
+    const next = kids[i + 1];
+    if (next && isCaptionEl(next)) return { caption: plainText(next), skip: 1 };
+    return { caption: "", skip: 0 };
+  };
+
+  for (let i = 0; i < kids.length; i++) {
+    const child = kids[i];
     const tag = child.tagName;
 
     if (/^H[1-6]$/.test(tag)) {
       flush();
-      const text = (child.textContent ?? "").replace(/\u00A0/g, " ").trim();
+      const images = extractImages(child);
+      const text = plainText(child);
       if (text) out.push(heading(Number(tag.slice(1)), text));
+      pushImages(out, images, "");
+      continue;
+    }
+
+    if (tag === "FIGURE") {
+      flush();
+      const cap = child.querySelector("figcaption");
+      const caption = cap ? plainText(cap) : "";
+      cap?.remove();
+      pushImages(out, extractImages(child), caption);
+      continue;
+    }
+
+    if (tag === "IMG") {
+      flush();
+      const img = readImage(child);
+      const { caption, skip } = takeCaption(i);
+      if (img) {
+        out.push(imageBlock(img, caption));
+        i += skip;
+      }
       continue;
     }
 
     if (tag === "UL" || tag === "OL") {
       flush();
-      const items = Array.from(child.children)
-        .filter((li) => li.tagName === "LI")
-        .map((li) => inlineHtml(li).trim());
-      pushList(out, items, tag === "OL");
+      const list: PendingList = {
+        ordered: tag === "OL",
+        items: [],
+        levels: [],
+        itemsOrdered: [],
+        start: Math.max(1, Number(child.getAttribute("start") ?? "1") || 1),
+      };
+      collectHtmlList(child, 1, list);
+      pushList(out, list);
       continue;
     }
 
@@ -257,7 +492,7 @@ function convertChildren(parent: Element, out: Block[]): void {
 
     if (tag === "BLOCKQUOTE") {
       flush();
-      const text = (child.textContent ?? "").replace(/\u00A0/g, " ").trim();
+      const text = plainText(child);
       if (text) out.push({ id: newBlockId(), type: "quote", data: { text, cite: "" } });
       continue;
     }
@@ -278,17 +513,38 @@ function convertChildren(parent: Element, out: Block[]): void {
     if (tag === "P") {
       if (isWordListItem(child)) {
         const ordered = isOrderedWordItem(child);
+        const level = wordListLevel(child);
+        const images = extractImages(child);
         const item = stripBullet(inlineHtml(child));
-        if (pending && pending.ordered === ordered) pending.items.push(item);
-        else {
+        if (!pending) {
+          pending = {
+            ordered,
+            items: [],
+            levels: [],
+            itemsOrdered: [],
+            start: ordered ? wordListStart(child) : 1,
+          };
+        }
+        pending.items.push(item);
+        pending.levels.push(level);
+        pending.itemsOrdered.push(ordered);
+        if (images.length) {
           flush();
-          pending = { ordered, items: [item] };
+          pushImages(out, images, "");
         }
         continue;
       }
       flush();
+      const images = extractImages(child);
       const html = inlineHtml(child).trim();
+      if (images.length && isBlank(html)) {
+        const { caption, skip } = takeCaption(i);
+        pushImages(out, images, caption);
+        i += skip;
+        continue;
+      }
       if (!isBlank(html)) out.push(paragraph(html));
+      pushImages(out, images, "");
       continue;
     }
 
@@ -297,10 +553,14 @@ function convertChildren(parent: Element, out: Block[]): void {
       // Kontener z samą treścią inline (typowe dla Google Docs) - jeden akapit.
       if (
         child.children.length === 0 ||
-        !child.querySelector("p,div,ul,ol,table,h1,h2,h3,h4,h5,h6")
+        !child.querySelector("p,div,ul,ol,table,figure,h1,h2,h3,h4,h5,h6")
       ) {
+        const images = extractImages(child);
         const html = inlineHtml(child).trim();
         if (!isBlank(html)) out.push(paragraph(html));
+        const { caption, skip } = images.length ? takeCaption(i) : { caption: "", skip: 0 };
+        pushImages(out, images, isBlank(html) ? caption : "");
+        if (images.length) i += skip;
       } else {
         convertChildren(child, out);
       }
@@ -308,10 +568,12 @@ function convertChildren(parent: Element, out: Block[]): void {
     }
 
     // Element inline na poziomie bloku (np. luźny <span> / <a>).
+    const images = extractImages(child);
     const html = inlineHtml(child).trim();
-    if (!isBlank(html)) {
+    if (!isBlank(html) || images.length) {
       flush();
-      out.push(paragraph(html));
+      if (!isBlank(html)) out.push(paragraph(html));
+      pushImages(out, images, "");
     }
   }
   flush();
