@@ -473,9 +473,10 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             )}
           </div>
           <span className="hidden md:block h-4 w-px bg-border" aria-hidden />
-          <div className="flex h-7 sm:h-8 items-center">
+          <div className="hidden sm:flex h-7 sm:h-8 items-center">
             <LangSwitcherDropdown label={t.lang} />
           </div>
+
         </div>
       </div>
     </div>
