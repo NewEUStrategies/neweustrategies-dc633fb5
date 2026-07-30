@@ -96,6 +96,7 @@ import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSttRouteImport } from './routes/api/stt'
 import { Route as AdminWorkflowsRouteImport } from './routes/admin.workflows'
 import { Route as AdminWebStoriesRouteImport } from './routes/admin.web-stories'
+import { Route as AdminVersionsRouteImport } from './routes/admin.versions'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTrackerGuideRouteImport } from './routes/admin.tracker-guide'
 import { Route as AdminTrackerRouteImport } from './routes/admin.tracker'
@@ -688,6 +689,11 @@ const AdminWorkflowsRoute = AdminWorkflowsRouteImport.update({
 const AdminWebStoriesRoute = AdminWebStoriesRouteImport.update({
   id: '/web-stories',
   path: '/web-stories',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminVersionsRoute = AdminVersionsRouteImport.update({
+  id: '/versions',
+  path: '/versions',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
@@ -1611,6 +1617,7 @@ export interface FileRoutesByFullPath {
   '/admin/tracker': typeof AdminTrackerRoute
   '/admin/tracker-guide': typeof AdminTrackerGuideRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
+  '/admin/versions': typeof AdminVersionsRoute
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
@@ -1849,6 +1856,7 @@ export interface FileRoutesByTo {
   '/admin/toc': typeof AdminTocRoute
   '/admin/tracker': typeof AdminTrackerRoute
   '/admin/tracker-guide': typeof AdminTrackerGuideRoute
+  '/admin/versions': typeof AdminVersionsRoute
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
@@ -2096,6 +2104,7 @@ export interface FileRoutesById {
   '/admin/tracker': typeof AdminTrackerRoute
   '/admin/tracker-guide': typeof AdminTrackerGuideRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
+  '/admin/versions': typeof AdminVersionsRoute
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
@@ -2345,6 +2354,7 @@ export interface FileRouteTypes {
     | '/admin/tracker'
     | '/admin/tracker-guide'
     | '/admin/users'
+    | '/admin/versions'
     | '/admin/web-stories'
     | '/admin/workflows'
     | '/api/stt'
@@ -2583,6 +2593,7 @@ export interface FileRouteTypes {
     | '/admin/toc'
     | '/admin/tracker'
     | '/admin/tracker-guide'
+    | '/admin/versions'
     | '/admin/web-stories'
     | '/admin/workflows'
     | '/api/stt'
@@ -2829,6 +2840,7 @@ export interface FileRouteTypes {
     | '/admin/tracker'
     | '/admin/tracker-guide'
     | '/admin/users'
+    | '/admin/versions'
     | '/admin/web-stories'
     | '/admin/workflows'
     | '/api/stt'
@@ -3680,6 +3692,13 @@ declare module '@tanstack/react-router' {
       path: '/web-stories'
       fullPath: '/admin/web-stories'
       preLoaderRoute: typeof AdminWebStoriesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/versions': {
+      id: '/admin/versions'
+      path: '/versions'
+      fullPath: '/admin/versions'
+      preLoaderRoute: typeof AdminVersionsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/users': {
@@ -5115,6 +5134,7 @@ interface AdminRouteChildren {
   AdminTrackerRoute: typeof AdminTrackerRoute
   AdminTrackerGuideRoute: typeof AdminTrackerGuideRoute
   AdminUsersRoute: typeof AdminUsersRouteWithChildren
+  AdminVersionsRoute: typeof AdminVersionsRoute
   AdminWebStoriesRoute: typeof AdminWebStoriesRoute
   AdminWorkflowsRoute: typeof AdminWorkflowsRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -5184,6 +5204,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminTrackerRoute: AdminTrackerRoute,
   AdminTrackerGuideRoute: AdminTrackerGuideRoute,
   AdminUsersRoute: AdminUsersRouteWithChildren,
+  AdminVersionsRoute: AdminVersionsRoute,
   AdminWebStoriesRoute: AdminWebStoriesRoute,
   AdminWorkflowsRoute: AdminWorkflowsRoute,
   AdminIndexRoute: AdminIndexRoute,
