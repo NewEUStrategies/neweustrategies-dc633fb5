@@ -28,10 +28,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const RECURRING_INTERVALS = new Set<AccessPlan["interval"]>(["month", "quarter", "year"]);
+const RECURRING_INTERVALS = new Set<AccessPlan["interval"]>([
+  "two_weeks",
+  "month",
+  "quarter",
+  "year",
+]);
 
 function intervalSuffix(interval: AccessPlan["interval"], t: (key: string) => string): string {
   switch (interval) {
+    case "two_weeks":
+      return t("pricing.perTwoWeeks");
     case "quarter":
       return t("pricing.perQuarter");
     case "year":

@@ -38,7 +38,7 @@ export interface AccessPlan {
   description_en: string | null;
   price_cents: number;
   currency: string;
-  interval: "month" | "year" | "one_time";
+  interval: "two_weeks" | "month" | "quarter" | "year" | "one_time";
   active: boolean;
   sort_order: number;
   features_pl: string[];

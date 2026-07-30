@@ -26,7 +26,7 @@ export interface CatalogPriceStatus {
   priceId: string;
   productId: string;
   tierKey: string;
-  interval: "month" | "year";
+  interval: "two_weeks" | "month" | "quarter" | "year";
   providerPriceId: string | null;
 }
 
@@ -260,9 +260,8 @@ export async function syncCouponDiscounts(
     .eq("active", true)
     .limit(200);
 
-  const { findDiscountByCode, createDiscount } = await import(
-    "@/lib/billing/paddleDiscounts.server"
-  );
+  const { findDiscountByCode, createDiscount } =
+    await import("@/lib/billing/paddleDiscounts.server");
 
   let created = 0;
   let existing = 0;

@@ -6,16 +6,20 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { CheckCircle2, CircleAlert, CircleX, PlayCircle, RefreshCcw, Stethoscope } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleAlert,
+  CircleX,
+  PlayCircle,
+  RefreshCcw,
+  Stethoscope,
+} from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { getPaddleEnvironment } from "@/lib/paddle";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import { PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
-import {
-  getPaymentsDiagnostics,
-  syncCouponsToProvider,
-} from "@/lib/billing/diagnostics.functions";
+import { getPaymentsDiagnostics, syncCouponsToProvider } from "@/lib/billing/diagnostics.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,8 +40,10 @@ const CHECK_LABELS: Record<string, { pl: string; en: string }> = {
 };
 
 function StateIcon({ state }: { state: "ok" | "warn" | "error" }) {
-  if (state === "ok") return <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />;
-  if (state === "warn") return <CircleAlert className="h-4 w-4 text-amber-600" aria-hidden="true" />;
+  if (state === "ok")
+    return <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />;
+  if (state === "warn")
+    return <CircleAlert className="h-4 w-4 text-amber-600" aria-hidden="true" />;
   return <CircleX className="h-4 w-4 text-destructive" aria-hidden="true" />;
 }
 
@@ -125,8 +131,12 @@ export function AdminPaymentsDiagnosticsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="sandbox">{L("Środowisko testowe", "Test environment")}</SelectItem>
-                <SelectItem value="live">{L("Środowisko produkcyjne", "Live environment")}</SelectItem>
+                <SelectItem value="sandbox">
+                  {L("Środowisko testowe", "Test environment")}
+                </SelectItem>
+                <SelectItem value="live">
+                  {L("Środowisko produkcyjne", "Live environment")}
+                </SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -165,7 +175,9 @@ export function AdminPaymentsDiagnosticsPanel() {
                     <span className="font-medium">
                       {CHECK_LABELS[c.id] ? CHECK_LABELS[c.id][lang] : c.id}
                     </span>
-                    <span className="block break-all text-xs text-muted-foreground">{c.detail}</span>
+                    <span className="block break-all text-xs text-muted-foreground">
+                      {c.detail}
+                    </span>
                   </span>
                 </li>
               ))}
@@ -205,7 +217,13 @@ export function AdminPaymentsDiagnosticsPanel() {
                 {PADDLE_CATALOG.map((entry) => (
                   <SelectItem key={entry.priceId} value={entry.priceId}>
                     {entry.tierKey} ·{" "}
-                    {entry.interval === "year" ? L("rocznie", "yearly") : L("miesięcznie", "monthly")}
+                    {entry.interval === "year"
+                      ? L("rocznie", "yearly")
+                      : entry.interval === "quarter"
+                        ? L("kwartalnie", "quarterly")
+                        : entry.interval === "two_weeks"
+                          ? L("co 2 tygodnie", "every 2 weeks")
+                          : L("miesięcznie", "monthly")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -310,8 +328,13 @@ export function AdminPaymentsDiagnosticsPanel() {
                             {L("zsynchronizowany", "synced")}
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="border-0 bg-muted text-[0.75rem] text-muted-foreground">
-                            {c.active ? L("przy pierwszym użyciu", "on first use") : L("nieaktywny", "inactive")}
+                          <Badge
+                            variant="outline"
+                            className="border-0 bg-muted text-[0.75rem] text-muted-foreground"
+                          >
+                            {c.active
+                              ? L("przy pierwszym użyciu", "on first use")
+                              : L("nieaktywny", "inactive")}
                           </Badge>
                         )}
                       </td>

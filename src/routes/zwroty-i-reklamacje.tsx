@@ -85,7 +85,7 @@ const COPY = {
         Icon: HeartHandshake,
         heading: "Darowizny",
         paragraphs: [
-          "Darowizny są dobrowolne i bezzwrotne z natury, ale jeśli wpłata była pomyłkowa lub w błędnej kwocie, skontaktuj się z nami w ciągu 30 dni - zwrócimy ją.",
+          "Darowizny zbieramy w zewnętrznym serwisie zbiórkowym (zrzutka.pl) - nie przechodzą przez operatora płatności Serwisu. Są dobrowolne i bezzwrotne z natury, ale jeśli wpłata była pomyłkowa lub w błędnej kwocie, skontaktuj się z nami w ciągu 30 dni - pomożemy ją odzyskać zgodnie z zasadami serwisu zbiórkowego.",
         ],
       },
       {
@@ -165,7 +165,7 @@ const COPY = {
         Icon: HeartHandshake,
         heading: "Donations",
         paragraphs: [
-          "Donations are voluntary and non-returnable by nature, but if a payment was made by mistake or for a wrong amount, contact us within 30 days and we will refund it.",
+          "Donations are collected on an external fundraising platform (zrzutka.pl) - they do not pass through the service's payment provider. They are voluntary and non-returnable by nature, but if a payment was made by mistake or for a wrong amount, contact us within 30 days and we will help you recover it under the fundraising platform's rules.",
         ],
       },
       {

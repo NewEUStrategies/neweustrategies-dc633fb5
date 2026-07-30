@@ -55,8 +55,20 @@ async function findByExternalId(
   return row?.id ? { id: String(row.id), raw: row } : null;
 }
 
+/**
+ * Cykl rozliczeniowy ceny w formacie operatora. API dostawcy zna wyłącznie
+ * day/week/month/year, więc interwały aplikacji mapują się na krotności:
+ * two_weeks -> week x2, quarter -> month x3.
+ */
 function billingCycle(entry: PaddlePriceEntry): { interval: string; frequency: number } {
-  return { interval: entry.interval, frequency: 1 };
+  switch (entry.interval) {
+    case "two_weeks":
+      return { interval: "week", frequency: 2 };
+    case "quarter":
+      return { interval: "month", frequency: 3 };
+    default:
+      return { interval: entry.interval, frequency: 1 };
+  }
 }
 
 /**

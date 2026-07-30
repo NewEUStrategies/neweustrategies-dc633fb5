@@ -1347,47 +1347,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       group: "Darowizna",
       options: [
         { value: "link", label: "link do /support" },
-        { value: "quick", label: "szybka darowizna (jedna kwota)" },
-        { value: "form", label: "formularz z wariantami kwot" },
+        { value: "quick", label: "bezpośredni link do zbiórki (zrzutka.pl)" },
       ],
-      hint: "Każdy tryb uruchamia tę samą walidowaną płatność (createDonationCheckout).",
-    },
-    {
-      key: "quickAmountCents",
-      type: "number",
-      label: "Szybka darowizna - kwota (grosze)",
-      group: "Darowizna",
-      min: 500,
-      step: 500,
-      hint: "Używane tylko w trybie szybkiej darowizny. 5000 = 50 zł.",
-    },
-    {
-      key: "presetsCsv",
-      type: "text",
-      label: "Warianty kwot",
-      group: "Darowizna",
-      placeholder: "20, 50, 100, 250",
-      hint: "Kwoty w złotych/euro, po przecinku. Puste = domyślne. Maks. 6.",
-    },
-    {
-      key: "showCustomAmount",
-      type: "select",
-      label: "Pole 'inna kwota'",
-      group: "Darowizna",
-      options: [
-        { value: "true", label: "tak" },
-        { value: "false", label: "nie" },
-      ],
-    },
-    {
-      key: "showMessage",
-      type: "select",
-      label: "Pole wiadomości od darczyńcy",
-      group: "Darowizna",
-      options: [
-        { value: "false", label: "nie" },
-        { value: "true", label: "tak" },
-      ],
+      hint: "Wpłaty obsługuje zewnętrzna zbiórka (zrzutka.pl) - CTA nigdy nie otwiera checkoutu operatora płatności.",
     },
   ],
   // Legacy "contact" alias - same fields as the new "contact-form" widget.
@@ -3009,4 +2971,3 @@ pushLabelsFor("contact-form", [
     default: "auth",
   },
 ];
-

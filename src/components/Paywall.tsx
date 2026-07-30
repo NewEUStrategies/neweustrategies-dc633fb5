@@ -197,7 +197,6 @@ export function Paywall({
       } else {
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
       }
-
     } catch {
       toast.error(t("paywall.checkoutFail"));
       setBusy(false);
@@ -352,9 +351,13 @@ export function Paywall({
                   const intervalLabel =
                     p.interval === "month"
                       ? t("paywall.perMonth")
-                      : p.interval === "year"
-                        ? t("paywall.perYear")
-                        : t("paywall.oneTime");
+                      : p.interval === "two_weeks"
+                        ? t("paywall.perTwoWeeks")
+                        : p.interval === "quarter"
+                          ? t("paywall.perQuarter")
+                          : p.interval === "year"
+                            ? t("paywall.perYear")
+                            : t("paywall.oneTime");
                   return (
                     <div
                       key={p.id}

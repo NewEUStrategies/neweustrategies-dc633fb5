@@ -1020,14 +1020,9 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   'Etykieta „Autor: Imię Nazwisko"': 'Label “Author: Full Name”',
   "Bez autora": "No author",
   "Tryb akcji": "Action mode",
-  "Każdy tryb uruchamia tę samą walidowaną płatność (createDonationCheckout).":
-    "Every mode triggers the same validated payment (createDonationCheckout).",
-  "Używane tylko w trybie szybkiej darowizny. 5000 = 50 zł.":
-    "Used only in quick-donation mode. 5000 = 50 PLN.",
-  "Kwoty w złotych/euro, po przecinku. Puste = domyślne. Maks. 6.":
-    "Amounts in PLN/EUR, comma-separated. Empty = defaults. Max 6.",
-  "Pole 'inna kwota'": "'Other amount' field",
-  "Pole wiadomości od darczyńcy": "Donor message field",
+  "bezpośredni link do zbiórki (zrzutka.pl)": "direct link to the fundraiser (zrzutka.pl)",
+  "Wpłaty obsługuje zewnętrzna zbiórka (zrzutka.pl) - CTA nigdy nie otwiera checkoutu operatora płatności.":
+    "Payments are handled by an external fundraiser (zrzutka.pl) - the CTA never opens the payment provider checkout.",
   "Dziękujemy za zakup": "Thank you for your purchase",
   "Dostęp jest już aktywny na Twoim koncie.": "Access is already active on your account.",
   "Data końca dostępu": "Access end date",

@@ -29,8 +29,6 @@ import { AdminWebhookLogPanel } from "@/components/admin/billing/AdminWebhookLog
 import { AdminPaymentsDiagnosticsPanel } from "@/components/admin/billing/AdminPaymentsDiagnosticsPanel";
 import { ResendPortalLinkButton } from "@/components/admin/billing/ResendPortalLinkButton";
 
-
-
 interface SubscriptionRow {
   id: string;
   user_id: string;
@@ -72,7 +70,10 @@ const STATUS_TONE: Record<string, string> = {
 
 function StatusBadge({ value }: { value: string }) {
   return (
-    <Badge variant="outline" className={`border-0 text-[0.75rem] ${STATUS_TONE[value] ?? "bg-muted text-muted-foreground"}`}>
+    <Badge
+      variant="outline"
+      className={`border-0 text-[0.75rem] ${STATUS_TONE[value] ?? "bg-muted text-muted-foreground"}`}
+    >
       {value}
     </Badge>
   );
@@ -104,7 +105,9 @@ export function AdminBillingPanel() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("payment_webhook_events")
-        .select("id,event_id,event_type,status,environment,error,subscription_id,occurred_at,created_at")
+        .select(
+          "id,event_id,event_type,status,environment,error,subscription_id,occurred_at,created_at",
+        )
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
@@ -169,7 +172,15 @@ export function AdminBillingPanel() {
   const planLabel = (priceId: string) => {
     const entry = catalogEntryByPriceId(priceId);
     if (!entry) return priceId;
-    return `${entry.tierKey} · ${entry.interval === "year" ? L("rocznie", "yearly") : L("miesięcznie", "monthly")}`;
+    return `${entry.tierKey} · ${
+      entry.interval === "year"
+        ? L("rocznie", "yearly")
+        : entry.interval === "quarter"
+          ? L("kwartalnie", "quarterly")
+          : entry.interval === "two_weeks"
+            ? L("co 2 tygodnie", "every 2 weeks")
+            : L("miesięcznie", "monthly")
+    }`;
   };
 
   return (
@@ -194,7 +205,8 @@ export function AdminBillingPanel() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
-              <CreditCard className="h-4 w-4" /> {L("Zaplanowane anulowania", "Scheduled cancellations")}
+              <CreditCard className="h-4 w-4" />{" "}
+              {L("Zaplanowane anulowania", "Scheduled cancellations")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{stats.canceling}</CardContent>
@@ -286,7 +298,6 @@ export function AdminBillingPanel() {
             <TabsTrigger value="tickets">{L("Bilety", "Tickets")}</TabsTrigger>
             <TabsTrigger value="events">{L("Dziennik zdarzeń", "Event log")}</TabsTrigger>
             <TabsTrigger value="diagnostics">{L("Diagnostyka", "Diagnostics")}</TabsTrigger>
-
           </TabsList>
           <div className="flex items-center gap-2">
             <Button
@@ -321,7 +332,6 @@ export function AdminBillingPanel() {
               <RefreshCcw className="mr-2 h-4 w-4" /> {L("Odśwież", "Refresh")}
             </Button>
           </div>
-
         </div>
 
         <TabsContent value="subscriptions" className="mt-4">
@@ -344,13 +354,14 @@ export function AdminBillingPanel() {
                         <th className="px-4 py-2 font-medium">{L("Plan", "Plan")}</th>
                         <th className="px-4 py-2 font-medium">{L("Status", "Status")}</th>
                         <th className="px-4 py-2 font-medium">{L("Okres do", "Period ends")}</th>
-                        <th className="px-4 py-2 font-medium">{L("Nieudane próby", "Failed attempts")}</th>
+                        <th className="px-4 py-2 font-medium">
+                          {L("Nieudane próby", "Failed attempts")}
+                        </th>
                         <th className="px-4 py-2 font-medium">{L("Środowisko", "Environment")}</th>
                         <th className="px-4 py-2 font-medium">ID</th>
                         <th className="px-4 py-2 font-medium text-right">
                           {L("Portal klienta", "Customer portal")}
                         </th>
-
                       </tr>
                     </thead>
                     <tbody>
@@ -391,7 +402,6 @@ export function AdminBillingPanel() {
                               label={L("Wyślij link", "Send link")}
                             />
                           </td>
-
                         </tr>
                       ))}
                     </tbody>
@@ -414,7 +424,6 @@ export function AdminBillingPanel() {
           <AdminTicketOrdersPanel />
         </TabsContent>
       </Tabs>
-
     </div>
   );
 }

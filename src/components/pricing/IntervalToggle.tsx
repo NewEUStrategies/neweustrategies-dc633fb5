@@ -1,4 +1,6 @@
-// Przełącznik cyklu rozliczenia (miesięcznie/rocznie). Roczny wariant nosi
+// Przełącznik cyklu rozliczenia. Opcje są wyprowadzane z planów segmentu
+// (availableIntervals): oferta indywidualna pokazuje miesięcznie/rocznie,
+// oferta biznesowa - 2 tygodnie/miesięcznie/kwartalnie. Roczny wariant nosi
 // badge z realną, wyliczoną z planów maksymalną oszczędnością - kotwica
 // wyboru w stylu Netflix/Apple, nigdy wymyślona wartość.
 import { useTranslation } from "react-i18next";
@@ -6,14 +8,23 @@ import { cn } from "@/lib/utils";
 import type { BillingInterval } from "@/lib/pricing/selectors";
 import { trackCta } from "@/lib/analytics/track";
 
+const INTERVAL_LABEL_KEY: Record<BillingInterval, string> = {
+  two_weeks: "pricing.intervalTwoWeeks",
+  month: "pricing.intervalMonthly",
+  quarter: "pricing.intervalQuarterly",
+  year: "pricing.intervalYearly",
+};
+
 export function IntervalToggle({
   value,
   onChange,
   savingsPct,
+  options = ["month", "year"],
 }: {
   value: BillingInterval;
   onChange: (interval: BillingInterval) => void;
   savingsPct: number | null;
+  options?: BillingInterval[];
 }) {
   const { t } = useTranslation();
   return (
@@ -23,7 +34,7 @@ export function IntervalToggle({
         aria-label={t("pricing.intervalAria")}
         className="inline-flex rounded-full border border-border bg-muted/40 p-1"
       >
-        {(["month", "year"] as const).map((interval) => (
+        {options.map((interval) => (
           <button
             key={interval}
             type="button"
@@ -41,7 +52,7 @@ export function IntervalToggle({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {interval === "month" ? t("pricing.intervalMonthly") : t("pricing.intervalYearly")}
+            {t(INTERVAL_LABEL_KEY[interval])}
             {interval === "year" && savingsPct !== null && (
               <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">
                 {t("pricing.saveUpTo", { pct: savingsPct })}

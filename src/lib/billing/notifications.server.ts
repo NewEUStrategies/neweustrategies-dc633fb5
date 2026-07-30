@@ -85,8 +85,20 @@ async function loadPlan(
 }
 
 const INTERVAL_LABEL: Record<EmailLang, Record<string, string>> = {
-  pl: { month: "miesięcznie", year: "rocznie", quarter: "kwartalnie", one_time: "jednorazowo" },
-  en: { month: "monthly", year: "yearly", quarter: "quarterly", one_time: "one-time" },
+  pl: {
+    two_weeks: "co 2 tygodnie",
+    month: "miesięcznie",
+    year: "rocznie",
+    quarter: "kwartalnie",
+    one_time: "jednorazowo",
+  },
+  en: {
+    two_weeks: "every 2 weeks",
+    month: "monthly",
+    year: "yearly",
+    quarter: "quarterly",
+    one_time: "one-time",
+  },
 };
 
 export type SubscriptionEmailKind = Extract<
@@ -302,13 +314,19 @@ export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<voi
     }
     if (input.kind === "payment_failed") {
       if (input.attemptedAt) {
-        details.push({ label: copy.labels.attemptedAt, value: formatDate(input.attemptedAt, lang) });
+        details.push({
+          label: copy.labels.attemptedAt,
+          value: formatDate(input.attemptedAt, lang),
+        });
       }
       if (input.retryAt) {
         details.push({ label: copy.labels.retryAt, value: formatDate(input.retryAt, lang) });
       }
       if (input.accessUntil) {
-        details.push({ label: copy.labels.accessUntil, value: formatDate(input.accessUntil, lang) });
+        details.push({
+          label: copy.labels.accessUntil,
+          value: formatDate(input.accessUntil, lang),
+        });
       }
     } else if (input.accessUntil) {
       details.push({ label: copy.labels.renewsAt, value: formatDate(input.accessUntil, lang) });
@@ -400,7 +418,6 @@ export async function notifyRefundEmail(input: RefundNotifyInput): Promise<void>
   }
 }
 
-
 export type ReminderEmailKind = Extract<
   TxEmailType,
   "subscription_renewal_reminder" | "subscription_expiring"
@@ -462,62 +479,5 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<v
     });
   } catch (err) {
     console.error("[billing-emails] reminder notify failed", input.kind, err);
-  }
-}
-
-export interface DonationNotifyInput {
-  /** Adres podany przy płatności - darczyńca nie musi mieć konta. */
-  donorEmail: string | null;
-  /** Konto darczyńcy, gdy darowizna była złożona po zalogowaniu. */
-  userId?: string | null;
-  amountCents: number | null;
-  currency: string | null;
-  /** Wiadomość darczyńcy z formularza (custom_data transakcji). */
-  message?: string | null;
-  /** Język formularza darowizny - wygrywa z domyślnym PL. */
-  lang?: EmailLang | null;
-  transactionId: string;
-}
-
-/**
- * Podziękowanie za darowiznę z kwotą, numerem transakcji i - gdy darczyńca ją
- * zostawił - jego własną wiadomością. Nigdy nie rzuca (webhook ma zaksięgować
- * wpłatę nawet gdy mail się nie uda), idempotentne po id transakcji.
- */
-export async function notifyDonationReceived(input: DonationNotifyInput): Promise<void> {
-  try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const supabase = supabaseAdmin as unknown as SupabaseClient;
-
-    const account = input.userId ? await resolveRecipient(supabase, input.userId) : null;
-    const to = (input.donorEmail ?? account?.email ?? "").trim();
-    if (!to) return;
-
-    const lang: EmailLang = input.lang ?? account?.lang ?? "pl";
-    const copy = txCopy("donation_received", lang);
-    const currency = (input.currency ?? "PLN").toUpperCase();
-    const amount = input.amountCents ? formatMoney(input.amountCents, currency, lang) : null;
-
-    const details: TxDetail[] = [];
-    if (amount) details.push({ label: copy.labels.price, value: amount });
-    details.push({ label: copy.labels.transaction, value: input.transactionId });
-    const message = input.message?.trim();
-    if (message) {
-      details.push({ label: copy.labels.donorMessage, value: message.slice(0, 480) });
-    }
-
-    await sendTxEmail({
-      type: "donation_received",
-      to,
-      lang,
-      metaName: account?.name ?? null,
-      subjectName: amount,
-      details,
-      bodyVars: { amount, donorMessage: message ?? null },
-      ctaPath: lang === "en" ? "/en/analyses" : "/analizy",
-      idempotencyKey: `donation_received:${input.transactionId}`,
-    });
-  } catch (err) {
-    console.error("[billing-emails] donation notify failed", err);
   }
 }

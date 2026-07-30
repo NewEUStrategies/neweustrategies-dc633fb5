@@ -6,7 +6,7 @@
 // Moduł jest czysty (bez zależności serwerowych), więc korzysta z niego zarówno
 // przeglądarka (checkout), jak i handler webhooka.
 
-export type PlanBillingInterval = "month" | "year";
+export type PlanBillingInterval = "two_weeks" | "month" | "quarter" | "year";
 
 export interface PaddlePriceEntry {
   /** external_id ceny u dostawcy. */
@@ -22,17 +22,66 @@ export interface PaddlePriceEntry {
 }
 
 export const PADDLE_CATALOG: readonly PaddlePriceEntry[] = [
-  { priceId: "student_monthly", productId: "plan_student", tierKey: "student", interval: "month", rank: 10 },
-  { priceId: "educator_monthly", productId: "plan_educator", tierKey: "educator", interval: "month", rank: 20 },
-  { priceId: "plus_monthly", productId: "plan_plus", tierKey: "member", interval: "month", rank: 30 },
+  {
+    priceId: "student_monthly",
+    productId: "plan_student",
+    tierKey: "student",
+    interval: "month",
+    rank: 10,
+  },
+  {
+    priceId: "educator_monthly",
+    productId: "plan_educator",
+    tierKey: "educator",
+    interval: "month",
+    rank: 20,
+  },
+  {
+    priceId: "plus_monthly",
+    productId: "plan_plus",
+    tierKey: "member",
+    interval: "month",
+    rank: 30,
+  },
   { priceId: "plus_yearly", productId: "plan_plus", tierKey: "member", interval: "year", rank: 31 },
   { priceId: "pro_monthly", productId: "plan_pro", tierKey: "pro", interval: "month", rank: 40 },
   { priceId: "pro_yearly", productId: "plan_pro", tierKey: "pro", interval: "year", rank: 41 },
-  { priceId: "team_monthly_seat", productId: "plan_team", tierKey: "team", interval: "month", rank: 50, perSeat: true },
+  {
+    priceId: "team_monthly_seat",
+    productId: "plan_team",
+    tierKey: "team",
+    interval: "month",
+    rank: 50,
+    perSeat: true,
+  },
+  // Partner Biznesowy: subskrypcja dla firm (zamiast sprzedaży reklam - AUP
+  // operatora). Trzy cykle; dłuższy cykl = wyższa ranga (jak plus/pro yearly).
+  {
+    priceId: "business_2w",
+    productId: "plan_business",
+    tierKey: "business",
+    interval: "two_weeks",
+    rank: 60,
+  },
+  {
+    priceId: "business_monthly",
+    productId: "plan_business",
+    tierKey: "business",
+    interval: "month",
+    rank: 61,
+  },
+  {
+    priceId: "business_quarterly",
+    productId: "plan_business",
+    tierKey: "business",
+    interval: "quarter",
+    rank: 62,
+  },
 ] as const;
 
 function normalizeInterval(interval: string | null | undefined): PlanBillingInterval {
-  return interval === "year" ? "year" : "month";
+  if (interval === "two_weeks" || interval === "quarter" || interval === "year") return interval;
+  return "month";
 }
 
 /** Znajdź cenę dostawcy dla planu z `access_plans`. */

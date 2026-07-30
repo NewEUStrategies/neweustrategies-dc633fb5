@@ -13,7 +13,15 @@ function addMonthsClamped(d: Date, months: number): void {
   d.setDate(Math.min(day, lastDay));
 }
 
-export type PlanInterval = "day" | "week" | "month" | "quarter" | "year" | "one_time" | string;
+export type PlanInterval =
+  | "day"
+  | "week"
+  | "two_weeks"
+  | "month"
+  | "quarter"
+  | "year"
+  | "one_time"
+  | string;
 
 export function periodEndFor(interval: PlanInterval | null | undefined, from: Date): Date {
   const d = new Date(from.getTime());
@@ -23,6 +31,9 @@ export function periodEndFor(interval: PlanInterval | null | undefined, from: Da
       break;
     case "quarter":
       addMonthsClamped(d, 3);
+      break;
+    case "two_weeks":
+      d.setDate(d.getDate() + 14);
       break;
     case "week":
       d.setDate(d.getDate() + 7);

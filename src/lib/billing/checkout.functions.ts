@@ -36,7 +36,6 @@ const createOrderSchema = z.object({
   environment: z.enum(["sandbox", "live"]).optional(),
 });
 
-
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => createOrderSchema.parse(input))
@@ -54,7 +53,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // (patrz entitlementForOrder).
     const isOneTimePlan = data.kind === "one_time" && !!data.plan_id && !data.entity_id;
     // Bilet na płatne wydarzenie: kind=one_time z event_id i bez planu/encji.
-    const isEventTicket = data.kind === "one_time" && !!data.event_id && !data.plan_id && !data.entity_id;
+    const isEventTicket =
+      data.kind === "one_time" && !!data.event_id && !data.plan_id && !data.entity_id;
 
     if (data.kind === "subscription" || isOneTimePlan) {
       if (!data.plan_id) throw new Error("plan_id_required");
@@ -269,9 +269,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // Kwota jest wyliczona serwerowo (plan / reguła dostępu / kupon /
       // waluta prezentacji), więc zamiast ceny katalogowej tworzymy
       // transakcję z ceną osadzoną i zwracamy jej identyfikator do nakładki.
-      const { createAdhocTransaction, resolveEnvironment } = await import(
-        "@/lib/billing/paddleTransaction.server"
-      );
+      const { createAdhocTransaction, resolveEnvironment } =
+        await import("@/lib/billing/paddleTransaction.server");
       const created = await createAdhocTransaction({
         environment: resolveEnvironment(data.environment),
         product: eventId ? "eventTicket" : "contentUnlock",
@@ -329,7 +328,6 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       orderId: order.id,
     };
   });
-
 
 // Finalizacja zamówienia w trybie mock (brak skonfigurowanego dostawcy).
 // Oznacza własne zamówienie jako opłacone i nadaje uprawnienie tą samą ścieżką
@@ -406,11 +404,8 @@ export const cancelSubscription = createServerFn({ method: "POST" })
     if (!sub) throw new Error("subscription_not_found");
     if (sub.canceled_at) return { ok: true as const, alreadyCanceled: true as const };
 
-    const {
-      cancelSubscriptionAtPeriodEnd,
-      isProviderSubscriptionRef,
-      subscriptionEnvironment,
-    } = await import("@/lib/billing/paddleSubscription.server");
+    const { cancelSubscriptionAtPeriodEnd, isProviderSubscriptionRef, subscriptionEnvironment } =
+      await import("@/lib/billing/paddleSubscription.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
       const result = await cancelSubscriptionAtPeriodEnd(
@@ -475,7 +470,12 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
     if (!newPlan || !newPlan.active) throw new Error("plan_not_found");
     if (newPlan.tenant_id !== sub.tenant_id) throw new Error("plan_not_found");
     const interval = String(newPlan.interval);
-    if (interval !== "month" && interval !== "quarter" && interval !== "year") {
+    if (
+      interval !== "two_weeks" &&
+      interval !== "month" &&
+      interval !== "quarter" &&
+      interval !== "year"
+    ) {
       // Przepustki/plany jednorazowe nie są celem zmiany subskrypcji.
       throw new Error("plan_not_recurring");
     }
@@ -570,17 +570,11 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       throw new Error("subscription_period_ended");
     }
 
-    const {
-      resumeScheduledCancellation,
-      isProviderSubscriptionRef,
-      subscriptionEnvironment,
-    } = await import("@/lib/billing/paddleSubscription.server");
+    const { resumeScheduledCancellation, isProviderSubscriptionRef, subscriptionEnvironment } =
+      await import("@/lib/billing/paddleSubscription.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
-      const result = await resumeScheduledCancellation(
-        subscriptionEnvironment(),
-        sub.external_ref,
-      );
+      const result = await resumeScheduledCancellation(subscriptionEnvironment(), sub.external_ref);
       if (!result.ok) {
         console.error("[billing] provider resume failed", sub.external_ref, result.error);
         throw new Error("provider_resume_failed");

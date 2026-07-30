@@ -7,6 +7,8 @@ describe("periodEndFor", () => {
   it("adds the right window per interval", () => {
     expect(periodEndFor("year", from).toISOString()).toBe("2027-01-15T12:00:00.000Z");
     expect(periodEndFor("week", from).toISOString()).toBe("2026-01-22T12:00:00.000Z");
+    expect(periodEndFor("two_weeks", from).toISOString()).toBe("2026-01-29T12:00:00.000Z");
+    expect(periodEndFor("quarter", from).toISOString()).toBe("2026-04-15T12:00:00.000Z");
     expect(periodEndFor("day", from).toISOString()).toBe("2026-01-16T12:00:00.000Z");
     expect(periodEndFor("month", from).toISOString()).toBe("2026-02-15T12:00:00.000Z");
   });

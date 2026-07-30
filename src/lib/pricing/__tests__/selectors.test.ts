@@ -11,6 +11,7 @@ import {
 import type { PricingAudienceRow, PricingFaqItemRow } from "@/lib/pricing/queries";
 import {
   audienceTrust,
+  availableIntervals,
   benefitDetail,
   benefitText,
   distinguishingBenefits,
@@ -252,7 +253,36 @@ describe("wybór planu i matematyka oszczędności", () => {
     expect(monthlyEquivalentCents(makePlan({ interval: "quarter", price_cents: 14900 }))).toBe(
       4967,
     );
+    // 26 cykli dwutygodniowych rocznie / 12 miesięcy: 59000 * 26 / 12.
+    expect(monthlyEquivalentCents(makePlan({ interval: "two_weeks", price_cents: 59000 }))).toBe(
+      127833,
+    );
     expect(monthlyEquivalentCents(makePlan({ interval: "one_time" }))).toBeNull();
+  });
+
+  it("availableIntervals zwraca obecne cykle w kolejności prezentacji", () => {
+    const twoWeeks = makePlan({ interval: "two_weeks", price_cents: 59000 });
+    const month = makePlan({ interval: "month", price_cents: 99000 });
+    const quarter = makePlan({ interval: "quarter", price_cents: 249000 });
+    const year = makePlan({ interval: "year", price_cents: 49000 });
+    const pass = makePlan({ interval: "one_time", price_cents: 900 });
+    expect(availableIntervals([quarter, twoWeeks, pass, month])).toEqual([
+      "two_weeks",
+      "month",
+      "quarter",
+    ]);
+    expect(availableIntervals([year, month])).toEqual(["month", "year"]);
+    expect(availableIntervals([pass])).toEqual([]);
+  });
+
+  it("pickPlanForInterval trafia dokładnie w cykl dwutygodniowy i kwartalny", () => {
+    const twoWeeks = makePlan({ interval: "two_weeks", price_cents: 59000 });
+    const month = makePlan({ interval: "month", price_cents: 99000 });
+    const quarter = makePlan({ interval: "quarter", price_cents: 249000 });
+    expect(pickPlanForInterval([twoWeeks, month, quarter], "two_weeks")).toBe(twoWeeks);
+    expect(pickPlanForInterval([twoWeeks, month, quarter], "quarter")).toBe(quarter);
+    // Brak planu rocznego -> uczciwy fallback na najtańszy cykliczny.
+    expect(pickPlanForInterval([twoWeeks, month, quarter], "year")).toBe(twoWeeks);
   });
 
   it("yearlySavingsPct liczy realny rabat i odmawia przy niespójnych danych", () => {

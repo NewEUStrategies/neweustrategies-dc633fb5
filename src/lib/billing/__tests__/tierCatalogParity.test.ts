@@ -12,36 +12,52 @@ import { TIER_CAPABILITIES } from "@/lib/billing/capabilities";
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 const CATALOG_FILE = "20260722230000_pricing_catalog_v3_retention.sql";
 
-/** Ciało funkcji pricing_catalog_v3_rows() (od CREATE do zamykającego $$;). */
-function catalogFunctionBody(): string {
-  const sql = readFileSync(join(MIGRATIONS_DIR, CATALOG_FILE), "utf8");
+/**
+ * Kanoniczne źródła wierszy katalogu warstw. Migracje są forward-only (sumy
+ * kontrolne), więc nowe warstwy dokładane po v3 mają własne funkcje *_rows()
+ * w osobnych plikach - strażnik skanuje je wszystkie.
+ */
+const CATALOG_SOURCES: ReadonlyArray<{ file: string; fn: string }> = [
+  { file: CATALOG_FILE, fn: "pricing_catalog_v3_rows" },
+  { file: "20260730191000_business_partner_catalog.sql", fn: "pricing_catalog_business_rows" },
+];
+
+/** Ciało funkcji katalogowej (od CREATE do zamykającego $$;). */
+function catalogFunctionBody(file: string, fn: string): string {
+  const sql = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
   // Kotwica na CREATE (nazwa funkcji pada też w komentarzu nagłówkowym).
-  const start = sql.indexOf("CREATE OR REPLACE FUNCTION public.pricing_catalog_v3_rows()");
-  expect(start, `pricing_catalog_v3_rows missing from ${CATALOG_FILE}`).toBeGreaterThan(-1);
+  const start = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${fn}()`);
+  expect(start, `${fn} missing from ${file}`).toBeGreaterThan(-1);
   const end = sql.indexOf("$$;", start);
   expect(end).toBeGreaterThan(start);
   return sql.slice(start, end);
 }
 
+function catalogBodies(): string[] {
+  return CATALOG_SOURCES.map((s) => catalogFunctionBody(s.file, s.fn));
+}
+
 /** Wiersze katalogu: pary (key, rank) z krotek VALUES ('key', rank, ...). */
 function seededTierRanks(): Map<string, number> {
-  const body = catalogFunctionBody();
   const out = new Map<string, number>();
-  for (const m of body.matchAll(/\('([a-z_]+)',\s*(\d+),\s*'/g)) {
-    out.set(m[1], Number(m[2]));
+  for (const body of catalogBodies()) {
+    for (const m of body.matchAll(/\('([a-z_]+)',\s*(\d+),\s*'/g)) {
+      out.set(m[1], Number(m[2]));
+    }
   }
   return out;
 }
 
 /** Flagi features włączone w seedzie (płaskie obiekty '{...}'::jsonb). */
 function seededFeatureKeys(): Set<string> {
-  const body = catalogFunctionBody();
   const keys = new Set<string>();
-  for (const m of body.matchAll(/'(\{[^}]*\})'::jsonb/g)) {
-    const parsed: unknown = JSON.parse(m[1]);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-        if (value === true) keys.add(key);
+  for (const body of catalogBodies()) {
+    for (const m of body.matchAll(/'(\{[^}]*\})'::jsonb/g)) {
+      const parsed: unknown = JSON.parse(m[1]);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+          if (value === true) keys.add(key);
+        }
       }
     }
   }
