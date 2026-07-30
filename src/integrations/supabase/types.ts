@@ -6329,9 +6329,12 @@ export type Database = {
           event_id: string
           event_type: string
           id: string
+          last_retried_at: string | null
           occurred_at: string | null
           payload: Json
           processed_at: string | null
+          retried_by: string | null
+          retry_count: number
           status: string
           subscription_id: string | null
           user_id: string | null
@@ -6345,9 +6348,12 @@ export type Database = {
           event_id: string
           event_type: string
           id?: string
+          last_retried_at?: string | null
           occurred_at?: string | null
           payload?: Json
           processed_at?: string | null
+          retried_by?: string | null
+          retry_count?: number
           status?: string
           subscription_id?: string | null
           user_id?: string | null
@@ -6361,9 +6367,12 @@ export type Database = {
           event_id?: string
           event_type?: string
           id?: string
+          last_retried_at?: string | null
           occurred_at?: string | null
           payload?: Json
           processed_at?: string | null
+          retried_by?: string | null
+          retry_count?: number
           status?: string
           subscription_id?: string | null
           user_id?: string | null
@@ -9944,6 +9953,8 @@ export type Database = {
           current_period_start: string | null
           environment: string
           id: string
+          last_dunning_at: string | null
+          last_dunning_transaction_id: string | null
           last_payment_at: string | null
           last_payment_failed_at: string | null
           paddle_customer_id: string
@@ -9954,6 +9965,7 @@ export type Database = {
           quantity: number
           status: string
           tenant_id: string
+          trial_ends_at: string | null
           updated_at: string
           user_id: string
         }
@@ -9964,6 +9976,8 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
+          last_dunning_at?: string | null
+          last_dunning_transaction_id?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
           paddle_customer_id: string
@@ -9974,6 +9988,7 @@ export type Database = {
           quantity?: number
           status?: string
           tenant_id?: string
+          trial_ends_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -9984,6 +9999,8 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
+          last_dunning_at?: string | null
+          last_dunning_transaction_id?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
           paddle_customer_id?: string
@@ -9994,6 +10011,7 @@ export type Database = {
           quantity?: number
           status?: string
           tenant_id?: string
+          trial_ends_at?: string | null
           updated_at?: string
           user_id?: string
         }

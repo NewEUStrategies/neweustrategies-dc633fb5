@@ -20,6 +20,13 @@ export interface DunningContext {
   retryAt?: string | null;
   amountCents?: number | null;
   currency?: string | null;
+  /**
+   * Identyfikator transakcji, której dotyczy zdarzenie. Operator opisuje jedno
+   * nieudane obciążenie dwoma zdarzeniami (`transaction.payment_failed` oraz
+   * `transaction.past_due`) - ten identyfikator jest kluczem deduplikacji, więc
+   * licznik prób rośnie o jeden, a mail i dzwonek idą dokładnie raz.
+   */
+  transactionId?: string | null;
 }
 
 interface SubRow {
@@ -28,18 +35,22 @@ interface SubRow {
   price_id: string;
   current_period_end: string | null;
   payment_failure_count: number;
+  last_dunning_transaction_id: string | null;
 }
 
 async function loadSubscription(ctx: DunningContext): Promise<SubRow | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("subscriptions")
-    .select("user_id, tenant_id, price_id, current_period_end, payment_failure_count")
+    .select(
+      "user_id, tenant_id, price_id, current_period_end, payment_failure_count, last_dunning_transaction_id",
+    )
     .eq("paddle_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment)
     .maybeSingle();
   return (data as SubRow | null) ?? null;
 }
+
 
 async function pushNotification(params: {
   userId: string;
@@ -82,6 +93,13 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     return;
   }
 
+  // Deduplikacja: drugie zdarzenie o tej samej nieudanej transakcji
+  // (`past_due` po `payment_failed` lub odwrotnie, w dowolnej kolejności) nie
+  // podbija licznika i nie generuje kolejnego maila ani dzwonka.
+  if (ctx.transactionId && sub.last_dunning_transaction_id === ctx.transactionId) {
+    return;
+  }
+
   const attempt = (sub.payment_failure_count ?? 0) + 1;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   await supabaseAdmin
@@ -89,10 +107,13 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     .update({
       payment_failure_count: attempt,
       last_payment_failed_at: ctx.occurredAt,
+      last_dunning_transaction_id: ctx.transactionId ?? null,
+      last_dunning_at: ctx.occurredAt,
       updated_at: new Date().toISOString(),
     })
     .eq("paddle_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment);
+
 
   const plan = await resolvePlanForPrice(sub.price_id);
 
@@ -132,7 +153,11 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
       payment_failure_count: 0,
       last_payment_failed_at: null,
       last_payment_at: ctx.occurredAt,
+      // Zwolnienie klucza deduplikacji - kolejne nieudane obciążenie w nowym
+      // cyklu ma znowu uruchomić pełną windykację.
+      last_dunning_transaction_id: null,
       updated_at: new Date().toISOString(),
+
     })
     .eq("paddle_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment);

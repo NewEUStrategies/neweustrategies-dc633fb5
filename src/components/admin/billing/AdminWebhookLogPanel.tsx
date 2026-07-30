@@ -5,11 +5,14 @@
 // ładunku - tyle, żeby diagnoza „dlaczego zakup nie nadał uprawnień" nie
 // wymagała wchodzenia do bazy.
 import { Fragment, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, RefreshCcw, Webhook } from "lucide-react";
+import { toast } from "sonner";
+import { ChevronDown, ChevronRight, RefreshCcw, RotateCw, Webhook } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { retryWebhookEvent } from "@/lib/billing/webhookRetry.functions";
 import { billingKeys } from "@/lib/billing/keys";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +40,8 @@ interface WebhookLogRow {
   created_at: string;
   processed_at: string | null;
   duration_ms: number | null;
+  retry_count: number | null;
+  last_retried_at: string | null;
   payload: unknown;
 }
 
@@ -56,6 +61,36 @@ export function AdminWebhookLogPanel() {
   const [env, setEnv] = useState("all");
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const retryFn = useServerFn(retryWebhookEvent);
+
+  // Ponowienie działa na ładunku z dziennika i przechodzi tą samą, idempotentną
+  // ścieżką co zdarzenie przychodzące - powtórka nie zdubluje maili ani uprawnień.
+  const retry = useMutation({
+    mutationFn: (id: string) => retryFn({ data: { id } }),
+    onSuccess: (result) => {
+      if (result.status === "failed") {
+        toast.error(
+          L("Ponowienie nie powiodło się", "Retry failed"),
+          { description: result.error ?? undefined },
+        );
+      } else {
+        toast.success(
+          result.status === "processed"
+            ? L("Zdarzenie przetworzone ponownie", "Event reprocessed")
+            : L("Zdarzenie pominięte (typ poza integracją)", "Event skipped (type not handled)"),
+          { description: `${result.eventType} · ${result.durationMs} ms` },
+        );
+      }
+      void queryClient.invalidateQueries({ queryKey: billingKeys.admin.paymentWebhookEvents() });
+    },
+    onError: (err: unknown) => {
+      toast.error(
+        L("Nie udało się ponowić zdarzenia", "Could not retry the event"),
+        { description: err instanceof Error ? err.message : undefined },
+      );
+    },
+  });
 
   const q = useQuery({
     queryKey: billingKeys.admin.paymentWebhookEvents(),
@@ -63,7 +98,7 @@ export function AdminWebhookLogPanel() {
       const { data, error } = await supabase
         .from("payment_webhook_events")
         .select(
-          "id,event_id,event_type,status,environment,error,subscription_id,customer_id,user_id,occurred_at,created_at,processed_at,duration_ms,payload",
+          "id,event_id,event_type,status,environment,error,subscription_id,customer_id,user_id,occurred_at,created_at,processed_at,duration_ms,retry_count,last_retried_at,payload",
         )
         .order("created_at", { ascending: false })
         .limit(300);
@@ -174,6 +209,9 @@ export function AdminWebhookLogPanel() {
                   <th className="px-3 py-2 font-medium">{L("Środowisko", "Environment")}</th>
                   <th className="px-3 py-2 font-medium">{L("Czas obsługi", "Handling time")}</th>
                   <th className="px-3 py-2 font-medium">{L("Odebrano", "Received")}</th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    {L("Ponowienie", "Retry")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -227,10 +265,33 @@ export function AdminWebhookLogPanel() {
                         <td className="px-3 py-2 tabular-nums text-muted-foreground">
                           {fmt(row.occurred_at ?? row.created_at)}
                         </td>
+                        <td className="px-3 py-2 text-right">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-[6px]"
+                            disabled={retry.isPending}
+                            onClick={() => retry.mutate(row.id)}
+                          >
+                            <RotateCw
+                              className={`mr-1.5 h-3.5 w-3.5 ${
+                                retry.isPending && retry.variables === row.id ? "animate-spin" : ""
+                              }`}
+                              aria-hidden="true"
+                            />
+                            {L("Ponów", "Retry")}
+                          </Button>
+                          {(row.retry_count ?? 0) > 0 && (
+                            <span className="mt-1 block text-[0.7rem] text-muted-foreground">
+                              {L("prób", "attempts")}: {row.retry_count} · {fmt(row.last_retried_at)}
+                            </span>
+                          )}
+                        </td>
                       </tr>
                       {open && (
                         <tr className="border-t border-border/40 bg-muted/20">
-                          <td colSpan={6} className="px-4 py-3">
+                          <td colSpan={7} className="px-4 py-3">
                             <dl className="mb-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
                               <div>
                                 <dt className="inline font-medium">{L("Identyfikator", "Event id")}: </dt>
@@ -243,6 +304,20 @@ export function AdminWebhookLogPanel() {
                               <div>
                                 <dt className="inline font-medium">{L("Domknięto", "Finished")}: </dt>
                                 <dd className="inline">{fmt(row.processed_at)}</dd>
+                              </div>
+                              <div>
+                                <dt className="inline font-medium">
+                                  {L("Idempotencja", "Idempotency")}:{" "}
+                                </dt>
+                                <dd className="inline">
+                                  {L("klucz", "key")} {row.event_id.slice(0, 12)}… ·{" "}
+                                  {(row.retry_count ?? 0) === 0
+                                    ? L("brak ponowień", "no retries")
+                                    : L(
+                                        `ponowienia: ${row.retry_count}`,
+                                        `retries: ${row.retry_count}`,
+                                      )}
+                                </dd>
                               </div>
                             </dl>
                             <pre className="max-h-72 overflow-auto rounded-[6px] bg-background p-3 text-[0.7rem] leading-relaxed">
