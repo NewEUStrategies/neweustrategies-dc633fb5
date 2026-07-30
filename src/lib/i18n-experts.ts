@@ -33,7 +33,8 @@ const pl = {
     email: "E-mail",
     phone: "Telefon",
     website: "Strona WWW",
-    mediaContactHint: "Zapytania medialne i o wywiady kieruj tutaj.",
+    mediaContactHint:
+      "Zapytania medialne i o wywiady. E-mail i telefon dla mediów nie są publikowane na stronie profilu - publicznie widoczna jest tylko osoba kontaktowa, a dane udostępnia redakcja.",
     // W mediach
     inTheNews: "W mediach",
     mediaKind: {
@@ -130,7 +131,8 @@ const en = {
     email: "Email",
     phone: "Phone",
     website: "Website",
-    mediaContactHint: "Media and interview requests should go here.",
+    mediaContactHint:
+      "Media and interview requests. The media e-mail and phone are never published on the profile page - only the contact person is shown publicly and the editorial team shares the details.",
     inTheNews: "In the News",
     mediaKind: {
       quote: "Quote",

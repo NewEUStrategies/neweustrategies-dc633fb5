@@ -113,7 +113,10 @@ const EMPTY: AuthorProfileRow = {
   media_contact_email: null,
   media_contact_phone: null,
   custom_socials: [],
-  is_public: true,
+  // Privacy by default (spójnie z DEFAULT false w bazie - migracja
+  // 20260730120000): nowy profil startuje jako ukryty, autor publikuje go
+  // świadomie przełącznikiem widoczności.
+  is_public: false,
 };
 
 interface ExpertiseAreaOption {
@@ -236,20 +239,33 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
   useEffect(() => {
     if (!userId) return;
     void (async () => {
-      const [{ data: row }, { data: prof }, { data: areas }, { data: myAreas }] = await Promise.all(
-        [
-          supabase
-            .from("author_profiles")
-            .select(
-              "avatar_url, job_title, company, bio_pl, bio_en, full_bio_pl, full_bio_en, org_functions, contact_email, phone, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, media_contact_name, media_contact_email, media_contact_phone, custom_socials, is_public",
-            )
-            .eq("user_id", userId)
-            .maybeSingle(),
+      // Kolumny kontaktowe (contact_email, phone, media_contact_email/phone)
+      // mają odebrany SELECT role-wide (REVOKE kolumnowy - migracje
+      // 20260720131542 / 20260730120000), więc bezpośredni select z
+      // author_profiles kończył się 42501 i formularz startował pusty mimo
+      // istniejącego wiersza. Pełny wiersz czytamy przez dedykowane funkcje
+      // SECURITY DEFINER: właściciel przez get_own_author_profile()
+      // (scope: auth.uid()), staff przez admin_get_author_profile()
+      // (scope: rola admin/super_admin + tenant admina).
+      const [{ data: row, error: rowErr }, { data: prof }, { data: areas }, { data: myAreas }] =
+        await Promise.all([
+          mode === "self"
+            ? supabase.rpc("get_own_author_profile").maybeSingle()
+            : supabase.rpc("admin_get_author_profile", { _user_id: userId }).maybeSingle(),
           supabase.from("profiles").select("bio_pl, bio_en").eq("id", userId).maybeSingle(),
           supabase.from("expertise_areas").select("id, name_pl, name_en").order("sort_order"),
           supabase.from("expert_expertise_areas").select("area_id").eq("user_id", userId),
-        ],
-      );
+        ]);
+      if (rowErr) {
+        // i18n.t (stabilna instancja) zamiast t z useTranslation: identyczność
+        // t zmienia się przy przełączeniu języka i wpięta w deps przeładowałaby
+        // formularz w trakcie edycji, gubiąc niezapisane zmiany.
+        toast.error(
+          i18n.t("profile.author.loadError", {
+            defaultValue: "Nie udało się wczytać profilu autora. Odśwież stronę.",
+          }),
+        );
+      }
       const canonicalBio = {
         bio_pl: preferCanonicalBio(prof?.bio_pl, row?.bio_pl ?? null),
         bio_en: preferCanonicalBio(prof?.bio_en, row?.bio_en ?? null),
@@ -262,10 +278,27 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
           ? (row.org_functions as unknown as OrgFunction[])
           : [];
         setData({
-          ...(row as unknown as AuthorProfileRow),
-          ...canonicalBio,
+          avatar_url: row.avatar_url,
+          job_title: row.job_title,
+          company: row.company,
+          bio_pl: canonicalBio.bio_pl,
+          bio_en: canonicalBio.bio_en,
+          full_bio_pl: row.full_bio_pl,
+          full_bio_en: row.full_bio_en,
           org_functions: orgFns,
+          contact_email: row.contact_email,
+          phone: row.phone,
+          website_url: row.website_url,
+          x_url: row.x_url,
+          linkedin_url: row.linkedin_url,
+          facebook_url: row.facebook_url,
+          instagram_url: row.instagram_url,
+          spotify_url: row.spotify_url,
+          media_contact_name: row.media_contact_name,
+          media_contact_email: row.media_contact_email,
+          media_contact_phone: row.media_contact_phone,
           custom_socials: cs,
+          is_public: row.is_public,
         });
         setExists(true);
       } else {
@@ -277,7 +310,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
       setBulletsPl(bioToBullets(canonicalBio.bio_pl));
       setBulletsEn(bioToBullets(canonicalBio.bio_en));
     })();
-  }, [userId]);
+  }, [userId, mode, i18n]);
 
   const upload = async (blob: Blob) => {
     if (!tenantId) return;
@@ -439,7 +472,8 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
             </Label>
             <p className="text-xs text-muted-foreground">
               {t("profile.author.isPublicHint", {
-                defaultValue: "Wyłączenie ukrywa profil w widget BIO autora we wpisach.",
+                defaultValue:
+                  "Nowy profil startuje jako ukryty. Wyłączenie ukrywa profil na stronie eksperta i w widget BIO autora we wpisach.",
               })}
             </p>
           </div>
@@ -706,17 +740,23 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
           )}
         </section>
 
-        {/* Kontakt */}
+        {/* Kontakt (niepubliczny - RODO/PII) */}
         <section className="grid gap-4">
           <h3 className="text-sm font-semibold text-foreground/80">
             {t("profile.author.contactSection", {
-              defaultValue: "Publiczne dane kontaktowe (mogą się różnić od profilu prywatnego)",
+              defaultValue: "Dane kontaktowe (niepubliczne)",
             })}
           </h3>
+          <p className="-mt-2 text-xs text-muted-foreground">
+            {t("profile.author.contactPrivacyHint", {
+              defaultValue:
+                "E-mail i telefon nie są publikowane na stronie profilu - widzisz je tylko Ty i administratorzy. Czytelnicy kontaktują się przez formularz zapytań.",
+            })}
+          </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <FieldLabel htmlFor="ape-contact_email">
-                {t("profile.author.contactEmail", { defaultValue: "Publiczny e-mail" })}
+                {t("profile.author.contactEmail", { defaultValue: "E-mail kontaktowy" })}
               </FieldLabel>
               <Input
                 id="ape-contact_email"

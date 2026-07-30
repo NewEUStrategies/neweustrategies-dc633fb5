@@ -15,7 +15,7 @@
 -- no seeding required.
 
 BEGIN;
-SELECT plan(23);
+SELECT plan(27);
 
 -- ── profiles: account e-mail + private prefs never leave the row owner ──────
 SELECT ok(
@@ -101,13 +101,20 @@ SELECT ok(
 
 -- ── author_profiles: table grant must not re-expose contact PII ──────────────
 -- (20260715095639 for anon; 20260720120000 converts authenticated off the
--- table grant to an explicit column grant.) The press contacts (media_contact_*)
--- are opt-in public for is_public authors and stay readable; the personal
--- `phone` and the anon-side contact columns must be withheld. A future
--- `GRANT SELECT ON author_profiles` (the documented footgun) breaks CI here.
+-- table grant to an explicit column grant; 20260730120000 pins the full
+-- contact set for BOTH roles.) ALL contact routes - phone, contact_email,
+-- media_contact_email, media_contact_phone - are role-wide withheld: the owner
+-- reads them via get_own_author_profile(), tenant admins via
+-- admin_get_author_profile(). Only media_contact_name (a display name, not a
+-- contact route) stays public. A future `GRANT SELECT ON author_profiles`
+-- (the documented footgun) breaks CI here.
 SELECT ok(
   NOT has_column_privilege('anon', 'public.author_profiles', 'phone', 'SELECT'),
   'anon CANNOT SELECT author_profiles.phone'
+);
+SELECT ok(
+  NOT has_column_privilege('anon', 'public.author_profiles', 'contact_email', 'SELECT'),
+  'anon CANNOT SELECT author_profiles.contact_email'
 );
 SELECT ok(
   NOT has_column_privilege('anon', 'public.author_profiles', 'media_contact_email', 'SELECT'),
@@ -120,6 +127,18 @@ SELECT ok(
 SELECT ok(
   NOT has_column_privilege('authenticated', 'public.author_profiles', 'phone', 'SELECT'),
   'authenticated CANNOT SELECT author_profiles.phone (personal number, never rendered publicly)'
+);
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.author_profiles', 'contact_email', 'SELECT'),
+  'authenticated CANNOT SELECT author_profiles.contact_email role-wide (owner via get_own_author_profile, admin via admin_get_author_profile)'
+);
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.author_profiles', 'media_contact_email', 'SELECT'),
+  'authenticated CANNOT SELECT author_profiles.media_contact_email role-wide'
+);
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.author_profiles', 'media_contact_phone', 'SELECT'),
+  'authenticated CANNOT SELECT author_profiles.media_contact_phone role-wide'
 );
 SELECT ok(
   has_column_privilege('authenticated', 'public.author_profiles', 'is_public', 'SELECT'),

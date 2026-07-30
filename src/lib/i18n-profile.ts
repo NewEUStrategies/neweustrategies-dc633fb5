@@ -19,11 +19,15 @@ const pl = {
       noRole:
         "Profil eksperta jest dostępny tylko dla użytkowników z rolą autora lub administratora.",
       isPublic: "Widoczny publicznie",
-      isPublicHint: "Wyłączenie ukrywa profil w widget BIO autora we wpisach.",
+      isPublicHint:
+        "Nowy profil startuje jako ukryty. Wyłączenie ukrywa profil na stronie eksperta i w widget BIO autora we wpisach.",
+      loadError: "Nie udało się wczytać profilu autora. Odśwież stronę.",
       avatarSection: "Zdjęcie eksperta",
       basicSection: "Dane zawodowe",
-      contactSection: "Publiczne dane kontaktowe (mogą się różnić od profilu prywatnego)",
-      contactEmail: "Publiczny e-mail",
+      contactSection: "Dane kontaktowe (niepubliczne)",
+      contactPrivacyHint:
+        "E-mail i telefon nie są publikowane na stronie profilu - widzisz je tylko Ty i administratorzy. Czytelnicy kontaktują się przez formularz zapytań.",
+      contactEmail: "E-mail kontaktowy",
       website: "Strona WWW",
       socialSection: "Media społecznościowe",
       socialLabel: "Etykieta",
@@ -570,11 +574,15 @@ const en: typeof pl = {
       noRole:
         "The expert profile is available only to users with the author or administrator role.",
       isPublic: "Publicly visible",
-      isPublicHint: "Turning this off hides the profile in the author BIO widget on posts.",
+      isPublicHint:
+        "A new profile starts hidden. Turning this off hides the profile on the expert page and in the author BIO widget on posts.",
+      loadError: "Could not load the author profile. Refresh the page.",
       avatarSection: "Expert photo",
       basicSection: "Professional details",
-      contactSection: "Public contact details (may differ from your private profile)",
-      contactEmail: "Public e-mail",
+      contactSection: "Contact details (not public)",
+      contactPrivacyHint:
+        "The e-mail and phone are never published on the profile page - only you and administrators can see them. Readers reach you via the request form.",
+      contactEmail: "Contact e-mail",
       website: "Website",
       socialSection: "Social media",
       socialLabel: "Label",
