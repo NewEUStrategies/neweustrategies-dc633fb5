@@ -121,6 +121,11 @@ export default defineConfig({
       },
       // 3) Watcher nie trzyma w pamięci katalogów, które nigdy nie wchodzą do
       //    grafu aplikacji (migracje, dokumentacja, artefakty testów).
+      //    Dodatkowo ignorujemy pliki `.env*`: platforma cyklicznie zapisuje je
+      //    ponownie z IDENTYCZNĄ treścią (sync tokenów płatności), a Vite
+      //    traktuje każdy zapis jako zmianę env => pełny restart serwera.
+      //    Przy tej wielkości grafu restart trwa minuty, w trakcie których
+      //    podgląd zwraca "connection refused" albo nieinteraktywny HTML.
       watch: {
         ignored: [
           "**/supabase/**",
@@ -129,8 +134,11 @@ export default defineConfig({
           "**/playwright-report/**",
           "**/coverage/**",
           "**/.lovable/**",
+          "**/.env",
+          "**/.env.*",
         ],
       },
+
     },
 
     // Minifikacja WSZYSTKICH środowisk builda esbuildem (2026-07-24). Historia:
