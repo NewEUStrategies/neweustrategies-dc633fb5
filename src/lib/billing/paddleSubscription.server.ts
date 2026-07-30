@@ -51,6 +51,30 @@ export async function cancelSubscriptionAtPeriodEnd(
   }
 }
 
+/**
+ * Anulowanie ze skutkiem natychmiastowym (`immediately`).
+ * Używane przy usunięciu konta: po skasowaniu użytkownika nie ma komu wysłać
+ * przypomnienia ani obsłużyć końca okresu, więc cykliczne obciążenia muszą
+ * ustać od razu - inaczej klient płaciłby za konto, którego już nie ma.
+ */
+export async function cancelSubscriptionImmediately(
+  env: PaddleEnv,
+  subscriptionId: string,
+): Promise<SubscriptionOpResult> {
+  try {
+    const res = await gatewayFetch(env, `/subscriptions/${subscriptionId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ effective_from: "immediately" }),
+    });
+    if (!res.ok) return { ok: false, error: await readError(res) };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+
+
 /** Cofnięcie zaplanowanego anulowania, dopóki opłacony okres trwa. */
 export async function resumeScheduledCancellation(
   env: PaddleEnv,
