@@ -127,9 +127,6 @@ export default defineConfig({
         ssrFiles: [
           "./src/routes/__root.tsx",
           "./src/routes/index.tsx",
-          "./src/components/admin/builder/BuilderRenderer.tsx",
-          "./src/components/admin/builder/WidgetView.tsx",
-          "./src/components/admin/builder/ui/organisms/widget-view/lazyWidgets.tsx",
         ],
         clientFiles: ["./src/routes/__root.tsx", "./src/routes/index.tsx"],
       },
