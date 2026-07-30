@@ -72,6 +72,33 @@ export function ParagraphBlock({
         class:
           "prose prose-sm dark:prose-invert max-w-none outline-none min-h-[1.5em] focus:outline-none",
       },
+      // Wklejanie z Worda / Google Docs: zachowujemy strukturę (nagłówki,
+      // listy, tabele, cytaty, entery) i zamieniamy przypisy dolne na wspólny
+      // shortcode [fn]…[/fn]. Styl źródłowy jest odrzucany.
+      handlePaste: (_view, event) => {
+        const rich = event.clipboardData?.getData("text/html") ?? "";
+        if (!looksLikeRichPaste(rich)) return false;
+        const blocks = parseWordHtml(rich);
+        if (!blocks.length) return false;
+        const ed = editor;
+        const transform = handlersRef.current.onTransform;
+        const singleParagraph =
+          blocks.length === 1 && blocks[0].type === "paragraph" ? blocks[0] : null;
+        if (singleParagraph || !transform || !ed) {
+          const inline = singleParagraph
+            ? String(singleParagraph.data.html ?? "")
+            : parseWordInlineHtml(rich);
+          if (!inline) return false;
+          event.preventDefault();
+          ed?.commands.insertContent(inline);
+          return true;
+        }
+        event.preventDefault();
+        const keepCurrent = !ed.isEmpty;
+        transform(keepCurrent ? [{ ...block, data: { ...block.data, html: ed.getHTML() } }, ...blocks] : blocks);
+        return true;
+      },
+
       handleKeyDown: (_view, event) => {
         const ed = editor;
         if (!ed) return false;
