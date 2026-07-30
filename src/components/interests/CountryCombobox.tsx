@@ -14,19 +14,11 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
-// `/index.js` and NOT the bare package: the package's Node entry (`main:
-// entry-node`) registers every locale through a dynamic `require("./langs/" +
-// lang + ".json")` that Rollup cannot bundle, so the SSR Worker chunk throws at
-// module init and every request 500s. The browser field points at index.js;
-// importing it directly gives both builds the same lazily-registered library.
-// The module is CommonJS (exports.*), so we use namespace import, not default.
-import * as countries from "i18n-iso-countries/index.js";
-import enLocale from "i18n-iso-countries/langs/en.json";
-import plLocale from "i18n-iso-countries/langs/pl.json";
+// `i18n-iso-countries/index.js` is CommonJS and uses `require()`, which is
+// undefined in the browser. We use a tiny ESM-only wrapper that imports the
+// static locale JSON files directly.
+import { getAlpha2Code, getNames } from "@/lib/countries";
 import { cn } from "@/lib/utils";
-
-countries.registerLocale(enLocale);
-countries.registerLocale(plLocale);
 
 interface CountryComboboxProps {
   value: string;
