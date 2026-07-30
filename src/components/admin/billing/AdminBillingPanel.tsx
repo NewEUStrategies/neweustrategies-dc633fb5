@@ -257,8 +257,8 @@ export function AdminBillingPanel() {
         <CardContent className="space-y-1 pt-0 text-[0.8125rem] text-muted-foreground">
           <p>
             {L(
-              "Katalog odtwarza się automatycznie po restarcie integracji operatora - przed pierwszym zakupem i po pierwszym zdarzeniu webhooka.",
-              "The catalog is rebuilt automatically after the payment integration restarts - before the first purchase and after the first webhook event.",
+              "Katalog odtwarza się automatycznie po restarcie integracji operatora oraz po wdrożeniu zmian w cenniku - przy pierwszym zdarzeniu webhooka lub przed pierwszym zakupem.",
+              "The catalog is rebuilt automatically after the payment integration restarts and after a pricing deployment - on the first webhook event or before the first purchase.",
             )}
           </p>
           {catalogStateQ.data ? (
@@ -271,6 +271,15 @@ export function AdminBillingPanel() {
                   ? L("Integracja zsynchronizowana", "Integration in sync")
                   : L("Wykryto restart integracji", "Integration restart detected")}
               </Badge>
+              <Badge
+                variant={catalogStateQ.data.catalogCurrent ? "secondary" : "outline"}
+                className="rounded-[6px]"
+              >
+                {catalogStateQ.data.catalogCurrent
+                  ? L("Cennik aktualny", "Pricing up to date")
+                  : L("Zmiana cennika - sync w kolejce", "Pricing changed - sync queued")}
+              </Badge>
+
               <span>
                 {catalogStateQ.data.lastSyncedAt
                   ? `${L("Ostatnia synchronizacja", "Last sync")}: ${new Date(

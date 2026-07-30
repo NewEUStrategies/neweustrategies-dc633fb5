@@ -9,12 +9,16 @@ import type { Json } from "@/integrations/supabase/types";
 import { getConnectionApiKey, type PaddleEnv } from "@/lib/paddle.server";
 
 import {
+  catalogFingerprintSource,
   resyncReason,
   syncStatusFrom,
+  type CatalogFingerprintEntry,
   type IntegrationSyncState,
   type ResyncReason,
 } from "./catalogAutoSync";
+import { PADDLE_CATALOG } from "./paddleCatalog";
 import type { CatalogSyncReport } from "./paddleCatalogSync.server";
+
 
 export interface AutoSyncOutcome {
   environment: PaddleEnv;
@@ -30,7 +34,10 @@ export interface IntegrationStateRow extends IntegrationSyncState {
   lastError: string | null;
   lastReport: CatalogSyncReport | null;
   fingerprintCurrent: boolean;
+  /** Czy zsynchronizowany katalog odpowiada aktualnemu cennikowi w bazie. */
+  catalogCurrent: boolean;
 }
+
 
 async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
@@ -53,6 +60,7 @@ async function admin() {
 
 async function readState(env: PaddleEnv): Promise<{
   fingerprint: string | null;
+  catalogFingerprint: string | null;
   lastSyncedAt: string | null;
   lastStatus: IntegrationSyncState["lastStatus"];
   lastReason: string | null;
@@ -62,12 +70,15 @@ async function readState(env: PaddleEnv): Promise<{
   const supabase = await admin();
   const { data } = await supabase
     .from("payment_integration_state")
-    .select("fingerprint, last_synced_at, last_status, last_reason, last_error, last_report")
+    .select(
+      "fingerprint, catalog_fingerprint, last_synced_at, last_status, last_reason, last_error, last_report",
+    )
     .eq("environment", env)
     .maybeSingle();
 
   return {
     fingerprint: data?.fingerprint ?? null,
+    catalogFingerprint: data?.catalog_fingerprint ?? null,
     lastSyncedAt: data?.last_synced_at ?? null,
     lastStatus: (data?.last_status as IntegrationSyncState["lastStatus"]) ?? null,
     lastReason: data?.last_reason ?? null,
@@ -76,18 +87,79 @@ async function readState(env: PaddleEnv): Promise<{
   };
 }
 
+interface PlanFingerprintRow {
+  tier_key: string | null;
+  interval: string | null;
+  price_cents: number | null;
+  currency: string | null;
+  name_pl: string | null;
+  name_en: string | null;
+  description_pl: string | null;
+  trial_days: number | null;
+  active: boolean | null;
+}
+
+/**
+ * Odcisk treści cennika: mapowanie `PADDLE_CATALOG` (kod, zmienia się przy
+ * wdrożeniu) + wartości z `access_plans` (baza). Dzięki temu pierwsze zdarzenie
+ * od operatora po wdrożeniu nowych planów odtwarza katalog samo.
+ * Gdy odczyt bazy zawiedzie, zwracamy `null` - brak odcisku nie może wymuszać
+ * synchronizacji w kółko.
+ */
+export async function catalogFingerprint(): Promise<string | null> {
+  try {
+    const supabase = await admin();
+    const { data, error } = await supabase
+      .from("access_plans")
+      .select(
+        "tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active",
+      );
+    if (error) return null;
+    const plans = (data ?? []) as PlanFingerprintRow[];
+
+    const entries: CatalogFingerprintEntry[] = PADDLE_CATALOG.map((entry) => {
+      const plan =
+        plans.find(
+          (p) => p.tier_key === entry.tierKey && (p.interval ?? "month") === entry.interval,
+        ) ?? plans.find((p) => p.tier_key === entry.tierKey);
+      return {
+        priceId: entry.priceId,
+        productId: entry.productId,
+        interval: entry.interval,
+        perSeat: entry.perSeat,
+        amountCents: plan?.price_cents ?? null,
+        currency: plan?.currency ?? null,
+        name: plan?.name_pl ?? plan?.name_en ?? null,
+        description: plan?.description_pl ?? null,
+        trialDays: plan?.trial_days ?? null,
+        active: plan?.active !== false && plan !== undefined,
+      };
+    });
+
+    return (await sha256Hex(catalogFingerprintSource(entries))).slice(0, 16);
+  } catch {
+    return null;
+  }
+}
+
 /** Stan integracji dla panelu administracyjnego. */
 export async function getIntegrationState(env: PaddleEnv): Promise<IntegrationStateRow> {
-  const [state, current] = await Promise.all([readState(env), integrationFingerprint(env)]);
+  const [state, current, catalog] = await Promise.all([
+    readState(env),
+    integrationFingerprint(env),
+    catalogFingerprint(),
+  ]);
   return {
     environment: env,
     fingerprint: state.fingerprint,
+    catalogFingerprint: state.catalogFingerprint,
     lastSyncedAt: state.lastSyncedAt,
     lastStatus: state.lastStatus,
     lastReason: state.lastReason,
     lastError: state.lastError,
     lastReport: state.lastReport,
     fingerprintCurrent: state.fingerprint === current,
+    catalogCurrent: catalog === null || state.catalogFingerprint === catalog,
   };
 }
 
@@ -96,11 +168,16 @@ export async function recordManualSync(
   env: PaddleEnv,
   report: CatalogSyncReport,
 ): Promise<void> {
-  const [supabase, fingerprint] = await Promise.all([admin(), integrationFingerprint(env)]);
+  const [supabase, fingerprint, catalog] = await Promise.all([
+    admin(),
+    integrationFingerprint(env),
+    catalogFingerprint(),
+  ]);
   await supabase.from("payment_integration_state").upsert(
     {
       environment: env,
       fingerprint,
+      catalog_fingerprint: catalog,
       last_synced_at: report.ranAt,
       last_status: syncStatusFrom(report),
       last_reason: "manual",
@@ -123,10 +200,18 @@ export function __resetAutoSyncCacheForTests(): void {
 }
 
 async function runEnsure(env: PaddleEnv, force: boolean): Promise<AutoSyncOutcome> {
-  const [state, fingerprint] = await Promise.all([readState(env), integrationFingerprint(env)]);
+  const [state, fingerprint, catalog] = await Promise.all([
+    readState(env),
+    integrationFingerprint(env),
+    catalogFingerprint(),
+  ]);
   const reason = force
     ? ("integration_restarted" as ResyncReason)
-    : resyncReason({ ...state, currentFingerprint: fingerprint });
+    : resyncReason({
+        ...state,
+        currentFingerprint: fingerprint,
+        currentCatalogFingerprint: catalog,
+      });
 
   if (!reason) return { environment: env, ran: false, reason: null, report: null };
 
@@ -140,7 +225,11 @@ async function runEnsure(env: PaddleEnv, force: boolean): Promise<AutoSyncOutcom
       {
         environment: env,
         fingerprint,
+        // Odcisk cennika zapisujemy dopiero po udanej synchronizacji - inaczej
+        // częściowa porażka uznałaby zmieniony cennik za wdrożony.
+        catalog_fingerprint: status === "ok" ? catalog : state.catalogFingerprint,
         last_synced_at: report.ranAt,
+
         last_status: status,
         last_reason: reason,
         last_error: null,

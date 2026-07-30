@@ -9,17 +9,22 @@
 export type ResyncReason =
   | "first_run"
   | "integration_restarted"
+  | "catalog_changed"
   | "retry_after_failure"
   | "stale";
 
 export interface IntegrationSyncState {
   fingerprint: string | null;
+  /** Odcisk treści cennika (plany + mapowanie na ceny operatora). */
+  catalogFingerprint?: string | null;
   lastSyncedAt: string | null;
   lastStatus: "ok" | "partial" | "failed" | null;
 }
 
 export interface ResyncInput extends IntegrationSyncState {
   currentFingerprint: string;
+  /** Odcisk cennika policzony z aktualnego wdrożenia i bazy. */
+  currentCatalogFingerprint?: string | null;
   now?: Date;
   /** Odświeżenie kontrolne, nawet gdy nic się nie zmieniło. */
   ttlMs?: number;
@@ -30,13 +35,54 @@ export interface ResyncInput extends IntegrationSyncState {
 export const CATALOG_SYNC_TTL_MS = 24 * 60 * 60 * 1000;
 export const CATALOG_SYNC_RETRY_MS = 10 * 60 * 1000;
 
+/**
+ * Kanoniczna reprezentacja cennika - stabilna kolejność i tylko te pola,
+ * które trafiają do operatora. Zmiana kwoty, waluty, nazwy, triala lub
+ * dostępności planu zmienia odcisk, więc pierwsze zdarzenie po wdrożeniu
+ * uruchamia synchronizację bez ręcznego klikania w panelu.
+ */
+export interface CatalogFingerprintEntry {
+  priceId: string;
+  productId: string;
+  interval: string;
+  perSeat?: boolean;
+  amountCents: number | null;
+  currency: string | null;
+  name: string | null;
+  description: string | null;
+  trialDays: number | null;
+  active: boolean;
+}
+
+export function catalogFingerprintSource(entries: readonly CatalogFingerprintEntry[]): string {
+  return entries
+    .map((e) =>
+      [
+        e.priceId,
+        e.productId,
+        e.interval,
+        e.perSeat ? "seat" : "unit",
+        e.amountCents ?? "",
+        (e.currency ?? "").toUpperCase(),
+        e.name ?? "",
+        e.description ?? "",
+        e.trialDays ?? "",
+        e.active ? "1" : "0",
+      ].join("|"),
+    )
+    .sort()
+    .join("\n");
+}
+
 /** Zwraca powód resynchronizacji albo `null`, gdy katalog jest aktualny. */
 export function resyncReason(input: ResyncInput): ResyncReason | null {
   const {
     fingerprint,
+    catalogFingerprint = null,
     lastSyncedAt,
     lastStatus,
     currentFingerprint,
+    currentCatalogFingerprint = null,
     now = new Date(),
     ttlMs = CATALOG_SYNC_TTL_MS,
     retryAfterMs = CATALOG_SYNC_RETRY_MS,
@@ -51,8 +97,16 @@ export function resyncReason(input: ResyncInput): ResyncReason | null {
   if (lastStatus === "failed" || lastStatus === "partial") {
     return age >= retryAfterMs ? "retry_after_failure" : null;
   }
+
+  // Wdrożenie zmieniło cennik (nowy plan, inna kwota, trial) - odtwarzamy
+  // katalog od razu, nie czekając na kontrolne odświeżenie po TTL.
+  if (currentCatalogFingerprint && catalogFingerprint !== currentCatalogFingerprint) {
+    return "catalog_changed";
+  }
+
   return age >= ttlMs ? "stale" : null;
 }
+
 
 /** Status wyniku synchronizacji zapisywany w stanie integracji. */
 export function syncStatusFrom(report: { failed: number; items: unknown[] }):

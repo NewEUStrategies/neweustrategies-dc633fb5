@@ -6201,6 +6201,7 @@ export type Database = {
       }
       payment_integration_state: {
         Row: {
+          catalog_fingerprint: string | null
           created_at: string
           environment: string
           fingerprint: string | null
@@ -6212,6 +6213,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          catalog_fingerprint?: string | null
           created_at?: string
           environment: string
           fingerprint?: string | null
@@ -6223,6 +6225,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          catalog_fingerprint?: string | null
           created_at?: string
           environment?: string
           fingerprint?: string | null
