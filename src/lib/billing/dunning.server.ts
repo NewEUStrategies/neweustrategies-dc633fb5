@@ -93,6 +93,13 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     return;
   }
 
+  // Deduplikacja: drugie zdarzenie o tej samej nieudanej transakcji
+  // (`past_due` po `payment_failed` lub odwrotnie, w dowolnej kolejności) nie
+  // podbija licznika i nie generuje kolejnego maila ani dzwonka.
+  if (ctx.transactionId && sub.last_dunning_transaction_id === ctx.transactionId) {
+    return;
+  }
+
   const attempt = (sub.payment_failure_count ?? 0) + 1;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   await supabaseAdmin
@@ -100,10 +107,13 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     .update({
       payment_failure_count: attempt,
       last_payment_failed_at: ctx.occurredAt,
+      last_dunning_transaction_id: ctx.transactionId ?? null,
+      last_dunning_at: ctx.occurredAt,
       updated_at: new Date().toISOString(),
     })
     .eq("paddle_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment);
+
 
   const plan = await resolvePlanForPrice(sub.price_id);
 
