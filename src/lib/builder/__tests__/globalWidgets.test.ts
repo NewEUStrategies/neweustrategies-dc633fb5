@@ -4,6 +4,7 @@ import {
   makeGlobalInstance,
   mergeGlobalIntoInstance,
   parseGlobalWidgetData,
+  resolveGlobalWidgetInstance,
   widgetToGlobalData,
 } from "../globalWidgets";
 import type { WidgetNode } from "../types";
@@ -72,5 +73,17 @@ describe("makeGlobalInstance / mergeGlobalIntoInstance", () => {
     expect(merged.style).toEqual({ bgColor: "#222" });
     // Stale advanced from the snapshot must not leak into the merged node.
     expect(merged.advanced).toBeUndefined();
+  });
+
+  it("keeps optimistic instance values in the builder while the global cache is stale", () => {
+    const instance = makeGlobalInstance({ id: "g1", data: widgetToGlobalData(widget) });
+    instance.content = { ...instance.content, titleSize: 39 };
+    const staleGlobal = {
+      ...widgetToGlobalData(widget),
+      content: { ...widget.content, titleSize: 24 },
+    };
+
+    expect(resolveGlobalWidgetInstance(instance, staleGlobal, true).content.titleSize).toBe(39);
+    expect(resolveGlobalWidgetInstance(instance, staleGlobal, false).content.titleSize).toBe(24);
   });
 });
