@@ -63,6 +63,52 @@ function readIds(data: SubscriptionData) {
   };
 }
 
+/**
+ * Strażnik kolejności zdarzeń subskrypcji.
+ *
+ * Operator nie gwarantuje kolejności dostarczenia, a ponowna dostawa starego
+ * zdarzenia potrafi cofnąć stan (np. `past_due` po `activated`). Kolumna
+ * `last_event_at` przechowuje znacznik NAJŚWIEŻSZEGO zastosowanego zdarzenia;
+ * warunkowy UPDATE (`last_event_at < occurredAt`) jest atomowy, więc dwa
+ * równoległe zdarzenia nie przeskoczą się nawzajem.
+ *
+ * @returns `true` gdy zdarzenie jest świeższe niż zapisany stan (lub wiersza
+ *          jeszcze nie ma - wtedy przetwarzamy, bo to ścieżka zakładania).
+ */
+async function claimSubscriptionEvent(
+  subscriptionId: string,
+  env: PaddleEnv,
+  occurredAt: string,
+): Promise<boolean> {
+  const iso = new Date(occurredAt);
+  if (Number.isNaN(iso.getTime())) return true; // brak wiarygodnego czasu - nie blokujemy
+  const stamp = iso.toISOString();
+
+  const supabase = await admin();
+  const { data: claimed, error } = await supabase
+    .from("subscriptions")
+    .update({ last_event_at: stamp })
+    .eq("paddle_subscription_id", subscriptionId)
+    .eq("environment", env)
+    .or(`last_event_at.is.null,last_event_at.lt.${stamp}`)
+    .select("id");
+  if (error) throw new Error(`subscription event claim failed: ${error.message}`);
+  if (claimed && claimed.length > 0) return true;
+
+  // Zero zaktualizowanych wierszy: albo subskrypcji jeszcze nie ma (zdarzenie
+  // wyprzedziło `created`), albo zapisany stan jest nowszy.
+  const { data: exists, error: existsErr } = await supabase
+    .from("subscriptions")
+    .select("id")
+    .eq("paddle_subscription_id", subscriptionId)
+    .eq("environment", env)
+    .maybeSingle();
+  if (existsErr) throw new Error(`subscription lookup failed: ${existsErr.message}`);
+  return !exists;
+}
+
+
+
 async function handleCreated(data: SubscriptionData, env: PaddleEnv) {
   const userId = data.customData?.userId;
   const { priceId, productId, quantity, trialEndsAt } = readIds(data);
