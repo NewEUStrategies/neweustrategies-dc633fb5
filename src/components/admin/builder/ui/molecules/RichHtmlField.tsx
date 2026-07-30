@@ -4,6 +4,8 @@
 // Wartością pola pozostaje HTML string - żadnej zmiany w schemacie/renderze.
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { looksLikeRichPaste, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
+
 import {
   Bold,
   Italic,
@@ -205,8 +207,17 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
         onInput={emit}
         onBlur={emit}
         onPaste={(e) => {
-          // Paste jako plain text - blokuje wklejenie stylów z Worda/Notion.
+          // Zachowujemy strukturę inline i przypisy dolne z Worda/Google Docs,
+          // odrzucając style i klasy edytora źródłowego.
           e.preventDefault();
+          const rich = e.clipboardData.getData("text/html");
+          if (looksLikeRichPaste(rich)) {
+            const safe = parseWordInlineHtml(rich);
+            if (safe) {
+              exec("insertHTML", safe);
+              return;
+            }
+          }
           const text = e.clipboardData.getData("text/plain");
           exec("insertText", text);
         }}
