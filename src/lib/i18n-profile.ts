@@ -395,7 +395,33 @@ const pl = {
         kind: { invoice: "Faktura", receipt: "Paragon", credit_note: "Korekta" },
         status: { paid: "Opłacony", open: "Otwarty", void: "Anulowany", refunded: "Zwrócony" },
       },
+      invoiceLookup: {
+        title: "Faktura po numerze transakcji",
+        hint: "Numer transakcji (txn_...) znajdziesz w mailu z potwierdzeniem płatności. Link do pliku jest jednorazowy i krótkotrwały.",
+        label: "Numer transakcji",
+        cta: "Znajdź fakturę",
+        found: "Faktura gotowa do pobrania",
+        download: "Pobierz fakturę (PDF)",
+        errors: {
+          invalid_transaction: "Nieprawidłowy numer transakcji - powinien zaczynać się od txn_.",
+          not_found: "Nie znaleziono takiej transakcji.",
+          forbidden: "Ta transakcja nie należy do Twojego konta.",
+          invoice_unavailable: "Nie udało się pobrać faktury. Spróbuj ponownie za chwilę.",
+        },
+      },
+      portalEmail: {
+        hint: "Wyślemy na adres Twojego konta jednorazowy link do portalu płatności - zmienisz tam metodę płatności, pobierzesz faktury lub anulujesz subskrypcję.",
+        cta: "Wyślij link do portalu",
+        sent: "Link wysłany na {{email}}",
+        errors: {
+          no_customer: "Brak powiązanego konta płatnika - link będzie dostępny po pierwszej płatności.",
+          portal_failed: "Nie udało się utworzyć linku do portalu. Spróbuj ponownie.",
+          no_recipient: "Brak adresu e-mail na koncie.",
+          send_failed: "Nie udało się wysłać wiadomości. Spróbuj ponownie.",
+        },
+      },
       colDate: "Data",
+
       colItem: "Pozycja",
       colAmount: "Kwota",
       colStatus: "Status",
