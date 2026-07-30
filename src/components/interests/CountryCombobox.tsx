@@ -19,7 +19,8 @@ import { createPortal } from "react-dom";
 // lang + ".json")` that Rollup cannot bundle, so the SSR Worker chunk throws at
 // module init and every request 500s. The browser field points at index.js;
 // importing it directly gives both builds the same lazily-registered library.
-import countries from "i18n-iso-countries/index.js";
+// The module is CommonJS (exports.*), so we use namespace import, not default.
+import * as countries from "i18n-iso-countries/index.js";
 import enLocale from "i18n-iso-countries/langs/en.json";
 import plLocale from "i18n-iso-countries/langs/pl.json";
 import { cn } from "@/lib/utils";
