@@ -174,9 +174,28 @@ export const getRouter = () => {
     // hydration begins, so this delays first paint by at most one tick.
     const integrationHydrate = router.options.hydrate;
     router.options.hydrate = async (dehydrated) => {
-      await integrationHydrate?.(dehydrated);
+      // Twardy budżet: jeśli strumień zapytań z SSR nigdy nie domknie się w
+      // przeglądarce, `integrationHydrate` nigdy się nie rozstrzyga, React nie
+      // hydratuje i cała strona zostaje statycznym HTML-em (przyciski i linki
+      // nie reagują). Brakujące dane po prostu dociągną się przez refetch.
+      const HYDRATE_BUDGET_MS = 1500;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          integrationHydrate?.(dehydrated),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(() => {
+              console.warn("[ssr-hydrate] hydration stream exceeded budget - continuing");
+              resolve();
+            }, HYDRATE_BUDGET_MS);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     };
+
   }
 
   return router;

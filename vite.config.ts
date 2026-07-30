@@ -71,15 +71,34 @@ export default defineConfig({
     // @tanstack/react-start stays out because its server entry must never be
     // pulled into the browser dependency graph.
     optimizeDeps: {
+      // Pełna lista "gorących" zależności klienta. Bez niej Vite odkrywa je
+      // dopiero w trakcie ładowania strony, przeładowuje optimizer w locie i
+      // żądania modułów wysłane ze starym `?v=` hashem nigdy się nie kończą -
+      // React nie hydratuje, a strona zostaje statycznym HTML-em (przyciski,
+      // logowanie i linki nie reagują).
       include: [
+        "react",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "react-dom",
+        "react-dom/client",
+        "@tanstack/react-router",
+        "@tanstack/react-router-ssr-query",
+        "@tanstack/react-query",
+        "@tanstack/react-start",
         "@tanstack/history",
         "@tanstack/router-core",
+        "@tanstack/router-core/isServer",
         "@tanstack/router-core/ssr/client",
         "@tanstack/router-core/ssr/server",
+        "@supabase/supabase-js",
+        "i18next",
+        "react-i18next",
         "h3-v2",
         "seroval",
       ],
     },
+
     // --- DEV-ONLY: pamięć i zimny start SSR (incydent: OOM `heap out of
     // memory` po serii renderów SSR w trybie dev). Przyczyna jest artefaktem
     // dev-a, nie produkcji: w dev każdy `React.lazy(() => import(...))` z
