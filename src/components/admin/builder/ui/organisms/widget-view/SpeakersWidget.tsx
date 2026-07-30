@@ -16,6 +16,7 @@ import {
   User as UserIcon,
   Search as SearchIcon,
   Bookmark as BookmarkIcon,
+  ShieldCheck,
 } from "@/lib/lucide-shim";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -95,6 +96,33 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
+/** Wiersz z RPC -> kształt karty (ten sam, co wpisy ręczne), więc filtrowanie,
+ *  sortowanie i paginacja działają identycznie dla każdego źródła. */
+function speakerRowToItem(row: PublicSpeakerRow): SpeakerItem {
+  const rolePl = row.headline_pl || row.job_title || "";
+  const roleEn = row.headline_en || row.job_title || "";
+  return {
+    id: row.user_id,
+    user_id: row.user_id,
+    userId: row.user_id,
+    photo: row.avatar_url ?? "",
+    name: row.display_name ?? "",
+    role_pl: rolePl,
+    role_en: roleEn,
+    category_pl: "",
+    category_en: "",
+    gigs: row.talks_count,
+    rating: row.rating,
+    reviews: row.reviews_count,
+    description_pl: row.bio_pl ?? "",
+    description_en: row.bio_en ?? "",
+    href: row.slug ? `/author/${row.slug}` : "",
+    isExpert: row.is_expert,
+  };
+}
+
+
+
 export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const c = (node.content ?? {}) as WidgetContent;
   const cRaw = c as unknown as Record<string, unknown>;
@@ -127,16 +155,15 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
     enabled: source !== "manual",
   });
 
-  const speakersRaw = cRaw.speakers;
+  // Źródło danych: ręczne wpisy albo publiczna projekcja z RPC. Mapujemy
+  // wiersz RPC na TEN SAM kształt karty, więc filtry, sortowanie i paginacja
+  // działają identycznie niezależnie od źródła.
   const speakers: SpeakerItem[] = useMemo(
     () =>
-      Array.isArray(speakersRaw)
-        ? (speakersRaw as unknown[]).filter(
-            (x): x is SpeakerItem => typeof x === "object" && x !== null && !Array.isArray(x),
-          )
-        : [],
-    [speakersRaw],
+      source === "manual" ? manualSpeakers : (dbQ.data ?? []).map((row) => speakerRowToItem(row)),
+    [source, manualSpeakers, dbQ.data],
   );
+
 
   // Stabilne ID per pozycja (fallback po indeksie) - używane do bookmarków
   // i kluczy Reacta, liczone raz zamiast w każdym miejscu osobno.
@@ -434,9 +461,14 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
                   ? lang === "pl"
                     ? "Nie masz jeszcze zapisanych prelegentów."
                     : "You haven't saved any speakers yet."
-                  : lang === "pl"
-                    ? "Brak prelegentów w tej kategorii."
-                    : "No speakers in this category."}
+                  : source !== "manual"
+                    ? lang === "pl"
+                      ? "Brak publicznych profili prelegentów."
+                      : "No public speaker profiles."
+                    : lang === "pl"
+                      ? "Brak prelegentów w tej kategorii."
+                      : "No speakers in this category."}
+
             </p>
             {hasActiveFilters && (
               <button
@@ -636,11 +668,18 @@ function SpeakerCard({
           aria-hidden
           className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/45 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         />
+        {isExpert && (
+          <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-[6px] bg-background/90 px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-sm backdrop-blur-sm">
+            <ShieldCheck aria-hidden className="h-3 w-3" />
+            {lang === "pl" ? "Ekspert" : "Expert"}
+          </span>
+        )}
         {category && (
           <span className="absolute bottom-2 left-2 z-10 rounded-full bg-black/55 px-2.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
             {category}
           </span>
         )}
+
         {bookmarkBtn}
       </div>
 

@@ -508,10 +508,10 @@ describe("SpeakersWidget - behaviors (filter/search/sort/pagination)", () => {
     renderWithClient(<SpeakersWidget node={speakersNode(manualRoster())} lang="pl" />);
     expect(screen.getByText("Alfa Pierwsza")).toBeInTheDocument();
     expect(screen.getByText("Beta Druga")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "Cyber" }));
+    fireEvent.click(screen.getByRole("tab", { name: /Cyber/ }));
     expect(screen.getByText("Alfa Pierwsza")).toBeInTheDocument();
     expect(screen.queryByText("Beta Druga")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "Wszyscy" }));
+    fireEvent.click(screen.getByRole("tab", { name: /Wszyscy/ }));
     expect(screen.getByText("Beta Druga")).toBeInTheDocument();
   });
 
