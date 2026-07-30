@@ -16,6 +16,7 @@ import {
   User as UserIcon,
   Search as SearchIcon,
   Bookmark as BookmarkIcon,
+  ShieldCheck,
 } from "@/lib/lucide-shim";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
