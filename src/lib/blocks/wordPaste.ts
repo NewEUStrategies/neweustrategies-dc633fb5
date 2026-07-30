@@ -318,7 +318,10 @@ function parseBody(html: string): HTMLElement | null {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const body = doc.body;
   if (!body) return null;
-  body.querySelectorAll("script,style,meta,link,o\\:p").forEach((n) => n.remove());
+  body.querySelectorAll("script,style,meta,link").forEach((n) => n.remove());
+  Array.from(body.getElementsByTagName("*"))
+    .filter((el) => el.tagName.toLowerCase().startsWith("o:"))
+    .forEach((el) => el.remove());
   return body;
 }
 
