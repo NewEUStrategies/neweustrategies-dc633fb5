@@ -8,7 +8,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-export type AuthorProfileRpcRow = Database["public"]["Functions"]["get_own_author_profile"]["Returns"];
+export type AuthorProfileRpcRow =
+  Database["public"]["Functions"]["get_own_author_profile"]["Returns"][number];
 
 interface MaybeSingleResult<T> {
   data: T | null;
