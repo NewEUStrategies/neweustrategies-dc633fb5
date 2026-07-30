@@ -34,7 +34,7 @@ import {
   Share2,
   Gauge,
   MousePointerClick,
-  History as HistoryIcon,
+  Clock as HistoryIcon,
   FlaskConical,
   Link as LinkIcon,
   Search,
@@ -315,7 +315,7 @@ function AdminShellInner({
         },
         {
           to: "/admin/versions",
-          icon: History,
+          icon: HistoryIcon,
           label: t("admin.nav.versions", {
             defaultValue: lang === "pl" ? "Wersje i polityki" : "Versions & policies",
           }),
