@@ -89,6 +89,24 @@ export function mergeGlobalIntoInstance(instance: WidgetNode, data: GlobalWidget
   return { ...data, id: instance.id, kind: "widget", globalId: instance.globalId };
 }
 
+/**
+ * Resolve a global widget for its current rendering context.
+ *
+ * The builder document is the immediate source of truth while an instance is
+ * being edited. Its snapshot already contains the optimistic property change,
+ * whereas the shared query can still contain the previous persisted payload
+ * until the global-widget sync effect runs. Public/read-only renderers continue
+ * to prefer the live shared payload so all instances stay synchronized.
+ */
+export function resolveGlobalWidgetInstance(
+  instance: WidgetNode,
+  data: GlobalWidgetData | null,
+  preferInstance: boolean,
+): WidgetNode {
+  if (preferInstance || !instance.globalId || !data) return instance;
+  return mergeGlobalIntoInstance(instance, data);
+}
+
 // ---------- query keys (registered in WIDGET_LIVE_QUERY_PREFIXES) ----------
 
 export const globalWidgetKey = (id: string) => ["global-widget", id] as const;

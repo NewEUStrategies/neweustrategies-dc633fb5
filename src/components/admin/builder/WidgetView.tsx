@@ -24,7 +24,10 @@ import {
   resolveWidgetTypography,
 } from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
-import { mergeGlobalIntoInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
+import {
+  resolveGlobalWidgetInstance,
+  useGlobalWidgetNode,
+} from "@/lib/builder/globalWidgets";
 import { processWidgetFootnotes } from "@/lib/footnotes";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
@@ -122,10 +125,12 @@ export const WidgetView = memo(function WidgetView({
   // the embedded snapshot is only the SSR / first-paint fallback. The hook is a
   // no-op (disabled query) for regular widgets, so hook order stays stable.
   const globalData = useGlobalWidgetNode(instanceNode.globalId);
-  const overlaid =
-    instanceNode.globalId && globalData
-      ? mergeGlobalIntoInstance(instanceNode, globalData)
-      : instanceNode;
+  // Inside the builder the document snapshot contains the optimistic edit and
+  // must win immediately. Otherwise a still-stale global query overwrites the
+  // new value for one render (or indefinitely if sync is delayed), making the
+  // property control change while the canvas appears frozen. Read-only/public
+  // rendering still prefers the live global record.
+  const overlaid = resolveGlobalWidgetInstance(instanceNode, globalData, editable);
   // Overlay stomps the pre-processed snapshot with the raw live record, więc
   // [fn]…[/fn] w globalnym widgecie znika po hydratacji jeśli tu nie
   // przepuścimy tego przez ten sam silnik przypisów, którego używa
@@ -134,10 +139,10 @@ export const WidgetView = memo(function WidgetView({
   // dokumentowych) - marker + tooltip w atrybucie title wystarczy do UX.
   const node = useMemo(
     () =>
-      instanceNode.globalId && globalData
+      instanceNode.globalId && globalData && !editable
         ? processWidgetFootnotes(overlaid, lang).widget
         : overlaid,
-    [overlaid, instanceNode.globalId, globalData, lang],
+    [overlaid, instanceNode.globalId, globalData, editable, lang],
   );
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
