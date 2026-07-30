@@ -10957,6 +10957,7 @@ export type Database = {
           brand_accent: string | null
           brand_accent_dark: string | null
           company: string | null
+          contact_email: string | null
           counterpart_lang: string | null
           counterpart_user_id: string | null
           created_at: string | null
@@ -11526,51 +11527,6 @@ export type Database = {
       admin_delete_speaker_profile: {
         Args: { p_user_id: string }
         Returns: boolean
-      }
-      admin_get_author_profile: {
-        Args: { _user_id: string }
-        Returns: {
-          avatar_url: string | null
-          bio_en: string | null
-          bio_pl: string | null
-          brand_accent: string | null
-          brand_accent_dark: string | null
-          company: string | null
-          contact_email: string | null
-          counterpart_lang: string | null
-          counterpart_user_id: string | null
-          created_at: string
-          custom_socials: Json
-          facebook_url: string | null
-          full_bio_en: string | null
-          full_bio_pl: string | null
-          id: string
-          instagram_url: string | null
-          is_public: boolean
-          job_title: string | null
-          layout_overrides: Json | null
-          layout_preset: string | null
-          layout_section_order: string[] | null
-          layout_template_id: string | null
-          linkedin_url: string | null
-          media_contact_email: string | null
-          media_contact_name: string | null
-          media_contact_phone: string | null
-          org_functions: Json
-          phone: string | null
-          spotify_url: string | null
-          tenant_id: string
-          updated_at: string
-          user_id: string
-          website_url: string | null
-          x_url: string | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "author_profiles"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       admin_get_speaker_profile: {
         Args: { p_user_id: string }

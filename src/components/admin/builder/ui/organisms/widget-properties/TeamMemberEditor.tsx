@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw, ExternalLink, Link2Off } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { adminGetAuthorProfile } from "@/lib/experts/adminAuthorProfileRpc";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import { Button } from "@/components/ui/button";
@@ -68,7 +69,7 @@ async function fetchExpertHydration(userId: string): Promise<ExpertHydration | n
       )
       .eq("id", userId)
       .maybeSingle(),
-    supabase.rpc("admin_get_author_profile", { _user_id: userId }).maybeSingle(),
+    adminGetAuthorProfile(userId).maybeSingle(),
     supabase
       .from("author_profiles")
       .select("job_title, website_url, x_url, linkedin_url, full_bio_pl, full_bio_en")

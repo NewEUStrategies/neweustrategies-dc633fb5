@@ -95,6 +95,33 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
+/** Wiersz z RPC -> kształt karty (ten sam, co wpisy ręczne), więc filtrowanie,
+ *  sortowanie i paginacja działają identycznie dla każdego źródła. */
+function speakerRowToItem(row: PublicSpeakerRow): SpeakerItem {
+  const rolePl = row.headline_pl || row.job_title || "";
+  const roleEn = row.headline_en || row.job_title || "";
+  return {
+    id: row.user_id,
+    user_id: row.user_id,
+    userId: row.user_id,
+    photo: row.avatar_url ?? "",
+    name: row.display_name ?? "",
+    role_pl: rolePl,
+    role_en: roleEn,
+    category_pl: "",
+    category_en: "",
+    gigs: row.talks_count,
+    rating: row.rating,
+    reviews: row.reviews_count,
+    description_pl: row.bio_pl ?? "",
+    description_en: row.bio_en ?? "",
+    href: row.slug ? `/author/${row.slug}` : "",
+    isExpert: row.is_expert,
+  };
+}
+
+
+
 export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const c = (node.content ?? {}) as WidgetContent;
   const cRaw = c as unknown as Record<string, unknown>;
@@ -127,16 +154,15 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
     enabled: source !== "manual",
   });
 
-  const speakersRaw = cRaw.speakers;
+  // Źródło danych: ręczne wpisy albo publiczna projekcja z RPC. Mapujemy
+  // wiersz RPC na TEN SAM kształt karty, więc filtry, sortowanie i paginacja
+  // działają identycznie niezależnie od źródła.
   const speakers: SpeakerItem[] = useMemo(
     () =>
-      Array.isArray(speakersRaw)
-        ? (speakersRaw as unknown[]).filter(
-            (x): x is SpeakerItem => typeof x === "object" && x !== null && !Array.isArray(x),
-          )
-        : [],
-    [speakersRaw],
+      source === "manual" ? manualSpeakers : (dbQ.data ?? []).map((row) => speakerRowToItem(row)),
+    [source, manualSpeakers, dbQ.data],
   );
+
 
   // Stabilne ID per pozycja (fallback po indeksie) - używane do bookmarków
   // i kluczy Reacta, liczone raz zamiast w każdym miejscu osobno.

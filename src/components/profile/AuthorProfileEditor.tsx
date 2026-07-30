@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { adminGetAuthorProfile } from "@/lib/experts/adminAuthorProfileRpc";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -251,7 +252,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         await Promise.all([
           mode === "self"
             ? supabase.rpc("get_own_author_profile").maybeSingle()
-            : supabase.rpc("admin_get_author_profile", { _user_id: userId }).maybeSingle(),
+            : adminGetAuthorProfile(userId).maybeSingle(),
           supabase.from("profiles").select("bio_pl, bio_en").eq("id", userId).maybeSingle(),
           supabase.from("expertise_areas").select("id, name_pl, name_en").order("sort_order"),
           supabase.from("expert_expertise_areas").select("area_id").eq("user_id", userId),
