@@ -9955,6 +9955,7 @@ export type Database = {
           id: string
           last_dunning_at: string | null
           last_dunning_transaction_id: string | null
+          last_event_at: string | null
           last_payment_at: string | null
           last_payment_failed_at: string | null
           paddle_customer_id: string
@@ -9978,6 +9979,7 @@ export type Database = {
           id?: string
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
+          last_event_at?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
           paddle_customer_id: string
@@ -10001,6 +10003,7 @@ export type Database = {
           id?: string
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
+          last_event_at?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
           paddle_customer_id?: string
@@ -13510,6 +13513,10 @@ export type Database = {
       related_posts_signals: {
         Args: { _since_days?: number; _tenant: string }
         Returns: Json
+      }
+      release_b2b_coupon: {
+        Args: { _coupon_id: string; _order_id: string }
+        Returns: boolean
       }
       rename_group_conversation: {
         Args: { p_conversation_id: string; p_title: string }
