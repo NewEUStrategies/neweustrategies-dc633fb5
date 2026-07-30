@@ -10989,6 +10989,7 @@ export type Database = {
           brand_accent?: string | null
           brand_accent_dark?: string | null
           company?: string | null
+          contact_email?: never
           counterpart_lang?: string | null
           counterpart_user_id?: string | null
           created_at?: string | null
@@ -11021,6 +11022,7 @@ export type Database = {
           brand_accent?: string | null
           brand_accent_dark?: string | null
           company?: string | null
+          contact_email?: never
           counterpart_lang?: string | null
           counterpart_user_id?: string | null
           created_at?: string | null

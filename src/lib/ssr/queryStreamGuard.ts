@@ -26,7 +26,6 @@ import type { QueryClient, Query } from "@tanstack/react-query";
 
 import { sweepQueryCacheForSerialization } from "./postRenderSweep";
 
-
 export interface QueryStreamGuardOptions {
   /** Close once no query has been fetching for this long. */
   idleMs?: number;
@@ -157,8 +156,6 @@ export function guardQueryStream<T>(
       /* already closed by the runtime */
     }
   };
-
-
 
   return new ReadableStream<T>({
     start(c) {

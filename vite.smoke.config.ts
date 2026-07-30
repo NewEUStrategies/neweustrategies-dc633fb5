@@ -28,6 +28,12 @@ const nitroOptions = { preset: "node-server", minify: true };
 
 export default defineConfig({
   nitro: nitroOptions,
+  // Parytet z vite.config.ts: produkcyjny wrapper SSR entry (src/server.ts -
+  // normalizacja h3-500 + strażnik strumienia dokumentu) musi być objęty
+  // smoke-testem; bez tego override'u smoke omijał całą warstwę wrappera.
+  tanstackStart: {
+    server: { entry: "server" },
+  },
   vite: {
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
@@ -48,8 +54,19 @@ export default defineConfig({
     },
     // Minifikacja wszystkich środowisk builda esbuildem - lustrzane odbicie
     // vite.config.ts (2026-07-24; historia OOM i uzasadnienie tam).
+    //
+    // `external: cloudflare:*` - waitUntil.server.ts robi dynamiczny import
+    // `cloudflare:workers` (za try/catch); preset cloudflare stubuje ten
+    // specyfikator, ale node-server próbuje go rozwiązać rollupem (esbuild po
+    // minifikacji inline'uje zmienną specyfikatora, więc @vite-ignore znika)
+    // i cały build nitro pada. Externalizacja odtwarza kontrakt runtime'owy:
+    // na Node import rzuca, moduł łapie wyjątek i degraduje do
+    // fire-and-forget - dokładnie tak, jak opisuje to waitUntil.server.ts.
     build: {
       minify: "esbuild",
+      rollupOptions: {
+        external: [/^cloudflare:/],
+      },
     },
     // Do not set top-level Rollup `manualChunks` here. This config is shared by
     // the browser and Cloudflare server environments; forcing vendor chunks at

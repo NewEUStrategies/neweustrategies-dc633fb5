@@ -9,6 +9,7 @@ import {
   type ColoCache,
 } from "@/lib/http/documentCacheL2.server";
 import {
+  applyDeferredDocumentStore,
   getDocumentCacheSnapshot,
   handleDocumentRequest,
   purgeDocumentCache,
@@ -114,7 +115,9 @@ describe("documentCacheL2 (Cache API per-colo)", () => {
 describe("handleDocumentRequest z warstwą L2", () => {
   it("świeży izolat (pusty L1) serwuje HIT z wpisu kolonii bez renderu", async () => {
     const next = vi.fn(async () => htmlResponse("<html>doc</html>"));
-    const first = (await handleDocumentRequest(docRequest("/wpis"), next)) as Response;
+    const first = applyDeferredDocumentStore(
+      (await handleDocumentRequest(docRequest("/wpis"), next)) as Response,
+    );
     expect(first.headers.get(NES_CACHE_HEADER)).toBe("MISS");
     await first.text();
     await settle();
@@ -133,7 +136,9 @@ describe("handleDocumentRequest z warstwą L2", () => {
 
   it("purge hosta bumpuje wersję L2 - świeży izolat nie dostanie starego wpisu", async () => {
     const next = vi.fn(async () => htmlResponse("<html>v1</html>"));
-    const miss = (await handleDocumentRequest(docRequest("/wpis"), next)) as Response;
+    const miss = applyDeferredDocumentStore(
+      (await handleDocumentRequest(docRequest("/wpis"), next)) as Response,
+    );
     await miss.text();
     await settle();
 
@@ -149,7 +154,9 @@ describe("handleDocumentRequest z warstwą L2", () => {
   it("wpis L2 w oknie SWR: pierwsi czytelnicy dostają STALE, jeden płaci render", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     const next = vi.fn(async () => htmlResponse("<html>old</html>"));
-    const miss = (await handleDocumentRequest(docRequest("/wpis"), next)) as Response;
+    const miss = applyDeferredDocumentStore(
+      (await handleDocumentRequest(docRequest("/wpis"), next)) as Response,
+    );
     await miss.text();
     await vi.waitFor(() => {
       expect(getDocumentCacheSnapshot().entries).toBe(1);

@@ -16,9 +16,14 @@
 //   - STALE: wpis po świeżości serwowany natychmiast, a JEDNO żądanie
 //     (single-flight) płaci rewalidację; render, który się wywali, NIE zdejmuje
 //     strony - stale działa też jako bezpiecznik na czkawkę bazy;
-//   - MISS: strumień renderu jest tee-owany - czytelnik dostaje streaming SSR
-//     bez zmian, kopia zbiera się do L1 i L2 pod `ctx.waitUntil` (praca "za
-//     odpowiedzią" nie jest już ucinana przez domknięcie żądania);
+//   - MISS: middleware wyłącznie dekoruje nagłówki i REJESTRUJE odroczony
+//     zapis (WeakMap po tożsamości strumienia body); tee + zbieranie kopii do
+//     L1/L2 wykonuje `applyDeferredDocumentStore` w src/server.ts, ZA
+//     egzekutorem middleware - tee w środku łańcucha łamał tożsamość body
+//     koperty SSR i framework ubijał serwerowy cykl życia renderu w trakcie
+//     streamowania (incydent ~61 s, opis przy `decorateMissAndDeferStore`);
+//     kopia zbiera się pod `ctx.waitUntil`, więc domknięcie żądania jej nie
+//     ucina;
 //   - budżet bajtów z approx-LRU (Map w kolejności wstawień, odświeżanej przy
 //     trafieniu) - ten sam wzorzec co `edgeTtlCache`, ale liczony w bajtach;
 //   - klucz prefiksowany hostem tenanta ("by construction", multi-tenant safe);
@@ -43,10 +48,7 @@ import {
   type NesCacheStatus,
 } from "@/lib/http/documentCache";
 import { currentTenantHost, requestPublicHost } from "@/lib/http/requestHost";
-import {
-  getMiddlewareResponse,
-  withMiddlewareResponse,
-} from "@/lib/http/middlewareResult";
+import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 import {
   bumpL2Version,
   l2Match,
@@ -155,7 +157,8 @@ const recentDecisions: DocumentCacheDecision[] = [];
 
 function recordDecision(decision: DocumentCacheDecision): void {
   recentDecisions.unshift(decision);
-  if (recentDecisions.length > RECENT_DECISIONS_LIMIT) recentDecisions.length = RECENT_DECISIONS_LIMIT;
+  if (recentDecisions.length > RECENT_DECISIONS_LIMIT)
+    recentDecisions.length = RECENT_DECISIONS_LIMIT;
 }
 
 function cacheEnabled(): boolean {
@@ -291,11 +294,43 @@ async function collectStream(
 }
 
 /**
- * Render przeszedł - jeśli polityka pozwala, tee-uj strumień: jedna gałąź
- * wraca do czytelnika (streaming bez zmian), druga zbiera się do L1 i L2.
- * Zbieranie biegnie pod `ctx.waitUntil` - domknięcie odpowiedzi nie ucina go.
+ * Zapis odroczony do warstwy ZA egzekutorem middleware (patrz
+ * `applyDeferredDocumentStore`). Klucz: TOŻSAMOŚĆ strumienia body - dokładnie
+ * ta sama tożsamość, którą egzekutor TanStack Start śledzi między kopertą SSR
+ * a finalną odpowiedzią. WeakMap = zero wycieków: nieodebrany wpis znika
+ * razem ze strumieniem.
  */
-function passThroughAndMaybeStore(
+interface DeferredDocumentStore {
+  host: string | null;
+  key: string;
+  contentType: string;
+  cacheControl: string;
+  contentLanguage: string | null;
+  storedAt: number;
+  freshMs: number;
+  swrMs: number;
+}
+
+const deferredStores = new WeakMap<ReadableStream<Uint8Array>, DeferredDocumentStore>();
+
+/**
+ * Render przeszedł - dekorujemy odpowiedź nagłówkami MISS i - jeśli polityka
+ * pozwala - REJESTRUJEMY odroczony zapis do L1/L2 pod tożsamością strumienia
+ * body. Świadomie NIE tee-ujemy tutaj.
+ *
+ * INCYDENT 2026-07-30 ("Paddle widzi offline", każda strona ~61 s): egzekutor
+ * request-middleware TanStack Start przekazuje streamowaną odpowiedź SSR jako
+ * kopertę `{ response, serverSsrCleanup: "stream", dispose }` i po przejściu
+ * łańcucha porównuje TOŻSAMOŚĆ `response.body` z ciałem koperty. `tee()`
+ * w środku middleware podmieniał body (`toClient`), więc egzekutor uznawał
+ * odpowiedź za "podmienioną" i wołał `dispose()` -> `serverSsr.cleanup()`
+ * W TRAKCIE streamowania. Przedwczesny cleanup tłumi sygnał końca serializacji
+ * seroval (guard `cleanupStarted`), `transformStreamWithRouter` czeka na niego
+ * do twardego limitu 60 s i ubija strumień błędem - stąd ~61 s na KAŻDYM
+ * renderze dokumentu. Tee wykonuje się teraz w src/server.ts, poza zasięgiem
+ * porównania tożsamości (`applyDeferredDocumentStore`).
+ */
+function decorateMissAndDeferStore(
   host: string | null,
   key: string,
   path: string,
@@ -315,37 +350,58 @@ function passThroughAndMaybeStore(
     response.headers.get("content-type"),
     response.headers.get("cache-control"),
   );
-  if (!policy.store || !response.body) return withCacheStatus(response, "MISS", timing);
+  if (policy.store && response.body) {
+    deferredStores.set(response.body, {
+      host,
+      key,
+      contentType: response.headers.get("content-type") ?? "text/html; charset=utf-8",
+      cacheControl: response.headers.get("cache-control") ?? "",
+      contentLanguage: response.headers.get("content-language"),
+      storedAt: now,
+      freshMs: policy.freshMs,
+      swrMs: policy.swrMs,
+    });
+  }
+  return withCacheStatus(response, "MISS", timing);
+}
+
+/**
+ * Druga połowa zapisu MISS, wołana z `src/server.ts` PO wyjściu odpowiedzi
+ * z egzekutora middleware (tam tożsamość body już nie podlega kontroli
+ * frameworka): tee strumienia, czytelnik dostaje streaming bez zmian, kopia
+ * zbiera się do L1 i L2 pod `ctx.waitUntil`. Kolejne przebudowy Response
+ * w łańcuchu middleware zachowują ten sam obiekt strumienia, więc rejestracja
+ * z wnętrza middleware jest tu widoczna 1:1.
+ */
+export function applyDeferredDocumentStore(response: Response): Response {
+  if (!response.body) return response;
+  const record = deferredStores.get(response.body);
+  if (!record) return response;
+  deferredStores.delete(response.body);
 
   const [toClient, toCache] = response.body.tee();
-  const contentType = response.headers.get("content-type") ?? "text/html; charset=utf-8";
-  const cacheControl = response.headers.get("cache-control") ?? "";
-  const contentLanguage = response.headers.get("content-language");
   runAfterResponse(
     collectStream(toCache, DOCUMENT_CACHE_MAX_ENTRY_BYTES).then(async (body) => {
       if (!body) return;
       const entry: DocumentCacheEntry = {
         body,
         bytes: body.byteLength,
-        contentType,
-        cacheControl,
-        contentLanguage,
-        storedAt: now,
-        freshMs: policy.freshMs,
-        swrMs: policy.swrMs,
+        contentType: record.contentType,
+        cacheControl: record.cacheControl,
+        contentLanguage: record.contentLanguage,
+        storedAt: record.storedAt,
+        freshMs: record.freshMs,
+        swrMs: record.swrMs,
       };
-      setEntry(key, entry);
-      await l2Put(host, key, entry);
+      setEntry(record.key, entry);
+      await l2Put(record.host, record.key, entry);
     }),
   );
 
-  const headers = new Headers(response.headers);
-  headers.set(NES_CACHE_HEADER, "MISS");
-  headers.set("server-timing", buildServerTimingValue("MISS", timing?.renderMs, timing?.db));
   return new Response(toClient, {
     status: response.status,
     statusText: response.statusText,
-    headers,
+    headers: response.headers,
   });
 }
 
@@ -403,7 +459,7 @@ export async function handleDocumentRequest<T>(
         if (rendered) {
           return withMiddlewareResponse(
             result,
-            passThroughAndMaybeStore(host, plan.key, path, rendered, Date.now(), timing),
+            decorateMissAndDeferStore(host, plan.key, path, rendered, Date.now(), timing),
           );
         }
         return result;
@@ -445,7 +501,7 @@ export async function handleDocumentRequest<T>(
         if (rendered) {
           return withMiddlewareResponse(
             result,
-            passThroughAndMaybeStore(host, plan.key, path, rendered, Date.now(), timing),
+            decorateMissAndDeferStore(host, plan.key, path, rendered, Date.now(), timing),
           );
         }
         return result;
@@ -466,7 +522,7 @@ export async function handleDocumentRequest<T>(
   if (rendered) {
     return withMiddlewareResponse(
       result,
-      passThroughAndMaybeStore(host, plan.key, path, rendered, Date.now(), timing),
+      decorateMissAndDeferStore(host, plan.key, path, rendered, Date.now(), timing),
     );
   }
   return result;
@@ -589,7 +645,9 @@ export async function probeDocumentCache(
   }
 
   const now = Date.now();
-  const entry = store.get(plan.key) ?? (await l2Match(host, plan.key).then((e) => (e ? entryFromL2(e) : undefined)));
+  const entry =
+    store.get(plan.key) ??
+    (await l2Match(host, plan.key).then((e) => (e ? entryFromL2(e) : undefined)));
   if (!entry) {
     return { path: url.pathname, key: plan.key, cacheable: true, cached: false, status: "MISS" };
   }
