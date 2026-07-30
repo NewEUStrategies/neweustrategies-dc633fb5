@@ -5,6 +5,7 @@
 // Każdy renderer to `BlockRenderer` (ctx -> ReactNode). Nie woła hooków - dane
 // (t, lang, fnHtml, cls) dostaje z kontekstu wyliczonego przez dyspozytora.
 
+import type { ReactElement } from "react";
 import { safeUrl } from "@/lib/sanitize";
 import { blockAnchor } from "@/lib/blocks/anchors";
 import type { BlockRenderer } from "./context";
@@ -103,9 +104,9 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
     level: number,
     isOrdered: boolean,
     top: boolean,
-  ): React.ReactElement => {
+  ): ReactElement => {
     const Tag = isOrdered ? "ol" : "ul";
-    const nodes: React.ReactElement[] = [];
+    const nodes: ReactElement[] = [];
     for (let k = 0; k < entries.length; k++) {
       const entry = entries[k];
       if (entry.level !== level) continue;
