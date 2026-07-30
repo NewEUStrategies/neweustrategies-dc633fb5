@@ -4,6 +4,8 @@
 // Wartością pola pozostaje HTML string - żadnej zmiany w schemacie/renderze.
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { looksLikeRichPaste, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
+
 import {
   Bold,
   Italic,
