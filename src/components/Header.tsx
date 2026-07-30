@@ -18,6 +18,8 @@ import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { AppLink } from "@/components/atoms/AppLink";
+import { LangToggle } from "@/components/atoms/LangToggle";
+
 import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
@@ -148,7 +150,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
       <AdZone position="header_banner" pageType={adPageType} className="py-2 text-center" />
 
       {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
-      <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-3 px-4 py-3 border-b border-border bg-background">
+      <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_auto] items-center gap-3 px-4 py-3 border-b border-border bg-background">
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
@@ -174,16 +176,20 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
             <span className="text-base font-bold tracking-tight truncate min-w-0">{siteName}</span>
           )}
         </AppLink>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label={openA11y}
-          aria-expanded={open}
-          aria-controls="mobile-header-drawer"
-          className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
-        >
-          <Menu className="w-5 h-5" aria-hidden />
-        </button>
+        <div className="flex items-center gap-2 justify-self-end">
+          <LangToggle />
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label={openA11y}
+            aria-expanded={open}
+            aria-controls="mobile-header-drawer"
+            className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+          >
+            <Menu className="w-5 h-5" aria-hidden />
+          </button>
+        </div>
+
       </div>
 
       {/* Full builder-authored header - visible from lg up. */}
