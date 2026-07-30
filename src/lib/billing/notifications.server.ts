@@ -340,6 +340,67 @@ export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<voi
   }
 }
 
+export interface RefundNotifyInput {
+  userId: string;
+  planId: string | null;
+  amountCents?: number | null;
+  currency?: string | null;
+  /** Identyfikator transakcji u operatora - trafia do szczegółów maila. */
+  transactionId?: string | null;
+  /** Data zakończenia dostępu odebranego wraz ze zwrotem. */
+  accessUntil?: string | null;
+  idempotencySeed: string;
+}
+
+/** Mail o zwrocie płatności (zwrot / obciążenie zwrotne). Nigdy nie rzuca. */
+export async function notifyRefundEmail(input: RefundNotifyInput): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabase = supabaseAdmin as unknown as SupabaseClient;
+
+    const recipient = await resolveRecipient(supabase, input.userId);
+    if (!recipient) return;
+
+    const { lang } = recipient;
+    const copy = txCopy("payment_refunded", lang);
+    const plan = await loadPlan(supabase, input.planId, lang);
+
+    const details: TxDetail[] = [];
+    if (plan) details.push({ label: copy.labels.plan, value: plan.name });
+
+    const currency = input.currency ?? plan?.currency ?? "PLN";
+    const amount = input.amountCents ?? null;
+    if (amount !== null) {
+      details.push({ label: copy.labels.price, value: formatMoney(amount, currency, lang) });
+    }
+    if (input.transactionId) {
+      details.push({ label: copy.labels.transaction, value: input.transactionId });
+    }
+    if (input.accessUntil) {
+      details.push({ label: copy.labels.accessUntil, value: formatDate(input.accessUntil, lang) });
+    }
+
+    await sendTxEmail({
+      type: "payment_refunded",
+      to: recipient.email,
+      lang,
+      metaName: recipient.name,
+      subjectName: plan?.name ?? null,
+      details,
+      bodyVars: {
+        planName: plan?.name ?? null,
+        amount: amount !== null ? formatMoney(amount, currency, lang) : null,
+        accessUntil: input.accessUntil ? formatDate(input.accessUntil, lang) : null,
+      },
+      ctaPath: "/profile/subscription",
+      idempotencyKey: `payment_refunded:${input.idempotencySeed}`,
+    });
+  } catch (err) {
+    console.error("[billing-emails] refund notify failed", err);
+  }
+}
+
+
 export type ReminderEmailKind = Extract<
   TxEmailType,
   "subscription_renewal_reminder" | "subscription_expiring"

@@ -16,6 +16,85 @@ export interface GrantableOrder {
   currency: string | null;
 }
 
+/** Zamówienie w kształcie potrzebnym do odebrania uprawnienia po zwrocie. */
+export type RevocableOrder = Pick<
+  GrantableOrder,
+  "id" | "user_id" | "kind" | "plan_id" | "entity_type" | "entity_id"
+> & { amount_cents?: number | null; currency?: string | null; tenant_id?: string | null };
+
+/**
+ * Odbiera uprawnienie subskrypcyjne po zwrocie / obciążeniu zwrotnym.
+ *
+ * Lustro `grantEntitlement` dla ścieżki subskrypcji: kluczem jest ten sam
+ * `external_ref` (identyfikator subskrypcji u operatora), więc odebranie trafia
+ * dokładnie w rekord, który wcześniej nadał dostęp. Ustawiamy `refunded`, a nie
+ * `canceled`, żeby raporty odróżniały rezygnację od zwrotu pieniędzy.
+ *
+ * @returns `true` gdy jakikolwiek rekord został odebrany.
+ */
+export async function revokeSubscriptionEntitlement(
+  externalRef: string,
+  revokedAt: string = new Date().toISOString(),
+): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("user_subscriptions")
+    .update({ status: "refunded", current_period_end: revokedAt, canceled_at: revokedAt })
+    .eq("external_ref", externalRef)
+    .neq("status", "refunded")
+    .select("id");
+  if (error) {
+    throw new Error(`revoke: user_subscriptions failed (${externalRef}): ${error.message}`);
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Odbiera uprawnienie wynikające z zamówienia jednorazowego.
+ *
+ * Zamówienie typu `subscription` (jednorazowy zakup planu) nadało wiersz
+ * `user_subscriptions` z `external_ref` = identyfikator zamówienia lub
+ * transakcji; zamówienie `one_time` - wiersz `user_purchases` na kluczu
+ * (user, typ encji, encja). Obie ścieżki muszą się cofnąć.
+ */
+export async function revokeOrderEntitlement(
+  order: RevocableOrder,
+  revokedAt: string = new Date().toISOString(),
+): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const entitlement = entitlementForOrder({
+    kind: order.kind,
+    plan_id: order.plan_id,
+    entity_type: order.entity_type,
+    entity_id: order.entity_id,
+  });
+
+  if (entitlement.type === "subscription") {
+    const { error } = await supabaseAdmin
+      .from("user_subscriptions")
+      .update({ status: "refunded", current_period_end: revokedAt, canceled_at: revokedAt })
+      .eq("external_ref", order.id)
+      .neq("status", "refunded");
+    if (error) {
+      throw new Error(`revoke: user_subscriptions failed (${order.id}): ${error.message}`);
+    }
+    return;
+  }
+
+  if (entitlement.type === "purchase") {
+    const { error } = await supabaseAdmin
+      .from("user_purchases")
+      .update({ status: "refunded" })
+      .eq("user_id", order.user_id)
+      .eq("entity_type", entitlement.entityType)
+      .eq("entity_id", entitlement.entityId)
+      .neq("status", "refunded");
+    if (error) {
+      throw new Error(`revoke: user_purchases failed (${order.id}): ${error.message}`);
+    }
+  }
+}
+
 /**
  * Grant the entitlement a paid order represents.
  *
