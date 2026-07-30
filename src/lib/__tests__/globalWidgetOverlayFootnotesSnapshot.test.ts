@@ -1,12 +1,10 @@
 // Snapshot regresja: pełny HTML markerów `[fn]…[/fn]` w overlay globalnych
-// widgetów. Snapshoty łapią KAŻDĄ zmianę w:
-//  - strukturze markera (`<sup class="fn-ref">…</sup>`),
-//  - atrybutach ARIA (`aria-describedby`, `role="doc-noteref"`),
-//  - treści atrybutu `title` (tekst tooltipa) - w tym HTML-escape,
-//  - numeracji między hydratacjami (stabilny payload = stabilny snapshot).
+// widgetów. Ta ścieżka produkuje marker SAMODZIELNY (bez `href`/`id`/`data-fn`),
+// bo przypisy globalnych widgetów nie mają dokumentowej sekcji końcowej -
+// szczegóły w `ExpandOptions` (src/lib/footnotes.ts) i src/test/footnoteMarker.ts.
 //
-// Jeśli którykolwiek z tych elementów świadomie się zmienia, aktualizuj
-// snapshoty (`vitest -u`) razem z komentarzem migracyjnym w PR.
+// Snapshoty łapią KAŻDĄ zmianę w strukturze markera, roli ARIA i treści
+// atrybutu `title` (w tym HTML-escape) oraz numeracji między hydratacjami.
 
 import { describe, it, expect } from "vitest";
 import { createCounter, processWidgetFootnotes } from "@/lib/footnotes";
@@ -32,7 +30,7 @@ describe("footnote tooltip snapshots - hydration parity", () => {
       "pl",
     );
     expect(html(widget)).toMatchInlineSnapshot(
-      `"Ala ma<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="kota domowego" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup>."`,
+      `"Ala ma<sup class="fn-ref"><span title="kota domowego" role="note">[1]</span></sup>."`,
     );
     expect(notes).toMatchInlineSnapshot(`
       [
@@ -50,7 +48,7 @@ describe("footnote tooltip snapshots - hydration parity", () => {
       "pl",
     );
     expect(html(widget)).toMatchInlineSnapshot(
-      `"A<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="pierwszy" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup> B<sup class="fn-ref"><a href="#fn-2" id="fnref-2" data-fn="2" title="drugi" aria-describedby="footnotes-heading" role="doc-noteref">[2]</a></sup> C<sup class="fn-ref"><a href="#fn-3" id="fnref-3" data-fn="3" title="trzeci" aria-describedby="footnotes-heading" role="doc-noteref">[3]</a></sup>."`,
+      `"A<sup class="fn-ref"><span title="pierwszy" role="note">[1]</span></sup> B<sup class="fn-ref"><span title="drugi" role="note">[2]</span></sup> C<sup class="fn-ref"><span title="trzeci" role="note">[3]</span></sup>."`,
     );
   });
 
@@ -59,10 +57,10 @@ describe("footnote tooltip snapshots - hydration parity", () => {
       textWidget(`Zob.[fn]A & B <script>x</script> "cytat" 'apostrof'[/fn].`),
       "pl",
     );
-    // Kluczowe: `<`, `>`, `&`, `"`, `'` MUSZĄ być zescape'owane w title;
-    // tagi wewnętrzne są stripowane przed escape (patrz footnotes.ts).
+    // `<`, `>`, `&`, `"`, `'` MUSZĄ być zescape'owane w title; tagi wewnętrzne
+    // są stripowane przed escape (patrz footnotes.ts).
     expect(html(widget)).toMatchInlineSnapshot(
-      `"Zob.<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="A &amp; B x &quot;cytat&quot; &#39;apostrof&#39;" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup>."`,
+      `"Zob.<sup class="fn-ref"><span title="A &amp; B x &quot;cytat&quot; &#39;apostrof&#39;" role="note">[1]</span></sup>."`,
     );
   });
 
@@ -71,13 +69,10 @@ describe("footnote tooltip snapshots - hydration parity", () => {
     const first = processWidgetFootnotes(raw, "pl");
     const firstHtml = html(first.widget);
 
-    // Snapshot pierwszej hydratacji - zmiana wymaga świadomej aktualizacji.
     expect(firstHtml).toMatchInlineSnapshot(
-      `"X<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="a" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup> Y<sup class="fn-ref"><a href="#fn-2" id="fnref-2" data-fn="2" title="b" aria-describedby="footnotes-heading" role="doc-noteref">[2]</a></sup> Z<sup class="fn-ref"><a href="#fn-3" id="fnref-3" data-fn="3" title="c" aria-describedby="footnotes-heading" role="doc-noteref">[3]</a></sup>"`,
+      `"X<sup class="fn-ref"><span title="a" role="note">[1]</span></sup> Y<sup class="fn-ref"><span title="b" role="note">[2]</span></sup> Z<sup class="fn-ref"><span title="c" role="note">[3]</span></sup>"`,
     );
 
-    // Kolejne hydratacje nie mogą zmienić ani jednego bajtu markera ani
-    // treści tooltipa - inaczej regresja parity preview↔published.
     let current = first.widget;
     for (let i = 0; i < 3; i += 1) {
       const step = processWidgetFootnotes(current, "pl");
@@ -89,16 +84,8 @@ describe("footnote tooltip snapshots - hydration parity", () => {
 
   it("shares numbering across sibling widgets under a single document counter", () => {
     const col = createCounter(1);
-    const w1 = processWidgetFootnotes(
-      textWidget("A[fn]a1[/fn] B[fn]a2[/fn]", "w-a"),
-      "pl",
-      col,
-    );
-    const w2 = processWidgetFootnotes(
-      textWidget("C[fn]b1[/fn]", "w-b"),
-      "pl",
-      col,
-    );
+    const w1 = processWidgetFootnotes(textWidget("A[fn]a1[/fn] B[fn]a2[/fn]", "w-a"), "pl", col);
+    const w2 = processWidgetFootnotes(textWidget("C[fn]b1[/fn]", "w-b"), "pl", col);
 
     expect({
       w1: html(w1.widget),
@@ -120,8 +107,8 @@ describe("footnote tooltip snapshots - hydration parity", () => {
             "id": 3,
           },
         ],
-        "w1": "A<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1" title="a1" aria-describedby="footnotes-heading" role="doc-noteref">[1]</a></sup> B<sup class="fn-ref"><a href="#fn-2" id="fnref-2" data-fn="2" title="a2" aria-describedby="footnotes-heading" role="doc-noteref">[2]</a></sup>",
-        "w2": "C<sup class="fn-ref"><a href="#fn-3" id="fnref-3" data-fn="3" title="b1" aria-describedby="footnotes-heading" role="doc-noteref">[3]</a></sup>",
+        "w1": "A<sup class="fn-ref"><span title="a1" role="note">[1]</span></sup> B<sup class="fn-ref"><span title="a2" role="note">[2]</span></sup>",
+        "w2": "C<sup class="fn-ref"><span title="b1" role="note">[3]</span></sup>",
       }
     `);
   });
