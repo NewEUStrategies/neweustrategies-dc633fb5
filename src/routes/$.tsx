@@ -875,9 +875,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
       ) : null;
     return (
-      <div className="flex flex-col bg-background text-foreground" data-page-template="post">
+      <div
+        className="flex min-w-0 w-full max-w-full flex-col overflow-x-clip bg-background text-foreground"
+        data-page-template="post"
+      >
         <PostContentStyle />
-        <div style={outerMaxStyle} className="flex-1 w-full mx-auto px-4 lg:px-8 py-10">
+        <div
+          style={outerMaxStyle}
+          className="min-w-0 flex-1 w-full max-w-full mx-auto px-4 lg:px-8 py-10"
+        >
           <PrintBriefHeader lang={lang} url={citationUrl} />
           <Breadcrumbs items={crumbs} />
           {allowAd("top_of_post") && (

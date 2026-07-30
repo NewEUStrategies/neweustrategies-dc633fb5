@@ -57,6 +57,59 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
 
 @custom-variant dark (&:is(.dark *));
 
+/* Public pages must never widen the document on narrow screens. Components
+   that genuinely need horizontal movement (tables/code/carousels) own their
+   local scroll container instead of making the entire platform pan sideways. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+@media (max-width: 767px) {
+  [data-page-template="post"],
+  [data-page-template="page"],
+  .blocks-content,
+  .single-post-content,
+  .post-content {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .blocks-content *,
+  .single-post-content *,
+  .post-content * {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .blocks-content :is(img, video, iframe, canvas, svg, object),
+  .single-post-content :is(img, video, iframe, canvas, svg, object),
+  .post-content :is(img, video, iframe, canvas, svg, object) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .blocks-content :is(pre, table),
+  .single-post-content :is(pre, table),
+  .post-content :is(pre, table) {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .blocks-content :is(ul, ol),
+  .single-post-content :is(ul, ol),
+  .post-content :is(ul, ol) {
+    padding-inline-start: 1.25rem;
+  }
+}
+
 @theme inline {
   --breakpoint-xs: 30rem;
   --radius-sm: calc(var(--radius) - 4px);

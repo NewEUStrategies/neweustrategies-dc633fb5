@@ -78,7 +78,7 @@ export function ContentRenderer({
 
   return (
     <article
-      className="single-post-content prose prose-lg dark:prose-invert max-w-none"
+      className="single-post-content prose prose-lg dark:prose-invert min-w-0 w-full max-w-full"
       // enhanceContentImages runs AFTER the sanitizer (never instead of it):
       // it only adds loading/decoding/srcset to <img> tags, closing the
       // lazy-loading + responsive-candidates gap in imported WordPress bodies.

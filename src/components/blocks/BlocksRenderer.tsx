@@ -60,7 +60,7 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
     <BlocksTenantProvider host={tenantHost}>
       <article
         ref={articleRef}
-        className="blocks-content prose prose-lg dark:prose-invert max-w-none"
+        className="blocks-content prose prose-lg dark:prose-invert min-w-0 w-full max-w-full"
         lang={lang}
         data-tenant-scope={tenantHost ?? undefined}
       >
