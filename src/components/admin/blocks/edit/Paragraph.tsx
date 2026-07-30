@@ -20,6 +20,8 @@ import { useTranslation } from "react-i18next";
 import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import { detectMarkdownShortcut, htmlToPlain, shortcutToBlock } from "@/lib/blocks/markdown";
+import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
+
 import { WordStyleToolbar } from "../WordStyleToolbar";
 import { BlockInserter } from "../BlockInserter";
 
