@@ -103,9 +103,9 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
     level: number,
     isOrdered: boolean,
     top: boolean,
-  ): JSX.Element => {
+  ): React.ReactElement => {
     const Tag = isOrdered ? "ol" : "ul";
-    const nodes: JSX.Element[] = [];
+    const nodes: React.ReactElement[] = [];
     for (let k = 0; k < entries.length; k++) {
       const entry = entries[k];
       if (entry.level !== level) continue;
