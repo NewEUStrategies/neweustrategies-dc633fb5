@@ -16,6 +16,7 @@ export const donationsWidgetPl = {
     anon: "Anonimowy darczyńca",
     cta: "Wesprzyj",
     loading: "Wczytywanie...",
+    externalNote: "Wpłaty obsługuje zrzutka.pl - link otwiera się w nowej karcie.",
   },
 };
 
@@ -32,6 +33,7 @@ export const donationsWidgetEn = {
     anon: "Anonymous donor",
     cta: "Support",
     loading: "Loading...",
+    externalNote: "Payments are handled by zrzutka.pl - the link opens in a new tab.",
   },
 };
 

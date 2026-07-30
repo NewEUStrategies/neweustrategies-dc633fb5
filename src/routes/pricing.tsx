@@ -93,8 +93,8 @@ export const Route = createFileRoute("/pricing")({
       title: lang === "en" ? "Pricing - Subscription plans" : "Cennik - Plany subskrypcji",
       description:
         lang === "en"
-          ? "Choose the plan that fits your needs. Monthly and yearly subscriptions."
-          : "Wybierz plan dopasowany do Twoich potrzeb. Subskrypcje miesięczne i roczne.",
+          ? "Choose the plan that fits your needs. Monthly and yearly subscriptions, plus business billing every 2 weeks or quarterly."
+          : "Wybierz plan dopasowany do Twoich potrzeb. Subskrypcje miesięczne i roczne, a dla firm także cykl dwutygodniowy i kwartalny.",
     });
     const meta: Array<Record<string, string>> = [
       { title: seo.title },

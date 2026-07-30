@@ -198,9 +198,7 @@ function SupportSection({ fmtDate }: { fmtDate: (iso: string | null) => string }
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">{t("membership.support.none")}</p>
             <Button asChild size="sm" variant="outline">
-              <Link to="/support" search={{ status: undefined }}>
-                {t("membership.support.cta")}
-              </Link>
+              <Link to="/support">{t("membership.support.cta")}</Link>
             </Button>
           </div>
         ) : (
