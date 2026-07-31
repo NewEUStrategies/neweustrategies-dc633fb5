@@ -29,11 +29,12 @@ export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
  * migracja treści bloki↔richtext zerwałaby już opublikowane linki `#`.
  */
 export const renderHeading: BlockRenderer = ({ block, fnHtml, cls, allBlocks }) => {
-  const level = Math.min(Math.max(num(block.data, "level", 2), 2), 4);
+  const level = Math.min(Math.max(num(block.data, "level", 2), 2), 5);
   const text = str(block.data, "text");
   const anchor = blockAnchor(block, allBlocks);
   const id = anchor.id || undefined;
-  const Tag = `h${level}` as "h2" | "h3" | "h4";
+  const Tag = `h${level}` as "h2" | "h3" | "h4" | "h5";
+
   const withFn = fnHtml.get(`${block.id}:text`);
   if (withFn !== undefined) {
     // Aliasy doklejamy do stringa HTML, żeby przy braku aliasów (przypadek
