@@ -38,11 +38,17 @@ import { ExpertRequestButton } from "@/components/experts/ExpertRequestButton";
 import { usePersonalizedSettings } from "@/hooks/usePersonalizedSettings";
 import { useUserBadges } from "@/lib/profile/badges";
 import { expertHubQueryOptions } from "@/lib/experts/queries";
+import { expertMaterialsQueryOptions } from "@/lib/experts/materials";
+import {
+  filtersFromAuthorHubSearch,
+  isPaginatedAuthorHubView,
+  parseAuthorHubSearch,
+} from "@/lib/experts/materialsSearch";
 import { podcastsByProfileQueryOptions } from "@/lib/queries/podcasts";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead } from "@/lib/seo/meta";
+import { buildContentHead, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
 import { withOgVersion, ogVersionFromIso } from "@/lib/seo/ogImage";
 import { expertLayoutSettingsQueryOptions } from "@/hooks/useExpertLayoutSettings";
@@ -73,11 +79,36 @@ const ExpertLayoutInlineEditor = lazy(
 );
 
 export const Route = createFileRoute("/author/$slug")({
-  loader: async ({ params, context }) => {
-    // Najpierw hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
+  // Stan eksploratora materiałów (strona + filtry) żyje w URL: deep-linki,
+  // SSR dokładnie żądanej strony N i działający przycisk wstecz - paginacja
+  // serwerowa jak w archiwach taksonomii (?page=N), nie kliencka na komplecie.
+  validateSearch: parseAuthorHubSearch,
+  loaderDeps: ({ search }) => ({
+    page: search.page ?? 1,
+    ...filtersFromAuthorHubSearch(search),
+    paginated: isPaginatedAuthorHubView(search),
+  }),
+  loader: async ({ params, context, deps }) => {
+    // Strona materiałów nie zależy od huba (RPC sam rezolwuje slug), więc
+    // jedzie równolegle zamiast doklejać kolejną falę na ścieżce TTFB.
+    const materialsPromise = context.queryClient.ensureQueryData(
+      expertMaterialsQueryOptions(params.slug, {
+        page: deps.page,
+        filters: {
+          kind: deps.kind,
+          topic: deps.topic,
+          region: deps.region,
+          program: deps.program,
+          year: deps.year,
+        },
+      }),
+    );
+    // Hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
     // `expert_layout_settings` (per tenant, nie tylko dla tenanta hosta).
     const data = await context.queryClient.ensureQueryData(expertHubQueryOptions(params.slug));
     if (!data) {
+      // Domknij równoległą gałąź, żeby 404 nie zostawiał unhandled rejection.
+      materialsPromise.catch(() => undefined);
       setCacheControlHeader(NO_STORE);
       throw notFound();
     }
@@ -95,13 +126,24 @@ export const Route = createFileRoute("/author/$slug")({
     } else {
       await context.queryClient.ensureQueryData(layoutOptions);
     }
+    await materialsPromise;
     // Non-indexable profile robots still share the same cacheable shell.
     setCacheControlHeader(contentCacheControl());
-    return data;
+    return { ...data, archiveView: { page: deps.page, paginated: deps.paginated } };
   },
   head: ({ loaderData, params }) => {
     const expert = loaderData?.expert;
-    const url = getRequestUrl() || `/author/${params.slug}`;
+    // Canonical bez parametrów eksploratora - każda strona/kombinacja filtrów
+    // konsoliduje ranking na bazowym URL-u profilu (wzorzec taksonomii).
+    const requestedUrl = getRequestUrl() || `/author/${params.slug}`;
+    const request = new URL(requestedUrl, SITE_CANONICAL_ORIGIN);
+    for (const key of ["page", "kind", "topic", "region", "program", "year"]) {
+      request.searchParams.delete(key);
+    }
+    const url =
+      request.origin === SITE_CANONICAL_ORIGIN && !requestedUrl.startsWith("http")
+        ? request.pathname
+        : request.toString();
     const lang = activeLang(url);
     const isEn = lang === "en";
     const name = expert?.display_name ?? (isEn ? "Expert" : "Ekspert");
@@ -136,9 +178,16 @@ export const Route = createFileRoute("/author/$slug")({
       : seoFallbackTpl.replace("{{name}}", name);
     const description = (bioClean.slice(0, 160) || fallbackDesc).trim();
 
-    const title = expert?.job_title
+    const baseTitle = expert?.job_title
       ? `${name} - ${expert.job_title}${expert.company ? ` · ${expert.company}` : ""}`
       : name;
+    // Strony >1 dostają sufiks w tytule (rozróżnialna historia/karty) - i tak
+    // są noindex, więc nie rozmywają tytułu kanonicznego.
+    const archivePage = loaderData?.archiveView.page ?? 1;
+    const title =
+      archivePage > 1
+        ? `${baseTitle} ${isEn ? `(page ${archivePage})` : `(strona ${archivePage})`}`
+        : baseTitle;
 
     // Wszystkie kanały social + WWW jako sameAs (schema.org Person).
     const sameAs = [
@@ -204,6 +253,12 @@ export const Route = createFileRoute("/author/$slug")({
       mediaMentionCount: loaderData?.mediaMentions?.length ?? 0,
     });
 
+    // Widoki spaginowane/przefiltrowane indeksowalnego profilu → noindex,follow
+    // (konsolidacja rankingu na stronie 1, jak w taksonomii). Role-gating
+    // zostaje nadrzędny: profil nieindeksowalny ma noindex,nofollow ZAWSZE.
+    const paginatedView = Boolean(loaderData?.archiveView.paginated);
+    const robots = indexable && paginatedView ? "noindex, follow" : profileRobots(indexable);
+
     const base = buildContentHead({
       url,
       lang,
@@ -214,7 +269,7 @@ export const Route = createFileRoute("/author/$slug")({
       image: versionedAvatar,
       // Indeksacja warunkowa: eksperci/autorzy z dorobkiem → index (+ hinty AI
       // overview); goły profil członka → noindex, nofollow (patrz publicVisibility).
-      robots: profileRobots(indexable),
+      robots,
       imageAlt: expert?.display_name ? (isEn ? `Portrait of ${name}` : `Portret: ${name}`) : null,
     });
 

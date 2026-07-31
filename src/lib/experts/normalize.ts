@@ -19,6 +19,21 @@ type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const strOrNull = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
+/** Bezpieczna projekcja jsonb[] → Row[] (nieznane kształty odpadają cicho). */
+export function jsonRows(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (r): r is Record<string, unknown> => typeof r === "object" && r !== null && !Array.isArray(r),
+  );
+}
+
+/** Bezpieczna projekcja jsonb → Row | null (skalar/tablica → null). */
+export function jsonRow(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 /** Mapuje post_format na typ materiału w eksploratorze. */
 export function postFormatToKind(format: string | null | undefined): MaterialKind {
   if (format === "video") return "video";
