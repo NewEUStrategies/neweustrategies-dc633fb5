@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 import {
+  blogArchiveQueryOptions,
   blogListQueryOptions,
   homePageQueryOptions,
   publicCategoriesQueryOptions,
@@ -30,6 +31,7 @@ describe("invalidateSeoCaches", () => {
     const publicKeys: QueryKeyLike[] = [
       homePageQueryOptions().queryKey,
       blogListQueryOptions().queryKey,
+      blogArchiveQueryOptions({ page: 2, pageSize: 24 }).queryKey,
       publicPagesTreeQueryOptions().queryKey,
       publicCategoriesQueryOptions().queryKey,
       resolvedContentQueryOptions(["europa", "przyklad"]).queryKey,

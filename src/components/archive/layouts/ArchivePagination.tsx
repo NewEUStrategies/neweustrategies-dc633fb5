@@ -1,6 +1,15 @@
 // Numeric pagination bar with ellipsis and prev/next controls.
+//
+// SEO: when `hrefFor` is provided, every enabled item renders as a REAL
+// <a href> (crawlers only follow anchors - onClick buttons hide paginated
+// archives from indexing). A plain left-click is intercepted and routed
+// through `onPageChange` (SPA navigation with transitions); modified clicks
+// (new tab, copy link) keep the native browser behavior. Without `hrefFor`
+// (admin live preview) items stay plain buttons, exactly as before.
+import { Fragment, type MouseEvent, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "@/lib/lucide-shim";
 
 function buildRange(page: number, totalPages: number): Array<number | "ellipsis"> {
@@ -27,6 +36,7 @@ export function ArchivePagination({
   lang,
   disabled,
   t,
+  hrefFor,
 }: {
   page: number;
   totalPages: number;
@@ -35,6 +45,9 @@ export function ArchivePagination({
   lang: "pl" | "en";
   disabled?: boolean;
   t: TFunction;
+  /** Kanoniczny URL strony wyników (z prefiksem języka). Obecność włącza
+   *  linkowy wariant elementów - podstawa indeksowalnej paginacji. */
+  hrefFor?: (page: number) => string;
 }) {
   const items = buildRange(page, totalPages);
   const prevLabel = t("archive.prev", {
@@ -47,52 +60,104 @@ export function ArchivePagination({
     defaultValue: lang === "en" ? "Page" : "Strona",
   });
   const busy = isPending || disabled;
+
+  const interceptClick = (event: MouseEvent<HTMLAnchorElement>, target: number) => {
+    // Zachowaj natywne zachowania przeglądarki: środkowy przycisk, nowa karta
+    // (Ctrl/Cmd), nowe okno (Shift) i menu kontekstowe idą po href.
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (!busy) onPageChange(target);
+  };
+
+  const renderItem = (opts: {
+    target: number;
+    label: string;
+    children: ReactNode;
+    current?: boolean;
+    unavailable?: boolean;
+    rel?: string;
+    className?: string;
+  }) => {
+    const variant = opts.current ? "default" : "outline";
+    // Strona bieżąca i krańce zakresu nie są linkami (nie ma dokąd prowadzić);
+    // <button disabled> niesie poprawną semantykę, której <a> nie ma.
+    if (!hrefFor || opts.unavailable || opts.current) {
+      return (
+        <Button
+          type="button"
+          size="sm"
+          variant={variant}
+          disabled={busy || opts.unavailable}
+          onClick={() => onPageChange(opts.target)}
+          aria-current={opts.current ? "page" : undefined}
+          aria-label={opts.label}
+          className={opts.className}
+        >
+          {opts.children}
+        </Button>
+      );
+    }
+    return (
+      <Button asChild size="sm" variant={variant}>
+        <a
+          href={hrefFor(opts.target)}
+          rel={opts.rel}
+          aria-label={opts.label}
+          aria-disabled={busy || undefined}
+          onClick={(event) => interceptClick(event, opts.target)}
+          className={cn(opts.className, busy && "pointer-events-none opacity-50")}
+        >
+          {opts.children}
+        </a>
+      </Button>
+    );
+  };
+
   return (
     <nav
       aria-label={lang === "en" ? "Pagination" : "Paginacja"}
       className="flex flex-wrap items-center justify-center gap-1"
     >
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={busy || page <= 1}
-        onClick={() => onPageChange(page - 1)}
-        aria-label={prevLabel}
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </Button>
+      {renderItem({
+        target: page - 1,
+        label: prevLabel,
+        unavailable: page <= 1,
+        rel: "prev",
+        children: <ChevronLeft className="h-4 w-4" />,
+      })}
       {items.map((it, i) =>
         it === "ellipsis" ? (
           <span key={`e-${i}`} className="px-2 text-muted-foreground select-none" aria-hidden>
             …
           </span>
         ) : (
-          <Button
-            key={it}
-            type="button"
-            size="sm"
-            variant={it === page ? "default" : "outline"}
-            disabled={busy}
-            onClick={() => onPageChange(it)}
-            aria-current={it === page ? "page" : undefined}
-            aria-label={`${pageLabel} ${it}`}
-            className="min-w-9"
-          >
-            {it}
-          </Button>
+          <Fragment key={it}>
+            {renderItem({
+              target: it,
+              label: `${pageLabel} ${it}`,
+              current: it === page,
+              className: "min-w-9",
+              children: it,
+            })}
+          </Fragment>
         ),
       )}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={busy || page >= totalPages}
-        onClick={() => onPageChange(page + 1)}
-        aria-label={nextLabel}
-      >
-        <ChevronRight className="h-4 w-4" />
-      </Button>
+      {renderItem({
+        target: page + 1,
+        label: nextLabel,
+        unavailable: page >= totalPages,
+        rel: "next",
+        children: <ChevronRight className="h-4 w-4" />,
+      })}
     </nav>
   );
 }

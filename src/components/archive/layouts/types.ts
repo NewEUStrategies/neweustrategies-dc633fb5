@@ -27,6 +27,9 @@ export interface ArchiveLayoutProps {
   sort: ArchiveSort;
   onPageChange: (page: number) => void;
   onSortChange: (sort: ArchiveSort) => void;
+  /** Kanoniczny href strony wyników (SEO: paginacja jako realne linki <a>).
+   *  Brak = wariant przyciskowy (podgląd admina). */
+  hrefFor?: (page: number) => string;
   isPending: boolean;
   emptyText: string;
   extraBelow?: React.ReactNode;
