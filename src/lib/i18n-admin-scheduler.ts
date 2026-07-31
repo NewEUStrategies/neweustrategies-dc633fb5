@@ -7,7 +7,7 @@
  * potrzebuje słownika crona.
  *
  * Nazwy źródeł i progów świeżości pochodzą z kontraktu w
- * src/lib/server/jobScheduler.ts, więc klucze są składane DYNAMICZNIE
+ * src/lib/jobs/scheduler.ts, więc klucze są składane DYNAMICZNIE
  * (`adminScheduler.sources.<źródło>`, `adminScheduler.freshness.<stan>`).
  * Kompletność pokrycia w obu językach pilnuje
  * src/lib/__tests__/i18nAdminScheduler.test.ts.
