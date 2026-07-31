@@ -12566,6 +12566,20 @@ export type Database = {
         Returns: number
       }
       get_expert_hub: { Args: { _slug_or_id: string }; Returns: Json }
+      get_expert_materials: {
+        Args: {
+          _category_slug?: string
+          _kind?: string
+          _page?: number
+          _page_size?: number
+          _program_slug?: string
+          _region_slug?: string
+          _slug_or_id: string
+          _tag_slug?: string
+          _year?: number
+        }
+        Returns: Json
+      }
       get_followed_feed: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: {
