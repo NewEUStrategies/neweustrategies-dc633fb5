@@ -1,5 +1,5 @@
 -- pgTAP: harmonogram doręczeń - samozbrojenie, heartbeat i bramka zdrowia
--- (migracja 20260731110000).
+-- (migracje 20260731110000 + 20260731130000).
 --
 -- Kontekst: dyspozytor push/digestów był kompletny, ale nikt go nie wołał -
 -- job_runner_settings rodzi się z enabled=false + base_url='', więc pg_cron
@@ -17,12 +17,18 @@
 --   5. arm_job_runner() uzbraja WYŁĄCZNIE dziewiczy wiersz i tylko adresem
 --      https bez hosta lokalnego; decyzja operatora (stempel auto_armed_at) jest
 --      nienaruszalna - ponowne wywołanie nic nie zmienia.
---   6. invoke_jobs_tick() jest fail-open bez pg_net (nie wywala crona).
+--   6. invoke_jobs_tick() jest fail-open bez pg_net (nie wywala crona) i po
+--      POJEDNANIU (20260731130000) stempluje OBIE telemetrie: last_invoked_at
+--      (heartbeat aplikacji) oraz last_tick_status/last_tick_error (powod
+--      puknięcia albo jego braku: disabled / no_secret / no_base_url /
+--      pg_net_unavailable). Dwie zmiany tego samego dnia przepisaly te funkcje
+--      niezaleznie, a forward-only znaczy, ze bez pojednania ostatnia z nich
+--      cicho kasuje wklad poprzedniej.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(25);
+SELECT plan(29);
 
 -- Stan wyjściowy JAWNIE dziewiczy (świeża baza taka jest, ale test nie może
 -- zależeć od tego, czy pg_cron zdążył w tym środowisku uzbroić runner).
@@ -35,7 +41,11 @@ UPDATE public.job_runner_settings
        last_app_run_at = NULL,
        last_app_ok_at = NULL,
        last_app_error = NULL,
-       failure_streak = 0
+       failure_streak = 0,
+       last_tick_at = NULL,
+       last_tick_status = NULL,
+       last_tick_error = NULL,
+       tick_count = 0
  WHERE id = 1;
 
 -- -- 1. Log przebiegów jest infrastrukturą, nie danymi klienta ----------------
@@ -161,10 +171,40 @@ SELECT row_eq(
   'uzbrojenie wlacza runner, obcina ukosnik i stempluje decyzje'
 );
 
--- -- 5. Fail-open bez pg_net --------------------------------------------------
+-- -- 5. Fail-open bez pg_net + telemetria crona (pojednanie 20260731130000) ---
+-- Po pojednaniu dwoch rownoleglych telemetrii JEDNA funkcja stempluje oba
+-- swiaty: last_invoked_at (moja) i last_tick_* (pocztowa). Bez tego ostatnia
+-- migracja dnia cicho kasowalaby samozbrojenie albo diagnoze puknięcia.
 SELECT lives_ok(
   $$ SELECT public.invoke_jobs_tick() $$,
   'invoke_jobs_tick nie wywala sie bez pg_net (cron przezywa)'
+);
+
+SELECT row_eq(
+  $$ SELECT last_tick_status, last_tick_error FROM public.job_runner_settings WHERE id = 1 $$,
+  ROW('skipped'::text, 'pg_net_unavailable'::text),
+  'brak pg_net jest raportowany jako POWOD pominiecia, nie jako cisza'
+);
+
+-- Swiadomie wylaczony runner tez podaje przyczyne (inaczej panel mowi tylko
+-- "brak ticku" i operator nie wie, ze sam go wylaczyl).
+UPDATE public.job_runner_settings SET enabled = false WHERE id = 1;
+SELECT lives_ok(
+  $$ SELECT public.invoke_jobs_tick() $$,
+  'wylaczony runner nie wywala crona'
+);
+SELECT row_eq(
+  $$ SELECT enabled, last_tick_error FROM public.job_runner_settings WHERE id = 1 $$,
+  ROW(false, 'disabled'::text),
+  'wylaczenie po uzbrojeniu jest respektowane i raportowane jako powod'
+);
+
+-- Resolver ma jedno zachowanie pod dwoma nazwami (alias deleguje), a host
+-- lokalny nie jest adresem publicznym.
+SELECT is(
+  public.resolve_job_runner_base_url(),
+  public.job_runner_base_url(),
+  'resolve_job_runner_base_url deleguje do job_runner_base_url (jedna logika)'
 );
 
 -- -- 6. Bramka roli na RPC zdrowia -------------------------------------------

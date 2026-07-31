@@ -37,7 +37,12 @@ export interface JobsTickResult {
    * wysyła kampanie - jeden harmonogram dla całej poczty wychodzącej.
    */
   emailQueue: DrainResult | { error: string };
-  push: { claimed: number; sent: number } | { error: string };
+  /**
+   * `skipped: "vapid_not_configured"` zamiast cichego zera: brak kluczy VAPID
+   * wygląda w logu identycznie jak pusta kolejka, a to najczęstsza przyczyna
+   * „push nie wychodzi" przy sprawnym harmonogramie.
+   */
+  push: { claimed: number; sent: number; skipped?: string } | { error: string };
   digestDaily: { claimed: number; sent: number } | { error: string };
   digestWeekly: { claimed: number; sent: number } | { error: string };
   eventReminders: number | { error: string };
@@ -152,7 +157,7 @@ export async function runJobsTick(
       })
     : skipped;
 
-  return {
+  const result: JobsTickResult = {
     newsletter,
     emailQueue,
     push,

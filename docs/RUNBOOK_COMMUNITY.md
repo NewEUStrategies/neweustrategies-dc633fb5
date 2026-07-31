@@ -60,6 +60,28 @@ push rosła w `pending`**. Migracja `20260731110000` zamyka tę dziurę:
 - adres musi być `https` bez hosta lokalnego - cron bazy produkcyjnej nie ma
   po co pukać do `localhost`.
 
+### Jedna telemetria runnera (pojednanie dwóch zmian z 2026-07-31)
+
+Tego samego dnia dwie niezależne zmiany przepisały `invoke_jobs_tick()`:
+harmonogram doręczeń (`20260731110000`: samozbrojenie, `last_invoked_at`,
+nagłówek `x-cron-source`) i unifikacja poczty (`20260731081100` +
+`20260731120000`: `last_tick_at` / `last_tick_status` / `last_tick_error` /
+`tick_count`, resolver `job_runner_base_url()`). Migracje są forward-only, więc
+wygrała ostatnia - i wraz z nią wróciła pierwotna awaria (bez samozbrojenia
+dziewiczy wiersz zostaje `enabled=false`). `20260731130000` składa JEDNĄ
+funkcję z obu wkładów:
+
+- `job_runner_base_url()` jest kanonicznym resolverem (utwardzonym o odrzucanie
+  hostów lokalnych), a `resolve_job_runner_base_url()` tylko do niego deleguje -
+  dwie nazwy, jedno zachowanie;
+- każde wyjście z `invoke_jobs_tick()` stempluje POWÓD: `disabled`,
+  `no_secret`, `no_base_url`, `pg_net_unavailable`, `error` - panel odpowiada
+  „dlaczego nie ma ticku" zamiast milczeć;
+- udane puknięcie stempluje `last_invoked_at` ORAZ `last_tick_at`/`tick_count`,
+  więc obie powierzchnie (panel newslettera i panel doręczeń) mówią to samo;
+- `invoke_billing_cron()` używa tego samego resolvera (wcześniej czytał surowy
+  `base_url`, więc przy adresie z domeny tenanta nie ruszał).
+
 ### Obserwowalność: log przebiegów i panel zdrowia
 
 `pg_net` jest fire-and-forget, więc bez logu nie da się odróżnić „nikt nie woła
@@ -67,7 +89,8 @@ dyspozytora" od „nie ma czego wysyłać". Każdy przebieg (cron, repo, panel)
 zapisuje wiersz w `public.job_runner_runs` (source, job, `ok`, czas, wynik,
 błąd; rotacja 14 dni) i stempluje heartbeat w `job_runner_settings`
 (`last_invoked_at` = cron puknął, `last_app_run_at` / `last_app_ok_at` =
-aplikacja odpowiedziała, `failure_streak`).
+aplikacja odpowiedziała, `failure_streak`), obok telemetrii samego crona
+(`last_tick_status` / `last_tick_error` / `tick_count`).
 
 **Panel: /admin/community/notifications** (RPC `job_scheduler_health()`, staff)
 pokazuje: świeżość ostatniego udanego przebiegu (`fresh` ≤ 6 min,

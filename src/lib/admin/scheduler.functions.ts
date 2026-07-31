@@ -30,6 +30,14 @@ export interface SchedulerRunnerState {
   lastAppOkAt: string | null;
   lastAppError: string | null;
   failureStreak: number;
+  /**
+   * Telemetria SAMEGO crona (`invoke_jobs_tick`): `dispatched` | `skipped` |
+   * `error`. Razem z `lastTickError` odpowiada, DLACZEGO puknięcia nie było -
+   * `disabled`, `no_secret`, `no_base_url`, `pg_net_unavailable`.
+   */
+  lastTickStatus: string | null;
+  lastTickError: string | null;
+  tickCount: number;
 }
 
 export interface SchedulerCronJob {
@@ -106,6 +114,9 @@ interface HealthPayload {
     last_app_ok_at?: string | null;
     last_app_error?: string | null;
     failure_streak?: number;
+    last_tick_status?: string | null;
+    last_tick_error?: string | null;
+    tick_count?: number;
   };
   capabilities?: { pg_cron?: boolean; pg_net?: boolean };
   app_unreachable?: boolean;
@@ -165,6 +176,9 @@ export const getSchedulerHealth = createServerFn({ method: "GET" })
       lastAppOkAt: payload.runner?.last_app_ok_at ?? null,
       lastAppError: payload.runner?.last_app_error ?? null,
       failureStreak: num(payload.runner?.failure_streak),
+      lastTickStatus: payload.runner?.last_tick_status ?? null,
+      lastTickError: payload.runner?.last_tick_error ?? null,
+      tickCount: num(payload.runner?.tick_count),
     };
 
     const { getOrigin } = await import("@/lib/seo/request");

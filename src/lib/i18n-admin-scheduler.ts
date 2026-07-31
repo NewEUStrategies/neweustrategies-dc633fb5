@@ -50,10 +50,21 @@ export const adminSchedulerPl = {
       autoArmed: "Uzbrojony automatycznie {{ago}}",
       notArmed:
         "Runner nie jest uzbrojony: pg_cron tyka, ale nie wysyła żądań. Uruchom tick ręcznie albo ustaw adres aplikacji w panelu newslettera.",
-      lastInvoke: "Ostatnie puknięcie crona: {{ago}}",
+      lastInvoke: "Ostatnie puknięcie crona: {{ago}} ({{count}} od wdrożenia)",
       lastInvokeNever: "Cron nigdy nie puknął do aplikacji",
       failureStreak: "Kolejne nieudane przebiegi: {{count}}",
       lastError: "Ostatni błąd: {{message}}",
+      tickStatus: {
+        dispatched: "Cron wysłał żądanie do aplikacji.",
+        skipped: "Cron pominął puknięcie: {{reason}}",
+        error: "Cron nie zdołał puknąć: {{reason}}",
+      },
+      tickReason: {
+        disabled: "runner jest wyłączony",
+        no_secret: "brak sekretu ticku",
+        no_base_url: "brak adresu aplikacji (ustaw base_url albo domenę tenanta)",
+        pg_net_unavailable: "rozszerzenie pg_net niedostępne w projekcie",
+      },
     },
     capabilities: {
       title: "Rozszerzenia bazy",
@@ -161,10 +172,21 @@ export const adminSchedulerEn = {
       autoArmed: "Armed automatically {{ago}}",
       notArmed:
         "The runner is not armed: pg_cron ticks but sends no requests. Run a tick manually or set the app URL in the newsletter panel.",
-      lastInvoke: "Last cron ping: {{ago}}",
+      lastInvoke: "Last cron ping: {{ago}} ({{count}} since deploy)",
       lastInvokeNever: "The cron has never pinged the app",
       failureStreak: "Consecutive failed runs: {{count}}",
       lastError: "Last error: {{message}}",
+      tickStatus: {
+        dispatched: "The cron sent a request to the app.",
+        skipped: "The cron skipped the ping: {{reason}}",
+        error: "The cron could not ping: {{reason}}",
+      },
+      tickReason: {
+        disabled: "the runner is disabled",
+        no_secret: "the tick secret is missing",
+        no_base_url: "no app URL (set base_url or the tenant domain)",
+        pg_net_unavailable: "the pg_net extension is unavailable in this project",
+      },
     },
     capabilities: {
       title: "Database extensions",

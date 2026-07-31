@@ -14,6 +14,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -67,6 +68,16 @@ function ago(iso: string | null | undefined, lang: Lang, fallback: string): stri
 function secondsLabel(seconds: number, lang: Lang): string {
   if (seconds <= 0) return "-";
   return relTime(new Date(Date.now() - seconds * 1000).toISOString(), lang);
+}
+
+/**
+ * Kod powodu z `invoke_jobs_tick()` (`no_base_url`, `pg_net_unavailable`, ...)
+ * na zdanie dla operatora. Nieznany kod pokazujemy surowo - lepiej techniczny
+ * ciąg niż pusta linia w miejscu, w którym ktoś diagnozuje awarię.
+ */
+function tickReason(t: TFunction, code: string | null): string {
+  if (!code) return "-";
+  return t(`adminScheduler.runner.tickReason.${code}`, { defaultValue: code });
 }
 
 export function SchedulerHealthPanel() {
@@ -304,9 +315,27 @@ export function SchedulerHealthPanel() {
               {runner?.lastInvokedAt
                 ? t("adminScheduler.runner.lastInvoke", {
                     ago: ago(runner.lastInvokedAt, lang, "-"),
+                    count: runner.tickCount,
                   })
                 : t("adminScheduler.runner.lastInvokeNever")}
             </p>
+            {/* Telemetria samego crona: gdy puknięcia nie ma, to ona podaje
+                przyczynę (wyłączony runner, brak adresu, brak pg_net) - bez
+                niej panel mówiłby tylko „brak ticku". */}
+            {runner?.lastTickStatus ? (
+              <p
+                className={
+                  runner.lastTickStatus === "dispatched"
+                    ? "m-0 text-muted-foreground"
+                    : "m-0 text-amber-600 dark:text-amber-400"
+                }
+              >
+                {t(`adminScheduler.runner.tickStatus.${runner.lastTickStatus}`, {
+                  reason: tickReason(t, runner.lastTickError),
+                  defaultValue: runner.lastTickError ?? runner.lastTickStatus,
+                })}
+              </p>
+            ) : null}
             {runner?.autoArmedAt ? (
               <p className="m-0 text-muted-foreground">
                 {t("adminScheduler.runner.autoArmed", {

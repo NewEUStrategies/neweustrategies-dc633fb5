@@ -54,6 +54,9 @@ function health(overrides: Partial<SchedulerHealth> = {}): SchedulerHealth {
       lastAppOkAt: new Date(now - 30_000).toISOString(),
       lastAppError: null,
       failureStreak: 0,
+      lastTickStatus: "dispatched",
+      lastTickError: null,
+      tickCount: 1420,
     },
     capabilities: { pgCron: true, pgNet: true },
     appUnreachable: false,
@@ -178,6 +181,30 @@ describe("SchedulerHealthPanel", () => {
 
     // appUnreachable + stale + brak VAPID + backlog = cztery osobne alerty.
     await waitFor(() => expect(screen.queryAllByRole("alert").length).toBeGreaterThanOrEqual(4));
+    expect(document.body.textContent ?? "").not.toContain("adminScheduler.");
+  });
+
+  it("pokazuje POWÓD pominięcia puknięcia zgłoszony przez crona", async () => {
+    getSchedulerHealth.mockResolvedValue(
+      health({
+        freshness: "never",
+        runner: {
+          ...health().runner,
+          enabled: true,
+          lastAppOkAt: null,
+          lastAppRunAt: null,
+          lastTickStatus: "skipped",
+          lastTickError: "pg_net_unavailable",
+        },
+      }),
+    );
+    renderPanel();
+
+    // Kod powodu z invoke_jobs_tick() jest tłumaczony na zdanie, a nie
+    // pokazywany surowo ani pomijany.
+    await waitFor(() =>
+      expect(document.body.textContent ?? "").toMatch(/pg_net|pg_net_unavailable/),
+    );
     expect(document.body.textContent ?? "").not.toContain("adminScheduler.");
   });
 
