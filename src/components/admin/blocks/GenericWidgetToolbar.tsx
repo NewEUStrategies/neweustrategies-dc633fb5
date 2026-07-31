@@ -72,9 +72,13 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
   const padY = String(d.padY ?? "md");
   const bg = typeof d.bg === "string" ? (d.bg as string) : "";
   const [bgOpen, setBgOpen] = useState(false);
+  const showPalette = hasBlockPalette(block.type);
+  const palette = String(d.colorPalette ?? "neutral");
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
+
 
   return (
     <div
