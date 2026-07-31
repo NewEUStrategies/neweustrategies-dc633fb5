@@ -177,7 +177,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
           )}
         </AppLink>
         <div className="flex items-center gap-2 justify-self-end">
-          <LangSwitcherDropdown label={isPl ? "Język" : "Language"} />
+          <LangReelSwitcher label={isPl ? "Język" : "Language"} />
           <button
             type="button"
             onClick={() => setOpen(true)}
