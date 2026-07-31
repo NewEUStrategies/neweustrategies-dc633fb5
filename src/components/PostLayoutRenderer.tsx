@@ -42,7 +42,7 @@ export function PostLayoutRenderer({
   layoutId,
   settings,
   title,
-  excerpt,
+  excerpt: rawExcerpt,
   coverImageUrl,
   meta,
   categoryBadges,
@@ -53,6 +53,7 @@ export function PostLayoutRenderer({
   entityId,
   entityType = "post",
 }: Props) {
+  const excerpt = cleanExcerpt(rawExcerpt);
   const preset = findLayout(format, layoutId);
   const hasSidebar = effectiveHasSidebar(preset, settings);
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;
