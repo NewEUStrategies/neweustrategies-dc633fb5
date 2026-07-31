@@ -21,6 +21,7 @@ import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
 import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { migratePostToBlocks } from "@/lib/posts-migrate.functions";
 import { toastError } from "@/lib/toastError";
+import { slugifyTaxonomy, normalizeSlugInput } from "@/lib/content/taxonomySlug";
 import { SidebarSection, InfoHint } from "../atoms";
 import { WorkflowStatusSection } from "../molecules";
 import type { AutoReadMinutes, EditorType } from "../types";
