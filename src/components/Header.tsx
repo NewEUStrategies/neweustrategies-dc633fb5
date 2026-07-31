@@ -18,7 +18,7 @@ import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { AppLink } from "@/components/atoms/AppLink";
-import { LangToggle } from "@/components/atoms/LangToggle";
+import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
 
 import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
@@ -177,7 +177,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
           )}
         </AppLink>
         <div className="flex items-center gap-2 justify-self-end">
-          <LangToggle />
+          <LangSwitcherDropdown label={isPl ? "Język" : "Language"} />
           <button
             type="button"
             onClick={() => setOpen(true)}
