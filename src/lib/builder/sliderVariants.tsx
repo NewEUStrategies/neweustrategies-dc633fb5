@@ -876,17 +876,18 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           ? config.authorLabel_en?.trim() || "By"
           : config.authorLabel_pl?.trim() || "Autor") + ": "
       : "";
-  // Metadane autora: domyślna czcionka 10 px, sterowalna z panelu.
+  // Metadane autora: domyślna czcionka 12 px (parytet ze stroną główną).
   const authorFontPx = Math.max(
     8,
-    Math.min(24, typeof config.authorSizePx === "number" ? config.authorSizePx : 10),
+    Math.min(24, typeof config.authorSizePx === "number" ? config.authorSizePx : 12),
   );
   const authorStyle: CSSProperties = { fontSize: `${authorFontPx}px`, lineHeight: 1.35 };
-  // Awatar jest niezależny od czcionki: domyślnie 12 px.
+  // Awatar jest niezależny od czcionki: domyślnie 20 px (parytet ze stroną główną).
   const authorAvatarPx = Math.max(
     8,
-    Math.min(64, typeof config.authorAvatarSizePx === "number" ? config.authorAvatarSizePx : 12),
+    Math.min(64, typeof config.authorAvatarSizePx === "number" ? config.authorAvatarSizePx : 20),
   );
+
 
   const sharedProps = {
     items,
