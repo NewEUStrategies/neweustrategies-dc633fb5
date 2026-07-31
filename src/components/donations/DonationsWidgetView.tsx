@@ -1,9 +1,10 @@
 // Widget CMS builder: publiczne statystyki darowizn + CTA na /support.
 // Dane pobiera server fn `getDonationsPublicStats` (service role, tylko sumy;
-// nigdy nie ujawnia donor_email/message). Synchronizacja z /admin/donations
-// jest domenowa - obie ścieżki czytają tę samą tabelę public.donations,
-// filtr status='paid' + tenant. Warianty wizualne: hero / progress /
-// stats-strip / compact-card / inline-bar / thermometer.
+// nigdy nie ujawnia donor_email/message). Źródłem jest tabela public.donations
+// (rejestr historycznych wpłat, filtr status='paid' + tenant); bieżąca zbiórka
+// żyje na zrzutka.pl (AUP Paddle), a wpis w nawigacji admina to link
+// zewnętrzny. Warianty wizualne: hero / progress / stats-strip /
+// compact-card / inline-bar / thermometer.
 import { useMemo, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
