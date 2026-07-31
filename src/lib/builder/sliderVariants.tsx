@@ -94,6 +94,8 @@ export interface SliderConfig {
   /** Optional i18n override for the label prefix in authorDisplay='label'. */
   authorLabel_pl?: string;
   authorLabel_en?: string;
+  /** Rozmiar czcionki metadanych autora (px). Domyślnie 11. */
+  authorSizePx?: number;
 
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
