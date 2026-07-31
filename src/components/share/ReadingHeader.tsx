@@ -17,6 +17,7 @@ import {
 } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
+import { LangReelSwitcher } from "@/components/atoms/LangReelSwitcher";
 import { SearchButtonWidget } from "@/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget";
 import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 import { ChatBell } from "@/components/chat/ChatBell";
