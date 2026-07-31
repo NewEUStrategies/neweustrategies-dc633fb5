@@ -12,6 +12,7 @@ import {
 } from "@/lib/postLayouts";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
+import { cleanExcerpt } from "@/lib/text/cleanExcerpt";
 
 interface Props {
   format: PostFormat;
