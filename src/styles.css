@@ -6069,7 +6069,6 @@ header[data-scrolled="true"]
   }
 }
 
-
 /* Kotwice (#newsletter, #kontakt itd.) nie mogą wjeżdżać pod sticky header.
    --sticky-header-h ustawia komponent Header na podstawie realnej wysokości. */
 html {
@@ -6136,8 +6135,8 @@ html {
     background: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in oklab, var(--foreground) 26%, transparent) 18%,
-      color-mix(in oklab, var(--foreground) 26%, transparent) 82%,
+      color-mix(in oklab, var(--foreground) 12%, transparent) 18%,
+      color-mix(in oklab, var(--foreground) 12%, transparent) 82%,
       transparent
     );
   }
@@ -6145,8 +6144,8 @@ html {
     background: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in oklab, var(--foreground) 34%, transparent) 18%,
-      color-mix(in oklab, var(--foreground) 34%, transparent) 82%,
+      color-mix(in oklab, var(--foreground) 18%, transparent) 18%,
+      color-mix(in oklab, var(--foreground) 18%, transparent) 82%,
       transparent
     );
   }
@@ -6156,4 +6155,3 @@ html {
     content: none;
   }
 }
-
