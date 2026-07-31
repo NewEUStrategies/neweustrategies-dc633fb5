@@ -8,8 +8,12 @@
 //   * tożsamość gościa (uuid w localStorage - miękki licznik anonimów;
 //     twardą walutą lejka jest limit KONTA egzekwowany po auth.uid()),
 //   * hooki: useMeteringSettings + useMeteredAccess (konsumpcja po stronie
-//     klienta PO hydracji, żeby boty/prefetch nie paliły limitu).
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+//     klienta PO hydracji, żeby boty/prefetch nie paliły limitu),
+//   * useMeterQuota (RPC metering_state - stan miesięcznego limitu BEZ
+//     konsumpcji) jako jedno źródło "zostało N" dla warstwy treści; każda
+//     konsumpcja zasiewa ten sam cache, więc licznik nigdy nie pokazuje
+//     nieaktualnych wartości z zamrożonego stanu per artykuł.
+import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { EMPTY_BODY, hasRenderableBody, type BodyParts } from "@/lib/access/gating";
@@ -52,6 +56,92 @@ export interface MeteredUnlock {
   meter: MeterState | null;
   /** true, gdy zapytanie konsumujące zakończyło się (sukcesem lub odmową). */
   settled: boolean;
+}
+
+/**
+ * Stan miesięcznego limitu czytelnika (RPC metering_state - odczyt bez
+ * konsumpcji). W odróżnieniu od MeterState nie jest przypięty do bytu:
+ * opisuje CAŁY bieżący miesiąc tożsamości, więc nadaje się na licznik
+ * "zostało N" w dowolnym miejscu warstwy treści.
+ */
+export interface MeterQuota {
+  enabled: boolean;
+  monthlyLimit: number;
+  used: number;
+  remaining: number;
+  requiresRegistration: boolean;
+  showCounter: boolean;
+}
+
+/** Liczby prezentowane czytelnikowi przez licznik (po scaleniu źródeł). */
+export interface MeterNumbers {
+  used: number;
+  monthlyLimit: number;
+  remaining: number;
+}
+
+/**
+ * Widoczność licznika w warstwie treści - czysta reguła współdzielona przez
+ * trasę ($.tsx), MeterBanner i testy: licznik istnieje wyłącznie dla treści
+ * odblokowanej "na licznik" (granted), przy włączonym przełączniku
+ * show_counter i realnym limicie. Uprawniony czytelnik (subskrypcja/zakup/
+ * organizacja) dostaje z RPC monthly_limit=0, więc nigdy go nie widzi.
+ */
+export function meterCounterVisible(meter: MeterState | null | undefined): boolean {
+  return !!meter && meter.granted && meter.showCounter && meter.monthlyLimit > 0;
+}
+
+/**
+ * Scala zamrożony stan per artykuł (consume, staleTime: Infinity) z żywym
+ * stanem miesiąca (metering_state / zasiew po konsumpcji). Bez tego powrót do
+ * wcześniej odblokowanego artykułu pokazywał licznik z chwili PIERWSZEGO
+ * odblokowania - np. "zostały 4", gdy realnie zostały 3. `used` jest w obrębie
+ * miesiąca monotoniczne, więc świeższym źródłem jest zawsze większa wartość;
+ * limit bierzemy z quota (admin mógł go zmienić w trakcie miesiąca).
+ *
+ * Inwariant: oba źródła opisują TEN SAM okres rozliczeniowy - klucze zapytań
+ * obu hooków zawierają currentMeterPeriod(), więc po przełomie miesiąca każdy
+ * remount czyta świeże stany nowego okresu, a zeszłomiesięczne wpisy cache są
+ * nieosiągalne (monotoniczny max nigdy nie scala danych z różnych miesięcy).
+ */
+export function latestMeterNumbers(
+  entity: MeterState,
+  quota: MeterQuota | null | undefined,
+): MeterNumbers {
+  if (!quota || !quota.enabled || quota.monthlyLimit <= 0) {
+    return { used: entity.used, monthlyLimit: entity.monthlyLimit, remaining: entity.remaining };
+  }
+  const monthlyLimit = quota.monthlyLimit;
+  const used = Math.max(entity.used, quota.used);
+  return { used, monthlyLimit, remaining: Math.max(monthlyLimit - used, 0) };
+}
+
+/**
+ * Bieżący okres rozliczeniowy licznika w ujęciu serwera, np. "2026-07".
+ * Serwer trzyma zużycie per period_month = date_trunc('month', now()) w UTC,
+ * więc okres liczymy z zegara UTC - wchodzi do kluczy zapytań licznika, żeby
+ * stany z różnych miesięcy nigdy się nie mieszały (patrz latestMeterNumbers).
+ */
+export function currentMeterPeriod(now: Date = new Date()): string {
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Moment odnowienia limitu: pierwszy dzień kolejnego miesiąca kalendarzowego (UTC). */
+export function nextMeterResetDate(now: Date = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+}
+
+/**
+ * Data odnowienia limitu w formacie aktywnego języka, np. "1 sierpnia" /
+ * "1 August". Formatowana w UTC (strefa serwera), żeby czytelnik na zachód od
+ * Greenwich nie zobaczył "31 lipca" przez przesunięcie północy UTC na lokalną.
+ */
+export function formatMeterResetDate(lang: "pl" | "en", now: Date = new Date()): string {
+  return new Intl.DateTimeFormat(lang === "en" ? "en-GB" : "pl-PL", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(nextMeterResetDate(now));
 }
 
 export function normalizeMeteringPolicy(value: string | null | undefined): MeteringPolicy {
@@ -148,6 +238,82 @@ function toMeterState(row: ConsumeRow): MeterState {
   };
 }
 
+/**
+ * Werdykt konsumpcji jako stan miesiąca. Ma sens wyłącznie dla wierszy z
+ * realnym limitem (monthly_limit > 0) - ścieżki "metering nieaktywny" oraz
+ * skrót dla uprawnionych zwracają zera, które NIE opisują quoty czytelnika.
+ */
+export function quotaFromMeterState(state: MeterState): MeterQuota {
+  return {
+    enabled: true,
+    monthlyLimit: state.monthlyLimit,
+    used: state.used,
+    remaining: state.remaining,
+    requiresRegistration: state.requiresRegistration,
+    showCounter: state.showCounter,
+  };
+}
+
+interface QuotaRow {
+  enabled: boolean;
+  monthly_limit: number;
+  used: number;
+  remaining: number;
+  requires_registration: boolean;
+  show_counter: boolean;
+}
+
+function toMeterQuota(row: QuotaRow): MeterQuota {
+  return {
+    enabled: row.enabled,
+    monthlyLimit: row.monthly_limit,
+    used: row.used,
+    remaining: row.remaining,
+    requiresRegistration: row.requires_registration,
+    showCounter: row.show_counter,
+  };
+}
+
+/**
+ * Klucz cache stanu miesiąca - per tożsamość (konto albo klucz gościa) ORAZ
+ * okres rozliczeniowy: login/logout naturalnie przełącza licznik na właściwe
+ * zużycie, a przełom miesiąca unieważnia zeszłomiesięczny stan zamiast
+ * przenosić go w nowy okres.
+ */
+function meterQuotaQueryKey(identity: string | null, period: string) {
+  return ["metering-quota", identity ?? "anon", period] as const;
+}
+
+async function fetchMeterQuota(visitorId: string | null): Promise<MeterQuota | null> {
+  const { data, error } = await supabase.rpc(
+    "metering_state",
+    visitorId ? { _visitor_id: visitorId } : {},
+  );
+  if (error) throw error;
+  const row = ((data ?? []) as QuotaRow[])[0];
+  return row ? toMeterQuota(row) : null;
+}
+
+/**
+ * Żywy stan miesięcznego limitu czytelnika (bez konsumpcji). Zwykle NIE
+ * odpytuje serwera: każda konsumpcja (useMeteredAccess) zasiewa ten cache
+ * świeżym werdyktem, więc RPC wychodzi dopiero, gdy licznik montuje się bez
+ * niedawnej konsumpcji (np. powrót do przeczytanego artykułu po chwili).
+ */
+export function useMeterQuota(enabled: boolean = true): UseQueryResult<MeterQuota | null> {
+  const { session } = useAuth();
+  const uid = session?.user?.id ?? null;
+  const visitorId = uid ? null : getVisitorId();
+  const period = currentMeterPeriod();
+  return useQuery({
+    queryKey: meterQuotaQueryKey(uid ?? visitorId, period),
+    enabled: enabled && (!!uid || !!visitorId),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    queryFn: () => fetchMeterQuota(uid ? null : visitorId),
+  });
+}
+
 export async function fetchMeteringSettings(): Promise<MeteringSettings | null> {
   const { data, error } = await supabase
     .from("metering_settings")
@@ -170,8 +336,10 @@ export function useMeteringSettings(): UseQueryResult<MeteringSettings | null> {
 
 /**
  * Odblokowanie na licznik. Wywołuje consume_metered_view dokładnie raz na
- * (byt, tożsamość, miesiąc nie jest w kluczu - serwer i tak jest idempotentny
- * per byt/miesiąc). `enabled` musi już zawierać werdykt meteringApplies oraz
+ * (byt, tożsamość, okres) - okres w kluczu sprawia, że po przełomie miesiąca
+ * ponowna wizyta konsumuje slot NOWEGO miesiąca (serwer i tak jest
+ * idempotentny per byt/miesiąc), a zamrożony stan zeszłego miesiąca nie
+ * zawyża licznika. `enabled` musi już zawierać werdykt meteringApplies oraz
  * "SSR/entitled unlock nie przyniósł body".
  */
 export function useMeteredAccess(
@@ -180,11 +348,13 @@ export function useMeteredAccess(
   enabled: boolean,
 ): MeteredUnlock {
   const { session } = useAuth();
+  const queryClient = useQueryClient();
   const uid = session?.user?.id ?? null;
   const visitorId = uid ? null : getVisitorId();
+  const period = currentMeterPeriod();
 
   const query = useQuery({
-    queryKey: ["metered-unlock", entityType, entityId, uid ?? visitorId ?? "none"] as const,
+    queryKey: ["metered-unlock", entityType, entityId, uid ?? visitorId ?? "none", period] as const,
     enabled: enabled && !!entityId && (!!uid || !!visitorId),
     // Konsumpcja jest efektem ubocznym - nie ponawiamy automatycznie i nie
     // odświeżamy w tle, żeby licznik nie skakał w trakcie czytania.
@@ -200,6 +370,17 @@ export function useMeteredAccess(
       if (error) throw error;
       const row = ((data ?? []) as ConsumeRow[])[0];
       if (!row) return { body: null, meter: null };
+      // Zasiew żywego licznika miesiąca: werdykt konsumpcji to najświeższy
+      // znany stan quoty, więc każdy zamontowany licznik "zostało N"
+      // aktualizuje się natychmiast i bez dodatkowego RPC. Wiersze bez
+      // realnego limitu (metering nieaktywny dla bytu / skrót dla
+      // uprawnionych) nie opisują quoty czytelnika - tych nie zasiewamy.
+      if (row.monthly_limit > 0) {
+        queryClient.setQueryData(
+          meterQuotaQueryKey(uid ?? visitorId, period),
+          quotaFromMeterState(toMeterState(row)),
+        );
+      }
       const body: BodyParts = {
         content_pl: row.content_pl,
         content_en: row.content_en,

@@ -50,7 +50,12 @@ import {
   pickBody,
   type BodyParts,
 } from "@/lib/access/gating";
-import { meteringApplies, useMeteredAccess, useMeteringSettings } from "@/lib/access/metering";
+import {
+  meterCounterVisible,
+  meteringApplies,
+  useMeteredAccess,
+  useMeteringSettings,
+} from "@/lib/access/metering";
 import { MeterBanner } from "@/components/molecules/MeterBanner";
 import { useGiftCodeFromUrl, useGiftRedemption } from "@/lib/gifting/hooks";
 import { GiftArticleButton } from "@/components/gifting/GiftArticleButton";
@@ -830,8 +835,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         />
       ) : (
         <>
-          {/* Licznik meteringu - tylko gdy body przyszło "na licznik". */}
-          {metered.meter && metered.meter.granted && hasRenderableBody(body) && (
+          {/* Licznik "zostało N" w warstwie treści - tylko gdy body przyszło
+              "na licznik" (meterCounterVisible: granted + show_counter +
+              realny limit; uprawnieni czytelnicy nigdy go nie widzą). */}
+          {metered.meter && meterCounterVisible(metered.meter) && hasRenderableBody(body) && (
             <MeterBanner meter={metered.meter} />
           )}
           {isPost && <PostSeriesNav postId={it.id} lang={lang} />}
