@@ -190,4 +190,73 @@ describe("parseWordHtml - nagłówki i przypisy górne", () => {
     const blocks = parseWordHtml(`<p>Wstęp</p><p>1. Punkt</p><p>2. Punkt</p>`);
     expect(blocks).toHaveLength(3);
   });
+}
+
+  it("zachowuje formatowanie w treści przypisu Worda", () => {
+    const blocks = parseWordHtml(
+      `<p>Teza<a href="#_ftn1" id="_ftnref1"><sup>[1]</sup></a>.</p>` +
+        `<div id="ftn1"><p class=MsoFootnoteText><a href="#_ftnref1"><sup>[1]</sup></a> ` +
+        `M. Draghi, <i>The future</i>, <a href="https://ec.europa.eu">link</a>.</p></div>`,
+    );
+    const html = String(blocks[0].data.html);
+    expect(html).toContain("<em>The future</em>");
+    expect(html).toContain('<a href="https://ec.europa.eu">link</a>');
+    expect(html).not.toContain("[1]");
+  });
+
+  it("obsługuje przypisy w indeksie unicode i listę ol na końcu", () => {
+    const blocks = parseWordHtml(
+      `<p>Zdanie pierwsze\u00B9 i drugie\u00B2.</p>` +
+        `<ol><li>Pierwsze <i>źródło</i>.</li><li>Drugie źródło.</li></ol>`,
+    );
+    const html = String(blocks[0].data.html);
+    expect(blocks).toHaveLength(1);
+    expect(html).toContain("[fn]Pierwsze <em>źródło</em>.[/fn]");
+    expect(html).toContain("[fn]Drugie źródło.[/fn]");
+  });
+
+  it("scala kilka odsyłaczy z jednego indeksu górnego", () => {
+    const blocks = parseWordHtml(
+      `<p>Teza<sup>1,2</sup>.</p><p>1. Pierwsze.</p><p>2. Drugie.</p>`,
+    );
+    const html = String(blocks[0].data.html);
+    expect(html).toContain("[fn]Pierwsze.[/fn][fn]Drugie.[/fn]");
+  });
+
+  it("nie pogrubia dokumentu przez wrapper Google Docs", () => {
+    const blocks = parseWordHtml(
+      `<b style="font-weight:normal"><p>Zwykły <span style="font-weight:700">akcent</span></p></b>`,
+    );
+    const html = String(blocks[0].data.html);
+    expect(html).toBe("Zwykły <strong>akcent</strong>");
+  });
+
+  it("rozpoznaje styl cytatu Worda i źródło cytatu HTML", () => {
+    const [q1, q2] = parseWordHtml(
+      `<p class=MsoIntenseQuote>Luka implementacyjna.</p>` +
+        `<blockquote><p>Cytat</p><cite>Autor</cite></blockquote>`,
+    );
+    expect(q1.type).toBe("quote");
+    expect(q1.data.text).toBe("Luka implementacyjna.");
+    expect(q2.data.cite).toBe("Autor");
+  });
+
+  it("czyta punktor listy z ukrytego spanu mso-list:Ignore", () => {
+    const [list] = parseWordHtml(
+      `<p class=MsoListParagraph style='mso-list:l0 level1 lfo1'>` +
+        `<span style='mso-list:Ignore'>3.<span>&nbsp;</span></span>Trzeci punkt</p>`,
+    );
+    expect(list.type).toBe("list");
+    expect(list.data.ordered).toBe(true);
+    expect(list.data.start).toBe(3);
+    expect(String(JSON.stringify(list.data.items))).toContain("Trzeci punkt");
+  });
+
+  it("nie pozwala rozbić shortcode przez treść przypisu", () => {
+    const blocks = parseWordHtml(
+      `<p>A<a href="#_ftn1" id="_ftnref1"><sup>[1]</sup></a></p>` +
+        `<div id="ftn1"><p>Uwaga [/fn] koniec.</p></div>`,
+    );
+    expect(String(blocks[0].data.html)).toBe("A[fn]Uwaga (/fn) koniec.[/fn]");
+  });
 });
