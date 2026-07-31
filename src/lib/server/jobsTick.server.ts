@@ -22,12 +22,14 @@ import {
   runCrmTaskReminders,
   runEventReminders,
 } from "@/lib/notifications/dispatch.server";
+import { countTickFailures, type SchedulerSource } from "@/lib/jobs/scheduler";
+import { recordJobRun } from "@/lib/server/jobScheduler.server";
 
 type DbClient = SupabaseClient<Database>;
 
 export interface JobsTickResult {
   newsletter: { fired: number; continued: number; sent: number } | { error: string };
-  push: { claimed: number; sent: number } | { error: string };
+  push: { claimed: number; sent: number; skipped?: string } | { error: string };
   digestDaily: { claimed: number; sent: number } | { error: string };
   digestWeekly: { claimed: number; sent: number } | { error: string };
   eventReminders: number | { error: string };
@@ -35,6 +37,14 @@ export interface JobsTickResult {
   linkCheck: { postsScanned: number; linksChecked: number; broken: number } | { error: string };
   integrations: { claimed: number; delivered: number; failed: number } | { error: string };
   semanticIndex: { scanned: number; embedded: number; skipped?: string } | { error: string };
+}
+
+/** Kto wywołał tick - ląduje w logu przebiegów (public.job_runner_runs). */
+export interface JobsTickMeta {
+  source?: SchedulerSource;
+  /** Tylko tick ręczny z panelu: ślad audytowy (tenant + operator). */
+  tenantId?: string | null;
+  actorId?: string | null;
 }
 
 // Globalny budżet czasu jednego ticku. Joby biegną sekwencyjnie; gdy budżet się
@@ -69,7 +79,10 @@ export function everyNthMinute(n: number, now = new Date()): boolean {
   return now.getUTCMinutes() % n === 0;
 }
 
-export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
+export async function runJobsTick(
+  admin: DbClient,
+  meta: JobsTickMeta = {},
+): Promise<JobsTickResult> {
   const startedAt = Date.now();
   const overBudget = () => Date.now() - startedAt > JOBS_TICK_DEADLINE_MS;
   const skipped = { error: "skipped_duty_cycle" } as const;
@@ -113,8 +126,7 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
       })
     : skipped;
 
-
-  return {
+  const result: JobsTickResult = {
     newsletter,
     push,
     digestDaily,
@@ -125,6 +137,28 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
     integrations,
     semanticIndex,
   };
+
+  // Heartbeat: KAŻDY tick (cron bazy, scheduler repo, ręczny z panelu) zostawia
+  // wpis w public.job_runner_runs. To jedyny sposób, żeby odróżnić "kolejka
+  // pusta" od "nikt nie woła dyspozytora" - pg_net jest fire-and-forget, więc
+  // bez tego wpisu awaria harmonogramu jest niewidzialna. Zapis jest
+  // best-effort i nie może unieważnić pracy, która już się wykonała.
+  const failures = countTickFailures(result);
+  await recordJobRun(
+    {
+      source: meta.source ?? "external",
+      job: "all",
+      ok: failures.length === 0,
+      durationMs: Date.now() - startedAt,
+      result,
+      error: failures.length > 0 ? failures.join("; ") : null,
+      tenantId: meta.tenantId ?? null,
+      actorId: meta.actorId ?? null,
+    },
+    admin,
+  );
+
+  return result;
 }
 
 /** Stały czas porównania sekretów (długości też nie zdradzamy wcześniej). */

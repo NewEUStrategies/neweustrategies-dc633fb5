@@ -1,0 +1,152 @@
+name: Scheduler (push / digesty / przypomnienia)
+
+# Harmonogram doręczeń po stronie REPO - siatka bezpieczeństwa dla kolejki push,
+# digestów e-mail, przypomnień o wydarzeniach i follow-upów CRM.
+#
+# Dlaczego istnieje: dyspozytor (src/lib/notifications/dispatch.server.ts) jest
+# kompletny, ale sam siebie nie woła. Ścieżką podstawową jest pg_cron + pg_net
+# (co minutę -> /api/public/jobs-tick), tylko że jest bezużyteczna, dopóki
+# job_runner_settings ma domyślne enabled=false / base_url='' - i dokładnie tak
+# wyglądała produkcja: cron tykał w próżnię, kolejka rosła. Ten workflow:
+#
+#   * drenuje kolejki niezależnie od stanu bazy (sekret w repo, nie w DB),
+#   * UZBRAJA ścieżkę podstawową - pierwszy tick przekazuje bazie publiczny
+#     origin (arm_job_runner), więc pg_cron zaczyna działać sam,
+#   * daje widoczny w repo dowód, że doręczenia biegły (step summary + czerwony
+#     przebieg, gdy endpoint odpowiada błędem).
+#
+# Konfiguracja (Settings -> Secrets and variables -> Actions):
+#   variables.APP_BASE_URL          np. https://neweuropeanstrategies.com
+#   secrets.COMMUNITY_CRON_SECRET   = env COMMUNITY_CRON_SECRET aplikacji ALBO
+#                                     job_runner_settings.secret (oba działają)
+# Bez tej pary przebieg kończy się zielono z ostrzeżeniem - fork i świeży klon
+# nie mogą hałasować, ale brak konfiguracji jest widoczny.
+#
+# Uwaga operacyjna: GitHub wyłącza zaplanowane workflow po 60 dniach braku
+# aktywności w repo i potrafi spóźnić przebieg o kilka minut - dlatego to jest
+# siatka bezpieczeństwa, a nie ścieżka podstawowa (patrz docs/RUNBOOK_COMMUNITY.md).
+
+on:
+  schedule:
+    # Co 5 minut (minimalna granulacja Actions); jeden przebieg = 4 ticki po 60 s,
+    # żeby push wychodził w minutach, nie w kwadransach.
+    - cron: "*/5 * * * *"
+    # Dobowe przypomnienia rozliczeniowe (godzinę po wpisie pg_cron; wysyłka jest
+    # idempotentna per subskrypcja i data graniczna, więc dublowanie jest bezpieczne).
+    - cron: "25 5 * * *"
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Zakres ticku
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - push
+          - digest-daily
+          - digest-weekly
+          - event-reminders
+          - crm-task-reminders
+          - billing
+      ticks:
+        description: Liczba ticków w przebiegu (1-10)
+        required: false
+        default: "1"
+        type: string
+
+# Kolejne przebiegi NIE kasują trwających: przerwany tick w połowie partii
+# oddaje pracę do kolejki z backoffem, czyli opóźnia doręczenia.
+concurrency:
+  group: scheduler
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    name: Tick doręczeń
+    # Fork nie wysyła ruchu na produkcję właściciela; ręczne uruchomienie z forka
+    # nadal działa po ustawieniu własnych zmiennych.
+    if: github.event_name != 'schedule' || github.repository_owner == 'NewEUStrategies'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      # Bez `bun install` i bez build-stepu: sterownik ticku to czysty Node 18+
+      # (globalne fetch), więc przebieg kosztuje sekundy, nie minuty.
+      - name: Sprawdź konfigurację
+        id: cfg
+        env:
+          BASE_URL: ${{ vars.APP_BASE_URL }}
+          SECRET: ${{ secrets.COMMUNITY_CRON_SECRET }}
+        run: |
+          if [ -z "$BASE_URL" ] || [ -z "$SECRET" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Scheduler nieskonfigurowany::Ustaw variables.APP_BASE_URL oraz secrets.COMMUNITY_CRON_SECRET - kolejka push i digesty nie są drenowane z repo."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Zakres i liczba ticków zależą od wyzwalacza: wpis dobowy obsługuje
+      # rozliczenia, wpis 5-minutowy drenuje kanały społeczności.
+      - name: Ustal zakres ticku
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_JOB: ${{ inputs.job }}
+          INPUT_TICKS: ${{ inputs.ticks }}
+        run: |
+          job="all"; ticks="4"; endpoint="/api/public/community-cron"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            job="${INPUT_JOB:-all}"
+            ticks="${INPUT_TICKS:-1}"
+          elif [ "$SCHEDULE" = "25 5 * * *" ]; then
+            job="billing"
+            ticks="1"
+          fi
+          if [ "$job" = "billing" ]; then
+            endpoint="/api/public/billing-cron"
+            job="all"
+          fi
+          echo "job=$job" >> "$GITHUB_OUTPUT"
+          echo "ticks=$ticks" >> "$GITHUB_OUTPUT"
+          echo "endpoint=$endpoint" >> "$GITHUB_OUTPUT"
+
+      - name: Tick
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          SCHEDULER_BASE_URL: ${{ vars.APP_BASE_URL }}
+          SCHEDULER_SECRET: ${{ secrets.COMMUNITY_CRON_SECRET }}
+          SCHEDULER_ENDPOINT: ${{ steps.plan.outputs.endpoint }}
+          SCHEDULER_JOB: ${{ steps.plan.outputs.job }}
+          SCHEDULER_TICKS: ${{ steps.plan.outputs.ticks }}
+          SCHEDULER_SOURCE: github_actions
+          SCHEDULER_INTERVAL_MS: "60000"
+          # Poniżej interwału crona (5 min), żeby przebiegi nie zachodziły.
+          SCHEDULER_DEADLINE_MS: "240000"
+        run: node scripts/scheduler-tick.mjs
+
+      # Sonda zdrowia po tickach: jeśli kolejka mimo drenażu stoi (brak VAPID,
+      # martwy runner bazy), zostawiamy ostrzeżenie w podsumowaniu przebiegu.
+      - name: Sonda zdrowia harmonogramu
+        if: steps.cfg.outputs.configured == 'true'
+        continue-on-error: true
+        env:
+          SCHEDULER_BASE_URL: ${{ vars.APP_BASE_URL }}
+          SCHEDULER_SECRET: ${{ secrets.COMMUNITY_CRON_SECRET }}
+        run: |
+          body="$(curl -sS --max-time 20 \
+            -H "x-community-cron-secret: $SCHEDULER_SECRET" \
+            "${SCHEDULER_BASE_URL%/}/api/public/community-cron" || echo '{"ok":null}')"
+          echo "### Zdrowie harmonogramu" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          echo "$body" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          case "$body" in
+            *'"ok":false'*)
+              echo "::warning title=Harmonogram zgłasza zastój::Sonda GET /api/public/community-cron zwróciła ok=false - sprawdź panel /admin/community/notifications." ;;
+          esac

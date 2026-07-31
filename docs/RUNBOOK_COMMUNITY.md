@@ -29,40 +29,100 @@ w potoku kanonicznym (`20260713092000_notification_channels.sql`).
 ## 2. Harmonogram - kto woła doręczenia
 
 SQL w cronie nie może wysyłać HTTP z sekretami środowiska, więc pg_cron
-jedynie PUKA do aplikacji. Są dwa równoważne wejścia (oba idempotentne -
+jedynie PUKA do aplikacji. Są TRZY równoważne wejścia (wszystkie idempotentne -
 claimy atomowe w Postgresie; mogą działać równolegle):
 
-| Endpoint                          | Sekret                                                                                         | Kto woła                                                                                        | Zakres                                                                    |
-| --------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `POST /api/public/jobs-tick`      | nagłówek `x-jobs-secret` = `job_runner_settings.secret` (tabela, admin: Newsletter → kampanie) | **pg_cron + pg_net co minutę** (migracja `20260713170000`)                                      | newsletter + push + digesty (daily/weekly) + przypomnienia o wydarzeniach |
-| `POST /api/public/community-cron` | nagłówek `x-community-cron-secret` = env `COMMUNITY_CRON_SECRET`                               | dowolny zewnętrzny scheduler (GitHub Actions, cron-job.org, uptime robot) - **fallback/ręczne** | `?job=all\|push\|digest-daily\|digest-weekly\|event-reminders`            |
+| Endpoint                          | Sekret                                                                                                                 | Kto woła                                                                                  | Zakres                                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `POST /api/public/jobs-tick`      | nagłówek `x-jobs-secret` = `job_runner_settings.secret`                                                                | **pg_cron + pg_net co minutę** (migracje `20260713170000`, `20260731110000`)              | newsletter + push + digesty + przypomnienia (wydarzenia, follow-upy CRM) + linki + integracje |
+| `POST /api/public/community-cron` | nagłówek `x-community-cron-secret` = env `COMMUNITY_CRON_SECRET` **albo** `job_runner_settings.secret` (jeden z dwóch) | **GitHub Actions co 5 min** (`.github/workflows/scheduler.yml`) + dowolny cron zewnętrzny | `?job=all\|push\|digest-daily\|digest-weekly\|event-reminders\|crm-task-reminders`            |
+| przycisk „Uruchom tick teraz"     | sesja staff (`requireStaff`)                                                                                           | operator: /admin/community/notifications, /admin/tracker                                  | to samo co `jobs-tick` (ta sama funkcja `runJobsTick`)                                        |
+| `GET /api/public/community-cron`  | jak wyżej                                                                                                              | monitoring zewnętrzny (uptime robot)                                                      | sonda zdrowia bez efektów ubocznych: `200` = OK, `503` = zastój                               |
 
-**Stan pożądany:** działa ścieżka pg_cron→jobs-tick (zero zewnętrznych
-zależności). `community-cron` zostaje jako ręczny wyzwalacz i plan B dla
-środowisk bez `pg_net`.
+**Ścieżka podstawowa:** pg_cron → `jobs-tick` (co minutę, zero zewnętrznych
+zależności). **Siatka bezpieczeństwa:** scheduler w repo (co 5 minut, jeden
+przebieg = 4 ticki po 60 s). Przycisk w panelu jest dla dyżuru.
+
+### Samozbrojenie (dlaczego to kiedyś nie działało)
+
+`job_runner_settings` rodzi się z `enabled=false` i `base_url=''`, więc
+`invoke_jobs_tick()` wychodził natychmiast: **cron tykał w próżnię, a kolejka
+push rosła w `pending`**. Migracja `20260731110000` zamyka tę dziurę:
+
+- **dziewiczy wiersz** (brak stempla `auto_armed_at`, wyłączony, pusty URL)
+  uzbraja się sam - z domeny domyślnego tenanta (`resolve_job_runner_base_url`)
+  albo z origin-u PIERWSZEGO ticku z dowolnej ścieżki (`arm_job_runner`;
+  scheduler repo i przycisk w panelu przekazują tam swój adres). Innymi słowy
+  ścieżka repo BOOTSTRAPUJE ścieżkę podstawową;
+- **decyzja operatora jest nienaruszalna**: po stemplu `auto_armed_at` (albo po
+  ręcznej zmianie w panelu) samozbrojenie nigdy się nie powtarza, więc świadome
+  wyłączenie runnera zostaje wyłączone;
+- adres musi być `https` bez hosta lokalnego - cron bazy produkcyjnej nie ma
+  po co pukać do `localhost`.
+
+### Obserwowalność: log przebiegów i panel zdrowia
+
+`pg_net` jest fire-and-forget, więc bez logu nie da się odróżnić „nikt nie woła
+dyspozytora" od „nie ma czego wysyłać". Każdy przebieg (cron, repo, panel)
+zapisuje wiersz w `public.job_runner_runs` (source, job, `ok`, czas, wynik,
+błąd; rotacja 14 dni) i stempluje heartbeat w `job_runner_settings`
+(`last_invoked_at` = cron puknął, `last_app_run_at` / `last_app_ok_at` =
+aplikacja odpowiedziała, `failure_streak`).
+
+**Panel: /admin/community/notifications** (RPC `job_scheduler_health()`, staff)
+pokazuje: świeżość ostatniego udanego przebiegu (`fresh` ≤ 6 min,
+`lagging` ≤ 20 min, dalej `stale`), stan każdej ścieżki, rejestr zadań pg_cron,
+głębokość kolejki push i wiek najstarszego `pending` w Twoim tenancie, digesty
+na wejściu, brakujące env (VAPID / gateway e-mail) oraz log ostatnich 20
+przebiegów. Rozjazd `last_invoked_at` vs `last_app_run_at` daje jawny alert
+**„cron puka, aplikacja nie odpowiada"** (zły `base_url`, zły sekret, leżący
+deploy).
 
 ### Checklist uruchomieniowy
 
-1. `job_runner_settings` (id=1): `enabled=true`, `secret` ustawiony,
-   `base_url` = publiczny adres aplikacji (panel admin newslettera pokazuje
-   stan i pozwala wygenerować sekret).
-2. pg_cron + pg_net włączone w projekcie Supabase (Database → Extensions);
-   migracja `20260713170000` sama zakłada job co minutę, gdy rozszerzenia są.
-3. Env aplikacji (patrz `.env.example`): `VAPID_PUBLIC_KEY`,
+1. pg_cron + pg_net włączone w projekcie Supabase (Database → Extensions).
+   Migracja `20260731110000` zakłada/reaktywuje zadania (`jobs-tick` co minutę,
+   `billing-cron-daily` o 04:25 UTC, `prune-job-runner-runs`) także wtedy, gdy
+   rozszerzenia włączono PÓŹNIEJ niż pierwotną migrację.
+2. `job_runner_settings` (id=1): `enabled=true`, `secret` ustawiony, `base_url`
+   = publiczny adres aplikacji. Zwykle nie trzeba nic robić (samozbrojenie);
+   ręcznie: panel Newsletter → kampanie → „Automatyczna wysyłka (cron)".
+3. Scheduler repo (Settings → Secrets and variables → Actions):
+   `variables.APP_BASE_URL` = `https://…` oraz `secrets.COMMUNITY_CRON_SECRET`
+   (env aplikacji ALBO `job_runner_settings.secret` - endpoint przyjmuje oba).
+   Bez tej pary workflow kończy się zielono z ostrzeżeniem, nic nie wysyła.
+   Uwaga: GitHub wyłącza zaplanowane workflow po 60 dniach bez aktywności w
+   repo - dlatego to siatka bezpieczeństwa, nie ścieżka podstawowa.
+4. Env aplikacji (patrz `.env.example`): `VAPID_PUBLIC_KEY`,
    `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `VITE_VAPID_PUBLIC_KEY` (push);
-   `LOVABLE_API_KEY` + `RESEND_API_KEY` (digest/e-maile);
-   `COMMUNITY_CRON_SECRET` (tylko jeśli używasz fallbacku).
-4. Weryfikacja ręczna:
+   `LOVABLE_API_KEY` + `RESEND_API_KEY` (digest/e-maile). Brak kluczy VAPID nie
+   jest już cichy: `processPushJobs` zwraca `skipped: "vapid_not_configured"`,
+   panel i podsumowanie przebiegu Actions mówią to wprost.
+5. Weryfikacja ręczna:
+
    ```bash
+   # tick (job z query albo z body; brak = all)
    curl -X POST "$BASE_URL/api/public/community-cron?job=all" \
      -H "x-community-cron-secret: $COMMUNITY_CRON_SECRET"
-   # oczekiwane: {"ok":true,"push":{...},"digestDaily":{...},...}
+   # oczekiwane: {"ok":true,"job":"all","durationMs":…,"push":{…},"digestDaily":{…},…}
+
+   # sonda zdrowia (200 = OK, 503 = zastój)
+   curl -i "$BASE_URL/api/public/community-cron" \
+     -H "x-community-cron-secret: $COMMUNITY_CRON_SECRET"
+
+   # to samo lokalnie, z pętlą i ponowieniami (bez instalacji zależności)
+   SCHEDULER_BASE_URL="$BASE_URL" SCHEDULER_SECRET="$COMMUNITY_CRON_SECRET" \
+     bun run cron:tick
    ```
-5. Monitoring kolejki (SQL, service role):
+
+6. Monitoring kolejki (SQL, service role):
    ```sql
    SELECT status, count(*) FROM notification_push_queue GROUP BY status;
    -- rosnące 'pending' przy działającym cronie = brak VAPID env albo tick nie dochodzi
    SELECT count(*) FROM push_subscriptions WHERE failed_at IS NULL; -- żywe urządzenia
+   SELECT source, max(created_at) AS last_at, count(*) FILTER (WHERE NOT ok) AS fails
+     FROM job_runner_runs WHERE created_at > now() - interval '24 hours' GROUP BY source;
+   -- brak wiersza dla 'pg_cron' = ścieżka podstawowa nie żyje (patrz panel zdrowia)
    ```
 
 ## 3. Web push - weryfikacja na realnych urządzeniach

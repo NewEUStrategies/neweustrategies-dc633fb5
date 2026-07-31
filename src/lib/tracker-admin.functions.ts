@@ -7,7 +7,9 @@ import { runJobsTick, type JobsTickResult } from "@/lib/server/jobsTick.server";
 
 export const runTrackerTickNow = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .handler(async (): Promise<JobsTickResult> => {
+  .handler(async ({ context }): Promise<JobsTickResult> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    return runJobsTick(supabaseAdmin);
+    // Źródło 'admin' + operator idą do logu przebiegów (job_runner_runs), więc
+    // ręczne wypchnięcie alertów jest w panelu zdrowia odróżnialne od crona.
+    return runJobsTick(supabaseAdmin, { source: "admin", actorId: context.userId });
   });

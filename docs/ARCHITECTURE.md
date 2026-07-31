@@ -698,3 +698,51 @@ pętlę.
   pierwszeństwo powagi, izolacja tenantów, idempotencja webhooka, RLS/PII).
   Vitest: `src/lib/email/__tests__/` (klasyfikacja odbić, progi reputacji,
   weryfikacja podpisu Svix wraz z replayem i manipulacją payloadu).
+
+## 11. Harmonogram doręczeń: trzy ścieżki, jeden dyspozytor, jeden log
+
+Dyspozytor powiadomień (`src/lib/notifications/dispatch.server.ts`: kolejka
+push, digesty, przypomnienia) był kompletny i nikt go nie wołał. Przyczyna:
+`job_runner_settings` rodzi się z `enabled=false` i `base_url=''`, więc
+`invoke_jobs_tick()` wychodził natychmiast - pg_cron tykał w próżnię, a
+`notification_push_queue` rosła w `pending`. Bez logu przebiegów awaria była
+NIEODRÓŻNIALNA od pustej kolejki. Migracja `20260731110000` zamyka to
+architektonicznie:
+
+- **Jeden dyspozytor, trzy wejścia.** `runJobsTick` (pg_cron → `/jobs-tick`, co
+  minutę - ścieżka podstawowa), `/api/public/community-cron` (scheduler repo,
+  `.github/workflows/scheduler.yml`, co 5 min = 4 ticki po 60 s) i przycisk
+  „Uruchom tick teraz" w panelu. Claimy są atomowe (`FOR UPDATE SKIP LOCKED`),
+  więc ścieżki mogą biec równolegle bez duplikatów doręczeń.
+- **Kontrakt w jednym module.** `src/lib/jobs/scheduler.ts` (czysty, testowany)
+  trzyma nazwy jobów, nazwy źródeł (zgodne z CHECK-iem `job_runner_runs.source`)
+  i progi świeżości. NIE leży w `src/lib/server/`, bo ochrona importów blokuje
+  `**/server/**` w bundlu klienta, a panel admina musi liczyć stan tym samym
+  kodem co endpointy. Praca serwerowa siedzi obok: `jobScheduler.server.ts`.
+- **Samozbrojenie zamiast checklisty.** Dziewiczy wiersz konfiguracji uzbraja
+  się sam - z domeny domyślnego tenanta (`resolve_job_runner_base_url`) albo z
+  origin-u pierwszego ticku (`arm_job_runner`; baza nie zna publicznego adresu
+  aplikacji, każde żądanie go zna). Ścieżka repo BOOTSTRAPUJE ścieżkę
+  podstawową. Po stemplu `auto_armed_at` samozbrojenie nigdy się nie powtarza,
+  więc świadome wyłączenie runnera zostaje wyłączone.
+- **Heartbeat jako źródło prawdy.** Każdy przebieg zapisuje wiersz w
+  `job_runner_runs` (source, job, `ok`, czas, wynik, błąd; rotacja 14 dni) i
+  stempluje `job_runner_settings`. Rozjazd `last_invoked_at` (cron puknął) vs
+  `last_app_run_at` (aplikacja odpowiedziała) daje jawny alert „cron puka,
+  aplikacja nie odpowiada" - inaczej `pg_net` (fire-and-forget) milczy o złym
+  URL-u, złym sekrecie i leżącym deploy'u.
+- **Panel** `/admin/community/notifications` (atomic design: atom
+  `HeartbeatDot`, molekuła `SchedulerMetricTile`, organizm
+  `SchedulerHealthPanel`; jeden round-trip `job_scheduler_health()` skalowany
+  `current_tenant_id()`). Świeżość (`fresh` ≤ 6 min, `lagging` ≤ 20 min, dalej
+  `stale`), stan każdej ścieżki, rejestr zadań pg_cron, głębokość kolejki i wiek
+  najstarszego `pending`, digesty na wejściu, brakujące env (VAPID / gateway
+  e-mail - `processPushJobs` zwraca teraz `skipped: "vapid_not_configured"`
+  zamiast cichego zera) i log 20 ostatnich przebiegów. i18n:
+  `src/lib/i18n-admin-scheduler.ts` (PL/EN, parytet w teście).
+- **Testy.** pgTAP `supabase/tests/job_scheduler_heartbeat_test.sql` (granty
+  service-role-only, bramka roli na RPC zdrowia, normalizacja wejścia, reguły
+  samozbrojenia, fail-open bez pg_net); Vitest `src/lib/jobs/__tests__`
+  (progi świeżości, parsowanie jobów i źródeł, wykrywanie awarii w wyniku ticku)
+  oraz render panelu (żaden surowy klucz i18n, alerty przy zastoju).
+  Operacyjnie: `docs/RUNBOOK_COMMUNITY.md` §2.

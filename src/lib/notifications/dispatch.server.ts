@@ -211,9 +211,17 @@ function recipientKey(tenantId: string, userId: string): string {
  * nie przejdzie (413/400). Endpointy 404/410 są trwale oznaczane
  * (mark_push_subscription_failed) - jednym RPC na endpoint, nie na zadanie.
  */
-export async function processPushJobs(limit = 100): Promise<{ claimed: number; sent: number }> {
+export async function processPushJobs(
+  limit = 100,
+): Promise<{ claimed: number; sent: number; skipped?: "vapid_not_configured" }> {
   const vapid = vapidFromEnv();
-  if (!vapid) return { claimed: 0, sent: 0 };
+  // Brak kluczy VAPID wygląda w logu identycznie jak pusta kolejka - a to
+  // najczęstsza przyczyna "push nie wychodzi" przy poprawnym harmonogramie.
+  // Nazywamy pominięcie wprost, żeby panel i scheduler repo mogły to pokazać.
+  if (!vapid) {
+    console.warn("[community] push pominięty: brak VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY");
+    return { claimed: 0, sent: 0, skipped: "vapid_not_configured" };
+  }
 
   const { data: jobs, error } = await supabaseAdmin.rpc("claim_push_jobs", { p_limit: limit });
   if (error) throw error;
