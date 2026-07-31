@@ -132,7 +132,7 @@ export function columnsRowStyle(
 ): CSSProperties {
   const gap = columnsGapPx(node.layout);
   const valign = node.layout?.verticalAlign ?? "default";
-  const css: CSSProperties = {
+  const css: CSSProperties & Record<"--builder-col-gap", string> = {
     display: "grid",
     width: "100%",
     minWidth: 0,
@@ -140,6 +140,7 @@ export function columnsRowStyle(
     boxSizing: "border-box",
     gridTemplateColumns: `repeat(${totalSpan}, minmax(0, 1fr))`,
     gap: `${gap}px`,
+    "--builder-col-gap": `${gap}px`,
   };
   if (valign !== "default") Object.assign(css, VALIGN_FLEX[valign] ?? {});
   return css;
