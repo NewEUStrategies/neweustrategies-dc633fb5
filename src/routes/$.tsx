@@ -913,7 +913,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 author={postAuthor}
                 publishedAt={it.published_at}
                 readMinutes={readMinutes}
-                hideReadTimeOnMobile={merged.quick_view_info}
+                hideReadTimeOnMobile={false}
                 customMeta={
                   <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
                 }
