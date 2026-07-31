@@ -80,7 +80,7 @@ export function BreadcrumbsView({
 
   return (
     <nav aria-label="breadcrumbs" className={cls}>
-      <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+      <ol className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         {items.map((c, i) => {
           const last = i === items.length - 1;
           return (
