@@ -10181,30 +10181,6 @@ export type Database = {
         }
         Relationships: []
       }
-      suppressed_emails_legacy_backup: {
-        Row: {
-          created_at: string | null
-          email: string | null
-          id: string | null
-          metadata: Json | null
-          reason: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          email?: string | null
-          id?: string | null
-          metadata?: Json | null
-          reason?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          email?: string | null
-          id?: string | null
-          metadata?: Json | null
-          reason?: string | null
-        }
-        Relationships: []
-      }
       tags: {
         Row: {
           created_at: string
