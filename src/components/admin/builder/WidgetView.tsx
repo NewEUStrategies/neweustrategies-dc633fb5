@@ -1091,6 +1091,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(<InterestsCustomizer variant={variant} showHeader={showHeader} />);
     }
 
+    case "onboarding-form":
+      return wrap(<OnboardingFormView c={c} lang={lang} />);
+
+
     case "cta": {
       const tKey = `title_${lang}`;
       const cKey = `cta_${lang}`;
