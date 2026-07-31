@@ -174,6 +174,7 @@ export function WidgetLibrary({
     "search-form": "utility",
     "contact-form": "utility",
     contact: "utility",
+    "onboarding-form": "utility",
     // navigation
     "nav-link": "menus",
     "mega-menu": "menus",

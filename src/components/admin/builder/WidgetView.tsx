@@ -79,6 +79,7 @@ import {
   getNum,
   normalizeNewsletterVariant,
 } from "./ui/organisms/widget-view/frame";
+import { OnboardingFormView } from "./ui/organisms/widget-view/OnboardingFormView";
 import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
 import { Editable } from "./ui/molecules/Editable";
 // Eager: layout-critical / above-the-fold / navigation widgets.
@@ -1090,6 +1091,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const showHeader = (getStr(c, "showHeader") ?? "1") !== "0";
       return wrap(<InterestsCustomizer variant={variant} showHeader={showHeader} />);
     }
+
+    case "onboarding-form":
+      return wrap(<OnboardingFormView c={c} lang={lang} />);
+
 
     case "cta": {
       const tKey = `title_${lang}`;

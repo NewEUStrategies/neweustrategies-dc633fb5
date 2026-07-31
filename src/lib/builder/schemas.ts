@@ -1535,6 +1535,30 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   // Networking 1-1 i sponsorzy - dedykowane edytory (MeetingBookingEditor /
   // SponsorsEditor).
+  "onboarding-form": [
+    { key: "heading", type: "i18nText", label: "Nagłówek", placeholder: "Brief projektu" },
+    { key: "intro", type: "i18nText", label: "Wstęp" },
+    { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku wysyłki" },
+    { key: "accentColor", type: "color", label: "Kolor akcentu" },
+    {
+      key: "showStepIndicator",
+      type: "select",
+      label: "Licznik kroków",
+      options: [
+        { value: "true", label: "pokaż" },
+        { value: "false", label: "ukryj" },
+      ],
+    },
+    {
+      key: "requireConsent",
+      type: "select",
+      label: "Wymagana zgoda na kontakt",
+      options: [
+        { value: "true", label: "tak" },
+        { value: "false", label: "nie" },
+      ],
+    },
+  ],
   "meeting-booking": [],
   "event-sponsors": [],
   "event-list": [
