@@ -1,6 +1,10 @@
 // Publiczny indeks trackera legislacyjnego UE. URL: /tracker - siatka
 // opublikowanych dossier z filtrami (obszar polityki, etap), paskiem postępu
 // procedury, następnym kamieniem milowym i licznikiem obserwujących.
+// Loader prefetchuje pierwszą stronę pod tym samym kluczem, który czyta
+// usePublishedItems - treść (siatka + ItemList JSON-LD) renderuje się
+// serwerowo, więc crawler widzi dossier zamiast "Ładowanie"; komponent czyta
+// ten sam cache bez drugiej podróży.
 import { Fragment, useState, useTransition } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -15,12 +19,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { TrackerIndexSkeleton } from "@/components/tracker/TrackerIndexSkeleton";
 import {
   TRACKER_PAGE_SIZE,
+  publishedItemsQueryOptions,
+  followerCountsQueryOptions,
   usePublishedItems,
   useFollowerCounts,
   type PolicyItem,
 } from "@/lib/tracker/queries";
+import { trackerItemListJsonLd, type TrackerListEntry } from "@/lib/tracker/jsonld";
+import { withBudget } from "@/lib/asyncBudget";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import {
   POLICY_STAGES,
   POLICY_AREAS,
@@ -34,8 +45,74 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
+
+/** Budżet ścieżki krytycznej loadera (pierwsza strona dossier) - wzorzec /blog. */
+const TRACKER_LOADER_BUDGET_MS = 4_000;
+/** Budżet dekoracyjnych liczników obserwujących - nie mogą podbijać TTFB. */
+const TRACKER_FOLLOWERS_BUDGET_MS = 1_500;
+
 export const Route = createFileRoute("/tracker/")({
-  head: () => {
+  loader: async ({ context }) => {
+    const queryClient = context.queryClient;
+    // SSR-krytyczna treść: pierwsza strona opublikowanych dossier pod TYM
+    // SAMYM kluczem, który czyta usePublishedItems ze stanem początkowym
+    // komponentu (wszystkie obszary/etapy, pierwsze okno). Defensywnie jak
+    // "/" i /blog: błąd lub zwis backendu nie może dać 500 ani zawiesić
+    // strumienia SSR - budżet ścina oczekiwanie, a fallback siany z
+    // updatedAt: 0 jest natychmiast przeterminowany, więc przeglądarka
+    // refetchuje po mount i strona sama się leczy, gdy backend wróci.
+    const itemsOptions = publishedItemsQueryOptions();
+    let degraded = false;
+    await withBudget(
+      queryClient.ensureQueryData(itemsOptions).catch(() => undefined),
+      TRACKER_LOADER_BUDGET_MS,
+    );
+    let items = queryClient.getQueryData<PolicyItem[]>(itemsOptions.queryKey);
+    if (!items) {
+      degraded = true;
+      // Anuluj spóźniony fetch PRZED zasiewem: gdyby rozwiązał się między
+      // renderem a dehydracją, klient hydratowałby się z innymi danymi niż
+      // HTML serwera i React 19 przebudowałby całą stronę po stronie klienta.
+      await queryClient.cancelQueries({ queryKey: itemsOptions.queryKey, exact: true });
+      items = [];
+      queryClient.setQueryData(itemsOptions.queryKey, items, { updatedAt: 0 });
+    }
+
+    // Liczniki obserwujących: dekoracja kart (brak danych renderuje 0), ale
+    // prefetch daje crawlerowi i pierwszemu renderowi prawdziwe liczby bez
+    // mrugnięcia po hydratacji. Best-effort pod krótszym budżetem.
+    if (items.length > 0) {
+      const countsOptions = followerCountsQueryOptions(items.map((item) => item.id));
+      await withBudget(
+        queryClient.ensureQueryData(countsOptions).catch(() => undefined),
+        TRACKER_FOLLOWERS_BUDGET_MS,
+      );
+      if (queryClient.getQueryState(countsOptions.queryKey)?.status !== "success") {
+        degraded = true;
+        await queryClient.cancelQueries({ queryKey: countsOptions.queryKey, exact: true });
+        queryClient.setQueryData(countsOptions.queryKey, {}, { updatedAt: 0 });
+      }
+    }
+
+    // ISR-owy nagłówek NA KOŃCU, bramkowany czystym renderem (wzorzec "/"):
+    // zdegradowany render nigdy nie trafia do współdzielonego cache - kolejne
+    // żądanie renderuje świeżo zamiast utrwalać mrugnięcie backendu na CDN.
+    setCacheControlHeader(
+      degraded ? cacheControlHeader({ cacheable: false }) : contentCacheControl(),
+    );
+
+    // Szczupła projekcja pod head() (ItemList JSON-LD): loaderData jest
+    // serializowane do payloadu SSR, a pełne wiersze podróżują już w
+    // dehydrowanym cache query - nie duplikujemy ich drugi raz.
+    const entries: TrackerListEntry[] = items.map((item) => ({
+      slug: item.slug,
+      title_pl: item.title_pl,
+      title_en: item.title_en,
+      reference: item.reference,
+    }));
+    return { entries };
+  },
+  head: ({ loaderData }) => {
     const url = getRequestUrl() || "/tracker";
     const lang = activeLang(url);
     let origin = "";
@@ -46,8 +123,8 @@ export const Route = createFileRoute("/tracker/")({
     }
     const title =
       lang === "en"
-        ? "EU legislative tracker — follow key files"
-        : "Tracker legislacyjny UE — śledź kluczowe dossier";
+        ? "EU legislative tracker - follow key files"
+        : "Tracker legislacyjny UE - śledź kluczowe dossier";
     const head = buildContentHead({
       url,
       lang,
@@ -59,13 +136,17 @@ export const Route = createFileRoute("/tracker/")({
           : "Śledź kluczowe dossier legislacyjne UE: etap procedury, oś czasu wydarzeń i nadchodzące kamienie milowe.",
     });
     // CollectionPage + breadcrumb: tracker pozycjonuje się jako źródło prawdy
-    // o procesie legislacyjnym - strona zbiorcza dostaje jawny typ w grafie.
+    // o procesie legislacyjnym - strona zbiorcza dostaje jawny typ w grafie,
+    // a mainEntity (ItemList węzłów Legislation z danych loadera) wystawia
+    // crawlerom i asystentom AI pełną listę dossier już w SSR.
+    const itemList = trackerItemListJsonLd(loaderData?.entries ?? [], origin, lang);
     const collection = {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
       name: title,
       url,
       inLanguage: lang,
+      ...(itemList ? { mainEntity: itemList } : {}),
     };
     const breadcrumbs = breadcrumbListJsonLd(
       [
@@ -86,6 +167,9 @@ export const Route = createFileRoute("/tracker/")({
     };
   },
   component: TrackerIndex,
+  // Zimna nawigacja klienta czeka na loader - pokazuj placeholder w kształcie
+  // strony zamiast pustego ekranu (SSR nigdy tu nie trafia: loader blokuje).
+  pendingComponent: () => <TrackerIndexSkeleton />,
   errorComponent: (props) => (
     <RouteErrorFallback {...props} title="Nie udało się załadować trackera" />
   ),
