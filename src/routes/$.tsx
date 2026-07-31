@@ -130,6 +130,8 @@ import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
+import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
+
 import { withBudget } from "@/lib/asyncBudget";
 
 // Wall-clock cap on secondary prefetches (blocks data, related config). The
