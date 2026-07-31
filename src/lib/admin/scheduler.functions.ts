@@ -23,6 +23,19 @@ import {
   type SchedulerSource,
 } from "@/lib/jobs/scheduler";
 
+/**
+ * Telemetria puknięcia community-cron (`invoke_community_cron`, migracja
+ * 20260731210000): siatka społeczności co 5 minut, osobna od minutowego
+ * jobs-tick. Rozjazd tych dwóch statusów lokalizuje awarię konkretnej ścieżki
+ * ("minutowy tick żyje, siatka społeczności nie").
+ */
+export interface SchedulerCommunityTickState {
+  lastTickAt: string | null;
+  lastTickStatus: string | null;
+  lastTickError: string | null;
+  tickCount: number;
+}
+
 export interface SchedulerRunnerState {
   enabled: boolean;
   baseUrl: string;
@@ -42,6 +55,7 @@ export interface SchedulerRunnerState {
   lastTickStatus: string | null;
   lastTickError: string | null;
   tickCount: number;
+  communityCron: SchedulerCommunityTickState;
 }
 
 export interface SchedulerCronJob {
@@ -121,6 +135,12 @@ interface HealthPayload {
     last_tick_status?: string | null;
     last_tick_error?: string | null;
     tick_count?: number;
+    community_cron?: {
+      last_tick_at?: string | null;
+      last_tick_status?: string | null;
+      last_tick_error?: string | null;
+      tick_count?: number;
+    };
   };
   capabilities?: { pg_cron?: boolean; pg_net?: boolean };
   app_unreachable?: boolean;
@@ -183,6 +203,12 @@ export const getSchedulerHealth = createServerFn({ method: "GET" })
       lastTickStatus: payload.runner?.last_tick_status ?? null,
       lastTickError: payload.runner?.last_tick_error ?? null,
       tickCount: num(payload.runner?.tick_count),
+      communityCron: {
+        lastTickAt: payload.runner?.community_cron?.last_tick_at ?? null,
+        lastTickStatus: payload.runner?.community_cron?.last_tick_status ?? null,
+        lastTickError: payload.runner?.community_cron?.last_tick_error ?? null,
+        tickCount: num(payload.runner?.community_cron?.tick_count),
+      },
     };
 
     const { getOrigin } = await import("@/lib/seo/request");
