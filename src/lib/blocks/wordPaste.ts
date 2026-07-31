@@ -698,6 +698,9 @@ export function parseWordHtml(html: string): Block[] {
   if (!body) return [];
   const notes = collectFootnotes(body);
   inlineFootnoteRefs(body, notes);
+  collectManualFootnotes(body, notes);
+  inlineSuperscriptRefs(body, notes);
+
   const out: Block[] = [];
   convertChildren(body, out);
   // Same tekstowe dzieci body (bez żadnego elementu) - jeden akapit.
