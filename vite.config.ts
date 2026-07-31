@@ -90,7 +90,9 @@ export default defineConfig({
         "react-dom/client",
         "use-sync-external-store",
         "use-sync-external-store/shim",
+        "use-sync-external-store/shim/index.js",
         "use-sync-external-store/shim/with-selector",
+        "use-sync-external-store/shim/with-selector.js",
         // Edytor wpisu (TipTap) ładuje się leniwie, a `noDiscovery: true`
         // wyłącza automatyczne wykrywanie - bez tych wpisów Vite serwował
         // surowy CJS `use-sync-external-store/shim` importowany przez
