@@ -17,7 +17,7 @@ export function Breadcrumbs({ items, className }: { items: BreadcrumbItem[]; cla
         <li className="inline-flex items-center">
           <Link
             to="/"
-            className="flex items-center text-sm text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:text-foreground"
+            className="flex items-center text-xs text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:text-foreground"
           >
             <Home className="shrink-0 me-2 size-4" aria-hidden="true" />
             {home}
@@ -34,7 +34,7 @@ export function Breadcrumbs({ items, className }: { items: BreadcrumbItem[]; cla
               key={i}
               className={cn(
                 "inline-flex items-center",
-                isLast && "text-sm font-semibold text-foreground truncate",
+                isLast && "text-xs font-semibold text-foreground truncate",
               )}
               {...(isLast ? { "aria-current": "page" as const } : {})}
             >
@@ -42,7 +42,7 @@ export function Breadcrumbs({ items, className }: { items: BreadcrumbItem[]; cla
                 <>
                   <Link
                     to={it.href}
-                    className="flex items-center text-sm text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:text-foreground"
+                    className="flex items-center text-xs text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:text-foreground"
                   >
                     {it.label}
                   </Link>
