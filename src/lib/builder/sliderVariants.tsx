@@ -1163,14 +1163,17 @@ function EditorialHeroVariant(p: VariantProps) {
             </p>
           ))}
         {((p.showAuthor && cur.author) || cur.readTime) && (
-          <div className="mt-4 flex items-center justify-center gap-2 text-xs md:text-sm text-muted-foreground">
+          <div
+            className="mt-4 flex items-center justify-center gap-2 text-muted-foreground"
+            style={p.authorStyle}
+          >
             {p.showAuthor && cur.author && (
               <AuthorBadge
                 name={cur.author}
                 avatar={cur.authorAvatar}
                 slug={cur.authorSlug}
                 tone="light"
-                size={22}
+                size={p.authorAvatarPx}
                 labelPrefix={p.authorLabelPrefix}
               />
             )}
@@ -1304,14 +1307,17 @@ function MultiCardVariant(p: VariantProps) {
                       </p>
                     ))}
                   {((p.showAuthor && it.author) || it.readTime) && (
-                    <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <div
+                      className="mt-2 flex items-center gap-2 text-muted-foreground"
+                      style={p.authorStyle}
+                    >
                       {p.showAuthor && it.author && (
                         <AuthorBadge
                           name={it.author}
                           avatar={it.authorAvatar}
                           slug={it.authorSlug}
                           tone="light"
-                          size={20}
+                          size={p.authorAvatarPx}
                           labelPrefix={p.authorLabelPrefix}
                         />
                       )}
@@ -1420,14 +1426,14 @@ function CinematicOverlayVariant(p: VariantProps) {
               </p>
             )}
             {((p.showAuthor && cur.author) || cur.readTime) && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-white/75">
+              <div className="mt-3 flex items-center gap-2 text-white/75" style={p.authorStyle}>
                 {p.showAuthor && cur.author && (
                   <AuthorBadge
                     name={cur.author}
                     avatar={cur.authorAvatar}
                     slug={cur.authorSlug}
                     tone="dark"
-                    size={22}
+                    size={p.authorAvatarPx}
                     labelPrefix={p.authorLabelPrefix}
                   />
                 )}
@@ -1575,14 +1581,14 @@ function SplitFeatureVariant(p: VariantProps) {
             </p>
           ))}
         {((p.showAuthor && cur.author) || cur.readTime) && (
-          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-3 flex items-center gap-2 text-muted-foreground" style={p.authorStyle}>
             {p.showAuthor && cur.author && (
               <AuthorBadge
                 name={cur.author}
                 avatar={cur.authorAvatar}
                 slug={cur.authorSlug}
                 tone="light"
-                size={22}
+                size={p.authorAvatarPx}
                 labelPrefix={p.authorLabelPrefix}
               />
             )}
