@@ -155,14 +155,26 @@ export async function unfollowItem(input: { itemId: string; userId: string }): P
 // Hooki react-query - wspólna przestrzeń kluczy ["tracker", ...]
 // ---------------------------------------------------------------------------
 
+/** Wspólne opcje listy opublikowanych dossier - hook i loader SSR indeksu
+ *  używają DOKŁADNIE tego samego klucza, więc treść wyrenderowana serwerowo
+ *  hydratuje się z cache bez drugiej podróży (i bez "Ładowanie" dla crawlera). */
+export function publishedItemsQueryOptions(
+  filters: PolicyItemFilters = {},
+  limit: number = TRACKER_PAGE_SIZE,
+) {
+  return {
+    queryKey: ["tracker", "items", filters.area ?? "all", filters.stage ?? "all", limit] as const,
+    queryFn: () => fetchPublishedItems(filters, limit),
+    staleTime: 60_000,
+  };
+}
+
 export function usePublishedItems(
   filters: PolicyItemFilters = {},
   limit: number = TRACKER_PAGE_SIZE,
 ) {
   return useQuery({
-    queryKey: ["tracker", "items", filters.area ?? "all", filters.stage ?? "all", limit] as const,
-    queryFn: () => fetchPublishedItems(filters, limit),
-    staleTime: 60_000,
+    ...publishedItemsQueryOptions(filters, limit),
     // Rosnące okno "pokaż więcej" nie może mrugać do spinnera - trzymaj
     // poprzednią stronę, aż dojedzie szersza.
     placeholderData: (previous: PolicyItem[] | undefined) => previous,
@@ -192,13 +204,20 @@ export function useItemUpdates(itemId: string | undefined) {
   });
 }
 
-export function useFollowerCounts(itemIds: string[]) {
-  // Klucz z posortowanych id - stabilny niezależnie od kolejności listy.
-  const keyIds = [...itemIds].sort().join(",");
-  return useQuery({
-    queryKey: ["tracker", "followers", keyIds] as const,
+/** Wspólne opcje liczników obserwujących - klucz z posortowanych id jest
+ *  stabilny niezależnie od kolejności listy, więc loader SSR i hook trafiają
+ *  w ten sam wpis cache. */
+export function followerCountsQueryOptions(itemIds: string[]) {
+  return {
+    queryKey: ["tracker", "followers", [...itemIds].sort().join(",")] as const,
     queryFn: () => fetchFollowerCounts(itemIds),
     staleTime: 60_000,
+  };
+}
+
+export function useFollowerCounts(itemIds: string[]) {
+  return useQuery({
+    ...followerCountsQueryOptions(itemIds),
     enabled: itemIds.length > 0,
   });
 }
