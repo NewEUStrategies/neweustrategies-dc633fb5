@@ -12,6 +12,7 @@ import {
 } from "@/lib/postLayouts";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
+import { cleanExcerpt } from "@/lib/text/cleanExcerpt";
 
 interface Props {
   format: PostFormat;
@@ -42,7 +43,7 @@ export function PostLayoutRenderer({
   layoutId,
   settings,
   title,
-  excerpt,
+  excerpt: rawExcerpt,
   coverImageUrl,
   meta,
   categoryBadges,
@@ -53,6 +54,7 @@ export function PostLayoutRenderer({
   entityId,
   entityType = "post",
 }: Props) {
+  const excerpt = cleanExcerpt(rawExcerpt);
   const preset = findLayout(format, layoutId);
   const hasSidebar = effectiveHasSidebar(preset, settings);
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;

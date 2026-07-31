@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 // persist across navigations - never re-import them here.
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { errorCopy } from "@/lib/errorCopy";
+import { cleanExcerpt } from "@/lib/text/cleanExcerpt";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
@@ -484,7 +485,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const title = lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en;
   const isPost = data.kind === "post";
   const post = isPost ? (it as PostData) : null;
-  const excerpt = post ? (lang === "en" ? post.excerpt_en : post.excerpt_pl) : null;
+  const excerpt = post
+    ? (cleanExcerpt(lang === "en" ? post.excerpt_en : post.excerpt_pl) ?? null)
+    : null;
   const postTags = isPost
     ? (data as { tags?: Array<{ slug: string; name: string }> }).tags
     : undefined;
