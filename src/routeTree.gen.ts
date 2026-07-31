@@ -141,7 +141,6 @@ import { Route as AdminGiftingRouteImport } from './routes/admin.gifting'
 import { Route as AdminExpertRequestsRouteImport } from './routes/admin.expert-requests'
 import { Route as AdminExpertLayoutsRouteImport } from './routes/admin.expert-layouts'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
-import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminCrmRouteImport } from './routes/admin.crm'
@@ -916,11 +915,6 @@ const AdminExperimentsRoute = AdminExperimentsRouteImport.update({
   path: '/experiments',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminDonationsRoute = AdminDonationsRouteImport.update({
-  id: '/donations',
-  path: '/donations',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminCustomMetaRoute = AdminCustomMetaRouteImport.update({
   id: '/custom-meta',
   path: '/custom-meta',
@@ -1572,7 +1566,6 @@ export interface FileRoutesByFullPath {
   '/admin/crm': typeof AdminCrmRouteWithChildren
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
-  '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/expert-requests': typeof AdminExpertRequestsRoute
@@ -1814,7 +1807,6 @@ export interface FileRoutesByTo {
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
-  '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/expert-requests': typeof AdminExpertRequestsRoute
@@ -2059,7 +2051,6 @@ export interface FileRoutesById {
   '/admin/crm': typeof AdminCrmRouteWithChildren
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
-  '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/expert-requests': typeof AdminExpertRequestsRoute
@@ -2309,7 +2300,6 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
-    | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
     | '/admin/expert-requests'
@@ -2551,7 +2541,6 @@ export interface FileRouteTypes {
     | '/admin/content-area'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
-    | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
     | '/admin/expert-requests'
@@ -2795,7 +2784,6 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
-    | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
     | '/admin/expert-requests'
@@ -4009,13 +3997,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminExperimentsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/donations': {
-      id: '/admin/donations'
-      path: '/donations'
-      fullPath: '/admin/donations'
-      preLoaderRoute: typeof AdminDonationsRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/custom-meta': {
       id: '/admin/custom-meta'
       path: '/custom-meta'
@@ -5089,7 +5070,6 @@ interface AdminRouteChildren {
   AdminCrmRoute: typeof AdminCrmRouteWithChildren
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
-  AdminDonationsRoute: typeof AdminDonationsRoute
   AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminExpertLayoutsRoute: typeof AdminExpertLayoutsRoute
   AdminExpertRequestsRoute: typeof AdminExpertRequestsRoute
@@ -5159,7 +5139,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCrmRoute: AdminCrmRouteWithChildren,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
-  AdminDonationsRoute: AdminDonationsRoute,
   AdminExperimentsRoute: AdminExperimentsRoute,
   AdminExpertLayoutsRoute: AdminExpertLayoutsRoute,
   AdminExpertRequestsRoute: AdminExpertRequestsRoute,

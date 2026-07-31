@@ -830,10 +830,25 @@ NIEODRÓŻNIALNA od pustej kolejki. Migracja `20260731110000` (plus pojednanie
 `20260731130000`) zamyka to architektonicznie:
 
 - **Jeden dyspozytor, trzy wejścia.** `runJobsTick` (pg_cron → `/jobs-tick`, co
-  minutę - ścieżka podstawowa), `/api/public/community-cron` (scheduler repo,
-  `.github/workflows/scheduler.yml`, co 5 min = 4 ticki po 60 s) i przycisk
-  „Uruchom tick teraz" w panelu. Claimy są atomowe (`FOR UPDATE SKIP LOCKED`),
-  więc ścieżki mogą biec równolegle bez duplikatów doręczeń.
+  minutę - ścieżka podstawowa), `/api/public/community-cron` (pg_cron co 5 min
+  + scheduler repo `.github/workflows/scheduler.yml`, co 5 min = 4 ticki po
+  60 s) i przycisk „Uruchom tick teraz" w panelu. Claimy są atomowe
+  (`FOR UPDATE SKIP LOCKED`), więc ścieżki mogą biec równolegle bez duplikatów
+  doręczeń.
+- **Siatka społeczności w bazie (`20260731210000`).** Audyt „Scheduler push +
+  digest" wykazał, że `community-cron` nie miał ŻADNEGO wołacza po stronie
+  bazy: scheduler repo bywa wyłączony (GitHub zatrzymuje zaplanowane workflow
+  po 60 dniach bez aktywności) albo nieskonfigurowany, a `runJobsTick` drenuje
+  kanały społeczności dopiero PO newsletterze i drenie poczty w tym samym
+  budżecie 25 s - duża kampania głodzi push do `skipped_time_budget`.
+  `invoke_community_cron(p_job)` (wzorem `invoke_jobs_tick`) puka co 5 minut w
+  minutach `2,7,12,…` - PRZEPLOT z oknem digestów jobs-tick (minuty podzielne
+  przez 5), więc okna się przeplatają zamiast dublować w tej samej minucie.
+  Własna telemetria `community_last_tick_*` (rozjazd z telemetrią jobs-tick
+  lokalizuje awarię konkretnej ścieżki), sekret runnera w nagłówku
+  `x-community-cron-secret` (endpoint przyjmuje go od zawsze), `x-cron-source:
+  pg_cron`. Samozbrojenie wyciągnięte do WSPÓLNEGO `job_runner_autoarm()` -
+  dwie inline'owe kopie to klasa awarii pojednana w `20260731130000`.
 - **Kontrakt w jednym module.** `src/lib/jobs/scheduler.ts` (czysty, testowany)
   trzyma nazwy jobów, nazwy źródeł (zgodne z CHECK-iem `job_runner_runs.source`)
   i progi świeżości. NIE leży w `src/lib/server/`, bo ochrona importów blokuje
@@ -873,8 +888,11 @@ NIEODRÓŻNIALNA od pustej kolejki. Migracja `20260731110000` (plus pojednanie
   przebiegów. i18n: `src/lib/i18n-admin-scheduler.ts` (PL/EN, parytet w teście).
 - **Testy.** pgTAP `supabase/tests/job_scheduler_heartbeat_test.sql` (granty
   service-role-only, bramka roli na RPC zdrowia, normalizacja wejścia, reguły
-  samozbrojenia, powody pominięcia, fail-open bez pg_net); Vitest
-  `src/lib/jobs/__tests__` (progi świeżości, parsowanie jobów i źródeł,
+  samozbrojenia, powody pominięcia, fail-open bez pg_net) i
+  `supabase/tests/community_cron_schedule_test.sql` (siatka społeczności:
+  granty, samozbrojenie raz i tylko dziewiczy wiersz, telemetria osobna od
+  jobs-tick, job spoza kontraktu spada do `all`, wpis pg_cron z przeplotem);
+  Vitest `src/lib/jobs/__tests__` (progi świeżości, parsowanie jobów i źródeł,
   wykrywanie awarii w wyniku ticku) oraz render panelu (żaden surowy klucz
   i18n, alerty przy zastoju, powód pominięcia). Operacyjnie:
   `docs/RUNBOOK_COMMUNITY.md` par. 2.

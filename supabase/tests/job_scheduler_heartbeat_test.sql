@@ -1,5 +1,6 @@
 -- pgTAP: harmonogram doręczeń - samozbrojenie, heartbeat i bramka zdrowia
--- (migracje 20260731110000 + 20260731130000).
+-- (migracje 20260731110000 + 20260731130000; payload community_cron z
+-- 20260731210000 - reszta siatki społeczności w community_cron_schedule_test).
 --
 -- Kontekst: dyspozytor push/digestów był kompletny, ale nikt go nie wołał -
 -- job_runner_settings rodzi się z enabled=false + base_url='', więc pg_cron
@@ -28,7 +29,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(31);
+SELECT plan(32);
 
 -- Stan wyjściowy JAWNIE dziewiczy (świeża baza taka jest, ale test nie może
 -- zależeć od tego, czy pg_cron zdążył w tym środowisku uzbroić runner).
@@ -45,7 +46,14 @@ UPDATE public.job_runner_settings
        last_tick_at = NULL,
        last_tick_status = NULL,
        last_tick_error = NULL,
-       tick_count = 0
+       tick_count = 0,
+       -- Telemetria siatki społeczności (20260731210000): reset dla
+       -- determinizmu sekcji 7 - świeże 'dispatched' z żywego crona liczyłoby
+       -- się do puknięć v_last_ping.
+       community_last_tick_at = NULL,
+       community_last_tick_status = NULL,
+       community_last_tick_error = NULL,
+       community_tick_count = 0
  WHERE id = 1;
 
 -- -- 1. Log przebiegów jest infrastrukturą, nie danymi klienta ----------------
@@ -292,6 +300,14 @@ SELECT ok(
   (SELECT (public.job_scheduler_health() -> 'runner' ->> 'secret_set')::boolean
      AND NOT (public.job_scheduler_health() -> 'runner' ? 'secret')),
   'payload mowi, ze sekret jest ustawiony, ale go NIE zwraca'
+);
+
+-- Siatka społeczności (20260731210000) raportuje w tym samym payloadzie -
+-- rozjazd statusow jobs-tick vs community lokalizuje awarie konkretnej sciezki.
+SELECT ok(
+  (SELECT public.job_scheduler_health() -> 'runner' -> 'community_cron'
+            ?& ARRAY['last_tick_at', 'last_tick_status', 'last_tick_error', 'tick_count']),
+  'payload zdrowia zawiera telemetrie puknięcia community-cron'
 );
 
 -- -- 7. app_unreachable koreluje ze ŹRÓDŁEM pg_cron, nie z globalnym heartbeatem

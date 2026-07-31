@@ -76,8 +76,6 @@ export const billingKeys = {
     crmCompanyMemberOrgsAll: () => ["admin", "crm-company-member-orgs"] as const,
     /** Pulpit monetyzacji (prefiks obejmuje filtry dat/planów). */
     monetization: () => ["admin", "monetization"] as const,
-    /** Rejestr darowizn w panelu. */
-    donations: () => ["admin", "donations"] as const,
     /** Subskrypcje u dostawcy płatności (panel /admin/billing). */
     paddleSubscriptions: () => ["admin", "paddle-subscriptions"] as const,
     /** Historia zdarzeń webhooka operatora płatności. */

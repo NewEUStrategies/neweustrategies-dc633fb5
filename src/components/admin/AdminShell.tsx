@@ -38,6 +38,7 @@ import {
   FlaskConical,
   Link as LinkIcon,
   Search,
+  ExternalLink,
 } from "@/lib/lucide-shim";
 import {
   BadgePercent,
@@ -66,6 +67,7 @@ import {
   useAdminSidebarExtrasSlot,
 } from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { EXTERNAL_DONATIONS_URL } from "@/lib/billing/donationsExternal";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -143,6 +145,61 @@ export function SidebarRowButton({
   );
 }
 
+type SidebarExternalNavLinkProps = Omit<
+  React.ComponentPropsWithRef<"a">,
+  "target" | "rel" | "children"
+> & {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  /** Dopisek dostępności: link opuszcza panel i otwiera się w nowej karcie. */
+  hint: string;
+  compact?: boolean;
+};
+
+// Pozycja nawigacji prowadząca do usługi ZEWNĘTRZNEJ - ten sam rytm wiersza co
+// wewnętrzne <Link>, ale zawsze nowa karta z rel="noopener noreferrer" i glifem
+// "external", żeby wyjście z panelu było odróżnialne od tras wewnętrznych.
+// Przykład: Darowizny - zbiórka żyje na zrzutka.pl (AUP Paddle wyklucza
+// darowizny u operatora płatności), więc panel nie ma wewnętrznego widoku.
+// Spread ...rest przepuszcza propsy wstrzykiwane przez Radix Slot (tooltip
+// w trybie compact) oraz ref (React 19: ref przychodzi w propsach).
+export function SidebarExternalNavLink({
+  href,
+  icon: Icon,
+  label,
+  hint,
+  compact = false,
+  className,
+  title,
+  ...rest
+}: SidebarExternalNavLinkProps) {
+  return (
+    <a
+      {...rest}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={title ?? (compact ? undefined : `${label} - ${hint}`)}
+      data-sidebar="menu-button"
+      data-external-link="true"
+      className={cn(
+        "flex items-center py-1 rounded-md text-[13px] leading-tight transition text-foreground hover:bg-muted",
+        compact ? "justify-center px-0" : "gap-1.5 px-2",
+        className,
+      )}
+    >
+      <Icon className="w-3 h-3 shrink-0" />
+      <span className={cn("min-w-0 flex-1 truncate", compact && "hidden")}>{label}</span>
+      <ExternalLink
+        className={cn("w-3 h-3 shrink-0 opacity-60", compact && "hidden")}
+        aria-hidden="true"
+      />
+      <span className="sr-only">{hint}</span>
+    </a>
+  );
+}
+
 function SidebarTooltip({
   label,
   compact,
@@ -200,7 +257,13 @@ function AdminShellInner({
   const [forceCompact, setForceCompact] = useState(false);
   const compact = ((isEditRoute || forceCompact) && !extras) || sidebarStyle === "style-4";
 
-  type NavItem = { to: string; icon: typeof LayoutDashboard; label: string };
+  type NavIcon = typeof LayoutDashboard;
+  // Dwa rodzaje pozycji: wewnętrzna trasa panelu (`to`, TanStack <Link>) oraz
+  // usługa zewnętrzna (`href`, nowa karta przez SidebarExternalNavLink) - np.
+  // Darowizny, których zbiórka żyje na zrzutka.pl i nie ma trasy w panelu.
+  type NavItem =
+    | { to: string; icon: NavIcon; label: string }
+    | { href: string; icon: NavIcon; label: string };
   type NavGroup = { id: string; label?: string; items: NavItem[] };
 
   const groups: NavGroup[] = [
@@ -295,10 +358,10 @@ function AdminShellInner({
           }),
         },
         {
-          to: "/admin/donations",
+          href: EXTERNAL_DONATIONS_URL,
           icon: HandHeart,
           label: t("admin.nav.donations", {
-            defaultValue: lang === "pl" ? "Darowizny" : "Donations",
+            defaultValue: lang === "pl" ? "Darowizny (zrzutka.pl)" : "Donations (zrzutka.pl)",
           }),
         },
       ],
@@ -647,7 +710,27 @@ function AdminShellInner({
                     </div>
                   )}
                   <div className="space-y-0.5">
-                    {group.items.map(({ to, icon: Icon, label }) => {
+                    {group.items.map((item) => {
+                      const { icon: Icon, label } = item;
+                      if ("href" in item) {
+                        return (
+                          <SidebarTooltip key={item.href} label={label} compact={compact}>
+                            <SidebarExternalNavLink
+                              href={item.href}
+                              icon={Icon}
+                              label={label}
+                              hint={t("admin.nav.externalNewTab", {
+                                defaultValue:
+                                  lang === "pl"
+                                    ? "Otwiera się w nowej karcie"
+                                    : "Opens in a new tab",
+                              })}
+                              compact={compact}
+                            />
+                          </SidebarTooltip>
+                        );
+                      }
+                      const { to } = item;
                       const isCrmContacts = to === "/admin/crm";
 
                       const active =

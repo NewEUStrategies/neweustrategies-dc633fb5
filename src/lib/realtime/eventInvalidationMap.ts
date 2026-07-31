@@ -188,9 +188,11 @@ function membershipGrantKeys(): QueryKey[] {
 }
 
 // Darowizna nadaje status wspierającego przez osobne zdarzenie
-// membership_grant.* - tu tylko rejestry darowizn (profil + panel).
+// membership_grant.* - tu tylko rejestr darowizn w profilu użytkownika.
+// Panel /admin/donations został wycięty (zbiórka żyje na zrzutka.pl, wpis
+// w nawigacji admina to link zewnętrzny), więc nie ma klucza admina.
 function donationKeys(): QueryKey[] {
-  return [billingKeys.myDonationsAll(), billingKeys.admin.donations()];
+  return [billingKeys.myDonationsAll()];
 }
 
 const eventKeysList: QueryKey[] = [

@@ -303,7 +303,7 @@ function TrackerDetail() {
             {item.next_milestone_at && (
               <span className="text-muted-foreground">
                 {" "}
-                — {formatDate(item.next_milestone_at, lang)}
+                - {formatDate(item.next_milestone_at, lang)}
               </span>
             )}
           </div>

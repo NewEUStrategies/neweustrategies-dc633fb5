@@ -142,7 +142,7 @@ function TrackerExplorerPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-bold tabular-nums">
-            {statsQ.data?.total ?? "—"}
+            {statsQ.data?.total ?? "-"}
           </CardContent>
         </Card>
         <Card>

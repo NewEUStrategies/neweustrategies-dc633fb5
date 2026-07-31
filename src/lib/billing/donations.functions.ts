@@ -31,7 +31,7 @@ export const getDonationsPublicStats = createServerFn({ method: "GET" }).handler
     };
   }
 
-  // Data początku bieżącego miesiąca w UTC (spójne z admin.donations.tsx).
+  // Data początku bieżącego miesiąca w UTC.
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 
