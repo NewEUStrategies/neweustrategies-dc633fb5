@@ -328,10 +328,15 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
   headers.set("X-Content-Type-Options", "nosniff");
   const contentType = headers.get("content-type") ?? "";
   if (contentType.includes("text/html")) {
+    const preview = isPreviewRequest(request);
     if (!headers.has("Content-Security-Policy")) {
-      headers.set("Content-Security-Policy", contentSecurityPolicy());
+      headers.set("Content-Security-Policy", contentSecurityPolicy(request));
     }
-    headers.set("X-Frame-Options", "SAMEORIGIN");
+    // X-Frame-Options nie zna allowlisty - w podglądzie zdejmujemy je i
+    // polegamy na frame-ancestors z CSP.
+    if (preview) headers.delete("X-Frame-Options");
+    else headers.set("X-Frame-Options", "SAMEORIGIN");
+
     headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
     // Permissions-Policy: deny powerful features by default and opt OUT of the
     // Topics API (browsing-topics=()) so the browser never derives/attaches
