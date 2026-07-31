@@ -18,7 +18,7 @@ import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { AppLink } from "@/components/atoms/AppLink";
-import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
+import { LangReelSwitcher } from "@/components/atoms/LangReelSwitcher";
 
 import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
