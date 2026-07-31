@@ -287,7 +287,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           >
             <Menu className="w-4 h-4" />
           </button>
-          <LangSwitcherDropdown label={t.lang} />
+          <LangReelSwitcher label={t.lang} className="[--ls-h:28px]" />
 
           <NotificationsBell panelWidth={260} />
           <ChatBell panelWidth={280} />
