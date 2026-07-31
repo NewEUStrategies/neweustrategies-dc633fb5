@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 // persist across navigations - never re-import them here.
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { errorCopy } from "@/lib/errorCopy";
+import { cleanExcerpt } from "@/lib/text/cleanExcerpt";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
