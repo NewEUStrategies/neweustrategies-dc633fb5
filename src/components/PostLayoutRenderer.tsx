@@ -171,7 +171,10 @@ export function PostLayoutRenderer({
                   ? "absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.28)_75%)]"
                   : "absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]"
               }
-            />
+            {/* Mobile: dodatkowy dolny scrim - overlay ma malo miejsca, wiec
+                tytul/meta musza miec pewny kontrast niezaleznie od zdjecia. */}
+            <div className="absolute inset-0 sm:hidden bg-gradient-to-t from-black/90 via-black/55 to-black/25" />
+
             {overlayMetaCard}
           </div>
         </div>
