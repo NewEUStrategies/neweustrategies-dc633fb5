@@ -8,8 +8,10 @@
 import type { ReactElement } from "react";
 import { safeUrl } from "@/lib/sanitize";
 import { blockAnchor } from "@/lib/blocks/anchors";
+import { looksLikeInlineHtml, safeCssColor } from "@/lib/blocks/inlineHtml";
 import type { BlockRenderer } from "./context";
-import { bool, num, str, strList } from "./data";
+import { bool, num, sanitize, str, strList } from "./data";
+
 
 /** Akapit z formatowaniem inline (HTML sanitizowany, z rozwiniętymi przypisami). */
 export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
