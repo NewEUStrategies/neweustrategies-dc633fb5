@@ -1013,7 +1013,7 @@ function AuthorBadge({
     ? { fontSize: `${fontPx}px`, lineHeight: 1.35 }
     : { fontSize: "inherit" };
   const inner = (
-    <span className="inline-flex items-center gap-1.5" style={fontStyle}>
+    <span className="inline-flex items-center gap-1.5" style={fontStyle} data-typography-exempt>
       {safeAvatar ? (
         <img
           src={safeAvatar}
@@ -1035,7 +1035,7 @@ function AuthorBadge({
         </span>
       )}
       {name && (
-        <span className={`font-medium ${textCls}`} style={fontStyle}>
+        <span className={`font-medium ${textCls}`} style={fontStyle} data-typography-exempt>
           {labelPrefix}
           {name}
         </span>
@@ -1048,6 +1048,7 @@ function AuthorBadge({
         href={`/author/${slug}`}
         className="inline-flex items-center gap-1.5 hover:opacity-80 transition-opacity"
         style={fontStyle}
+        data-typography-exempt
         onClick={(e) => e.stopPropagation()}
       >
         {inner}
