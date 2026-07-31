@@ -25,6 +25,7 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
     sort,
     onPageChange,
     onSortChange,
+    hrefFor,
     isPending,
     emptyText,
     extraBelow,
@@ -81,6 +82,7 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
             page={page}
             totalPages={totalPages}
             onPageChange={onPageChange}
+            hrefFor={previewMode ? undefined : hrefFor}
             isPending={isPending}
             lang={lang}
             disabled={!!previewMode}

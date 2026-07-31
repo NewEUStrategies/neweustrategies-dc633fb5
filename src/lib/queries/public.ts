@@ -448,6 +448,59 @@ export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
     staleTime: 2 * 60_000,
   });
 
+/** Parametry paginowanego archiwum bloga (/blog?page=N). */
+export interface BlogArchiveParams {
+  page?: number;
+  pageSize?: number;
+}
+
+/** Jedna strona archiwum bloga + metadane paginacji (dla UI i head()). */
+export interface BlogArchiveResult {
+  posts: BlogListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Paginowane archiwum bloga - SSR ładuje DOKŁADNIE jedną stronę wyników
+ * (range + count), ten sam model co archiwa taksonomii (lib/queries/archives).
+ * Zastępuje dawne "load more" (rosnący limit bez `?page`), przez które wpisy
+ * poza pierwszą stroną nie miały żadnego indeksowalnego URL-a. Klucz cache
+ * odzwierciedla pełną parametryzację strony; edgeTtlCache jest per tenant host,
+ * więc izolacja tenantów zachodzi z konstrukcji. Widełki pageSize jak w
+ * resolvePostsPerPage (1..100); strona spoza zakresu zwraca pustą listę z
+ * poprawnym total - bez błędu 416 (offset/limit, nie nagłówek Range).
+ */
+export const blogArchiveQueryOptions = (params: BlogArchiveParams = {}) => {
+  const page = Math.max(1, Math.floor(params.page ?? 1));
+  const pageSize = Math.max(1, Math.min(100, Math.floor(params.pageSize ?? BLOG_PAGE_SIZE)));
+  return queryOptions({
+    queryKey: ["public", "blog", "archive", { page, pageSize }] as const,
+    queryFn: async (): Promise<BlogArchiveResult> =>
+      edgeTtlCache(`public:blog-archive:${page}:${pageSize}`, 60_000, async () => {
+        const from = (page - 1) * pageSize;
+        const { data, count, error } = await supabase
+          .from("posts")
+          .select(
+            "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id",
+            { count: "exact" },
+          )
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("published_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const rows = (data ?? []) as Array<Omit<BlogListItem, "href">>;
+        // Wpisy linkują przez dedykowaną trasę /post/$slug (jak blogListQueryOptions)
+        // - rozwiązuje się także przy brakującej ścieżce rodzica, zero N+1.
+        const posts: BlogListItem[] = rows.map((r) => ({ ...r, href: `/post/${r.slug}` }));
+        return { posts, total: count ?? 0, page, pageSize };
+      }),
+    staleTime: 2 * 60_000,
+  });
+};
+
 // Published, indexable pages for the public HTML site map (/sitemap). The
 // noindex exclusion mirrors sitemap.xml: a URL hidden from crawlers must not
 // be advertised by the visible site map either.

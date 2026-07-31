@@ -5,7 +5,7 @@
 // + NewsletterForm...) siedział w eager-owym bundlu wejściowym KAŻDEJ strony.
 // Jako zwykły moduł komponentu jest importowany nazwaniem w obu trasach i
 // trafia do współdzielonego, leniwego chunka tras archiwum.
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { useTransition, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -32,6 +32,7 @@ export function TaxonomyPage({
   // Rejestracja słowników w chunku tras archiwum (nie w entry).
   ensureArchiveLayoutI18n();
   const navigate = useNavigate();
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const { data: settings } = useSuspenseQuery(archiveLayoutQueryOptions(kind));
   const { data } = useSuspenseQuery(
@@ -75,21 +76,27 @@ export function TaxonomyPage({
       </div>
     ) : null;
 
+  // Wartości domyślne (page 1 / sort "newest") zostają NIEjawne także przy
+  // nawigacji imperatywnej - URL strony pierwszej to czysty adres archiwum,
+  // bez duplikatu `?page=1` obok wersji kanonicznej.
+  const to = kind === "category" ? ("/category/$slug" as const) : ("/tag/$slug" as const);
+  const searchFor = (nextPage: number, nextSort: ArchiveSort) => ({
+    page: nextPage > 1 ? nextPage : undefined,
+    sort: nextSort !== "newest" ? nextSort : undefined,
+  });
+  // SEO: realne adresy stron wyników dla linkowej paginacji (ArchivePagination).
+  // buildLocation().publicHref przechodzi przez rewrite routera, więc href
+  // niesie właściwy prefiks języka (/en/...) - dokładnie jak <Link>.
+  const hrefFor = (nextPage: number) =>
+    router.buildLocation({ to, params: { slug }, search: searchFor(nextPage, currentSort) })
+      .publicHref;
   const onSortChange = (next: ArchiveSort) =>
     startTransition(() => {
-      void navigate({
-        to: kind === "category" ? "/category/$slug" : "/tag/$slug",
-        params: { slug },
-        search: { page: 1, sort: next },
-      });
+      void navigate({ to, params: { slug }, search: searchFor(1, next) });
     });
   const onPageChange = (nextPage: number) =>
     startTransition(() => {
-      void navigate({
-        to: kind === "category" ? "/category/$slug" : "/tag/$slug",
-        params: { slug },
-        search: { page: nextPage, sort: currentSort },
-      });
+      void navigate({ to, params: { slug }, search: searchFor(nextPage, currentSort) });
     });
 
   return (
@@ -114,6 +121,7 @@ export function TaxonomyPage({
         sort={currentSort}
         onPageChange={onPageChange}
         onSortChange={onSortChange}
+        hrefFor={hrefFor}
         isPending={isPending}
         emptyText={emptyText}
         extraBelow={extraBelow}
