@@ -215,6 +215,8 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
                 <SelectItem value="2">H2</SelectItem>
                 <SelectItem value="3">H3</SelectItem>
                 <SelectItem value="4">H4</SelectItem>
+                <SelectItem value="5">H5</SelectItem>
+
               </SelectContent>
             </Select>
           </div>
