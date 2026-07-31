@@ -79,6 +79,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       : "avatar") as "avatar" | "label" | "none";
   const authorLabelPl = typeof c.authorLabel_pl === "string" ? c.authorLabel_pl : "";
   const authorLabelEn = typeof c.authorLabel_en === "string" ? c.authorLabel_en : "";
+  const authorSizePx = typeof c.authorSizePx === "number" ? c.authorSizePx : 11;
 
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
