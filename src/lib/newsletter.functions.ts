@@ -336,9 +336,10 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
         metaName: data.firstName ?? displayName,
         ctaPath: data.language === "en" ? "/en/analyses" : "/analizy",
         idempotencyKey: `newsletter_confirmed:${tenantId}:${email}`,
+        // Tenant znany z zapisu - brama listy wykluczeń nie musi go zgadywać.
+        tenantId,
       });
       return { ok: true, status: "subscribed" };
-
     }
 
     const token = hexToken(32);

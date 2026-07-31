@@ -1,53 +1,79 @@
-import { createClient } from '@supabase/supabase-js'
-import { WebhookError, verifyWebhookRequest } from '@lovable.dev/webhooks-js'
-import { createFileRoute } from '@tanstack/react-router'
+// Webhook wykluczeń dostawcy platformy: POST /lovable/email/suppression
+//
+// Druga (obok /api/public/webhooks/resend) pętla zwrotna dostarczalności - Go
+// API platformy raportuje tu odbicia, skargi i wypisy zgłoszone u dostawcy.
+//
+// PRZYCZYNA ŹRÓDŁOWA. Ten endpoint pisał do zaszłej tabeli `suppressed_emails`,
+// której nie czytała wysyłka kampanii; webhook Resend pisał do kanonicznych
+// `email_suppressions`, których nie czytała wysyłka transakcyjna. Dwa webhooki,
+// dwie listy, żadna pełna. Teraz oba przechodzą przez `applyDeliveryEvent`, więc
+// zdarzenie ląduje w logu dostarczalności (idempotentnie po identyfikatorze),
+// aktualizuje stan dostawy odbiorcy kampanii i stawia blokadę o właściwej
+// powadze - z eskalacją miękkich odbić i bez osłabiania mocniejszej blokady.
+import { WebhookError, verifyWebhookRequest } from "@lovable.dev/webhooks-js";
+import { createFileRoute } from "@tanstack/react-router";
+import type { DeliveryEventKind } from "@/lib/email/deliveryEvents";
 
-// Suppression event payload sent by the Go API when Mailgun reports
-// a bounce, complaint, or unsubscribe.
+/**
+ * Ładunek wysyłany przez Go API, gdy dostawca zgłosi odbicie, skargę lub wypis.
+ */
 interface SuppressionPayload {
-  email: string
-  reason: 'bounce' | 'complaint' | 'unsubscribe'
-  message_id?: string
-  metadata?: Record<string, unknown>
-  is_retry: boolean
-  retry_count: number
+  email: string;
+  reason: "bounce" | "complaint" | "unsubscribe";
+  message_id?: string;
+  metadata?: Record<string, unknown>;
+  is_retry: boolean;
+  retry_count: number;
 }
 
 function parseSuppressionPayload(body: string): SuppressionPayload {
-  const parsed = JSON.parse(body)
-  if (!parsed.data) {
-    throw new Error('Missing data field in payload')
+  const parsed: unknown = JSON.parse(body);
+  if (typeof parsed !== "object" || parsed === null || !("data" in parsed)) {
+    throw new Error("Missing data field in payload");
   }
-  const data = parsed.data as SuppressionPayload
-  if (!data.email || !data.reason) {
-    throw new Error('Missing required fields: email, reason')
+  const data = (parsed as { data: SuppressionPayload }).data;
+  if (!data?.email || !data?.reason) {
+    throw new Error("Missing required fields: email, reason");
   }
-  return data
+  return data;
 }
 
-function mapReasonToStatus(
-  reason: string,
-): 'bounced' | 'complained' | 'suppressed' {
-  switch (reason) {
-    case 'bounce':
-      return 'bounced'
-    case 'complaint':
-      return 'complained'
-    default:
-      return 'suppressed'
-  }
+function redactEmail(email: string): string {
+  const [localPart, domain] = email.split("@");
+  if (!localPart || !domain) return "***";
+  return `${localPart[0]}***@${domain}`;
 }
 
-function mapReasonToMessage(reason: string): string {
+/**
+ * Powód dostawcy -> rodzaj zdarzenia dostarczalności + klasa odbicia.
+ *
+ * `bounce` bez klasy traktujemy jako TWARDE: ten webhook raportuje wykluczenia,
+ * czyli zdarzenia, po których dostawca sam przestaje przyjmować adres, a nie
+ * chwilowe opóźnienia. Zaklasyfikowanie ich jako miękkich dałoby blokadę
+ * wygasającą po dobie i powrót do dobijania się do martwej skrzynki.
+ */
+function classify(reason: SuppressionPayload["reason"]): {
+  kind: DeliveryEventKind;
+  bounceClass: "hard" | null;
+  diagnostic: string;
+} {
   switch (reason) {
-    case 'bounce':
-      return 'Permanent bounce — email address is invalid or rejected'
-    case 'complaint':
-      return 'Spam complaint — recipient marked email as spam'
-    case 'unsubscribe':
-      return 'Recipient unsubscribed'
+    case "complaint":
+      return {
+        kind: "complained",
+        bounceClass: null,
+        diagnostic: "Spam complaint - recipient marked email as spam",
+      };
+    case "unsubscribe":
+      // Wypis nie jest zdarzeniem dostawcy w sensie dostarczalności; blokadę
+      // stawia osobna ścieżka niżej.
+      return { kind: "other", bounceClass: null, diagnostic: "Recipient unsubscribed" };
     default:
-      return 'Email suppressed'
+      return {
+        kind: "bounced",
+        bounceClass: "hard",
+        diagnostic: "Permanent bounce - email address is invalid or rejected",
+      };
   }
 }
 
@@ -55,104 +81,118 @@ export const Route = createFileRoute("/lovable/email/suppression")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = process.env.LOVABLE_API_KEY
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-        if (!apiKey || !supabaseUrl || !supabaseServiceKey) {
-          console.error('Missing required environment variables')
-          return Response.json({ error: 'Server configuration error' }, { status: 500 })
+        const apiKey = process.env.LOVABLE_API_KEY;
+        if (!apiKey) {
+          console.error("[lovable-suppression] LOVABLE_API_KEY not configured");
+          return Response.json({ error: "Server configuration error" }, { status: 500 });
         }
 
-        // Verify HMAC signature using the Lovable API Key (same as auth-email-hook)
-        let payload: SuppressionPayload
+        // Podpis HMAC jest OBOWIĄZKOWY: bez niego endpoint byłby publicznym
+        // sposobem wpisania dowolnego adresu na listę wykluczeń (cichy DoS na
+        // pocztę wybranego odbiorcy).
+        let payload: SuppressionPayload;
         try {
           const verified = await verifyWebhookRequest({
             req: request,
             secret: apiKey,
             parser: parseSuppressionPayload,
-          })
-          payload = verified.payload
+          });
+          payload = verified.payload;
         } catch (error) {
           if (error instanceof WebhookError) {
             switch (error.code) {
-              case 'invalid_signature':
-                console.error('Invalid webhook signature')
-                return Response.json({ error: 'Invalid signature' }, { status: 401 })
-              case 'stale_timestamp':
-                console.error('Stale webhook timestamp')
-                return Response.json({ error: 'Stale timestamp' }, { status: 401 })
-              case 'invalid_payload':
-              case 'invalid_json':
-                console.error('Invalid payload', { code: error.code })
-                return Response.json({ error: 'Invalid payload' }, { status: 400 })
+              case "invalid_signature":
+              case "stale_timestamp":
+                console.error("[lovable-suppression] rejected", { code: error.code });
+                return Response.json({ error: error.code }, { status: 401 });
+              case "invalid_payload":
+              case "invalid_json":
+                console.error("[lovable-suppression] bad payload", { code: error.code });
+                return Response.json({ error: "Invalid payload" }, { status: 400 });
               default:
-                console.error('Webhook verification failed', {
-                  code: error.code,
-                  message: error.message,
-                })
-                return Response.json({ error: 'Verification failed' }, { status: 401 })
+                console.error("[lovable-suppression] verification failed", { code: error.code });
+                return Response.json({ error: "Verification failed" }, { status: 401 });
             }
           }
-          console.error('Unexpected error during verification', { error })
-          return Response.json({ error: 'Internal error' }, { status: 500 })
+          console.error("[lovable-suppression] unexpected verification error", { error });
+          return Response.json({ error: "Internal error" }, { status: 500 });
         }
 
-        const supabase = createClient(supabaseUrl, supabaseServiceKey)
-        const normalizedEmail = payload.email.toLowerCase()
+        const [{ supabaseAdmin }, suppression] = await Promise.all([
+          import("@/integrations/supabase/client.server"),
+          import("@/lib/email/suppression.server"),
+        ]);
 
-        // 1. Upsert to suppressed_emails (idempotent — safe for retries)
-        const { error: suppressError } = await supabase
-          .from('suppressed_emails')
-          .upsert(
-            {
-              email: normalizedEmail,
-              reason: payload.reason,
-              metadata: payload.metadata ?? null,
-            },
-            { onConflict: 'email' },
-          )
+        const email = payload.email.trim().toLowerCase();
+        const { kind, bounceClass, diagnostic } = classify(payload.reason);
+        // Identyfikator zdarzenia musi być STABILNY między ponowieniami, inaczej
+        // idempotencja po (provider, event_id) nic nie daje. Gdy dostawca nie
+        // przysyła własnego, składamy go z adresu i powodu.
+        const eventId = payload.message_id
+          ? `lovable:${payload.message_id}:${payload.reason}`
+          : `lovable:${email}:${payload.reason}`;
 
-        if (suppressError) {
-          console.error('Failed to upsert suppressed email', {
-            error: suppressError,
-            email_redacted: normalizedEmail[0] + '***@' + normalizedEmail.split('@')[1],
-          })
-          return Response.json({ error: 'Failed to write suppression' }, { status: 500 })
+        if (kind === "other") {
+          // Wypis: nie ma tu zdarzenia dostarczalności do zaksięgowania, jest
+          // decyzja odbiorcy. Blokada `unsubscribe` zatrzymuje wysyłkę za zgodą,
+          // ale nie potwierdzenia płatności (patrz suppressionPolicy).
+          const tenantId = await suppression.resolveTenantForAddress(supabaseAdmin, email);
+          if (!tenantId) {
+            console.error("[lovable-suppression] no tenant for address", {
+              email_redacted: redactEmail(email),
+            });
+            return Response.json({ error: "Failed to write suppression" }, { status: 500 });
+          }
+          const ok = await suppression.recordSuppression(supabaseAdmin, {
+            tenantId,
+            email,
+            reason: "unsubscribe",
+            source: "system",
+            provider: "lovable",
+            providerMessageId: payload.message_id ?? null,
+            eventId,
+            diagnostic,
+          });
+          if (!ok) return Response.json({ error: "Failed to write suppression" }, { status: 500 });
+          return Response.json({ success: true, reason: payload.reason });
         }
 
-        // 2. Append a new log entry for the suppression event (never update existing rows)
-        const sendLogStatus = mapReasonToStatus(payload.reason)
-        const sendLogMessage = mapReasonToMessage(payload.reason)
+        const applied = await suppression.applyDeliveryEvent(supabaseAdmin, {
+          provider: "lovable",
+          eventId,
+          eventType: `lovable.${payload.reason}`,
+          kind,
+          email,
+          providerMessageId: payload.message_id ?? null,
+          bounceClass,
+          diagnostic,
+          occurredAt: new Date().toISOString(),
+          payload: payload.metadata ?? {},
+        });
 
-        const { error: insertError } = await supabase
-          .from('email_send_log')
-          .insert({
-            message_id: payload.message_id ?? null,
-            template_name: 'system',
-            recipient_email: normalizedEmail,
-            status: sendLogStatus,
-            error_message: sendLogMessage,
-            metadata: payload.metadata ?? null,
-          })
-
-        if (insertError) {
-          // Non-fatal — log and continue. The suppression was already recorded.
-          console.warn('Failed to insert email_send_log', {
-            error: insertError,
-          })
+        if (!applied.ok) {
+          console.error("[lovable-suppression] apply failed", {
+            email_redacted: redactEmail(email),
+            reason: payload.reason,
+          });
+          // 500 => dostawca ponowi; idempotencja po eventId czyni retry bezpiecznym.
+          return Response.json({ error: "Failed to write suppression" }, { status: 500 });
         }
 
-        console.log('Suppression processed', {
-          email_redacted: normalizedEmail[0] + '***@' + normalizedEmail.split('@')[1],
+        console.log("[lovable-suppression] processed", {
+          email_redacted: redactEmail(email),
           reason: payload.reason,
-          is_retry: payload.is_retry,
+          duplicate: applied.duplicate,
+          suppressed: applied.suppressed,
           retry_count: payload.retry_count,
-          has_message_id: !!payload.message_id,
-        })
+        });
 
-        return Response.json({ success: true })
+        return Response.json({
+          success: true,
+          duplicate: applied.duplicate,
+          suppressed: applied.suppressed,
+        });
       },
     },
   },
-})
+});

@@ -7,6 +7,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/integrations/supabase/require-staff";
+import type { RunnerTickStatus } from "@/lib/email/runnerHealth";
 
 const ImportRow = z.object({
   email: z.string().trim().email().max(254),
@@ -102,21 +103,63 @@ export const importNewsletterSubscribers = createServerFn({ method: "POST" })
 // cron/pg_net po stronie bazy, a tu służy wyłącznie diagnostyce.
 // ----------------------------------------------------------------------------
 
+/** Głębokość kolejek pocztowych pgmq (dowód, że dren nadąża za nadawaniem). */
+export interface EmailQueueDepth {
+  auth: number;
+  transactional: number;
+  authDlq: number;
+  transactionalDlq: number;
+}
+
 export interface JobRunnerSettings {
   enabled: boolean;
+  /** Nadpisanie adresu z konfiguracji (puste = wyliczany z domeny tenanta). */
   base_url: string;
+  /**
+   * Adres, którego cron NAPRAWDĘ użyje (konfiguracja albo domena tenanta
+   * domyślnego). Puste = tick nie ma gdzie zapukać.
+   */
+  effective_base_url: string;
   /** Podgląd sekretu (pierwsze 6 znaków) - pełny sekret nie opuszcza serwera. */
   secret_preview: string;
   updated_at: string | null;
+  /** Telemetria ostatniego ticku - „włączone" nie znaczy jeszcze „działa". */
+  last_tick_at: string | null;
+  last_tick_status: RunnerTickStatus;
+  last_tick_error: string | null;
+  tick_count: number;
+  queues: EmailQueueDepth | null;
 }
 
+function tickStatusOf(value: unknown): RunnerTickStatus {
+  return value === "dispatched" || value === "skipped" || value === "error" ? value : null;
+}
+
+function queueCount(source: Record<string, unknown>, key: string): number {
+  const value = source[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+/**
+ * Stan automatu wysyłki. Zwraca nie tylko konfigurację, ale i DOWÓD działania:
+ * moment ostatniego ticku, jego status oraz długość kolejek pocztowych. Bez tego
+ * panel odpowiadał wyłącznie na pytanie „czy przełącznik jest włączony", a nie na
+ * to, które naprawdę interesuje operatora: „czy poczta wychodzi".
+ */
 export const getJobRunnerSettings = createServerFn({ method: "GET" })
   .middleware([requireStaff])
   .handler(async (): Promise<JobRunnerSettings> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("job_runner_settings" as never)
-      .select("enabled, base_url, secret, updated_at")
+      .select(
+        "enabled, base_url, secret, updated_at, last_tick_at, last_tick_status, last_tick_error, tick_count",
+      )
       .eq("id", 1)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -125,12 +168,46 @@ export const getJobRunnerSettings = createServerFn({ method: "GET" })
       base_url: string;
       secret: string;
       updated_at: string | null;
+      last_tick_at: string | null;
+      last_tick_status: string | null;
+      last_tick_error: string | null;
+      tick_count: number | null;
     } | null;
+
+    // Adres efektywny i głębokość kolejek pochodzą z RPC nowszych niż
+    // wygenerowane typy -> rzutowanie na granicy wywołania (precedens:
+    // newsletter_deliverability_metrics). Oba są best-effort: panel ma się
+    // wyświetlić także na bazie bez pgmq.
+    const [{ data: effectiveUrl }, { data: depth }] = await Promise.all([
+      supabaseAdmin.rpc("job_runner_base_url" as never),
+      supabaseAdmin.rpc("email_queue_depth" as never),
+    ]);
+
+    const depthRow =
+      typeof depth === "object" && depth !== null ? (depth as Record<string, unknown>) : {};
+    const queues =
+      depthRow.ok === true && typeof depthRow.queues === "object" && depthRow.queues !== null
+        ? (depthRow.queues as Record<string, unknown>)
+        : null;
+
     return {
       enabled: row?.enabled ?? false,
       base_url: row?.base_url ?? "",
+      effective_base_url: typeof effectiveUrl === "string" ? effectiveUrl : "",
       secret_preview: row?.secret ? `${row.secret.slice(0, 6)}…` : "",
       updated_at: row?.updated_at ?? null,
+      last_tick_at: row?.last_tick_at ?? null,
+      last_tick_status: tickStatusOf(row?.last_tick_status),
+      last_tick_error: row?.last_tick_error ?? null,
+      tick_count: row?.tick_count ?? 0,
+      queues: queues
+        ? {
+            auth: queueCount(queues, "auth_emails"),
+            transactional: queueCount(queues, "transactional_emails"),
+            authDlq: queueCount(queues, "auth_emails_dlq"),
+            transactionalDlq: queueCount(queues, "transactional_emails_dlq"),
+          }
+        : null,
     };
   });
 

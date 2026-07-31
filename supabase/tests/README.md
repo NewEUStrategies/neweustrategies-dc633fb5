@@ -68,3 +68,25 @@ nałożone migracje oraz schematy/role platformy Supabase (`auth.uid()`,
 ```bash
 pg_prove -d "$DATABASE_URL" supabase/tests/*.sql
 ```
+
+## Ujednolicenie listy wykluczeń i runner poczty
+
+`email_suppression_unification_test.sql` - bramka anty-regresyjna dla migracji
+`20260731120000_email_suppression_unification.sql`:
+
+- `public.suppressed_emails` jest **widokiem** zgodności nad
+  `public.email_suppressions` (relkind `v`), utworzonym z
+  `security_invoker = true` i BEZ dostępu dla `anon`/`authenticated` - adres
+  e-mail to PII, a widok bez `security_invoker` obszedłby RLS tabeli źródłowej.
+- zapisy przez widok trafiają do listy kanonicznej przez
+  `email_record_suppression` (mapowanie `bounce → hard_bounce`), są idempotentne
+  i dziedziczą synchronizację z listą subskrybentów; `DELETE` **odblokowuje**
+  (`released_at`) zamiast usuwać historię; blokada wygasła nie jest widoczna.
+- `email_resolve_tenant_for_address`: jednoznaczny subskrybent → jednoznaczne
+  konto → tenant domyślny (adres w dwóch tenantach NIE jest zgadywany).
+- `email_unsubscribe_by_token`: wypis tokenem globalnym i tokenem per subskrybent
+  w jednej transakcji (blokada + zdjęcie subskrypcji + zużycie tokenu),
+  idempotentny przy powtórzonym one-click, z izolacją tenantów.
+- runner zadań tła: `job_runner_settings.enabled` ma `DEFAULT true`, a
+  `job_runner_base_url()` wylicza adres z domeny tenanta domyślnego, gdy
+  konfiguracja jest pusta.

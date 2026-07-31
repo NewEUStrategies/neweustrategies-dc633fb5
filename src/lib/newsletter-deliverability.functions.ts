@@ -19,7 +19,7 @@ import {
   type DeliverabilityCounts,
   type ReputationSummary,
 } from "@/lib/email/reputation";
-import type { SuppressionReason, SuppressionScope } from "@/lib/email/suppression.server";
+import type { SuppressionReason, SuppressionScope } from "@/lib/email/suppressionPolicy";
 
 export interface DeliverabilityDayPoint {
   day: string;

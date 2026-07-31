@@ -51,6 +51,11 @@ import {
 } from "@/lib/newsletter/emailDocResolve";
 import { fetchSuppressedEmails } from "@/lib/email/suppression.server";
 import { evaluateSendGate } from "@/lib/email/reputationGate.server";
+// JEDNA droga wyjścia poczty z platformy (kampanie + dren kolejki) - patrz
+// src/lib/email/provider.server.ts. Wcześniej kampanie miały własną kopię
+// wywołania gatewaya, a kolejka drugą, z innym formatem błędów i bez
+// identyfikatora wiadomości do korelacji webhooków.
+import { sendEmail } from "@/lib/email/provider.server";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -69,7 +74,6 @@ async function minTierEmailSet(
   return new Set((data ?? []).map((r) => (r.email ?? "").toLowerCase()).filter(Boolean));
 }
 
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const BATCH_SIZE = 20;
 const BATCH_DELAY_MS = 1100; // Resend free plan ~1 msg/s
 const DUE_CAMPAIGNS_PER_TICK = 3; // limit kampanii odpalanych w jednym ticku
@@ -928,72 +932,6 @@ function renderCampaignHtml(
     ? trackingPixelImg(tracking.origin, tracking.campaignId, tracking.token)
     : "";
   return `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${content}${footer}${pixel}</div>`;
-}
-
-async function sendEmail(opts: {
-  to: string;
-  subject: string;
-  html: string;
-  from?: string;
-  replyTo?: string | null;
-  listUnsubscribeUrl?: string | null;
-  /** Tagi dostawcy - korelacja zdarzeń webhooka z tenantem/kampanią/odbiorcą. */
-  tags?: Record<string, string>;
-}): Promise<{ ok: boolean; status?: number; error?: string; messageId?: string | null }> {
-  const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-  const RESEND_API_KEY = process.env.RESEND_API_KEY;
-  if (!LOVABLE_API_KEY || !RESEND_API_KEY) {
-    return { ok: false, error: "email_not_configured" };
-  }
-  try {
-    const headers: Record<string, string> = {};
-    if (opts.listUnsubscribeUrl) {
-      headers["List-Unsubscribe"] = `<${opts.listUnsubscribeUrl}>`;
-      headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
-    }
-    const tagList = Object.entries(opts.tags ?? {}).map(([name, value]) => ({ name, value }));
-    const res = await fetch(`${GATEWAY_URL}/emails`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": RESEND_API_KEY,
-      },
-      body: JSON.stringify({
-        from: opts.from || "New European Strategies <onboarding@resend.dev>",
-        to: [opts.to],
-        subject: opts.subject,
-        html: opts.html,
-        reply_to: opts.replyTo || undefined,
-        headers: Object.keys(headers).length ? headers : undefined,
-        tags: tagList.length ? tagList : undefined,
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      return { ok: false, status: res.status, error: body.slice(0, 500) };
-    }
-    // Identyfikator wiadomości u dostawcy jest KLUCZEM korelacji dla webhooków
-    // (bounce/complaint wracają z email_id, nie z adresem kampanii). Bez niego
-    // odbicie nie ma jak trafić do właściwego odbiorcy - stąd zapis przy każdej
-    // udanej wysyłce. Brak/nietypowa odpowiedź gatewaya nie jest błędem wysyłki.
-    return { ok: true, messageId: await readMessageId(res) };
-  } catch (err) {
-    return { ok: false, error: String(err) };
-  }
-}
-
-async function readMessageId(res: Response): Promise<string | null> {
-  try {
-    const body: unknown = await res.json();
-    if (typeof body === "object" && body !== null) {
-      const id = (body as Record<string, unknown>).id;
-      if (typeof id === "string" && id.trim()) return id.trim();
-    }
-  } catch {
-    // Gateway może zwrócić pustą odpowiedź - wysyłka i tak się powiodła.
-  }
-  return null;
 }
 
 async function markFailed(admin: DbClient, id: string, message: string): Promise<void> {
