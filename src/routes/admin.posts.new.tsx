@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
 import { createPost } from "@/lib/content.functions";
@@ -14,9 +14,14 @@ function NewPost() {
   const { user, loading, tenantId } = useAuth();
   const create = useServerFn(createPost);
   const [busy, setBusy] = useState(false);
+  // React StrictMode uruchamia setup efektu dwukrotnie w dev. Stan `busy`
+  // aktualizuje się dopiero w kolejnym renderze, więc sam nie chroni przed
+  // dwoma równoległymi POST-ami. Ref jest synchronicznym single-flight lockiem.
+  const createStartedRef = useRef(false);
 
   useEffect(() => {
-    if (loading || busy || !user || !tenantId) return;
+    if (loading || busy || !user || !tenantId || createStartedRef.current) return;
+    createStartedRef.current = true;
     setBusy(true);
     (async () => {
       try {
