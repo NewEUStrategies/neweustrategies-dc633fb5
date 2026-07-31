@@ -476,7 +476,10 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "No background, hairline dashed border, text-only active state with a left rule.",
   "Domyślnie /support (strona darowizn).": "Defaults to /support (the donations page).",
   "Domyślnie 40 px.": "Defaults to 40 px.",
-  "Domyślnie 10 px. Skaluje też awatar autora.": "Default 10 px. Also scales the author avatar.",
+  "Domyślnie 10 px.": "Default 10 px.",
+  "Rozmiar zdjęcia autora (px)": "Author photo size (px)",
+  "Domyślnie 12 px. Niezależne od rozmiaru czcionki.":
+    "Default 12 px. Independent of the font size.",
   "Domyślnie widget wyświetla się wyłącznie zalogowanym użytkownikom - rekomendacje bazują na ich zainteresowaniach, obserwacjach i historii czytania.":
     "By default the widget is shown only to signed-in users - recommendations are based on their interests, follows and reading history.",
   "Działa identycznie na desktopie, tablecie i mobile.":
