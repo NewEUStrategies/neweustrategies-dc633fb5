@@ -1,4 +1,10 @@
-// /admin/community/notifications — statystyki push + digestów, akcje utrzymaniowe.
+// /admin/community/notifications - statystyki push + digestów, ZDROWIE
+// HARMONOGRAMU doręczeń i akcje utrzymaniowe.
+//
+// Panel zdrowia (SchedulerHealthPanel) jest tu pierwszy świadomie: dyspozytor
+// push/digestów jest kompletny, ale bez działającego harmonogramu nic nie
+// wychodzi - a rosnąca kolejka wygląda dokładnie jak brak powiadomień do
+// wysłania. Statystyki poniżej mówią „ile", panel mówi „czy w ogóle biegnie".
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -6,6 +12,7 @@ import { toast } from "sonner";
 import { Bell, Trash2, Mail, Smartphone, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SchedulerHealthPanel } from "@/components/admin/community/SchedulerHealthPanel";
 import { cleanupFailedPushSubscriptions, fetchNotificationStats } from "@/lib/admin/community";
 
 export const Route = createFileRoute("/admin/community/notifications")({
@@ -43,6 +50,8 @@ function NotificationsAdmin() {
         <Bell className="w-4 h-4" />
         <h2 className="text-lg font-semibold">{isPl ? "Powiadomienia" : "Notifications"}</h2>
       </div>
+
+      <SchedulerHealthPanel />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Stat
@@ -98,8 +107,13 @@ function NotificationsAdmin() {
           </p>
           <p>
             {isPl
-              ? "Kolejka push (notification_push_queue) obsługiwana jest przez cron dispatch-push co minutę; nieudane subskrypcje mają wypełnione failed_at."
-              : "The push queue (notification_push_queue) is drained by the dispatch-push cron every minute; failed subscriptions have failed_at set."}
+              ? "Kolejkę push (notification_push_queue) drenują trzy równoważne ścieżki: pg_cron + pg_net co minutę (POST /api/public/jobs-tick), scheduler repo co 5 minut (POST /api/public/community-cron) i przycisk „Uruchom tick teraz”. Claimy są atomowe (SKIP LOCKED), więc równoległe przebiegi niczego nie dublują; nieudane subskrypcje mają wypełnione failed_at."
+              : "The push queue (notification_push_queue) is drained by three equivalent paths: pg_cron + pg_net every minute (POST /api/public/jobs-tick), the repo scheduler every 5 minutes (POST /api/public/community-cron) and the 'Run tick now' button. Claims are atomic (SKIP LOCKED), so parallel runs never duplicate work; failed subscriptions have failed_at set."}
+          </p>
+          <p>
+            {isPl
+              ? "Stan każdej ścieżki i log ostatnich przebiegów są w panelu zdrowia harmonogramu powyżej. Szczegóły operacyjne: docs/RUNBOOK_COMMUNITY.md."
+              : "The state of each path and the recent-run log live in the scheduler health panel above. Operational detail: docs/RUNBOOK_COMMUNITY.md."}
           </p>
         </CardContent>
       </Card>

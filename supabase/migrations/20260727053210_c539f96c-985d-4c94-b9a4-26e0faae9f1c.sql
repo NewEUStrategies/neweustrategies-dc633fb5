@@ -9,7 +9,16 @@ DECLARE
   -- helper wrappers built via jsonb_build_object inline below
 BEGIN
   SELECT builder_data INTO v_current FROM public.pages WHERE slug='analizy' LIMIT 1;
-  IF v_current IS NULL THEN RAISE EXCEPTION 'Brak strony analizy'; END IF;
+  -- Naprawa łańcucha migracji: ta migracja PRZEBUDOWUJE układ istniejącej strony
+  -- treści. Strony „analizy" nie zakłada żadna migracja (łańcuch zasiewa tylko
+  -- „blog") - istnieje wyłącznie jako treść na produkcji. Twarde RAISE
+  -- EXCEPTION wywracało więc cały łańcuch na świeżej bazie (supabase db start,
+  -- CI). Brak strony to nie błąd, a po prostu brak czegokolwiek do przebudowy,
+  -- więc wychodzimy cicho; na produkcji strona jest i migracja działa jak dotąd.
+  IF v_current IS NULL THEN
+    RAISE NOTICE 'Brak strony analizy - pomijam przebudowe ukladu';
+    RETURN;
+  END IF;
 
   -- keep existing newsletter section (last one)
   v_newsletter := v_current->'sections'->(jsonb_array_length(v_current->'sections')-1);

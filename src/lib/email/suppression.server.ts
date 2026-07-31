@@ -7,7 +7,7 @@
 // ominąć higieny listy.
 //
 // Wywołania idą przez SECURITY DEFINER RPC z migracji
-// 20260725120000_email_suppression_bounce_complaint.sql, dostępne wyłącznie dla
+// 20260725120000_analytics_semantic_layer.sql (sekcja email_suppression_bounce_complaint), dostępne wyłącznie dla
 // service_role. RPC są nowsze niż wygenerowane typy Supabase, więc nazwa i
 // argumenty są rzutowane w JEDNYM miejscu (poniżej), a API modułu pozostaje
 // w pełni otypowane (precedens: chat_check_upload_quota).

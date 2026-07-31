@@ -219,8 +219,12 @@ BEGIN
       || 'She previously advised EU institutions on neighbourhood-policy reviews and '
       || 'conducted field research across the Western Balkans.</p>'
       || '<p>Seed content for the development environment.</p>',
-    '[{"pl":"Dyrektorka ds. badań","en":"Director of Research"},'
-      || '{"pl":"Członkini zarządu","en":"Member of the Board"}]',
+    -- Rzutowanie jest konieczne: org_functions jest typu jsonb, a sklejenie
+    -- dwoma `||` daje jednoznacznie `text` (goły literał Postgres domyśliłby
+    -- sobie jako jsonb, wynik konkatenacji już nie), więc INSERT ... SELECT
+    -- wywracał się na 42804 i przewracał cały `supabase db start`.
+    ('[{"pl":"Dyrektorka ds. badań","en":"Director of Research"},'
+      || '{"pl":"Członkini zarządu","en":"Member of the Board"}]')::jsonb,
     'Biuro prasowe NES', 'media@nes.local', '+48 22 000 00 00'
   WHERE NOT EXISTS (SELECT 1 FROM public.author_profiles WHERE user_id = v_admin);
 

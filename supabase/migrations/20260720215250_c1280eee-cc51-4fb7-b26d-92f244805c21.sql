@@ -298,6 +298,18 @@ DROP FUNCTION IF EXISTS public.search_posts(
 DROP FUNCTION IF EXISTS public.search_facets(
   text, uuid, timestamptz, timestamptz, uuid, uuid[], text, text, text, text, text
 );
+-- Naprawa łańcucha migracji: powyższe DROP-y zdejmują tylko POPRZEDNIĄ (v5)
+-- sygnaturę, a niżej tworzymy wariant v6 z dodatkowym `_term_groups jsonb`.
+-- Ten wariant powstał już w 20260720180000, więc na świeżej bazie zwykły
+-- CREATE FUNCTION wywracał się z 42723 "function ... already exists with same
+-- argument types". Zdejmujemy więc również sygnaturę, którą sami tworzymy -
+-- na produkcji (gdzie ta migracja jest zastosowana) to bez znaczenia.
+DROP FUNCTION IF EXISTS public.search_posts(
+  text, int, uuid, timestamptz, timestamptz, uuid, uuid[], text, text, text, text, text, text, jsonb
+);
+DROP FUNCTION IF EXISTS public.search_facets(
+  text, uuid, timestamptz, timestamptz, uuid, uuid[], text, text, text, text, text, jsonb
+);
 
 CREATE FUNCTION public.search_posts(
   _q text DEFAULT NULL, _limit int DEFAULT 80, _author uuid DEFAULT NULL,

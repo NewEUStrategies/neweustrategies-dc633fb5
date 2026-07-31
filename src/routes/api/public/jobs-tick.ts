@@ -38,7 +38,12 @@ export const Route = createFileRoute("/api/public/jobs-tick")({
           return new Response(null, { status: 401 });
         }
 
-        const result = await runJobsTick(supabaseAdmin);
+        // Źródło wędruje do logu przebiegów: nagłówek ustawia invoke_jobs_tick()
+        // (pg_cron), a ręczne wywołania mogą podać własne.
+        const { normalizeSchedulerSource } = await import("@/lib/jobs/scheduler");
+        const result = await runJobsTick(supabaseAdmin, {
+          source: normalizeSchedulerSource(req.headers.get("x-cron-source") ?? "pg_cron"),
+        });
         return new Response(JSON.stringify(result), {
           status: 200,
           headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },

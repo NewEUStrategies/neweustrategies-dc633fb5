@@ -26,7 +26,8 @@
     "check:bundle": "bun run scripts/check-bundle-size.ts",
     "check:chunks": "bun run scripts/check-chunk-graph.ts",
     "check:sql-tenant-scope": "bun run scripts/check-sql-tenant-scope.ts",
-    "check:sql-app-role": "bun run scripts/check-sql-app-role-literals.ts"
+    "check:sql-app-role": "bun run scripts/check-sql-app-role-literals.ts",
+    "cron:tick": "node scripts/scheduler-tick.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

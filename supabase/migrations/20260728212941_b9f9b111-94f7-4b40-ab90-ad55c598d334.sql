@@ -5,28 +5,71 @@ ALTER FUNCTION public.read_email_batch(text, integer, integer) SET search_path =
 ALTER FUNCTION public.move_to_dlq(text, text, bigint, jsonb) SET search_path = pgmq, public, pg_temp;
 
 -- 2) expert_inmails: senders must not be able to forge outcome fields
-DROP POLICY IF EXISTS "inmails: sender or admin may update" ON public.expert_inmails;
+--
+-- Naprawa łańcucha migracji: tabela zapytań do eksperta ma w łańcuchu DWIE
+-- nazwy. 20260723180000 (blok „expert_request_quota") robi
+-- `ALTER TABLE expert_inmails RENAME TO expert_requests`, ale ta migracja
+-- napisana jest jeszcze pod starą nazwą. Na produkcji pasowało, bo tamten blok
+-- siedział w pliku o zdublowanej wersji i nigdy się nie wykonał (zrzut typów
+-- wciąż zna tylko `expert_inmails`); na świeżej bazie zmiana nazwy JEST
+-- stosowana i cztery polecenia niżej wywracały się z 42P01.
+--
+-- Nie rozstrzygamy tu, która nazwa jest kanoniczna - to decyzja o zmianie nazwy
+-- tabeli na żywej produkcji, poza zakresem tej migracji. Zamiast tego celujemy
+-- w tę tabelę, która faktycznie istnieje, żeby ta sama polityka bezpieczeństwa
+-- powstała w obu światach. Polityki zdejmujemy przed założeniem (42710).
+DO $expert_req$
+DECLARE
+  v_tbl text;
+  v_pol text;
+BEGIN
+  SELECT c.relname INTO v_tbl
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public'
+     AND c.relkind = 'r'
+     AND c.relname IN ('expert_requests', 'expert_inmails')
+   ORDER BY (c.relname = 'expert_requests') DESC
+   LIMIT 1;
 
-CREATE POLICY "inmails: sender may cancel own request"
-ON public.expert_inmails
-FOR UPDATE
-TO authenticated
-USING (sender_id = auth.uid())
-WITH CHECK (sender_id = auth.uid());
+  IF v_tbl IS NULL THEN
+    RAISE NOTICE 'expert_inmails/expert_requests nie istnieje - pomijam polityki';
+    RETURN;
+  END IF;
 
-CREATE POLICY "inmails: recipient may respond"
-ON public.expert_inmails
-FOR UPDATE
-TO authenticated
-USING (recipient_id = auth.uid())
-WITH CHECK (recipient_id = auth.uid());
+  FOREACH v_pol IN ARRAY ARRAY[
+    'inmails: sender or admin may update',
+    'inmails: sender may cancel own request',
+    'inmails: recipient may respond',
+    'inmails: admin may update'
+  ] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', v_pol, v_tbl);
+  END LOOP;
 
-CREATE POLICY "inmails: admin may update"
-ON public.expert_inmails
-FOR UPDATE
-TO authenticated
-USING (public.is_super_admin(auth.uid()))
-WITH CHECK (public.is_super_admin(auth.uid()));
+  EXECUTE format($ddl$
+    CREATE POLICY %I ON public.%I
+    FOR UPDATE TO authenticated
+    USING (sender_id = auth.uid())
+    WITH CHECK (sender_id = auth.uid())
+  $ddl$, 'inmails: sender may cancel own request', v_tbl);
+
+  EXECUTE format($ddl$
+    CREATE POLICY %I ON public.%I
+    FOR UPDATE TO authenticated
+    USING (recipient_id = auth.uid())
+    WITH CHECK (recipient_id = auth.uid())
+  $ddl$, 'inmails: recipient may respond', v_tbl);
+
+  EXECUTE format($ddl$
+    CREATE POLICY %I ON public.%I
+    FOR UPDATE TO authenticated
+    USING (public.is_super_admin(auth.uid()))
+    WITH CHECK (public.is_super_admin(auth.uid()))
+  $ddl$, 'inmails: admin may update', v_tbl);
+
+  EXECUTE format(
+    'DROP TRIGGER IF EXISTS expert_inmails_guard_update ON public.%I', v_tbl);
+END $expert_req$;
 
 -- Column-level enforcement (RLS cannot express it): senders may only cancel.
 CREATE OR REPLACE FUNCTION public.expert_inmails_guard_update()
@@ -85,7 +128,30 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS expert_inmails_guard_update ON public.expert_inmails;
-CREATE TRIGGER expert_inmails_guard_update
-BEFORE UPDATE ON public.expert_inmails
-FOR EACH ROW EXECUTE FUNCTION public.expert_inmails_guard_update();
+-- Trigger zakładamy na tej samej tabeli, którą wyżej rozstrzygnął DO-blok.
+DO $expert_req$
+DECLARE
+  v_tbl text;
+BEGIN
+  SELECT c.relname INTO v_tbl
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public'
+     AND c.relkind = 'r'
+     AND c.relname IN ('expert_requests', 'expert_inmails')
+   ORDER BY (c.relname = 'expert_requests') DESC
+   LIMIT 1;
+
+  IF v_tbl IS NULL THEN
+    RAISE NOTICE 'expert_inmails/expert_requests nie istnieje - pomijam trigger';
+    RETURN;
+  END IF;
+
+  EXECUTE format(
+    'DROP TRIGGER IF EXISTS expert_inmails_guard_update ON public.%I', v_tbl);
+  EXECUTE format($ddl$
+    CREATE TRIGGER expert_inmails_guard_update
+    BEFORE UPDATE ON public.%I
+    FOR EACH ROW EXECUTE FUNCTION public.expert_inmails_guard_update()
+  $ddl$, v_tbl);
+END $expert_req$;

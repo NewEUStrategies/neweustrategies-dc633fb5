@@ -176,6 +176,30 @@ CREATE TABLE IF NOT EXISTS public.member_organizations (
   FOREIGN KEY (tenant_id, tier_key) REFERENCES public.membership_tiers (tenant_id, key) ON UPDATE CASCADE,
   CHECK (expires_at IS NULL OR expires_at > starts_at)
 );
+-- Naprawa łańcucha migracji: profil publiczny organizacji (dane adresowe, logo,
+-- kolory marki) istniał dotąd WYŁĄCZNIE na bazie produkcyjnej - żadna migracja
+-- tych kolumn nie tworzyła. Na świeżej bazie wykładały się na tym cztery
+-- późniejsze migracje: 20260723061018 i 20260723140000 (zasiew crm_companies z
+-- mo.website_url) oraz 20260723195335 i 20260726214210 (mo.slug w wyszukiwarce
+-- podpowiedzi). Wszystkie są nullowalnym `text` bez ograniczeń - tak jak w
+-- zrzucie produkcji (src/integrations/supabase/types.ts) i tak, jak ich używa
+-- łańcuch: wyłącznie do czytania, bez ON CONFLICT ani UNIQUE.
+ALTER TABLE public.member_organizations
+  ADD COLUMN IF NOT EXISTS slug text,
+  ADD COLUMN IF NOT EXISTS description text,
+  ADD COLUMN IF NOT EXISTS sector text,
+  ADD COLUMN IF NOT EXISTS website_url text,
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS country text,
+  ADD COLUMN IF NOT EXISTS logo_h_light text,
+  ADD COLUMN IF NOT EXISTS logo_h_dark text,
+  ADD COLUMN IF NOT EXISTS logo_v_light text,
+  ADD COLUMN IF NOT EXISTS logo_v_dark text,
+  ADD COLUMN IF NOT EXISTS logo_favicon text,
+  ADD COLUMN IF NOT EXISTS brand_primary text,
+  ADD COLUMN IF NOT EXISTS brand_accent text,
+  ADD COLUMN IF NOT EXISTS brand_ink text;
+
 CREATE INDEX IF NOT EXISTS idx_member_orgs_tenant ON public.member_organizations (tenant_id, created_at DESC);
 DROP TRIGGER IF EXISTS member_orgs_set_updated_at ON public.member_organizations;
 CREATE TRIGGER member_orgs_set_updated_at BEFORE UPDATE ON public.member_organizations FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

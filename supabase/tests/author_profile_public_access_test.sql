@@ -1,7 +1,7 @@
 -- pgTAP: /author/:slug musi zwracac profil eksperta zarowno dla anon, jak i
 -- authenticated po zaostrzeniu RLS na public.profiles (PR #85/#90) i po
 -- przywroceniu widoku `profiles_public` do security_invoker=off (migracja
--- 20260724130000_profiles_public_definer_view.sql).
+-- 20260724130000_expert_request_visibility.sql (sekcja profiles_public_definer_view)).
 --
 -- Regresja: brak SELECT dla anon/authenticated na `profiles_public` = 404
 -- na kazdej stronie eksperta. Frontend (src/lib/experts/queries.ts) czyta

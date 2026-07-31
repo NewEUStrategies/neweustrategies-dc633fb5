@@ -195,3 +195,28 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.send_expert_inmail(uuid, text, text, text[], text, text[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.send_expert_inmail(uuid, text, text, text[], text, text[]) TO authenticated;
+
+-- ============================================================================
+-- SCALONE Z: 20260724130000_profiles_public_definer_view.sql
+--
+-- Supabase CLI bierze `version` z prefiksu nazwy pliku, więc DWA pliki o tym
+-- samym znaczniku czasu wywalają `duplicate key value violates unique
+-- constraint "schema_migrations_pkey"` i przerywają CAŁY `supabase db start` -
+-- to dlatego job pgtap w CI nie dobiegał nawet do pierwszego testu. Treść
+-- poniżej jest przeniesiona BEZ ZMIAN, w tej samej kolejności, w jakiej CLI
+-- stosował pliki (leksykograficznie), więc semantyka migracji się nie zmienia,
+-- a każda wersja występuje dokładnie raz (produkcja nie widzi nowych wersji i
+-- niczego nie stosuje ponownie).
+-- ============================================================================
+
+-- Fix: /author/$slug 404 for anon and non-staff. The recent tightening of
+-- `public.profiles` RLS removed anonymous SELECT; `profiles_public` had
+-- `security_invoker=on`, so the view returned zero rows to anon/authenticated
+-- non-staff and every expert hub 404-ed.
+--
+-- Solution: run the view with the owner's privileges (definer semantics) and
+-- keep scoping via the view body (WHERE tenant_id = public_tenant_id()).
+-- The projection already exposes only non-sensitive columns; PII stays behind
+-- `profiles` RLS.
+ALTER VIEW public.profiles_public SET (security_invoker = off, security_barrier = true);
+GRANT SELECT ON public.profiles_public TO anon, authenticated;

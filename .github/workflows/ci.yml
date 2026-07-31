@@ -131,5 +131,51 @@ jobs:
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
             -c 'create extension if not exists pgtap with schema extensions;'
 
+      # Fixture'y pgTAP wyłączają trigger on_auth_user_created, żeby wstawić
+      # własnych użytkowników i profile w wybranych tenantach (profiles.tenant_id
+      # jest niezmienny, więc profilu założonego przez trigger nie da się
+      # przenieść). `ALTER TABLE auth.users DISABLE TRIGGER USER` wymaga jednak
+      # WŁASNOŚCI tabeli, a `supabase test db` łączy się jako `postgres`, który
+      # auth.users nie posiada - należy ona do supabase_auth_admin. Bez tego
+      # kroku większość plików pada natychmiast na 42501 „must be owner of table
+      # users". Dotyczy WYŁĄCZNIE jednorazowej bazy CI - nie ma odpowiednika na
+      # produkcji i nie wynika z żadnej migracji.
+      - name: Allow test role to toggle auth triggers
+        run: |
+          set -u
+          PG_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          PG_ADMIN_URL="postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres"
+
+          probe() {
+            psql "$PG_TEST_URL" -v ON_ERROR_STOP=1 -q \
+              -c 'ALTER TABLE auth.users DISABLE TRIGGER USER;' \
+              -c 'ALTER TABLE auth.users ENABLE TRIGGER USER;' >/dev/null 2>&1
+          }
+
+          if probe; then
+            echo "Rola testowa juz moze przestawiac triggery na auth.users."
+            exit 0
+          fi
+
+          # 1) Najmniej inwazyjnie: czlonkostwo w roli wlasciciela.
+          for url in "$PG_ADMIN_URL" "$PG_TEST_URL"; do
+            psql "$url" -v ON_ERROR_STOP=1 -q \
+              -c 'GRANT supabase_auth_admin TO postgres;' >/dev/null 2>&1 && break
+          done
+          if probe; then
+            echo "Nadano czlonkostwo supabase_auth_admin roli postgres."
+            exit 0
+          fi
+
+          # 2) Zapasowo: przekazanie wlasnosci samej tabeli (baza jest jednorazowa).
+          psql "$PG_ADMIN_URL" -v ON_ERROR_STOP=1 -q \
+            -c 'ALTER TABLE auth.users OWNER TO postgres;' >/dev/null 2>&1 || true
+          if probe; then
+            echo "Przekazano wlasnosc auth.users roli postgres."
+            exit 0
+          fi
+
+          echo "::warning::Rola testowa nie moze przestawiac triggerow na auth.users - pliki pgTAP oparte na DISABLE TRIGGER padna na 42501 (must be owner of table users)."
+
       - name: Run pgTAP tests
         run: supabase test db
