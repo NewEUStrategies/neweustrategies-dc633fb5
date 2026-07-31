@@ -4148,11 +4148,64 @@ export type Database = {
         }
         Relationships: []
       }
+      job_runner_runs: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          duration_ms: number
+          error: string | null
+          id: number
+          job: string
+          ok: boolean
+          result: Json | null
+          source: string
+          tenant_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          duration_ms?: number
+          error?: string | null
+          id?: never
+          job?: string
+          ok: boolean
+          result?: Json | null
+          source: string
+          tenant_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          duration_ms?: number
+          error?: string | null
+          id?: never
+          job?: string
+          ok?: boolean
+          result?: Json | null
+          source?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_runner_runs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_runner_settings: {
         Row: {
+          auto_armed_at: string | null
           base_url: string
           enabled: boolean
+          failure_streak: number
           id: number
+          last_app_error: string | null
+          last_app_ok_at: string | null
+          last_app_run_at: string | null
+          last_invoked_at: string | null
           last_tick_at: string | null
           last_tick_error: string | null
           last_tick_status: string | null
@@ -4161,9 +4214,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_armed_at?: string | null
           base_url?: string
           enabled?: boolean
+          failure_streak?: number
           id?: number
+          last_app_error?: string | null
+          last_app_ok_at?: string | null
+          last_app_run_at?: string | null
+          last_invoked_at?: string | null
           last_tick_at?: string | null
           last_tick_error?: string | null
           last_tick_status?: string | null
@@ -4172,9 +4231,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_armed_at?: string | null
           base_url?: string
           enabled?: boolean
+          failure_streak?: number
           id?: number
+          last_app_error?: string | null
+          last_app_ok_at?: string | null
+          last_app_run_at?: string | null
+          last_invoked_at?: string | null
           last_tick_at?: string | null
           last_tick_error?: string | null
           last_tick_status?: string | null
@@ -11920,6 +11985,7 @@ export type Database = {
         Args: { p_tenant: string }
         Returns: undefined
       }
+      arm_job_runner: { Args: { p_base_url: string }; Returns: Json }
       ask_qa_question: {
         Args: { p_anonymous?: boolean; p_body: string; p_session_id: string }
         Returns: string
@@ -13002,6 +13068,7 @@ export type Database = {
       }
       is_vip_user: { Args: { _uid: string }; Returns: boolean }
       job_runner_base_url: { Args: never; Returns: string }
+      job_scheduler_health: { Args: never; Returns: Json }
       join_us_link_and_backfill: {
         Args: {
           _company: string
@@ -13644,6 +13711,19 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: undefined
       }
+      record_job_run: {
+        Args: {
+          p_actor_id?: string
+          p_duration_ms?: number
+          p_error?: string
+          p_job?: string
+          p_ok?: boolean
+          p_result?: Json
+          p_source: string
+          p_tenant_id?: string
+        }
+        Returns: number
+      }
       record_post_view: {
         Args: { _post_id: string; _viewer_hash: string }
         Returns: undefined
@@ -13714,6 +13794,7 @@ export type Database = {
         Args: { p_action: string; p_inmail_id: string; p_note?: string }
         Returns: Json
       }
+      resolve_job_runner_base_url: { Args: never; Returns: string }
       resolve_path: {
         Args: { _segments: string[] }
         Returns: {
