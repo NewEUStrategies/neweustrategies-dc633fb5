@@ -484,7 +484,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const title = lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en;
   const isPost = data.kind === "post";
   const post = isPost ? (it as PostData) : null;
-  const excerpt = post ? (lang === "en" ? post.excerpt_en : post.excerpt_pl) : null;
+  const excerpt = post
+    ? (cleanExcerpt(lang === "en" ? post.excerpt_en : post.excerpt_pl) ?? null)
+    : null;
   const postTags = isPost
     ? (data as { tags?: Array<{ slug: string; name: string }> }).tags
     : undefined;
