@@ -53,7 +53,7 @@ export function MobileArticleActions({ lang }: Props) {
   return (
     <div
       ref={hostRef}
-      className="no-print mb-6 grid grid-cols-2 gap-2 sm:hidden"
+      className="no-print mb-6 grid grid-cols-2 gap-2 border-b border-border/60 pb-4 sm:hidden"
       data-mobile-article-actions
     >
       <Suspense
