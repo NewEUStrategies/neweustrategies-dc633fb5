@@ -873,8 +873,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const authorLabelPrefix =
     authorDisplay === "label"
       ? (lang === "en"
-          ? (config.authorLabel_en?.trim() || "By")
-          : (config.authorLabel_pl?.trim() || "Autor")) + ": "
+          ? config.authorLabel_en?.trim() || "By"
+          : config.authorLabel_pl?.trim() || "Autor") + ": "
       : "";
   // Metadane autora: domyślna czcionka 10 px, sterowalna z panelu.
   const authorFontPx = Math.max(
@@ -885,12 +885,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   // Awatar jest niezależny od czcionki: domyślnie 12 px.
   const authorAvatarPx = Math.max(
     8,
-    Math.min(
-      64,
-      typeof config.authorAvatarSizePx === "number" ? config.authorAvatarSizePx : 12,
-    ),
+    Math.min(64, typeof config.authorAvatarSizePx === "number" ? config.authorAvatarSizePx : 12),
   );
-
 
   const sharedProps = {
     items,
@@ -921,6 +917,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     authorLabelPrefix,
     authorStyle,
     authorAvatarPx,
+    authorFontPx,
   };
 
   return (
@@ -983,6 +980,7 @@ type VariantProps = {
   authorLabelPrefix: string;
   authorStyle: CSSProperties;
   authorAvatarPx: number;
+  authorFontPx: number;
 };
 
 /** Compact author badge: 6px-rounded avatar + display name; links to the
@@ -994,6 +992,7 @@ function AuthorBadge({
   slug,
   tone = "light",
   size = 22,
+  fontPx,
   labelPrefix = "",
 }: {
   name?: string;
@@ -1001,14 +1000,20 @@ function AuthorBadge({
   slug?: string;
   tone?: "light" | "dark";
   size?: number;
+  /** Rozmiar czcionki imienia i nazwiska (px). Wymuszany inline, bo link
+   *  autora dziedziczy globalny rozmiar bazowy (16px) w części wariantów. */
+  fontPx?: number;
   labelPrefix?: string;
 }) {
   if (!name && !avatar) return null;
   const safeAvatar = avatar ? safeImageUrl(avatar) : "";
   const initial = (name || "?").trim().charAt(0).toUpperCase();
   const textCls = tone === "dark" ? "text-white" : "text-foreground/80";
+  const fontStyle: CSSProperties = fontPx
+    ? { fontSize: `${fontPx}px`, lineHeight: 1.35 }
+    : { fontSize: "inherit" };
   const inner = (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5" style={fontStyle} data-typography-exempt>
       {safeAvatar ? (
         <img
           src={safeAvatar}
@@ -1023,13 +1028,18 @@ function AuthorBadge({
       ) : (
         <span
           aria-hidden
-          className="inline-flex items-center justify-center bg-muted text-foreground/70 text-[10px] font-semibold shrink-0"
-          style={{ width: size, height: size, borderRadius: 6 }}
+          className="inline-flex items-center justify-center bg-muted text-foreground/70 font-semibold shrink-0"
+          style={{ width: size, height: size, borderRadius: 6, fontSize: Math.round(size * 0.55) }}
         >
           {initial}
         </span>
       )}
-      {name && <span className={`font-medium ${textCls}`}>{labelPrefix}{name}</span>}
+      {name && (
+        <span className={`font-medium ${textCls}`} style={fontStyle} data-typography-exempt>
+          {labelPrefix}
+          {name}
+        </span>
+      )}
     </span>
   );
   if (slug) {
@@ -1037,6 +1047,8 @@ function AuthorBadge({
       <AppLink
         href={`/author/${slug}`}
         className="inline-flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+        style={fontStyle}
+        data-typography-exempt
         onClick={(e) => e.stopPropagation()}
       >
         {inner}
@@ -1138,22 +1150,24 @@ function EditorialHeroVariant(p: VariantProps) {
         className="px-4 pt-8 pb-2 text-center"
         style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
       >
-        {p.showTitle && (href ? (
-          <AppLink href={href} className="inline-block w-full">
+        {p.showTitle &&
+          (href ? (
+            <AppLink href={href} className="inline-block w-full">
+              <div className="eh-title-clamp">
+                <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
+                  {title || "\u00A0"}
+                </h3>
+              </div>
+            </AppLink>
+          ) : (
             <div className="eh-title-clamp">
               <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
                 {title || "\u00A0"}
               </h3>
             </div>
-          </AppLink>
-        ) : (
-          <div className="eh-title-clamp">
-            <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
-              {title || "\u00A0"}
-            </h3>
-          </div>
-        ))}
-        {p.showExcerpt && sub &&
+          ))}
+        {p.showExcerpt &&
+          sub &&
           (href ? (
             <AppLink href={href} className="block">
               <p
@@ -1183,6 +1197,7 @@ function EditorialHeroVariant(p: VariantProps) {
                 slug={cur.authorSlug}
                 tone="light"
                 size={p.authorAvatarPx}
+                fontPx={p.authorFontPx}
                 labelPrefix={p.authorLabelPrefix}
               />
             )}
@@ -1279,23 +1294,24 @@ function MultiCardVariant(p: VariantProps) {
                   );
                 })()}
                 <div className="pt-3 pb-1 px-1 eh-card-content">
-                  {p.showTitle && (href ? (
-                    <AppLink href={href} className="block">
+                  {p.showTitle &&
+                    (href ? (
+                      <AppLink href={href} className="block">
+                        <h3
+                          className="cms-post-title text-foreground line-clamp-2"
+                          style={p.titleStyle}
+                        >
+                          {title || "\u00A0"}
+                        </h3>
+                      </AppLink>
+                    ) : (
                       <h3
                         className="cms-post-title text-foreground line-clamp-2"
                         style={p.titleStyle}
                       >
                         {title || "\u00A0"}
                       </h3>
-                    </AppLink>
-                  ) : (
-                    <h3
-                      className="cms-post-title text-foreground line-clamp-2"
-                      style={p.titleStyle}
-                    >
-                      {title || "\u00A0"}
-                    </h3>
-                  ))}
+                    ))}
                   {p.showExcerpt &&
                     sub &&
                     (href ? (
@@ -1327,6 +1343,7 @@ function MultiCardVariant(p: VariantProps) {
                           slug={it.authorSlug}
                           tone="light"
                           size={p.authorAvatarPx}
+                          fontPx={p.authorFontPx}
                           labelPrefix={p.authorLabelPrefix}
                         />
                       )}
@@ -1443,6 +1460,7 @@ function CinematicOverlayVariant(p: VariantProps) {
                     slug={cur.authorSlug}
                     tone="dark"
                     size={p.authorAvatarPx}
+                    fontPx={p.authorFontPx}
                     labelPrefix={p.authorLabelPrefix}
                   />
                 )}
@@ -1559,17 +1577,18 @@ function SplitFeatureVariant(p: VariantProps) {
             {cat}
           </span>
         )}
-        {p.showTitle && (href ? (
-          <AppLink href={href} className="block">
+        {p.showTitle &&
+          (href ? (
+            <AppLink href={href} className="block">
+              <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
+                {title || "\u00A0"}
+              </h3>
+            </AppLink>
+          ) : (
             <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
               {title || "\u00A0"}
             </h3>
-          </AppLink>
-        ) : (
-          <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
-            {title || "\u00A0"}
-          </h3>
-        ))}
+          ))}
         {p.showExcerpt &&
           sub &&
           (href ? (
@@ -1598,6 +1617,7 @@ function SplitFeatureVariant(p: VariantProps) {
                 slug={cur.authorSlug}
                 tone="light"
                 size={p.authorAvatarPx}
+                fontPx={p.authorFontPx}
                 labelPrefix={p.authorLabelPrefix}
               />
             )}
