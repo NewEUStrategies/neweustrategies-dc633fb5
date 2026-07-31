@@ -177,7 +177,8 @@ export function SortableBlockItem(props: Props) {
             style={{ left: toolbarPos.left, top: toolbarPos.top }}
             onClick={(e) => e.stopPropagation()}
             aria-hidden={!props.active}
-            className={`absolute flex items-center gap-1 z-50 bg-popover border border-border rounded-md shadow-lg px-1 py-0.5 transition-all duration-150 ${
+            data-widget-toolbar="block"
+            className={`absolute flex max-w-[min(100%,calc(100vw-1.5rem))] flex-wrap items-center gap-1 z-50 bg-popover border border-border rounded-md shadow-lg px-1 py-0.5 transition-all duration-150 ${
               props.active
                 ? "opacity-100 visible pointer-events-auto translate-y-0"
                 : "opacity-0 invisible pointer-events-none translate-y-1"

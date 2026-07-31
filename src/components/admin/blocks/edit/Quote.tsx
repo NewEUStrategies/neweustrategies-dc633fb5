@@ -24,12 +24,17 @@ export function QuoteBlock({ block, onChange }: Props) {
   const set = (patch: Record<string, string>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
 
+  // Layout / typografia 1:1 z publicznym rendererem (renderQuote w
+  // components/blocks/renderer/atoms.tsx) - żeby podgląd nie różnił się
+  // wysokością, odstępami ani zawijaniem od strony publicznej.
   const wrapperStyle: React.CSSProperties =
     variant === "card"
       ? { borderColor: accent, background: tint }
-      : variant === "default"
-        ? { borderColor: accent }
-        : {};
+      : variant === "plain"
+        ? { color: accent }
+        : variant === "default"
+          ? { borderColor: accent }
+          : {};
 
   const wrapperClass =
     variant === "plain"
@@ -39,6 +44,23 @@ export function QuoteBlock({ block, onChange }: Props) {
         : variant === "minimal"
           ? "text-center italic space-y-2 py-4"
           : "border-l-4 pl-4 space-y-2";
+
+  // Klasy tekstu cytatu per wariant - identyczne z rendererem publicznym.
+  const textClass =
+    variant === "plain"
+      ? "text-foreground text-lg leading-relaxed italic"
+      : variant === "card"
+        ? "text-foreground text-lg leading-relaxed"
+        : variant === "minimal"
+          ? "text-xl leading-relaxed"
+          : "";
+
+  const textStyle: React.CSSProperties | undefined =
+    variant === "minimal"
+      ? { color: accent, textAlign: "center" }
+      : variant === "plain"
+        ? { color: "var(--foreground)" }
+        : undefined;
 
   return (
     <blockquote
@@ -61,17 +83,20 @@ export function QuoteBlock({ block, onChange }: Props) {
         value={text}
         placeholder={i18n.editor("quote", "textPh")}
         onChange={(e) => set({ text: e.target.value })}
-        className="w-full max-w-full bg-transparent text-lg italic border-none outline-none focus:ring-0 p-0 break-words"
-        style={variant === "minimal" ? { color: accent, textAlign: "center" } : undefined}
+        data-quote-field="text"
+        className={`cms-quote-text w-full max-w-full bg-transparent border-none outline-none focus:ring-0 p-0 break-words whitespace-pre-wrap ${textClass}`}
+        style={textStyle}
       />
       <input
         type="text"
         value={cite}
         placeholder={i18n.editor("quote", "citePh")}
         onChange={(e) => set({ cite: e.target.value })}
-        className="w-full max-w-full bg-transparent text-sm text-muted-foreground border-none outline-none focus:ring-0 p-0"
+        data-quote-field="cite"
+        className="cms-quote-cite w-full max-w-full bg-transparent text-sm text-muted-foreground not-italic border-none outline-none focus:ring-0 p-0"
         style={variant === "minimal" ? { textAlign: "center" } : undefined}
       />
+
     </blockquote>
   );
 }
