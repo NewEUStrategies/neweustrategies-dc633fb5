@@ -83,17 +83,20 @@ export function QuoteBlock({ block, onChange }: Props) {
         value={text}
         placeholder={i18n.editor("quote", "textPh")}
         onChange={(e) => set({ text: e.target.value })}
-        className="w-full max-w-full bg-transparent text-lg italic border-none outline-none focus:ring-0 p-0 break-words"
-        style={variant === "minimal" ? { color: accent, textAlign: "center" } : undefined}
+        data-quote-field="text"
+        className={`cms-quote-text w-full max-w-full bg-transparent border-none outline-none focus:ring-0 p-0 break-words whitespace-pre-wrap ${textClass}`}
+        style={textStyle}
       />
       <input
         type="text"
         value={cite}
         placeholder={i18n.editor("quote", "citePh")}
         onChange={(e) => set({ cite: e.target.value })}
-        className="w-full max-w-full bg-transparent text-sm text-muted-foreground border-none outline-none focus:ring-0 p-0"
+        data-quote-field="cite"
+        className="cms-quote-cite w-full max-w-full bg-transparent text-sm text-muted-foreground not-italic border-none outline-none focus:ring-0 p-0"
         style={variant === "minimal" ? { textAlign: "center" } : undefined}
       />
+
     </blockquote>
   );
 }
