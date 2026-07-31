@@ -14,7 +14,9 @@
 // jako puste kotwice, więc już opublikowane linki `#…-ma-ych-…` nadal działają.
 
 import { createAnchorAllocator, legacyAnchorVariants } from "@/lib/content/anchorSlug";
+import { inlineHtmlToText, looksLikeInlineHtml } from "@/lib/blocks/inlineHtml";
 import type { Block } from "@/lib/blocks/types";
+
 
 export interface BlockAnchor {
   /** Kanoniczna, zdeduplikowana kotwica nagłówka. */
