@@ -149,31 +149,35 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
       )}
       <AdZone position="header_banner" pageType={adPageType} className="py-2 text-center" />
 
-      {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
-      <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_auto] items-center gap-3 px-4 py-3 border-b border-border bg-background">
-        <button
-          type="button"
-          onClick={() => setSearchOpen(true)}
-          aria-label={t("common.openSearch")}
-          className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
-        >
-          <Search className="w-5 h-5" aria-hidden />
-        </button>
+      {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger.
+          Logo jest wyśrodkowane względem pełnej szerokości paska; lewy/prawy cluster
+          pozostaje przy krawędziach dzięki kolumnom 1fr-auto-1fr. */}
+      <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3 border-b border-border bg-background">
+        <div className="flex items-center gap-2 justify-self-start">
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label={t("common.openSearch")}
+            className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+          >
+            <Search className="w-5 h-5" aria-hidden />
+          </button>
+        </div>
         <AppLink
           href="/"
           aria-label={siteName}
-          className="flex items-center justify-center min-w-0 text-foreground"
+          className="flex items-center justify-center min-w-0 text-foreground justify-self-center"
         >
           {mobileLogo ? (
             <img
               src={mobileLogo}
               alt={siteName}
-              className="h-8 w-auto max-w-[220px] object-contain"
+              className="h-8 w-auto max-w-[180px] object-contain"
               loading="eager"
               decoding="async"
             />
           ) : (
-            <span className="text-base font-bold tracking-tight truncate min-w-0">{siteName}</span>
+            <span className="text-base font-bold tracking-tight truncate min-w-0 max-w-[180px]">{siteName}</span>
           )}
         </AppLink>
         <div className="flex items-center gap-2 justify-self-end">
@@ -189,7 +193,6 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
             <Menu className="w-5 h-5" aria-hidden />
           </button>
         </div>
-
       </div>
 
       {/* Full builder-authored header - visible from lg up. */}
