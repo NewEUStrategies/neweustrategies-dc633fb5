@@ -15,6 +15,9 @@
 // Nadanie uprawnienia idzie ZAWSZE przed przestawieniem statusu - retry po
 // nieudanym grancie nie może zostać pominięty przez `status='paid'`.
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PaddleEnv } from "@/lib/paddle.server";
+
 export interface OneTimeTransaction {
   /** Identyfikator transakcji u dostawcy - klucz idempotencji. */
   id: string;
@@ -106,20 +109,39 @@ async function refundIfOversold(
   return true;
 }
 
-async function fulfilOrder(txn: OneTimeTransaction, orderId: string): Promise<OneTimeOutcome> {
+async function fulfilOrder(
+  txn: OneTimeTransaction,
+  orderId: string,
+  env: PaddleEnv,
+): Promise<OneTimeOutcome> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { grantEntitlement } = await import("@/lib/billing/grant.server");
 
-  const { data: order, error } = await supabaseAdmin
+  // `environment` (kolumna z 20260731220000) nie jest jeszcze w wygenerowanym
+  // types.ts; nazwanie jej w .select() zatruwałoby typ całego wiersza, więc dla
+  // tego odczytu rzutujemy klienta na luźny typ (konwencja jak invoice.server).
+  const { data: order, error } = await (supabaseAdmin as unknown as SupabaseClient)
     .from("payment_orders")
     .select(
-      "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency, metadata",
+      "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency, metadata, environment",
     )
     .eq("id", orderId)
     .maybeSingle();
   if (error) throw new Error(`one-time: order lookup failed: ${error.message}`);
   if (!order) {
     console.warn("[payments] one-time: unknown order", orderId);
+    return "skipped";
+  }
+
+  // IZOLACJA SANDBOX/LIVE (P0): realizujemy zamówienie WYŁĄCZNIE zdarzeniem z
+  // tego samego środowiska, w którym powstało. Bez tego sandboxowy webhook
+  // (opłacony kartą testową) mógłby zrealizować realne zamówienie. Odpowiednik
+  // `.eq("environment", env)` ze ścieżki subskrypcyjnej.
+  const orderEnv = (order as { environment?: string }).environment ?? "live";
+  if (orderEnv !== env) {
+    console.warn(
+      `[payments] one-time: environment mismatch - order ${orderId} is '${orderEnv}', webhook is '${env}'; skipping`,
+    );
     return "skipped";
   }
 
@@ -211,7 +233,10 @@ async function fulfilOrder(txn: OneTimeTransaction, orderId: string): Promise<On
 }
 
 /** Rozdziela opłaconą transakcję jednorazową na właściwy skutek biznesowy. */
-export async function fulfilOneTimeTransaction(txn: OneTimeTransaction): Promise<OneTimeOutcome> {
+export async function fulfilOneTimeTransaction(
+  txn: OneTimeTransaction,
+  env: PaddleEnv,
+): Promise<OneTimeOutcome> {
   const kind = str(txn.customData, "kind");
   if (kind === "donation") {
     // Darowizny przeniesione do zewnętrznego serwisu zbiórkowego - dostawca
@@ -222,7 +247,7 @@ export async function fulfilOneTimeTransaction(txn: OneTimeTransaction): Promise
   }
 
   const orderId = str(txn.customData, "order_id");
-  if (orderId) return fulfilOrder(txn, orderId);
+  if (orderId) return fulfilOrder(txn, orderId, env);
 
   console.warn("[payments] one-time transaction without recognised custom_data", txn.id);
   return "skipped";

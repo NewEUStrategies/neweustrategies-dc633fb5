@@ -123,10 +123,16 @@ export async function createAdhocTransaction(
 }
 
 /**
- * Środowisko bramki dla żądania. Klient przekazuje wartość wyprowadzoną
- * z prefiksu tokenu; brak wartości oznacza produkcję w buildzie produkcyjnym.
+ * Środowisko bramki dla żądania - AUTORYTATYWNE po stronie serwera.
+ *
+ * W produkcji zwracamy ZAWSZE 'live', ignorując wartość od klienta: gdyby
+ * klient mógł wymusić 'sandbox', powstałoby zamówienie ostemplowane 'sandbox',
+ * które sandboxowy webhook (opłacony kartą testową) mógłby zrealizować i
+ * odblokować realną treść (P0 z audytu monetyzacji). Poza produkcją honorujemy
+ * żądanie klienta, żeby dev/staging mógł testować lejek w sandboxie.
  */
 export function resolveEnvironment(requested?: PaddleEnv | null): PaddleEnv {
+  if (process.env.NODE_ENV === "production") return "live";
   if (requested === "sandbox" || requested === "live") return requested;
-  return process.env.NODE_ENV === "production" ? "live" : "sandbox";
+  return "sandbox";
 }

@@ -213,6 +213,14 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // webhook po zaksięgowaniu potwierdza RSVP i wysyła mail rejestracyjny.
     const eventId = data.event_id ?? null;
 
+    // Środowisko jest rozstrzygane SERWEROWO (w produkcji zawsze 'live') i
+    // stemplowane na zamówieniu, żeby webhook zrealizował je wyłącznie zdarzeniem
+    // z tego samego środowiska (izolacja sandbox/live, P0). Tę samą wartość
+    // przekazujemy do transakcji dostawcy poniżej - order.environment === env
+    // transakcji.
+    const { resolveEnvironment } = await import("@/lib/billing/paddleTransaction.server");
+    const environment = resolveEnvironment(data.environment);
+
     // Insert pending order (z metadanymi kuponu - webhook potem policzy revenue netto).
     const { data: order, error: insertError } = await supabase
       .from("payment_orders")
@@ -227,6 +235,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         entity_id: data.entity_id ?? null,
         provider: paymentsReady ? "paddle" : "mock",
         receipt_email: receiptEmail,
+        // `environment`: kolumna z migracji 20260731220000, jeszcze nie w
+        // wygenerowanym types.ts - stąd cast całego payloadu (konwencja repo).
+        environment,
         metadata: {
           label,
           ...(eventId ? { event_id: eventId } : {}),
@@ -239,7 +250,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
               }
             : {}),
         },
-      })
+      } as never)
       .select("id")
       .single();
     if (insertError) throw insertError;
@@ -269,10 +280,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // Kwota jest wyliczona serwerowo (plan / reguła dostępu / kupon /
       // waluta prezentacji), więc zamiast ceny katalogowej tworzymy
       // transakcję z ceną osadzoną i zwracamy jej identyfikator do nakładki.
-      const { createAdhocTransaction, resolveEnvironment } =
-        await import("@/lib/billing/paddleTransaction.server");
+      const { createAdhocTransaction } = await import("@/lib/billing/paddleTransaction.server");
       const created = await createAdhocTransaction({
-        environment: resolveEnvironment(data.environment),
+        environment,
         product: eventId ? "eventTicket" : "contentUnlock",
         name: label || "Zamówienie",
         amountCents,

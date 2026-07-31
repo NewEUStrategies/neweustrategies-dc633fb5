@@ -12,6 +12,7 @@ const order = {
   entity_id: null,
   amount_cents: 12000,
   currency: "PLN",
+  environment: "sandbox",
   metadata: { event_id: "44444444-4444-4444-4444-444444444444" },
 };
 
@@ -92,17 +93,24 @@ beforeEach(() => {
 describe("fulfilOneTimeTransaction - bilet na wydarzenie", () => {
   it("nadaje uprawnienie, księguje zamówienie, potwierdza RSVP i wysyła mail", async () => {
     const { fulfilOneTimeTransaction } = await import("@/lib/billing/oneTimeFulfilment.server");
-    const outcome = await fulfilOneTimeTransaction({
-      id: "txn_123",
-      amountCents: 12000,
-      currency: "pln",
-      customerEmail: "kupujacy@example.com",
-      customData: { kind: "order", order_id: order.id, event_id: order.metadata.event_id },
-    });
+    const outcome = await fulfilOneTimeTransaction(
+      {
+        id: "txn_123",
+        amountCents: 12000,
+        currency: "pln",
+        customerEmail: "kupujacy@example.com",
+        customData: { kind: "order", order_id: order.id, event_id: order.metadata.event_id },
+      },
+      "sandbox",
+    );
 
     expect(outcome).toBe("order");
     expect(grants).toHaveLength(1);
-    expect(updates[0]).toMatchObject({ table: "payment_orders", status: "paid", provider: "paddle" });
+    expect(updates[0]).toMatchObject({
+      table: "payment_orders",
+      status: "paid",
+      provider: "paddle",
+    });
     expect(rsvps[0]).toMatchObject({
       table: "event_rsvps",
       event_id: order.metadata.event_id,
@@ -114,29 +122,54 @@ describe("fulfilOneTimeTransaction - bilet na wydarzenie", () => {
 
   it("pomija transakcję bez rozpoznanych metadanych", async () => {
     const { fulfilOneTimeTransaction } = await import("@/lib/billing/oneTimeFulfilment.server");
-    const outcome = await fulfilOneTimeTransaction({
-      id: "txn_456",
-      amountCents: 1000,
-      currency: "PLN",
-      customerEmail: null,
-      customData: {},
-    });
+    const outcome = await fulfilOneTimeTransaction(
+      {
+        id: "txn_456",
+        amountCents: 1000,
+        currency: "PLN",
+        customerEmail: null,
+        customData: {},
+      },
+      "sandbox",
+    );
     expect(outcome).toBe("skipped");
     expect(grants).toHaveLength(0);
   });
 
+  it("POMIJA zamówienie z innego środowiska (sandbox webhook vs live order)", async () => {
+    // Zamówienie z mocka jest 'sandbox'; webhook przychodzi jako 'live'.
+    // Izolacja P0: brak nadania uprawnienia, brak księgowania.
+    const { fulfilOneTimeTransaction } = await import("@/lib/billing/oneTimeFulfilment.server");
+    const outcome = await fulfilOneTimeTransaction(
+      {
+        id: "txn_env_mismatch",
+        amountCents: 12000,
+        currency: "PLN",
+        customerEmail: "atakujacy@example.com",
+        customData: { kind: "order", order_id: order.id },
+      },
+      "live",
+    );
 
+    expect(outcome).toBe("skipped");
+    expect(grants).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+    expect(rsvps).toHaveLength(0);
+  });
 
   it("zwraca płatność, gdy ostatnie miejsce zajęto przed webhookiem", async () => {
     seatsFull = true;
     const { fulfilOneTimeTransaction } = await import("@/lib/billing/oneTimeFulfilment.server");
-    const outcome = await fulfilOneTimeTransaction({
-      id: "txn_789",
-      amountCents: 12000,
-      currency: "PLN",
-      customerEmail: "kupujacy@example.com",
-      customData: { kind: "order", order_id: order.id },
-    });
+    const outcome = await fulfilOneTimeTransaction(
+      {
+        id: "txn_789",
+        amountCents: 12000,
+        currency: "PLN",
+        customerEmail: "kupujacy@example.com",
+        customData: { kind: "order", order_id: order.id },
+      },
+      "sandbox",
+    );
 
     expect(outcome).toBe("oversold_refunded");
     expect(refunds).toEqual(["txn_789"]);
