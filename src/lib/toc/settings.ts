@@ -146,7 +146,9 @@ export function extractHeadingsFromBlockList(
     if (b.type !== "heading") continue;
     const rawLevel = Number(b.data.level ?? 2);
     const level = Math.min(6, Math.max(1, rawLevel)) as HeadingItem["level"];
-    const text = String(b.data.text ?? "").trim();
+    const raw = String(b.data.text ?? "");
+    const text = (looksLikeInlineHtml(raw) ? inlineHtmlToText(raw) : raw).trim();
+
     if (!text) continue;
     const anchor = anchors.get(b.id)?.id ?? slugifyHeading(text);
     items.push({ level, text, anchor });
