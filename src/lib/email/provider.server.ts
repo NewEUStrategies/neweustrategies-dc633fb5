@@ -180,11 +180,11 @@ async function sendViaLovable(input: SendEmailInput): Promise<SendEmailResult> {
       {
         run_id: input.runId,
         to: input.to,
-        from: input.from,
+        from: input.from ?? "",
         sender_domain: input.senderDomain,
         subject: input.subject,
         html: input.html,
-        text: input.text,
+        text: input.text ?? "",
         purpose: "transactional",
         label: input.label,
         idempotency_key: input.idempotencyKey,
