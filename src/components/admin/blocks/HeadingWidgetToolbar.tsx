@@ -89,7 +89,26 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
   const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
 
+  const [colorOpen, setColorOpen] = useState(false);
+
+  /**
+   * Kolor: przy niepustym zaznaczeniu koloruje INLINE (mark textStyle), inaczej
+   * ustawia kolor całego bloku (`data.color`) - tak samo czyta to renderer
+   * publiczny, więc podgląd i strona są identyczne.
+   */
+  const applyColor = (value: string | null) => {
+    const sel = editor?.state.selection;
+    const hasSelection = Boolean(sel && sel.from !== sel.to);
+    if (editor && hasSelection) {
+      if (value) editor.chain().focus().setColor(value).run();
+      else editor.chain().focus().unsetColor().run();
+      return;
+    }
+    set({ color: value ?? "" });
+  };
+
   const rootRef = useRef<HTMLDivElement | null>(null);
+
 
   return (
     <div
