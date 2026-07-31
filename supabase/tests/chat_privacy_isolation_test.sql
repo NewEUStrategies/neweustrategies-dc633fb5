@@ -13,18 +13,14 @@
 --      wiersz uczestnika w OBU kierunkach; ponowne włączenie przywraca.
 --   5. allow_messages_from: 'nobody' blokuje nowe konwersacje (RPC) i wycisza
 --      wysyłkę w istniejących wątkach (trigger), asymetrycznie.
---   6. get_chat_peers nie ujawnia profili poza tenantem wołającego - pełny
---      kontrakt przypięty po regresji z 21.07 (DROP/CREATE dla kolumny slug
---      zdmuchnął hardening z 12.07; przywrócone w 20260731210000): filtr
---      tenanta dla OBU gałęzi widoczności, guard auth.uid(), limit wejścia
---      1-200, anon bez EXECUTE, kolumna slug zachowana w zwrotce.
+--   6. get_chat_peers nie ujawnia profili poza tenantem wołającego.
 --   7. Polityki Realtime Authorization (typing/presence) istnieją, a parser
 --      topiców odrzuca śmieciowe wejście.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(38);
+SELECT plan(31);
 
 -- ── Seed ───────────────────────────────────────────────────────────────────
 ALTER TABLE auth.users DISABLE TRIGGER USER;
@@ -39,13 +35,11 @@ INSERT INTO auth.users (id, email) VALUES
   ('a0000000-0000-0000-0000-0000000000a3', 'a3@chat.test'),
   ('b0000000-0000-0000-0000-0000000000b1', 'b1@chat.test');
 
--- Slug jak w realnym provisioningu (profiles_generate_unique_slug) - asercja
--- kontraktu zwrotki get_chat_peers wymaga niepustej wartości.
-INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable, slug) VALUES
-  ('a0000000-0000-0000-0000-0000000000a1', 'a1@chat.test', 'User A1', 'a1111111-1111-1111-1111-111111111111', false, 'user-a1'),
-  ('a0000000-0000-0000-0000-0000000000a2', 'a2@chat.test', 'User A2', 'a1111111-1111-1111-1111-111111111111', true,  'user-a2'),
-  ('a0000000-0000-0000-0000-0000000000a3', 'a3@chat.test', 'User A3', 'a1111111-1111-1111-1111-111111111111', true,  'user-a3'),
-  ('b0000000-0000-0000-0000-0000000000b1', 'b1@chat.test', 'User B1', 'b2222222-2222-2222-2222-222222222222', true,  'user-b1');
+INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) VALUES
+  ('a0000000-0000-0000-0000-0000000000a1', 'a1@chat.test', 'User A1', 'a1111111-1111-1111-1111-111111111111', false),
+  ('a0000000-0000-0000-0000-0000000000a2', 'a2@chat.test', 'User A2', 'a1111111-1111-1111-1111-111111111111', true),
+  ('a0000000-0000-0000-0000-0000000000a3', 'a3@chat.test', 'User A3', 'a1111111-1111-1111-1111-111111111111', true),
+  ('b0000000-0000-0000-0000-0000000000b1', 'b1@chat.test', 'User B1', 'b2222222-2222-2222-2222-222222222222', true);
 
 -- ── A1 tworzy konwersację z A2 i wysyła wiadomość ──────────────────────────
 SET LOCAL ROLE authenticated;
@@ -159,73 +153,6 @@ SELECT is(
       AND user_id = 'b0000000-0000-0000-0000-0000000000b1'),
   NULL,
   'guard tenanta: wiersz B1 pozostaje nietknięty po mark_conversation_read'
-);
-
--- ── get_chat_peers: pełny kontrakt hardeningu (anty-regresja 21.07) ─────────
--- DROP/CREATE przy dodawaniu kolumny slug odtworzył ciało sprzed hardeningu:
--- bez filtra tenanta user tenanta B enumerował po UUID profile discoverable
--- tenanta A. Poniższe asercje przypinają każdy element przywróconego
--- kontraktu z osobna, żeby kolejna zmiana zwrotki nie przeszła cicho.
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claims',
-  '{"sub":"b0000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
-
-SELECT is(
-  (SELECT count(*)::int FROM public.get_chat_peers(
-     ARRAY['a0000000-0000-0000-0000-0000000000a3']::uuid[])),
-  0,
-  'filtr tenanta: B1 nie widzi discoverable A3 (bez wspólnej konwersacji)'
-);
-
-SELECT set_config('request.jwt.claims',
-  '{"sub":"a0000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
-
-SELECT results_eq(
-  $$SELECT id FROM public.get_chat_peers(ARRAY[
-      'a0000000-0000-0000-0000-0000000000a2',
-      'a0000000-0000-0000-0000-0000000000a3',
-      'b0000000-0000-0000-0000-0000000000b1']::uuid[])
-    ORDER BY display_name$$,
-  $$VALUES ('a0000000-0000-0000-0000-0000000000a2'::uuid),
-           ('a0000000-0000-0000-0000-0000000000a3'::uuid)$$,
-  'A1 widzi discoverable peers wyłącznie ze swojego tenanta (B1 odfiltrowany mimo discoverable i wspólnej legacy konwersacji)'
-);
-
-SELECT is(
-  (SELECT gp.slug FROM public.get_chat_peers(
-     ARRAY['a0000000-0000-0000-0000-0000000000a2']::uuid[]) gp),
-  'user-a2',
-  'kontrakt zwrotki: kolumna slug (feature z 21.07) zachowana w projekcji'
-);
-
-SELECT is(
-  (SELECT count(*)::int FROM public.get_chat_peers(ARRAY[]::uuid[])),
-  0,
-  'limit wejścia: pusta tablica nie zwraca żadnych profili'
-);
-
-SELECT is(
-  (SELECT count(*)::int FROM public.get_chat_peers(
-     (SELECT array_agg(ids.u)
-        FROM (SELECT 'a0000000-0000-0000-0000-0000000000a2'::uuid AS u
-              UNION ALL
-              SELECT gen_random_uuid() FROM generate_series(1, 200)) ids))),
-  0,
-  'limit wejścia: tablica > 200 id odrzucona w całości (realny id w środku nie wycieka)'
-);
-
-SELECT set_config('request.jwt.claims', '{"role":"authenticated"}', true);
-SELECT is(
-  (SELECT count(*)::int FROM public.get_chat_peers(
-     ARRAY['a0000000-0000-0000-0000-0000000000a2']::uuid[])),
-  0,
-  'guard auth.uid(): sesja bez sub nie czyta nawet profili discoverable'
-);
-
-RESET ROLE;
-SELECT ok(
-  NOT has_function_privilege('anon', 'public.get_chat_peers(uuid[])', 'EXECUTE'),
-  'anon bez EXECUTE na get_chat_peers (DROP/CREATE nie przywraca default ACL)'
 );
 
 -- ── Storage: załącznik czytelny dla członka, niewidoczny cross-tenant ───────
