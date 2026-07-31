@@ -430,6 +430,25 @@ export function SliderEditor({ c, lang, setContent }: Props) {
               </SelectContent>
             </Select>
           </PropField>
+          {authorDisplay !== "none" && (
+            <PropField
+              label={t("builder.sliderEditor.authorSize", {
+                defaultValue: "Rozmiar czcionki autora (px)",
+              })}
+            >
+              <Input
+                type="number"
+                min={8}
+                max={24}
+                value={authorSizePx}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setContent("authorSizePx", Number.isFinite(n) ? Math.max(8, Math.min(24, n)) : 11);
+                }}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          )}
           {authorDisplay === "label" && (
             <div className="grid grid-cols-2 gap-2">
               <PropField label="Etykieta (PL)">
