@@ -453,6 +453,28 @@ export function SliderEditor({ c, lang, setContent }: Props) {
               />
             </PropField>
           )}
+          {authorDisplay === "avatar" && (
+            <PropField
+              label={t("builder.sliderEditor.authorAvatarSize", {
+                defaultValue: "Rozmiar zdjęcia autora (px)",
+              })}
+            >
+              <Input
+                type="number"
+                min={8}
+                max={64}
+                value={authorAvatarSizePx}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setContent(
+                    "authorAvatarSizePx",
+                    Number.isFinite(n) ? Math.max(8, Math.min(64, n)) : 12,
+                  );
+                }}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          )}
           {authorDisplay === "label" && (
             <div className="grid grid-cols-2 gap-2">
               <PropField label="Etykieta (PL)">
