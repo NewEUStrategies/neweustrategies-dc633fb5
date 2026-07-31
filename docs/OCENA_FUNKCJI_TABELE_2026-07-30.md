@@ -75,7 +75,7 @@ Ocena modułu = kompozyt jego funkcji (kompletność + inżynieria + dopracowani
 | Strona główna | **8** | W pełni CMS-owa, SSR, uczciwy empty state, poprawna hydracja | Tryb „najnowsze wpisy" z ustawień — widmo (trasa nie honoruje) | Wyciąć martwy tryb albo okablować |
 | Archiwa kategoria/tag | **8** | Prawdziwa paginacja `?page=N&sort=`, `noindex,follow` dla >1 | — | Utrzymać |
 | Archiwum bloga | **6** | SSR | „load more" bez `?page` → brak indeksowalnych stron | Dodać `validateSearch`+`?page` jak w taksonomii |
-| Archiwum autora | **6** | Role-gated | Paginacja **po stronie klienta** na pobranym zbiorze | Paginacja serwerowa z URL |
+| Archiwum autora | **6 → 8** | Role-gated; od 2026-07-31 paginacja serwerowa `?page=N` + filtry w URL (RPC `get_expert_materials`, SSR strony N, `noindex,follow` dla widoków >1/filtrowanych) | ~~Paginacja **po stronie klienta** na pobranym zbiorze~~ (wdrożone) | Wdrożone 2026-07-31 - patrz `WDROZENIE_PAGINACJA_AUTORA_2026-07-31.md` |
 | Mega menu / ticker / chrome | **8** | 6 layoutów archiwum, mega menu, ticker | — | Utrzymać |
 
 ---

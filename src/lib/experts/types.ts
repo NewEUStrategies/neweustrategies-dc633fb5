@@ -159,3 +159,33 @@ export const EMPTY_MATERIAL_FILTERS: MaterialFilters = {
   tagId: null,
   year: null,
 };
+
+/**
+ * Filtry eksploratora w postaci URL-owej (slugi zamiast UUID) - to one żyją
+ * w search params trasy /author/$slug i w argumentach RPC get_expert_materials.
+ * `topic` odpowiada slugowi taga (UI nazywa ten wymiar "Temat"/"Topic").
+ */
+export interface MaterialFilterSlugs {
+  kind: MaterialKind | null;
+  program: string | null;
+  region: string | null;
+  topic: string | null;
+  year: number | null;
+}
+
+export const EMPTY_MATERIAL_FILTER_SLUGS: MaterialFilterSlugs = {
+  kind: null,
+  program: null,
+  region: null,
+  topic: null,
+  year: null,
+};
+
+/** Jedna strona materiałów z paginacji serwerowej (RPC lub fallback legacy). */
+export interface ExpertMaterialsPage {
+  materials: ExpertMaterial[];
+  /** Liczność PEŁNEGO przefiltrowanego zbioru (nie strony). */
+  total: number;
+  page: number;
+  pageSize: number;
+}
