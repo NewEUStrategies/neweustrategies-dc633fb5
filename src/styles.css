@@ -1604,10 +1604,7 @@ a:has(.cms-post-title):focus {
 .admin-compact .cf-shell textarea,
 .cms-builder-compact .cf-shell textarea,
 .wp-compact .cf-shell textarea,
-.block-canvas .cf-shell textarea,
-.admin-compact .block-canvas textarea,
-.cms-builder-compact .block-canvas textarea,
-.wp-compact .block-canvas textarea {
+.block-canvas .cf-shell textarea {
   min-height: unset !important;
   height: auto !important;
   max-height: none !important;
@@ -1620,6 +1617,23 @@ a:has(.cms-post-title):focus {
   font-size: 14px !important;
   line-height: 1.5 !important;
 }
+
+.admin-compact .block-canvas textarea,
+.cms-builder-compact .block-canvas textarea,
+.wp-compact .block-canvas textarea {
+  min-height: unset !important;
+  height: auto !important;
+  max-height: none !important;
+  resize: none !important;
+  overflow: hidden !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  font-size: inherit !important;
+  line-height: 1.6 !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
 
 /* Edytor bloków: nic w podglądzie widgetu nie może być ucinane w poziomie. */
 .block-canvas :is(input, textarea, [contenteditable="true"]) {
