@@ -26,12 +26,9 @@ import {
   processDueCampaigns,
   type CampaignRow,
 } from "@/lib/newsletter-campaigns.functions";
-import { getJobRunnerSettings, updateJobRunnerSettings } from "@/lib/newsletter-admin.functions";
+import { JobRunnerCard } from "@/components/admin/newsletter/runner/JobRunnerCard";
 import { createDefaultEmailDoc } from "@/lib/newsletter/emailDoc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FloatingInput } from "@/components/ui/floating-input";
 
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -372,84 +369,7 @@ function CampaignsList() {
         </Table>
       </div>
 
-      <JobRunnerCard isPl={isPl} />
+      <JobRunnerCard />
     </div>
-  );
-}
-
-// Konfiguracja automatycznego ticku: pg_cron + pg_net POST-ują co minutę na
-// /api/public/jobs-tick (sekret w bazie). Bez tego zaplanowane kampanie
-// wysyłają się dopiero przy wejściu admina na tę stronę.
-function JobRunnerCard({ isPl }: { isPl: boolean }) {
-  const qc = useQueryClient();
-  const getSettings = useServerFn(getJobRunnerSettings);
-  const saveSettings = useServerFn(updateJobRunnerSettings);
-  const { data } = useQuery({
-    queryKey: ["admin", "job-runner-settings"],
-    queryFn: () => getSettings(),
-  });
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [baseUrl, setBaseUrl] = useState<string | null>(null);
-  const effEnabled = enabled ?? data?.enabled ?? false;
-  const effBaseUrl = baseUrl ?? data?.base_url ?? "";
-
-  const saveMut = useMutation({
-    mutationFn: () => saveSettings({ data: { enabled: effEnabled, base_url: effBaseUrl } }),
-    onSuccess: () => {
-      toast.success(isPl ? "Zapisano ustawienia automatu" : "Runner settings saved");
-      qc.invalidateQueries({ queryKey: ["admin", "job-runner-settings"] });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">
-          {isPl ? "Automatyczna wysyłka (cron)" : "Automatic sending (cron)"}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground m-0">
-          {isPl
-            ? "Gdy włączone, baza (pg_cron + pg_net) co minutę wywołuje aplikację i wysyła zaplanowane kampanie oraz kontynuuje przerwane porcje - bez otwartego panelu admina. Bez tego wysyłka zaplanowana rusza dopiero przy wejściu na tę stronę."
-            : "When enabled, the database (pg_cron + pg_net) pings the app every minute to send scheduled campaigns and continue interrupted batches - no open admin tab required. Otherwise scheduled sending only fires when this page is visited."}
-        </p>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-[320px] max-w-full">
-            <FloatingInput
-              id="runner-url"
-              type="url"
-              label={isPl ? "Publiczny adres aplikacji" : "Public app URL"}
-              value={effBaseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-            />
-          </div>
-
-          <label className="flex h-10 items-center gap-2 text-sm">
-            <Switch checked={effEnabled} onCheckedChange={(v) => setEnabled(v)} />
-            {isPl ? "Włączone" : "Enabled"}
-          </label>
-          <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
-            {isPl ? "Zapisz" : "Save"}
-          </Button>
-          {typeof window !== "undefined" && !effBaseUrl && (
-            <Button variant="ghost" size="sm" onClick={() => setBaseUrl(window.location.origin)}>
-              {isPl ? "Użyj bieżącej domeny" : "Use current domain"}
-            </Button>
-          )}
-        </div>
-        {data?.secret_preview && (
-          <p className="text-xs text-muted-foreground m-0">
-            {isPl ? "Sekret ticku (podgląd):" : "Tick secret (preview):"}{" "}
-            <code>{data.secret_preview}</code>
-            {" · "}
-            {isPl
-              ? "endpoint: POST /api/public/jobs-tick (nagłówek x-jobs-secret)"
-              : "endpoint: POST /api/public/jobs-tick (x-jobs-secret header)"}
-          </p>
-        )}
-      </CardContent>
-    </Card>
   );
 }

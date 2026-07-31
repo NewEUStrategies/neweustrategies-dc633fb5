@@ -2,6 +2,7 @@ import * as React from "react";
 
 import { render } from "@react-email/render";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 import { TxEmail, type TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
@@ -10,6 +11,13 @@ import { resolveRecipientName } from "@/lib/email/recipient-name.server";
 import { txBody, type TxBodyVars } from "@/lib/email-templates/tx-body";
 import { loadTxOverrides } from "@/lib/email/txOverrides.server";
 import { overrideFor, resolvedField } from "@/lib/email/txOverrides";
+import { checkSendAllowed } from "@/lib/email/suppression.server";
+import {
+  emailCategoryForLabel,
+  suppressionSkipReason,
+  txEmailCategory,
+  type EmailCategory,
+} from "@/lib/email/suppressionPolicy";
 
 const SITE_NAME = "New European Strategies";
 const SITE_URL = "https://neweuropeanstrategies.com";
@@ -42,19 +50,117 @@ export interface TxSendInput {
   metaName?: string | null;
   /** Klucz idempotencji - ten sam klucz nie wyśle maila dwa razy. */
   idempotencyKey: string;
+  /**
+   * Tenant odbiorcy, gdy wywołujący go zna (webhook płatności, panel). Bez
+   * niego jest rozwiązywany z adresu - lista wykluczeń jest tenant-scoped,
+   * a ta ścieżka biegnie na service_role, bez sesji i bez nagłówka hosta.
+   */
+  tenantId?: string | null;
 }
 
 export interface TxSendResult {
   ok: boolean;
   skipped?: "duplicate" | "suppressed" | "no_recipient";
+  /** Powód blokady, gdy wysyłka została pominięta (np. "suppressed:complaint"). */
+  reason?: string;
   error?: string;
 }
 
-function serviceClient(): SupabaseClient | null {
+/**
+ * Klient service-role otypowany schematem (`Database`). Typ jest tu istotny, a
+ * nie kosmetyczny: bez niego brama listy wykluczeń musiałaby przyjmować klienta
+ * przez rzutowanie, a wtedy literówka w nazwie tabeli logu przeszłaby kompilację.
+ */
+function serviceClient(): SupabaseClient<Database> | null {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+  return createClient<Database>(url, key, { auth: { persistSession: false } });
+}
+
+/**
+ * Brama listy wykluczeń dla poczty 1:1 - wspólna dla `sendTxEmail` i
+ * `enqueueRawEmail`.
+ *
+ * PRZYCZYNA ŹRÓDŁOWA: wcześniej ten kod czytał listę wykluczeń, a potem
+ * respektował ją WYŁĄCZNIE dla jednego z 19 typów maila
+ * (`input.type === "newsletter_confirmed"`). Pozostałe 18 typów wychodziło na
+ * adresy po twardym odbiciu i po skardze na spam - najdroższy możliwy błąd,
+ * bo reputacja domeny nadawczej jest wspólna dla całej poczty, także tej,
+ * której nie wolno stracić.
+ *
+ * Decyzję podejmuje teraz macierz POWÓD x KATEGORIA (suppressionPolicy):
+ * skarga i twarde odbicie zatrzymują wszystko, wypis z newslettera zatrzymuje
+ * tylko wysyłkę za zgodą, a potwierdzenie płatności dostarczamy dalej.
+ *
+ * Pominięcie ZAWSZE zostawia ślad w `email_send_log` ze statusem 'suppressed' -
+ * cisza w skrzynce odbiorcy musi być widoczna w panelu, inaczej nie da się
+ * odróżnić „nie wysłaliśmy świadomie" od „potok się zepsuł".
+ */
+async function suppressionGate(
+  supabase: SupabaseClient<Database>,
+  args: {
+    to: string;
+    label: string;
+    category: EmailCategory;
+    /**
+     * Identyfikator wiadomości. WYMAGANY, nie opcjonalny: raport poczty
+     * systemowej deduplikuje wiersze po `message_id` i POMIJA te bez niego
+     * (`fetchSystemEmailReport` → `dedupe`), więc wpis bez identyfikatora byłby
+     * dokładnie tą niewidzialnością, którą ta bramka ma usunąć. Wyliczony z
+     * klucza idempotencji, więc powtórzona próba nie zawyża licznika pominięć.
+     */
+    messageId: string;
+    tenantId?: string | null;
+  },
+): Promise<{ allowed: boolean; reason?: string; tenantId: string | null }> {
+  const gate = await checkSendAllowed(supabase, {
+    email: args.to,
+    category: args.category,
+    tenantId: args.tenantId ?? null,
+  });
+  if (gate.allowed) return { allowed: true, tenantId: gate.tenantId };
+
+  const reason = gate.hit ? suppressionSkipReason(gate.hit.reason) : "suppressed";
+  await supabase.from("email_send_log").insert({
+    message_id: args.messageId,
+    template_name: args.label,
+    recipient_email: args.to,
+    status: "suppressed",
+    error_message: reason,
+  });
+  return { allowed: false, reason, tenantId: gate.tenantId };
+}
+
+/**
+ * Czy ta wiadomość jest już w obiegu albo dostarczona.
+ *
+ * Liczą się WYŁĄCZNIE statusy 'pending' i 'sent'. Dwie rzeczy zależą od tej
+ * precyzji:
+ *
+ *  - wiersz 'suppressed' NIE może zamykać sprawy na zawsze. Bramka listy
+ *    wykluczeń zapisuje go przy każdym świadomym pominięciu; gdyby liczył się
+ *    jako „już obsłużone", zdjęcie blokady nie odblokowałoby wysyłki - mail o
+ *    nieudanej płatności zostałby uziemiony na stałe. Przy ponowieniu bramka i
+ *    tak sprawdzi listę od nowa i zablokuje ponownie, jeśli powód nadal trwa.
+ *  - wiersze 'failed' też się nie liczą - ponowienie po błędzie dostawcy jest
+ *    dokładnie tym, czego chcemy (budżet ponowień pilnuje dren kolejki).
+ *
+ * Zapytanie zwraca listę z LIMIT 1, a nie `maybeSingle()`: log ma z natury
+ * WIELE wierszy na `message_id` (pending -> sent, kolejne próby), a
+ * `maybeSingle()` traktuje to jako błąd i po cichu degraduje do „nie ma".
+ */
+async function alreadyHandled(
+  supabase: SupabaseClient<Database>,
+  messageId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("email_send_log")
+    .select("id")
+    .eq("message_id", messageId)
+    .in("status", ["pending", "sent"])
+    .limit(1);
+  return Array.isArray(data) && data.length > 0;
 }
 
 /** Kwota w groszach/centach -> czytelny zapis w języku odbiorcy. */
@@ -95,25 +201,21 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
   const lang: EmailLang = input.lang === "en" ? "en" : "pl";
 
   try {
-    // Twardy zatrzask na adresy wypisane / odbite - suppression obowiązuje
-    // także maile transakcyjne poza rozliczeniowymi potwierdzeniami płatności.
-    const { data: suppressed } = await supabase
-      .from("suppressed_emails")
-      .select("email")
-      .eq("email", to)
-      .maybeSingle();
-    if (suppressed && input.type === "newsletter_confirmed") {
-      return { ok: false, skipped: "suppressed" };
-    }
-
     const messageId = await deterministicId(input.idempotencyKey);
 
-    const { data: already } = await supabase
-      .from("email_send_log")
-      .select("id")
-      .eq("message_id", messageId)
-      .maybeSingle();
-    if (already) return { ok: true, skipped: "duplicate" };
+    // Higiena listy dla KAŻDEGO z 19 typów - patrz suppressionGate.
+    const gate = await suppressionGate(supabase, {
+      to,
+      label: input.type,
+      category: txEmailCategory(input.type),
+      messageId,
+      tenantId: input.tenantId,
+    });
+    if (!gate.allowed) {
+      return { ok: false, skipped: "suppressed", reason: gate.reason };
+    }
+
+    if (await alreadyHandled(supabase, messageId)) return { ok: true, skipped: "duplicate" };
 
     const name = await resolveRecipientName(supabase, to, input.metaName ?? null);
 
@@ -129,8 +231,7 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
       subject: input.subjectName ?? null,
       firstName: name.firstName ?? null,
     };
-    const ov = (key: Parameters<typeof resolvedField>[1]) =>
-      resolvedField(override, key, tokens);
+    const ov = (key: Parameters<typeof resolvedField>[1]) => resolvedField(override, key, tokens);
 
     const element = React.createElement(TxEmail, {
       type: input.type,
@@ -175,6 +276,10 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
         purpose: "transactional",
         label: input.type,
         idempotency_key: input.idempotencyKey,
+        // Tenant w ładunku: dren sprawdza listę wykluczeń PONOWNIE w chwili
+        // wysyłki (adres mógł w tym czasie odbić), a mając tenanta robi to bez
+        // dodatkowego zapytania rozwiązującego.
+        tenant_id: gate.tenantId,
         queued_at: new Date().toISOString(),
       },
     });
@@ -216,6 +321,16 @@ export interface RawEmailInput {
   label: string;
   /** Klucz idempotencji - ten sam klucz nie wyśle maila dwa razy. */
   idempotencyKey: string;
+  /**
+   * Kategoria dla listy wykluczeń. Domyślnie wyprowadzana z etykiety
+   * (`emailCategoryForLabel`), z fail-safe na `bulk`: nieznany kanał ma być
+   * traktowany ostrożniej, nie luźniej.
+   */
+  category?: EmailCategory;
+  /** Tenant odbiorcy, gdy znany - inaczej rozwiązywany z adresu. */
+  tenantId?: string | null;
+  /** Adres wypisu -> nagłówki RFC 8058 dla wysyłki masowej. */
+  unsubscribeUrl?: string | null;
 }
 
 /**
@@ -232,20 +347,18 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
   if (!supabase) return { ok: false, error: "supabase_unavailable" };
 
   try {
-    const { data: suppressed } = await supabase
-      .from("suppressed_emails")
-      .select("email")
-      .eq("email", to)
-      .maybeSingle();
-    if (suppressed) return { ok: false, skipped: "suppressed" };
-
     const messageId = await deterministicId(input.idempotencyKey);
-    const { data: already } = await supabase
-      .from("email_send_log")
-      .select("id")
-      .eq("message_id", messageId)
-      .maybeSingle();
-    if (already) return { ok: true, skipped: "duplicate" };
+
+    const gate = await suppressionGate(supabase, {
+      to,
+      label: input.label,
+      category: input.category ?? emailCategoryForLabel(input.label),
+      messageId,
+      tenantId: input.tenantId,
+    });
+    if (!gate.allowed) return { ok: false, skipped: "suppressed", reason: gate.reason };
+
+    if (await alreadyHandled(supabase, messageId)) return { ok: true, skipped: "duplicate" };
 
     await supabase.from("email_send_log").insert({
       message_id: messageId,
@@ -268,6 +381,8 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
         purpose: "transactional",
         label: input.label,
         idempotency_key: input.idempotencyKey,
+        tenant_id: gate.tenantId,
+        unsubscribe_url: input.unsubscribeUrl ?? null,
         queued_at: new Date().toISOString(),
       },
     });

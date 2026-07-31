@@ -14,19 +14,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { BounceClass, DeliveryEventKind } from "./deliveryEvents";
+import {
+  suppressionBlocks,
+  type EmailCategory,
+  type SuppressionReason,
+  type SuppressionScope,
+} from "./suppressionPolicy";
 
 type DbClient = SupabaseClient<Database>;
 
-export type SuppressionReason =
-  | "hard_bounce"
-  | "soft_bounce"
-  | "complaint"
-  | "manual"
-  | "unsubscribe"
-  | "invalid"
-  | "blocked";
-
-export type SuppressionScope = "permanent" | "transient";
+// Domena powodów/zakresów żyje w czystym module polityki (importowalnym też
+// przez panel); re-eksport zachowuje istniejące importy z tego pliku.
+export type { EmailCategory, SuppressionReason, SuppressionScope };
 
 export interface SuppressionHit {
   email: string;
@@ -123,6 +122,113 @@ export async function isEmailSuppressed(
     return false;
   }
   return data === true;
+}
+
+/**
+ * Tenant dla adresu poza kontekstem żądania (wypis, webhook dostawcy, mail
+ * transakcyjny z workera). Lista wykluczeń jest tenant-scoped, a te ścieżki
+ * biegną na service_role - nie mają ani sesji, ani nagłówka hosta. Kolejność
+ * rozstrzygania i fallback na tenanta domyślnego żyją w SQL
+ * (email_resolve_tenant_for_address), żeby trigger widoku zgodności i kod
+ * aplikacji nie mogły się rozjechać.
+ */
+export async function resolveTenantForAddress(
+  admin: DbClient,
+  email: string,
+): Promise<string | null> {
+  const { data, error } = await rpcClient(admin).rpc("email_resolve_tenant_for_address", {
+    p_email: normalize(email),
+  });
+  if (error) {
+    console.error("[suppression] tenant resolve failed", error.message);
+    return null;
+  }
+  return typeof data === "string" && data ? data : null;
+}
+
+export interface SendGateInput {
+  email: string;
+  category: EmailCategory;
+  /** Znany tenant (pomija zapytanie rozwiązujące). */
+  tenantId?: string | null;
+}
+
+export interface SendGateResult {
+  allowed: boolean;
+  /** Trafiona blokada - także wtedy, gdy polityka przepuszcza wiadomość. */
+  hit: SuppressionHit | null;
+  tenantId: string | null;
+}
+
+/**
+ * JEDNA brama, przez którą przechodzi każda wysyłka 1:1 (transakcyjna, digest,
+ * potwierdzenie zapisu, wysyłka z kolejki). Łączy dwa pytania, które wcześniej
+ * odpowiadano osobno i niespójnie: "czy adres jest zablokowany?" oraz "czy TA
+ * kategoria wiadomości respektuje TEN powód blokady?".
+ *
+ * Fail-open na błędzie odczytu jest świadomy i zgodny z resztą modułu: awaria
+ * bazy nie może zamilczeć poczty transakcyjnej, a webhooki i tak zablokują
+ * adres przy najbliższym odbiciu. Twarda blokada bez potwierdzenia z bazy
+ * kosztowałaby więcej niż jedna wysyłka na adres, który może być już czysty.
+ */
+export async function checkSendAllowed(
+  admin: DbClient,
+  input: SendGateInput,
+): Promise<SendGateResult> {
+  const email = normalize(input.email);
+  if (!email) return { allowed: false, hit: null, tenantId: input.tenantId ?? null };
+
+  const tenantId = input.tenantId ?? (await resolveTenantForAddress(admin, email));
+  if (!tenantId) return { allowed: true, hit: null, tenantId: null };
+
+  const found = await fetchSuppressedEmails(admin, tenantId, [email]);
+  const hit = found.get(email) ?? null;
+  if (!hit) return { allowed: true, hit: null, tenantId };
+
+  return {
+    allowed: !suppressionBlocks({
+      reason: hit.reason,
+      scope: hit.scope,
+      category: input.category,
+    }),
+    hit,
+    tenantId,
+  };
+}
+
+export interface UnsubscribeResult {
+  ok: boolean;
+  alreadyUnsubscribed: boolean;
+  tenantId: string | null;
+  error?: string;
+}
+
+/**
+ * Wypis jednym kliknięciem. Cała praca (zużycie tokenu, blokada na liście
+ * kanonicznej, zdjęcie subskrypcji przez trigger) dzieje się w JEDNEJ
+ * transakcji SQL - inaczej przerwanie w połowie zostawiałoby adres wypisany z
+ * newslettera, ale bez blokady zatrzymującej digesty, albo odwrotnie.
+ */
+export async function unsubscribeByToken(
+  admin: DbClient,
+  token: string,
+): Promise<UnsubscribeResult> {
+  const { data, error } = await rpcClient(admin).rpc("email_unsubscribe_by_token", {
+    p_token: token,
+  });
+  if (error) {
+    console.error("[suppression] unsubscribe failed", error.message);
+    return { ok: false, alreadyUnsubscribed: false, tenantId: null, error: error.message };
+  }
+  if (!isRecord(data)) {
+    return { ok: false, alreadyUnsubscribed: false, tenantId: null, error: "invalid_response" };
+  }
+  return {
+    ok: data.ok === true,
+    alreadyUnsubscribed: data.already_unsubscribed === true,
+    tenantId: typeof data.tenant_id === "string" ? data.tenant_id : null,
+    error: typeof data.error === "string" ? data.error : undefined,
+  };
 }
 
 export interface RecordSuppressionInput {
