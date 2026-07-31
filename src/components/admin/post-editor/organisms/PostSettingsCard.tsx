@@ -151,7 +151,14 @@ export function PostSettingsCard({
             })}
           />
         </Label>
-        <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
+        <Input
+          value={form.slug}
+          // Normalizujemy w locie (małe litery, bez diakrytyków, spacje -> "-"),
+          // ale zostawiamy końcowy dywiz, żeby dało się pisać wielowyrazowo.
+          onChange={(e) => set("slug", normalizeSlugInput(e.target.value))}
+          onBlur={(e) => set("slug", slugifyTaxonomy(e.target.value))}
+        />
+
       </div>
       <div>
         <Label className="inline-flex items-center gap-1">
