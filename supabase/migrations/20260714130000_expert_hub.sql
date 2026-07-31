@@ -2627,6 +2627,15 @@ CREATE TABLE IF NOT EXISTS public.research_programs (
   CHECK (jsonb_typeof(research_questions) = 'array')
 );
 
+-- Te tabele tworzy TAKŻE wcześniejsza migracja 20260713181044, w STARSZYM
+-- kształcie (bez tenant_id, members bez własnego id). `CREATE TABLE IF NOT
+-- EXISTS` powyżej jest wtedy no-opem, więc kolumny, na których opierają się
+-- polityki i indeksy poniżej, trzeba dosypać jawnie - inaczej świeża baza
+-- wywala się na `column "tenant_id" does not exist` (42703). ADD COLUMN IF NOT
+-- EXISTS jest no-opem tam, gdzie kolumna już jest (m.in. na produkcji).
+ALTER TABLE public.research_programs
+  ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS idx_research_programs_tenant
   ON public.research_programs (tenant_id, status, sort_order);
 
@@ -2701,6 +2710,9 @@ CREATE TABLE IF NOT EXISTS public.research_program_members (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (program_id, profile_id)
 );
+ALTER TABLE public.research_program_members
+  ADD COLUMN IF NOT EXISTS id uuid NOT NULL DEFAULT gen_random_uuid(),
+  ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL DEFAULT public.public_tenant_id() REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 CREATE INDEX IF NOT EXISTS idx_research_program_members_program
   ON public.research_program_members (program_id, sort_order);
@@ -2764,6 +2776,8 @@ CREATE TABLE IF NOT EXISTS public.research_program_projects (
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (btrim(name_pl) <> '' AND btrim(name_en) <> '')
 );
+ALTER TABLE public.research_program_projects
+  ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL DEFAULT public.public_tenant_id() REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 CREATE INDEX IF NOT EXISTS idx_research_program_projects_program
   ON public.research_program_projects (program_id, sort_order);
@@ -2826,6 +2840,8 @@ CREATE TABLE IF NOT EXISTS public.research_program_partners (
   sort_order integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE public.research_program_partners
+  ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL DEFAULT public.public_tenant_id() REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 CREATE INDEX IF NOT EXISTS idx_research_program_partners_program
   ON public.research_program_partners (program_id, sort_order);
@@ -2889,6 +2905,8 @@ CREATE TABLE IF NOT EXISTS public.research_program_items (
     OR (item_type = 'event' AND event_id IS NOT NULL AND post_id IS NULL AND podcast_id IS NULL)
   )
 );
+ALTER TABLE public.research_program_items
+  ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL DEFAULT public.public_tenant_id() REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 CREATE INDEX IF NOT EXISTS idx_research_program_items_program
   ON public.research_program_items (program_id, item_type, sort_order);
