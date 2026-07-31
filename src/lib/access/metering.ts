@@ -98,6 +98,11 @@ export function meterCounterVisible(meter: MeterState | null | undefined): boole
  * odblokowania - np. "zostały 4", gdy realnie zostały 3. `used` jest w obrębie
  * miesiąca monotoniczne, więc świeższym źródłem jest zawsze większa wartość;
  * limit bierzemy z quota (admin mógł go zmienić w trakcie miesiąca).
+ *
+ * Inwariant: oba źródła opisują TEN SAM okres rozliczeniowy - klucze zapytań
+ * obu hooków zawierają currentMeterPeriod(), więc po przełomie miesiąca każdy
+ * remount czyta świeże stany nowego okresu, a zeszłomiesięczne wpisy cache są
+ * nieosiągalne (monotoniczny max nigdy nie scala danych z różnych miesięcy).
  */
 export function latestMeterNumbers(
   entity: MeterState,
@@ -112,18 +117,30 @@ export function latestMeterNumbers(
 }
 
 /**
- * Moment odnowienia limitu: pierwszy dzień kolejnego miesiąca kalendarzowego
- * (serwer trzyma zużycie per period_month = date_trunc('month', now())).
+ * Bieżący okres rozliczeniowy licznika w ujęciu serwera, np. "2026-07".
+ * Serwer trzyma zużycie per period_month = date_trunc('month', now()) w UTC,
+ * więc okres liczymy z zegara UTC - wchodzi do kluczy zapytań licznika, żeby
+ * stany z różnych miesięcy nigdy się nie mieszały (patrz latestMeterNumbers).
  */
-export function nextMeterResetDate(now: Date = new Date()): Date {
-  return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+export function currentMeterPeriod(now: Date = new Date()): string {
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-/** Data odnowienia limitu w formacie aktywnego języka, np. "1 sierpnia" / "1 August". */
+/** Moment odnowienia limitu: pierwszy dzień kolejnego miesiąca kalendarzowego (UTC). */
+export function nextMeterResetDate(now: Date = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+}
+
+/**
+ * Data odnowienia limitu w formacie aktywnego języka, np. "1 sierpnia" /
+ * "1 August". Formatowana w UTC (strefa serwera), żeby czytelnik na zachód od
+ * Greenwich nie zobaczył "31 lipca" przez przesunięcie północy UTC na lokalną.
+ */
 export function formatMeterResetDate(lang: "pl" | "en", now: Date = new Date()): string {
   return new Intl.DateTimeFormat(lang === "en" ? "en-GB" : "pl-PL", {
     day: "numeric",
     month: "long",
+    timeZone: "UTC",
   }).format(nextMeterResetDate(now));
 }
 
@@ -258,11 +275,13 @@ function toMeterQuota(row: QuotaRow): MeterQuota {
 }
 
 /**
- * Klucz cache stanu miesiąca - per tożsamość (konto albo klucz gościa), żeby
- * login/logout naturalnie przełączał licznik na właściwe zużycie.
+ * Klucz cache stanu miesiąca - per tożsamość (konto albo klucz gościa) ORAZ
+ * okres rozliczeniowy: login/logout naturalnie przełącza licznik na właściwe
+ * zużycie, a przełom miesiąca unieważnia zeszłomiesięczny stan zamiast
+ * przenosić go w nowy okres.
  */
-function meterQuotaQueryKey(identity: string | null) {
-  return ["metering-quota", identity ?? "anon"] as const;
+function meterQuotaQueryKey(identity: string | null, period: string) {
+  return ["metering-quota", identity ?? "anon", period] as const;
 }
 
 async function fetchMeterQuota(visitorId: string | null): Promise<MeterQuota | null> {
@@ -285,8 +304,9 @@ export function useMeterQuota(enabled: boolean = true): UseQueryResult<MeterQuot
   const { session } = useAuth();
   const uid = session?.user?.id ?? null;
   const visitorId = uid ? null : getVisitorId();
+  const period = currentMeterPeriod();
   return useQuery({
-    queryKey: meterQuotaQueryKey(uid ?? visitorId),
+    queryKey: meterQuotaQueryKey(uid ?? visitorId, period),
     enabled: enabled && (!!uid || !!visitorId),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -316,8 +336,10 @@ export function useMeteringSettings(): UseQueryResult<MeteringSettings | null> {
 
 /**
  * Odblokowanie na licznik. Wywołuje consume_metered_view dokładnie raz na
- * (byt, tożsamość, miesiąc nie jest w kluczu - serwer i tak jest idempotentny
- * per byt/miesiąc). `enabled` musi już zawierać werdykt meteringApplies oraz
+ * (byt, tożsamość, okres) - okres w kluczu sprawia, że po przełomie miesiąca
+ * ponowna wizyta konsumuje slot NOWEGO miesiąca (serwer i tak jest
+ * idempotentny per byt/miesiąc), a zamrożony stan zeszłego miesiąca nie
+ * zawyża licznika. `enabled` musi już zawierać werdykt meteringApplies oraz
  * "SSR/entitled unlock nie przyniósł body".
  */
 export function useMeteredAccess(
@@ -329,9 +351,10 @@ export function useMeteredAccess(
   const queryClient = useQueryClient();
   const uid = session?.user?.id ?? null;
   const visitorId = uid ? null : getVisitorId();
+  const period = currentMeterPeriod();
 
   const query = useQuery({
-    queryKey: ["metered-unlock", entityType, entityId, uid ?? visitorId ?? "none"] as const,
+    queryKey: ["metered-unlock", entityType, entityId, uid ?? visitorId ?? "none", period] as const,
     enabled: enabled && !!entityId && (!!uid || !!visitorId),
     // Konsumpcja jest efektem ubocznym - nie ponawiamy automatycznie i nie
     // odświeżamy w tle, żeby licznik nie skakał w trakcie czytania.
@@ -354,7 +377,7 @@ export function useMeteredAccess(
       // uprawnionych) nie opisują quoty czytelnika - tych nie zasiewamy.
       if (row.monthly_limit > 0) {
         queryClient.setQueryData(
-          meterQuotaQueryKey(uid ?? visitorId),
+          meterQuotaQueryKey(uid ?? visitorId, period),
           quotaFromMeterState(toMeterState(row)),
         );
       }

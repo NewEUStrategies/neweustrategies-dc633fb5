@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  currentMeterPeriod,
   formatMeterResetDate,
   latestMeterNumbers,
   meterCounterVisible,
@@ -214,19 +215,31 @@ describe("quotaFromMeterState", () => {
   });
 });
 
+describe("currentMeterPeriod", () => {
+  it("liczy okres w UTC (parytet z serwerowym date_trunc('month'))", () => {
+    expect(currentMeterPeriod(new Date(Date.UTC(2026, 6, 15, 12)))).toBe("2026-07");
+    // Tuż przed północą UTC ostatniego dnia miesiąca - wciąż stary okres.
+    expect(currentMeterPeriod(new Date(Date.UTC(2026, 6, 31, 23, 59, 59)))).toBe("2026-07");
+    // Sekundę po północy UTC - nowy okres (zamrożone stany lipca odpadają z kluczy).
+    expect(currentMeterPeriod(new Date(Date.UTC(2026, 7, 1, 0, 0, 1)))).toBe("2026-08");
+    expect(currentMeterPeriod(new Date(Date.UTC(2026, 11, 31, 23)))).toBe("2026-12");
+    expect(currentMeterPeriod(new Date(Date.UTC(2027, 0, 1, 1)))).toBe("2027-01");
+  });
+});
+
 describe("nextMeterResetDate / formatMeterResetDate", () => {
-  it("wskazuje pierwszy dzień kolejnego miesiąca", () => {
-    const d = nextMeterResetDate(new Date(2026, 6, 31));
-    expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 7, 1]);
+  it("wskazuje pierwszy dzień kolejnego miesiąca (UTC)", () => {
+    const d = nextMeterResetDate(new Date(Date.UTC(2026, 6, 31, 12)));
+    expect([d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()]).toEqual([2026, 7, 1]);
   });
 
   it("przechodzi przez granicę roku", () => {
-    const d = nextMeterResetDate(new Date(2026, 11, 15));
-    expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2027, 0, 1]);
+    const d = nextMeterResetDate(new Date(Date.UTC(2026, 11, 15)));
+    expect([d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()]).toEqual([2027, 0, 1]);
   });
 
-  it("formatuje datę w języku czytelnika", () => {
-    const now = new Date(2026, 6, 31);
+  it("formatuje datę w języku czytelnika, w strefie UTC (bez cofnięcia o dzień)", () => {
+    const now = new Date(Date.UTC(2026, 6, 31, 12));
     expect(formatMeterResetDate("pl", now)).toBe("1 sierpnia");
     expect(formatMeterResetDate("en", now)).toBe("1 August");
   });
