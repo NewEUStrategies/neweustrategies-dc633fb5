@@ -11,7 +11,11 @@
 // w newsletter-admin.functions (tabela job_runner_settings jest wspólna dla
 // newslettera i kanałów społeczności), więc panel czyta tutaj, a pisze tam.
 import { createServerFn } from "@tanstack/react-start";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+// requireAdminEditor, nie requireStaff: RPC job_scheduler_health() przepuszcza
+// admin/editor/super_admin, a `requireStaff` wpuszcza też AUTORÓW. Przy szerszej
+// bramce serwerowej autor otwierał panel, dostawał 42501 z bazy i odpytywał
+// zablokowane RPC co 30 s. Bramki muszą być te same po obu stronach.
+import { requireAdminEditor } from "@/integrations/supabase/require-staff";
 import type { JobsTickResult } from "@/lib/server/jobsTick.server";
 import {
   normalizeArmOrigin,
@@ -155,7 +159,7 @@ const num = (value: unknown): number => {
 };
 
 export const getSchedulerHealth = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .handler(async ({ context }): Promise<SchedulerHealth> => {
     const { schedulerFreshness, normalizeSchedulerSource } = await import("@/lib/jobs/scheduler");
     // RPC autoryzuje i skaluje dane tym samym tenantem (has_role +
@@ -183,6 +187,7 @@ export const getSchedulerHealth = createServerFn({ method: "GET" })
 
     const { getOrigin } = await import("@/lib/seo/request");
     const origin = normalizeArmOrigin(getOrigin()) ?? "";
+    const { emailProviderConfigured } = await import("@/lib/email/provider.server");
 
     return {
       runner,
@@ -241,7 +246,7 @@ export const getSchedulerHealth = createServerFn({ method: "GET" })
  * do logu ze źródłem 'admin' i śladem audytowym (tenant + operator).
  */
 export const runSchedulerTickNow = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .handler(async ({ context }): Promise<JobsTickResult> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { runJobsTick } = await import("@/lib/server/jobsTick.server");

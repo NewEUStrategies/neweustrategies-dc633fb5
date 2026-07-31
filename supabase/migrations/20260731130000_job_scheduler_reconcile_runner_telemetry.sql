@@ -31,7 +31,10 @@
 --      `base_url`, więc przy pustej kolumnie nie ruszał, mimo działającego crona).
 --   5. `job_scheduler_health()` - dorzuca telemetrię crona do sekcji `runner`
 --      (status/powód/licznik), a `app_unreachable` liczy z `last_invoked_at`
---      LUB `last_tick_at` (wiersze sprzed pojednania mają tylko jedno z nich).
+--      LUB `last_tick_at` (wiersze sprzed pojednania mają tylko jedno z nich)
+--      i porównuje je z ostatnim przebiegiem ZE ŹRÓDŁA 'pg_cron', nie z
+--      globalnym heartbeatem: ten stempluje każde źródło, więc scheduler repo
+--      maskowałby martwą ścieżkę podstawową.
 --
 -- Idempotentne. Bez pg_cron/pg_net wszystko jest fail-open.
 -- ============================================================================
@@ -260,6 +263,7 @@ DECLARE
   v_runs jsonb := '[]'::jsonb;
   v_sources jsonb := '[]'::jsonb;
   v_last_ping timestamptz;
+  v_last_pg_cron_run timestamptz;
 BEGIN
   IF v_uid IS NULL OR NOT (
        public.has_role(v_uid, 'admin')
@@ -281,6 +285,14 @@ BEGIN
     COALESCE(cfg.last_invoked_at, cfg.last_tick_at),
     COALESCE(cfg.last_tick_at, cfg.last_invoked_at)
   );
+
+  -- Ostatni przebieg WYWOŁANY PRZEZ CRON BAZY, nie dowolny. Heartbeat
+  -- `last_app_run_at` stempluje KAŻDE źródło, więc scheduler repo (co 5 min)
+  -- albo ręczny tick z panelu utrzymywałby go świeżym także wtedy, gdy pg_cron
+  -- puka pod zły adres lub z odrzuconym sekretem - i alert o awarii ścieżki
+  -- PODSTAWOWEJ nigdy by nie zapalił.
+  SELECT max(created_at) INTO v_last_pg_cron_run
+    FROM public.job_runner_runs WHERE source = 'pg_cron';
 
   IF to_regclass('cron.job') IS NOT NULL THEN
     BEGIN
@@ -360,7 +372,7 @@ BEGIN
       v_last_ping IS NOT NULL
       AND v_last_ping > now() - interval '10 minutes'
       AND cfg.last_tick_status = 'dispatched'
-      AND (cfg.last_app_run_at IS NULL OR cfg.last_app_run_at < now() - interval '10 minutes')
+      AND (v_last_pg_cron_run IS NULL OR v_last_pg_cron_run < now() - interval '10 minutes')
     ),
     'cron_jobs', v_cron,
     'recent_runs', v_runs,

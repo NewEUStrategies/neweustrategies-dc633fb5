@@ -9,8 +9,27 @@ REVOKE SELECT (phone) ON public.author_profiles FROM anon;
 REVOKE SELECT (phone, email) ON public.profiles FROM anon;
 
 -- 4) personality_results / history: hide raw answers from public reads
-REVOKE SELECT (answers) ON public.personality_results FROM anon, authenticated;
-REVOKE SELECT (answers) ON public.personality_result_history FROM anon, authenticated;
+--
+-- UWAGA (naprawa łańcucha migracji, jak w 20260713180000): migracja
+-- 20260711120000 USUWA kolumnę `answers` z personality_result_history
+-- (minimalizacja danych - surowe odpowiedzi zostają tylko w
+-- personality_results). Bezwarunkowy REVOKE na nieistniejącej kolumnie kończy
+-- się 42703 i przerywa CAŁY łańcuch na świeżej bazie, czyli `supabase db start`
+-- i job pgtap w CI nigdy nie dobiegają do końca. REVOKE wykonujemy więc tylko
+-- wtedy, gdy kolumna faktycznie istnieje (na bazie sprzed dropu nadal zadziała).
+DO $$
+DECLARE
+  v_table text;
+BEGIN
+  FOREACH v_table IN ARRAY ARRAY['personality_results', 'personality_result_history'] LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = v_table AND column_name = 'answers'
+    ) THEN
+      EXECUTE format('REVOKE SELECT (answers) ON public.%I FROM anon, authenticated', v_table);
+    END IF;
+  END LOOP;
+END $$;
 -- Keep answers readable by owner via SECURITY DEFINER path if needed later; for now
 -- the public "profile_is_public" surface no longer leaks raw answers.
 

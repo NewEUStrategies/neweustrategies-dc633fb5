@@ -29,6 +29,13 @@ vi.mock("@/lib/admin/scheduler.functions", () => ({
   runSchedulerTickNow: (...args: unknown[]) => runSchedulerTickNow(...args),
 }));
 
+// Rola wołającego decyduje, czy panel w ogóle się renderuje (bramka zgodna z
+// RPC i requireAdminEditor), więc jest sterowalna z testu.
+const authState = { isAdmin: true, roles: ["admin"] as string[] };
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => authState,
+}));
+
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 vi.mock("sonner", () => ({
@@ -128,6 +135,29 @@ describe("SchedulerHealthPanel", () => {
     runSchedulerTickNow.mockReset();
     toastSuccess.mockReset();
     toastError.mockReset();
+    authState.isAdmin = true;
+    authState.roles = ["admin"];
+  });
+
+  it("autor (staff bez roli admin/edytor) nie widzi panelu i nie woła RPC", async () => {
+    authState.isAdmin = false;
+    authState.roles = ["author"];
+    getSchedulerHealth.mockResolvedValue(health());
+    const { container } = renderPanel();
+
+    // Bramka kliencka zgadza się z bramką RPC: zamiast wiecznego „błąd
+    // ładowania" i odpytywania co 30 s panel po prostu nie istnieje.
+    expect(container).toBeEmptyDOMElement();
+    await waitFor(() => expect(getSchedulerHealth).not.toHaveBeenCalled());
+  });
+
+  it("edytor widzi panel", async () => {
+    authState.isAdmin = false;
+    authState.roles = ["editor"];
+    getSchedulerHealth.mockResolvedValue(health());
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByText("87")).toBeInTheDocument());
   });
 
   it("renderuje metryki kolejki bez surowych kluczy i18n", async () => {

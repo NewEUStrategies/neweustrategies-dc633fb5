@@ -36,7 +36,7 @@ claimy atomowe w Postgresie; mogą działać równolegle):
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `POST /api/public/jobs-tick`      | nagłówek `x-jobs-secret` = `job_runner_settings.secret`                                                                | **pg_cron + pg_net co minutę** (migracje `20260713170000`, `20260731110000`)              | newsletter + push + digesty + przypomnienia (wydarzenia, follow-upy CRM) + linki + integracje |
 | `POST /api/public/community-cron` | nagłówek `x-community-cron-secret` = env `COMMUNITY_CRON_SECRET` **albo** `job_runner_settings.secret` (jeden z dwóch) | **GitHub Actions co 5 min** (`.github/workflows/scheduler.yml`) + dowolny cron zewnętrzny | `?job=all\|push\|digest-daily\|digest-weekly\|event-reminders\|crm-task-reminders`            |
-| przycisk „Uruchom tick teraz"     | sesja staff (`requireStaff`)                                                                                           | operator: /admin/community/notifications, /admin/tracker                                  | to samo co `jobs-tick` (ta sama funkcja `runJobsTick`)                                        |
+| przycisk „Uruchom tick teraz"     | sesja admin/edytor (`requireAdminEditor`)                                                                              | operator: /admin/community/notifications, /admin/tracker                                  | to samo co `jobs-tick` (ta sama funkcja `runJobsTick`)                                        |
 | `GET /api/public/community-cron`  | jak wyżej                                                                                                              | monitoring zewnętrzny (uptime robot)                                                      | sonda zdrowia bez efektów ubocznych: `200` = OK, `503` = zastój                               |
 
 **Ścieżka podstawowa:** pg_cron → `jobs-tick` (co minutę, zero zewnętrznych
@@ -92,14 +92,19 @@ błąd; rotacja 14 dni) i stempluje heartbeat w `job_runner_settings`
 aplikacja odpowiedziała, `failure_streak`), obok telemetrii samego crona
 (`last_tick_status` / `last_tick_error` / `tick_count`).
 
-**Panel: /admin/community/notifications** (RPC `job_scheduler_health()`, staff)
+Alert **„cron puka, aplikacja nie odpowiada"** porównuje puknięcie z ostatnim
+przebiegiem ZE ŹRÓDŁA `pg_cron`, nie z globalnym heartbeatem - ten stempluje
+każde źródło, więc scheduler repo (co 5 min) albo ręczny tick z panelu
+maskowałby martwą ścieżkę podstawową.
+
+**Panel: /admin/community/notifications** (RPC `job_scheduler_health()`,
+admin/edytor - ta sama bramka co w RPC; autor jej nie widzi)
 pokazuje: świeżość ostatniego udanego przebiegu (`fresh` ≤ 6 min,
 `lagging` ≤ 20 min, dalej `stale`), stan każdej ścieżki, rejestr zadań pg_cron,
 głębokość kolejki push i wiek najstarszego `pending` w Twoim tenancie, digesty
 na wejściu, brakujące env (VAPID / gateway e-mail) oraz log ostatnich 20
-przebiegów. Rozjazd `last_invoked_at` vs `last_app_run_at` daje jawny alert
-**„cron puka, aplikacja nie odpowiada"** (zły `base_url`, zły sekret, leżący
-deploy).
+przebiegów oraz powód pominięcia puknięcia (zły `base_url`, zły sekret, brak
+pg_net, świadome wyłączenie).
 
 ### Checklist uruchomieniowy
 

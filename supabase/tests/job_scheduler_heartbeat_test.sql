@@ -28,7 +28,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(29);
+SELECT plan(31);
 
 -- Stan wyjściowy JAWNIE dziewiczy (świeża baza taka jest, ale test nie może
 -- zależeć od tego, czy pg_cron zdążył w tym środowisku uzbroić runner).
@@ -252,6 +252,38 @@ SELECT ok(
   (SELECT (public.job_scheduler_health() -> 'runner' ->> 'secret_set')::boolean
      AND NOT (public.job_scheduler_health() -> 'runner' ? 'secret')),
   'payload mowi, ze sekret jest ustawiony, ale go NIE zwraca'
+);
+
+-- -- 7. app_unreachable koreluje ze ŹRÓDŁEM pg_cron, nie z globalnym heartbeatem
+-- Heartbeat `last_app_run_at` stempluje KAŻDE źródło, więc scheduler repo (co
+-- 5 min) albo ręczny tick z panelu trzymałby go świeżym także wtedy, gdy cron
+-- bazy puka pod zły adres albo z odrzuconym sekretem - i alert o awarii
+-- ścieżki PODSTAWOWEJ nigdy by nie zapalił. Dane przygotowujemy jako postgres
+-- (record_job_run jest service-role only), a zdrowie czytamy jako admin.
+RESET ROLE;
+UPDATE public.job_runner_settings
+   SET enabled = true,
+       last_invoked_at = now(),
+       last_tick_at = now(),
+       last_tick_status = 'dispatched',
+       last_tick_error = NULL
+ WHERE id = 1;
+DELETE FROM public.job_runner_runs;
+SELECT public.record_job_run('github_actions', 'all', true, 100);
+
+SET LOCAL ROLE authenticated;
+SELECT ok(
+  (public.job_scheduler_health() -> 'app_unreachable')::boolean,
+  'swiezy przebieg z GitHub Actions NIE maskuje martwej sciezki pg_cron'
+);
+
+RESET ROLE;
+SELECT public.record_job_run('pg_cron', 'all', true, 100);
+
+SET LOCAL ROLE authenticated;
+SELECT ok(
+  NOT (public.job_scheduler_health() -> 'app_unreachable')::boolean,
+  'przebieg ze zrodla pg_cron gasi alert o nieosiagalnej aplikacji'
 );
 
 RESET ROLE;

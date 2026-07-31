@@ -46,6 +46,7 @@ import {
   SchedulerMetricTile,
   type MetricTone,
 } from "@/components/admin/molecules/SchedulerMetricTile";
+import { useAuth } from "@/hooks/useAuth";
 import { getSchedulerHealth, runSchedulerTickNow } from "@/lib/admin/scheduler.functions";
 import { countTickFailures } from "@/lib/jobs/scheduler";
 import { relTime } from "@/lib/chat/time";
@@ -84,14 +85,25 @@ export function SchedulerHealthPanel() {
   const { t, i18n } = useTranslation();
   const lang: Lang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const qc = useQueryClient();
+  const { isAdmin, roles } = useAuth();
   const loadHealth = useServerFn(getSchedulerHealth);
   const runTick = useServerFn(runSchedulerTickNow);
+
+  // Diagnostyka infrastruktury i wymuszanie ticku to zakres admin/edytor - tak
+  // samo jak bramka RPC (has_role admin|super_admin|editor) i middleware
+  // requireAdminEditor. Autor jest staffem dla RESZTY panelu, więc bez tej
+  // bramki widziałby wyłącznie komunikat błędu i odpytywał zablokowane RPC.
+  const maySeeScheduler = isAdmin || roles.includes("editor");
 
   const health = useQuery({
     queryKey: ["admin", "scheduler-health"],
     queryFn: () => loadHealth(),
-    refetchInterval: REFETCH_MS,
+    // Odpytywanie w tle NIE wraca po błędzie: nieudany odczyt (brak roli,
+    // padnięte RPC) nie ma prawa młócić serwera co 30 s.
+    refetchInterval: (query) => (query.state.error ? false : REFETCH_MS),
+    retry: false,
     staleTime: 10_000,
+    enabled: maySeeScheduler,
   });
 
   const tick = useMutation({
@@ -109,6 +121,9 @@ export function SchedulerHealthPanel() {
     onError: (err: Error) =>
       toast.error(t("adminScheduler.actions.ranFailed", { message: err.message })),
   });
+
+  // Bez uprawnień panel po prostu nie istnieje - żadnego "błędu ładowania".
+  if (!maySeeScheduler) return null;
 
   if (health.isError) {
     return (
