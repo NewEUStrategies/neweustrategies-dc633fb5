@@ -18,7 +18,6 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 // nigdy do envDefine/bundla klienta.
 Object.assign(process.env, loadEnv(process.env.NODE_ENV ?? "development", rootDir, ""));
 
-
 // Minifikacja artefaktu WORKERA (2026-07-24). Chunki serwera składa NITRO
 // własnym rollupem, więc vite-owe `build.minify` ich nie dotyka - bez tej
 // opcji deploy niósł 21 MB nieminifikowanego kodu (wolniejszy parse na
@@ -115,8 +114,21 @@ export default defineConfig({
         "@tanstack/react-store",
         // Avatar radixa też sięga po ten sam shim (lazy w panelu admina).
         "@radix-ui/react-avatar",
-
-
+        // Każdy wpis poniżej to pakiet ładowany z leniwych ekranów admina,
+        // którego graf zawiera zależności CJS-only. Przy `noDiscovery: true`
+        // nieprebundlowany moduł CJS jest serwowany surowo i import defaulta
+        // kończy się "does not provide an export named 'default'" - dokładnie
+        // tak wywalał się edytor wpisu (react-markdown -> style-to-js), a
+        // pozostałe czekały w kolejce: kadrowanie okładki (react-easy-crop ->
+        // normalize-wheel), wykresy (echarts-for-react to CJS), bilety QR
+        // (qrcode), słownik krajów (i18n-iso-countries) i normalizacja HTML
+        // buildera (node-html-parser -> css-select -> boolbase).
+        "react-markdown",
+        "react-easy-crop",
+        "echarts-for-react",
+        "qrcode",
+        "i18n-iso-countries",
+        "node-html-parser",
 
         "@tanstack/react-router",
         "@tanstack/react-router-ssr-query",
@@ -161,10 +173,7 @@ export default defineConfig({
       // 2) Rozgrzewka najcięższych wejść SSR - transform startuje przy starcie
       //    dev-servera, a nie dopiero przy pierwszym żądaniu użytkownika.
       warmup: {
-        ssrFiles: [
-          "./src/routes/__root.tsx",
-          "./src/routes/index.tsx",
-        ],
+        ssrFiles: ["./src/routes/__root.tsx", "./src/routes/index.tsx"],
         clientFiles: ["./src/routes/__root.tsx", "./src/routes/index.tsx"],
       },
       // 3) Watcher nie trzyma w pamięci katalogów, które nigdy nie wchodzą do
@@ -186,7 +195,6 @@ export default defineConfig({
           "**/.env.*",
         ],
       },
-
     },
 
     // Minifikacja WSZYSTKICH środowisk builda esbuildem (2026-07-24). Historia:
