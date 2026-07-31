@@ -36,12 +36,18 @@ const EMPTY_MAP: BlockAnchorMap = new Map();
  */
 const cache = new WeakMap<readonly Block[], BlockAnchorMap>();
 
-/** Tekst nagłówka bloku (pusty string, gdy blok nie jest nagłówkiem). */
+/**
+ * Tekst nagłówka bloku (pusty string, gdy blok nie jest nagłówkiem).
+ * Nagłówek edytowany w CMS builderze może zawierać inline HTML (bold / kolor),
+ * więc znaczniki są odcinane - kotwica ma zależeć wyłącznie od treści.
+ */
 function headingText(block: Block): string {
   if (block.type !== "heading") return "";
   const raw = block.data.text;
-  return typeof raw === "string" ? raw.trim() : "";
+  if (typeof raw !== "string") return "";
+  return looksLikeInlineHtml(raw) ? inlineHtmlToText(raw) : raw.trim();
 }
+
 
 /** Jawna kotwica podana przez autora w edytorze (może być pusta). */
 function explicitAnchor(block: Block): string {
