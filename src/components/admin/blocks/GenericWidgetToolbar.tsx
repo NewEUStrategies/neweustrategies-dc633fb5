@@ -17,7 +17,13 @@ import {
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { promptDialog } from "@/lib/appDialogs";
+import {
+  BLOCK_PALETTE_KEYS,
+  BLOCK_PALETTE_VAR,
+  hasBlockPalette,
+} from "@/lib/blocks/variants";
 import type { Block, Json } from "@/lib/blocks/types";
+
 
 interface Props {
   block: Block;
