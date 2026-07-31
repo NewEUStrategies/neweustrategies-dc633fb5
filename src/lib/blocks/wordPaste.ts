@@ -90,6 +90,70 @@ function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void
   }
 }
 
+// --- przypisy „ręczne" (indeks górny + lista na końcu) ---------------------
+
+/** Numery użyte w treści jako indeks górny: `tekst<sup>1</sup>`. */
+function superscriptKeys(root: HTMLElement): Set<string> {
+  const keys = new Set<string>();
+  for (const sup of Array.from(root.querySelectorAll("sup"))) {
+    const raw = (sup.textContent ?? "").replace(/\u00A0/g, " ").trim();
+    const m = raw.match(/^[[(]?\s*(\d{1,3})\s*[\])]?$/);
+    if (m) keys.add(m[1]);
+  }
+  return keys;
+}
+
+/** Czy element to blok tekstowy, który może być definicją przypisu. */
+const FOOTNOTE_DEF_TAGS = /^(P|DIV|LI)$/;
+
+/**
+ * Autorzy często nie używają mechanizmu przypisów Worda, tylko piszą `tekst¹`
+ * i listę „1. źródło" na końcu dokumentu. Zbieramy takie definicje od końca
+ * treści (tylko numery realnie użyte w indeksie górnym) i usuwamy je z drzewa.
+ */
+function collectManualFootnotes(root: HTMLElement, notes: Map<string, string>): void {
+  const keys = superscriptKeys(root);
+  if (keys.size === 0) return;
+  const found = new Map<string, string>();
+  let node = root.lastElementChild;
+  while (node) {
+    const prev = node.previousElementSibling;
+    const text = (node.textContent ?? "").replace(/\u00A0/g, " ").trim();
+    if (!text) {
+      node = prev;
+      continue;
+    }
+    if (node.tagName === "HR") break;
+    if (!FOOTNOTE_DEF_TAGS.test(node.tagName)) break;
+    const m = text.match(/^[[(]?\s*(\d{1,3})\s*[\])]?[.):\s]\s*(.+)$/s);
+    if (!m) break;
+    const key = m[1];
+    if (!keys.has(key) || notes.has(key) || found.has(key)) break;
+    found.set(key, m[2].trim());
+    node.remove();
+    node = prev;
+  }
+  for (const [key, body] of found) notes.set(key, body);
+  const hrs = Array.from(root.querySelectorAll("hr"));
+  const last = hrs[hrs.length - 1];
+  if (found.size > 0 && last && !last.nextElementSibling) last.remove();
+}
+
+/** Zamienia `<sup>1</sup>` na `[fn]treść[/fn]`, gdy znamy definicję. */
+function inlineSuperscriptRefs(root: HTMLElement, notes: Map<string, string>): void {
+  if (notes.size === 0) return;
+  for (const sup of Array.from(root.querySelectorAll("sup"))) {
+    const raw = (sup.textContent ?? "").replace(/\u00A0/g, " ").trim();
+    const m = raw.match(/^[[(]?\s*(\d{1,3})\s*[\])]?$/);
+    if (!m) continue;
+    const body = notes.get(m[1]);
+    if (!body) continue;
+    sup.replaceWith(sup.ownerDocument.createTextNode(`[fn]${body}[/fn]`));
+  }
+}
+
+
+
 // --- inline ---------------------------------------------------------------
 
 const INLINE_TAGS: Record<string, string> = {
