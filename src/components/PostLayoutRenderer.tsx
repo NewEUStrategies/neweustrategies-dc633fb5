@@ -84,7 +84,7 @@ export function PostLayoutRenderer({
   // (bez czarnej karty) - zgodnie z podglądem layoutu w edytorze.
   const overlayMetaCard = (
     <div
-      className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white"
+      className="absolute inset-x-0 bottom-0 p-4 sm:p-5 md:p-8 lg:p-10 text-white"
       style={overlayTypoStyle}
     >
       <div className={`w-full ${center ? "text-center" : ""} overlay-meta-card`}>
@@ -93,19 +93,19 @@ export function PostLayoutRenderer({
             {categoryBadges}
           </div>
         )}
-        <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.1] mb-2 text-white">
+        <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.15] mb-2 text-white line-clamp-3 sm:line-clamp-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
           {title}
         </h1>
         {excerpt && (
           <p
-            className={`overlay-meta-description overlay-excerpt-typography text-white/80 mb-3 line-clamp-2 max-w-2xl ${center ? "mx-auto" : ""}`}
+            className={`overlay-meta-description overlay-excerpt-typography hidden sm:block text-white/80 mb-3 line-clamp-2 max-w-2xl ${center ? "mx-auto" : ""}`}
           >
             {excerpt}
           </p>
         )}
         {meta && (
           <div
-            className={`text-[10px] md:text-[11px] lg:text-xs flex flex-wrap items-center gap-x-3 gap-y-1 text-white/70 ${center ? "justify-center" : ""}`}
+            className={`text-[10px] md:text-[11px] lg:text-xs flex flex-wrap items-center gap-x-3 gap-y-1 text-white/90 sm:text-white/70 [text-shadow:0_1px_6px_rgba(0,0,0,0.8)] ${center ? "justify-center" : ""}`}
           >
             {meta}
           </div>
@@ -113,6 +113,7 @@ export function PostLayoutRenderer({
       </div>
     </div>
   );
+
 
   // Wrapper dla cover + overlay. Full-bleed używa filmowego kadru 16/8
   // (jak w podglądzie edytora) - nie 70vh, żeby cover nie zajmował całego
