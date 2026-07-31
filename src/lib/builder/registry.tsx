@@ -646,6 +646,22 @@ export const WIDGETS: WidgetDef[] = [
     }),
   },
   {
+    type: "onboarding-form",
+    label: "Formularz onboardingowy",
+    category: "form",
+    icon: SlidersHorizontal,
+    defaults: () => ({
+      heading_pl: "Brief projektu",
+      heading_en: "Project brief",
+      intro_pl: "Kilka kroków - poznamy Twoje potrzeby.",
+      intro_en: "A few steps - tell us about your needs.",
+      submitLabel_pl: "Wyślij zgłoszenie",
+      submitLabel_en: "Submit",
+      showStepIndicator: "1",
+      requireConsent: "1",
+    }),
+  },
+  {
     type: "customize-interests",
     label: "Dopasuj zainteresowania",
     category: "form",
