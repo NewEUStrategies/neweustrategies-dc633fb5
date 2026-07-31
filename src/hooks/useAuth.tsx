@@ -37,18 +37,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [tenantId, setTenantId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  // Role/tenant context is fetched separately from the session. Route guards
+  // read `isStaff`, so they MUST NOT run while roles are still in flight -
+  // otherwise a hard reload of /admin bounces a signed-in editor to /login.
+  const [rolesLoading, setRolesLoading] = useState(false);
   // Track the last-seen user id so we only re-gate content when identity
   // actually changes (login / logout / account switch), not on token refresh.
   const lastUidRef = useRef<string | null>(null);
 
   const loadContext = async (uid: string) => {
-    const [{ data: rolesData }, { data: profile }] = await Promise.all([
-      supabase.from("user_roles").select("role").eq("user_id", uid),
-      supabase.from("profiles").select("tenant_id").eq("id", uid).maybeSingle(),
-    ]);
-    setRoles((rolesData ?? []).map((r) => r.role as Role));
-    setTenantId(profile?.tenant_id ?? null);
+    try {
+      const [{ data: rolesData }, { data: profile }] = await Promise.all([
+        supabase.from("user_roles").select("role").eq("user_id", uid),
+        supabase.from("profiles").select("tenant_id").eq("id", uid).maybeSingle(),
+      ]);
+      setRoles((rolesData ?? []).map((r) => r.role as Role));
+      setTenantId(profile?.tenant_id ?? null);
+    } finally {
+      setRolesLoading(false);
+    }
   };
 
   // When identity changes, drop any cached gated content so it is re-fetched
@@ -80,8 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!uid) {
         setRoles([]);
         setTenantId(null);
+        setRolesLoading(false);
         return;
       }
+      setRolesLoading(true);
       setTimeout(() => {
         void loadContext(uid);
       }, 0);
@@ -123,11 +133,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // odpalić bez dodatkowego round-tripu.
         setSession(data.session);
         ensureContext(data.session?.user?.id ?? null);
-        setLoading(false);
+        setSessionLoading(false);
       });
     } catch (error) {
       console.error("[auth] Supabase client unavailable - continuing signed-out", error);
-      setLoading(false);
+      setSessionLoading(false);
     }
     return () => sub?.subscription.unsubscribe();
   }, []);
@@ -162,6 +172,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSuperAdmin = roles.includes("super_admin");
   const isAdmin = isSuperAdmin || roles.includes("admin");
   const isStaff = isAdmin || roles.includes("editor") || roles.includes("author");
+  // Signed-in users stay "loading" until roles land, so guards never see a
+  // half-hydrated identity (session present, roles empty).
+  const loading = sessionLoading || (session !== null && rolesLoading);
 
   return (
     <Ctx.Provider
