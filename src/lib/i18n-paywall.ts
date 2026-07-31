@@ -56,7 +56,10 @@ const pl = {
       registerNote: "Rejestracja jest darmowa i zajmuje mniej niż minutę.",
       exhaustedTitle: "Wykorzystano darmowy limit",
       exhaustedDesc:
-        "Przeczytano {{used}} z {{limit}} darmowych artykułów w tym miesiącu. Wybierz plan, aby czytać bez ograniczeń - limit odnowi się z początkiem kolejnego miesiąca.",
+        "Przeczytano {{used}} z {{limit}} darmowych artykułów w tym miesiącu. Wybierz plan, aby czytać bez ograniczeń.",
+      resetsOn: "Limit odnowi się {{date}}.",
+      progressLabel: "Miesięczny limit darmowych artykułów",
+      progressValue: "Wykorzystano {{used}} z {{limit}}",
     },
   },
 };
@@ -111,7 +114,10 @@ const en: typeof pl = {
       registerNote: "Signing up is free and takes less than a minute.",
       exhaustedTitle: "Free limit reached",
       exhaustedDesc:
-        "You have read {{used}} of {{limit}} free articles this month. Choose a plan to read without limits - the counter resets at the start of next month.",
+        "You have read {{used}} of {{limit}} free articles this month. Choose a plan to read without limits.",
+      resetsOn: "Your free limit resets on {{date}}.",
+      progressLabel: "Monthly free-article limit",
+      progressValue: "{{used}} of {{limit}} used",
     },
   },
 };

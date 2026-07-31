@@ -1,10 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
+  formatMeterResetDate,
+  latestMeterNumbers,
+  meterCounterVisible,
   meteringApplies,
   meterPaywallVariant,
+  nextMeterResetDate,
   normalizeMeteringPolicy,
+  quotaFromMeterState,
   DEFAULT_METERING_SETTINGS,
   type MeteringSettings,
+  type MeterQuota,
   type MeterState,
 } from "@/lib/access/metering";
 
@@ -117,5 +123,111 @@ describe("meterPaywallVariant", () => {
     expect(
       meterPaywallVariant({ isLoggedIn: true, settings: on, applies: true, state: fresh }),
     ).toBe(null);
+  });
+});
+
+describe("meterCounterVisible", () => {
+  it("licznik widoczny wyłącznie dla granted + show_counter + realny limit", () => {
+    expect(meterCounterVisible(state({ granted: true, used: 1 }))).toBe(true);
+  });
+
+  it("każdy brakujący warunek ukrywa licznik", () => {
+    expect(meterCounterVisible(null)).toBe(false);
+    expect(meterCounterVisible(undefined)).toBe(false);
+    expect(meterCounterVisible(state({ granted: false }))).toBe(false);
+    expect(meterCounterVisible(state({ granted: true, showCounter: false }))).toBe(false);
+    // Uprawniony czytelnik: RPC zwraca monthly_limit=0 - licznik nie istnieje.
+    expect(meterCounterVisible(state({ granted: true, monthlyLimit: 0 }))).toBe(false);
+  });
+});
+
+describe("latestMeterNumbers", () => {
+  const entity = state({ granted: true, used: 1, monthlyLimit: 5, remaining: 4 });
+  const quota = (partial: Partial<MeterQuota>): MeterQuota => ({
+    enabled: true,
+    monthlyLimit: 5,
+    used: 1,
+    remaining: 4,
+    requiresRegistration: false,
+    showCounter: true,
+    ...partial,
+  });
+
+  it("bez quoty (lub z wyłączoną) zwraca zamrożony stan bytu", () => {
+    expect(latestMeterNumbers(entity, null)).toEqual({ used: 1, monthlyLimit: 5, remaining: 4 });
+    expect(latestMeterNumbers(entity, quota({ enabled: false, used: 3 }))).toEqual({
+      used: 1,
+      monthlyLimit: 5,
+      remaining: 4,
+    });
+    expect(latestMeterNumbers(entity, quota({ monthlyLimit: 0, used: 3 }))).toEqual({
+      used: 1,
+      monthlyLimit: 5,
+      remaining: 4,
+    });
+  });
+
+  it("świeższa quota wygrywa: powrót do artykułu pokazuje bieżące zużycie", () => {
+    // Czytelnik przeczytał w międzyczasie 2 kolejne artykuły.
+    expect(latestMeterNumbers(entity, quota({ used: 3, remaining: 2 }))).toEqual({
+      used: 3,
+      monthlyLimit: 5,
+      remaining: 2,
+    });
+  });
+
+  it("zużycie jest monotoniczne - starsza quota nie cofa licznika", () => {
+    const consumed = state({ granted: true, used: 4, monthlyLimit: 5, remaining: 1 });
+    expect(latestMeterNumbers(consumed, quota({ used: 2, remaining: 3 }))).toEqual({
+      used: 4,
+      monthlyLimit: 5,
+      remaining: 1,
+    });
+  });
+
+  it("zmiana limitu przez admina w trakcie miesiąca liczy się od quoty", () => {
+    expect(latestMeterNumbers(entity, quota({ monthlyLimit: 10, used: 3, remaining: 7 }))).toEqual({
+      used: 3,
+      monthlyLimit: 10,
+      remaining: 7,
+    });
+    // Obniżony limit poniżej zużycia nie schodzi poniżej zera.
+    expect(latestMeterNumbers(entity, quota({ monthlyLimit: 1, used: 3, remaining: 0 }))).toEqual({
+      used: 3,
+      monthlyLimit: 1,
+      remaining: 0,
+    });
+  });
+});
+
+describe("quotaFromMeterState", () => {
+  it("mapuje werdykt konsumpcji na stan miesiąca (enabled=true)", () => {
+    const s = state({ granted: true, used: 2, monthlyLimit: 5, remaining: 3 });
+    expect(quotaFromMeterState(s)).toEqual({
+      enabled: true,
+      monthlyLimit: 5,
+      used: 2,
+      remaining: 3,
+      requiresRegistration: false,
+      showCounter: true,
+    });
+  });
+});
+
+describe("nextMeterResetDate / formatMeterResetDate", () => {
+  it("wskazuje pierwszy dzień kolejnego miesiąca", () => {
+    const d = nextMeterResetDate(new Date(2026, 6, 31));
+    expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 7, 1]);
+  });
+
+  it("przechodzi przez granicę roku", () => {
+    const d = nextMeterResetDate(new Date(2026, 11, 15));
+    expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2027, 0, 1]);
+  });
+
+  it("formatuje datę w języku czytelnika", () => {
+    const now = new Date(2026, 6, 31);
+    expect(formatMeterResetDate("pl", now)).toBe("1 sierpnia");
+    expect(formatMeterResetDate("en", now)).toBe("1 August");
   });
 });

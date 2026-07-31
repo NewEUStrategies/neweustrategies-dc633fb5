@@ -32,7 +32,13 @@ import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getPaddleEnvironment } from "@/lib/paddle";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
-import { meterPaywallVariant, type MeterState, type MeteringSettings } from "@/lib/access/metering";
+import {
+  formatMeterResetDate,
+  meterPaywallVariant,
+  type MeterState,
+  type MeteringSettings,
+} from "@/lib/access/metering";
+import { QuotaMeter } from "@/components/atoms/QuotaMeter";
 import "@/lib/i18n-paywall";
 
 type Props = {
@@ -239,6 +245,27 @@ export function Paywall({
                   ? t("paywall.passwordDesc")
                   : t("paywall.paidDesc")}
         </p>
+
+        {/* Wyczerpany limit: wizualny licznik zużycia (ten sam atom co baner w
+            warstwie treści) + konkretna data odnowienia - czytelnik widzi, ILE
+            przeczytał i KIEDY limit wróci, zanim zdecyduje o planie. */}
+        {meterVariant === "exhausted" && meterState && meterState.monthlyLimit > 0 && (
+          <div className="max-w-xs mx-auto mb-6" data-testid="paywall-meter">
+            <QuotaMeter
+              used={meterState.used}
+              limit={meterState.monthlyLimit}
+              label={t("paywall.meter.progressLabel")}
+              valueText={t("paywall.meter.progressValue", {
+                used: Math.min(meterState.used, meterState.monthlyLimit),
+                limit: meterState.monthlyLimit,
+              })}
+              size="md"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t("paywall.meter.resetsOn", { date: formatMeterResetDate(lang) })}
+            </p>
+          </div>
+        )}
 
         {/* Password-protected */}
         {rule.mode === "password" && (
