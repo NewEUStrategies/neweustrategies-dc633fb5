@@ -111,6 +111,10 @@ export default defineConfig({
         "@tiptap/extension-text-style",
         "@tiptap/extension-underline",
         "@tanstack/react-store",
+        // Avatar radixa też sięga po ten sam shim (lazy w panelu admina).
+        "@radix-ui/react-avatar",
+
+
 
         "@tanstack/react-router",
         "@tanstack/react-router-ssr-query",
