@@ -994,6 +994,7 @@ function AuthorBadge({
   slug,
   tone = "light",
   size = 22,
+  fontPx,
   labelPrefix = "",
 }: {
   name?: string;
@@ -1001,14 +1002,20 @@ function AuthorBadge({
   slug?: string;
   tone?: "light" | "dark";
   size?: number;
+  /** Rozmiar czcionki imienia i nazwiska (px). Wymuszany inline, bo link
+   *  autora dziedziczy globalny rozmiar bazowy (16px) w części wariantów. */
+  fontPx?: number;
   labelPrefix?: string;
 }) {
   if (!name && !avatar) return null;
   const safeAvatar = avatar ? safeImageUrl(avatar) : "";
   const initial = (name || "?").trim().charAt(0).toUpperCase();
   const textCls = tone === "dark" ? "text-white" : "text-foreground/80";
+  const fontStyle: CSSProperties = fontPx
+    ? { fontSize: `${fontPx}px`, lineHeight: 1.35 }
+    : { fontSize: "inherit" };
   const inner = (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5" style={fontStyle}>
       {safeAvatar ? (
         <img
           src={safeAvatar}
@@ -1023,13 +1030,18 @@ function AuthorBadge({
       ) : (
         <span
           aria-hidden
-          className="inline-flex items-center justify-center bg-muted text-foreground/70 text-[10px] font-semibold shrink-0"
-          style={{ width: size, height: size, borderRadius: 6 }}
+          className="inline-flex items-center justify-center bg-muted text-foreground/70 font-semibold shrink-0"
+          style={{ width: size, height: size, borderRadius: 6, fontSize: Math.round(size * 0.55) }}
         >
           {initial}
         </span>
       )}
-      {name && <span className={`font-medium ${textCls}`}>{labelPrefix}{name}</span>}
+      {name && (
+        <span className={`font-medium ${textCls}`} style={fontStyle}>
+          {labelPrefix}
+          {name}
+        </span>
+      )}
     </span>
   );
   if (slug) {
@@ -1037,6 +1049,7 @@ function AuthorBadge({
       <AppLink
         href={`/author/${slug}`}
         className="inline-flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+        style={fontStyle}
         onClick={(e) => e.stopPropagation()}
       >
         {inner}
@@ -1045,6 +1058,7 @@ function AuthorBadge({
   }
   return inner;
 }
+
 
 function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
   const rawTitle = (lang === "en" ? it.title_en : it.title_pl) || it.title_pl || it.title_en || "";
