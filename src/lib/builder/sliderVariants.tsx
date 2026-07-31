@@ -94,7 +94,7 @@ export interface SliderConfig {
   /** Optional i18n override for the label prefix in authorDisplay='label'. */
   authorLabel_pl?: string;
   authorLabel_en?: string;
-  /** Rozmiar czcionki metadanych autora (px). Domyślnie 11. */
+  /** Rozmiar czcionki metadanych autora (px). Domyślnie 10. */
   authorSizePx?: number;
 
   typography?: WidgetTypography;
@@ -874,10 +874,10 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           ? (config.authorLabel_en?.trim() || "By")
           : (config.authorLabel_pl?.trim() || "Autor")) + ": "
       : "";
-  // Metadane autora: mniejsza domyślna czcionka (11px), sterowalna z panelu.
+  // Metadane autora: domyślna czcionka 10 px, sterowalna z panelu.
   const authorFontPx = Math.max(
     8,
-    Math.min(24, typeof config.authorSizePx === "number" ? config.authorSizePx : 11),
+    Math.min(24, typeof config.authorSizePx === "number" ? config.authorSizePx : 10),
   );
   const authorStyle: CSSProperties = { fontSize: `${authorFontPx}px`, lineHeight: 1.35 };
   const authorAvatarPx = Math.round(authorFontPx * 1.7);
