@@ -6111,16 +6111,22 @@ html {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Delikatne pionowe kreski między kolumnami sekcji buildera.
-   Wysokość ~65% kolumny, wyśrodkowane, z miękkim wygaszeniem na końcach.
+   Wysokość ~65% kolumny, wyśrodkowane w pustej przestrzeni (gap).
+   Tylko treść strony - nie w headerze ani stopce.
    Tylko od tabletu w górę - na mobile kolumny są ułożone jedna pod drugą. */
 @media (min-width: 768px) {
   [data-columns-row] > [data-column-slot] {
     position: relative;
   }
+  [data-columns-row] > [data-column-slot] + [data-column-slot] {
+    /* Kreska rysuje się w gapie, więc slot musi pozwolić na malowanie
+       poza swoim boxem - clip + margin zachowuje ochronę przed overflowem. */
+    overflow: clip !important;
+    overflow-clip-margin: 24px;
+  }
   [data-columns-row] > [data-column-slot] + [data-column-slot]::before {
     content: "";
     position: absolute;
-    /* Wyśrodkowanie w pustej przestrzeni (gap) między kolumnami. */
     left: calc(-0.5 * var(--builder-col-gap, 24px));
     top: 50%;
     transform: translate(-50%, -50%);
@@ -6130,8 +6136,8 @@ html {
     background: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in oklab, var(--foreground) 14%, transparent) 18%,
-      color-mix(in oklab, var(--foreground) 14%, transparent) 82%,
+      color-mix(in oklab, var(--foreground) 26%, transparent) 18%,
+      color-mix(in oklab, var(--foreground) 26%, transparent) 82%,
       transparent
     );
   }
@@ -6139,9 +6145,15 @@ html {
     background: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in oklab, var(--foreground) 22%, transparent) 18%,
-      color-mix(in oklab, var(--foreground) 22%, transparent) 82%,
+      color-mix(in oklab, var(--foreground) 34%, transparent) 18%,
+      color-mix(in oklab, var(--foreground) 34%, transparent) 82%,
       transparent
     );
   }
+  /* Header/stopka bez kresek. */
+  header [data-columns-row] > [data-column-slot] + [data-column-slot]::before,
+  footer [data-columns-row] > [data-column-slot] + [data-column-slot]::before {
+    content: none;
+  }
 }
+
