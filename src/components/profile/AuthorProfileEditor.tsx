@@ -456,10 +456,9 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         <div className="mb-4 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           <BrandIcon name="info" fallback={Info} className="mt-0.5 h-3.5 w-3.5 shrink-0" alt="" />
           <span>
-            Layout, kolory hero, akcent i punktory BIO są dziedziczone z <b>ustawień tenanta</b>{" "}
-            (admin › Layouty ekspertów
-            {presetLabel ? <> - preset „{presetLabel}"</> : null}). Admin może nadpisać pojedyncze
-            pola z poziomu panelu.
+            {t("expert.layoutHint")}{" "}
+            {presetLabel ? <>{t("expert.layoutHintPreset", { label: presetLabel })} </> : null}
+            {t("expert.layoutHintInline")}
           </span>
         </div>
       )}

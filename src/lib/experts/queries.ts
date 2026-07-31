@@ -189,7 +189,7 @@ async function fetchExpertHubLegacy(slugOrId: string): Promise<ExpertHubData | n
     supabase
       .from("author_profiles_public")
       .select(
-        "job_title, company, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials, full_bio_pl, full_bio_en, org_functions, media_contact_name, is_public",
+        "job_title, company, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials, full_bio_pl, full_bio_en, org_functions, media_contact_name, is_public, layout_preset, layout_overrides",
       )
       .eq("user_id", expertId)
       .maybeSingle(),
