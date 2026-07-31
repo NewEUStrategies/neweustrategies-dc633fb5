@@ -2418,11 +2418,11 @@ CREATE INDEX IF NOT EXISTS podcast_shows_tenant_sort_idx
 -- 2) podcasts: przypięcie do programu + warstwy odcinka
 -- =========================================================
 ALTER TABLE public.podcasts
-  ADD COLUMN show_id uuid REFERENCES public.podcast_shows(id) ON DELETE SET NULL,
-  ADD COLUMN category_id uuid REFERENCES public.categories(id) ON DELETE SET NULL,
-  ADD COLUMN chapters jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(chapters) = 'array'),
-  ADD COLUMN quotes jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(quotes) = 'array'),
-  ADD COLUMN resources jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(resources) = 'array');
+  ADD COLUMN IF NOT EXISTS show_id uuid REFERENCES public.podcast_shows(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES public.categories(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS chapters jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(chapters) = 'array'),
+  ADD COLUMN IF NOT EXISTS quotes jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(quotes) = 'array'),
+  ADD COLUMN IF NOT EXISTS resources jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(resources) = 'array');
 
 COMMENT ON COLUMN public.podcasts.chapters IS
   'Rozdziały odcinka: [{"start": s, "title_pl": "...", "title_en": "..."}]';
