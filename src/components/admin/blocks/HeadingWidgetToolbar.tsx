@@ -1,6 +1,7 @@
-// Floating toolbar dla nagłówków (H2/H3/H4) w CMS Builderze wpisów.
+// Floating toolbar dla nagłówków (H1-H5) w CMS Builderze wpisów.
 // Zawsze widoczny nad blokiem - pozwala szybko zmienić poziom, wyrównanie,
-// dodać anchor/ID oraz ustawić kolor akcentu. PL/EN i18n przez useBlocksI18n().
+// formatowanie (pogrubienie / kursywa / tekst normalny), kolor tekstu oraz
+// dodać anchor/ID. PL/EN i18n przez useBlocksI18n().
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlignLeft,
@@ -11,12 +12,31 @@ import {
   Italic,
   Trash2,
   Anchor,
+  Palette,
+  RemoveFormatting,
 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { promptDialog } from "@/lib/appDialogs";
+import { safeCssColor } from "@/lib/blocks/inlineHtml";
 import type { Block, Json } from "@/lib/blocks/types";
+
+/** Paleta kolorów nagłówka - tokeny motywu + bezpieczne kolory druku. */
+const HEADING_COLORS: readonly { value: string; label: string }[] = [
+  { value: "var(--foreground)", label: "Domyślny" },
+  { value: "var(--primary)", label: "Primary" },
+  { value: "var(--muted-foreground)", label: "Muted" },
+  { value: "#c0392b", label: "Czerwony" },
+  { value: "#e67e22", label: "Pomarańczowy" },
+  { value: "#f1c40f", label: "Żółty" },
+  { value: "#27ae60", label: "Zielony" },
+  { value: "#2980b9", label: "Niebieski" },
+  { value: "#8e44ad", label: "Fioletowy" },
+  { value: "#111111", label: "Czarny" },
+  { value: "#ffffff", label: "Biały" },
+];
+
 
 interface Props {
   block: Block;
