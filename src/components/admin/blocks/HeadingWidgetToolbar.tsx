@@ -79,7 +79,7 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
       onClick={(e) => e.stopPropagation()}
     >
       {/* Poziom nagłówka */}
-      {[1, 2, 3, 4].map((lvl) => (
+      {[1, 2, 3, 4, 5].map((lvl) => (
         <TBtn
           key={lvl}
           title={`H${lvl}`}

@@ -90,6 +90,70 @@ function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void
   }
 }
 
+// --- przypisy „ręczne" (indeks górny + lista na końcu) ---------------------
+
+/** Numery użyte w treści jako indeks górny: `tekst<sup>1</sup>`. */
+function superscriptKeys(root: HTMLElement): Set<string> {
+  const keys = new Set<string>();
+  for (const sup of Array.from(root.querySelectorAll("sup"))) {
+    const raw = (sup.textContent ?? "").replace(/\u00A0/g, " ").trim();
+    const m = raw.match(/^[[(]?\s*(\d{1,3})\s*[\])]?$/);
+    if (m) keys.add(m[1]);
+  }
+  return keys;
+}
+
+/** Czy element to blok tekstowy, który może być definicją przypisu. */
+const FOOTNOTE_DEF_TAGS = /^(P|DIV|LI)$/;
+
+/**
+ * Autorzy często nie używają mechanizmu przypisów Worda, tylko piszą `tekst¹`
+ * i listę „1. źródło" na końcu dokumentu. Zbieramy takie definicje od końca
+ * treści (tylko numery realnie użyte w indeksie górnym) i usuwamy je z drzewa.
+ */
+function collectManualFootnotes(root: HTMLElement, notes: Map<string, string>): void {
+  const keys = superscriptKeys(root);
+  if (keys.size === 0) return;
+  const found = new Map<string, string>();
+  let node = root.lastElementChild;
+  while (node) {
+    const prev = node.previousElementSibling;
+    const text = (node.textContent ?? "").replace(/\u00A0/g, " ").trim();
+    if (!text) {
+      node = prev;
+      continue;
+    }
+    if (node.tagName === "HR") break;
+    if (!FOOTNOTE_DEF_TAGS.test(node.tagName)) break;
+    const m = text.match(/^[[(]?\s*(\d{1,3})\s*[\])]?[.):\s]\s*(.+)$/s);
+    if (!m) break;
+    const key = m[1];
+    if (!keys.has(key) || notes.has(key) || found.has(key)) break;
+    found.set(key, m[2].trim());
+    node.remove();
+    node = prev;
+  }
+  for (const [key, body] of found) notes.set(key, body);
+  const hrs = Array.from(root.querySelectorAll("hr"));
+  const last = hrs[hrs.length - 1];
+  if (found.size > 0 && last && !last.nextElementSibling) last.remove();
+}
+
+/** Zamienia `<sup>1</sup>` na `[fn]treść[/fn]`, gdy znamy definicję. */
+function inlineSuperscriptRefs(root: HTMLElement, notes: Map<string, string>): void {
+  if (notes.size === 0) return;
+  for (const sup of Array.from(root.querySelectorAll("sup"))) {
+    const raw = (sup.textContent ?? "").replace(/\u00A0/g, " ").trim();
+    const m = raw.match(/^[[(]?\s*(\d{1,3})\s*[\])]?$/);
+    if (!m) continue;
+    const body = notes.get(m[1]);
+    if (!body) continue;
+    sup.replaceWith(sup.ownerDocument.createTextNode(`[fn]${body}[/fn]`));
+  }
+}
+
+
+
 // --- inline ---------------------------------------------------------------
 
 const INLINE_TAGS: Record<string, string> = {
@@ -218,8 +282,32 @@ function stripBullet(html: string): string {
 const heading = (level: number, text: string): Block => ({
   id: newBlockId(),
   type: "heading",
-  data: { level: Math.min(4, Math.max(2, level)), text, anchor: "" },
+  data: { level: Math.min(5, Math.max(2, level)), text, anchor: "" },
 });
+
+/**
+ * Poziom nagłówka dla akapitu Worda/LibreOffice, który NIE jest tagiem `<hN>`:
+ * `class="MsoHeading3"` / `MsoTitle`, `mso-outline-level:3`,
+ * `mso-style-name:"heading 2"` albo styl LibreOffice `P.Heading_20_2`.
+ * Zwraca 1-6 albo `null`, gdy to zwykły akapit.
+ */
+function wordHeadingLevel(el: Element): number | null {
+  if (isWordListItem(el)) return null;
+  const cls = el.getAttribute("class") ?? "";
+  const style = (el.getAttribute("style") ?? "").toLowerCase();
+  if (/(^|\s|Mso)title(\s|$)?/i.test(cls) && !/subtitle/i.test(cls)) return 1;
+  const byClass = cls.match(/(?:Mso)?Heading[_\s-]*(?:20[_\s-]*)?(\d)/i);
+  if (byClass) return Math.min(6, Math.max(1, Number(byClass[1])));
+  const byOutline = style.match(/mso-outline-level\s*:\s*(\d)/);
+  if (byOutline) {
+    const level = Number(byOutline[1]);
+    if (level >= 1 && level <= 6) return level;
+  }
+  const byStyleName = style.match(/mso-style-name\s*:\s*"?heading\s*(\d)/);
+  if (byStyleName) return Math.min(6, Math.max(1, Number(byStyleName[1])));
+  return null;
+}
+
 
 const paragraph = (html: string): Block => ({
   id: newBlockId(),
@@ -511,6 +599,16 @@ function convertChildren(parent: Element, out: Block[]): void {
     }
 
     if (tag === "P") {
+      const styledLevel = wordHeadingLevel(child);
+      if (styledLevel !== null) {
+        flush();
+        const images = extractImages(child);
+        const text = plainText(child);
+        if (text) out.push(heading(styledLevel, text));
+        pushImages(out, images, "");
+        continue;
+      }
+
       if (isWordListItem(child)) {
         const ordered = isOrderedWordItem(child);
         const level = wordListLevel(child);
@@ -600,6 +698,9 @@ export function parseWordHtml(html: string): Block[] {
   if (!body) return [];
   const notes = collectFootnotes(body);
   inlineFootnoteRefs(body, notes);
+  collectManualFootnotes(body, notes);
+  inlineSuperscriptRefs(body, notes);
+
   const out: Block[] = [];
   convertChildren(body, out);
   // Same tekstowe dzieci body (bez żadnego elementu) - jeden akapit.
@@ -619,6 +720,9 @@ export function parseWordInlineHtml(html: string): string {
   if (!body) return "";
   const notes = collectFootnotes(body);
   inlineFootnoteRefs(body, notes);
+  collectManualFootnotes(body, notes);
+  inlineSuperscriptRefs(body, notes);
+
   const blocks = Array.from(body.children).filter((el) =>
     /^(P|DIV|H[1-6]|LI|BLOCKQUOTE)$/.test(el.tagName),
   );
