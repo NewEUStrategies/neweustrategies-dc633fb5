@@ -22,6 +22,10 @@ export type BuilderLang = "pl" | "en";
 export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   // ---------------------------------------------------------------- widgets
   "Nagłówek": "Heading",
+  "Wstęp": "Intro",
+  "Etykieta przycisku wysyłki": "Submit button label",
+  "Licznik kroków": "Step counter",
+  "Wymagana zgoda na kontakt": "Require contact consent",
   "Animowany nagłówek": "Animated heading",
   "Rotujący tekst": "Rotating text",
   "Odstępnik": "Spacer",
