@@ -239,7 +239,18 @@ const PageStatus = z.enum(["draft", "published", "scheduled", "archived"]);
 const BulkPostStatus = z.enum(["draft", "pending_review", "published", "archived"]);
 const Editor = z.enum(["blocks", "richtext", "markdown", "builder"]);
 const NullableStr = (max: number) => z.string().max(max).nullable().optional();
-const SlugInput = z.string().min(1).max(120).regex(SLUG_RE).optional();
+// Slug przychodzący z edytora bywa surowym tekstem (spacje, wielkie litery,
+// polskie znaki). Zamiast twardo odrzucać (kryptyczny błąd "invalid_string"),
+// normalizujemy go tym samym slugify, którego używa uniqueSlug, i dopiero
+// wynik musi spełnić SLUG_RE. Pusty wynik = czytelny komunikat.
+const SlugInput = z
+  .string()
+  .max(300)
+  .transform((v) => slugify(v))
+  .refine((v) => SLUG_RE.test(v), {
+    message: "Slug musi zawierać co najmniej jedną literę lub cyfrę",
+  })
+  .optional();
 
 const TitleBlock = {
   title_pl: z.string().max(300).default(""),
