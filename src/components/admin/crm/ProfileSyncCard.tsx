@@ -1,8 +1,9 @@
 // Karta „Powiązany profil" na stronie leada CRM — synchronizuje pola z profilu
-// użytkownika (avatar, stanowisko, doświadczenie, umiejętności, Big5, CV).
+// użytkownika (avatar, stanowisko, doświadczenie, umiejętności, CV).
 // Dane pobiera server-fn `getCrmLeadProfileSync` (admin bypass ze względu na
-// RLS owner-only na personality/experiences/skills), staff-check w middleware.
-import { useMemo } from "react";
+// RLS owner-only na experiences/skills), staff-check w middleware.
+// RODO: wynik testu osobowości (Big5) NIE jest synchronizowany do CRM - to dane
+// psychometryczne prywatne nawet dla adminów tenanta (patrz crm.functions.ts).
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
@@ -16,14 +17,6 @@ import {
 } from "lucide-react";
 import { getCrmLeadProfileSync } from "@/lib/crm.functions";
 
-type Big5 = {
-  openness: number;
-  conscientiousness: number;
-  extraversion: number;
-  agreeableness: number;
-  neuroticism: number;
-  taken_at: string;
-};
 type Experience = {
   id: string;
   role_title: string;
@@ -75,7 +68,6 @@ type Sync =
       profile: Profile;
       experiences: Experience[];
       skills: Skill[];
-      personality: Big5 | null;
       cv: Cv | null;
       awards: AwardRow[];
       education: Education[];
@@ -184,9 +176,6 @@ export function ProfileSyncCard({ leadId, lang }: { leadId: string; lang: "pl" |
         </a>
       )}
 
-      {/* Big5 */}
-      {data.personality && <Big5Panel personality={data.personality} lang={lang} />}
-
       {/* Experiences */}
       {data.experiences.length > 0 && (
         <Section
@@ -267,58 +256,6 @@ export function ProfileSyncCard({ leadId, lang }: { leadId: string; lang: "pl" |
         </Section>
       )}
     </div>
-  );
-}
-
-function Big5Panel({ personality, lang }: { personality: Big5; lang: "pl" | "en" }) {
-  const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const traits = useMemo(
-    () => [
-      { key: "openness", label: t("Otwartość", "Openness"), v: personality.openness },
-      {
-        key: "conscientiousness",
-        label: t("Sumienność", "Conscientiousness"),
-        v: personality.conscientiousness,
-      },
-      {
-        key: "extraversion",
-        label: t("Ekstrawersja", "Extraversion"),
-        v: personality.extraversion,
-      },
-      {
-        key: "agreeableness",
-        label: t("Ugodowość", "Agreeableness"),
-        v: personality.agreeableness,
-      },
-      { key: "neuroticism", label: t("Neurotyczność", "Neuroticism"), v: personality.neuroticism },
-    ],
-    [personality, lang],
-  );
-  return (
-    <Section
-      title={t("Big5 (osobowość)", "Big5 personality")}
-      icon={<Sparkles className="h-3.5 w-3.5" />}
-    >
-      <ul className="space-y-1">
-        {traits.map((tr) => (
-          <li key={tr.key} className="text-[11px]">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{tr.label}</span>
-              <span className="tabular-nums font-medium">{tr.v}</span>
-            </div>
-            <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary/70"
-                style={{ width: `${Math.max(0, Math.min(100, tr.v))}%` }}
-              />
-            </div>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-1 text-[10px] text-muted-foreground">
-        {t("Wypełniono:", "Taken:")} {new Date(personality.taken_at).toLocaleDateString()}
-      </div>
-    </Section>
   );
 }
 
