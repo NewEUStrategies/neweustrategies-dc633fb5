@@ -910,6 +910,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     showAuthor,
     showTitle,
     authorLabelPrefix,
+    authorStyle,
+    authorAvatarPx,
   };
 
   return (
