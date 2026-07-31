@@ -82,7 +82,8 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
 
   return (
     <div
-      className="absolute -top-[38px] left-0 z-30 flex items-center gap-0.5 rounded-md border border-border bg-popover px-1.5 py-1 shadow-md"
+      data-widget-toolbar="generic"
+      className="absolute bottom-full left-0 z-30 mb-1 flex max-w-[min(100%,calc(100vw-1.5rem))] flex-wrap items-center gap-0.5 overflow-visible rounded-md border border-border bg-popover px-1.5 py-1 shadow-md"
       onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => e.stopPropagation()}
     >
