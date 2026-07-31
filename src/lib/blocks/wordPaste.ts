@@ -36,12 +36,41 @@ function footnoteKey(raw: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Usuwa wiodący numer/marker („1.", „[1]", „i ") z treści przypisu. */
-function stripLeadingMarker(text: string): string {
-  return text
-    .replace(/^\s*[[(]?\s*\d+\s*[\])]?[.):\u00A0\s]*/, "")
+
+/** Ten sam zabieg na fragmencie HTML (marker bywa opakowany w `<sup>`/`<span>`). */
+function stripLeadingMarkerHtml(html: string): string {
+  return html
+    .replace(/^\s*<sup>\s*[[(]?\s*\d{1,3}\s*[\])]?\s*<\/sup>[.):\u00A0\s]*/i, "")
+    .replace(/^\s*[[(]?\s*\d{1,3}\s*[\])]?[.):\u00A0\s]+/, "")
     .replace(/^[*\u2020\u2021\u00A0\s]+/, "")
     .trim();
+}
+
+/** Treść przypisu nie może rozbić shortcode'u `[fn]…[/fn]`. */
+function sanitizeFootnoteBody(html: string): string {
+  return html.replace(/\[\s*\/?\s*fn\s*\]/gi, (m) => (m.includes("/") ? "(/fn)" : "(fn)"));
+}
+
+/** Link powrotny w definicji przypisu (Word/GDocs/LibreOffice) - do usunięcia. */
+const FTN_BACKREF_HREF = /^#(_?ftnref|ftnt_ref|sdfootnote\d+(anc|sym)|_?ednref)/i;
+
+/**
+ * Treść przypisu jako bezpieczny HTML inline - kursywa tytułów, linki i indeksy
+ * muszą przetrwać import, bo w manifestach bibliografia jest sformatowana.
+ */
+function footnoteBody(el: Element): string {
+  for (const a of Array.from(el.querySelectorAll("a[href]"))) {
+    if (FTN_BACKREF_HREF.test(a.getAttribute("href") ?? "")) a.remove();
+  }
+  el.querySelectorAll(".sdfootnotesym,.MsoFootnoteReference").forEach((n) => n.remove());
+  const parts = Array.from(el.children).filter((c) => FOOTNOTE_DEF_TAGS.test(c.tagName));
+  const raw = parts.length
+    ? parts
+        .map((c) => inlineHtml(c).trim())
+        .filter((s) => !isBlank(s))
+        .join(" ")
+    : inlineHtml(el).trim();
+  return sanitizeFootnoteBody(stripLeadingMarkerHtml(raw));
 }
 
 /**
@@ -60,8 +89,8 @@ function collectFootnotes(root: HTMLElement): Map<string, string> {
     if (!/^(_?ftn|ftnt|sdfootnote|_?edn)\d+$/i.test(id)) continue;
     const key = footnoteKey(id);
     if (!key) continue;
-    const text = stripLeadingMarker(el.textContent ?? "");
-    if (text) map.set(key, text);
+    const body = footnoteBody(el);
+    if (body && !isBlank(body)) map.set(key, body);
     el.remove();
   }
   // Word bywa poprzedza sekcję przypisów poziomą linią oraz pustym akapitem.
@@ -73,6 +102,20 @@ function collectFootnotes(root: HTMLElement): Map<string, string> {
   return map;
 }
 
+/**
+ * Nośnik przypisu w drzewie DOM. Treść trzymamy w atrybucie, bo jest już
+ * gotowym (bezpiecznym) HTML-em - gdyby trafiła do węzła tekstowego,
+ * serializacja inline zescape'owałaby kursywę i linki bibliografii.
+ */
+const FN_TAG = "X-FN";
+
+function footnoteNode(doc: Document, body: string): Element {
+  const el = doc.createElement("x-fn");
+  el.setAttribute("data-body", body);
+  el.textContent = `[fn]${body.replace(/<[^>]+>/g, "")}[/fn]`;
+  return el;
+}
+
 /** Zamienia odnośniki do przypisów na inline shortcode `[fn]…[/fn]`. */
 function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void {
   const anchors = Array.from(root.querySelectorAll<HTMLAnchorElement>("a[href]"));
@@ -81,7 +124,8 @@ function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void
     if (!FTN_REF_HREF.test(href)) continue;
     const key = footnoteKey(href);
     const body = key ? notes.get(key) : undefined;
-    const replacement = a.ownerDocument.createTextNode(body ? `[fn]${body}[/fn]` : "");
+    const doc = a.ownerDocument;
+    const replacement: Node = body ? footnoteNode(doc, body) : doc.createTextNode("");
     // Marker Worda bywa opakowany w <sup> - usuwamy cały wrapper, nie tylko <a>.
     const sup = a.closest("sup");
     const target: Element =
@@ -90,21 +134,103 @@ function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void
   }
 }
 
+
 // --- przypisy „ręczne" (indeks górny + lista na końcu) ---------------------
+
+const SUPERSCRIPT_DIGITS: Record<string, string> = {
+  "\u2070": "0",
+  "\u00B9": "1",
+  "\u00B2": "2",
+  "\u00B3": "3",
+  "\u2074": "4",
+  "\u2075": "5",
+  "\u2076": "6",
+  "\u2077": "7",
+  "\u2078": "8",
+  "\u2079": "9",
+};
+
+/**
+ * Tekst kopiowany z PDF/konwerterów niesie indeksy jako znaki `¹²³`, nie `<sup>`.
+ * Zamieniamy je na realne `<sup>`, żeby dalsza logika miała jeden format.
+ */
+function normalizeUnicodeSuperscripts(root: HTMLElement): void {
+  const doc = root.ownerDocument;
+  const pattern = /[\u2070\u00B9\u00B2\u00B3\u2074-\u2079]+/g;
+  const texts: Text[] = [];
+  const walk = (node: Node): void => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === 3) {
+        if (pattern.test(child.nodeValue ?? "")) texts.push(child as Text);
+        pattern.lastIndex = 0;
+        continue;
+      }
+      if (child.nodeType === 1 && (child as Element).tagName !== "SUP") walk(child);
+    }
+  };
+  walk(root);
+  for (const text of texts) {
+    const value = text.nodeValue ?? "";
+    const frag = doc.createDocumentFragment();
+    let last = 0;
+    for (const match of value.matchAll(pattern)) {
+      const at = match.index ?? 0;
+      if (at > last) frag.appendChild(doc.createTextNode(value.slice(last, at)));
+      const sup = doc.createElement("sup");
+      sup.textContent = Array.from(match[0])
+        .map((c) => SUPERSCRIPT_DIGITS[c] ?? "")
+        .join("");
+      frag.appendChild(sup);
+      last = at + match[0].length;
+    }
+    if (last < value.length) frag.appendChild(doc.createTextNode(value.slice(last)));
+    text.replaceWith(frag);
+  }
+}
+
+/** Numery ukryte w indeksie górnym: `<sup>1</sup>`, `<sup>1,2</sup>`, `<sup>[3]</sup>`. */
+function superscriptRefKeys(sup: Element): string[] {
+  const raw = (sup.textContent ?? "").replace(/\u00A0/g, " ").trim();
+  if (!/^[[(]?\s*\d{1,3}(\s*[,;]\s*\d{1,3})*\s*[\])]?$/.test(raw)) return [];
+  return Array.from(raw.matchAll(/\d{1,3}/g)).map((m) => m[0]);
+}
 
 /** Numery użyte w treści jako indeks górny: `tekst<sup>1</sup>`. */
 function superscriptKeys(root: HTMLElement): Set<string> {
   const keys = new Set<string>();
   for (const sup of Array.from(root.querySelectorAll("sup"))) {
-    const raw = (sup.textContent ?? "").replace(/\u00A0/g, " ").trim();
-    const m = raw.match(/^[[(]?\s*(\d{1,3})\s*[\])]?$/);
-    if (m) keys.add(m[1]);
+    for (const key of superscriptRefKeys(sup)) keys.add(key);
   }
   return keys;
 }
 
 /** Czy element to blok tekstowy, który może być definicją przypisu. */
 const FOOTNOTE_DEF_TAGS = /^(P|DIV|LI)$/;
+
+/** Definicje przypisów zapisane jako lista `<ol>` na końcu dokumentu. */
+function collectListFootnotes(
+  root: HTMLElement,
+  notes: Map<string, string>,
+  keys: Set<string>,
+): boolean {
+  let node = root.lastElementChild;
+  while (node && !(node.textContent ?? "").trim()) node = node.previousElementSibling;
+  if (!node || node.tagName !== "OL") return false;
+  const items = Array.from(node.children).filter((li) => li.tagName === "LI");
+  if (!items.length) return false;
+  const start = Math.max(1, Number(node.getAttribute("start") ?? "1") || 1);
+  const pending = new Map<string, string>();
+  items.forEach((li, i) => {
+    const key = String(start + i);
+    if (!keys.has(key) || notes.has(key)) return;
+    const body = footnoteBody(li);
+    if (body && !isBlank(body)) pending.set(key, body);
+  });
+  if (pending.size !== items.length) return false;
+  for (const [key, body] of pending) notes.set(key, body);
+  node.remove();
+  return true;
+}
 
 /**
  * Autorzy często nie używają mechanizmu przypisów Worda, tylko piszą `tekst¹`
@@ -114,6 +240,11 @@ const FOOTNOTE_DEF_TAGS = /^(P|DIV|LI)$/;
 function collectManualFootnotes(root: HTMLElement, notes: Map<string, string>): void {
   const keys = superscriptKeys(root);
   if (keys.size === 0) return;
+  if (collectListFootnotes(root, notes, keys)) {
+    const listHr = Array.from(root.querySelectorAll("hr")).pop();
+    if (listHr && !listHr.nextElementSibling) listHr.remove();
+    return;
+  }
   const found = new Map<string, string>();
   let node = root.lastElementChild;
   while (node) {
@@ -129,7 +260,9 @@ function collectManualFootnotes(root: HTMLElement, notes: Map<string, string>): 
     if (!m) break;
     const key = m[1];
     if (!keys.has(key) || notes.has(key) || found.has(key)) break;
-    found.set(key, m[2].trim());
+    const body = footnoteBody(node);
+    if (!body || isBlank(body)) break;
+    found.set(key, body);
     node.remove();
     node = prev;
   }
@@ -143,14 +276,18 @@ function collectManualFootnotes(root: HTMLElement, notes: Map<string, string>): 
 function inlineSuperscriptRefs(root: HTMLElement, notes: Map<string, string>): void {
   if (notes.size === 0) return;
   for (const sup of Array.from(root.querySelectorAll("sup"))) {
-    const raw = (sup.textContent ?? "").replace(/\u00A0/g, " ").trim();
-    const m = raw.match(/^[[(]?\s*(\d{1,3})\s*[\])]?$/);
-    if (!m) continue;
-    const body = notes.get(m[1]);
-    if (!body) continue;
-    sup.replaceWith(sup.ownerDocument.createTextNode(`[fn]${body}[/fn]`));
+    const refs = superscriptRefKeys(sup);
+    if (!refs.length) continue;
+    const bodies = refs.map((key) => notes.get(key)).filter((b): b is string => Boolean(b));
+    if (bodies.length !== refs.length) continue;
+    const doc = sup.ownerDocument;
+    const frag = doc.createDocumentFragment();
+    for (const body of bodies) frag.appendChild(footnoteNode(doc, body));
+    sup.replaceWith(frag);
   }
 }
+
+
 
 
 
@@ -187,7 +324,26 @@ function styleImpliedTag(el: Element): string | null {
   if (/font-style\s*:\s*italic/.test(style)) return "em";
   if (/text-decoration[^;]*underline/.test(style)) return "u";
   if (/text-decoration[^;]*line-through/.test(style)) return "s";
+  if (/vertical-align\s*:\s*super/.test(style)) return "sup";
+  if (/vertical-align\s*:\s*sub/.test(style)) return "sub";
   return null;
+}
+
+/**
+ * Google Docs owija CAŁĄ treść w `<b style="font-weight:normal">`, a Word
+ * potrafi zerować dekoracje stylem. Bez tej korekty import pogrubia dokument.
+ */
+function styleSuppressesTag(el: Element, tag: string): boolean {
+  const style = (el.getAttribute("style") ?? "").toLowerCase();
+  if (tag === "strong") return /font-weight\s*:\s*(normal|[1-5]00)\b/.test(style);
+  if (tag === "em") return /font-style\s*:\s*normal/.test(style);
+  if (tag === "u" || tag === "s") return /text-decoration\s*:\s*none/.test(style);
+  return false;
+}
+
+/** Word wstawia punktor w osobnym `<span style="mso-list:Ignore">`. */
+function isListMarkerSpan(el: Element): boolean {
+  return /mso-list\s*:\s*ignore/i.test(el.getAttribute("style") ?? "");
 }
 
 /** Serializuje węzły inline do bezpiecznego HTML (bez stylów Worda). */
@@ -195,14 +351,22 @@ function inlineHtml(node: Node): string {
   let out = "";
   for (const child of Array.from(node.childNodes)) {
     if (child.nodeType === 3) {
-      out += escapeHtml((child.nodeValue ?? "").replace(/\u00A0/g, " "));
+      out += escapeHtml((child.nodeValue ?? "").replace(/\u00A0/g, " ").replace(/\s+/g, " "));
       continue;
     }
     if (child.nodeType !== 1) continue;
     const el = child as Element;
-    const tag = INLINE_TAGS[el.tagName] ?? styleImpliedTag(el);
+    if (isListMarkerSpan(el)) continue;
+    if (el.tagName === FN_TAG) {
+      out += `[fn]${el.getAttribute("data-body") ?? ""}[/fn]`;
+      continue;
+    }
+
+    const implied = INLINE_TAGS[el.tagName] ?? styleImpliedTag(el);
+    const tag = implied && styleSuppressesTag(el, implied) ? null : implied;
     if (tag === "br") {
       out += "<br>";
+
       continue;
     }
     const inner = inlineHtml(el);
@@ -239,10 +403,17 @@ function isWordListItem(el: Element): boolean {
   return /MsoListParagraph|MsoList/i.test(cls) || style.includes("mso-list:");
 }
 
-function isOrderedWordItem(el: Element): boolean {
-  const text = (el.textContent ?? "").trimStart();
-  return /^(\d+|[a-z]|[ivx]+)\s*[.)]/i.test(text);
+/** Punktor Worda: `<span style="mso-list:Ignore">1.</span>` albo początek tekstu. */
+function wordListMarker(el: Element): string {
+  const span = Array.from(el.querySelectorAll("span")).find(isListMarkerSpan);
+  const raw = span ? (span.textContent ?? "") : (el.textContent ?? "");
+  return raw.replace(/\u00A0/g, " ").trimStart();
 }
+
+function isOrderedWordItem(el: Element): boolean {
+  return /^(\d+|[a-z]|[ivx]+)\s*[.)]/i.test(wordListMarker(el));
+}
+
 
 /**
  * Poziom zagnieżdżenia punktu Worda. Priorytet: jawne `mso-list:… levelN`,
@@ -264,10 +435,11 @@ function wordListLevel(el: Element): number {
 
 /** Numer startowy listy uporządkowanej odczytany z pierwszego punktu Worda. */
 function wordListStart(el: Element): number {
-  const m = (el.textContent ?? "").trimStart().match(/^(\d+)\s*[.)]/);
+  const m = wordListMarker(el).match(/^(\d+)\s*[.)]/);
   const n = m ? Number(m[1]) : 1;
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
+
 
 /** Usuwa wiodący punktor („·", „1.", „a)") wygenerowany przez Worda. */
 function stripBullet(html: string): string {
@@ -315,7 +487,29 @@ const paragraph = (html: string): Block => ({
   data: { html },
 });
 
+/** Styl cytatu w Wordzie/LibreOffice: `MsoQuote`, `MsoIntenseQuote`, `Quotations`. */
+function isWordQuote(el: Element): boolean {
+  const cls = el.getAttribute("class") ?? "";
+  const style = (el.getAttribute("style") ?? "").toLowerCase();
+  return (
+    /Mso(Intense)?Quote|Quotations|BlockText/i.test(cls) ||
+    /mso-style-name\s*:\s*"?(intense\s+)?quote/.test(style)
+  );
+}
+
+/** Cytat z opcjonalnym źródłem (`<cite>`, `<footer>`, wiersz „- Autor"). */
+function quoteBlock(el: Element): Block | null {
+  const clone = el.cloneNode(true) as Element;
+  const citeEl = clone.querySelector("cite,footer");
+  const cite = citeEl ? plainText(citeEl) : "";
+  citeEl?.remove();
+  const text = plainText(clone);
+  if (!text) return null;
+  return { id: newBlockId(), type: "quote", data: { text, cite } };
+}
+
 // --- media ze schowka -----------------------------------------------------
+
 
 /** Osadzalne źródła obrazu: zdalne URL-e i base64. `file:///` z Worda odpada. */
 const EMBEDDABLE_IMG = /^(https?:\/\/|\/\/|data:image\/)/i;
@@ -580,10 +774,11 @@ function convertChildren(parent: Element, out: Block[]): void {
 
     if (tag === "BLOCKQUOTE") {
       flush();
-      const text = plainText(child);
-      if (text) out.push({ id: newBlockId(), type: "quote", data: { text, cite: "" } });
+      const q = quoteBlock(child);
+      if (q) out.push(q);
       continue;
     }
+
 
     if (tag === "PRE") {
       flush();
@@ -608,6 +803,15 @@ function convertChildren(parent: Element, out: Block[]): void {
         pushImages(out, images, "");
         continue;
       }
+
+      if (isWordQuote(child) && !isWordListItem(child)) {
+        flush();
+        const q = quoteBlock(child);
+        if (q) out.push(q);
+        continue;
+      }
+
+
 
       if (isWordListItem(child)) {
         const ordered = isOrderedWordItem(child);
@@ -677,17 +881,45 @@ function convertChildren(parent: Element, out: Block[]): void {
   flush();
 }
 
+/** Puste akapity-separatory Worda (`&nbsp;`) i kontenery techniczne. */
+const WORD_NOISE_SELECTOR = [
+  "script",
+  "style",
+  "meta",
+  "link",
+  "div[style*='mso-element:footnote-separator']",
+  "div[style*='mso-element:footnote-continuation-separator']",
+  "div[style*='mso-element:endnote-separator']",
+  "div[style*='mso-element:comment-list']",
+  "span.MsoCommentReference",
+  "a[style*='mso-comment-reference']",
+].join(",");
+
+/** Usuwa komentarze HTML, w tym warunkowe bloki `<!--[if !supportLists]-->`. */
+function removeComments(root: Node): void {
+  for (const child of Array.from(root.childNodes)) {
+    if (child.nodeType === 8) {
+      child.parentNode?.removeChild(child);
+      continue;
+    }
+    if (child.nodeType === 1) removeComments(child);
+  }
+}
+
 function parseBody(html: string): HTMLElement | null {
   if (typeof DOMParser === "undefined") return null;
   const doc = new DOMParser().parseFromString(html, "text/html");
   const body = doc.body;
   if (!body) return null;
-  body.querySelectorAll("script,style,meta,link").forEach((n) => n.remove());
+  body.querySelectorAll(WORD_NOISE_SELECTOR).forEach((n) => n.remove());
+  removeComments(body);
   Array.from(body.getElementsByTagName("*"))
     .filter((el) => el.tagName.toLowerCase().startsWith("o:"))
     .forEach((el) => el.remove());
+  normalizeUnicodeSuperscripts(body);
   return body;
 }
+
 
 /**
  * Zamienia HTML ze schowka na listę bloków edytora.
