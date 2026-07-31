@@ -386,6 +386,7 @@ export type WidgetType =
   | "cta"
   | "join-us"
   | "customize-interests"
+  | "onboarding-form"
   // Navigation
   | "nav-link"
   | "mega-menu"

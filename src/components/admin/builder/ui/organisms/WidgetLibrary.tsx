@@ -133,6 +133,7 @@ export function WidgetLibrary({
     "event-countdown": "events",
     "event-countdown-card": "events",
     "meeting-booking": "events",
+    "onboarding-form": "utility",
     "event-sponsors": "events",
     // media
     video: "visual",

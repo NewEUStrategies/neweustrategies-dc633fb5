@@ -157,7 +157,7 @@ body {
    the nearest `.light`/`.dark` ancestor wins. */
 :root,
 .light {
-  --radius: 0.5rem;
+  --radius: 6px;
 
   /* ---- Global form-field sizing tokens ----
      Nadpisz per-widget ustawiając te zmienne na shellu widgetu
