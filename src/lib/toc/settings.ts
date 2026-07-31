@@ -8,6 +8,8 @@ import { toJson } from "@/lib/builder/types";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import type { Block, BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { resolveBlockAnchors } from "@/lib/blocks/anchors";
+import { inlineHtmlToText, looksLikeInlineHtml } from "@/lib/blocks/inlineHtml";
+
 import { slugifyAnchor } from "@/lib/content/anchorSlug";
 
 export const TOC_LAYOUTS = ["boxed", "inline", "sticky-sidebar"] as const;
