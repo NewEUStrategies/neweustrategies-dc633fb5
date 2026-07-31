@@ -218,24 +218,38 @@ SELECT is(
 );
 
 -- -- 6. Bramka roli na RPC zdrowia -------------------------------------------
-ALTER TABLE auth.users DISABLE TRIGGER USER;
-
-INSERT INTO public.tenants (id, slug, name) VALUES
-  ('b7111111-1111-1111-1111-111111111111', 'tenant-sched', 'Tenant Scheduler');
-
+-- Fixture NIE wyłącza triggera on_auth_user_created (dawne
+-- `ALTER TABLE auth.users DISABLE TRIGGER USER`). To polecenie wymaga WŁASNOŚCI
+-- auth.users, a ta tabela należy do supabase_auth_admin - `supabase test db`
+-- biegnie jako postgres, który właścicielem nie jest, więc cały plik padał na
+-- 42501 „must be owner of table users". Zamiast prosić o prawa, których nie
+-- mamy, ŻYJEMY z triggerem: handle_new_user sam zakłada profil i rolę.
+--
+-- Dlatego NIE tworzymy własnego tenanta. Trigger wsadza profil do tenanta
+-- DOMYŚLNEGO, a profiles.tenant_id jest pilnowany jako niezmienny (osobny
+-- trigger, „profiles.tenant_id is immutable"), więc przestawienie profilu na
+-- własnego tenanta jest niewykonalne. Tenant jest tu i tak nieistotny - liczy
+-- się tylko to, że bramka roli czyta current_tenant_id(), czyli tenant_id z
+-- profilu wołającego. Rolę dosypujemy więc DOKŁADNIE do tego tenanta, czytając
+-- go z założonego profilu.
 INSERT INTO auth.users (id, email) VALUES
   ('b7000000-0000-0000-0000-0000000000aa', 'staff-sched@sched.test'),
   ('b7000000-0000-0000-0000-0000000000bb', 'member-sched@sched.test');
 
-INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
-  ('b7000000-0000-0000-0000-0000000000aa', 'staff-sched@sched.test', 'Staff Sched',
-   'b7111111-1111-1111-1111-111111111111'),
-  ('b7000000-0000-0000-0000-0000000000bb', 'member-sched@sched.test', 'Member Sched',
-   'b7111111-1111-1111-1111-111111111111');
+-- Unikat to (tenant_id, user_id, role), więc 'admin' współistnieje z rolą, którą
+-- trigger nadał sam - nie ma kolizji, jest za to jawny sztab.
+INSERT INTO public.user_roles (user_id, role, tenant_id)
+SELECT p.id, 'admin', p.tenant_id
+  FROM public.profiles p
+ WHERE p.id = 'b7000000-0000-0000-0000-0000000000aa'
+ON CONFLICT DO NOTHING;
 
-INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
-  ('b7000000-0000-0000-0000-0000000000aa', 'admin',
-   'b7111111-1111-1111-1111-111111111111');
+-- „Członek" musi być bez sztabu NIEZALEŻNIE od tego, co nadał trigger (pierwszy
+-- profil w tenancie domyślnym dostaje 'admin'), inaczej asercja o 'forbidden'
+-- przechodziłaby albo padała zależnie od kolejności zasiewu.
+DELETE FROM public.user_roles
+ WHERE user_id = 'b7000000-0000-0000-0000-0000000000bb'
+   AND role IN ('admin', 'editor', 'author');
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
