@@ -1,5 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { useRef } from "react";
+import { InlineHtmlEditable } from "../atoms/InlineHtmlEditable";
+
 
 interface Props {
   block: Block;
@@ -19,7 +21,8 @@ export function ListBlockEdit({ block, onChange }: Props) {
   const ordered = Boolean(block.data.ordered);
   const levels = readLevels(block, items.length);
   const nested = levels.some((l) => l > 1);
-  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const refs = useRef<(HTMLDivElement | null)[]>([]);
+
 
   const commit = (nextItems: string[], nextLevels: number[]) => {
     const data: Record<string, typeof block.data.items> = { ...block.data, items: nextItems };
@@ -41,7 +44,7 @@ export function ListBlockEdit({ block, onChange }: Props) {
     commit(items, next);
   };
 
-  const onKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = (idx: number, e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Tab") {
       e.preventDefault();
       setLevel(idx, e.shiftKey ? -1 : 1);
@@ -91,17 +94,18 @@ export function ListBlockEdit({ block, onChange }: Props) {
             ) : (
               <span className="w-6 text-center text-foreground">{level > 1 ? "◦" : "•"}</span>
             )}
-            <input
-              ref={(el) => {
+            <InlineHtmlEditable
+              editableRef={(el) => {
                 refs.current[i] = el;
               }}
-              type="text"
               value={it}
               placeholder="Pozycja listy…"
-              onChange={(e) => update(i, e.target.value)}
+              data-field="list-item"
+              onChange={(html) => update(i, html)}
               onKeyDown={(e) => onKeyDown(i, e)}
-              className="flex-1 bg-transparent border-0 outline-none focus:ring-0 p-0 m-0 text-foreground text-base leading-relaxed"
+              className="flex-1 bg-transparent border-0 p-0 m-0 text-foreground text-base leading-relaxed"
             />
+
           </li>
         );
       })}

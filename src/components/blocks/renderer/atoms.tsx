@@ -105,12 +105,14 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
 
   const renderItem = (entry: (typeof kept)[number]) => {
     const withFn = fnHtml.get(`${block.id}:item:${entry.i}`);
-    return withFn !== undefined ? (
-      <span dangerouslySetInnerHTML={{ __html: withFn }} />
-    ) : (
-      <>{entry.it}</>
-    );
+    if (withFn !== undefined) return <span dangerouslySetInnerHTML={{ __html: withFn }} />;
+    // Pozycje mogą nieść formatowanie inline (<strong>, <em>) z edytora/Worda -
+    // renderujemy je jako HTML, żeby znaczniki nie były widoczne jako tekst.
+    if (looksLikeInlineHtml(entry.it))
+      return <span dangerouslySetInnerHTML={{ __html: sanitize(entry.it) }} />;
+    return <>{entry.it}</>;
   };
+
 
   /** Renderuje jeden poziom listy, rekurencyjnie schodząc do zagnieżdżeń. */
   const renderLevel = (
