@@ -90,6 +90,32 @@ export default defineConfig({
         "react-dom/client",
         "use-sync-external-store",
         "use-sync-external-store/shim",
+        "use-sync-external-store/shim/with-selector",
+        // Edytor wpisu (TipTap) ładuje się leniwie, a `noDiscovery: true`
+        // wyłącza automatyczne wykrywanie - bez tych wpisów Vite serwował
+        // surowy CJS `use-sync-external-store/shim` importowany przez
+        // @tiptap/react i przeglądarka wywalała się na braku nazwanego
+        // eksportu `useSyncExternalStore` (biały błąd przy otwarciu wpisu).
+        "@tiptap/react",
+        "@tiptap/core",
+        "@tiptap/pm/state",
+        "@tiptap/pm/view",
+        "@tiptap/starter-kit",
+        "@tiptap/extension-color",
+        "@tiptap/extension-highlight",
+        "@tiptap/extension-image",
+        "@tiptap/extension-link",
+        "@tiptap/extension-subscript",
+        "@tiptap/extension-superscript",
+        "@tiptap/extension-text-align",
+        "@tiptap/extension-text-style",
+        "@tiptap/extension-underline",
+        "@tanstack/react-store",
+        // Avatar radixa też sięga po ten sam shim (lazy w panelu admina).
+        "@radix-ui/react-avatar",
+
+
+
         "@tanstack/react-router",
         "@tanstack/react-router-ssr-query",
         "@tanstack/react-query",
