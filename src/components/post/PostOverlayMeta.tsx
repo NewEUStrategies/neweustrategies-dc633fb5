@@ -39,6 +39,11 @@ interface Props {
   customMeta?: ReactNode;
   /** Akcje renderowane pod autorem i datą - tylko mobile (np. "Udostępnij pełny artykuł"). */
   mobileActions?: ReactNode;
+  /**
+   * Ukryj czas czytania na mobile - pasek Quick View pod okładką pokazuje tę
+   * samą wartość, więc w nakładce byłaby zdublowana na wąskim ekranie.
+   */
+  hideReadTimeOnMobile?: boolean;
 }
 
 function fmtDate(iso: string, lang: Lang): string {
@@ -64,6 +69,7 @@ export function PostOverlayMeta({
   readMinutes,
   customMeta,
   mobileActions,
+  hideReadTimeOnMobile = false,
 }: Props) {
   const t = L[lang];
   const name = author ? authorName(author, lang) : null;
@@ -131,9 +137,15 @@ export function PostOverlayMeta({
           </span>
         )}
         {readMinutes && readMinutes > 0 ? (
-          <span className="inline-flex items-center gap-1.5">
+          <span
+            className={`items-center gap-1.5 ${hideReadTimeOnMobile ? "hidden sm:inline-flex" : "inline-flex"}`}
+          >
             <Clock className={iconCls} aria-hidden />
             <span>{t.read(readMinutes)}</span>
+          </span>
+        ) : hideReadTimeOnMobile ? (
+          <span className="hidden sm:inline-flex">
+            <ReadingTimeView lang={lang} cls="!text-inherit" />
           </span>
         ) : (
           <ReadingTimeView lang={lang} cls="!text-inherit" />

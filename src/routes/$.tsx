@@ -280,8 +280,9 @@ export const Route = createFileRoute("/$")({
     );
     const emptySettings: Record<string, unknown> = Object.freeze({});
     const settingsMap =
-      context.queryClient.getQueryData<Record<string, unknown>>(siteSettingsQueryOptions.queryKey) ??
-      emptySettings;
+      context.queryClient.getQueryData<Record<string, unknown>>(
+        siteSettingsQueryOptions.queryKey,
+      ) ?? emptySettings;
     if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
       context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, settingsMap);
     }
@@ -911,6 +912,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 author={postAuthor}
                 publishedAt={it.published_at}
                 readMinutes={readMinutes}
+                hideReadTimeOnMobile={merged.quick_view_info}
                 customMeta={
                   <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
                 }
@@ -931,7 +933,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     updatedAt={it.updated_at}
                     primaryCategory={postCategories[0]}
                     trailing={
-                      giftButton ? <span className="hidden sm:inline-flex">{giftButton}</span> : null
+                      giftButton ? (
+                        <span className="hidden sm:inline-flex">{giftButton}</span>
+                      ) : null
                     }
                   />
                 ) : null}

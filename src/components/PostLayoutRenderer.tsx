@@ -114,7 +114,6 @@ export function PostLayoutRenderer({
     </div>
   );
 
-
   // Wrapper dla cover + overlay. Full-bleed używa filmowego kadru 16/8
   // (jak w podglądzie edytora) - nie 70vh, żeby cover nie zajmował całego
   // ekranu i tytuł/subtytuł/meta trafiały w wyraźny dolny pas nakładki.
@@ -175,7 +174,6 @@ export function PostLayoutRenderer({
             {/* Mobile: dodatkowy dolny scrim - overlay ma malo miejsca, wiec
                 tytul/meta musza miec pewny kontrast niezaleznie od zdjecia. */}
             <div className="absolute inset-0 sm:hidden bg-gradient-to-t from-black/90 via-black/55 to-black/25" />
-
 
             {overlayMetaCard}
           </div>
@@ -248,10 +246,7 @@ function LayoutBody({
   }
   return (
     <div className="min-w-0 max-w-full">
-      <div
-        style={{ maxWidth: `${contentMaxW}px` }}
-        className="min-w-0 w-full max-w-full mx-auto"
-      >
+      <div style={{ maxWidth: `${contentMaxW}px` }} className="min-w-0 w-full max-w-full mx-auto">
         {content}
       </div>
       {footer}
