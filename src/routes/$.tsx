@@ -926,30 +926,30 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             }
             content={
               <>
+                {/* Desktop: pasek quick-view (czas czytania + aktualizacja).
+                    Na mobile jego miejsce zajmuje widget odsluch/pobranie. */}
                 {merged.quick_view_info ? (
-                  <QuickViewInfoBar
-                    lang={lang}
-                    readMinutes={readMinutes}
-                    publishedAt={it.published_at}
-                    updatedAt={it.updated_at}
-                    primaryCategory={postCategories[0]}
-                    trailing={
-                      giftButton ? (
-                        <span className="hidden sm:inline-flex">{giftButton}</span>
-                      ) : null
-                    }
-                  />
+                  <div className="hidden sm:block">
+                    <QuickViewInfoBar
+                      lang={lang}
+                      readMinutes={readMinutes}
+                      publishedAt={it.published_at}
+                      updatedAt={it.updated_at}
+                      primaryCategory={postCategories[0]}
+                      trailing={giftButton ?? null}
+                    />
+                  </div>
                 ) : null}
-                {/* Mobile: akcja "Udostepnij pelny artykul" pod paskiem czasu
-                    czytania i daty aktualizacji, zamiast nakladki na okladce. */}
+                {/* Mobile: akcja "Udostepnij pelny artykul" nad widgetem akcji. */}
                 {giftButton && (
                   <div className="no-print mb-3 flex sm:hidden">
                     <span className="[&_button]:w-full w-full">{giftButton}</span>
                   </div>
                 )}
-                {/* Mobile: odsluch (TTS) + pobranie artykulu tuz pod paskiem
+                {/* Mobile: odsluch (TTS) + pobranie artykulu w miejscu paska
                     czasu czytania / aktualizacji. */}
                 <MobileArticleActions lang={lang} />
+
                 {!merged.quick_view_info && giftButton && (
                   <div className="no-print mb-4 hidden justify-end sm:flex">{giftButton}</div>
                 )}
