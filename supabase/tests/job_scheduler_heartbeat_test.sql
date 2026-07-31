@@ -175,6 +175,16 @@ SELECT row_eq(
 -- Po pojednaniu dwoch rownoleglych telemetrii JEDNA funkcja stempluje oba
 -- swiaty: last_invoked_at (moja) i last_tick_* (pocztowa). Bez tego ostatnia
 -- migracja dnia cicho kasowalaby samozbrojenie albo diagnoze puknięcia.
+--
+-- Nieobecnosc pg_net WYMUSZAMY, zamiast liczyc na srodowisko: na Supabase
+-- (supabase db start, CI) pg_net JEST zainstalowany, wiec asercja "pominiete z
+-- powodu pg_net_unavailable" przechodzilaby tylko na golym Postgresie. DDL w
+-- Postgresie jest transakcyjne, a ten plik konczy sie ROLLBACK-iem, wiec
+-- rozszerzenie wraca na miejsce po tescie. CASCADE jest bezpieczne: puknięcie
+-- wola net.http_post dynamicznie z ciala plpgsql, wiec nie ma twardej
+-- zaleznosci, ktora CASCADE mialoby co usunac.
+DROP EXTENSION IF EXISTS pg_net CASCADE;
+
 SELECT lives_ok(
   $$ SELECT public.invoke_jobs_tick() $$,
   'invoke_jobs_tick nie wywala sie bez pg_net (cron przezywa)'

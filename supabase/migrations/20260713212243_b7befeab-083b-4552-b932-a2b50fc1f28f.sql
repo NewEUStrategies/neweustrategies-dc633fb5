@@ -59,12 +59,34 @@ CREATE TRIGGER expert_layout_settings_set_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- Per-expert overrides on author_profiles
+--
+-- Naprawa łańcucha migracji: trzy z tych kolumn (layout_template_id,
+-- counterpart_user_id, counterpart_lang) istniały dotąd WYŁĄCZNIE na bazie
+-- produkcyjnej - żadna migracja ich nie tworzyła, więc na świeżej bazie
+-- (supabase db start / CI) wykładało się dziesięć późniejszych migracji:
+-- kolumnowe GRANT-y oraz ciała widoków author_profiles_public. Dokładamy je
+-- tutaj, obok rodzeństwa layout_*, bo to pierwsza migracja dotykająca tego
+-- bloku i wypada przed pierwszym odwołaniem (20260715095639).
+--
+-- Typy i cele kluczy obcych są wzięte z wygenerowanego src/integrations/
+-- supabase/types.ts (zrzut produkcji): author_profiles_layout_template_id_fkey
+-- -> builder_templates(id), author_profiles_counterpart_user_id_fkey ->
+-- profiles(id). Oba cele powstają znacznie wcześniej w łańcuchu. types.ts nie
+-- zapisuje akcji ON DELETE, więc świadomie wybieramy nieniszczące SET NULL -
+-- to opcjonalne wskaźniki, usunięcie szablonu nie może kasować profili.
+-- IF NOT EXISTS sprawia, że na produkcji (gdzie kolumny i FK już są) całość
+-- jest pustym przebiegiem.
 ALTER TABLE public.author_profiles
   ADD COLUMN IF NOT EXISTS layout_preset text,
   ADD COLUMN IF NOT EXISTS layout_overrides jsonb NOT NULL DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS layout_section_order text[],
   ADD COLUMN IF NOT EXISTS brand_accent text,
-  ADD COLUMN IF NOT EXISTS brand_accent_dark text;
+  ADD COLUMN IF NOT EXISTS brand_accent_dark text,
+  ADD COLUMN IF NOT EXISTS layout_template_id uuid
+    REFERENCES public.builder_templates(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS counterpart_user_id uuid
+    REFERENCES public.profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS counterpart_lang text;
 
 ALTER TABLE public.author_profiles
   DROP CONSTRAINT IF EXISTS author_profiles_layout_preset_check;

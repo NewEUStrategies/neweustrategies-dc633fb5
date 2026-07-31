@@ -146,9 +146,13 @@ GRANT EXECUTE ON FUNCTION public.resolve_job_runner_base_url() TO service_role;
 --
 -- Zbroimy tylko wiersz DZIEWICZY (brak stempla + wyłączony + pusty URL) i
 -- tylko adresem https bez hosta lokalnego; sekret dosypujemy, gdy go brak.
+-- search_path zawiera `extensions`, bo dosypanie sekretu woła gen_random_bytes()
+-- z pgcrypto, a na Supabase pgcrypto siedzi w schemacie `extensions`. Przy
+-- `SET search_path = public` funkcja kompiluje się bez szemrania i wywala się
+-- dopiero przy wywołaniu (42883) - czyli w chwili samozbrojenia runnera.
 CREATE OR REPLACE FUNCTION public.arm_job_runner(p_base_url text)
 RETURNS jsonb
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, extensions
 AS $fn$
 DECLARE
   v_url text := rtrim(btrim(COALESCE(p_base_url, '')), '/');

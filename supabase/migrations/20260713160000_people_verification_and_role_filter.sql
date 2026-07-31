@@ -96,6 +96,12 @@ GRANT EXECUTE ON FUNCTION public.admin_set_profile_verification(uuid, boolean)
 -- 3) search_people: + verified w wyniku, + filtry p_job_title / p_verified_only
 -- ----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.search_people(text, text, text, text, integer, integer);
+-- Naprawa łańcucha migracji: zdejmij też sygnaturę tworzoną niżej (+ p_job_title,
+-- + p_verified_only), bo zwykły CREATE FUNCTION nie znosi kolizji i na świeżej
+-- bazie kończy się 42723 "already exists with same argument types".
+DROP FUNCTION IF EXISTS public.search_people(
+  text, text, text, text, integer, integer, text, boolean
+);
 
 CREATE FUNCTION public.search_people(
   p_query text DEFAULT '',

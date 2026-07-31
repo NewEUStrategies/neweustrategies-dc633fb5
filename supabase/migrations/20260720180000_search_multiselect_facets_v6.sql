@@ -34,6 +34,15 @@ DROP FUNCTION IF EXISTS public.search_posts(
 DROP FUNCTION IF EXISTS public.search_facets(
   text, uuid, timestamptz, timestamptz, uuid, uuid[], text, text, text, text, text
 );
+-- Naprawa łańcucha migracji: zdejmij też sygnaturę v6 (z `_term_groups jsonb`),
+-- którą ta migracja tworzy zwykłym CREATE FUNCTION. Bez tego powtórne wejście
+-- w ten blok kończy się 42723 "already exists with same argument types".
+DROP FUNCTION IF EXISTS public.search_posts(
+  text, int, uuid, timestamptz, timestamptz, uuid, uuid[], text, text, text, text, text, text, jsonb
+);
+DROP FUNCTION IF EXISTS public.search_facets(
+  text, uuid, timestamptz, timestamptz, uuid, uuid[], text, text, text, text, text, jsonb
+);
 
 -- 1. search_posts v6 ----------------------------------------------------------
 
