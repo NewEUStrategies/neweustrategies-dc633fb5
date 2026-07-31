@@ -34,16 +34,26 @@ export const renderHeading: BlockRenderer = ({ block, fnHtml, cls, allBlocks }) 
   const anchor = blockAnchor(block, allBlocks);
   const id = anchor.id || undefined;
   const Tag = `h${level}` as "h2" | "h3" | "h4" | "h5";
+  // Kolor nagłówka ustawiony z toolbara widgetu (tylko hex / token var(--…)).
+  const color = safeCssColor(block.data.color);
+  const style = color ? { color } : undefined;
 
   const withFn = fnHtml.get(`${block.id}:text`);
   if (withFn !== undefined) {
     // Aliasy doklejamy do stringa HTML, żeby przy braku aliasów (przypadek
     // dominujący) DOM nagłówka pozostał BAJT W BAJT taki jak dotąd.
     const html = legacyAnchorsHtml(anchor.legacyIds, anchor.id) + withFn;
-    return <Tag id={id} className={cls} dangerouslySetInnerHTML={{ __html: html }} />;
+    return <Tag id={id} className={cls} style={style} dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  // Nagłówek edytowany w CMS builderze przechowuje INLINE HTML (bold / italic /
+  // kolor zaznaczenia). Rozpoznajemy to i sanityzujemy - inaczej czytelnik
+  // zobaczyłby dosłowne znaczniki.
+  if (looksLikeInlineHtml(text)) {
+    const html = legacyAnchorsHtml(anchor.legacyIds, anchor.id) + sanitize(text);
+    return <Tag id={id} className={cls} style={style} dangerouslySetInnerHTML={{ __html: html }} />;
   }
   return (
-    <Tag id={id} className={cls}>
+    <Tag id={id} className={cls} style={style}>
       {anchor.legacyIds.map((legacyId) => (
         <span key={legacyId} id={legacyId} data-anchor-alias={anchor.id} aria-hidden="true" />
       ))}
@@ -51,6 +61,7 @@ export const renderHeading: BlockRenderer = ({ block, fnHtml, cls, allBlocks }) 
     </Tag>
   );
 };
+
 
 /** Kotwica aliasowa MUSI być czystym slugiem - twardy warunek przed wejściem do HTML. */
 const SAFE_ANCHOR_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
