@@ -171,7 +171,24 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
  * - Google Fonts jest na allowliście stylów/fontów dla podglądu czcionek
  *   w adminie (FontPicker wstrzykuje <link> do fonts.googleapis.com).
  */
-function contentSecurityPolicy(): string {
+/**
+ * Hosty edytora/podglądu Lovable osadzają aplikację w iframe z innego originu.
+ * `frame-ancestors 'self'` + `X-Frame-Options: SAMEORIGIN` blokują takie
+ * osadzenie (pusty podgląd), a narzędzia podglądu potrzebują też `eval`.
+ * Rozluźnienie dotyczy WYŁĄCZNIE domen podglądu - produkcyjny origin
+ * (neweuropeanstrategies.com / *.lovable.app) zostaje przy pełnej polityce.
+ */
+const PREVIEW_HOST_RE = /(^|\.)lovableproject\.com$|(^|\.)lovable\.dev$|^localhost$|^127\.0\.0\.1$/;
+
+function isPreviewRequest(request: Request): boolean {
+  try {
+    return PREVIEW_HOST_RE.test(new URL(request.url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function contentSecurityPolicy(request?: Request): string {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
   let supabaseOrigins = "";
   try {
@@ -182,12 +199,13 @@ function contentSecurityPolicy(): string {
   } catch {
     /* malformed env - omit */
   }
+  const preview = request ? isPreviewRequest(request) : false;
   const connectSrc = supabaseOrigins
-    ? `connect-src 'self' ${supabaseOrigins}`
+    ? `connect-src 'self' ${supabaseOrigins}${preview ? " https: wss:" : ""}`
     : "connect-src 'self' https: wss:";
   return [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    `script-src 'self' 'unsafe-inline'${preview ? " 'unsafe-eval'" : ""}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
@@ -198,10 +216,11 @@ function contentSecurityPolicy(): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'self'",
+    preview ? "frame-ancestors 'self' https:" : "frame-ancestors 'self'",
     "upgrade-insecure-requests",
   ].join("; ");
 }
+
 
 const securityHeadersMiddleware = createMiddleware().server(async ({ request, next }) => {
   const result = await next();
