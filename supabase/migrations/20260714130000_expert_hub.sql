@@ -1132,13 +1132,17 @@ GRANT ALL ON public.saved_searches TO service_role;
 
 ALTER TABLE public.saved_searches ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "saved_searches owner select" ON public.saved_searches;
 CREATE POLICY "saved_searches owner select" ON public.saved_searches
   FOR SELECT TO authenticated USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "saved_searches owner insert" ON public.saved_searches;
 CREATE POLICY "saved_searches owner insert" ON public.saved_searches
   FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "saved_searches owner update" ON public.saved_searches;
 CREATE POLICY "saved_searches owner update" ON public.saved_searches
   FOR UPDATE TO authenticated USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "saved_searches owner delete" ON public.saved_searches;
 CREATE POLICY "saved_searches owner delete" ON public.saved_searches
   FOR DELETE TO authenticated USING (user_id = auth.uid());
 
@@ -2332,7 +2336,7 @@ GRANT EXECUTE ON FUNCTION public.newsletter_min_tier_emails(uuid, integer) TO se
 -- =========================================================
 -- 1) podcast_shows (programy / serie)
 -- =========================================================
-CREATE TABLE public.podcast_shows (
+CREATE TABLE IF NOT EXISTS public.podcast_shows (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   slug text NOT NULL,
@@ -2359,11 +2363,13 @@ GRANT ALL ON public.podcast_shows TO service_role;
 
 ALTER TABLE public.podcast_shows ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "podcast_shows_public_read" ON public.podcast_shows;
 CREATE POLICY "podcast_shows_public_read"
   ON public.podcast_shows FOR SELECT
   TO anon, authenticated
   USING (status = 'published' AND deleted_at IS NULL);
 
+DROP POLICY IF EXISTS "podcast_shows_staff_read_all" ON public.podcast_shows;
 CREATE POLICY "podcast_shows_staff_read_all"
   ON public.podcast_shows FOR SELECT
   TO authenticated
@@ -2372,6 +2378,7 @@ CREATE POLICY "podcast_shows_staff_read_all"
     AND (public.has_role(auth.uid(),'admin') OR public.has_role(auth.uid(),'editor') OR public.has_role(auth.uid(),'author'))
   );
 
+DROP POLICY IF EXISTS "podcast_shows_editor_insert" ON public.podcast_shows;
 CREATE POLICY "podcast_shows_editor_insert"
   ON public.podcast_shows FOR INSERT
   TO authenticated
@@ -2380,6 +2387,7 @@ CREATE POLICY "podcast_shows_editor_insert"
     AND (public.has_role(auth.uid(),'admin') OR public.has_role(auth.uid(),'editor'))
   );
 
+DROP POLICY IF EXISTS "podcast_shows_editor_update" ON public.podcast_shows;
 CREATE POLICY "podcast_shows_editor_update"
   ON public.podcast_shows FOR UPDATE
   TO authenticated
@@ -2388,6 +2396,7 @@ CREATE POLICY "podcast_shows_editor_update"
     AND (public.has_role(auth.uid(),'admin') OR public.has_role(auth.uid(),'editor'))
   );
 
+DROP POLICY IF EXISTS "podcast_shows_editor_delete" ON public.podcast_shows;
 CREATE POLICY "podcast_shows_editor_delete"
   ON public.podcast_shows FOR DELETE
   TO authenticated
@@ -2396,11 +2405,12 @@ CREATE POLICY "podcast_shows_editor_delete"
     AND (public.has_role(auth.uid(),'admin') OR public.has_role(auth.uid(),'editor'))
   );
 
+DROP TRIGGER IF EXISTS set_podcast_shows_updated_at ON public.podcast_shows;
 CREATE TRIGGER set_podcast_shows_updated_at
   BEFORE UPDATE ON public.podcast_shows
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-CREATE INDEX podcast_shows_tenant_sort_idx
+CREATE INDEX IF NOT EXISTS podcast_shows_tenant_sort_idx
   ON public.podcast_shows (tenant_id, sort_order, title_pl)
   WHERE deleted_at IS NULL;
 
@@ -2422,12 +2432,12 @@ COMMENT ON COLUMN public.podcasts.resources IS
   'Źródła i materiały: [{"label_pl": "...", "label_en": "...", "url": "...", "kind": "source"|"related"}]';
 
 -- Strona programu: odcinki per program w porządku sezon/numer.
-CREATE INDEX podcasts_show_season_episode_idx
+CREATE INDEX IF NOT EXISTS podcasts_show_season_episode_idx
   ON public.podcasts (tenant_id, show_id, season DESC NULLS LAST, episode_number DESC NULLS LAST)
   WHERE deleted_at IS NULL;
 
 -- Agregacja na stronie specjalizacji (kategorii).
-CREATE INDEX podcasts_category_pub_idx
+CREATE INDEX IF NOT EXISTS podcasts_category_pub_idx
   ON public.podcasts (category_id, published_at DESC NULLS LAST)
   WHERE deleted_at IS NULL AND status = 'published';
 
@@ -2436,7 +2446,7 @@ CREATE INDEX podcasts_category_pub_idx
 -- =========================================================
 -- profile_id łączy z profilem eksperta (agregacja na /author/$slug);
 -- goście zewnętrzni funkcjonują po display_name + opcjonalnym URL.
-CREATE TABLE public.podcast_episode_people (
+CREATE TABLE IF NOT EXISTS public.podcast_episode_people (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   episode_id uuid NOT NULL REFERENCES public.podcasts(id) ON DELETE CASCADE,
@@ -2458,6 +2468,7 @@ ALTER TABLE public.podcast_episode_people ENABLE ROW LEVEL SECURITY;
 
 -- Publicznie widoczni są wyłącznie uczestnicy opublikowanych odcinków
 -- (predykat zgodny z podcasts_public_read - szkice nie wyciekają).
+DROP POLICY IF EXISTS "podcast_people_public_read" ON public.podcast_episode_people;
 CREATE POLICY "podcast_people_public_read"
   ON public.podcast_episode_people FOR SELECT
   TO anon, authenticated
@@ -2468,6 +2479,7 @@ CREATE POLICY "podcast_people_public_read"
     )
   );
 
+DROP POLICY IF EXISTS "podcast_people_staff_read_all" ON public.podcast_episode_people;
 CREATE POLICY "podcast_people_staff_read_all"
   ON public.podcast_episode_people FOR SELECT
   TO authenticated
@@ -2478,6 +2490,7 @@ CREATE POLICY "podcast_people_staff_read_all"
 
 -- Zapis zgodny z regułami odcinków: admin/redaktor zawsze, autor tylko przy
 -- własnym odcinku.
+DROP POLICY IF EXISTS "podcast_people_staff_write" ON public.podcast_episode_people;
 CREATE POLICY "podcast_people_staff_write"
   ON public.podcast_episode_people FOR INSERT
   TO authenticated
@@ -2496,6 +2509,7 @@ CREATE POLICY "podcast_people_staff_write"
     )
   );
 
+DROP POLICY IF EXISTS "podcast_people_staff_update" ON public.podcast_episode_people;
 CREATE POLICY "podcast_people_staff_update"
   ON public.podcast_episode_people FOR UPDATE
   TO authenticated
@@ -2514,6 +2528,7 @@ CREATE POLICY "podcast_people_staff_update"
     )
   );
 
+DROP POLICY IF EXISTS "podcast_people_staff_delete" ON public.podcast_episode_people;
 CREATE POLICY "podcast_people_staff_delete"
   ON public.podcast_episode_people FOR DELETE
   TO authenticated
@@ -2532,11 +2547,11 @@ CREATE POLICY "podcast_people_staff_delete"
     )
   );
 
-CREATE INDEX podcast_people_episode_idx
+CREATE INDEX IF NOT EXISTS podcast_people_episode_idx
   ON public.podcast_episode_people (episode_id, sort_order);
 
 -- Agregacja odcinków na profilu eksperta.
-CREATE INDEX podcast_people_profile_idx
+CREATE INDEX IF NOT EXISTS podcast_people_profile_idx
   ON public.podcast_episode_people (profile_id)
   WHERE profile_id IS NOT NULL;
 

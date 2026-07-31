@@ -1,5 +1,6 @@
 -- 1) crm_companies: restrict SELECT to CRM staff only (tenant-scoped)
 DROP POLICY IF EXISTS crm_companies_tenant_read ON public.crm_companies;
+DROP POLICY IF EXISTS crm_companies_staff_read ON public.crm_companies;
 CREATE POLICY crm_companies_staff_read ON public.crm_companies
   FOR SELECT
   TO authenticated
