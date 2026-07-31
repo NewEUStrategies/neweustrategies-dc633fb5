@@ -1,5 +1,6 @@
-// Skanowanie nagłówków pływającego spisu treści. Testowane bez montowania
-// railu, bo `scanHeadings` jest czystą funkcją nad DOM-em.
+// Skanowanie nagłówków treści (pływający spis treści + widget spisu treści
+// buildera). Testowane bez montowania komponentów, bo `scanHeadings` jest
+// czystą funkcją nad DOM-em.
 import { beforeEach, describe, expect, it } from "vitest";
 import { getArticleRoot, scanHeadings } from "./anchorScan";
 
@@ -107,5 +108,57 @@ describe("scanHeadings", () => {
 
   it("returns an empty list for a root without headings", () => {
     expect(scanHeadings(mount(`<p>tekst</p>`))).toEqual([]);
+  });
+
+  it("never assigns an id that already exists elsewhere in the document", () => {
+    document.body.innerHTML = `
+      <div id="wnioski">chrome strony</div>
+      <article class="article-body"><h2>Wnioski</h2></article>
+    `;
+    const root = getArticleRoot();
+    if (!root) throw new Error("brak korzenia treści");
+    expect(scanHeadings(root).map((i) => i.id)).toEqual(["wnioski-2"]);
+    // Kotwica strony pozostaje nietknięta - link "#wnioski" dalej wskazuje chrome.
+    expect(document.getElementById("wnioski")?.textContent).toBe("chrome strony");
+  });
+});
+
+describe("scanHeadings - opcje konsumentów (widget spisu treści)", () => {
+  it("narrows the scan to the requested heading levels", () => {
+    const root = mount(`<h1>Jeden</h1><h2>Dwa</h2><h3>Trzy</h3><h4>Cztery</h4>`);
+    const items = scanHeadings(root, { selector: "h2, h3" });
+    expect(items.map((i) => [i.level, i.text])).toEqual([
+      [2, "Dwa"],
+      [3, "Trzy"],
+    ]);
+    // Nagłówki spoza selektora nie dostają id.
+    expect(root.querySelector("h1")?.id).toBe("");
+    expect(root.querySelector("h4")?.id).toBe("");
+  });
+
+  it("skips headings inside an excluded ancestor without assigning ids", () => {
+    const root = mount(`
+      <div data-widget-toc><h2>Spis wewnątrz widgetu</h2></div>
+      <h2>Poza widgetem</h2>
+    `);
+    const items = scanHeadings(root, { excludeAncestor: "[data-widget-toc]" });
+    expect(items.map((i) => i.text)).toEqual(["Poza widgetem"]);
+    expect(root.querySelector<HTMLElement>("[data-widget-toc] h2")?.id).toBe("");
+  });
+
+  it("skips the heading mirroring the widget title, case-insensitively", () => {
+    const root = mount(`<h2>  SPIS TREŚCI  </h2><h2>Właściwy rozdział</h2>`);
+    const items = scanHeadings(root, { skipText: "Spis treści" });
+    expect(items.map((i) => i.text)).toEqual(["Właściwy rozdział"]);
+    expect(root.querySelector("h2")?.id).toBe("");
+  });
+
+  it("still reserves ids of excluded headings so they cannot be stolen", () => {
+    const root = mount(`
+      <div data-widget-toc><h2 id="rozdzial">Nagłówek widgetu</h2></div>
+      <h2>Rozdział</h2>
+    `);
+    const items = scanHeadings(root, { excludeAncestor: "[data-widget-toc]" });
+    expect(items.map((i) => i.id)).toEqual(["rozdzial-2"]);
   });
 });

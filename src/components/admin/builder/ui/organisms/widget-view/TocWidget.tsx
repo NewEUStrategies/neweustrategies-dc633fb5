@@ -2,86 +2,83 @@
 // Autoscan H2/H3 z bieżącej strony (data-cms-content lub main/article)
 // z fallbackiem do manualnych pozycji zdefiniowanych w builderze.
 // Responsywne: mobile = collapsible; desktop = pełny układ zgodny z wariantem.
+//
+// Kotwice: ZERO własnego slugify. Skan DOM deleguje do lib/content/anchorScan,
+// pozycje ręczne do lib/toc/manualItems - oba liczą kotwice kanonicznym
+// `slugifyAnchor` (jedno źródło + test parytetu międzysilnikowego), więc
+// `href="#…"` widgetu zawsze trafia w `id` wyemitowane przez silniki treści,
+// również dla liter atomowych (`ł`), które dawna kopia NFKD-only gubiła.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { List, LayoutGrid, PanelLeft, ChevronDown, Menu as MenuIcon } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import type { WidgetContent } from "@/lib/builder/types";
+import { scanHeadings, type ScannedHeading } from "@/lib/content/anchorScan";
+import { parseManualTocItems, type ManualTocItem } from "@/lib/toc/manualItems";
 import { getStr, getStrArr, type Lang } from "./frame";
 
 type Variant = "list" | "grid" | "sidebar";
 
-interface TocItem {
-  id: string;
-  text: string;
-  level: 2 | 3;
-}
+type TocItem = ManualTocItem;
 
 interface Props {
   content: WidgetContent;
   lang: Lang;
 }
 
-const slugify = (input: string): string =>
-  input
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 80) || "section";
+const isTocLevel = (h: ScannedHeading): h is ScannedHeading & { level: 2 | 3 } =>
+  h.level === 2 || h.level === 3;
 
-function ensureHeadingIds(container: HTMLElement, skipText: string): TocItem[] {
-  const seen = new Set<string>();
-  const nodes = container.querySelectorAll<HTMLElement>("h2, h3");
-  const out: TocItem[] = [];
-  const skip = skipText.trim().toLowerCase();
-  nodes.forEach((node) => {
-    if (node.closest("[data-widget-toc]")) return;
-    const text = node.textContent?.trim() ?? "";
-    if (!text) return;
-    // Skip a duplicate "Spis treści" heading that mirrors the widget title.
-    if (skip && text.toLowerCase() === skip) return;
-    let id = node.id?.trim();
-    if (!id) {
-      id = slugify(text);
-      let n = 1;
-      while (seen.has(id) || document.getElementById(id)) {
-        id = `${slugify(text)}-${++n}`;
-      }
-      node.id = id;
-    }
-    seen.add(id);
-    out.push({ id, text, level: node.tagName === "H3" ? 3 : 2 });
-  });
-  return out;
+/** Korzeń skanu widgetu - od najbardziej do najmniej jawnego kontenera treści. */
+function getScanRoot(): HTMLElement {
+  return (
+    document.querySelector<HTMLElement>("[data-cms-content]") ||
+    document.querySelector<HTMLElement>("main article") ||
+    document.querySelector<HTMLElement>("main") ||
+    document.body
+  );
 }
+
+const sameItems = (a: readonly TocItem[], b: readonly TocItem[]): boolean =>
+  a.length === b.length &&
+  a.every((x, i) => x.id === b[i].id && x.text === b[i].text && x.level === b[i].level);
 
 function useTocItems(manual: TocItem[], skipText: string): TocItem[] {
   const [auto, setAuto] = useState<TocItem[]>([]);
+  const manualMode = manual.length > 0;
   useEffect(() => {
-    if (manual.length > 0) return;
+    if (manualMode) return;
     if (typeof document === "undefined") return;
+    let raf = 0;
     const scan = () => {
-      const root =
-        document.querySelector<HTMLElement>("[data-cms-content]") ||
-        document.querySelector<HTMLElement>("main article") ||
-        document.querySelector<HTMLElement>("main") ||
-        document.body;
-      if (!root) return;
-      const items = ensureHeadingIds(root, skipText);
-      setAuto(items);
+      // Wspólny skaner nadaje brakujące `id` kanonicznym slugifyAnchor,
+      // deduplikuje od bazy i dokłada aliasy legacy dla starych `#kotwic`.
+      const items = scanHeadings(getScanRoot(), {
+        selector: "h2, h3",
+        excludeAncestor: "[data-widget-toc]",
+        skipText,
+      }).filter(isTocLevel);
+      // Stabilna referencja, gdy nic się nie zmieniło - scrollspy nie musi
+      // wtedy przepinać IntersectionObservera po każdym re-skanie.
+      setAuto((prev) => (sameItems(prev, items) ? prev : items));
     };
-    const raf = requestAnimationFrame(scan);
-    const t = window.setTimeout(scan, 400);
-    const t2 = window.setTimeout(scan, 1200);
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(scan);
+    };
+    schedule();
+    // Treść montuje się po widgecie (hydratacja, lazy sekcje), więc zamiast
+    // zgadywać opóźnienia timerami re-skanujemy przy realnych mutacjach DOM.
+    // Skan jest idempotentny (id i aliasy nie mnożą się), więc kaskada
+    // obserwera gaśnie po jednym dodatkowym przebiegu.
+    const observer = new MutationObserver(schedule);
+    observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       cancelAnimationFrame(raf);
-      window.clearTimeout(t);
-      window.clearTimeout(t2);
+      observer.disconnect();
     };
-  }, [manual.length, skipText]);
-  return manual.length > 0 ? manual : auto;
+  }, [manualMode, skipText]);
+  return manualMode ? manual : auto;
 }
 
 function useActiveHeading(items: TocItem[]): string | null {
@@ -141,23 +138,9 @@ function scrollToId(id: string) {
   if (history.replaceState) history.replaceState(null, "", `#${id}`);
 }
 
-function parseManualItems(raw: string[]): TocItem[] {
-  return raw
-    .map((line) => {
-      const t = line.trim();
-      if (!t) return null;
-      // Format opcjonalny: "#id | Tekst" lub "-- Tekst" (H3) lub "Tekst"
-      const level: 2 | 3 = t.startsWith("--") ? 3 : 2;
-      const clean = t.replace(/^--\s*/, "");
-      const [maybeId, rest] = clean.split("|").map((s) => s.trim());
-      if (rest) return { id: maybeId.replace(/^#/, "") || slugify(rest), text: rest, level };
-      return { id: slugify(clean), text: clean, level };
-    })
-    .filter((x): x is TocItem => x !== null);
-}
-
 export function TocWidget({ content, lang }: Props) {
-  const variant = (getStr(content, "variant") || "list") as Variant;
+  const variantRaw = getStr(content, "variant");
+  const variant: Variant = variantRaw === "grid" || variantRaw === "sidebar" ? variantRaw : "list";
   const title =
     getStr(content, `title_${lang}`) ||
     getStr(content, "title_pl") ||
@@ -168,7 +151,11 @@ export function TocWidget({ content, lang }: Props) {
   const manualRaw = getStrArr(content, `items_${lang}`).length
     ? getStrArr(content, `items_${lang}`)
     : getStrArr(content, "items_pl");
-  const manual = useMemo(() => parseManualItems(manualRaw), [manualRaw]);
+  // Klucz tekstowy zamiast referencji tablicy: `getStrArr` tworzy nową tablicę
+  // przy każdym renderze, więc memo po referencji przeliczałby się zawsze,
+  // a niestabilne `items` przepinałyby scrollspy'owy IntersectionObserver.
+  const manualKey = manualRaw.join("\n");
+  const manual = useMemo(() => parseManualTocItems(manualKey.split("\n")), [manualKey]);
   const items = useTocItems(manual, title);
   const active = useActiveHeading(items);
   const progress = useReadingProgress();
@@ -216,6 +203,7 @@ export function TocWidget({ content, lang }: Props) {
               <a
                 href={`#${it.id}`}
                 onClick={(e) => onClick(e, it.id)}
+                aria-current={isActive ? "location" : undefined}
                 className={cn(
                   "group flex items-start gap-3 px-3 py-2.5 text-[13px] leading-snug rounded-[6px] transition-all border-l-2",
                   it.level === 3 && "ml-6",
@@ -241,10 +229,7 @@ export function TocWidget({ content, lang }: Props) {
   );
 
   const renderGrid = () => (
-    <nav
-      aria-label={title}
-      className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1"
-    >
+    <nav aria-label={title} className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
       {items.map((it, i) => {
         const isActive = active === it.id;
         return (
@@ -252,6 +237,7 @@ export function TocWidget({ content, lang }: Props) {
             key={it.id}
             href={`#${it.id}`}
             onClick={(e) => onClick(e, it.id)}
+            aria-current={isActive ? "location" : undefined}
             className={cn(
               "group flex items-center gap-3 py-2.5 border-b border-transparent transition-all",
               isActive
@@ -286,6 +272,7 @@ export function TocWidget({ content, lang }: Props) {
               <a
                 href={`#${it.id}`}
                 onClick={(e) => onClick(e, it.id)}
+                aria-current={isActive ? "location" : undefined}
                 className={cn(
                   "group flex items-center gap-3 px-3 py-2.5 rounded-[6px] transition-all",
                   isActive
@@ -298,9 +285,7 @@ export function TocWidget({ content, lang }: Props) {
                   <span
                     className={cn(
                       "flex-none w-6 text-[11px] font-semibold tabular-nums",
-                      isActive
-                        ? "text-primary"
-                        : "text-muted-foreground group-hover:text-primary",
+                      isActive ? "text-primary" : "text-muted-foreground group-hover:text-primary",
                     )}
                   >
                     {String(i + 1).padStart(2, "0")}
@@ -335,10 +320,7 @@ export function TocWidget({ content, lang }: Props) {
       ref={ref}
       data-widget-toc
       data-variant={variant}
-      className={cn(
-        "w-full text-foreground",
-        sticky && "lg:sticky lg:top-24",
-      )}
+      className={cn("w-full text-foreground", sticky && "lg:sticky lg:top-24")}
     >
       {/* Mobile toggle */}
       <button
@@ -355,9 +337,7 @@ export function TocWidget({ content, lang }: Props) {
             {items.length}
           </span>
         </span>
-        <ChevronDown
-          className={cn("w-4 h-4 transition-transform", open && "rotate-180")}
-        />
+        <ChevronDown className={cn("w-4 h-4 transition-transform", open && "rotate-180")} />
       </button>
 
       <div

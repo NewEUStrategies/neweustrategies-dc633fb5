@@ -1,12 +1,14 @@
 // JEDNO źródło prawdy dla kotwic nagłówków (`<h2 id="...">` + `href="#..."`).
 //
 // PRZYCZYNA ŹRÓDŁOWA (dlaczego ten moduł istnieje):
-// Kotwice generowały CZTERY niezależne implementacje o TRZECH zachowaniach:
+// Kotwice generowały PIĘĆ niezależnych implementacji o CZTERECH zachowaniach:
 //
 //   1. lib/manualToc.ts                   - transliteracja ł→l, limit 80, fallback
 //   2. lib/toc/settings.ts                - bez transliteracji, bez limitu, bez fallbacku
 //   3. components/blocks/renderer/data.ts  - jak (2)
 //   4. components/share/FloatingShareBar   - bez transliteracji, limit 64, fallback
+//   5. builder TocWidget                   - bez transliteracji, limit 80 cięty
+//      PO zdjęciu myślnika z krawędzi (mogła zostać "…-"), fallback
 //
 // Wszystkie opierały się na `NFKD` + zdjęciu znaków łączących. To działa dla
 // liter ROZKŁADALNYCH (ą → a + ogonek, ś → s + akut), ale NIE dla liter
@@ -141,7 +143,10 @@ export function slugifyAnchor(input: string): string {
  *
  * Warianty:
  *  - silnik bloków / spis treści: bez transliteracji, BEZ limitu długości,
- *  - `FloatingShareBar`: bez transliteracji, limit 64 znaków.
+ *  - `FloatingShareBar`: bez transliteracji, limit 64 znaków,
+ *  - builder `TocWidget`: bez transliteracji, limit 80 znaków cięty PO
+ *    zdjęciu myślników z krawędzi - cięcie mogło zostawić "…-" na końcu;
+ *    odtwarzane bajt w bajt, bo alias musi trafić w opublikowany fragment.
  */
 export function legacyAnchorVariants(input: string): string[] {
   const canonical = slugifyAnchor(input);
@@ -149,6 +154,7 @@ export function legacyAnchorVariants(input: string): string[] {
   const candidates = [
     raw,
     raw.slice(0, LEGACY_SHARE_BAR_MAX_LENGTH).replace(EDGE_DASHES_RE, "") || ANCHOR_FALLBACK,
+    raw.slice(0, ANCHOR_MAX_LENGTH) || ANCHOR_FALLBACK,
   ];
   const out: string[] = [];
   for (const candidate of candidates) {

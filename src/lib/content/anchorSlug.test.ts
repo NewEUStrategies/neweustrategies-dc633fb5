@@ -4,8 +4,8 @@
 // więc pipeline "NFKD + zdejmij znaki łączące" gubił go w środku wyrazu i ten
 // sam nagłówek dostawał inny identyfikator w silniku bloków niż w richtekście
 // (`wyzwania-ma-ych-firm` vs `wyzwania-malych-firm`). Ostatni blok testów
-// dowodzi, że WSZYSTKIE cztery wejścia (richtext, spis treści, silnik bloków,
-// pływający pasek) liczą dziś dokładnie tę samą funkcję.
+// dowodzi, że WSZYSTKIE pięć wejść (richtext, spis treści, silnik bloków,
+// pływający pasek, widget buildera) liczy dziś dokładnie tę samą funkcję.
 import { describe, expect, it } from "vitest";
 import {
   ANCHOR_FALLBACK,
@@ -17,7 +17,8 @@ import {
 import { slugifyHeading as manualTocSlugify } from "@/lib/manualToc";
 import { slugifyHeading as tocSettingsSlugify } from "@/lib/toc/settings";
 import { slugify as blocksSlugify } from "@/components/blocks/renderer/data";
-import { slugifyHeading as shareBarSlugify } from "@/components/share/anchorScan";
+import { slugifyHeading as shareBarSlugify } from "./anchorScan";
+import { slugifyHeading as tocWidgetSlugify } from "@/lib/toc/manualItems";
 
 describe("slugifyAnchor", () => {
   it("lowercases and dashes word separators", () => {
@@ -104,6 +105,18 @@ describe("legacyAnchorVariants", () => {
     expect(variants).toContain("a".repeat(64));
   });
 
+  it("reproduces the 80-char TocWidget variant only when it differs", () => {
+    // Cięcie w środku ciągu liter: legacy widgetu == kanoniczna kotwica,
+    // więc alias nie powstaje - zostają wariant bez limitu i share-barowe 64.
+    expect(legacyAnchorVariants("ą".repeat(100))).toEqual(["a".repeat(100), "a".repeat(64)]);
+    // Stary widget ciął PO zdjęciu myślników z krawędzi, więc cięcie na
+    // separatorze zostawiało "…-". Alias musi być bajt w bajt taki sam.
+    const onSeparator = `${"ą".repeat(79)} ogon`;
+    const variants = legacyAnchorVariants(onSeparator);
+    expect(variants).toContain(`${"a".repeat(79)}-ogon`);
+    expect(variants).toContain(`${"a".repeat(79)}-`);
+  });
+
   it("is empty when the canonical anchor already matches history", () => {
     // No atomic letters and under the cap -> nothing changed, no aliases needed.
     expect(legacyAnchorVariants("Hello World")).toEqual([]);
@@ -170,6 +183,7 @@ describe("cross-engine anchor parity", () => {
     ["toc/settings (spis treści)", tocSettingsSlugify],
     ["blocks/renderer (silnik bloków)", blocksSlugify],
     ["FloatingShareBar (pasek udostępniania)", shareBarSlugify],
+    ["TocWidget (widget buildera)", tocWidgetSlugify],
   ];
 
   const headings = [
