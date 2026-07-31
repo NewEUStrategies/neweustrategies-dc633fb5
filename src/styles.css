@@ -6078,3 +6078,33 @@ html {
 [id] {
   scroll-margin-top: calc(var(--sticky-header-h, 96px) + 15px);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Mobilny przełącznik języka "taśma": hover / focus / tap odsłania język
+   docelowy, przesuwając pionowy tor o jedną wysokość okna. */
+.lang-switch {
+  --ls-h: 34px;
+}
+.lang-switch__window {
+  height: var(--ls-h);
+  overflow: hidden;
+}
+.lang-switch__track {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.36s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.lang-switch__item {
+  height: var(--ls-h);
+  flex: none;
+}
+.lang-switch:hover .lang-switch__track,
+.lang-switch:focus-visible .lang-switch__track,
+.lang-switch:active .lang-switch__track {
+  transform: translateY(calc(-1 * var(--ls-h)));
+}
+@media (prefers-reduced-motion: reduce) {
+  .lang-switch__track {
+    transition-duration: 1ms;
+  }
+}

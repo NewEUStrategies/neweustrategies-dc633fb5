@@ -17,6 +17,7 @@ import {
 } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
+import { LangReelSwitcher } from "@/components/atoms/LangReelSwitcher";
 import { SearchButtonWidget } from "@/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget";
 import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 import { ChatBell } from "@/components/chat/ChatBell";
@@ -287,7 +288,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           >
             <Menu className="w-4 h-4" />
           </button>
-          <LangSwitcherDropdown label={t.lang} />
+          <LangReelSwitcher label={t.lang} className="[--ls-h:28px]" />
 
           <NotificationsBell panelWidth={260} />
           <ChatBell panelWidth={280} />
