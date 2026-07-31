@@ -6069,7 +6069,6 @@ header[data-scrolled="true"]
   }
 }
 
-
 /* Kotwice (#newsletter, #kontakt itd.) nie mogą wjeżdżać pod sticky header.
    --sticky-header-h ustawia komponent Header na podstawie realnej wysokości. */
 html {
@@ -6156,4 +6155,3 @@ html {
     content: none;
   }
 }
-
