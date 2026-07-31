@@ -129,9 +129,74 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
           >
             <Italic className="h-3.5 w-3.5" />
           </TBtn>
+          <TBtn
+            title={i18n.t("blocks.toolbar.normalText", { defaultValue: "Tekst normalny" })}
+            onClick={() =>
+              editor.chain().focus().unsetAllMarks().unsetMark("textStyle").run()
+            }
+          >
+            <RemoveFormatting className="h-3.5 w-3.5" />
+          </TBtn>
           <Divider />
         </>
       )}
+
+      {/* Kolor nagłówka - zaznaczenie koloruje inline, brak zaznaczenia = cały blok */}
+      <div className="relative">
+        <TBtn
+          title={i18n.t("blocks.toolbar.color", { defaultValue: "Kolor tekstu" })}
+          active={colorOpen || Boolean(safeCssColor(d.color))}
+          onClick={() => setColorOpen((v) => !v)}
+        >
+          <Palette className="h-3.5 w-3.5" style={{ color: safeCssColor(d.color) }} />
+        </TBtn>
+        {colorOpen && (
+          <div
+            role="dialog"
+            aria-label={i18n.t("blocks.toolbar.color", { defaultValue: "Kolor tekstu" })}
+            className="absolute left-0 top-[30px] z-40 w-[188px] rounded-md border border-border bg-popover p-2 shadow-lg"
+          >
+            <div className="grid grid-cols-6 gap-1">
+              {HEADING_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  title={c.label}
+                  aria-label={c.label}
+                  onClick={() => {
+                    applyColor(c.value);
+                    setColorOpen(false);
+                  }}
+                  className="h-5 w-5 rounded-sm border border-border"
+                  style={{ background: c.value }}
+                />
+              ))}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="color"
+                aria-label={i18n.t("blocks.toolbar.colorCustom", { defaultValue: "Własny kolor" })}
+                value={/^#[0-9a-fA-F]{6}$/.test(String(d.color ?? "")) ? String(d.color) : "#111111"}
+                onChange={(e) => applyColor(e.target.value)}
+                className="h-6 w-10 cursor-pointer rounded border border-border bg-transparent p-0"
+              />
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  applyColor(null);
+                  setColorOpen(false);
+                }}
+              >
+                {i18n.t("blocks.toolbar.colorReset", { defaultValue: "Wyczyść kolor" })}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Divider />
+
 
       {/* Wyrównanie */}
       <TBtn
