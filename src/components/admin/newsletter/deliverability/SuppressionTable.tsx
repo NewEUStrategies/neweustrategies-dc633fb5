@@ -37,7 +37,7 @@ import {
   releaseSuppression,
   type SuppressionRow,
 } from "@/lib/newsletter-deliverability.functions";
-import type { SuppressionReason } from "@/lib/email/suppression.server";
+import type { SuppressionReason } from "@/lib/email/suppressionPolicy";
 import "@/lib/i18n-newsletter-deliverability";
 
 const REASONS: readonly SuppressionReason[] = [

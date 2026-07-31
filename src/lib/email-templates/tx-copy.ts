@@ -128,7 +128,8 @@ const PL: Dict = {
     subject: (v) =>
       `✅ Subskrypcja aktywna${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
-    preview: "Twoja subskrypcja jest aktywna - pełny dostęp do analiz i danych New European Strategies.",
+    preview:
+      "Twoja subskrypcja jest aktywna - pełny dostęp do analiz i danych New European Strategies.",
     eyebrow: "Subskrypcja",
     heading: "Twoja subskrypcja jest aktywna",
     intro:
@@ -296,7 +297,8 @@ const PL: Dict = {
     subject: (v) =>
       `⏳ Twój dostęp zespołowy kończy się wkrótce${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-shield",
-    preview: "Liczba miejsc w zespole została zmniejszona - masz jeszcze dostęp przez okres karencji.",
+    preview:
+      "Liczba miejsc w zespole została zmniejszona - masz jeszcze dostęp przez okres karencji.",
     eyebrow: "Dostęp zespołowy",
     heading: "Twoje miejsce w zespole wygasa",
     intro:
@@ -335,7 +337,6 @@ const PL: Dict = {
     footerHelp: HELP_PL,
   },
   event_registered: {
-
     subject: (v) =>
       `🎟️ Potwierdzenie zapisu${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
@@ -397,7 +398,8 @@ const EN: Dict = {
     subject: (v) =>
       `✅ Subscription active${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
-    preview: "Your subscription is active - full access to New European Strategies analysis and data.",
+    preview:
+      "Your subscription is active - full access to New European Strategies analysis and data.",
     eyebrow: "Subscription",
     heading: "Your subscription is active",
     intro:
@@ -604,7 +606,6 @@ const EN: Dict = {
     footerHelp: HELP_EN,
   },
   event_registered: {
-
     subject: (v) =>
       `🎟️ Registration confirmed${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
@@ -635,7 +636,8 @@ const EN: Dict = {
   newsletter_confirmed: {
     subject: () => "📨 Newsletter subscription confirmed | New European Strategies",
     icon: "hero-mail",
-    preview: "You are on the list - New European Strategies analysis delivered straight to your inbox.",
+    preview:
+      "You are on the list - New European Strategies analysis delivered straight to your inbox.",
     eyebrow: "Newsletter",
     heading: "Newsletter subscription confirmed",
     intro:
@@ -648,6 +650,13 @@ const EN: Dict = {
 };
 
 const DICTS: Record<EmailLang, Dict> = { pl: PL, en: EN };
+
+/**
+ * Wszystkie typy maila transakcyjnego - JEDNA lista wyprowadzona ze słownika
+ * treści, więc nie da się dodać typu bez treści ani treści bez typu. Konsumenci:
+ * polityka listy wykluczeń (kategoria per typ) i testy pokrycia.
+ */
+export const TX_EMAIL_TYPES = Object.keys(PL) as readonly TxEmailType[];
 
 export function txCopy(type: TxEmailType, lang: EmailLang): TxCopy {
   return DICTS[lang][type];
