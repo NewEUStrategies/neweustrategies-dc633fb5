@@ -84,7 +84,7 @@ export function PostLayoutRenderer({
   // (bez czarnej karty) - zgodnie z podglądem layoutu w edytorze.
   const overlayMetaCard = (
     <div
-      className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white"
+      className="absolute inset-x-0 bottom-0 p-4 sm:p-5 md:p-8 lg:p-10 text-white"
       style={overlayTypoStyle}
     >
       <div className={`w-full ${center ? "text-center" : ""} overlay-meta-card`}>
@@ -93,19 +93,19 @@ export function PostLayoutRenderer({
             {categoryBadges}
           </div>
         )}
-        <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.1] mb-2 text-white">
+        <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.15] mb-2 text-white line-clamp-3 sm:line-clamp-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
           {title}
         </h1>
         {excerpt && (
           <p
-            className={`overlay-meta-description overlay-excerpt-typography text-white/80 mb-3 line-clamp-2 max-w-2xl ${center ? "mx-auto" : ""}`}
+            className={`overlay-meta-description overlay-excerpt-typography hidden sm:block text-white/80 mb-3 line-clamp-2 max-w-2xl ${center ? "mx-auto" : ""}`}
           >
             {excerpt}
           </p>
         )}
         {meta && (
           <div
-            className={`text-[10px] md:text-[11px] lg:text-xs flex flex-wrap items-center gap-x-3 gap-y-1 text-white/70 ${center ? "justify-center" : ""}`}
+            className={`text-[10px] md:text-[11px] lg:text-xs flex flex-wrap items-center gap-x-3 gap-y-1 text-white/90 sm:text-white/70 [text-shadow:0_1px_6px_rgba(0,0,0,0.8)] ${center ? "justify-center" : ""}`}
           >
             {meta}
           </div>
@@ -171,6 +171,10 @@ export function PostLayoutRenderer({
                   : "absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]"
               }
             />
+            {/* Mobile: dodatkowy dolny scrim - overlay ma malo miejsca, wiec
+                tytul/meta musza miec pewny kontrast niezaleznie od zdjecia. */}
+            <div className="absolute inset-0 sm:hidden bg-gradient-to-t from-black/90 via-black/55 to-black/25" />
+
             {overlayMetaCard}
           </div>
         </div>
@@ -242,10 +246,7 @@ function LayoutBody({
   }
   return (
     <div className="min-w-0 max-w-full">
-      <div
-        style={{ maxWidth: `${contentMaxW}px` }}
-        className="min-w-0 w-full max-w-full mx-auto"
-      >
+      <div style={{ maxWidth: `${contentMaxW}px` }} className="min-w-0 w-full max-w-full mx-auto">
         {content}
       </div>
       {footer}
