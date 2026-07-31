@@ -3,9 +3,10 @@
 // obecność medialna oraz znormalizowana lista materiałów (publikacje,
 // raporty, wideo, podcasty, wydarzenia) z metadanymi do filtrowania.
 //
-// Materiały jednego eksperta są ograniczone (rzędu setek), więc filtrowanie
-// po typie/temacie/regionie/dacie/programie odbywa się po stronie klienta -
-// spójnie z katalogiem osób i archiwami. Zapytanie pobiera komplet raz.
+// LISTĘ w eksploratorze paginuje serwer (lib/experts/materials.ts + RPC
+// get_expert_materials, stan w URL trasy) - komplet materiałów huba służy
+// fasetom (liczności typów, lata), sygnałom indeksacji (publicVisibility)
+// i ścieżce legacy; zapytanie pobiera go raz.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeTtlCache } from "@/lib/ssrCache";
@@ -253,14 +254,25 @@ async function fetchExpertHub(slugOrId: string): Promise<ExpertHubData | null> {
   return fetchExpertHubLegacy(slugOrId);
 }
 
+/**
+ * Hub przez wspólny per-isolate cache SSR. Eksportowane, bo fallback paginacji
+ * materiałów (lib/experts/materials.ts, okno między deployem kodu a migracją
+ * get_expert_materials) czyta hub przez TEN SAM klucz cache - na serwerze to
+ * trafienie w ciepły wpis, nie drugi fan-out zapytań.
+ */
+export function fetchExpertHubCached(slugOrId: string): Promise<ExpertHubData | null> {
+  // Per-isolate TTL (per tenant host): profil publiczny jest anonimową
+  // projekcją, więc współdzielenie między żądaniami jest bezpieczne;
+  // minuta amortyzuje najcięższą trasę bez opóźniania edycji profilu
+  // ponad okno świeżości dokumentów.
+  return edgeTtlCache(`public:expert-hub:${slugOrId}`, HUB_SSR_TTL_MS, () =>
+    fetchExpertHub(slugOrId),
+  );
+}
+
 export const expertHubQueryOptions = (slugOrId: string) =>
   queryOptions({
     queryKey: ["public", "expert", slugOrId] as const,
-    queryFn: async (): Promise<ExpertHubData | null> =>
-      // Per-isolate TTL (per tenant host): profil publiczny jest anonimową
-      // projekcją, więc współdzielenie między żądaniami jest bezpieczne;
-      // minuta amortyzuje najcięższą trasę bez opóźniania edycji profilu
-      // ponad okno świeżości dokumentów.
-      edgeTtlCache(`public:expert-hub:${slugOrId}`, HUB_SSR_TTL_MS, () => fetchExpertHub(slugOrId)),
+    queryFn: async (): Promise<ExpertHubData | null> => fetchExpertHubCached(slugOrId),
     staleTime: TTL,
   });

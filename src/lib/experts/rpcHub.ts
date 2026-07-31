@@ -19,6 +19,8 @@ import type { ExpertHubData } from "./types";
 import {
   assembleMaterials,
   buildExpertProfile,
+  jsonRow,
+  jsonRows,
   mapCategoryRows,
   mapExpertiseAreaRows,
   mapMediaMentionRows,
@@ -29,24 +31,12 @@ import {
   reduceFacets,
 } from "./normalize";
 
-type Row = Record<string, unknown>;
-
 export type RpcHubResult =
-  | { kind: "ok"; hub: ExpertHubData }
-  | { kind: "not-found" }
-  | { kind: "unavailable" };
+  { kind: "ok"; hub: ExpertHubData } | { kind: "not-found" } | { kind: "unavailable" };
 
-/** Bezpieczna projekcja jsonb[] → Row[] (nieznane kształty odpadają cicho). */
-function rowsOf(value: unknown): Row[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((r): r is Row => typeof r === "object" && r !== null && !Array.isArray(r));
-}
-
-function rowOrNull(value: unknown): Row | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Row)
-    : null;
-}
+// Guardy jsonb → Row współdzielone z resztą warstwy danych huba (normalize).
+const rowsOf = jsonRows;
+const rowOrNull = jsonRow;
 
 function stringsOf(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
