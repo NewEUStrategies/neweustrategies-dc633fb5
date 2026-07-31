@@ -190,7 +190,6 @@ describe("parseWordHtml - nagłówki i przypisy górne", () => {
     const blocks = parseWordHtml(`<p>Wstęp</p><p>1. Punkt</p><p>2. Punkt</p>`);
     expect(blocks).toHaveLength(3);
   });
-}
 
   it("zachowuje formatowanie w treści przypisu Worda", () => {
     const blocks = parseWordHtml(
