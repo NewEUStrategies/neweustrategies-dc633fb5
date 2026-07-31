@@ -295,7 +295,7 @@ function wordHeadingLevel(el: Element): number | null {
   if (isWordListItem(el)) return null;
   const cls = el.getAttribute("class") ?? "";
   const style = (el.getAttribute("style") ?? "").toLowerCase();
-  if (/mso-?title|\bTitle\b/.test(cls) && !/subtitle/i.test(cls)) return 1;
+  if (/(^|\s|Mso)title(\s|$)?/i.test(cls) && !/subtitle/i.test(cls)) return 1;
   const byClass = cls.match(/(?:Mso)?Heading[_\s-]*(?:20[_\s-]*)?(\d)/i);
   if (byClass) return Math.min(6, Math.max(1, Number(byClass[1])));
   const byOutline = style.match(/mso-outline-level\s*:\s*(\d)/);
