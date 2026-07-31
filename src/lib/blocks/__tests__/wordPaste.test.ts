@@ -150,3 +150,44 @@ describe("wordPaste - media, listy wielopoziomowe, tabele", () => {
     expect(blocks[0].data.rows).toEqual([["wewn"]]);
   });
 });
+
+describe("parseWordHtml - nagłówki i przypisy górne", () => {
+  it("rozpoznaje nagłówki stylowane przez Worda (bez tagów hN)", () => {
+    const blocks = parseWordHtml(
+      `<p class="MsoTitle">Tytuł</p>` +
+        `<p class="MsoHeading2">Sekcja</p>` +
+        `<p style="mso-outline-level:3">Podsekcja</p>` +
+        `<p class="P Heading_20_5">Głęboko</p>` +
+        `<p>Zwykły akapit</p>`,
+    );
+    expect(blocks.map((b) => [b.type, b.data.level ?? null])).toEqual([
+      ["heading", 2],
+      ["heading", 2],
+      ["heading", 3],
+      ["heading", 5],
+      ["paragraph", null],
+    ]);
+  });
+
+  it("zachowuje poziom H5 z prawdziwych tagów", () => {
+    const blocks = parseWordHtml(`<h5>Piąty</h5>`);
+    expect(blocks[0].data).toMatchObject({ level: 5, text: "Piąty" });
+  });
+
+  it("konwertuje ręczne przypisy górne z listą na końcu na [fn]…[/fn]", () => {
+    const blocks = parseWordHtml(
+      `<p>Teza<sup>1</sup> oraz druga<sup>2</sup>.</p>` +
+        `<p>1. Pierwsze źródło</p>` +
+        `<p>2. Drugie źródło</p>`,
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].data.html).toBe(
+      "Teza[fn]Pierwsze źródło[/fn] oraz druga[fn]Drugie źródło[/fn].",
+    );
+  });
+
+  it("nie zjada zwykłej listy numerowanej bez indeksów górnych", () => {
+    const blocks = parseWordHtml(`<p>Wstęp</p><p>1. Punkt</p><p>2. Punkt</p>`);
+    expect(blocks).toHaveLength(3);
+  });
+});
