@@ -599,6 +599,16 @@ function convertChildren(parent: Element, out: Block[]): void {
     }
 
     if (tag === "P") {
+      const styledLevel = wordHeadingLevel(child);
+      if (styledLevel !== null) {
+        flush();
+        const images = extractImages(child);
+        const text = plainText(child);
+        if (text) out.push(heading(styledLevel, text));
+        pushImages(out, images, "");
+        continue;
+      }
+
       if (isWordListItem(child)) {
         const ordered = isOrderedWordItem(child);
         const level = wordListLevel(child);
