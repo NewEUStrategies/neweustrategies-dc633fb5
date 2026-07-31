@@ -93,6 +93,7 @@ import { PostFooterBars } from "@/components/PostFooterBars";
 import { CommentsSection } from "@/components/comments/CommentsSection";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { QuickViewInfoBar } from "@/components/post/QuickViewInfoBar";
+import { MobileArticleActions } from "@/components/post/MobileArticleActions";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
@@ -942,10 +943,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 {/* Mobile: akcja "Udostepnij pelny artykul" pod paskiem czasu
                     czytania i daty aktualizacji, zamiast nakladki na okladce. */}
                 {giftButton && (
-                  <div className="no-print mb-6 flex sm:hidden">
+                  <div className="no-print mb-3 flex sm:hidden">
                     <span className="[&_button]:w-full w-full">{giftButton}</span>
                   </div>
                 )}
+                {/* Mobile: odsluch (TTS) + pobranie artykulu tuz pod paskiem
+                    czasu czytania / aktualizacji. */}
+                <MobileArticleActions lang={lang} />
                 {!merged.quick_view_info && giftButton && (
                   <div className="no-print mb-4 hidden justify-end sm:flex">{giftButton}</div>
                 )}
