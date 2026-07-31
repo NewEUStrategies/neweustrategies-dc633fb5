@@ -280,10 +280,13 @@ function inlineSuperscriptRefs(root: HTMLElement, notes: Map<string, string>): v
     if (!refs.length) continue;
     const bodies = refs.map((key) => notes.get(key)).filter((b): b is string => Boolean(b));
     if (bodies.length !== refs.length) continue;
-    const text = bodies.map((body) => `[fn]${body}[/fn]`).join("");
-    sup.replaceWith(sup.ownerDocument.createTextNode(text));
+    const doc = sup.ownerDocument;
+    const frag = doc.createDocumentFragment();
+    for (const body of bodies) frag.appendChild(footnoteNode(doc, body));
+    sup.replaceWith(frag);
   }
 }
+
 
 
 
