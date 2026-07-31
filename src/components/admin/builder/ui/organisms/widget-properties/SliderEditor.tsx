@@ -79,6 +79,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       : "avatar") as "avatar" | "label" | "none";
   const authorLabelPl = typeof c.authorLabel_pl === "string" ? c.authorLabel_pl : "";
   const authorLabelEn = typeof c.authorLabel_en === "string" ? c.authorLabel_en : "";
+  const authorSizePx = typeof c.authorSizePx === "number" ? c.authorSizePx : 11;
 
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
@@ -189,6 +190,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     subtitleWeight,
     showExcerpt,
     showAuthor,
+    authorSizePx,
     showCover,
 
     navSizePx,
@@ -430,6 +432,25 @@ export function SliderEditor({ c, lang, setContent }: Props) {
               </SelectContent>
             </Select>
           </PropField>
+          {authorDisplay !== "none" && (
+            <PropField
+              label={t("builder.sliderEditor.authorSize", {
+                defaultValue: "Rozmiar czcionki autora (px)",
+              })}
+            >
+              <Input
+                type="number"
+                min={8}
+                max={24}
+                value={authorSizePx}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setContent("authorSizePx", Number.isFinite(n) ? Math.max(8, Math.min(24, n)) : 11);
+                }}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          )}
           {authorDisplay === "label" && (
             <div className="grid grid-cols-2 gap-2">
               <PropField label="Etykieta (PL)">

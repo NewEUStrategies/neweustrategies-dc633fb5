@@ -94,6 +94,8 @@ export interface SliderConfig {
   /** Optional i18n override for the label prefix in authorDisplay='label'. */
   authorLabel_pl?: string;
   authorLabel_en?: string;
+  /** Rozmiar czcionki metadanych autora (px). Domyślnie 11. */
+  authorSizePx?: number;
 
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
@@ -872,6 +874,14 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           ? (config.authorLabel_en?.trim() || "By")
           : (config.authorLabel_pl?.trim() || "Autor")) + ": "
       : "";
+  // Metadane autora: mniejsza domyślna czcionka (11px), sterowalna z panelu.
+  const authorFontPx = Math.max(
+    8,
+    Math.min(24, typeof config.authorSizePx === "number" ? config.authorSizePx : 11),
+  );
+  const authorStyle: CSSProperties = { fontSize: `${authorFontPx}px`, lineHeight: 1.35 };
+  const authorAvatarPx = Math.round(authorFontPx * 1.7);
+
 
   const sharedProps = {
     items,
@@ -900,6 +910,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     showAuthor,
     showTitle,
     authorLabelPrefix,
+    authorStyle,
+    authorAvatarPx,
   };
 
   return (
@@ -960,6 +972,8 @@ type VariantProps = {
   showAuthor: boolean;
   showTitle: boolean;
   authorLabelPrefix: string;
+  authorStyle: CSSProperties;
+  authorAvatarPx: number;
 };
 
 /** Compact author badge: 6px-rounded avatar + display name; links to the
@@ -1149,14 +1163,17 @@ function EditorialHeroVariant(p: VariantProps) {
             </p>
           ))}
         {((p.showAuthor && cur.author) || cur.readTime) && (
-          <div className="mt-4 flex items-center justify-center gap-2 text-xs md:text-sm text-muted-foreground">
+          <div
+            className="mt-4 flex items-center justify-center gap-2 text-muted-foreground"
+            style={p.authorStyle}
+          >
             {p.showAuthor && cur.author && (
               <AuthorBadge
                 name={cur.author}
                 avatar={cur.authorAvatar}
                 slug={cur.authorSlug}
                 tone="light"
-                size={22}
+                size={p.authorAvatarPx}
                 labelPrefix={p.authorLabelPrefix}
               />
             )}
@@ -1290,14 +1307,17 @@ function MultiCardVariant(p: VariantProps) {
                       </p>
                     ))}
                   {((p.showAuthor && it.author) || it.readTime) && (
-                    <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <div
+                      className="mt-2 flex items-center gap-2 text-muted-foreground"
+                      style={p.authorStyle}
+                    >
                       {p.showAuthor && it.author && (
                         <AuthorBadge
                           name={it.author}
                           avatar={it.authorAvatar}
                           slug={it.authorSlug}
                           tone="light"
-                          size={20}
+                          size={p.authorAvatarPx}
                           labelPrefix={p.authorLabelPrefix}
                         />
                       )}
@@ -1406,14 +1426,14 @@ function CinematicOverlayVariant(p: VariantProps) {
               </p>
             )}
             {((p.showAuthor && cur.author) || cur.readTime) && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-white/75">
+              <div className="mt-3 flex items-center gap-2 text-white/75" style={p.authorStyle}>
                 {p.showAuthor && cur.author && (
                   <AuthorBadge
                     name={cur.author}
                     avatar={cur.authorAvatar}
                     slug={cur.authorSlug}
                     tone="dark"
-                    size={22}
+                    size={p.authorAvatarPx}
                     labelPrefix={p.authorLabelPrefix}
                   />
                 )}
@@ -1561,14 +1581,14 @@ function SplitFeatureVariant(p: VariantProps) {
             </p>
           ))}
         {((p.showAuthor && cur.author) || cur.readTime) && (
-          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-3 flex items-center gap-2 text-muted-foreground" style={p.authorStyle}>
             {p.showAuthor && cur.author && (
               <AuthorBadge
                 name={cur.author}
                 avatar={cur.authorAvatar}
                 slug={cur.authorSlug}
                 tone="light"
-                size={22}
+                size={p.authorAvatarPx}
                 labelPrefix={p.authorLabelPrefix}
               />
             )}

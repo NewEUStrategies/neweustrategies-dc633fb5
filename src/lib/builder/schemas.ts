@@ -148,6 +148,14 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       hint: "Działa identycznie na desktopie, tablecie i mobile.",
     },
     {
+      key: "authorSizePx",
+      type: "number",
+      label: "Rozmiar czcionki autora (px)",
+      min: 8,
+      max: 24,
+      hint: "Domyślnie 11 px. Skaluje też awatar autora.",
+    },
+    {
       key: "subtitleWeight",
       type: "select",
       label: "Grubość podtytułu",
