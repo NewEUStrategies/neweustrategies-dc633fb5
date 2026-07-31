@@ -437,7 +437,8 @@ function EditPage() {
         <FloatingInput
           label="Slug"
           value={form.slug}
-          onChange={(e) => set("slug", e.target.value)}
+          onChange={(e) => set("slug", normalizeSlugInput(e.target.value))}
+          onBlur={(e) => set("slug", slugifyTaxonomy(e.target.value))}
         />
         <p className="text-[11px] text-muted-foreground mt-1">
           Zmiana slug zmieni adres URL tej strony (zarówno w panelu, jak i publicznie).
