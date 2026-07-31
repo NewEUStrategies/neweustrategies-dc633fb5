@@ -6,6 +6,7 @@
 // - Backspace na pustym akapicie -> usuwa blok i przenosi focus
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import { getHTMLFromFragment } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
@@ -32,6 +33,8 @@ interface Props {
   onTransform?: (replacement: Block[]) => void;
   onInsertAfter?: (block: Block) => void;
   onDeleteEmpty?: () => void;
+  /** Ctrl/Cmd+A przy zaznaczonej całej treści bloku - eskalacja do dokumentu. */
+  onSelectAllBlocks?: () => void;
 }
 
 export function ParagraphBlock({
@@ -41,13 +44,14 @@ export function ParagraphBlock({
   onTransform,
   onInsertAfter,
   onDeleteEmpty,
+  onSelectAllBlocks,
 }: Props) {
   const { t } = useTranslation();
   const html = String(block.data.html ?? "");
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const handlersRef = useRef({ onTransform, onInsertAfter, onDeleteEmpty });
-  handlersRef.current = { onTransform, onInsertAfter, onDeleteEmpty };
+  const handlersRef = useRef({ onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks });
+  handlersRef.current = { onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks };
 
   const [slashOpen, setSlashOpen] = useState(false);
 
@@ -114,15 +118,38 @@ export function ParagraphBlock({
           return true;
         }
 
-        // Enter -> new paragraph below when empty (otherwise default split is fine for inline)
-        if (event.key === "Enter" && !event.shiftKey) {
-          const isEmpty = ed.isEmpty;
-          if (isEmpty && handlersRef.current.onInsertAfter) {
+        // Ctrl/Cmd+A: jak w Word - pierwsze naciśnięcie zaznacza treść bloku,
+        // drugie (gdy blok jest już cały zaznaczony) zaznacza WSZYSTKIE bloki.
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+          const { from, to } = ed.state.selection;
+          const docSize = ed.state.doc.content.size;
+          if (from <= 1 && to >= docSize - 1 && handlersRef.current.onSelectAllBlocks) {
             event.preventDefault();
-            const newP: Block = { id: newBlockId(), type: "paragraph", data: { html: "" } };
-            handlersRef.current.onInsertAfter(newP);
+            ed.commands.blur();
+            handlersRef.current.onSelectAllBlocks();
             return true;
           }
+          return false;
+        }
+
+        // Enter -> ZAWSZE nowy blok poniżej (zachowanie Worda / Gutenberga).
+        // Treść za kursorem przenosi się do nowego bloku, treść przed nim
+        // zostaje w bieżącym. Shift+Enter nadal robi miękki <br>.
+        if (event.key === "Enter" && !event.shiftKey && handlersRef.current.onInsertAfter) {
+          event.preventDefault();
+          const { state } = ed;
+          const { from, to } = state.selection;
+          const end = state.doc.content.size;
+          const tailFragment = state.doc.slice(to, end).content;
+          const tailHtml = getHTMLFromFragment(tailFragment, state.schema);
+          const tail = /^\s*(<p>(\s|<br\s*\/?>)*<\/p>)?\s*$/i.test(tailHtml) ? "" : tailHtml;
+          if (from < end) ed.chain().focus().deleteRange({ from, to: end }).run();
+          handlersRef.current.onInsertAfter({
+            id: newBlockId(),
+            type: "paragraph",
+            data: { html: tail },
+          });
+          return true;
         }
 
         // Backspace at start of empty paragraph -> delete block

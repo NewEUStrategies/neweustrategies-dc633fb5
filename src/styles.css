@@ -4169,6 +4169,71 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   font-weight: var(--fw-h6, 600);
   text-transform: var(--tt-h6, uppercase);
 }
+/* -------------------------------------------------------------
+ * CMS builder (Gutenberg) - edytowalne nagłówki bloków.
+ * Nagłówek jest edytowany przez TipTap, więc DOM to
+ * `.cms-hN > .ProseMirror > p`. Reguły poniżej wymuszają na tym
+ * akapicie DOKŁADNIE te same globalne tokeny (--fs-hN / --lh-hN /
+ * --ls-hN / --fw-hN / --tt-hN), co strona publiczna - dzięki temu
+ * zmiana rozmiarów czcionek w panelu admina jest natychmiast
+ * widoczna w builderze 1:1. Selektory z `p` wygrywają nad ogólną
+ * regułą `[data-builder-renderer] p` (specyficzność klasa+element).
+ * ------------------------------------------------------------- */
+.cms-h1,
+.block-canvas .cms-h1 p,
+[data-builder-renderer] .cms-h1,
+[data-builder-renderer] .cms-h1 p {
+  font-size: var(--fs-h1, 2.5rem);
+  line-height: var(--lh-h1, 1.15);
+  letter-spacing: var(--ls-h1, -0.5px);
+  font-weight: var(--fw-h1, 800);
+  text-transform: var(--tt-h1, none);
+}
+.cms-h2,
+.block-canvas .cms-h2 p,
+[data-builder-renderer] .cms-h2,
+[data-builder-renderer] .cms-h2 p {
+  font-size: var(--fs-h2, 2rem);
+  line-height: var(--lh-h2, 1.2);
+  letter-spacing: var(--ls-h2, -0.25px);
+  font-weight: var(--fw-h2, 700);
+  text-transform: var(--tt-h2, none);
+}
+.cms-h3,
+.block-canvas .cms-h3 p,
+[data-builder-renderer] .cms-h3,
+[data-builder-renderer] .cms-h3 p {
+  font-size: var(--fs-h3, 1.625rem);
+  line-height: var(--lh-h3, 1.25);
+  letter-spacing: var(--ls-h3, 0);
+  font-weight: var(--fw-h3, 700);
+  text-transform: var(--tt-h3, none);
+}
+.cms-h4,
+.block-canvas .cms-h4 p,
+[data-builder-renderer] .cms-h4,
+[data-builder-renderer] .cms-h4 p {
+  font-size: var(--fs-h4, 1.375rem);
+  line-height: var(--lh-h4, 1.3);
+  letter-spacing: var(--ls-h4, 0);
+  font-weight: var(--fw-h4, 700);
+  text-transform: var(--tt-h4, none);
+}
+.cms-h5,
+.block-canvas .cms-h5 p,
+[data-builder-renderer] .cms-h5,
+[data-builder-renderer] .cms-h5 p {
+  font-size: var(--fs-h5, 1.125rem);
+  line-height: var(--lh-h5, 1.4);
+  letter-spacing: var(--ls-h5, 0);
+  font-weight: var(--fw-h5, 600);
+  text-transform: var(--tt-h5, none);
+}
+/* Rytm pionowy nagłówka w builderze - jak w publicznym wpisie. */
+.block-canvas :is(.cms-h1, .cms-h2, .cms-h3, .cms-h4, .cms-h5) p {
+  margin: 0;
+}
+
 .cms-post-content p,
 .cms-post-content .cms-body,
 [data-cms-content] p,

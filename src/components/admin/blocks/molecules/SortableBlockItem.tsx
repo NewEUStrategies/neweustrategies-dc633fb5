@@ -31,6 +31,8 @@ interface Props {
   index: number;
   total: number;
   active: boolean;
+  /** Blok objęty zaznaczeniem wielokrotnym (Ctrl/Cmd+A). */
+  selected?: boolean;
   /** Etykieta typu bloku widoczna w stałym badge'u (np. "AKAPIT", "OBRAZ"). */
   typeLabel?: string;
   onSelect: () => void;
@@ -147,11 +149,13 @@ export function SortableBlockItem(props: Props) {
           data-block-id={props.id}
           onClick={props.onSelect}
           onContextMenu={props.onSelect}
-          className={`group relative pl-8 pr-3 pt-2 pb-2 scroll-mt-24 ${
+          aria-selected={props.selected || undefined}
+          data-block-selected={props.selected ? "true" : undefined}
+          className={`group relative pl-8 pr-3 pt-2 pb-2 scroll-mt-24 rounded-sm ${
             props.active
               ? "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:bg-foreground before:rounded"
               : ""
-          }`}
+          } ${props.selected ? "bg-foreground/10 ring-1 ring-foreground/20" : ""}`.trim()}
         >
           <button
             type="button"

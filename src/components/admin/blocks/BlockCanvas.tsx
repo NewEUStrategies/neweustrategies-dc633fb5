@@ -1,7 +1,7 @@
 // Refaktor: kanwa bloków z drag&drop (@dnd-kit), atomowymi akcjami i obsługą Enter/Backspace.
 // Każda mutacja przechodzi przez `onChange`, który u góry trafia w history hook (undo/redo).
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   type DragEndEvent,
@@ -140,9 +140,63 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   const blocks = doc.blocks;
   const ids = useMemo(() => blocks.map((b) => b.id), [blocks]);
 
+  // Zaznaczenie WIELU bloków (Ctrl/Cmd+A jak w Word). Puste = brak zaznaczenia
+  // dokumentu; wtedy obowiązuje zwykłe zaznaczenie pojedynczego bloku.
+  const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
   // Stable ref to current doc/blocks so callbacks don't churn.
   const docRef = useRef(doc);
   docRef.current = doc;
+
+  const selectAllBlocks = useCallback(() => {
+    setSelectedIds(docRef.current.blocks.map((b) => b.id));
+    onSelect(null);
+  }, [onSelect]);
+
+  const clearSelection = useCallback(() => setSelectedIds([]), []);
+
+  const removeSelected = useCallback(() => {
+    const set = new Set(selectedIds);
+    if (set.size === 0) return;
+    const next = docRef.current.blocks.filter((b) => !set.has(b.id));
+    onChange(
+      { ...docRef.current, blocks: next.length ? next : [] },
+      true,
+    );
+    setSelectedIds([]);
+    onSelect(null);
+  }, [selectedIds, onChange, onSelect]);
+
+  // Klawiatura dokumentu: Ctrl/Cmd+A poza edytorem zaznacza wszystkie bloki,
+  // Delete/Backspace usuwa zaznaczone, Escape czyści zaznaczenie.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const inEditable =
+        !!target &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT");
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && !inEditable) {
+        e.preventDefault();
+        selectAllBlocks();
+        return;
+      }
+      if (selectedIds.length === 0) return;
+      if (e.key === "Escape") {
+        clearSelection();
+        return;
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && !inEditable) {
+        e.preventDefault();
+        removeSelected();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selectAllBlocks, clearSelection, removeSelected, selectedIds.length]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -249,8 +303,12 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                   index={idx}
                   total={blocks.length}
                   active={b.id === activeId}
+                  selected={selectedSet.has(b.id)}
                   typeLabel={BLOCK_SPECS[b.type]?.label ?? b.type}
-                  onSelect={() => onSelect(b.id)}
+                  onSelect={() => {
+                    setSelectedIds([]);
+                    onSelect(b.id);
+                  }}
                   onMove={(dir) => move(idx, dir)}
                   onDuplicate={() => duplicate(idx)}
                   onRemove={() => remove(idx)}
@@ -270,6 +328,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                       onDeleteEmpty={() => {
                         if (blocks.length > 1) remove(idx);
                       }}
+                      onSelectAllBlocks={selectAllBlocks}
                     />
                   </BlockWithToolbar>
                 </SortableBlockItem>
@@ -314,6 +373,7 @@ interface RendererProps {
   onTransform: (replacement: Block[]) => void;
   onInsertAfter: (b: Block) => void;
   onDeleteEmpty: () => void;
+  onSelectAllBlocks: () => void;
 }
 
 function BlockRenderer({
@@ -323,6 +383,7 @@ function BlockRenderer({
   onTransform,
   onInsertAfter,
   onDeleteEmpty,
+  onSelectAllBlocks,
 }: RendererProps) {
   switch (block.type) {
     case "paragraph":
@@ -334,10 +395,21 @@ function BlockRenderer({
           onTransform={onTransform}
           onInsertAfter={onInsertAfter}
           onDeleteEmpty={onDeleteEmpty}
+          onSelectAllBlocks={onSelectAllBlocks}
         />
       );
     case "heading":
-      return <HeadingBlock block={block} isActive={isActive} onChange={onChange} />;
+      return (
+        <HeadingBlock
+          block={block}
+          isActive={isActive}
+          onChange={onChange}
+          onTransform={onTransform}
+          onInsertAfter={onInsertAfter}
+          onDeleteEmpty={onDeleteEmpty}
+          onSelectAllBlocks={onSelectAllBlocks}
+        />
+      );
     case "image":
       return <ImageBlock block={block} isActive={isActive} onChange={onChange} />;
     case "list":
