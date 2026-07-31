@@ -64,6 +64,12 @@ function health(overrides: Partial<SchedulerHealth> = {}): SchedulerHealth {
       lastTickStatus: "dispatched",
       lastTickError: null,
       tickCount: 1420,
+      communityCron: {
+        lastTickAt: new Date(now - 120_000).toISOString(),
+        lastTickStatus: "dispatched",
+        lastTickError: null,
+        tickCount: 288,
+      },
     },
     capabilities: { pgCron: true, pgNet: true },
     appUnreachable: false,
@@ -235,6 +241,28 @@ describe("SchedulerHealthPanel", () => {
     await waitFor(() =>
       expect(document.body.textContent ?? "").toMatch(/pg_net|pg_net_unavailable/),
     );
+    expect(document.body.textContent ?? "").not.toContain("adminScheduler.");
+  });
+
+  it("status siatki społeczności stoi osobno i tłumaczy powód pominięcia", async () => {
+    getSchedulerHealth.mockResolvedValue(
+      health({
+        runner: {
+          ...health().runner,
+          communityCron: {
+            lastTickAt: new Date(Date.now() - 240_000).toISOString(),
+            lastTickStatus: "skipped",
+            lastTickError: "no_base_url",
+            tickCount: 0,
+          },
+        },
+      }),
+    );
+    renderPanel();
+
+    // Rozjazd dwóch linii (jobs-tick dispatched, community skipped) lokalizuje
+    // awarię konkretnej ścieżki - powód jest zdaniem, nie surowym kodem.
+    await waitFor(() => expect(document.body.textContent ?? "").toMatch(/base_url/));
     expect(document.body.textContent ?? "").not.toContain("adminScheduler.");
   });
 

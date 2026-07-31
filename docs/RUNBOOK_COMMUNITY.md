@@ -35,13 +35,17 @@ claimy atomowe w Postgresie; mogą działać równolegle):
 | Endpoint                          | Sekret                                                                                                                 | Kto woła                                                                                  | Zakres                                                                                        |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `POST /api/public/jobs-tick`      | nagłówek `x-jobs-secret` = `job_runner_settings.secret`                                                                | **pg_cron + pg_net co minutę** (migracje `20260713170000`, `20260731110000`)              | newsletter + push + digesty + przypomnienia (wydarzenia, follow-upy CRM) + linki + integracje |
-| `POST /api/public/community-cron` | nagłówek `x-community-cron-secret` = env `COMMUNITY_CRON_SECRET` **albo** `job_runner_settings.secret` (jeden z dwóch) | **GitHub Actions co 5 min** (`.github/workflows/scheduler.yml`) + dowolny cron zewnętrzny | `?job=all\|push\|digest-daily\|digest-weekly\|event-reminders\|crm-task-reminders`            |
+| `POST /api/public/community-cron` | nagłówek `x-community-cron-secret` = env `COMMUNITY_CRON_SECRET` **albo** `job_runner_settings.secret` (jeden z dwóch) | **pg_cron + pg_net co 5 min, minuty 2,7,12,…** (migracja `20260731210000`, `invoke_community_cron`) + **GitHub Actions co 5 min** (`.github/workflows/scheduler.yml`) + dowolny cron zewnętrzny | `?job=all\|push\|digest-daily\|digest-weekly\|event-reminders\|crm-task-reminders`            |
 | przycisk „Uruchom tick teraz"     | sesja admin/edytor (`requireAdminEditor`)                                                                              | operator: /admin/community/notifications, /admin/tracker                                  | to samo co `jobs-tick` (ta sama funkcja `runJobsTick`)                                        |
 | `GET /api/public/community-cron`  | jak wyżej                                                                                                              | monitoring zewnętrzny (uptime robot)                                                      | sonda zdrowia bez efektów ubocznych: `200` = OK, `503` = zastój                               |
 
 **Ścieżka podstawowa:** pg_cron → `jobs-tick` (co minutę, zero zewnętrznych
-zależności). **Siatka bezpieczeństwa:** scheduler w repo (co 5 minut, jeden
-przebieg = 4 ticki po 60 s). Przycisk w panelu jest dla dyżuru.
+zależności). **Siatka bezpieczeństwa w bazie:** pg_cron → `community-cron`
+(co 5 minut, minuty 2,7,12,… - przeplot z oknem digestów jobs-tick; drenuje
+WYŁĄCZNIE kanały społeczności, więc działa nawet gdy budżet 25 s jobs-tick
+zjada kampania newslettera). **Siatka zewnętrzna:** scheduler w repo (co 5
+minut, jeden przebieg = 4 ticki po 60 s; GitHub wyłącza go po 60 dniach bez
+aktywności). Przycisk w panelu jest dla dyżuru.
 
 ### Samozbrojenie (dlaczego to kiedyś nie działało)
 
@@ -90,12 +94,15 @@ zapisuje wiersz w `public.job_runner_runs` (source, job, `ok`, czas, wynik,
 błąd; rotacja 14 dni) i stempluje heartbeat w `job_runner_settings`
 (`last_invoked_at` = cron puknął, `last_app_run_at` / `last_app_ok_at` =
 aplikacja odpowiedziała, `failure_streak`), obok telemetrii samego crona
-(`last_tick_status` / `last_tick_error` / `tick_count`).
+(`last_tick_status` / `last_tick_error` / `tick_count` dla jobs-tick;
+`community_last_tick_*` / `community_tick_count` dla siatki społeczności -
+rozjazd tych dwóch statusów lokalizuje awarię konkretnej ścieżki).
 
-Alert **„cron puka, aplikacja nie odpowiada"** porównuje puknięcie z ostatnim
-przebiegiem ZE ŹRÓDŁA `pg_cron`, nie z globalnym heartbeatem - ten stempluje
-każde źródło, więc scheduler repo (co 5 min) albo ręczny tick z panelu
-maskowałby martwą ścieżkę podstawową.
+Alert **„cron puka, aplikacja nie odpowiada"** porównuje puknięcie (z
+KTÓREJKOLWIEK ścieżki bazy: jobs-tick albo community-cron, tylko status
+`dispatched`) z ostatnim przebiegiem ZE ŹRÓDŁA `pg_cron`, nie z globalnym
+heartbeatem - ten stempluje każde źródło, więc scheduler repo (co 5 min) albo
+ręczny tick z panelu maskowałby martwą ścieżkę podstawową.
 
 **Panel: /admin/community/notifications** (RPC `job_scheduler_health()`,
 admin/edytor - ta sama bramka co w RPC; autor jej nie widzi)
@@ -111,7 +118,9 @@ pg_net, świadome wyłączenie).
 1. pg_cron + pg_net włączone w projekcie Supabase (Database → Extensions).
    Migracja `20260731110000` zakłada/reaktywuje zadania (`jobs-tick` co minutę,
    `billing-cron-daily` o 04:25 UTC, `prune-job-runner-runs`) także wtedy, gdy
-   rozszerzenia włączono PÓŹNIEJ niż pierwotną migrację.
+   rozszerzenia włączono PÓŹNIEJ niż pierwotną migrację; `20260731210000`
+   dokłada `community-cron` (co 5 minut, minuty 2,7,12,…) - siatkę
+   społeczności niezależną od repo i od budżetu jobs-tick.
 2. `job_runner_settings` (id=1): `enabled=true`, `secret` ustawiony, `base_url`
    = publiczny adres aplikacji. Zwykle nie trzeba nic robić (samozbrojenie);
    ręcznie: panel Newsletter → kampanie → „Automatyczna wysyłka (cron)".

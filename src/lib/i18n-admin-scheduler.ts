@@ -33,7 +33,7 @@ export const adminSchedulerPl = {
       never: "Żaden przebieg nigdy nie dotarł do bazy. Harmonogram jest nieuzbrojony.",
     },
     sources: {
-      pg_cron: "pg_cron (baza, co minutę)",
+      pg_cron: "pg_cron (baza: tick co minutę, siatka co 5 min)",
       github_actions: "GitHub Actions (repo, co 5 min)",
       admin: "Panel admina (ręcznie)",
       external: "Scheduler zewnętrzny",
@@ -58,6 +58,12 @@ export const adminSchedulerPl = {
         dispatched: "Cron wysłał żądanie do aplikacji.",
         skipped: "Cron pominął puknięcie: {{reason}}",
         error: "Cron nie zdołał puknąć: {{reason}}",
+      },
+      communityTick: {
+        never: "Siatka społeczności (community-cron) jeszcze nie puknęła.",
+        dispatched: "Siatka społeczności: puknięcie {{ago}} ({{count}} od wdrożenia).",
+        skipped: "Siatka społeczności pominęła puknięcie: {{reason}}",
+        error: "Siatka społeczności nie zdołała puknąć: {{reason}}",
       },
       tickReason: {
         disabled: "runner jest wyłączony",
@@ -155,7 +161,7 @@ export const adminSchedulerEn = {
       never: "No run has ever reached the database. The scheduler is not armed.",
     },
     sources: {
-      pg_cron: "pg_cron (database, every minute)",
+      pg_cron: "pg_cron (database: tick every minute, safety net every 5 min)",
       github_actions: "GitHub Actions (repo, every 5 min)",
       admin: "Admin panel (manual)",
       external: "External scheduler",
@@ -180,6 +186,12 @@ export const adminSchedulerEn = {
         dispatched: "The cron sent a request to the app.",
         skipped: "The cron skipped the ping: {{reason}}",
         error: "The cron could not ping: {{reason}}",
+      },
+      communityTick: {
+        never: "The community safety net (community-cron) has not pinged yet.",
+        dispatched: "Community safety net: pinged {{ago}} ({{count}} since deploy).",
+        skipped: "The community safety net skipped the ping: {{reason}}",
+        error: "The community safety net could not ping: {{reason}}",
       },
       tickReason: {
         disabled: "the runner is disabled",

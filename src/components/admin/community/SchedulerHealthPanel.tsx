@@ -351,6 +351,32 @@ export function SchedulerHealthPanel() {
                 })}
               </p>
             ) : null}
+            {/* Puknięcie siatki społeczności (community-cron co 5 min): status
+                stoi OSOBNO od minutowego jobs-tick, bo rozjazd tych dwóch linii
+                wskazuje, KTÓRA ścieżka bazy wymaga naprawy. */}
+            {runner ? (
+              runner.communityCron.lastTickStatus ? (
+                <p
+                  className={
+                    runner.communityCron.lastTickStatus === "dispatched"
+                      ? "m-0 text-muted-foreground"
+                      : "m-0 text-amber-600 dark:text-amber-400"
+                  }
+                >
+                  {t(`adminScheduler.runner.communityTick.${runner.communityCron.lastTickStatus}`, {
+                    ago: ago(runner.communityCron.lastTickAt, lang, "-"),
+                    count: runner.communityCron.tickCount,
+                    reason: tickReason(t, runner.communityCron.lastTickError),
+                    defaultValue:
+                      runner.communityCron.lastTickError ?? runner.communityCron.lastTickStatus,
+                  })}
+                </p>
+              ) : (
+                <p className="m-0 text-muted-foreground">
+                  {t("adminScheduler.runner.communityTick.never")}
+                </p>
+              )
+            ) : null}
             {runner?.autoArmedAt ? (
               <p className="m-0 text-muted-foreground">
                 {t("adminScheduler.runner.autoArmed", {
