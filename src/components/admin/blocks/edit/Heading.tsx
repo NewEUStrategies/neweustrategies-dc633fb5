@@ -21,7 +21,10 @@ export function HeadingBlock({ block, isActive, onChange }: Props) {
         ? "text-2xl"
         : level === 3
           ? "text-xl"
-          : "text-lg";
+          : level === 4
+            ? "text-lg"
+            : "text-base";
+
   const alignClass =
     align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left";
 
