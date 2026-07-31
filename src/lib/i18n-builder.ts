@@ -2021,6 +2021,7 @@ const en: typeof pl = {
       authorLabel: "Label \"Author: Full Name\"",
       authorNone: "No author",
       authorSize: "Author font size (px)",
+      authorAvatarSize: "Author photo size (px)",
       variant: "Slider variant",
       autoHint: "Animation plays automatically",
       carouselLayout: "Carousel layout",
