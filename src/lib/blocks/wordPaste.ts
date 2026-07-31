@@ -102,6 +102,20 @@ function collectFootnotes(root: HTMLElement): Map<string, string> {
   return map;
 }
 
+/**
+ * Nośnik przypisu w drzewie DOM. Treść trzymamy w atrybucie, bo jest już
+ * gotowym (bezpiecznym) HTML-em - gdyby trafiła do węzła tekstowego,
+ * serializacja inline zescape'owałaby kursywę i linki bibliografii.
+ */
+const FN_TAG = "X-FN";
+
+function footnoteNode(doc: Document, body: string): Element {
+  const el = doc.createElement("x-fn");
+  el.setAttribute("data-body", body);
+  el.textContent = `[fn]${body.replace(/<[^>]+>/g, "")}[/fn]`;
+  return el;
+}
+
 /** Zamienia odnośniki do przypisów na inline shortcode `[fn]…[/fn]`. */
 function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void {
   const anchors = Array.from(root.querySelectorAll<HTMLAnchorElement>("a[href]"));
@@ -110,7 +124,8 @@ function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void
     if (!FTN_REF_HREF.test(href)) continue;
     const key = footnoteKey(href);
     const body = key ? notes.get(key) : undefined;
-    const replacement = a.ownerDocument.createTextNode(body ? `[fn]${body}[/fn]` : "");
+    const doc = a.ownerDocument;
+    const replacement: Node = body ? footnoteNode(doc, body) : doc.createTextNode("");
     // Marker Worda bywa opakowany w <sup> - usuwamy cały wrapper, nie tylko <a>.
     const sup = a.closest("sup");
     const target: Element =
@@ -118,6 +133,7 @@ function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void
     target.replaceWith(replacement);
   }
 }
+
 
 // --- przypisy „ręczne" (indeks górny + lista na końcu) ---------------------
 
