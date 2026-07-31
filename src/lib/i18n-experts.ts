@@ -102,6 +102,12 @@ const pl = {
     expertiseAdd: "Dodaj obszar",
     saved: "Zapisano",
     saveError: "Nie udało się zapisać",
+    // Dziedziczenie layoutu (hint w edytorze profilu autora)
+    layoutHint:
+      "Layout, kolory hero, akcent i punktory BIO dziedziczą z ustawień tenanta (admin › Layouty ekspertów).",
+    layoutHintPreset: "Aktywny preset: „{{label}}”.",
+    layoutHintInline:
+      "Pojedyncze pola (preset, sekcje, akcent) nadpiszesz bezpośrednio na swojej publicznej stronie - przycisk „Edytuj layout” w prawym dolnym rogu.",
   },
 };
 
@@ -196,6 +202,11 @@ const en = {
     expertiseAdd: "Add area",
     saved: "Saved",
     saveError: "Could not save",
+    layoutHint:
+      "Layout, hero colors, accent and BIO bullets inherit from the tenant settings (admin › Expert layouts).",
+    layoutHintPreset: "Active preset: „{{label}}”.",
+    layoutHintInline:
+      "You can override individual fields (preset, sections, accent) directly on your public page - the „Edit layout” button in the bottom-right corner.",
   },
 };
 

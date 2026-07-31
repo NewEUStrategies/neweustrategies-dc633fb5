@@ -1,6 +1,7 @@
 // Czyste transformacje huba eksperta - wydzielone z queries.ts, żeby dało się
 // je jednostkowo testować bez klienta Supabase (asemblacja materiałów, parsing
 // funkcji organizacyjnych, redukcja faset).
+import { parseExpertLayoutOverrides } from "@/lib/expertLayouts";
 import type {
   CategoryMeta,
   ExpertMaterial,
@@ -95,6 +96,12 @@ export function buildExpertProfile(prof: Row, apRow: Row | null, badges: string[
     media_contact_name: strOrNull(apRow?.media_contact_name),
     media_contact_email: strOrNull(apRow?.media_contact_email),
     media_contact_phone: strOrNull(apRow?.media_contact_phone),
+    // Kolumna layout_preset wygrywa z kluczem `preset` w jsonb; nieznane
+    // klucze/typy odpadają w parserze. Brak nadpisań -> null (dziedziczenie).
+    layout_overrides: parseExpertLayoutOverrides(
+      apRow?.layout_overrides,
+      strOrNull(apRow?.layout_preset),
+    ),
   };
 }
 

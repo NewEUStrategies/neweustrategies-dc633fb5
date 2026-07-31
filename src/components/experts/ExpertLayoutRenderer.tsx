@@ -20,6 +20,7 @@ import type { ExpertHubData } from "@/lib/experts/types";
 import {
   findExpertPreset,
   isSectionVisible,
+  sanitizeCssColor,
   DEFAULT_EXPERT_SECTION_ORDER,
   type ExpertLayoutSettings,
   type ExpertSectionKey,
@@ -1096,10 +1097,21 @@ export function expertLayoutCssVars(
   settings: ExpertLayoutSettings,
   theme: "light" | "dark" = "light",
 ): CSSProperties {
-  const accent = theme === "dark" ? settings.accent_color_dark : settings.accent_color;
-  const bioBullet = theme === "dark" ? settings.bio_bullet_color_dark : settings.bio_bullet_color;
-  const heroBg = theme === "dark" ? settings.hero_bg_color_dark : settings.hero_bg_color;
-  const heroText = theme === "dark" ? settings.hero_text_color_dark : settings.hero_text_color;
+  // Sanityzacja NA WYJŚCIU (nie tylko przy zapisie): wartości trafiają do
+  // scoped `<style>` przez dangerouslySetInnerHTML, a z inline-edytorem
+  // pochodzą też od ekspertów. Zły kolor degraduje się do tokenów motywu.
+  const accent = sanitizeCssColor(
+    theme === "dark" ? settings.accent_color_dark : settings.accent_color,
+  );
+  const bioBullet = sanitizeCssColor(
+    theme === "dark" ? settings.bio_bullet_color_dark : settings.bio_bullet_color,
+  );
+  const heroBg = sanitizeCssColor(
+    theme === "dark" ? settings.hero_bg_color_dark : settings.hero_bg_color,
+  );
+  const heroText = sanitizeCssColor(
+    theme === "dark" ? settings.hero_text_color_dark : settings.hero_text_color,
+  );
 
   const nameBase = Math.max(12, settings.name_size_base || 28);
   const nameLg = Math.max(nameBase, settings.name_size_lg || 44);
@@ -1131,10 +1143,14 @@ export function ExpertLayoutStyleScope({
   scopeId: string;
   settings: ExpertLayoutSettings;
 }) {
+  // Scope-id wchodzi do selektora w surowym CSS - przycinamy do bezpiecznego
+  // alfabetu, żeby żadna wartość (dziś uuid/tenant, jutro dowolny caller)
+  // nie mogła domknąć atrybutu ani bloku reguły.
+  const safeScopeId = scopeId.replace(/[^a-zA-Z0-9_-]/g, "");
   const dark = expertLayoutCssVars(settings, "dark") as Record<string, string>;
   const decls = Object.entries(dark)
     .map(([k, v]) => `${k}: ${v};`)
     .join(" ");
-  const css = `.dark [data-pv-scope="${scopeId}"]{${decls}}`;
+  const css = `.dark [data-pv-scope="${safeScopeId}"]{${decls}}`;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }

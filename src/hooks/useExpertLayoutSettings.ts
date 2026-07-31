@@ -10,7 +10,12 @@
 //     innego tenanta lub udostępniony publicznie).
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { defaultExpertLayoutSettings, type ExpertLayoutSettings } from "@/lib/expertLayouts";
+import {
+  defaultExpertLayoutSettings,
+  type ExpertLayoutOverrides,
+  type ExpertLayoutSettings,
+} from "@/lib/expertLayouts";
+import type { Json } from "@/integrations/supabase/types";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 export const expertLayoutSettingsQueryOptions = (tenantId?: string | null) =>
@@ -51,5 +56,71 @@ export function useSaveExpertLayoutSettings() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["expert-layout-settings"] }),
+  });
+}
+
+/**
+ * Serializacja ExpertLayoutOverrides -> jsonb `author_profiles.layout_overrides`.
+ * `preset` NIE wchodzi do jsonb - żyje w dedykowanej kolumnie `layout_preset`
+ * (CHECK w bazie). Klucze bez nadpisania są pomijane, więc kształt w bazie
+ * zawiera wyłącznie faktyczne odstępstwa od ustawień tenanta.
+ */
+export function expertLayoutOverridesToJson(overrides: ExpertLayoutOverrides | null): Json {
+  const out: { [key: string]: Json } = {};
+  if (!overrides) return out;
+  if (overrides.section_order) out.section_order = [...overrides.section_order];
+  if (typeof overrides.center_hero === "boolean") out.center_hero = overrides.center_hero;
+  if (typeof overrides.center_details === "boolean") out.center_details = overrides.center_details;
+  if (typeof overrides.accent_color === "string") out.accent_color = overrides.accent_color;
+  if (typeof overrides.accent_color_dark === "string") {
+    out.accent_color_dark = overrides.accent_color_dark;
+  }
+  if (overrides.visibility) {
+    const visibility: { [key: string]: Json } = {};
+    for (const [key, value] of Object.entries(overrides.visibility)) {
+      if (typeof value === "boolean") visibility[key] = value;
+    }
+    if (Object.keys(visibility).length > 0) out.visibility = visibility;
+  }
+  return out;
+}
+
+export interface SaveExpertLayoutOverridesInput {
+  /** Ekspert, którego stronę nadpisujemy (author_profiles.user_id). */
+  userId: string;
+  /** Tenant profilu - wymagany przy INSERT pierwszego wiersza autora. */
+  tenantId: string;
+  /** `null` = wyczyść wszystkie nadpisania (pełny powrót do dziedziczenia). */
+  overrides: ExpertLayoutOverrides | null;
+}
+
+/**
+ * Zapis nadpisań per-ekspert z inline-edytora na /author/$slug. RLS: wiersz
+ * zapisze właściciel profilu lub admin/super_admin tego samego tenanta -
+ * dokładnie ci, którym strona w ogóle pokazuje edytor. Upsert po user_id
+ * pokrywa ekspertów bez utworzonego jeszcze wiersza author_profiles
+ * (nowy wiersz startuje jako niepubliczny - DEFAULT false z 20260730120000).
+ */
+export function useSaveExpertLayoutOverrides() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, tenantId, overrides }: SaveExpertLayoutOverridesInput) => {
+      const { error } = await supabase.from("author_profiles").upsert(
+        {
+          user_id: userId,
+          tenant_id: tenantId,
+          layout_preset: overrides?.preset ?? null,
+          layout_overrides: expertLayoutOverridesToJson(overrides),
+        },
+        { onConflict: "user_id" },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      // Hub /author/$slug niesie nadpisania w payloadzie - po zapisie strona
+      // musi je zaciągnąć na świeżo (tak samo profil w adminie).
+      qc.invalidateQueries({ queryKey: ["public", "expert"] });
+      qc.invalidateQueries({ queryKey: ["public", "resolved"] });
+    },
   });
 }

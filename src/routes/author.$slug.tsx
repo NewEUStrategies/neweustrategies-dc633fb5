@@ -6,11 +6,14 @@
 //
 // Layout hero i kolejność sekcji dziedziczone są z `expert_layout_settings`
 // (per tenant) i renderowane tym samym komponentem, którego używa podgląd
-// w /admin/expert-layouts - dzięki temu preview == produkcja.
+// w /admin/expert-layouts - dzięki temu preview == produkcja. Ekspert (oraz
+// admin tenanta) nadpisuje pojedyncze pola bezpośrednio na tej stronie
+// inline-edytorem (ExpertLayoutInlineEditor, lazy) - merge nadpisań robi
+// `mergeExpertLayout`, a draft edytora renderuje się na żywo tym samym torem.
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useRecordProfileView } from "@/lib/network/useProfileViews";
@@ -52,6 +55,8 @@ import {
 import {
   defaultExpertLayoutSettings,
   isSectionVisible,
+  mergeExpertLayout,
+  type ExpertLayoutDraft,
   type ExpertLayoutSettings,
 } from "@/lib/expertLayouts";
 import { isIndexableProfile, profileRobots } from "@/lib/experts/publicVisibility";
@@ -60,6 +65,12 @@ import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 
 const NO_STORE = contentCacheControl({ preview: true });
+
+// Inline-edytor ładowany leniwie - chunk pobierają wyłącznie właściciel
+// profilu i admini tenanta (publiczny gość nigdy nie widzi przycisku).
+const ExpertLayoutInlineEditor = lazy(
+  () => import("@/components/experts/ExpertLayoutInlineEditor"),
+);
 
 export const Route = createFileRoute("/author/$slug")({
   loader: async ({ params, context }) => {
@@ -243,7 +254,7 @@ function ExpertHubPage() {
   ensureExpertsI18n();
   const { slug } = Route.useParams();
   const { data } = useSuspenseQuery(expertHubQueryOptions(slug));
-  const { data: settings } = useSuspenseQuery(
+  const { data: tenantSettings } = useSuspenseQuery(
     expertLayoutSettingsQueryOptions(data?.expert.tenant_id ?? null),
   );
   const { t, i18n } = useTranslation();
@@ -251,8 +262,11 @@ function ExpertHubPage() {
   const personalized = usePersonalizedSettings();
   const badgesQ = useUserBadges(data?.expert.id);
   const podcastsQ = useQuery(podcastsByProfileQueryOptions(data?.expert.id ?? ""));
-  const { user } = useAuth();
+  const { user, isAdmin, tenantId: viewerTenantId } = useAuth();
   const recordView = useRecordProfileView();
+  // Draft z inline-edytora layoutu: obecność obiektu = podgląd na żywo
+  // (strona renderuje draft zamiast zapisanych nadpisań eksperta).
+  const [layoutDraft, setLayoutDraft] = useState<ExpertLayoutDraft | null>(null);
   // Rejestrujemy obejrzenie tylko gdy oglądający != właściciel profilu.
   // Debouncing (raz na godzinę / para) wykonywany jest po stronie RPC,
   // więc bezpiecznie wywołujemy w useEffect na każdym mount / zmianie id.
@@ -262,8 +276,25 @@ function ExpertHubPage() {
     recordView.mutate(viewedId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.expert.id, user?.id]);
+  // Ustawienia widoku = tenant + nadpisania per-ekspert (lub draft edytora).
+  // Ten sam mergeExpertLayout renderuje zapisany stan i podgląd na żywo,
+  // więc draft == produkcja po zapisie. Hook przed early-returnem (rules of
+  // hooks) - dla brakującego huba merge liczy się na pustych nadpisaniach.
+  const persistedOverrides = data?.expert.layout_overrides ?? null;
+  const activeOverrides = layoutDraft ? layoutDraft.overrides : persistedOverrides;
+  const settings = useMemo(
+    () => mergeExpertLayout(tenantSettings, activeOverrides).settings,
+    [tenantSettings, activeOverrides],
+  );
   if (!data) return <PublicNotFound />;
   const { expert } = data;
+  // Inline-edytor widzą tylko właściciel strony i admin tego samego tenanta -
+  // dokładnie ci, których wpuszcza RLS na author_profiles (zapis nadpisań).
+  const canEditLayout = Boolean(
+    user &&
+    expert.tenant_id &&
+    (user.id === expert.id || (isAdmin && viewerTenantId === expert.tenant_id)),
+  );
   const extraBadges = (badgesQ.data ?? []).filter(
     (badge) => !(badge === "verified" && expert.verified_at),
   );
@@ -271,9 +302,10 @@ function ExpertHubPage() {
   const name = expert.display_name ?? (lang === "en" ? "Expert" : "Ekspert");
 
   const cssVars = expertLayoutCssVars(settings, "light");
-  // Scope-id stabilny per tenant - dark-mode override wchodzi automatycznie
-  // przez `<ExpertLayoutStyleScope />` (scoped `<style>` z regułą `.dark`).
-  const scopeId = `expert-${expert.tenant_id ?? "default"}`;
+  // Scope-id per ekspert (nie per tenant) - z nadpisaniami per-ekspert dwie
+  // strony tego samego tenanta mogą mieć różne tokeny; dark-mode override
+  // wchodzi przez `<ExpertLayoutStyleScope />` (scoped `<style>` z `.dark`).
+  const scopeId = `expert-${expert.id || "default"}`;
   // Sekcja "hero_cover" jest widoczna, gdy admin ją włączył - inaczej hero
   // renderujemy zawsze (to jest wizytówka strony), ale poszczególne sekcje
   // pod hero respektują widoczność zapisaną w settings.
@@ -430,6 +462,20 @@ function ExpertHubPage() {
         )}
         <RecommendationsSection recipientId={expert.id} recipientName={name} />
       </div>
+
+      {/* Nadpisania per-ekspert edytowane bezpośrednio na stronie - draft
+          podmienia `settings` przez setLayoutDraft (podgląd na żywo). */}
+      {canEditLayout && expert.tenant_id && (
+        <Suspense fallback={null}>
+          <ExpertLayoutInlineEditor
+            expertId={expert.id}
+            tenantId={expert.tenant_id}
+            tenantSettings={tenantSettings}
+            savedOverrides={persistedOverrides}
+            onDraftChange={setLayoutDraft}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -219,8 +219,147 @@ export interface ExpertLayoutOverrides {
   visibility?: Partial<Record<ExpertSectionKey, boolean>>;
 }
 
+/**
+ * Historyczne id presetów (pierwotny CHECK z migracji 20260713212243) mapowane
+ * na obecny zestaw. Aliasowanie w odczycie chroni wiersze zapisane przed
+ * remapem danych (20260731210000) oraz payloady z cache/SSR sprzed deployu.
+ */
+export const LEGACY_EXPERT_PRESET_ALIASES: Readonly<Record<string, ExpertLayoutPresetId>> = {
+  "portrait-left": "classic",
+  "full-bleed-cover": "magazine",
+  "centered-minimal": "centered",
+  "split-columns": "sidebar-left",
+  "sidebar-rail": "sidebar-right",
+};
+
+export function isExpertLayoutPresetId(value: unknown): value is ExpertLayoutPresetId {
+  return typeof value === "string" && EXPERT_LAYOUT_PRESETS.some((preset) => preset.id === value);
+}
+
+export function isExpertSectionKey(value: unknown): value is ExpertSectionKey {
+  return typeof value === "string" && (EXPERT_SECTIONS as readonly string[]).includes(value);
+}
+
+/** Id presetu z dowolnej wartości: obecne id wprost, legacy przez alias. */
+export function resolveExpertPresetId(value: unknown): ExpertLayoutPresetId | null {
+  if (isExpertLayoutPresetId(value)) return value;
+  if (typeof value === "string" && value in LEGACY_EXPERT_PRESET_ALIASES) {
+    return LEGACY_EXPERT_PRESET_ALIASES[value];
+  }
+  return null;
+}
+
 export function findExpertPreset(id: string | null | undefined): ExpertLayoutPreset {
-  return EXPERT_LAYOUT_PRESETS.find((p) => p.id === id) ?? EXPERT_LAYOUT_PRESETS[0];
+  const resolved = resolveExpertPresetId(id) ?? id;
+  return EXPERT_LAYOUT_PRESETS.find((p) => p.id === resolved) ?? EXPERT_LAYOUT_PRESETS[0];
+}
+
+// Wartości kolorów lądują w scoped `<style>` (ExpertLayoutStyleScope używa
+// dangerouslySetInnerHTML), a z inline-edytorem pochodzą też od ekspertów,
+// nie tylko od staffu. Biała lista znaków wyklucza `;{}<>:"'` - nie da się
+// ani domknąć deklaracji/bloku CSS, ani przemycić url()/data: (dwukropek).
+const CSS_COLOR_SAFE_RE = /^[a-zA-Z0-9#%(),.\s/+*-]{1,64}$/;
+
+/** Przytnij i zwaliduj kolor CSS; wartości spoza białej listy -> null. */
+export function sanitizeCssColor(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed && CSS_COLOR_SAFE_RE.test(trimmed) ? trimmed : null;
+}
+
+/**
+ * Znormalizuj kolejność sekcji do pełnej permutacji EXPERT_SECTIONS:
+ * odfiltruj nieznane klucze i duplikaty, brakujące sekcje doklej na końcu
+ * w kolejności domyślnej. Renderer iteruje po tej liście, więc niepełny
+ * zapis nigdy nie może "zgubić" sekcji.
+ */
+export function normalizeExpertSectionOrder(value: unknown): ExpertSectionKey[] | null {
+  if (!Array.isArray(value)) return null;
+  const seen = new Set<ExpertSectionKey>();
+  const order: ExpertSectionKey[] = [];
+  for (const item of value) {
+    if (isExpertSectionKey(item) && !seen.has(item)) {
+      seen.add(item);
+      order.push(item);
+    }
+  }
+  if (order.length === 0) return null;
+  for (const key of DEFAULT_EXPERT_SECTION_ORDER) {
+    if (!seen.has(key)) order.push(key);
+  }
+  return order;
+}
+
+/**
+ * Bezpieczny parsing nadpisań per-ekspert z bazy: `author_profiles.layout_preset`
+ * (kolumna z CHECK) + `author_profiles.layout_overrides` (jsonb). Kolumna
+ * presetu wygrywa z kluczem `preset` w jsonb. Nieznane klucze, złe typy i
+ * niebezpieczne kolory odpadają po cichu - zwracany obiekt zawiera wyłącznie
+ * pola faktycznie nadpisane, a pusty wynik składa się do `null`.
+ */
+export function parseExpertLayoutOverrides(
+  raw: unknown,
+  presetColumn?: string | null,
+): ExpertLayoutOverrides | null {
+  const source =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  const out: ExpertLayoutOverrides = {};
+
+  const preset = resolveExpertPresetId(presetColumn) ?? resolveExpertPresetId(source.preset);
+  if (preset) out.preset = preset;
+
+  const order = normalizeExpertSectionOrder(source.section_order);
+  if (order) out.section_order = order;
+
+  if (typeof source.center_hero === "boolean") out.center_hero = source.center_hero;
+  if (typeof source.center_details === "boolean") out.center_details = source.center_details;
+
+  const accent = sanitizeCssColor(source.accent_color);
+  if (accent) out.accent_color = accent;
+  const accentDark = sanitizeCssColor(source.accent_color_dark);
+  if (accentDark) out.accent_color_dark = accentDark;
+
+  const rawVisibility = source.visibility;
+  if (
+    typeof rawVisibility === "object" &&
+    rawVisibility !== null &&
+    !Array.isArray(rawVisibility)
+  ) {
+    const visibility: Partial<Record<ExpertSectionKey, boolean>> = {};
+    for (const [key, value] of Object.entries(rawVisibility)) {
+      if (isExpertSectionKey(key) && typeof value === "boolean") visibility[key] = value;
+    }
+    if (Object.keys(visibility).length > 0) out.visibility = visibility;
+  }
+
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+/**
+ * Draft inline-edytora publikowany do strony /author/$slug: obecność obiektu
+ * oznacza tryb podglądu na żywo (strona renderuje draft zamiast zapisanych
+ * nadpisań), `overrides: null` w drafcie = podgląd pełnego dziedziczenia.
+ */
+export interface ExpertLayoutDraft {
+  overrides: ExpertLayoutOverrides | null;
+}
+
+/** Liczba aktywnych nadpisań - badge w inline-edytorze i telemetria UX. */
+export function countExpertLayoutOverrides(
+  overrides: ExpertLayoutOverrides | null | undefined,
+): number {
+  if (!overrides) return 0;
+  let count = 0;
+  if (overrides.preset) count += 1;
+  if (overrides.section_order) count += 1;
+  if (typeof overrides.center_hero === "boolean") count += 1;
+  if (typeof overrides.center_details === "boolean") count += 1;
+  if (typeof overrides.accent_color === "string") count += 1;
+  if (typeof overrides.accent_color_dark === "string") count += 1;
+  count += Object.keys(overrides.visibility ?? {}).length;
+  return count;
 }
 
 export function mergeExpertLayout(

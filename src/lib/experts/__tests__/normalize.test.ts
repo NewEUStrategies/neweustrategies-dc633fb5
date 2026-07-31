@@ -229,6 +229,36 @@ describe("buildExpertProfile", () => {
     expect(expert.media_contact_email).toBeNull();
     expect(expert.media_contact_phone).toBeNull();
   });
+
+  // Nadpisania layoutu per-ekspert: kolumna layout_preset wygrywa z kluczem
+  // `preset` w jsonb, śmieciowe pola odpadają, brak nadpisań -> null
+  // (pełne dziedziczenie z expert_layout_settings tenanta).
+  it("parses per-expert layout overrides from the author_profiles row", () => {
+    const expert = buildExpertProfile(
+      { id: "u4", display_name: "Iga" },
+      {
+        layout_preset: "minimal",
+        layout_overrides: {
+          preset: "editorial",
+          visibility: { cv: false, junk: true },
+          accent_color: "#123456",
+          junk_key: 1,
+        },
+      },
+      [],
+    );
+    expect(expert.layout_overrides).toEqual({
+      preset: "minimal",
+      visibility: { cv: false },
+      accent_color: "#123456",
+    });
+
+    const inheriting = buildExpertProfile({ id: "u5" }, { layout_overrides: {} }, []);
+    expect(inheriting.layout_overrides).toBeNull();
+
+    const noRow = buildExpertProfile({ id: "u6" }, null, []);
+    expect(noRow.layout_overrides).toBeNull();
+  });
 });
 
 describe("mapProgramMembers", () => {

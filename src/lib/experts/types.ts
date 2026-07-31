@@ -1,6 +1,7 @@
 // Typy huba eksperta (profil think-tank-style). Ekspert jest obiektem systemowym
 // spinającym własne materiały, programy, obszary i obecność medialną - te
 // typy opisują znormalizowany kształt konsumowany przez UI.
+import type { ExpertLayoutOverrides } from "@/lib/expertLayouts";
 
 export type MaterialKind = "article" | "report" | "video" | "podcast" | "event";
 
@@ -95,6 +96,12 @@ export interface ExpertProfile {
   media_contact_name: string | null;
   media_contact_email: string | null;
   media_contact_phone: string | null;
+  /**
+   * Nadpisania layoutu per-ekspert - sparsowana suma `author_profiles.layout_preset`
+   * (kolumna) i `author_profiles.layout_overrides` (jsonb). `null` = pełne
+   * dziedziczenie z `expert_layout_settings` tenanta (mergeExpertLayout).
+   */
+  layout_overrides: ExpertLayoutOverrides | null;
 }
 
 /** Znormalizowany materiał w eksploratorze (publikacja/raport/wideo/podcast/wydarzenie). */
