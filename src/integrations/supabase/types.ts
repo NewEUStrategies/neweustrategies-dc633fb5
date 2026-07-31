@@ -4199,6 +4199,10 @@ export type Database = {
         Row: {
           auto_armed_at: string | null
           base_url: string
+          community_last_tick_at: string | null
+          community_last_tick_error: string | null
+          community_last_tick_status: string | null
+          community_tick_count: number
           enabled: boolean
           failure_streak: number
           id: number
@@ -4216,6 +4220,10 @@ export type Database = {
         Insert: {
           auto_armed_at?: string | null
           base_url?: string
+          community_last_tick_at?: string | null
+          community_last_tick_error?: string | null
+          community_last_tick_status?: string | null
+          community_tick_count?: number
           enabled?: boolean
           failure_streak?: number
           id?: number
@@ -4233,6 +4241,10 @@ export type Database = {
         Update: {
           auto_armed_at?: string | null
           base_url?: string
+          community_last_tick_at?: string | null
+          community_last_tick_error?: string | null
+          community_last_tick_status?: string | null
+          community_tick_count?: number
           enabled?: boolean
           failure_streak?: number
           id?: number
@@ -13022,6 +13034,7 @@ export type Database = {
         Returns: undefined
       }
       invoke_billing_cron: { Args: never; Returns: undefined }
+      invoke_community_cron: { Args: { p_job?: string }; Returns: undefined }
       invoke_jobs_tick: { Args: never; Returns: undefined }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_connected_pair: { Args: { _a: string; _b: string }; Returns: boolean }
@@ -13043,6 +13056,7 @@ export type Database = {
         Returns: boolean
       }
       is_vip_user: { Args: { _uid: string }; Returns: boolean }
+      job_runner_autoarm: { Args: never; Returns: boolean }
       job_runner_base_url: { Args: never; Returns: string }
       job_scheduler_health: { Args: never; Returns: Json }
       join_us_link_and_backfill: {
