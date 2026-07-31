@@ -874,6 +874,14 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           ? (config.authorLabel_en?.trim() || "By")
           : (config.authorLabel_pl?.trim() || "Autor")) + ": "
       : "";
+  // Metadane autora: mniejsza domyślna czcionka (11px), sterowalna z panelu.
+  const authorFontPx = Math.max(
+    8,
+    Math.min(24, typeof config.authorSizePx === "number" ? config.authorSizePx : 11),
+  );
+  const authorStyle: CSSProperties = { fontSize: `${authorFontPx}px`, lineHeight: 1.35 };
+  const authorAvatarPx = Math.round(authorFontPx * 1.7);
+
 
   const sharedProps = {
     items,
