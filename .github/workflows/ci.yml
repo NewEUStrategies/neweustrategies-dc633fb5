@@ -117,9 +117,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned CLI version: `version: latest` resolves the release through an
+      # UNAUTHENTICATED api.github.com call from shared runner IPs, which
+      # intermittently dies with "rate limit exceeded" before pgTAP even starts
+      # (PR #118 run 30662487733). A pinned version downloads the release asset
+      # directly - no API call, deterministic toolchain. Bump deliberately.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: "2.111.0"
 
       - name: Start local database (migrations + seed)
         run: supabase db start

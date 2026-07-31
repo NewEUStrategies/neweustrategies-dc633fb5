@@ -89,9 +89,12 @@ jobs:
       - name: Install Playwright Chromium
         run: bunx playwright install --with-deps chromium
 
+      # Pinned for the same reason as in ci.yml (pgtap job): resolving `latest`
+      # hits api.github.com unauthenticated and flakes on shared-runner rate
+      # limits. Keep both pins in lockstep when bumping.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: "2.111.0"
 
       # Applies every migration + supabase/seed.sql (dev accounts, bilingual
       # posts) - the same recipe as the local `supabase db reset` documented in
