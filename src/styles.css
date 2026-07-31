@@ -6120,9 +6120,10 @@ html {
   [data-columns-row] > [data-column-slot] + [data-column-slot]::before {
     content: "";
     position: absolute;
-    left: 0;
+    /* Wyśrodkowanie w pustej przestrzeni (gap) między kolumnami. */
+    left: calc(-0.5 * var(--builder-col-gap, 24px));
     top: 50%;
-    transform: translateY(-50%);
+    transform: translate(-50%, -50%);
     width: 1px;
     height: 65%;
     pointer-events: none;
