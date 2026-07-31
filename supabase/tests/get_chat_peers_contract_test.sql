@@ -4,7 +4,8 @@
 -- DROP/CREATE, zdmuchnęły hardening z 20260712190000 - user tenanta B
 -- enumerował po UUID profile discoverable tenanta A, zniknął guard
 -- auth.uid() i limit rozmiaru wejścia, a default ACL przywrócił EXECUTE
--- dla anon. Przywrócenie: migracja 20260731210000.
+-- dla anon. Przywrócenie: migracja 20260731213000 (wersja 210000 była
+-- zajęta przez równoległą migrację community cron na main).
 --
 -- Plik jest CELOWO samowystarczalny: seed wyłącznie bezpośrednimi INSERT-ami
 -- (zero RPC czatu, storage i preferencji), więc wynik zależy tylko od
