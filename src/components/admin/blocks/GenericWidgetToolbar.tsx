@@ -184,7 +184,49 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
         )}
       </div>
 
+      {/* Kolorystyka widgetu (np. cytat) - dostępna dopiero po kliknięciu bloku */}
+      {showPalette && (
+        <>
+          <Divider />
+          <div className="relative">
+            <TBtn
+              title={i18n.t("blocks.settings.colorPalette", { defaultValue: "Kolorystyka" })}
+              active={palette !== "neutral"}
+              onClick={() => setPaletteOpen((v) => !v)}
+            >
+              <span
+                aria-hidden
+                className="inline-block h-3.5 w-3.5 rounded-[3px] border border-border"
+                style={{ background: BLOCK_PALETTE_VAR[palette] ?? BLOCK_PALETTE_VAR.neutral }}
+              />
+            </TBtn>
+            {paletteOpen && (
+              <div className="absolute left-0 top-8 z-40 flex items-center gap-1 rounded-md border border-border bg-popover p-1 shadow-md">
+                {BLOCK_PALETTE_KEYS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      set({ colorPalette: p });
+                      setPaletteOpen(false);
+                    }}
+                    title={i18n.t(`blocks.settings.palette.${p}`, { defaultValue: p })}
+                    aria-label={i18n.t(`blocks.settings.palette.${p}`, { defaultValue: p })}
+                    aria-pressed={palette === p}
+                    className={`h-6 w-6 rounded-[4px] border ${
+                      palette === p ? "border-foreground" : "border-border"
+                    }`}
+                    style={{ background: BLOCK_PALETTE_VAR[p] }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
       <Divider />
+
 
       {/* Anchor / ID */}
       <TBtn
