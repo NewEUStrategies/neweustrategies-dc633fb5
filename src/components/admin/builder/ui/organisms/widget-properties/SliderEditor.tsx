@@ -80,6 +80,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const authorLabelPl = typeof c.authorLabel_pl === "string" ? c.authorLabel_pl : "";
   const authorLabelEn = typeof c.authorLabel_en === "string" ? c.authorLabel_en : "";
   const authorSizePx = typeof c.authorSizePx === "number" ? c.authorSizePx : 10;
+  const authorAvatarSizePx = typeof c.authorAvatarSizePx === "number" ? c.authorAvatarSizePx : 12;
 
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
@@ -191,6 +192,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     showExcerpt,
     showAuthor,
     authorSizePx,
+    authorAvatarSizePx,
     showCover,
 
     navSizePx,
@@ -446,6 +448,28 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 onChange={(e) => {
                   const n = Number(e.target.value);
                   setContent("authorSizePx", Number.isFinite(n) ? Math.max(8, Math.min(24, n)) : 10);
+                }}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          )}
+          {authorDisplay === "avatar" && (
+            <PropField
+              label={t("builder.sliderEditor.authorAvatarSize", {
+                defaultValue: "Rozmiar zdjęcia autora (px)",
+              })}
+            >
+              <Input
+                type="number"
+                min={8}
+                max={64}
+                value={authorAvatarSizePx}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setContent(
+                    "authorAvatarSizePx",
+                    Number.isFinite(n) ? Math.max(8, Math.min(64, n)) : 12,
+                  );
                 }}
                 className="h-8 text-xs"
               />
