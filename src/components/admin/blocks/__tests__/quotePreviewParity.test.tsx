@@ -73,7 +73,7 @@ describe("Quote preview parity", () => {
     // AutoGrowTextarea: brak scrolla, brak ręcznego resize - wysokość = treść.
     expect(ta?.style.overflow).toBe("hidden");
     expect(ta?.style.resize).toBe("none");
-    expect(ta?.rows).toBe(1);
+    expect(Number(ta?.rows)).toBe(1);
   });
 
   it("preview nie renderuje stałych kontrolek wariantu/kolorystyki", () => {
