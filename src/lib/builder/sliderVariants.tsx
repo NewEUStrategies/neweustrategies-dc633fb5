@@ -96,6 +96,8 @@ export interface SliderConfig {
   authorLabel_en?: string;
   /** Rozmiar czcionki metadanych autora (px). Domyślnie 10. */
   authorSizePx?: number;
+  /** Rozmiar awatara autora (px). Domyślnie 12, niezależny od czcionki. */
+  authorAvatarSizePx?: number;
 
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
