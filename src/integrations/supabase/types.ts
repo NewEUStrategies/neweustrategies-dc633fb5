@@ -4153,21 +4153,33 @@ export type Database = {
           base_url: string
           enabled: boolean
           id: number
+          last_tick_at: string | null
+          last_tick_error: string | null
+          last_tick_status: string | null
           secret: string
+          tick_count: number
           updated_at: string
         }
         Insert: {
           base_url?: string
           enabled?: boolean
           id?: number
+          last_tick_at?: string | null
+          last_tick_error?: string | null
+          last_tick_status?: string | null
           secret?: string
+          tick_count?: number
           updated_at?: string
         }
         Update: {
           base_url?: string
           enabled?: boolean
           id?: number
+          last_tick_at?: string | null
+          last_tick_error?: string | null
+          last_tick_status?: string | null
           secret?: string
+          tick_count?: number
           updated_at?: string
         }
         Relationships: []
@@ -10104,27 +10116,27 @@ export type Database = {
         }
         Relationships: []
       }
-      suppressed_emails: {
+      suppressed_emails_legacy_backup: {
         Row: {
-          created_at: string
-          email: string
-          id: string
+          created_at: string | null
+          email: string | null
+          id: string | null
           metadata: Json | null
-          reason: string
+          reason: string | null
         }
         Insert: {
-          created_at?: string
-          email: string
-          id?: string
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
           metadata?: Json | null
-          reason: string
+          reason?: string | null
         }
         Update: {
-          created_at?: string
-          email?: string
-          id?: string
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
           metadata?: Json | null
-          reason?: string
+          reason?: string | null
         }
         Relationships: []
       }
@@ -11597,6 +11609,30 @@ export type Database = {
           },
         ]
       }
+      suppressed_emails: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string | null
+          metadata: Json | null
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          metadata?: Json | null
+          reason?: never
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          metadata?: Json | null
+          reason?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
@@ -12301,6 +12337,7 @@ export type Database = {
         }
         Returns: Json
       }
+      email_default_tenant_id: { Args: never; Returns: string }
       email_deliverability_counts: {
         Args: { p_days?: number; p_tenant: string }
         Returns: Json
@@ -12318,6 +12355,7 @@ export type Database = {
         Args: { p_email: string; p_tenant: string }
         Returns: boolean
       }
+      email_queue_depth: { Args: never; Returns: Json }
       email_queue_dispatch: { Args: never; Returns: undefined }
       email_record_suppression: {
         Args: {
@@ -12335,6 +12373,10 @@ export type Database = {
         }
         Returns: Json
       }
+      email_resolve_tenant_for_address: {
+        Args: { p_email: string }
+        Returns: string
+      }
       email_suppression_add: {
         Args: { p_email: string; p_note?: string; p_reason?: string }
         Returns: Json
@@ -12347,6 +12389,7 @@ export type Database = {
         Args: { p_reason: string }
         Returns: number
       }
+      email_unsubscribe_by_token: { Args: { p_token: string }; Returns: Json }
       emit_domain_event: {
         Args: {
           p_aggregate_id: string
@@ -12958,6 +13001,7 @@ export type Database = {
         Returns: boolean
       }
       is_vip_user: { Args: { _uid: string }; Returns: boolean }
+      job_runner_base_url: { Args: never; Returns: string }
       join_us_link_and_backfill: {
         Args: {
           _company: string
