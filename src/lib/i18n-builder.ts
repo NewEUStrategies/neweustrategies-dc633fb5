@@ -660,6 +660,7 @@ const pl = {
       authorLabel: "Etykieta \"Autor: Imię Nazwisko\"",
       authorNone: "Bez autora",
       authorSize: "Rozmiar czcionki autora (px)",
+      authorAvatarSize: "Rozmiar zdjęcia autora (px)",
       variant: "Wariant slidera",
       autoHint: "Animacja odtwarza się automatycznie",
       carouselLayout: "Układ karuzeli",
