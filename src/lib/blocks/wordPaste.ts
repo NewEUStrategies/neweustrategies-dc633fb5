@@ -357,6 +357,11 @@ function inlineHtml(node: Node): string {
     if (child.nodeType !== 1) continue;
     const el = child as Element;
     if (isListMarkerSpan(el)) continue;
+    if (el.tagName === FN_TAG) {
+      out += `[fn]${el.getAttribute("data-body") ?? ""}[/fn]`;
+      continue;
+    }
+
     const implied = INLINE_TAGS[el.tagName] ?? styleImpliedTag(el);
     const tag = implied && styleSuppressesTag(el, implied) ? null : implied;
     if (tag === "br") {
