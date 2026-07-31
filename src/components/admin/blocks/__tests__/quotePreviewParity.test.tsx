@@ -6,6 +6,7 @@ import { render, screen } from "@testing-library/react";
 import { QuoteBlock } from "../edit/Quote";
 import { GenericWidgetToolbar } from "../GenericWidgetToolbar";
 import { renderQuote } from "@/components/blocks/renderer/atoms";
+import type { BlockRenderContext } from "@/components/blocks/renderer/context";
 import type { Block } from "@/lib/blocks/types";
 
 function quote(variant: string, palette = "neutral"): Block {
@@ -28,7 +29,17 @@ describe("Quote preview parity", () => {
     const block = quote(variant, "brand");
 
     const pub = render(
-      <>{renderQuote({ block, fnHtml: new Map(), cls: "", lang: "pl" })}</>,
+      <>
+        {renderQuote({
+          block,
+          fnHtml: new Map<string, string>(),
+          cls: "",
+          lang: "pl",
+          allBlocks: [block],
+          t: ((k: string) => k) as unknown as BlockRenderContext["t"],
+          renderChild: () => null,
+        })}
+      </>,
     );
     const pubQuote = pub.container.querySelector("blockquote");
     expect(pubQuote).not.toBeNull();
