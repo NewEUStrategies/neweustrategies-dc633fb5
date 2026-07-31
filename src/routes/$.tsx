@@ -130,6 +130,8 @@ import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
+import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
+
 import { withBudget } from "@/lib/asyncBudget";
 
 // Wall-clock cap on secondary prefetches (blocks data, related config). The
@@ -213,9 +215,20 @@ export const Route = createFileRoute("/$")({
           throw redirect({ to: "/tag/$slug", params: { slug: tag.slug }, replace: true });
         }
       }
+      // Stare adresy wpisów: płaskie poWordPressowe (/<slug>) oraz takie z
+      // nieaktualnym rodzicem (/stara-sekcja/<slug>). Slug wpisu jest globalnie
+      // unikalny, więc ostatni segment wystarcza, by wskazać nową, kanoniczną
+      // ścieżkę (pełna ścieżka rodzica + slug) - 301, żeby przekazać link juice.
+      const lastSegment = segments[segments.length - 1];
+      const canonicalPath = await resolveLegacyPostPath(lastSegment);
+      if (canonicalPath && canonicalPath !== segments.join("/")) {
+        setCacheControlHeader(NO_STORE);
+        throw redirect({ to: "/$", params: { _splat: canonicalPath }, statusCode: 301 });
+      }
       setCacheControlHeader(NO_STORE);
       throw notFound();
     }
+
     // ISR-like edge caching: the public SSR is the anonymous shell (gated bodies
     // are fetched client-side after hydration), so it is safe to share-cache and
     // serve stale-while-revalidate from the CDN. The language lives in the URL
