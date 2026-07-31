@@ -97,7 +97,7 @@ false`, `skipLibCheck: true`; **223× `as any`**; **68 miejsc
 ### P0-1. Kolizja timestampów migracji `20260723180000`
 
 Dwie migracje mają identyczny prefiks: `20260723180000_chat_plus_tier_gating_and_benefit.sql`
-oraz `20260723180000_expert_request_quota.sql`. Obie robią
+oraz `20260723180000_chat_plus_tier_gating_and_benefit.sql (sekcja expert_request_quota)`. Obie robią
 `CREATE OR REPLACE FUNCTION public.seed_pricing_defaults`. Sortowanie leksykalne
 uruchamia je w kolejności `chat_plus` → `expert_request_quota`, więc **wersja z
 `expert_request_quota` wygrywa** — a jej ciało wywołuje tylko
@@ -170,7 +170,7 @@ React ją wyrenderuje. **Rekomendacja P1:** owinąć w `safeUrl(...)`.
 
 ### P1-6. Kwota „Zapytanie do eksperta" — wyścig i obejście
 
-`send_expert_request` (`20260723180000_expert_request_quota`) liczy `used`, sprawdza
+`send_expert_request` (`20260723180000_chat_plus_tier_gating_and_benefit (sekcja expert_request_quota)`) liczy `used`, sprawdza
 limit i `INSERT` bez `LOCK`/unikalnego ograniczenia → **TOCTOU**: równoległe
 wywołania przy quota=1 wstawią dwa rekordy. Dodatkowo `my_expert_request_quota`
 liczy `status <> 'cancelled'`, a nadawca może anulować własne zapytanie — pętla

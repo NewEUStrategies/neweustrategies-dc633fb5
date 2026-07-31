@@ -1,5 +1,5 @@
 -- pgTAP: lista wykluczeń e-mail + telemetria dostarczalności
--- (migracja 20260725120000_email_suppression_bounce_complaint.sql).
+-- (migracja 20260725120000_analytics_semantic_layer.sql (sekcja email_suppression_bounce_complaint)).
 --
 --   1. email_record_suppression: twarde odbicie -> blokada trwała; skarga
 --      nigdy nie jest osłabiana późniejszym miękkim odbiciem (pierwszeństwo

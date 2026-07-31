@@ -636,7 +636,7 @@ odbiorców - a to jest dokładnie ten sygnał, po którym dostawcy obniżają
 reputację domeny nadawczej. Wytyczne Google dla nadawców masowych wymagają
 utrzymania wskaźnika zgłoszeń spamu **poniżej 0,30%** (docelowo <0,10%) i
 natychmiastowego zaprzestania wysyłki na adresy, które zgłosiły spam.
-Migracja `20260725120000_email_suppression_bounce_complaint.sql` domyka tę
+Migracja `20260725120000_analytics_semantic_layer.sql (sekcja email_suppression_bounce_complaint)` domyka tę
 pętlę.
 
 - **Model danych.** `email_suppressions` - jeden wiersz na (tenant, adres),
