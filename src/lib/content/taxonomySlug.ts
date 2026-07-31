@@ -16,3 +16,17 @@ export function slugifyTaxonomy(s: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
 }
+
+/**
+ * Wersja "do pisania w polu": jak slugifyTaxonomy, ale zachowuje końcowy dywiz,
+ * żeby wpisywanie kolejnych wyrazów nie było blokowane przy każdym spacji.
+ */
+export function normalizeSlugInput(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .slice(0, 80);
+}

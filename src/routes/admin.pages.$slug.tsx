@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { slugifyTaxonomy, normalizeSlugInput } from "@/lib/content/taxonomySlug";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -437,7 +438,8 @@ function EditPage() {
         <FloatingInput
           label="Slug"
           value={form.slug}
-          onChange={(e) => set("slug", e.target.value)}
+          onChange={(e) => set("slug", normalizeSlugInput(e.target.value))}
+          onBlur={(e) => set("slug", slugifyTaxonomy(e.target.value))}
         />
         <p className="text-[11px] text-muted-foreground mt-1">
           Zmiana slug zmieni adres URL tej strony (zarówno w panelu, jak i publicznie).
