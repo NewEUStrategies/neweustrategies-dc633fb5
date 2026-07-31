@@ -720,6 +720,9 @@ export function parseWordInlineHtml(html: string): string {
   if (!body) return "";
   const notes = collectFootnotes(body);
   inlineFootnoteRefs(body, notes);
+  collectManualFootnotes(body, notes);
+  inlineSuperscriptRefs(body, notes);
+
   const blocks = Array.from(body.children).filter((el) =>
     /^(P|DIV|H[1-6]|LI|BLOCKQUOTE)$/.test(el.tagName),
   );
