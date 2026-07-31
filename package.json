@@ -27,6 +27,7 @@
     "check:chunks": "bun run scripts/check-chunk-graph.ts",
     "check:sql-tenant-scope": "bun run scripts/check-sql-tenant-scope.ts",
     "check:sql-app-role": "bun run scripts/check-sql-app-role-literals.ts",
+    "check:sql-anon-insert": "bun run scripts/check-sql-anon-insert.ts",
     "cron:tick": "node scripts/scheduler-tick.mjs"
   },
   "dependencies": {

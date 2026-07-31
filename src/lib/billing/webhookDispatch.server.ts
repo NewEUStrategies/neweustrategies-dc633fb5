@@ -107,8 +107,6 @@ async function claimSubscriptionEvent(
   return !exists;
 }
 
-
-
 async function handleCreated(data: SubscriptionData, env: PaddleEnv, occurredAt?: string) {
   const userId = data.customData?.userId;
   const { priceId, productId, quantity, trialEndsAt } = readIds(data);
@@ -224,9 +222,8 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv, occurredAt:
 
   // Plan Zespół: zmiana liczby opłaconych miejsc oraz stanu subskrypcji musi
   // natychmiast przełożyć się na limit i uprawnienia całego zespołu.
-  const { applySubscriptionSeats, applySubscriptionOrgState } = await import(
-    "@/lib/organizations/teamSeats.server"
-  );
+  const { applySubscriptionSeats, applySubscriptionOrgState } =
+    await import("@/lib/organizations/teamSeats.server");
   await applySubscriptionOrgState({ subscriptionId: data.id, status: data.status, priceId });
   await applySubscriptionSeats({ subscriptionId: data.id, quantity, priceId });
 
@@ -234,9 +231,8 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv, occurredAt:
 
   // Każda aktualizacja (pauza, wznowienie, past_due, nowy okres) musi trafić do
   // uprawnień, nie tylko zmiana planu.
-  const { resolvePlanForPrice, applyStatusTransitionEffects } = await import(
-    "@/lib/billing/paddleEffects.server"
-  );
+  const { resolvePlanForPrice, applyStatusTransitionEffects } =
+    await import("@/lib/billing/paddleEffects.server");
   const plan = await resolvePlanForPrice(priceId);
   if (plan) {
     const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
@@ -338,13 +334,16 @@ async function handleTransaction(
   if (!data.subscriptionId) {
     if (kind !== "paid") return;
     const { fulfilOneTimeTransaction } = await import("@/lib/billing/oneTimeFulfilment.server");
-    await fulfilOneTimeTransaction({
-      id: data.id,
-      amountCents: amountFromTransaction(data),
-      currency: data.currencyCode ?? null,
-      customerEmail: data.customer?.email ?? null,
-      customData: data.customData ?? null,
-    });
+    await fulfilOneTimeTransaction(
+      {
+        id: data.id,
+        amountCents: amountFromTransaction(data),
+        currency: data.currencyCode ?? null,
+        customerEmail: data.customer?.email ?? null,
+        customData: data.customData ?? null,
+      },
+      env,
+    );
     return;
   }
   const ctx = {
@@ -400,9 +399,8 @@ async function handleAdjustment(data: Record<string, unknown>, env: PaddleEnv): 
  * `transaction.updated` bez zmian traktujemy jako pominięte zdarzenie.
  */
 async function recordDocument(data: unknown, env: PaddleEnv): Promise<boolean> {
-  const { documentInputFromTransaction, recordTransactionDocument } = await import(
-    "@/lib/billing/billingDocuments.server"
-  );
+  const { documentInputFromTransaction, recordTransactionDocument } =
+    await import("@/lib/billing/billingDocuments.server");
   const input = documentInputFromTransaction(data, env);
   if (!input) return false;
   const outcome = await recordTransactionDocument(input).catch((e: unknown) => {

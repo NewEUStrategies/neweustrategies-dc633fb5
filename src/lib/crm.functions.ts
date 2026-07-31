@@ -414,9 +414,14 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
   });
 
 // Profile sync: dopasowuje lead → profil po e-mailu (email/contact_email),
-// zwraca podstawowe dane profilu + doświadczenie, umiejętności, wynik Big5,
-// aktualne CV, nagrody i wykształcenie. RLS personality/experiences/skills
-// jest owner-only, więc staff (po requireCrmStaff) używa admina.
+// zwraca podstawowe dane profilu + doświadczenie, umiejętności, aktualne CV,
+// nagrody i wykształcenie. RLS experiences/skills jest owner-only, więc staff
+// (po requireCrmStaff) używa admina.
+//
+// RODO: wyniki testu osobowości (Big5) CELOWO NIE są tu zwracane. Migracja
+// 20260711120000 usunęła je z widoczności nawet dla adminów tenanta jako dane
+// psychometryczne; odczyt service-rolem w CRM obchodziłby tę decyzję bez zgody
+// i bez celu przetwarzania (audyt RODO). Do CRM nie są potrzebne.
 const ProfileSyncInput = z.object({ lead_id: z.string().uuid() });
 export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
@@ -458,7 +463,7 @@ export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
     const userId = profile.id as string;
     const tenantId = profile.tenant_id as string;
 
-    const [expRes, skillsRes, personalityRes, cvRes, awardsRes, eduRes] = await Promise.all([
+    const [expRes, skillsRes, cvRes, awardsRes, eduRes] = await Promise.all([
       admin
         .from("profile_experiences")
         .select(
@@ -475,11 +480,6 @@ export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true })
         .limit(100),
-      admin
-        .from("personality_results")
-        .select("openness, conscientiousness, extraversion, agreeableness, neuroticism, taken_at")
-        .eq("user_id", userId)
-        .maybeSingle(),
       admin
         .from("profile_cv_files")
         .select("id, file_url, file_name, mime_type, size_bytes, version, uploaded_at")
@@ -506,7 +506,6 @@ export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
         profile,
         experiences: (expRes as { data: unknown }).data ?? [],
         skills: (skillsRes as { data: unknown }).data ?? [],
-        personality: (personalityRes as { data: unknown }).data ?? null,
         cv: (cvRes as { data: unknown }).data ?? null,
         awards: (awardsRes as { data: unknown }).data ?? [],
         education: (eduRes as { data: unknown }).data ?? [],

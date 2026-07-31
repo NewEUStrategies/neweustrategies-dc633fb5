@@ -104,7 +104,7 @@ Ocena modułu = kompozyt jego funkcji (kompletność + inżynieria + dopracowani
 | Ankiety (polls) | **7** | Realtime głosowanie, zapisy przez utwardzone RPC, pgTAP | Brak SSR | Dodać loader |
 | Biblioteka | **7** | Pliki w prywatnym buckecie, bramka rangi **egzekwowana w DB**, logowanie pobrań | Podmiana pliku niemożliwa w edycji; brak SSR | Dodać replace + loader |
 | Glosariusz | **8** | CRUD + realny odbiorca (tooltipy w treści) | — | Utrzymać |
-| **Quiz** | **3** | — | **`<iframe>` do obcej domeny `nes-quiz.com`** — zero pytań z bazy, zero powiązania ze skillem generatora, hardkodowany polski `head()` bez i18n | Wciągnąć pytania do bazy albo uczciwie oznaczyć jako embed + naprawić `head()` |
+| **Quiz (EuroChallenge)** | **3 → 7** | **Korekta 2026-07-31:** to CELOWA landing-strona promocyjna **drugiej platformy NES** (`nes-quiz.com`), nie wydmuszka — branded `head()` (tytuł/OG/Twitter), `LazyQuizIframe`, tło z preloadem, przyciski udostępniania (LinkedIn/FB/Messenger/Mail). Cross-promo zrobione świadomie. | `head()` ma opis i OG **zahardkodowane po polsku** (bez `activeLang`) → odwiedzający EN dostaje polski snippet w podglądzie linku — a to platforma stworzona do udostępniania | Zbilingwalizować meta (`activeLang` PL/EN) + `og:url`/canonical do `nes-quiz.com`; poza tym utrzymać jako embed |
 | Web stories | **7** | AMP + JSON-LD + sitemap + indeks (naprawione) | `rel=amphtml` tylko gdy `cover_url`; indeks bez `ItemList`/paginacji | Emitować `amphtml` zawsze + paginacja indeksu |
 
 ---

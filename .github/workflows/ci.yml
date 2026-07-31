@@ -108,6 +108,17 @@ jobs:
       - name: SQL app_role literal invariant
         run: bun run check:sql-app-role
 
+      # Blocking security gate: fails if any table accepts a PERMISSIVE anonymous
+      # INSERT (anon/public role + WITH CHECK true), or if an intake table
+      # (contact_messages, crm_consent_log, related_post_clicks,
+      # builder_experiment_events, analytics_events, web_vitals) accepts a direct
+      # client INSERT at all. Regression guard for the ~30-day anon-insert holes
+      # closed by 20260730130000 / 20260730140000 (spam, RODO-consent forgery,
+      # fabricated A/B results) - that class returns silently in migration churn
+      # without a static gate.
+      - name: SQL anon-insert invariant
+        run: bun run check:sql-anon-insert
+
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +
   # seed.sql). Complements Vitest, which never touches RLS policies.
