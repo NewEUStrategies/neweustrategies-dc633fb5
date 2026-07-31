@@ -47,5 +47,20 @@ UPDATE storage.buckets
        ]
  WHERE id = 'media';
 
-COMMENT ON TABLE storage.buckets IS
-  'Bucket `media` jest publiczny i serwuje bajty bezposrednio - dlatego ma allowlista MIME BEZ image/svg+xml (wektor stored-XSS). Zmiana listy wymaga zmiany ALLOWED_MIME w src/lib/media.functions.ts i UPLOADABLE_MIME w src/lib/media/upload.ts.';
+-- Naprawa łańcucha migracji: COMMENT ON wymaga WŁASNOŚCI obiektu, a nie tylko
+-- uprawnień. storage.buckets należy do supabase_storage_admin, więc na świeżej
+-- bazie (supabase db start, CI) migracje lecące jako `postgres` wywracały się
+-- tu na 42501 „must be owner of table buckets" - mimo że UPDATE wyżej przechodzi
+-- (ten potrzebuje uprawnienia, nie własności). To czysta dokumentacja, więc brak
+-- prawa do jej zapisania nie może zatrzymywać całego łańcucha: notujemy i lecimy
+-- dalej. Tam, gdzie migracja biegnie jako właściciel, komentarz powstaje jak dotąd.
+DO $bucket_doc$
+BEGIN
+  EXECUTE $c$
+    COMMENT ON TABLE storage.buckets IS
+      'Bucket `media` jest publiczny i serwuje bajty bezposrednio - dlatego ma allowlista MIME BEZ image/svg+xml (wektor stored-XSS). Zmiana listy wymaga zmiany ALLOWED_MIME w src/lib/media.functions.ts i UPLOADABLE_MIME w src/lib/media/upload.ts.'
+  $c$;
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Brak wlasnosci storage.buckets - pomijam COMMENT (dokumentacja)';
+END $bucket_doc$;
