@@ -236,8 +236,24 @@ INSERT INTO auth.users (id, email) VALUES
   ('b7000000-0000-0000-0000-0000000000aa', 'staff-sched@sched.test'),
   ('b7000000-0000-0000-0000-0000000000bb', 'member-sched@sched.test');
 
--- Unikat to (tenant_id, user_id, role), więc 'admin' współistnieje z rolą, którą
--- trigger nadał sam - nie ma kolizji, jest za to jawny sztab.
+-- Profil zakładamy SAMI, ale nieinwazyjnie (DO NOTHING), bo stan triggera jest
+-- w tym zestawie nieprzewidywalny: 56 plików woła `DISABLE TRIGGER USER`, a
+-- tylko jeden go z powrotem włącza, i to wycieka MIĘDZY plikami - po pełnym
+-- przebiegu trigger zostaje wyłączony. Test nie może zależeć od kolejności:
+--   * trigger włączony  -> profil już jest (tenant domyślny), nasz INSERT to no-op,
+--   * trigger wyłączony -> zakładamy profil sami, w tym samym tenancie domyślnym.
+-- Świadomie NIE ma tu DO UPDATE: profiles.tenant_id jest pilnowany jako
+-- niezmienny, a jakikolwiek zapis tenanta wywalałby połowę przebiegów.
+INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
+  ('b7000000-0000-0000-0000-0000000000aa', 'staff-sched@sched.test', 'Staff Sched',
+   (SELECT id FROM public.tenants WHERE is_default LIMIT 1)),
+  ('b7000000-0000-0000-0000-0000000000bb', 'member-sched@sched.test', 'Member Sched',
+   (SELECT id FROM public.tenants WHERE is_default LIMIT 1))
+ON CONFLICT (id) DO NOTHING;
+
+-- Rola 'admin' w tenancie ODCZYTANYM z profilu - dzięki temu zgadza się z
+-- current_tenant_id() niezależnie od tego, kto ten profil założył. Unikat to
+-- (tenant_id, user_id, role), więc współistnieje z rolą nadaną przez trigger.
 INSERT INTO public.user_roles (user_id, role, tenant_id)
 SELECT p.id, 'admin', p.tenant_id
   FROM public.profiles p
