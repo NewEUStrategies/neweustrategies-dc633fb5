@@ -972,6 +972,8 @@ type VariantProps = {
   showAuthor: boolean;
   showTitle: boolean;
   authorLabelPrefix: string;
+  authorStyle: CSSProperties;
+  authorAvatarPx: number;
 };
 
 /** Compact author badge: 6px-rounded avatar + display name; links to the
