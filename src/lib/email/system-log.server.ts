@@ -159,9 +159,7 @@ function buildSeries(rows: SystemEmailRow[], days: number): SystemEmailDayPoint[
   return [...buckets.values()];
 }
 
-export async function fetchSystemEmailReport(
-  query: SystemEmailQuery,
-): Promise<SystemEmailReport> {
+export async function fetchSystemEmailReport(query: SystemEmailQuery): Promise<SystemEmailReport> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - (query.days - 1));
@@ -212,10 +210,15 @@ export async function fetchSystemEmailReport(
 
   const start = (query.page - 1) * query.pageSize;
 
+  // Liczba AKTYWNYCH wykluczeń z listy kanonicznej. Wcześniej liczyliśmy wiersze
+  // zaszłej tabeli `suppressed_emails`, która nie znała wygaśnięcia ani zdjęcia
+  // blokady - raport pokazywał więc adresy, na które od dawna wolno już wysyłać.
   let suppressedRecipients = 0;
   const { count } = await supabaseAdmin
-    .from("suppressed_emails" as never)
-    .select("id", { count: "exact", head: true });
+    .from("email_suppressions" as never)
+    .select("id", { count: "exact", head: true })
+    .is("released_at", null)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
   if (typeof count === "number") suppressedRecipients = count;
 
   return {

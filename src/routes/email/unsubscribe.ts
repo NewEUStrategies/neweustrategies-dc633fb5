@@ -1,152 +1,125 @@
-import { createClient } from '@supabase/supabase-js'
-import { createFileRoute } from '@tanstack/react-router'
+// Wypis z poczty systemowej: GET (walidacja tokenu) + POST (wypis).
+//
+// Obsługuje RFC 8058 „one-click": klient pocztowy (Gmail, Apple Mail) POST-uje
+// tu formularz `List-Unsubscribe=One-Click` bez żadnej interakcji ze stroną, a
+// wytyczne Google/Yahoo dla nadawców masowych wymagają, by taki wypis działał
+// bezwarunkowo i w ciągu dwóch dni.
+//
+// PRZYCZYNA ŹRÓDŁOWA. Wypis zapisywał blokadę do zaszłej tabeli
+// `suppressed_emails`, której NIE czytała wysyłka kampanii (ta patrzyła w
+// kanoniczne `email_suppressions`). Odbiorca klikał „wypisz się", dostawał
+// potwierdzenie - i dalej dostawał newsletter. Teraz cała praca dzieje się w
+// jednej transakcji SQL (`email_unsubscribe_by_token`): zużycie tokenu, blokada
+// na liście kanonicznej i - przez trigger - zdjęcie subskrypcji.
+import { createFileRoute } from "@tanstack/react-router";
 
-function redactEmail(email: string | null | undefined): string {
-  if (!email) return '***'
-  const [localPart, domain] = email.split('@')
-  if (!localPart || !domain) return '***'
-  return `${localPart[0]}***@${domain}`
+function json(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
+/**
+ * Token z żądania. Dla one-click przychodzi w query (ciało niesie wtedy tylko
+ * `List-Unsubscribe=One-Click`); strona aplikacji przysyła go w JSON-ie, a
+ * zwykły formularz - w polu `token`.
+ */
+async function tokenFromRequest(request: Request): Promise<string | null> {
+  const fromQuery = new URL(request.url).searchParams.get("token");
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    const params = new URLSearchParams(await request.text());
+    if (!params.get("List-Unsubscribe")) {
+      const formToken = params.get("token");
+      if (formToken) return formToken;
+    }
+    return fromQuery;
+  }
+
+  if (contentType.includes("application/json")) {
+    try {
+      const body: unknown = await request.json();
+      if (typeof body === "object" && body !== null) {
+        const value = (body as Record<string, unknown>).token;
+        if (typeof value === "string" && value) return value;
+      }
+    } catch {
+      // Nieparsowalne ciało - zostaje token z query.
+    }
+  }
+  return fromQuery;
 }
 
 export const Route = createFileRoute("/email/unsubscribe")({
   server: {
     handlers: {
+      // Walidacja przed pokazaniem strony potwierdzenia. Odpowiedź NIE zawiera
+      // adresu e-mail: token trafia do logów proxy i historii przeglądarki, więc
+      // nie może służyć do odczytania, kto się pod nim kryje.
       GET: async ({ request }) => {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        const token = new URL(request.url).searchParams.get("token");
+        if (!token) return json({ error: "Token is required" }, 400);
 
-        if (!supabaseUrl || !supabaseServiceKey) {
-          return Response.json({ error: 'Server configuration error' }, { status: 500 })
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { data: record } = await supabaseAdmin
+          .from("email_unsubscribe_tokens")
+          .select("used_at")
+          .eq("token", token)
+          .maybeSingle();
+
+        if (record) {
+          return json(
+            record.used_at ? { valid: false, reason: "already_unsubscribed" } : { valid: true },
+          );
         }
 
-        // Extract token from query params
-        const url = new URL(request.url)
-        const token = url.searchParams.get('token')
-
-        if (!token) {
-          return Response.json({ error: 'Token is required' }, { status: 400 })
-        }
-
-        const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-        // Look up the token
-        const { data: tokenRecord, error: lookupError } = await supabase
-          .from('email_unsubscribe_tokens')
-          .select('*')
-          .eq('token', token)
-          .maybeSingle()
-
-        if (lookupError || !tokenRecord) {
-          return Response.json({ error: 'Invalid or expired token' }, { status: 404 })
-        }
-
-        if (tokenRecord.used_at) {
-          return Response.json({ valid: false, reason: 'already_unsubscribed' })
-        }
-
-        return Response.json({ valid: true })
+        // Token per subskrybent newslettera (stopka kampanii) jest długowieczny
+        // i nie ma znacznika użycia - jego istnienie wystarcza.
+        const { data: subscriber } = await supabaseAdmin
+          .from("newsletter_subscribers")
+          .select("status")
+          .eq("unsubscribe_token", token)
+          .maybeSingle();
+        if (!subscriber) return json({ error: "Invalid or expired token" }, 404);
+        return json(
+          subscriber.status === "unsubscribed"
+            ? { valid: false, reason: "already_unsubscribed" }
+            : { valid: true },
+        );
       },
 
       POST: async ({ request }) => {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        const token = await tokenFromRequest(request);
+        if (!token) return json({ error: "Token is required" }, 400);
 
-        if (!supabaseUrl || !supabaseServiceKey) {
-          return Response.json({ error: 'Server configuration error' }, { status: 500 })
-        }
+        const [{ supabaseAdmin }, { unsubscribeByToken }] = await Promise.all([
+          import("@/integrations/supabase/client.server"),
+          import("@/lib/email/suppression.server"),
+        ]);
 
-        // Extract token from query params (always present for RFC 8058 one-click)
-        const url = new URL(request.url)
-        let token: string | null = url.searchParams.get('token')
+        const result = await unsubscribeByToken(supabaseAdmin, token);
 
-        // Detect RFC 8058 one-click unsubscribe: POST with form-encoded body
-        // containing "List-Unsubscribe=One-Click". Email clients (Gmail, Apple Mail,
-        // etc.) send this when the user clicks "Unsubscribe" in the mail UI.
-        const contentType = request.headers.get('content-type') ?? ''
-        if (contentType.includes('application/x-www-form-urlencoded')) {
-          const formText = await request.text()
-          const params = new URLSearchParams(formText)
-          // For one-click, token comes from query param (already set above).
-          // Otherwise, token may be in the form body.
-          if (!params.get('List-Unsubscribe')) {
-            const formToken = params.get('token')
-            if (formToken) {
-              token = formToken
-            }
+        if (!result.ok) {
+          if (result.error === "unknown_token" || result.error === "missing_token") {
+            return json({ error: "Invalid or expired token" }, 404);
           }
-        } else {
-          // JSON body (from the app's unsubscribe page)
-          try {
-            const body = await request.json()
-            if (body.token) {
-              token = body.token
-            }
-          } catch {
-            // Fall through — token stays from query param
-          }
+          console.error("[unsubscribe] failed", { error: result.error });
+          return json({ error: "Failed to process unsubscribe" }, 500);
         }
 
-        if (!token) {
-          return Response.json({ error: 'Token is required' }, { status: 400 })
+        // Ponowne kliknięcie w ten sam link nie jest błędem: blokada już jest,
+        // a klient pocztowy potrafi POST-ować one-click wielokrotnie.
+        if (result.alreadyUnsubscribed) {
+          return json({ success: true, reason: "already_unsubscribed" });
         }
 
-        const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-        // Look up the token
-        const { data: tokenRecord, error: lookupError } = await supabase
-          .from('email_unsubscribe_tokens')
-          .select('*')
-          .eq('token', token)
-          .maybeSingle()
-
-        if (lookupError || !tokenRecord) {
-          return Response.json({ error: 'Invalid or expired token' }, { status: 404 })
-        }
-
-        if (tokenRecord.used_at) {
-          return Response.json({ success: false, reason: 'already_unsubscribed' })
-        }
-
-        // Atomic check-and-update to avoid TOCTOU race
-        const { data: updated, error: updateError } = await supabase
-          .from('email_unsubscribe_tokens')
-          .update({ used_at: new Date().toISOString() })
-          .eq('token', token)
-          .is('used_at', null)
-          .select()
-          .maybeSingle()
-
-        if (updateError) {
-          console.error('Failed to mark token as used', { error: updateError, token })
-          return Response.json({ error: 'Failed to process unsubscribe' }, { status: 500 })
-        }
-
-        if (!updated) {
-          return Response.json({ success: false, reason: 'already_unsubscribed' })
-        }
-
-        // Add email to suppressed list (upsert to handle duplicates)
-        const { error: suppressError } = await supabase
-          .from('suppressed_emails')
-          .upsert(
-            { email: tokenRecord.email.toLowerCase(), reason: 'unsubscribe' },
-            { onConflict: 'email' },
-          )
-
-        if (suppressError) {
-          console.error('Failed to suppress email', {
-            error: suppressError,
-            email_redacted: redactEmail(tokenRecord.email),
-          })
-          return Response.json({ error: 'Failed to process unsubscribe' }, { status: 500 })
-        }
-
-        console.log('Email unsubscribed', {
-          email_redacted: redactEmail(tokenRecord.email),
-        })
-
-        return Response.json({ success: true })
+        // Log bez adresu i bez tokenu: jedno i drugie jest PII/sekretem, a do
+        // diagnostyki wystarczy fakt i tenant.
+        console.log("[unsubscribe] recorded", { tenant: result.tenantId });
+        return json({ success: true });
       },
     },
   },
-})
+});

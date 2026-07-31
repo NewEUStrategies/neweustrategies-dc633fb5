@@ -5,7 +5,7 @@
 // problem chwilowy, szary = decyzja operatora.
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import type { SuppressionReason, SuppressionScope } from "@/lib/email/suppression.server";
+import type { SuppressionReason, SuppressionScope } from "@/lib/email/suppressionPolicy";
 import "@/lib/i18n-newsletter-deliverability";
 
 const TONE: Record<SuppressionReason, string> = {

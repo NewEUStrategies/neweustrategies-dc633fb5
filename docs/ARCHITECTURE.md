@@ -673,8 +673,8 @@ pętlę.
   pierwszy request do dostawcy; pominięci lądują w logu ze statusem
   `suppressed`. Ta sama bramka obowiązuje double opt-in
   (`subscribeToNewsletter` → `suppressed`, formularz pokazuje zlokalizowany
-  komunikat) i pocztę transakcyjną (`sendTransactionalEmail({tenantId})`,
-  digesty powiadomień). Blokady czasowe świadomie NIE blokują nowego zapisu
+  komunikat) oraz - od migracji `20260731120000` - **każdy** mail transakcyjny i
+  każdy digest (patrz §11). Blokady czasowe świadomie NIE blokują nowego zapisu
   ani wiadomości transakcyjnej - problem był chwilowy.
 - **Bramka reputacji.** `src/lib/email/reputation.ts` (izomorficzny, testowany)
   liczy wskaźniki i statusy `healthy|watch|critical|insufficient_data` wobec
@@ -698,3 +698,123 @@ pętlę.
   pierwszeństwo powagi, izolacja tenantów, idempotencja webhooka, RLS/PII).
   Vitest: `src/lib/email/__tests__/` (klasyfikacja odbić, progi reputacji,
   weryfikacja podpisu Svix wraz z replayem i manipulacją payloadu).
+
+## 11. Poczta wychodząca: jedna lista, jeden dren, runner domyślnie włączony
+
+§10 opisuje warstwę danych dostarczalności. Ta sekcja opisuje, jak ta warstwa
+jest **egzekwowana na wszystkich** ścieżkach wysyłki - bo do migracji
+`20260731120000_email_suppression_unification.sql` egzekwowana była wybiórczo i
+każda z czterech usterek osobno wystarczała, by poczta cicho nie wychodziła
+albo wychodziła tam, gdzie nie wolno.
+
+### 11.1 Jedna lista wykluczeń (było: dwie)
+
+Platforma miała DWIE niezależne listy: kanoniczną `email_suppressions`
+(tenant-scoped, 7 powodów, eskalacja, zdejmowanie blokady) zasilaną webhookiem
+Resend i czytaną przez kampanie, oraz zaszłą `suppressed_emails` (bez tenanta,
+3 powody, bez wygaśnięcia) zasilaną wypisem i webhookiem platformy, czytaną
+przez pocztę transakcyjną i digesty. Skutek: **twarde odbicie nie zatrzymywało
+poczty transakcyjnej, a wypis jednym kliknięciem nie zatrzymywał kampanii.**
+
+- Rekordy zaszłości przenosi migracja (mapowanie `bounce → hard_bounce`,
+  `complaint → complaint`, `unsubscribe → unsubscribe`; tenant z
+  `email_resolve_tenant_for_address`, surowe wiersze zostają w
+  `suppressed_emails_legacy_backup` do audytu).
+- Nazwa `suppressed_emails` zostaje jako **widok zgodności** z
+  `security_invoker = true` (bez tego widok obszedłby RLS tabeli źródłowej i
+  wystawił adresy wszystkich tenantów) i grantami wyłącznie dla `service_role`.
+  Widok pokazuje tylko AKTYWNE blokady, a `INSTEAD OF INSERT/UPDATE/DELETE`
+  routuje zapisy do `email_record_suppression` - żadna ścieżka, także dopisana
+  w przyszłości przez generator, nie utworzy drugiej listy.
+- `email_resolve_tenant_for_address(email)`: jednoznaczny subskrybent →
+  jednoznaczne konto → tenant domyślny. Wypis, webhook i mail transakcyjny
+  biegną na `service_role`, gdzie nie ma ani sesji, ani nagłówka hosta.
+- `email_unsubscribe_by_token(token)` robi wypis w JEDNEJ transakcji (zużycie
+  tokenu globalnego albo per subskrybent, blokada `unsubscribe`, zdjęcie
+  subskrypcji triggerem) i jest idempotentny - klienty pocztowe POST-ują
+  one-click wielokrotnie (RFC 8058).
+
+### 11.2 Macierz POWÓD × KATEGORIA (było: 1 z 19 typów)
+
+Warstwa transakcyjna czytała listę, ale respektowała ją tylko dla
+`newsletter_confirmed` - pozostałe **18 z 19** typów wychodziło na adresy po
+twardym odbiciu i po skardze. Odwrotna skrajność jest jednak równie zła:
+potraktowanie wypisu z newslettera jak zakazu wysyłki potwierdzenia płatności
+odcięłoby odbiorcę od treści, które musimy dostarczyć (wykonanie umowy;
+uprzedzenie o cyklicznym obciążeniu). Zgoda marketingowa ≠ obowiązek umowny.
+
+`src/lib/email/suppressionPolicy.ts` (czysty moduł, bez I/O):
+
+| powód blokady | `bulk` (newsletter, digest) | `transactional` (płatności, dostęp, bilet) |
+| --- | --- | --- |
+| `complaint`, `hard_bounce`, `blocked`, `invalid`, `manual` | blokuje | **blokuje** |
+| `unsubscribe` | blokuje | przepuszcza (wycofano zgodę marketingową, nie umowę) |
+| `soft_bounce` | blokuje | przepuszcza (problem chwilowy, blokada wygasa sama) |
+
+`TX_EMAIL_CATEGORY` jest `Record<TxEmailType, EmailCategory>`, więc nowy typ
+maila **nie skompiluje się** bez jawnej kategorii - regresja „suppression nie
+dotyczy tego typu" jest niemożliwa. Nieznana etykieta kanału surowego wpada w
+`bulk` (fail-safe w stronę mniejszej wysyłki). Każde pominięcie zapisuje wiersz
+`email_send_log` ze statusem `suppressed` i kodem `suppressed:<powód>` - cisza
+w skrzynce odbiorcy musi być widoczna w panelu.
+
+### 11.3 Dren kolejki (było: brak konsumenta w repo)
+
+Cała poczta 1:1 wchodzi do pgmq przez `enqueue_email`. Konsumenta **nie było w
+repozytorium**: migracja `20260728154925` opisuje zadanie cron
+„process-email-queue" jako `applied dynamically by setup_email_infra`,
+wskazujące na funkcję brzegową, której w repo nie ma. Świeże wdrożenie miało
+więc `email_send_log` pełen wierszy `pending`, rosnącą kolejkę i cichą wywózkę
+do DLQ po przekroczeniu TTL - a nadawca nic nie wiedział, bo `enqueue` zwracał
+sukces.
+
+- `src/lib/email/queueDrain.server.ts` - JEDNA implementacja: priorytet
+  `auth_emails` przed `transactional_emails`, VT 60 s, TTL z
+  `email_send_state`, budżet ponowień liczony po **realnych** porażkach z
+  `email_send_log` (nie po `pgmq.read_ct`, bo odczyt bez próby wysyłki nie jest
+  porażką), DLQ dla odmów trwałych i wyczerpanych ponowień, wspólny cooldown na
+  429 oraz **ponowna** kontrola listy wykluczeń w chwili wysyłki (wiadomość
+  mogła czekać w kolejce, a adres w tym czasie odbić).
+- `src/lib/email/provider.server.ts` - jedna droga wyjścia poczty: gateway
+  Resend (zwraca `id` wiadomości, więc pętla webhooków się domyka) z
+  `sendLovableEmail` jako zapasem. Ten sam moduł wysyła kampanie - wcześniej
+  kampanie i kolejka miały dwie kopie z innym formatem błędów.
+- Wpięcie w harmonogram: `runJobsTick` (pg_cron + pg_net co minutę) drenuje
+  kolejkę zaraz po kampaniach, z własnym deadline'em 10 s, żeby zaległość nie
+  zagłodziła push-y i przypomnień. Endpoint `POST /lovable/email/queue/process`
+  zostaje dla środowisk z własnym harmonogramem i **deleguje** do tego samego
+  modułu.
+
+### 11.4 Runner domyślnie włączony (było: `enabled = false`)
+
+`job_runner_settings` startowało z `enabled = false` i pustym `base_url`, więc
+świeże wdrożenie nie wysyłało w tle NICZEGO, dopóki człowiek nie znalazł
+przełącznika w panelu. Wysyłka w tle jest domyślnym oczekiwanym zachowaniem
+platformy pocztowej, nie funkcją opcjonalną.
+
+- `enabled` ma `DEFAULT true`; istniejący wiersz jest włączany tylko wtedy, gdy
+  nikt go nie konfigurował (pusty `base_url`) - świadomej decyzji operatora,
+  który wyłączył skonfigurowany runner, nie ruszamy.
+- `job_runner_base_url()`: jawna konfiguracja → domena tenanta domyślnego. Bez
+  żadnej konfiguracji tick działa, jeśli tenant ma domenę.
+- Telemetria: `last_tick_at`, `last_tick_status` (`dispatched|skipped|error`),
+  `last_tick_error`, `tick_count` - „cisza w kolejce" przestaje być
+  nierozstrzygalna między „cron nie biegnie" i „biegnie, ale endpoint odrzuca".
+  `email_queue_depth()` podaje długość czterech kolejek pgmq.
+- Panel (atomic design): atomy `RunnerStateBadge`/`QueueDepthStat`, organizm
+  `JobRunnerCard`, rozstrzyganie stanu w czystym `src/lib/email/runnerHealth.ts`
+  (`disabled` → `misconfigured` → `error` → `idle` → `running`; tick `skipped`
+  NIE liczy się jako działanie). i18n: `src/lib/i18n-newsletter-runner.ts` (PL/EN).
+
+### 11.5 Testy
+
+- pgTAP `supabase/tests/email_suppression_unification_test.sql`: widok zgodności
+  (relkind, `security_invoker`, brak dostępu anon/authenticated), routing
+  zapisów do listy kanonicznej, blokada wygasła niewidoczna, `DELETE` =
+  odblokowanie, rozstrzyganie tenanta (w tym niejednoznaczność), wypis obu
+  rodzajami tokenu z izolacją tenantów, `enabled DEFAULT true` i wyliczanie
+  adresu bazowego.
+- Vitest `src/lib/email/__tests__/`: `suppressionPolicy.test.ts` (macierz +
+  pokrycie wszystkich 19 typów), `queueDrain.test.ts` (podwójna wysyłka, TTL,
+  budżet ponowień vs `read_ct`, 429, DLQ, pominięcie po skardze, przepuszczenie
+  transakcyjnego po wypisie), `runnerHealth.test.ts` (rozstrzyganie stanu).

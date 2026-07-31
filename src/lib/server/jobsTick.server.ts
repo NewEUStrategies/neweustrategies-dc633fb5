@@ -15,6 +15,7 @@
 // z obu endpointów niczego nie dublują.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { drainEmailQueues, type DrainResult } from "@/lib/email/queueDrain.server";
 import { tickNewsletterCampaigns } from "@/lib/newsletter-campaigns.functions";
 import {
   processDigests,
@@ -27,6 +28,13 @@ type DbClient = SupabaseClient<Database>;
 
 export interface JobsTickResult {
   newsletter: { fired: number; continued: number; sent: number } | { error: string };
+  /**
+   * Dren kolejek pocztowych (auth_emails, transactional_emails). Do 20260731120000
+   * konsumenta tej kolejki w repo NIE BYŁO: maile transakcyjne wchodziły do pgmq
+   * i zostawały tam do przekroczenia TTL. Teraz drenuje je ten sam tick, który
+   * wysyła kampanie - jeden harmonogram dla całej poczty wychodzącej.
+   */
+  emailQueue: DrainResult | { error: string };
   push: { claimed: number; sent: number } | { error: string };
   digestDaily: { claimed: number; sent: number } | { error: string };
   digestWeekly: { claimed: number; sent: number } | { error: string };
@@ -43,6 +51,14 @@ export interface JobsTickResult {
 // Wszystkie joby są idempotentne/watermarkowe, więc pominięte wracają w następnym
 // ticku. Uzupełnia to re-claim dostaw integracji utkniętych w 'delivering'.
 const JOBS_TICK_DEADLINE_MS = 25_000;
+
+/**
+ * Deadline drenu poczty w ramach ticku. Kolejka po awarii dostawcy potrafi mieć
+ * tysiące wiadomości; bez własnego, wcześniejszego limitu jeden dren wyczerpałby
+ * cały budżet ticku i zagłodził przypomnienia oraz push. Reszta kolejki wyjdzie
+ * w następnej minucie - tick biegnie co minutę, a wysyłka jest idempotentna.
+ */
+const EMAIL_DRAIN_DEADLINE_MS = 10_000;
 
 /** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
  *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
@@ -78,6 +94,16 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
   // integracje, embeddingi) na końcu - to one są pomijane pierwsze przy
   // wyczerpaniu budżetu, a nie krytyczne wysyłki/przypomnienia.
   const newsletter = await runJobStep(overBudget, () => tickNewsletterCampaigns(admin, {}));
+  // Poczta 1:1 (autoryzacja, transakcyjne, digesty) idzie zaraz po kampaniach:
+  // link do logowania i ostrzeżenie o nieudanej płatności starzeją się szybciej
+  // niż cokolwiek innego w ticku. Dren dostaje własny, krótszy deadline, żeby
+  // duża kolejka nie zjadła budżetu przypomnieniom i przypisaniom.
+  const emailQueue = await runJobStep(overBudget, () =>
+    drainEmailQueues(admin, {
+      maxMessages: 60,
+      deadlineAt: startedAt + EMAIL_DRAIN_DEADLINE_MS,
+    }),
+  );
   const push = await runJobStep(overBudget, () => processPushJobs(100));
   // Digesty mają własne okna czasowe w claim_due_digests - wystarczy zaglądać
   // co 5 minut zamiast co minutę (dwa RPC mniej na tick).
@@ -113,9 +139,9 @@ export async function runJobsTick(admin: DbClient): Promise<JobsTickResult> {
       })
     : skipped;
 
-
   return {
     newsletter,
+    emailQueue,
     push,
     digestDaily,
     digestWeekly,
