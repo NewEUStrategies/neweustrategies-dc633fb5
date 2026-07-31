@@ -882,7 +882,14 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     Math.min(24, typeof config.authorSizePx === "number" ? config.authorSizePx : 10),
   );
   const authorStyle: CSSProperties = { fontSize: `${authorFontPx}px`, lineHeight: 1.35 };
-  const authorAvatarPx = Math.round(authorFontPx * 1.7);
+  // Awatar jest niezależny od czcionki: domyślnie 12 px.
+  const authorAvatarPx = Math.max(
+    8,
+    Math.min(
+      64,
+      typeof config.authorAvatarSizePx === "number" ? config.authorAvatarSizePx : 12,
+    ),
+  );
 
 
   const sharedProps = {
