@@ -6,42 +6,15 @@
 // destination.
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { edgeTtlCache } from "@/lib/ssrCache";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { errorCopy } from "@/lib/errorCopy";
 
 // Redirect responses must never be CDN-cached as if they were content.
 const NO_STORE = contentCacheControl({ preview: true });
 
-/**
- * Rezolucja kanonicznej ścieżki wpisu dla starego formatu linku. Dwa
- * sekwencyjne round-tripy (wpis -> pełna ścieżka rodzica) biegły dotąd na
- * KAŻDE trafienie /post/<slug> - a to ruch zdominowany przez boty i stare
- * indeksy, ten sam slug w kółko. Per-isolate TTL (per tenant host) amortyzuje
- * go do jednej rezolucji na 5 minut; wynik null (wpis zniknął) też jest
- * cache'owany, żeby zdjęte wpisy nie młóciły bazy.
- */
-async function resolveLegacyPostPath(slug: string): Promise<string | null> {
-  return edgeTtlCache(`public:post-redirect:${slug}`, 5 * 60_000, async () => {
-    const { data, error } = await supabase
-      .from("posts")
-      .select("slug, parent_page_id")
-      .eq("slug", slug)
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (error || !data?.parent_page_id) return null;
-    const { data: pathRow } = await supabase.rpc("page_full_path", {
-      _page_id: data.parent_page_id,
-    });
-    const path = typeof pathRow === "string" ? pathRow : null;
-    if (!path) return null;
-    return `${path}/${data.slug}`;
-  });
-}
 
 export const Route = createFileRoute("/post/$slug")({
   loader: async ({ params }) => {
