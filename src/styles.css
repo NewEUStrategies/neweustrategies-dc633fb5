@@ -6108,3 +6108,39 @@ html {
     transition-duration: 1ms;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Delikatne pionowe kreski między kolumnami sekcji buildera.
+   Wysokość ~65% kolumny, wyśrodkowane, z miękkim wygaszeniem na końcach.
+   Tylko od tabletu w górę - na mobile kolumny są ułożone jedna pod drugą. */
+@media (min-width: 768px) {
+  [data-columns-row] > [data-column-slot] {
+    position: relative;
+  }
+  [data-columns-row] > [data-column-slot] + [data-column-slot]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 65%;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in oklab, var(--foreground) 14%, transparent) 18%,
+      color-mix(in oklab, var(--foreground) 14%, transparent) 82%,
+      transparent
+    );
+  }
+  .dark [data-columns-row] > [data-column-slot] + [data-column-slot]::before {
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in oklab, var(--foreground) 22%, transparent) 18%,
+      color-mix(in oklab, var(--foreground) 22%, transparent) 82%,
+      transparent
+    );
+  }
+}
