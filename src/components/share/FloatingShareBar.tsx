@@ -29,10 +29,10 @@ import type { ReadingPanelSettings, SocialKey } from "@/lib/sidebarBuilder/types
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
 import { AuthorBusinessCard } from "@/components/post/AuthorBusinessCard";
-// Skanowanie nagłówków + kotwice: wspólny moduł (components/share/anchorScan),
+// Skanowanie nagłówków + kotwice: wspólny moduł (lib/content/anchorScan),
 // żeby pływający spis treści liczył identyfikatory tą samą funkcją co silniki
 // richtext i bloków - inaczej `#kotwica` z serwera i z klienta się rozjeżdżają.
-import { getArticleRoot, scanHeadings, type ScannedHeading } from "./anchorScan";
+import { getArticleRoot, scanHeadings, type ScannedHeading } from "@/lib/content/anchorScan";
 
 type Lang = "pl" | "en";
 
