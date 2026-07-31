@@ -218,8 +218,32 @@ function stripBullet(html: string): string {
 const heading = (level: number, text: string): Block => ({
   id: newBlockId(),
   type: "heading",
-  data: { level: Math.min(4, Math.max(2, level)), text, anchor: "" },
+  data: { level: Math.min(5, Math.max(2, level)), text, anchor: "" },
 });
+
+/**
+ * Poziom nagłówka dla akapitu Worda/LibreOffice, który NIE jest tagiem `<hN>`:
+ * `class="MsoHeading3"` / `MsoTitle`, `mso-outline-level:3`,
+ * `mso-style-name:"heading 2"` albo styl LibreOffice `P.Heading_20_2`.
+ * Zwraca 1-6 albo `null`, gdy to zwykły akapit.
+ */
+function wordHeadingLevel(el: Element): number | null {
+  if (isWordListItem(el)) return null;
+  const cls = el.getAttribute("class") ?? "";
+  const style = (el.getAttribute("style") ?? "").toLowerCase();
+  if (/mso-?title|\bTitle\b/.test(cls) && !/subtitle/i.test(cls)) return 1;
+  const byClass = cls.match(/(?:Mso)?Heading[_\s-]*(?:20[_\s-]*)?(\d)/i);
+  if (byClass) return Math.min(6, Math.max(1, Number(byClass[1])));
+  const byOutline = style.match(/mso-outline-level\s*:\s*(\d)/);
+  if (byOutline) {
+    const level = Number(byOutline[1]);
+    if (level >= 1 && level <= 6) return level;
+  }
+  const byStyleName = style.match(/mso-style-name\s*:\s*"?heading\s*(\d)/);
+  if (byStyleName) return Math.min(6, Math.max(1, Number(byStyleName[1])));
+  return null;
+}
+
 
 const paragraph = (html: string): Block => ({
   id: newBlockId(),
