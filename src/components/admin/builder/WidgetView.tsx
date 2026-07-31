@@ -79,6 +79,7 @@ import {
   getNum,
   normalizeNewsletterVariant,
 } from "./ui/organisms/widget-view/frame";
+import { OnboardingFormView } from "./ui/organisms/widget-view/OnboardingFormView";
 import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
 import { Editable } from "./ui/molecules/Editable";
 // Eager: layout-critical / above-the-fold / navigation widgets.
