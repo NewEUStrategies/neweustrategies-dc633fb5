@@ -58,12 +58,12 @@ export function MobileArticleActions({ lang }: Props) {
     >
       <Suspense
         fallback={
-          <span className="inline-flex h-10 items-center justify-center rounded-full border border-border bg-card text-sm font-medium opacity-60">
+          <span className="inline-flex h-8 items-center justify-center rounded-[5px] border border-border bg-background text-[12px] font-semibold tracking-tight opacity-60">
             {t.listen}
           </span>
         }
       >
-        <span className="[&_button]:w-full [&_button]:justify-center [&>div]:w-full">
+        <span className="[&>div]:w-full [&_button]:w-full [&_button]:justify-center [&_button]:h-8 [&_button]:gap-1.5 [&_button]:rounded-[5px] [&_button]:border-border [&_button]:bg-background [&_button]:px-3 [&_button]:py-0 [&_button]:text-[12px] [&_button]:font-semibold [&_button]:tracking-tight [&_button_svg]:h-[14px] [&_button_svg]:w-[14px]">
           <TtsPlayer
             text={text}
             voiceId={DEFAULT_VOICE_ID}
@@ -75,11 +75,12 @@ export function MobileArticleActions({ lang }: Props) {
       <button
         type="button"
         onClick={onDownload}
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-border bg-card text-sm font-medium transition hover:bg-muted"
+        className="inline-flex h-8 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] border border-border bg-background px-3 text-[12px] font-semibold tracking-tight text-foreground transition-colors hover:bg-muted hover:text-brand active:scale-[0.98]"
       >
-        <Download className="h-4 w-4" aria-hidden />
+        <Download className="h-[14px] w-[14px] text-brand" aria-hidden />
         <span>{t.download}</span>
       </button>
+
     </div>
   );
 }
