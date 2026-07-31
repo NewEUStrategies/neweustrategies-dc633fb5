@@ -20,6 +20,20 @@
 /** Adres gatewaya connectora Resend (ten sam, którym wysyłają kampanie). */
 const RESEND_GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 
+/**
+ * Nadawca użyty, gdy wywołujący go nie podał (np. kampania bez ustawionego
+ * `from_email`).
+ *
+ * Stała jest WSPÓLNA dla obu dostawców celowo. Wcześniej ścieżka Resend miała
+ * własny literał, a ścieżka zapasowa domykała brak pustym stringiem - ta sama
+ * wiadomość wychodziłaby więc raz z poprawnym nadawcą, a raz z PUSTYM nagłówkiem
+ * `From`, zależnie tylko od tego, który dostawca ją odebrał. Puste `From` jest
+ * albo odrzucane przez dostawcę, albo (gorzej) przyjmowane i dostarczane jako
+ * wiadomość bez rozpoznawalnego nadawcy - a niespójny nadawca to jeden z
+ * sygnałów, po których filtry obniżają reputację domeny.
+ */
+const DEFAULT_FROM = "New European Strategies <onboarding@resend.dev>";
+
 export interface SendEmailInput {
   to: string;
   subject: string;
@@ -125,7 +139,7 @@ async function sendViaResend(input: SendEmailInput): Promise<SendEmailResult> {
       "X-Connection-Api-Key": String(process.env.RESEND_API_KEY),
     },
     body: JSON.stringify({
-      from: input.from || "New European Strategies <onboarding@resend.dev>",
+      from: input.from || DEFAULT_FROM,
       to: [input.to],
       subject: input.subject,
       html: input.html,
@@ -180,7 +194,7 @@ async function sendViaLovable(input: SendEmailInput): Promise<SendEmailResult> {
       {
         run_id: input.runId,
         to: input.to,
-        from: input.from ?? "",
+        from: input.from ?? DEFAULT_FROM,
         sender_domain: input.senderDomain,
         subject: input.subject,
         html: input.html,
