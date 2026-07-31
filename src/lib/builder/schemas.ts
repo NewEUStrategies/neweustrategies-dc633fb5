@@ -153,7 +153,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       label: "Rozmiar czcionki autora (px)",
       min: 8,
       max: 24,
-      hint: "Domyślnie 11 px. Skaluje też awatar autora.",
+      hint: "Domyślnie 10 px. Skaluje też awatar autora.",
     },
     {
       key: "subtitleWeight",
