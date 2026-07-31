@@ -190,6 +190,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     subtitleWeight,
     showExcerpt,
     showAuthor,
+    authorSizePx,
     showCover,
 
     navSizePx,
