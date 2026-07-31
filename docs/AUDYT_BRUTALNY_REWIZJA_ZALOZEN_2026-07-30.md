@@ -4,6 +4,14 @@
 **Zakres:** cała platforma (moduły, funkcje, zakres funkcjonalności) skonfrontowana z faktycznym kodem,
 migracjami i uruchomionymi narzędziami. Punkt odniesienia: seria `OCENA_*` / `AUDYT_*` w `docs/`.
 
+> **AKTUALIZACJA 2026-07-31 — wszystkie P0 domknięte.** Po tym audycie wdrożono naprawy: PR-y #115–#123
+> zamknęły `get_chat_peers` (regresja cross-tenant), scheduler `community-cron` (push/digest), unifikację
+> suppression, samozbrojenie runnera newslettera, martwy panel darowizn, SSR trackera i paginacje.
+> Ostatni otwarty P0 — **izolacja sandbox/live w płatnościach one-time** — oraz P1 **furtka Big Five w CRM**
+> i **gate CI anon-insert** domknięte w `WDROZENIE_P0_P1_AUDYT_2026-07-31.md`. Korekta założenia: **quiz
+> nie jest wydmuszką** — to celowa promocja drugiej platformy NES (EuroChallenge), ocena 3 → 7 (§4.10).
+> Oceny szczegółowe poniżej zostawiam w brzmieniu z 30.07 jako zapis stanu w chwili audytu.
+
 ## Po co ten dokument
 
 Poprzednie audyty budowały narrację „**8,0/10, napisane nieprzeciętnie starannie**"
@@ -230,9 +238,11 @@ utrzymania — realnie ~7,3 na 24.07, dziś 7,8 (rosnąco dzięki lockdownom, ni
   ale `useAutosave` **nie jest importowany**; zapis tylko ręczny.
 - **Alerty trackera** — `capabilities.ts:50` sprzedaje „alerty trackera" jako benefit warstwy, a
   **żaden job nie czyta `eu_policy_follows`**.
-- **Quiz** — `quiz.tsx:264` to `<iframe>` do zewnętrznej domeny `nes-quiz.com/embed`: zero pytań z
-  bazy, zero powiązania ze skillem `quiz-question-generator`, plus jedyna trasa z zahardkodowanym
-  polskim `head()` bez `activeLang` (regresja i18n/SEO).
+- **Quiz** — ~~`quiz.tsx:264` to `<iframe>` do zewnętrznej domeny; wydmuszka.~~ **KOREKTA 2026-07-31:**
+  to NIE wydmuszka, tylko **celowa landing-strona promocyjna drugiej platformy NES** (EuroChallenge,
+  `nes-quiz.com`) — cross-promo z brandowanym `head()`, `LazyQuizIframe`, tłem z preloadem i przyciskami
+  udostępniania. Zostaje jeden realny drobiazg: `head()` ma opis/OG zahardkodowane po polsku (bez
+  `activeLang`) — do zbilingwalizowania. Ocena funkcji zrewidowana 3 → 7.
 - **Odznaki** — `BADGE_CATALOG` (`admin/community.ts:698-706`) oferuje 6 kluczy, DB CHECK
   (`20260713091000...:23`) dopuszcza 4; **3 z 6 pozycji w dropdownie zawsze łamią CHECK**, a legalny
   `staff` jest nienadawalny z UI. Odznak nie przyznaje żaden trigger (100% ręcznie), mimo że silnik
