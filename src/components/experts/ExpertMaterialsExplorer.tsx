@@ -129,7 +129,7 @@ export function ExpertMaterialsExplorer({
     startTransition(() => {
       // resetScroll: false - kotwicą widoku pozostaje sekcja materiałów,
       // globalny scroll-to-top wyrzucałby czytelnika do hero profilu.
-      void navigate({ search: updater, replace, resetScroll: false });
+      void navigate({ to: ".", search: updater, replace, resetScroll: false });
     });
   };
 
