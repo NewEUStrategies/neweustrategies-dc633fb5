@@ -80,8 +80,9 @@ export function diffParity(
   for (const key of plKeys) {
     if (!isGated(key, options.gatedPrefixes)) continue;
     if (!enKeys.has(key)) {
-      missingEn.push(key);
+      if (!isPlOnlyPluralVariant(key)) missingEn.push(key);
       continue;
+
     }
     const plValue = readKey(pl, key);
     const enValue = readKey(en, key);
