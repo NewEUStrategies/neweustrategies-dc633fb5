@@ -142,6 +142,13 @@ VALUES ('cc777777-7777-7777-7777-777777777777', 'sc-post',
         'cc111111-1111-1111-1111-111111111111',
         'cc666666-6666-6666-6666-666666666666', 'Post scoringu');
 
+-- comments_before_insert wymaga włączonej dyskusji w tenancie
+-- (site_settings.key='discussion'), inaczej rzuca 'comments_disabled'.
+INSERT INTO public.site_settings (tenant_id, key, value) VALUES
+  ('cc111111-1111-1111-1111-111111111111', 'discussion',
+   '{"allow_comments": true}'::jsonb)
+ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value;
+
 -- ── 3b. Komentarze: spam/deleted NIE liczą się, approved/pending liczą ───────
 SELECT score INTO TEMP score_before_comment
   FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333';

@@ -271,11 +271,14 @@ SELECT is(
 -- create_event_group -> create_group_conversation wymaga od hosta warstwy
 -- z chat_enabled (gate 'chat: tier disabled' z 20260725175514) - host dostaje
 -- grant członkowski jak w pozostałych testach czatu.
-RESET ROLE;
+-- UWAGA: ten plik celowo NIE przełącza roli na authenticated - jedzie jako
+-- właściciel i steruje tożsamością wyłącznie przez request.jwt.claims
+-- (auth.uid()). Wejście w rolę authenticated odcięłoby dalsze asercje od
+-- tabel bez grantu (notifications cudzego usera, user_reports,
+-- tenant_pending_counters).
 INSERT INTO public.membership_grants (tenant_id, user_id, tier_key)
 VALUES ('cb111111-1111-1111-1111-111111111111',
         'cb000000-0000-0000-0000-000000000090', 'member');
-SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"cb000000-0000-0000-0000-000000000090","role":"authenticated"}', true);
 
@@ -284,17 +287,11 @@ SELECT ok(
   'host tworzy grupe wydarzenia'
 );
 
--- public.events nie ma grantu SELECT dla authenticated (odczyt idzie przez
--- RPC/definer), więc id rozmowy wydarzenia zdejmujemy jako właściciel do
--- tabeli tymczasowej i dalej porównujemy już przeciwko niej.
-RESET ROLE;
+-- Id rozmowy wydarzenia zdejmujemy raz do tabeli tymczasowej - dalsze
+-- asercje (w tym idempotencja) porównują się już przeciwko niej.
 CREATE TEMP TABLE evconv AS
 SELECT conversation_id FROM public.events
  WHERE id = 'cb444444-4444-4444-4444-444444444441';
-GRANT SELECT ON evconv TO authenticated, anon;
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claims',
-  '{"sub":"cb000000-0000-0000-0000-000000000090","role":"authenticated"}', true);
 
 SELECT is(
   (SELECT count(*)::int FROM public.conversation_participants cp

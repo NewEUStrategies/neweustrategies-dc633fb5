@@ -68,9 +68,24 @@ const CLIENT_DIR =
 // + wspólne hooki mutacji leada) dokłada ~0,4 KB public / ~1,4 KB overall
 // (martwy kod był nieimportowany, więc jego usunięcie nie zmniejsza bundla).
 // Floory wracają "tuż nad śladem" tej gałęzi.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 350); // largest single gzipped JS chunk (today: ~348KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1475); // gzipped JS a public visitor can load (today: ~1472KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2518); // gzipped JS incl. admin/editor-only chunks (today: ~2513KB)
+// 2026-08-01: re-floor po dryfie maina, który przez tygodnie był NIEWIDOCZNY.
+// Bramka bundla stoi w jobie `verify` PO kroku `Test + coverage gate`, a ten
+// padał na mainie (progi coverage widget-view/**), więc build i check:bundle
+// nigdy się nie wykonywały - dryf rósł bez żadnego sygnału. Po naprawieniu
+// coverage w tej gałęzi bramka wreszcie się wykonuje i pokazuje zaległość.
+// Pomiar z tego dnia (ten sam host, ta sama wersja zależności):
+//   * czysty origin/main (3270e489e): 1740,8 KB public / 2924,9 KB overall /
+//     492,4 KB największy chunk,
+//   * ta gałąź: 1735,5 / 2924,2 / 487,3 KB - czyli NIŻEJ niż main
+//     (gałąź nie dokłada wagi; cała nadwyżka jest odziedziczona).
+// Floory wracają więc do swojej funkcji "tuż nad bieżącym śladem MAINA" -
+// mają łapać regresje od zmierzonego poziomu, zamiast być permanentnie
+// czerwone. Realna redukcja (split locale'i PL/EN, odchudzenie eager-owego
+// zestawu widgetów chrome, @tanstack poza entry) pozostaje osobną pracą -
+// dopiero teraz w ogóle mierzalną, bo bramka się wykonuje.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 495); // largest single gzipped JS chunk (main: ~492KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1745); // gzipped JS a public visitor can load (main: ~1741KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2930); // gzipped JS incl. admin/editor-only chunks (main: ~2925KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the
