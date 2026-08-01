@@ -1,9 +1,21 @@
 -- Seed legacy WordPress / English-URL redirect rules for the NES tenant.
 -- Rules are authored on the canonical (un-prefixed) path; the request matcher
 -- re-applies the "/en" prefix, so "/en/about-us" lands on "/en/o-nas".
+--
+-- POPRAWKA (2026-08-01): tenant NIE może być zaszytym UUID-em produkcji.
+-- Wiersz tenanta 'nes' powstaje w 20260531181120 BEZ jawnego id (gen_random_uuid),
+-- więc w każdej świeżej bazie ma inny identyfikator, a redirects.tenant_id ma
+-- klucz obcy do tenants(id). Zaszyty '07167e87-...' istnieje wyłącznie na
+-- produkcji - w CI (supabase start / db reset) ten INSERT wywracał się na
+-- naruszeniu FK i kładł CAŁY start bazy, a wraz z nim joby pgtap i e2e-seeded.
+-- Tenant wybieramy więc po slugu; gdy go nie ma, CROSS JOIN nie daje wierszy
+-- i migracja jest bezpiecznym no-opem. Semantyka na produkcji bez zmian
+-- (tam slug 'nes' to dokładnie ten sam tenant; migracja i tak jest już
+-- zastosowana, więc nie wykona się ponownie).
 insert into public.redirects (tenant_id, source_path, target_path, status_code, source, note)
-select '07167e87-2e0f-42e8-ac5e-72445a2d4b0a'::uuid, s, t, c, 'migration', n
-from (values
+select nes.id, s, t, c, 'migration', n
+from (select id from public.tenants where slug = 'nes' limit 1) as nes
+cross join (values
   ('/about-us', '/o-nas', 301, 'legacy EN page'),
   ('/about-us/*', '/o-nas', 301, 'legacy EN team subpages'),
   ('/o-nas/*', '/o-nas', 301, 'legacy WP team subpages'),
@@ -56,6 +68,6 @@ from (values
 ) as v(s, t, c, n)
 where not exists (
   select 1 from public.redirects r
-  where r.tenant_id = '07167e87-2e0f-42e8-ac5e-72445a2d4b0a'::uuid
+  where r.tenant_id = nes.id
     and r.source_path = v.s
 );
