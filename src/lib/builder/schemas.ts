@@ -1575,6 +1575,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
   ],
+  "progress-carousel": [],
   "meeting-booking": [],
   "event-sponsors": [],
   "event-list": [

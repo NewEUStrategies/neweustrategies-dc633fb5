@@ -378,6 +378,7 @@ export type WidgetType =
   // Dynamic
   | "post-list"
   | "carousel"
+  | "progress-carousel"
   | "categories"
   | "tags"
   // Forms

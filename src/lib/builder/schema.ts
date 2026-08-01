@@ -103,6 +103,7 @@ export const WIDGET_TYPES = [
   "dark-featured-card",
   // Slider
   "slider",
+  "progress-carousel",
   // Animated heading
   "animated-heading",
   // Rotating text (stagger by chars/words/lines)

@@ -749,6 +749,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Minimal + miniatury": "Minimal + thumbnails",
   "Karuzela kart (3-up)": "Card carousel (3-up)",
   "Karuzela logo (marquee)": "Logo carousel (marquee)",
+  "Karuzela z paskiem postępu": "Progress carousel",
   "Grid dwukolumnowy": "Two-column grid",
   "Lista pionowa (klasyczna)": "Vertical list (classic)",
   "Lista (ikona + nazwa + CTA)": "List (icon + name + CTA)",

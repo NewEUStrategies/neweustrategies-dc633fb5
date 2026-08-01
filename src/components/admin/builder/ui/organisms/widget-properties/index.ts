@@ -25,3 +25,4 @@ export { EventPicker } from "./EventPicker";
 export { ProfilePicker } from "./ProfilePicker";
 export { MeetingBookingEditor } from "./MeetingBookingEditor";
 export { SponsorsEditor } from "./SponsorsEditor";
+export { ProgressCarouselEditor } from "./ProgressCarouselEditor";
