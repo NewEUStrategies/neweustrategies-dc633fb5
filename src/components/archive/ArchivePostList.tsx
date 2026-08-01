@@ -21,6 +21,12 @@ interface Props {
    * "every N cards", see useInFeedAds). Truthy output spans the full grid row.
    */
   renderAfterCard?: (index: number) => React.ReactNode;
+  /**
+   * Mark the FIRST card's cover as the LCP candidate (eager + high priority).
+   * Enable only on lists rendered above the fold (homepage latest-posts feed,
+   * /blog) - below-the-fold archives keep lazy covers.
+   */
+  firstCardPriority?: boolean;
 }
 
 export function ArchivePostList({
@@ -32,6 +38,7 @@ export function ArchivePostList({
   titleClassName = "text-xl",
   gridClassName = "grid gap-6 md:grid-cols-2 lg:grid-cols-3",
   renderAfterCard,
+  firstCardPriority = false,
 }: Props) {
   if (posts.length === 0) {
     return (
@@ -55,6 +62,7 @@ export function ArchivePostList({
               viewTransitionId={p.id}
               excerptOverride={getExcerptOverride?.(p)}
               titleClassName={titleClassName}
+              priority={firstCardPriority && idx === 0}
             />
             {after && <div className="col-span-full flex justify-center py-2">{after}</div>}
           </Fragment>
