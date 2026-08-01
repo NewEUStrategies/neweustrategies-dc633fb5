@@ -15,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import type { Block, BlockStyle, BlocksDoc } from "@/lib/blocks/types";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
-import { DocumentOutline } from "./molecules/DocumentOutline";
+import { BlockListView } from "./molecules/BlockListView";
 import { ChevronLeft, ChevronRight, FileText, Pencil } from "@/lib/lucide-shim";
 import "@/lib/i18n-admin-blocks";
 
@@ -23,8 +23,13 @@ interface Props {
   doc: BlocksDoc;
   activeBlock: Block | null;
   activeId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
   onChangeBlock: (next: Block) => void;
+  /** Zaznaczenie wielokrotne (dzielone z kanwą) - konsumuje List View. */
+  selectedIds: readonly string[];
+  onSelectedIdsChange: (ids: readonly string[]) => void;
+  /** Zmiana kolejności bloków top-level z poziomu List View (DnD). */
+  onReorder: (fromIdx: number, toIdx: number) => void;
   documentPane: React.ReactNode;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -36,6 +41,9 @@ export function BlockSidebar({
   activeId,
   onSelect,
   onChangeBlock,
+  selectedIds,
+  onSelectedIdsChange,
+  onReorder,
   documentPane,
   collapsed,
   onToggleCollapse,
@@ -144,7 +152,14 @@ export function BlockSidebar({
           </TabsContent>
 
           <TabsContent value="document" className="flex-1 overflow-y-auto p-3 space-y-4 mt-0">
-            <DocumentOutline doc={doc} activeId={activeId} onSelect={onSelect} />
+            <BlockListView
+              doc={doc}
+              activeId={activeId}
+              selectedIds={selectedIds}
+              onSelect={onSelect}
+              onSelectedIdsChange={onSelectedIdsChange}
+              onReorder={onReorder}
+            />
             <div className="pt-2 border-t border-border">{documentPane}</div>
           </TabsContent>
         </Tabs>

@@ -525,7 +525,12 @@ const pl = {
         childCount: "{{count}} blok(i)",
         background: "Kolor tła (np. #f4f4f5)",
         padding: "Padding (px)",
-        nestedHint: "Edycja zagnieżdżonych bloków - w kolejnym kroku (Etap 1b: nested editor).",
+        nestedHint: "Edytuj bloki bezpośrednio wewnątrz kontenera.",
+      },
+      columns: {
+        left: "Kolumna lewa",
+        right: "Kolumna prawa",
+        emptyColumn: "Pusta kolumna - dodaj blok",
       },
       heading: {
         placeholder: "Nagłówek H{{level}}…",
@@ -1162,7 +1167,12 @@ const en: typeof pl = {
         childCount: "{{count}} block(s)",
         background: "Background color (e.g. #f4f4f5)",
         padding: "Padding (px)",
-        nestedHint: "Editing nested blocks - in the next step (Stage 1b: nested editor).",
+        nestedHint: "Edit blocks directly inside the container.",
+      },
+      columns: {
+        left: "Left column",
+        right: "Right column",
+        emptyColumn: "Empty column - add a block",
       },
       heading: {
         placeholder: "Heading H{{level}}…",

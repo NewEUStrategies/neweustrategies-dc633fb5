@@ -1339,6 +1339,62 @@ export const en = {
       quickTitle: "Most used",
       resultsLabel: "Available blocks",
       close: "Close",
+      tabsLabel: "Content kind",
+      tabBlocks: "Blocks",
+      tabPatterns: "Patterns",
+    },
+    nested: {
+      empty: "Empty container",
+    },
+    listView: {
+      title: "Document structure",
+      empty: "No blocks yet - start writing in the canvas.",
+    },
+    codeView: {
+      title: "Code view (Gutenberg markup)",
+      button: "Code view",
+      desc: "WordPress-compatible serialization of the {{lang}} document - pasting it into a block editor recreates the content.",
+      blockCount_one: "Blocks: {{count}}",
+      blockCount_other: "Blocks: {{count}}",
+      copy: "Copy markup",
+      copied: "Markup copied.",
+      copyFailed: "Copy failed.",
+    },
+    patterns: {
+      items: {
+        "key-takeaways": {
+          name: "Key takeaways",
+          desc: "Heading + a list of the most important findings.",
+        },
+        "expert-quote": {
+          name: "Expert quote",
+          desc: "A pull quote with the author's attribution.",
+        },
+        "chapter-break": {
+          name: "Chapter break",
+          desc: "Separator, H2 heading and an opening paragraph.",
+        },
+        "two-column-analysis": {
+          name: "Two-column analysis",
+          desc: "Opportunities and risks side by side (columns with blocks).",
+        },
+        "faq-details": {
+          name: "FAQ section",
+          desc: "Heading + collapsible questions and answers.",
+        },
+        "newsletter-cta": {
+          name: "Newsletter signup",
+          desc: "A call-to-action card with a value proposition.",
+        },
+        "data-table": {
+          name: "Data table",
+          desc: "Heading + a table with a header row.",
+        },
+        "summary-box": {
+          name: "Summary box",
+          desc: "A container with a heading and a numbered list.",
+        },
+      },
     },
     types: {
       paragraph: "Paragraph",

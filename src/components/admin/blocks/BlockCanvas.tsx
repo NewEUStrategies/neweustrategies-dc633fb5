@@ -35,10 +35,10 @@ import { htmlTextLength, innerInlineHtml, mergeInlineIntoHtml } from "@/lib/bloc
 import { blockRange, toggleInSelection } from "@/lib/blocks/selection";
 import { getTransformTargets, transformBlock } from "@/lib/blocks/transforms";
 import { useBlockClipboard } from "./hooks/useBlockClipboard";
+import { BlockEditRenderer, BlockWithToolbar } from "./BlockEditRenderer";
 import { BlockInserter } from "./BlockInserter";
 import { BlockAppender } from "./molecules/BlockAppender";
 import { SortableBlockItem, type BlockTransformOption } from "./molecules/SortableBlockItem";
-import { GenericWidgetToolbar } from "./GenericWidgetToolbar";
 import { getBlockVariants } from "@/lib/blocks/variants";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
 import { ParagraphBlock } from "./edit/Paragraph";
@@ -152,17 +152,27 @@ interface Props {
   activeId: string | null;
   onSelect: (id: string | null) => void;
   onChange: (doc: BlocksDoc, immediate?: boolean) => void;
+  /** Zaznaczenie wielokrotne - kontrolowane przez rodzica (dzieli je List View). */
+  selectedIds: readonly string[];
+  onSelectedIdsChange: (ids: readonly string[]) => void;
 }
 
-export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
+export function BlockCanvas({
+  doc,
+  activeId,
+  onSelect,
+  onChange,
+  selectedIds,
+  onSelectedIdsChange,
+}: Props) {
   const { t } = useTranslation();
   const blocks = doc.blocks;
   const ids = useMemo(() => blocks.map((b) => b.id), [blocks]);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  // Zaznaczenie WIELU bloków (Ctrl/Cmd+A jak w Word). Puste = brak zaznaczenia
-  // dokumentu; wtedy obowiązuje zwykłe zaznaczenie pojedynczego bloku.
-  const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
+  // Zaznaczenie WIELU bloków (Ctrl/Cmd+A jak w Word) - stan kontrolowany
+  // przez rodzica (PostBlockEditor), bo dzieli go z List View w sidebarze.
+  const setSelectedIds = onSelectedIdsChange;
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   // Kotwica zaznaczenia zakresowego (ostatni blok kliknięty bez modyfikatorów).
   const anchorIdRef = useRef<string | null>(null);
@@ -546,6 +556,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
             insertAt(0, { id: newBlockId(), type: "paragraph", data: { html: "" } })
           }
           onInsert={(b) => insertAt(0, b)}
+          onInsertBlocks={(list) => insertBlocksAt(0, list)}
         />
       </div>
     );
@@ -562,7 +573,10 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
           data-builder-renderer
           data-cms-content
         >
-          <BlockInserter onInsert={(b) => insertAt(0, b)} />
+          <BlockInserter
+            onInsert={(b) => insertAt(0, b)}
+            onInsertBlocks={(list) => insertBlocksAt(0, list)}
+          />
           {blocks.map((b, idx) => {
             const variants = getBlockVariants(b.type);
             const currentVariant =
@@ -597,7 +611,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                     isActive={b.id === activeId}
                     onChange={(n) => replaceBlock(b.id, n)}
                   >
-                    <BlockRenderer
+                    <BlockEditRenderer
                       block={b}
                       isActive={b.id === activeId}
                       onChange={(n) => replaceBlock(b.id, n)}
@@ -611,7 +625,10 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                     />
                   </BlockWithToolbar>
                 </SortableBlockItem>
-                <BlockInserter onInsert={(blk) => insertAt(idx + 1, blk)} />
+                <BlockInserter
+                  onInsert={(blk) => insertAt(idx + 1, blk)}
+                  onInsertBlocks={(list) => insertBlocksAt(idx + 1, list)}
+                />
               </div>
             );
           })}
@@ -620,6 +637,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
               insertAt(blocks.length, { id: newBlockId(), type: "paragraph", data: { html: "" } })
             }
             onInsert={(b) => insertAt(blocks.length, b)}
+            onInsertBlocks={(list) => insertBlocksAt(blocks.length, list)}
           />
         </div>
       </SortableContext>
