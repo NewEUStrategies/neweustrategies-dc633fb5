@@ -3,11 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
-import {
-  fetchSystemEmailReport,
-  type SystemEmailReport,
-} from "@/lib/email/system-log.server";
-
+import { fetchSystemEmailReport, type SystemEmailReport } from "@/lib/email/system-log.server";
 
 export type {
   SystemEmailReport,

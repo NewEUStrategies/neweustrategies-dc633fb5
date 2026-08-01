@@ -17,7 +17,6 @@ import { createAnchorAllocator, legacyAnchorVariants } from "@/lib/content/ancho
 import { inlineHtmlToText, looksLikeInlineHtml } from "@/lib/blocks/inlineHtml";
 import type { Block } from "@/lib/blocks/types";
 
-
 export interface BlockAnchor {
   /** Kanoniczna, zdeduplikowana kotwica nagłówka. */
   readonly id: string;
@@ -49,7 +48,6 @@ function headingText(block: Block): string {
   if (typeof raw !== "string") return "";
   return looksLikeInlineHtml(raw) ? inlineHtmlToText(raw) : raw.trim();
 }
-
 
 /** Jawna kotwica podana przez autora w edytorze (może być pusta). */
 function explicitAnchor(block: Block): string {

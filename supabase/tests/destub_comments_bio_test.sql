@@ -74,8 +74,8 @@ VALUES ('d0000000-0000-0000-0000-0000000000e1', 'destub-post',
 INSERT INTO public.site_settings (tenant_id, key, value)
 VALUES ('d1111111-1111-1111-1111-1111111100dd', 'discussion',
         '{"allow_comments": true, "moderate_new_comments": false}'::jsonb)
-ON CONFLICT (key) DO UPDATE
-  SET tenant_id = EXCLUDED.tenant_id, value = EXCLUDED.value;
+ON CONFLICT (tenant_id, key) DO UPDATE
+  SET value = EXCLUDED.value;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',

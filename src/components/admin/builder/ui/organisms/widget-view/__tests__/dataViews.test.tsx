@@ -426,12 +426,7 @@ describe("PostListView", () => {
       { id: "a1", display_name: "Jan Kowalski", avatar_url: null, slug: "jan" },
       { id: "a2", display_name: "Anna Nowak", avatar_url: null, slug: "anna" },
     ];
-    wrap(
-      <PostListView
-        c={{ variant: "ranked", authorDisplay: "none", limit: 6 }}
-        lang="pl"
-      />,
-    );
+    wrap(<PostListView c={{ variant: "ranked", authorDisplay: "none", limit: 6 }} lang="pl" />);
     await screen.findAllByText("Pierwszy wpis");
     expect(screen.queryByText("Jan Kowalski")).toBeNull();
   });
@@ -443,10 +438,7 @@ describe("PostListView", () => {
       { id: "a2", display_name: "Anna Nowak", avatar_url: null, slug: "anna" },
     ];
     const { container } = wrap(
-      <PostListView
-        c={{ variant: "ranked", authorDisplay: "label", limit: 6 }}
-        lang="pl"
-      />,
+      <PostListView c={{ variant: "ranked", authorDisplay: "label", limit: 6 }} lang="pl" />,
     );
     await screen.findAllByText("Jan Kowalski");
     expect(container.textContent).toMatch(/Autor:/);

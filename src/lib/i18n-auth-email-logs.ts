@@ -113,8 +113,7 @@ const en = {
       rejected: "Rejected",
       failed: "Error",
     },
-    notReady:
-      "No diagnostics captured yet - events appear after the first auth email is sent.",
+    notReady: "No diagnostics captured yet - events appear after the first auth email is sent.",
     error: "Could not load the webhook logs.",
   },
 };

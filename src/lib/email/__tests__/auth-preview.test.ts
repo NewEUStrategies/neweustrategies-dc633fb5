@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  AUTH_EMAIL_TYPES,
-  renderAllAuthEmailPreviews,
-} from "../auth-preview.server";
+import { AUTH_EMAIL_TYPES, renderAllAuthEmailPreviews } from "../auth-preview.server";
 
 describe("renderAllAuthEmailPreviews", () => {
   it("renderuje wszystkie szablony po polsku z wołaczem", async () => {

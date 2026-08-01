@@ -5,11 +5,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Wand2 } from "@/lib/lucide-shim";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DYNAMIC_TAG_GROUPS } from "@/lib/builder/dynamicText";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import "@/lib/i18n-builder";
@@ -45,10 +41,7 @@ export function DynamicTagInserter({ onInsert, label, compact = true }: Props) {
           <Wand2 className="w-3.5 h-3.5" />
         </button>
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-72 p-0 max-h-[320px] overflow-auto"
-      >
+      <PopoverContent align="end" className="w-72 p-0 max-h-[320px] overflow-auto">
         <div className="px-3 py-2 border-b border-border">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {t("builder.dynamicTag.title", { defaultValue: "Tagi dynamiczne" })}

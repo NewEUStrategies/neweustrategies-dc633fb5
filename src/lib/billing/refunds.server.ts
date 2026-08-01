@@ -65,7 +65,6 @@ export function isDisputeReversed(event: RefundEvent): boolean {
   return event.status === "reversed";
 }
 
-
 /** Mapuje akcję operatora na czytelny powód w dzienniku i CRM. */
 function reasonLabel(action: AdjustmentAction): string {
   return action === "chargeback" ? "chargeback" : "refund";
@@ -97,14 +96,13 @@ async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
 
   if (!sub?.user_id) return revoked ? "subscription_refunded" : "skipped";
 
-  const { resolvePlanForPrice, syncCrmSubscriptionState } = await import(
-    "@/lib/billing/paddleEffects.server"
-  );
+  const { resolvePlanForPrice, syncCrmSubscriptionState } =
+    await import("@/lib/billing/paddleEffects.server");
   const plan = sub.price_id ? await resolvePlanForPrice(sub.price_id) : null;
 
   // CRM: zwrot to utrata klienta, nie pauza.
   const { catalogEntryByPriceId } = await import("@/lib/billing/paddleCatalog");
-  const tierKey = sub.price_id ? catalogEntryByPriceId(sub.price_id)?.tierKey ?? null : null;
+  const tierKey = sub.price_id ? (catalogEntryByPriceId(sub.price_id)?.tierKey ?? null) : null;
   if (tierKey) await syncCrmSubscriptionState(sub.user_id, tierKey, "churned");
 
   const { notifyRefundEmail } = await import("@/lib/billing/notifications.server");
@@ -302,7 +300,9 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
 
   const { data: order, error: orderErr } = await supabase
     .from("payment_orders")
-    .select("id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, currency")
+    .select(
+      "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, currency",
+    )
     .eq("provider_intent_id", event.transactionId)
     .maybeSingle();
   if (orderErr) throw new Error(`dispute: order lookup failed: ${orderErr.message}`);
@@ -347,5 +347,4 @@ export async function applyRefundEffects(event: RefundEvent): Promise<RefundOutc
   if (event.transactionId) return revokeOrder(event);
   console.warn("[payments] adjustment without transaction or subscription", event.adjustmentId);
   return "skipped";
-
 }

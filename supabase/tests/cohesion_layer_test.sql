@@ -50,12 +50,13 @@ INSERT INTO public.posts (id, slug, author_id, status, tenant_id, parent_page_id
    'Post spójności');
 
 -- comments_before_insert wymaga włączonej dyskusji per tenant; site_settings
--- ma PK po samym key (wiersz 'discussion' seedu wskazuje default tenant),
--- więc na czas testu (transakcja + ROLLBACK) przepinamy go na tenant A.
+-- ma PK złożony (tenant_id, key) - migracja 20260714113000 - więc tenant A
+-- dostaje po prostu WŁASNY wiersz 'discussion' (seedowy wiersz tenanta
+-- domyślnego zostaje nietknięty).
 INSERT INTO public.site_settings (tenant_id, key, value) VALUES
   ('a1111111-1111-1111-1111-111111111111', 'discussion', '{"allow_comments": true}'::jsonb)
-ON CONFLICT (key) DO UPDATE
-  SET tenant_id = EXCLUDED.tenant_id, value = EXCLUDED.value;
+ON CONFLICT (tenant_id, key) DO UPDATE
+  SET value = EXCLUDED.value;
 
 -- ── 1+2. Komentarz: zdarzenie + graf + wzmianka ─────────────────────────────
 INSERT INTO public.comments (id, tenant_id, post_id, user_id, body, status) VALUES

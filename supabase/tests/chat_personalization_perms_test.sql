@@ -29,7 +29,9 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(24);
+-- 23 asercje (historyczne plan(24) było o jeden za wysokie; miscount maskował
+-- wcześniejszy pad sekcji anon w połowie pliku).
+SELECT plan(23);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -47,6 +49,19 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) V
   ('a0000000-0000-0000-0000-00000000f5a1', 'perms-a1@chat.test', 'Perms A1', 'a1111111-1111-1111-1111-11111111f5aa', false),
   ('a0000000-0000-0000-0000-00000000f5a2', 'perms-a2@chat.test', 'Perms A2', 'a1111111-1111-1111-1111-11111111f5aa', true),
   ('b0000000-0000-0000-0000-00000000f5b1', 'perms-b1@chat.test', 'Perms B1', 'b2222222-2222-2222-2222-22222222f5bb', true);
+
+-- Bramki czatu (21-25.07): zaakceptowane połączenie + próg Plus wołającego
+-- (create_group_conversation ma tę samą bramkę tieru co DM).
+INSERT INTO public.user_connections (tenant_id, requester_id, addressee_id)
+VALUES ('a1111111-1111-1111-1111-11111111f5aa',
+        'a0000000-0000-0000-0000-00000000f5a1',
+        'a0000000-0000-0000-0000-00000000f5a2');
+UPDATE public.user_connections SET status = 'accepted'
+ WHERE requester_id = 'a0000000-0000-0000-0000-00000000f5a1'
+   AND addressee_id = 'a0000000-0000-0000-0000-00000000f5a2';
+INSERT INTO public.membership_grants (tenant_id, user_id, tier_key)
+VALUES ('a1111111-1111-1111-1111-11111111f5aa',
+        'a0000000-0000-0000-0000-00000000f5a1', 'member');
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
@@ -137,10 +152,13 @@ SELECT is(
 );
 
 SET LOCAL ROLE anon;
-SELECT is(
-  (SELECT count(*)::int FROM public.conversation_nicknames),
-  0,
-  'anon: RLS ukrywa pseudonimy (polityka ograniczona do authenticated)'
+-- Od lockdownu anon nie ma tabelarycznego SELECT - ACL odrzuca zapytanie,
+-- zanim RLS zdąży filtrować (silniejsza własność niż "0 wierszy").
+SELECT throws_ok(
+  $$SELECT count(*) FROM public.conversation_nicknames$$,
+  '42501',
+  NULL,
+  'anon: SELECT z conversation_nicknames odrzucony (brak grantu, nie tylko RLS)'
 );
 
 -- ── 3) Bezpośredni UPDATE / DELETE na conversation_nicknames przez członka ─

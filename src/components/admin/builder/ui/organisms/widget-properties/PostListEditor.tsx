@@ -241,10 +241,16 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               value={str(c, "showCover", "1") === "0" ? "0" : "1"}
               onValueChange={(v) => setContent("showCover", v)}
             >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1" className="text-xs">{t("builder.postListEditor.yes", { defaultValue: "Tak" })}</SelectItem>
-                <SelectItem value="0" className="text-xs">{t("builder.postListEditor.no", { defaultValue: "Nie" })}</SelectItem>
+                <SelectItem value="1" className="text-xs">
+                  {t("builder.postListEditor.yes", { defaultValue: "Tak" })}
+                </SelectItem>
+                <SelectItem value="0" className="text-xs">
+                  {t("builder.postListEditor.no", { defaultValue: "Nie" })}
+                </SelectItem>
               </SelectContent>
             </Select>
           </PropField>
@@ -253,10 +259,16 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               value={str(c, "showTitle", "1") === "0" ? "0" : "1"}
               onValueChange={(v) => setContent("showTitle", v)}
             >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1" className="text-xs">{t("builder.postListEditor.yes", { defaultValue: "Tak" })}</SelectItem>
-                <SelectItem value="0" className="text-xs">{t("builder.postListEditor.no", { defaultValue: "Nie" })}</SelectItem>
+                <SelectItem value="1" className="text-xs">
+                  {t("builder.postListEditor.yes", { defaultValue: "Tak" })}
+                </SelectItem>
+                <SelectItem value="0" className="text-xs">
+                  {t("builder.postListEditor.no", { defaultValue: "Nie" })}
+                </SelectItem>
               </SelectContent>
             </Select>
           </PropField>
@@ -265,10 +277,16 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               value={str(c, "showExcerpt", "1") === "0" ? "0" : "1"}
               onValueChange={(v) => setContent("showExcerpt", v)}
             >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1" className="text-xs">{t("builder.postListEditor.yes", { defaultValue: "Tak" })}</SelectItem>
-                <SelectItem value="0" className="text-xs">{t("builder.postListEditor.no", { defaultValue: "Nie" })}</SelectItem>
+                <SelectItem value="1" className="text-xs">
+                  {t("builder.postListEditor.yes", { defaultValue: "Tak" })}
+                </SelectItem>
+                <SelectItem value="0" className="text-xs">
+                  {t("builder.postListEditor.no", { defaultValue: "Nie" })}
+                </SelectItem>
               </SelectContent>
             </Select>
           </PropField>
@@ -290,13 +308,19 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 setContent("showAuthorLabel", v === "label" ? "1" : "0");
               }}
             >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="avatar" className="text-xs">
-                  {t("builder.postListEditor.authorAvatar", { defaultValue: "Zdjęcie + imię i nazwisko" })}
+                  {t("builder.postListEditor.authorAvatar", {
+                    defaultValue: "Zdjęcie + imię i nazwisko",
+                  })}
                 </SelectItem>
                 <SelectItem value="label" className="text-xs">
-                  {t("builder.postListEditor.authorLabelMode", { defaultValue: "Etykieta: „Autor: Imię Nazwisko\"" })}
+                  {t("builder.postListEditor.authorLabelMode", {
+                    defaultValue: 'Etykieta: „Autor: Imię Nazwisko"',
+                  })}
                 </SelectItem>
                 <SelectItem value="none" className="text-xs">
                   {t("builder.postListEditor.authorNone", { defaultValue: "Bez autora" })}
@@ -307,9 +331,11 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           {str(c, "authorDisplay", "avatar") === "label" && (
             <div className="mt-2">
               <PropField
-                label={t("builder.postListEditor.authorLabelText", { defaultValue: "Etykieta autora (i18n)" })}
+                label={t("builder.postListEditor.authorLabelText", {
+                  defaultValue: "Etykieta autora (i18n)",
+                })}
                 hint={t("builder.postListEditor.authorLabelHint", {
-                  defaultValue: "Puste = „Autor\" (PL) / „By\" (EN).",
+                  defaultValue: 'Puste = „Autor" (PL) / „By" (EN).',
                 })}
               >
                 <Input

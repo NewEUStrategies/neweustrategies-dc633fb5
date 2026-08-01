@@ -45,10 +45,7 @@ export function getNames(lang: SupportedLang): Record<string, string> {
  * Finds the ISO-3166-1 alpha-2 code for a country name.
  * Falls back to English when the name is not found in the requested locale.
  */
-export function getAlpha2Code(
-  name: string,
-  lang: SupportedLang
-): string | undefined {
+export function getAlpha2Code(name: string, lang: SupportedLang): string | undefined {
   const target = normalizeForMatch(name);
   if (!target) return undefined;
 
@@ -59,13 +56,13 @@ export function getAlpha2Code(
 
     // Exact match (after diacritics stripping) against any alias.
     const exact = entries.find(([, value]) =>
-      asNames(value).some((n) => normalizeForMatch(n) === target)
+      asNames(value).some((n) => normalizeForMatch(n) === target),
     );
     if (exact) return exact[0];
 
     // Prefix match, so typing "Pol" still resolves to "PL".
     const prefix = entries.find(([, value]) =>
-      asNames(value).some((n) => normalizeForMatch(n).startsWith(target))
+      asNames(value).some((n) => normalizeForMatch(n).startsWith(target)),
     );
     if (prefix) return prefix[0];
   }

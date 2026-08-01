@@ -47,9 +47,7 @@ describe("meetingSlotsInput", () => {
 describe("meetingSlotsConfigured", () => {
   it("requires a host in host mode and an event in event mode", () => {
     expect(meetingSlotsConfigured(meetingSlotsInput({ mode: "host" }))).toBe(false);
-    expect(meetingSlotsConfigured(meetingSlotsInput({ mode: "host", hostUserId: "u" }))).toBe(
-      true,
-    );
+    expect(meetingSlotsConfigured(meetingSlotsInput({ mode: "host", hostUserId: "u" }))).toBe(true);
     expect(meetingSlotsConfigured(meetingSlotsInput({ mode: "event" }))).toBe(false);
     expect(meetingSlotsConfigured(meetingSlotsInput({ mode: "event", eventId: "e" }))).toBe(true);
   });

@@ -63,7 +63,7 @@ describe("global widget overlay footnotes - mixed + nested", () => {
 
   it("preserves numbering when footnotes are interleaved with inline HTML", () => {
     const raw = textWidget(
-      '<p><strong>A</strong>[fn]f1[/fn] <em>B[fn]f2[/fn]</em> ' +
+      "<p><strong>A</strong>[fn]f1[/fn] <em>B[fn]f2[/fn]</em> " +
         '<a href="https://example.com">C[fn]f3[/fn]</a> D[fn]f4[/fn]</p>',
     );
     const { widget, notes } = processWidgetFootnotes(raw, "pl");
@@ -80,7 +80,11 @@ describe("global widget overlay footnotes - mixed + nested", () => {
   it("mixed and nested markers keep a global counter across sibling widgets", () => {
     const col = createCounter(1);
     const w1 = processWidgetFootnotes(textWidget("A[fn]a1[/fn][fn]a2[/fn]", "w-a"), "pl", col);
-    const w2 = processWidgetFootnotes(textWidget("B[fn]outer[fn]inner[/fn][/fn]", "w-b"), "pl", col);
+    const w2 = processWidgetFootnotes(
+      textWidget("B[fn]outer[fn]inner[/fn][/fn]", "w-b"),
+      "pl",
+      col,
+    );
     const w3 = processWidgetFootnotes(textWidget("C[fn]c1[/fn] D[fn]c2[/fn]", "w-c"), "pl", col);
 
     expect(w3.notes.map((n) => n.id)).toEqual([1, 2, 3, 4, 5]);

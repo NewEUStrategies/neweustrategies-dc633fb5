@@ -119,7 +119,10 @@ export function GuestCheckoutGate({ children }: { children: ReactNode }) {
           </div>
 
           {sent ? (
-            <p className="rounded-[6px] bg-primary/10 px-3 py-2 text-sm text-primary" aria-live="polite">
+            <p
+              className="rounded-[6px] bg-primary/10 px-3 py-2 text-sm text-primary"
+              aria-live="polite"
+            >
               {c.sent}
             </p>
           ) : (

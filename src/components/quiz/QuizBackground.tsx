@@ -123,11 +123,7 @@ export function QuizBackground() {
   const isDark = mode === "dark";
 
   return (
-    <div
-      ref={rootRef}
-      className="pointer-events-none absolute inset-0"
-      aria-hidden="true"
-    >
+    <div ref={rootRef} className="pointer-events-none absolute inset-0" aria-hidden="true">
       {/* Warstwa aktywnego motywu — druga wariacja nigdy nie trafia do DOM,
           więc opposite-theme nie generuje żadnych żądań sieciowych. */}
       {isDark ? <BgPicture variant={BG.dark} /> : <BgPicture variant={BG.light} />}
@@ -182,4 +178,3 @@ var l=document.createElement('link');
 l.rel='preload';l.as='image';l.href=href;l.type='image/avif';l.setAttribute('fetchpriority','high');
 document.head.appendChild(l);
 }catch(e){}})();`;
-

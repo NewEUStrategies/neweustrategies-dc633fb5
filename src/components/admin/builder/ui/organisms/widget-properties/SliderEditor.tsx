@@ -72,11 +72,13 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const showAuthor = c.showAuthor !== false;
   const showCover = c.showCover !== false;
   const showTitle = c.showTitle !== false;
-  const authorDisplay = (typeof c.authorDisplay === "string"
-    ? c.authorDisplay
-    : c.showAuthor === false
-      ? "none"
-      : "avatar") as "avatar" | "label" | "none";
+  const authorDisplay = (
+    typeof c.authorDisplay === "string"
+      ? c.authorDisplay
+      : c.showAuthor === false
+        ? "none"
+        : "avatar"
+  ) as "avatar" | "label" | "none";
   const authorLabelPl = typeof c.authorLabel_pl === "string" ? c.authorLabel_pl : "";
   const authorLabelEn = typeof c.authorLabel_en === "string" ? c.authorLabel_en : "";
   const authorSizePx = typeof c.authorSizePx === "number" ? c.authorSizePx : 12;
@@ -404,9 +406,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           <Switch checked={showExcerpt} onCheckedChange={(v) => setContent("showExcerpt", v)} />
         </label>
         <div className="border-t border-brand/20 pt-2 space-y-2">
-          <PropField
-            label={t("builder.sliderEditor.authorDisplay", { defaultValue: "Autor" })}
-          >
+          <PropField label={t("builder.sliderEditor.authorDisplay", { defaultValue: "Autor" })}>
             <Select
               value={authorDisplay}
               onValueChange={(v) => {
@@ -447,7 +447,10 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 value={authorSizePx}
                 onChange={(e) => {
                   const n = Number(e.target.value);
-                  setContent("authorSizePx", Number.isFinite(n) ? Math.max(8, Math.min(24, n)) : 12);
+                  setContent(
+                    "authorSizePx",
+                    Number.isFinite(n) ? Math.max(8, Math.min(24, n)) : 12,
+                  );
                 }}
                 className="h-8 text-xs"
               />

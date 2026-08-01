@@ -4,10 +4,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
-import {
-  fetchAuthEmailEvents,
-  type AuthEmailEventsReport,
-} from "@/lib/email/auth-events.server";
+import { fetchAuthEmailEvents, type AuthEmailEventsReport } from "@/lib/email/auth-events.server";
 
 export type {
   AuthEmailEventsReport,

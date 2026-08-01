@@ -81,10 +81,12 @@ export function buildPremiumNewsletterRow(input: {
  * Czy wolno reaktywować zapis. Ręczne wypisanie się jest nadrzędne wobec
  * automatu - nie zapisujemy ponownie kogoś, kto świadomie zrezygnował.
  */
-export function canAutoSubscribe(existing: {
-  status?: string | null;
-  unsubscribed_at?: string | null;
-} | null): boolean {
+export function canAutoSubscribe(
+  existing: {
+    status?: string | null;
+    unsubscribed_at?: string | null;
+  } | null,
+): boolean {
   if (!existing) return true;
   if (existing.unsubscribed_at) return false;
   return existing.status !== "unsubscribed";

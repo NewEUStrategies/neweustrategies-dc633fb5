@@ -160,10 +160,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     const set = new Set(selectedIds);
     if (set.size === 0) return;
     const next = docRef.current.blocks.filter((b) => !set.has(b.id));
-    onChange(
-      { ...docRef.current, blocks: next.length ? next : [] },
-      true,
-    );
+    onChange({ ...docRef.current, blocks: next.length ? next : [] }, true);
     setSelectedIds([]);
     onSelect(null);
   }, [selectedIds, onChange, onSelect]);
@@ -318,7 +315,11 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                     replaceBlock(b.id, { ...b, data: { ...b.data, variant: v } })
                   }
                 >
-                  <BlockWithToolbar block={b} isActive={b.id === activeId} onChange={(n) => replaceBlock(b.id, n)}>
+                  <BlockWithToolbar
+                    block={b}
+                    isActive={b.id === activeId}
+                    onChange={(n) => replaceBlock(b.id, n)}
+                  >
                     <BlockRenderer
                       block={b}
                       isActive={b.id === activeId}

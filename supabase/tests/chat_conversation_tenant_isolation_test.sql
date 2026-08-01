@@ -20,7 +20,9 @@
 --      0 wierszy tak samo jak SELECT id.
 
 BEGIN;
-SELECT plan(14);
+-- 15 asercji (historyczne plan(14) było o jeden za niskie; miscount maskował
+-- wcześniejszy pad sekcji anon w połowie pliku).
+SELECT plan(15);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -39,6 +41,22 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) V
   ('a0000000-0000-0000-0000-00000000e6a2', 'iso-a2@chat.test', 'Iso A2', 'a1111111-1111-1111-1111-11111111e6aa', true),
   ('a0000000-0000-0000-0000-00000000e6a3', 'iso-a3@chat.test', 'Iso A3', 'a1111111-1111-1111-1111-11111111e6aa', true),
   ('b0000000-0000-0000-0000-00000000e6b1', 'iso-b1@chat.test', 'Iso B1', 'b2222222-2222-2222-2222-22222222e6bb', true);
+
+-- Bramki czatu (21-25.07): DM wymaga zaakceptowanego połączenia (sieć
+-- kontaktów) oraz progu Plus (features.chat_enabled) u wołającego.
+-- Guard user_connections wymusza INSERT 'pending' -> UPDATE 'accepted'.
+INSERT INTO public.user_connections (tenant_id, requester_id, addressee_id)
+VALUES ('a1111111-1111-1111-1111-11111111e6aa',
+        'a0000000-0000-0000-0000-00000000e6a1',
+        'a0000000-0000-0000-0000-00000000e6a2');
+UPDATE public.user_connections SET status = 'accepted'
+ WHERE requester_id = 'a0000000-0000-0000-0000-00000000e6a1'
+   AND addressee_id = 'a0000000-0000-0000-0000-00000000e6a2';
+-- Tiery tenanta zasiał trigger tenants_seed_pricing_defaults ('member' ma
+-- chat_enabled); wołający dostaje nadanie warstwy.
+INSERT INTO public.membership_grants (tenant_id, user_id, tier_key)
+VALUES ('a1111111-1111-1111-1111-11111111e6aa',
+        'a0000000-0000-0000-0000-00000000e6a1', 'member');
 
 -- A1 zakłada rozmowę z A2 i nadaje jej pseudonim; A3 (ten sam tenant) i B1
 -- (inny tenant) NIE są członkami.
@@ -156,18 +174,22 @@ SELECT is(
   'członek widzi swój pseudonim w rozmowie'
 );
 
--- ── 5) anon: obie tabele zwracają 0 wierszy (RLS ostatnią linią) ───────────
+-- ── 5) anon: obie tabele w ogóle niedostępne (brak grantu SELECT) ──────────
+-- Od lockdownu anon nie ma nawet tabelarycznego SELECT - ACL odrzuca zapytanie
+-- zanim RLS zdąży cokolwiek filtrować. To silniejsza własność niż "0 wierszy".
 RESET ROLE;
 SET LOCAL ROLE anon;
-SELECT is(
-  (SELECT count(*)::int FROM public.conversations WHERE id = (SELECT id FROM isoconv)),
-  0,
-  'anon: RLS ukrywa conversations (polityki są TO authenticated)'
+SELECT throws_ok(
+  $$SELECT count(*) FROM public.conversations WHERE id = (SELECT id FROM isoconv)$$,
+  '42501',
+  NULL,
+  'anon: SELECT z conversations odrzucony (brak grantu, nie tylko RLS)'
 );
-SELECT is(
-  (SELECT count(*)::int FROM public.conversation_nicknames),
-  0,
-  'anon: RLS ukrywa conversation_nicknames (polityki są TO authenticated)'
+SELECT throws_ok(
+  $$SELECT count(*) FROM public.conversation_nicknames$$,
+  '42501',
+  NULL,
+  'anon: SELECT z conversation_nicknames odrzucony (brak grantu, nie tylko RLS)'
 );
 
 -- ── 6) Metatest zakresu ról polityk SELECT ────────────────────────────────

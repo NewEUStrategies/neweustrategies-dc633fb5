@@ -68,7 +68,6 @@ export function sameReminderDays(a: readonly number[], b: readonly number[]): bo
   return x.length === y.length && x.every((n, i) => n === y[i]);
 }
 
-
 export interface SeatLike {
   id: string;
   role: string;
@@ -122,10 +121,7 @@ export function rankSeats<T extends SeatLike>(seats: readonly T[]): T[] {
 }
 
 /** Identyfikatory miejsc, które przy danym limicie stracą uprawnienia. */
-export function seatsBeyondLimit<T extends SeatLike>(
-  seats: readonly T[],
-  limit: number,
-): string[] {
+export function seatsBeyondLimit<T extends SeatLike>(seats: readonly T[], limit: number): string[] {
   return rankSeats(seats)
     .slice(clampSeats(limit))
     .map((seat) => seat.id);
@@ -154,7 +150,9 @@ export function summarizeSeats<T extends SeatLike>(
     total,
     active,
     grace: beyond.filter((s) => s.status === "grace").length,
-    suspended: beyond.filter((s) => s.status === "suspended").length || Math.max(0, total - cap - beyond.filter((s) => s.status === "grace").length),
+    suspended:
+      beyond.filter((s) => s.status === "suspended").length ||
+      Math.max(0, total - cap - beyond.filter((s) => s.status === "grace").length),
     free: Math.max(0, cap - total),
     atLimit: active >= cap,
   };

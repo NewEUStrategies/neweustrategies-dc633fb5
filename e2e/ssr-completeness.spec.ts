@@ -13,7 +13,12 @@ const PAGES = [
   { path: "/", label: "home (PL)" },
   { path: "/en", label: "home (EN)" },
   { path: "/blog", label: "blog listing" },
-  { path: "/o-nas", label: "about (PL)" },
+  // Trasa PLIKOWA bez zapytań suspense: suita jest backend-agnostyczna
+  // (placeholderowe Supabase w CI). Strony CMS-owe (np. /o-nas) nie istnieją
+  // bez seeda, a /experts (useSuspenseQuery) odpowiada 500, gdy SSR-owe
+  // zapytanie zostanie ubite po timeoutcie. /cookies degraduje z założenia
+  // (loader z catch -> null) - zweryfikowane: 200 + pełny dokument bez bazy.
+  { path: "/cookies", label: "cookie policy" },
 ];
 
 test.describe("SSR HTML completeness", () => {

@@ -388,7 +388,6 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
           <AnimatedHeadingRender config={previewCfg} />
         </div>
       </div>
-
     </div>
   );
 }

@@ -28,9 +28,7 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
     return new Response("Invalid signature", { status: 400 });
   }
 
-  const { claimWebhookEvent, finishWebhookEvent } = await import(
-    "@/lib/billing/webhookLog.server"
-  );
+  const { claimWebhookEvent, finishWebhookEvent } = await import("@/lib/billing/webhookLog.server");
   const raw = event.data as unknown as Record<string, unknown>;
   const occurredAt =
     typeof event.occurredAt === "string" ? event.occurredAt : new Date().toISOString();
@@ -47,7 +45,7 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
     customerId: typeof raw.customerId === "string" ? raw.customerId : null,
     userId:
       typeof (raw.customData as { userId?: string } | null)?.userId === "string"
-        ? (raw.customData as { userId?: string }).userId ?? null
+        ? ((raw.customData as { userId?: string }).userId ?? null)
         : null,
     payload: event as unknown,
   };

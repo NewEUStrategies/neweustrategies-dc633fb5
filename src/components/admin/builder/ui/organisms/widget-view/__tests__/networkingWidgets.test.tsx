@@ -45,8 +45,7 @@ function renderWithClient(ui: ReactElement) {
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
-const futureIso = (hours: number): string =>
-  new Date(Date.now() + hours * 3_600_000).toISOString();
+const futureIso = (hours: number): string => new Date(Date.now() + hours * 3_600_000).toISOString();
 
 const slotRow = (over: Record<string, unknown> = {}) => ({
   id: "slot-1",
@@ -119,9 +118,7 @@ describe("MeetingBookingView", () => {
         booked_by_me: true,
       }),
     ];
-    renderWithClient(
-      <MeetingBookingView c={{ mode: "host", hostUserId: "host-1" }} lang="pl" />,
-    );
+    renderWithClient(<MeetingBookingView c={{ mode: "host", hostUserId: "host-1" }} lang="pl" />);
     expect(await screen.findByRole("button", { name: /Anuluj/ })).toBeInTheDocument();
     expect(screen.queryByText(/Zaloguj się, aby zarezerwować/)).not.toBeInTheDocument();
   });
@@ -129,9 +126,7 @@ describe("MeetingBookingView", () => {
   it("shows the host manage panel and own-slot badge for the signed-in host", async () => {
     db.user = { id: "host-1" };
     db.rpc.get_public_meeting_slots = [slotRow({ is_mine: true })];
-    renderWithClient(
-      <MeetingBookingView c={{ mode: "host", hostUserId: "host-1" }} lang="pl" />,
-    );
+    renderWithClient(<MeetingBookingView c={{ mode: "host", hostUserId: "host-1" }} lang="pl" />);
     expect(await screen.findByText("Opublikuj swój slot")).toBeInTheDocument();
     expect(await screen.findByText("Twój slot")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Usuń slot" })).toBeInTheDocument();
@@ -139,9 +134,7 @@ describe("MeetingBookingView", () => {
 
   it("shows the empty state when a configured widget has no slots", async () => {
     db.rpc.get_public_meeting_slots = [];
-    renderWithClient(
-      <MeetingBookingView c={{ mode: "event", eventId: "e-1" }} lang="pl" />,
-    );
+    renderWithClient(<MeetingBookingView c={{ mode: "event", eventId: "e-1" }} lang="pl" />);
     expect(await screen.findByText("Brak dostępnych terminów.")).toBeInTheDocument();
   });
 });
@@ -171,7 +164,9 @@ describe("EventSponsorsView", () => {
         name_pl: "Partnerzy medialni",
         name_en: "Media partners",
         size: "sm",
-        sponsors: [{ id: "s2", name: "Radio X", logo: "", url: "", description_pl: "", description_en: "" }],
+        sponsors: [
+          { id: "s2", name: "Radio X", logo: "", url: "", description_pl: "", description_en: "" },
+        ],
       },
     ],
   });

@@ -78,11 +78,17 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
               type="button"
               onClick={() => setUrlPickerOpen(true)}
               className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-border px-2 text-[11px] text-muted-foreground hover:border-brand hover:bg-muted/30 hover:text-foreground"
-              title={t("builder.imageSlot.pickFromLibrary", { defaultValue: "Wybierz z biblioteki" })}
-              aria-label={t("builder.imageSlot.pickFromLibrary", { defaultValue: "Wybierz z biblioteki" })}
+              title={t("builder.imageSlot.pickFromLibrary", {
+                defaultValue: "Wybierz z biblioteki",
+              })}
+              aria-label={t("builder.imageSlot.pickFromLibrary", {
+                defaultValue: "Wybierz z biblioteki",
+              })}
             >
               <FolderOpen className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t("builder.imageSlot.mediaLibrary", { defaultValue: "Biblioteka" })}</span>
+              <span className="hidden sm:inline">
+                {t("builder.imageSlot.mediaLibrary", { defaultValue: "Biblioteka" })}
+              </span>
             </button>
           </div>
           <MediaPickerDialog

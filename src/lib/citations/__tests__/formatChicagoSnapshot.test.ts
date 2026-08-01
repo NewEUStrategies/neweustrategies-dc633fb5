@@ -5,11 +5,7 @@
 // hydratację przez wielokrotne wywołanie tych samych czystych funkcji -
 // wynik musi być deterministyczny w obu językach.
 import { describe, expect, it } from "vitest";
-import {
-  formatChicago,
-  formatChicagoPlain,
-  type CitationSource,
-} from "../format";
+import { formatChicago, formatChicagoPlain, type CitationSource } from "../format";
 
 const AUTHORS = [
   { firstName: "Anna", lastName: "Kowalska", displayName: null },

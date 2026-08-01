@@ -13,14 +13,18 @@
 --   8. Autosuggest zwraca autora, term i publikację; prefiks bije trigram.
 --   9. total_count niesie pełną liczność mimo _limit.
 --
--- Wszystko z perspektywy anona; tenant rozstrzygany serwerowo (publiczny).
+-- Wszystko z perspektywy anona; tenant rozstrzygany serwerowo z nagłówka
+-- x-tenant-host (public_tenant_id()), więc fixture dostaje WŁASNY tenant
+-- z domeną - seed tenanta domyślnego (seed-wpis-1..5) nie wchodzi do wyników.
 
 BEGIN;
-SELECT plan(13);
+SELECT plan(14);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
-SELECT public.public_tenant_id() AS nes \gset
+INSERT INTO public.tenants (id, slug, name, domain) VALUES
+  ('fa111111-1111-1111-1111-111111111111', 'tenant-fs', 'Tenant FS', 'fs.example');
+SELECT 'fa111111-1111-1111-1111-111111111111' AS nes \gset
 
 INSERT INTO public.pages (id, tenant_id, slug) VALUES
   ('11111111-0000-0000-0000-0000000000fe', :'nes', 'fs-home');
@@ -78,6 +82,7 @@ INSERT INTO public.post_views (post_id, tenant_id, viewer_hash, viewed_at) VALUE
 
 SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims', '', true);
+SELECT set_config('request.headers', '{"x-tenant-host":"fs.example"}', true);
 
 -- 1. Filtr termu (typ Raport) zawęża do P1.
 SELECT is(

@@ -23,10 +23,7 @@ import {
   updateFootnoteAtOrigin,
   type FootnoteEntry,
 } from "@/lib/blocks/footnoteOrigins";
-import {
-  validateFootnotes,
-  type FootnoteIssue,
-} from "@/lib/blocks/footnoteValidation";
+import { validateFootnotes, type FootnoteIssue } from "@/lib/blocks/footnoteValidation";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-public";
@@ -161,8 +158,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                     type: iss.blockType,
                   })}
                 </button>
-                :{" "}
-                {iss.message}
+                : {iss.message}
                 {iss.excerpt ? (
                   <code className="ml-1 rounded bg-amber-100/70 dark:bg-amber-900/40 px-1 py-0.5 text-[11px]">
                     {iss.excerpt}
@@ -174,107 +170,109 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
         </div>
       ) : null}
       {entries.length === 0 ? null : (
-      <ol className="space-y-1.5 pl-5 list-decimal text-sm text-foreground/85">
-        {entries.map((e) => {
-          const isEditing = editingId === e.id;
-          return (
-            <li key={`${e.id}:${e.origin.path.join("/")}:${e.origin.occurrence}`} id={`fn-preview-${e.id}`} className="group">
-              {isEditing ? (
-                <div className="flex flex-col gap-1.5 py-1">
-                  <Textarea
-                    value={draft}
-                    onChange={(ev) => setDraft(ev.target.value)}
-                    onKeyDown={(ev) => {
-                      if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) {
-                        ev.preventDefault();
-                        saveEdit(e);
-                      } else if (ev.key === "Escape") {
-                        ev.preventDefault();
-                        cancelEdit();
-                      }
-                    }}
-                    autoFocus
-                    rows={2}
-                    className="text-sm"
-                    aria-label={t("admin.autoFootnotes.editLabel", {
-                      defaultValue: "Treść przypisu nr {{n}}",
-                      n: e.id,
-                    })}
-                  />
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => saveEdit(e)}
-                      className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-primary text-primary-foreground hover:opacity-90"
-                    >
-                      <Check className="h-3 w-3" />
-                      {t("common.save", { defaultValue: "Zapisz" })}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelEdit}
-                      className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
-                    >
-                      <X className="h-3 w-3" />
-                      {t("common.cancel", { defaultValue: "Anuluj" })}
-                    </button>
-                    <span className="text-[10px] text-muted-foreground/70 ml-auto">
-                      {t("admin.autoFootnotes.hotkey", { defaultValue: "⌘/Ctrl+Enter zapisuje" })}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className={cn("flex items-start gap-2")}>
-                  <button
-                    type="button"
-                    onClick={() => scrollToOrigin(e.origin.path)}
-                    className="flex-1 text-left rounded hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/40 px-1 -mx-1"
-                    title={t("admin.autoFootnotes.jumpHint", {
-                      defaultValue: "Przejdź do miejsca [fn] w kanwie",
-                    })}
-                    aria-label={t("admin.autoFootnotes.jumpAria", {
-                      defaultValue: "Przejdź do przypisu nr {{n}} w treści",
-                      n: e.id,
-                    })}
-                  >
-                    <span
-                      dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(e.html) }}
+        <ol className="space-y-1.5 pl-5 list-decimal text-sm text-foreground/85">
+          {entries.map((e) => {
+            const isEditing = editingId === e.id;
+            return (
+              <li
+                key={`${e.id}:${e.origin.path.join("/")}:${e.origin.occurrence}`}
+                id={`fn-preview-${e.id}`}
+                className="group"
+              >
+                {isEditing ? (
+                  <div className="flex flex-col gap-1.5 py-1">
+                    <Textarea
+                      value={draft}
+                      onChange={(ev) => setDraft(ev.target.value)}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) {
+                          ev.preventDefault();
+                          saveEdit(e);
+                        } else if (ev.key === "Escape") {
+                          ev.preventDefault();
+                          cancelEdit();
+                        }
+                      }}
+                      autoFocus
+                      rows={2}
+                      className="text-sm"
+                      aria-label={t("admin.autoFootnotes.editLabel", {
+                        defaultValue: "Treść przypisu nr {{n}}",
+                        n: e.id,
+                      })}
                     />
-                  </button>
-                  {canEdit ? (
-                    <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5">
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => startEdit(e)}
-                        title={t("common.edit", { defaultValue: "Edytuj" })}
-                        aria-label={t("admin.autoFootnotes.editLabel", {
-                          defaultValue: "Treść przypisu nr {{n}}",
-                          n: e.id,
-                        })}
-                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        onClick={() => saveEdit(e)}
+                        className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-primary text-primary-foreground hover:opacity-90"
                       >
-                        <Pencil className="h-3 w-3" />
+                        <Check className="h-3 w-3" />
+                        {t("common.save", { defaultValue: "Zapisz" })}
                       </button>
                       <button
                         type="button"
-                        onClick={() => removeEntry(e)}
-                        title={t("common.delete", { defaultValue: "Usuń" })}
-                        aria-label={t("admin.autoFootnotes.removeLabel", {
-                          defaultValue: "Usuń przypis nr {{n}}",
-                          n: e.id,
-                        })}
-                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                        onClick={cancelEdit}
+                        className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <X className="h-3 w-3" />
+                        {t("common.cancel", { defaultValue: "Anuluj" })}
                       </button>
-                    </span>
-                  ) : null}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+                      <span className="text-[10px] text-muted-foreground/70 ml-auto">
+                        {t("admin.autoFootnotes.hotkey", { defaultValue: "⌘/Ctrl+Enter zapisuje" })}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={cn("flex items-start gap-2")}>
+                    <button
+                      type="button"
+                      onClick={() => scrollToOrigin(e.origin.path)}
+                      className="flex-1 text-left rounded hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/40 px-1 -mx-1"
+                      title={t("admin.autoFootnotes.jumpHint", {
+                        defaultValue: "Przejdź do miejsca [fn] w kanwie",
+                      })}
+                      aria-label={t("admin.autoFootnotes.jumpAria", {
+                        defaultValue: "Przejdź do przypisu nr {{n}} w treści",
+                        n: e.id,
+                      })}
+                    >
+                      <span dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(e.html) }} />
+                    </button>
+                    {canEdit ? (
+                      <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(e)}
+                          title={t("common.edit", { defaultValue: "Edytuj" })}
+                          aria-label={t("admin.autoFootnotes.editLabel", {
+                            defaultValue: "Treść przypisu nr {{n}}",
+                            n: e.id,
+                          })}
+                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeEntry(e)}
+                          title={t("common.delete", { defaultValue: "Usuń" })}
+                          aria-label={t("admin.autoFootnotes.removeLabel", {
+                            defaultValue: "Usuń przypis nr {{n}}",
+                            n: e.id,
+                          })}
+                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ) : null}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
       )}
     </section>
   );

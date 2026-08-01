@@ -227,7 +227,8 @@ function EventDetail() {
   const waitlistCount = counts?.waitlist ?? 0;
   // Stan miejsc: autorytatywnie z backendu (realtime), z fallbackiem na liczby
   // z listy, gdy odczyt jeszcze trwa.
-  const seatsLeft = liveSeats?.seatsLeft ?? (ev.capacity !== null ? Math.max(0, ev.capacity - going) : null);
+  const seatsLeft =
+    liveSeats?.seatsLeft ?? (ev.capacity !== null ? Math.max(0, ev.capacity - going) : null);
   const isFull = liveSeats?.isFull ?? (seatsLeft !== null && seatsLeft === 0);
   const isWaitlisted = rsvpQ.data?.status === "waitlist";
   const isProBriefing = ev.kind === "briefing" && ev.visibility === "members";

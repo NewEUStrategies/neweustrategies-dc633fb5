@@ -43,9 +43,7 @@ describe("classifyPair", () => {
   });
 
   it("zgłasza EN pozostawione na wartości domyślnej widgetu", () => {
-    expect(
-      classifyPair("Poznaj nas", "Join", { pl: "Dołącz", en: "Join" }),
-    ).toBe("stale_default");
+    expect(classifyPair("Poznaj nas", "Join", { pl: "Dołącz", en: "Join" })).toBe("stale_default");
   });
 
   it("nie zgłasza poprawnej pary", () => {
@@ -93,7 +91,10 @@ describe("auditBuilderI18n", () => {
                 id: "w3",
                 type: "tabs",
                 content: {
-                  items: [{ label_pl: "Raporty", label_en: "" }, { label_pl: "Wywiady", label_en: "Interviews" }],
+                  items: [
+                    { label_pl: "Raporty", label_en: "" },
+                    { label_pl: "Wywiady", label_en: "Interviews" },
+                  ],
                 },
               },
               { id: "w4", type: "heading", content: { text_pl: "Kontakt", text_en: "Contact" } },

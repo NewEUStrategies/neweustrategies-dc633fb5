@@ -13,7 +13,6 @@ interface CommonOptions {
   retainCustomerId?: string | null;
 }
 
-
 export interface PriceCheckoutOptions extends CommonOptions {
   /** Czytelny identyfikator ceny z katalogu (np. `pro_monthly`). */
   priceId: string;

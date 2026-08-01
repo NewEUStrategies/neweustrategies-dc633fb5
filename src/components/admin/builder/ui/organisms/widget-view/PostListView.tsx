@@ -82,8 +82,7 @@ export function PostListView({
           : "avatar";
   const showAuthorAny = authorDisplay !== "none";
   const byLabel =
-    authorLabelOverride ||
-    t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
+    authorLabelOverride || t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
   // Global display toggles — apply to every variant.
   const showCover = getStr(c, "showCover") !== "0";
   const showTitleGlobal = getStr(c, "showTitle") !== "0";
@@ -180,7 +179,9 @@ export function PostListView({
     const textCls = tone === "onDark" ? "text-white/90" : "text-foreground";
     const labelCls = tone === "onDark" ? "text-white/70" : "opacity-70";
     return (
-      <div className={`cms-meta mt-2 flex items-center gap-2 min-w-0 ${tone === "onDark" ? "text-white/85" : ""}`}>
+      <div
+        className={`cms-meta mt-2 flex items-center gap-2 min-w-0 ${tone === "onDark" ? "text-white/85" : ""}`}
+      >
         {authorDisplay === "avatar" ? (
           p.author_avatar_url ? (
             <img
@@ -196,9 +197,7 @@ export function PostListView({
             <span aria-hidden className="h-5 w-5 shrink-0 bg-muted" style={{ borderRadius: 5 }} />
           )
         ) : null}
-        {authorDisplay === "label" && byLabel ? (
-          <span className={labelCls}>{byLabel}:</span>
-        ) : null}
+        {authorDisplay === "label" && byLabel ? <span className={labelCls}>{byLabel}:</span> : null}
         <span className={`${textCls} truncate`}>{name}</span>
       </div>
     );
@@ -379,7 +378,6 @@ export function PostListView({
                   </h4>
                 )}
                 {<AuthorMeta p={p} />}
-
               </div>
             </div>
           </AppLink>
@@ -387,7 +385,6 @@ export function PostListView({
       </div>
     );
   }
-
 
   if (variant === "numbered") {
     // Big faint index on the left, title in the middle, thumbnail on the right.

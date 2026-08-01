@@ -164,3 +164,21 @@ export async function resolveCrawlerTenantIdForHost(
   const tenant = await resolveCrawlerTenantForHost(rawHost);
   return tenant?.id ?? null;
 }
+
+/**
+ * Rozróżnia dwa powody, dla których crawler-plane nie ma tenanta:
+ *   * fail-closed - realny, nieznany host przy ZASIEDLONYM katalogu domen:
+ *     powierzchnia crawlera musi odpowiedzieć 404 (nie wolno reklamować treści
+ *     domyślnego tenanta na cudzej domenie) - ta funkcja zwraca false;
+ *   * degradacja - host podglądu/lokalny albo katalog pusty/niedostępny (np.
+ *     baza nieosiągalna w CI z placeholderowym Supabase): nie ma czego
+ *     wyciekać, więc sitemap/rss mogą podać statyczny szkielet zamiast 404 -
+ *     ta funkcja zwraca true.
+ * Utrzymywane razem z resolveCrawlerTenantForHost, żeby predykat
+ * bezpieczeństwa był jeden.
+ */
+export async function crawlerDegradeIsSafe(rawHost: string | null | undefined): Promise<boolean> {
+  const directory = await getTenantDirectory();
+  const host = normalizeHost(rawHost);
+  return isPreviewHost(host) || directory.byDomain.size === 0;
+}

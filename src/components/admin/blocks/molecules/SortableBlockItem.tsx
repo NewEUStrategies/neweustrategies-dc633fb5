@@ -8,7 +8,15 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
-import { ChevronUp, ChevronDown, Copy, Trash2, GripVertical, Link as LinkIcon, Check } from "@/lib/lucide-shim";
+import {
+  ChevronUp,
+  ChevronDown,
+  Copy,
+  Trash2,
+  GripVertical,
+  Link as LinkIcon,
+  Check,
+} from "@/lib/lucide-shim";
 import { IconButton } from "../atoms/IconButton";
 import {
   ContextMenu,
@@ -44,7 +52,6 @@ interface Props {
   onVariantChange?: (v: string) => void;
   children: ReactNode;
 }
-
 
 export function SortableBlockItem(props: Props) {
   const { t } = useTranslation();
@@ -101,7 +108,6 @@ export function SortableBlockItem(props: Props) {
     };
   }, []);
 
-
   // Ciągły pomiar szerokosci x wysokosci bloku (bez zaokrąglania w dół do 0,
   // gdy element jeszcze się nie zamountował). Aktualizacja przez
   // ResizeObserver - badge zawsze zna aktualne rozmiary renderu.
@@ -124,10 +130,6 @@ export function SortableBlockItem(props: Props) {
     transition,
     opacity: isDragging ? 0.45 : 1,
   };
-
-
-
-
 
   const [copied, setCopied] = useState(false);
   const copyId = async () => {
@@ -173,8 +175,6 @@ export function SortableBlockItem(props: Props) {
           </button>
 
           {/* Badge typu/rozmiaru bloku ukryty - informacja dostępna w menu kontekstowym. */}
-
-
 
           <div
             ref={toolbarRef}
@@ -301,10 +301,7 @@ export function SortableBlockItem(props: Props) {
           </>
         )}
 
-        <ContextMenuItem
-          disabled={props.index === 0}
-          onSelect={() => props.onMove(-1)}
-        >
+        <ContextMenuItem disabled={props.index === 0} onSelect={() => props.onMove(-1)}>
           <ChevronUp className="w-3.5 h-3.5 mr-2" />
           {t("blocks.actions.up", { defaultValue: "Przenieś w górę" })}
         </ContextMenuItem>

@@ -19,7 +19,6 @@ import {
 import { PADDLE_CATALOG } from "./paddleCatalog";
 import type { CatalogSyncReport } from "./paddleCatalogSync.server";
 
-
 export interface AutoSyncOutcome {
   environment: PaddleEnv;
   ran: boolean;
@@ -37,7 +36,6 @@ export interface IntegrationStateRow extends IntegrationSyncState {
   /** Czy zsynchronizowany katalog odpowiada aktualnemu cennikowi w bazie. */
   catalogCurrent: boolean;
 }
-
 
 async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
@@ -164,10 +162,7 @@ export async function getIntegrationState(env: PaddleEnv): Promise<IntegrationSt
 }
 
 /** Zapis wyniku ręcznej synchronizacji z panelu (odświeża odcisk integracji). */
-export async function recordManualSync(
-  env: PaddleEnv,
-  report: CatalogSyncReport,
-): Promise<void> {
+export async function recordManualSync(env: PaddleEnv, report: CatalogSyncReport): Promise<void> {
   const [supabase, fingerprint, catalog] = await Promise.all([
     admin(),
     integrationFingerprint(env),

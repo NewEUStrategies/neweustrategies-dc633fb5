@@ -13,10 +13,7 @@ import { toast } from "sonner";
 import { ExternalLink, KeyRound, Loader2, Search } from "lucide-react";
 
 import { getPaddleEnvironment } from "@/lib/paddle";
-import {
-  fetchMyInvoiceByTransaction,
-  sendMyPortalLink,
-} from "@/lib/billing/portalLink.functions";
+import { fetchMyInvoiceByTransaction, sendMyPortalLink } from "@/lib/billing/portalLink.functions";
 import { isTransactionId, normalizeTransactionId } from "@/lib/billing/transactionId";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

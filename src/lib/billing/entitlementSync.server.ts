@@ -102,7 +102,6 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
     return;
   }
 
-
   const { error } = await supabaseAdmin.from("user_subscriptions").insert({
     user_id: input.userId,
     tenant_id: input.tenantId,

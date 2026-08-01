@@ -317,8 +317,7 @@ export function MeetingBookingView({ c, lang }: { c: WidgetContent; lang: Lang }
     onError,
   });
 
-  const pending =
-    bookM.isPending || cancelM.isPending || createM.isPending || deleteM.isPending;
+  const pending = bookM.isPending || cancelM.isPending || createM.isPending || deleteM.isPending;
 
   const accentStyle: CSSProperties | undefined = accent
     ? { ["--speakers-accent" as string]: accent }
@@ -353,7 +352,9 @@ export function MeetingBookingView({ c, lang }: { c: WidgetContent; lang: Lang }
 
       {!user && (
         <p className="text-xs text-muted-foreground">
-          {lang === "pl" ? "Zaloguj się, aby zarezerwować spotkanie 1-1. " : "Sign in to book a 1-1 meeting. "}
+          {lang === "pl"
+            ? "Zaloguj się, aby zarezerwować spotkanie 1-1. "
+            : "Sign in to book a 1-1 meeting. "}
           <AppLink href="/login" className="font-medium text-brand-ink hover:underline">
             {lang === "pl" ? "Zaloguj się" : "Sign in"}
           </AppLink>

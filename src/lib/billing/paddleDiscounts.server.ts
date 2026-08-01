@@ -114,7 +114,9 @@ export async function resolveDiscountForCoupon(params: {
 
   const { data: coupon } = await supabaseAdmin
     .from("b2b_coupons")
-    .select("discount_kind, discount_percent, discount_cents, currency, valid_until, max_redemptions")
+    .select(
+      "discount_kind, discount_percent, discount_cents, currency, valid_until, max_redemptions",
+    )
     .eq("id", row.coupon_id)
     .maybeSingle();
   if (!coupon) return fail("not_found");

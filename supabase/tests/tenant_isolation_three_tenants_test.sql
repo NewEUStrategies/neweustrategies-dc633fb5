@@ -57,6 +57,13 @@ VALUES
    'a0000000-0000-0000-0000-000000000aa1', 'iso3_sess_c', 300, 'USD', 'iso3-shared@iso.test');
 
 -- storage.objects: po jednym pliku CV w każdym tenancie.
+-- storage-api >= 0055 (prevent-direct-deletes) blokuje KAZDY DELETE na
+-- storage.objects statementowym triggerem protect_objects_delete, o ile nie
+-- ustawiono GUC storage.allow_delete_query. Odpala sie on zanim RLS odfiltruje
+-- wiersze, wiec bez tego GUC nie da sie przetestowac "DELETE zwraca 0 wierszy".
+-- set_config(..., true) jest transakcyjne - znika przy ROLLBACK-u.
+SELECT set_config('storage.allow_delete_query', 'true', true);
+
 INSERT INTO storage.buckets (id, name, public) VALUES ('cv', 'cv', false)
   ON CONFLICT (id) DO NOTHING;
 
@@ -163,10 +170,17 @@ SELECT throws_ok(
 -- ══════════════════════════════════════════════════════════════════════════
 -- KONTEKST 2: aktywny tenant = B
 -- ══════════════════════════════════════════════════════════════════════════
+-- Przepięcie tenant_id wymaga wyłączenia triggerów pinujących: obok
+-- profiles_pin_tenant_id_bu (20260721052806, rzuca 42501, ma bypass
+-- service_role) wisi starszy profiles_pin_tenant_tg (20260628230000), który
+-- CICHO cofa tenant_id i nie ma żadnego bypassu - a odpala się jako drugi.
+-- DISABLE TRIGGER USER jest transakcyjne (cofa je ROLLBACK na końcu pliku).
 RESET ROLE;
+ALTER TABLE public.profiles DISABLE TRIGGER USER;
 UPDATE public.profiles
    SET tenant_id = 'a2222222-2222-2222-2222-2222222222a2'
  WHERE id = 'a0000000-0000-0000-0000-000000000aa1';
+ALTER TABLE public.profiles ENABLE TRIGGER USER;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-0000-0000-000000000aa1","role":"authenticated"}', true);
@@ -255,9 +269,11 @@ SELECT throws_ok(
 -- KONTEKST 3: aktywny tenant = C
 -- ══════════════════════════════════════════════════════════════════════════
 RESET ROLE;
+ALTER TABLE public.profiles DISABLE TRIGGER USER;
 UPDATE public.profiles
    SET tenant_id = 'a3333333-3333-3333-3333-3333333333a3'
  WHERE id = 'a0000000-0000-0000-0000-000000000aa1';
+ALTER TABLE public.profiles ENABLE TRIGGER USER;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-0000-0000-000000000aa1","role":"authenticated"}', true);

@@ -195,7 +195,6 @@ export const getRouter = () => {
       }
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     };
-
   }
 
   return router;

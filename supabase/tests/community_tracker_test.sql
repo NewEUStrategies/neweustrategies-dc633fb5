@@ -5,8 +5,9 @@
 --   2. Aktualizacje sa publiczne wylacznie przy opublikowanym dossier
 --      nadrzednym.
 --   3. Obserwowanie: owner-only (cudzych obserwacji nie widac), WITH CHECK
---      dopuszcza wylacznie opublikowane dossier; licznik obserwujacych
---      przez RPC (anon-callable).
+--      dopuszcza wylacznie opublikowane dossier i wymaga warstwy z flaga
+--      regulatory_monitoring (bramka Pro, 20260723090000); licznik
+--      obserwujacych przez RPC (anon-callable).
 --   4. Aktualizacja ze zmiana etapu przestawia etap dossier (trigger)
 --      i alarmuje obserwujacych powiadomieniem.
 --
@@ -29,6 +30,18 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
    (SELECT public.public_tenant_id())),
   ('a5000000-0000-0000-0000-0000000000bb', 'bystander@tracker.test', 'Bystander',
    (SELECT public.public_tenant_id()));
+
+-- Obserwowanie wymaga flagi regulatory_monitoring: obserwujacy dostaje
+-- aktywna subskrypcje Pro w tenancie publicznym (tiery zasial trigger
+-- tenants_seed_pricing_defaults; 'pro' niesie flage od 20260724090000).
+INSERT INTO public.access_plans (id, tenant_id, name_pl, name_en, price_cents, currency, interval, tier_key)
+VALUES ('a5333333-3333-3333-3333-333333333333', (SELECT public.public_tenant_id()),
+        'Pro (tracker)', 'Pro (tracker)', 9900, 'eur', 'month', 'pro');
+
+INSERT INTO public.user_subscriptions (user_id, plan_id, tenant_id, status, current_period_end)
+VALUES ('a5000000-0000-0000-0000-0000000000aa',
+        'a5333333-3333-3333-3333-333333333333',
+        (SELECT public.public_tenant_id()), 'active', now() + interval '30 days');
 
 INSERT INTO public.eu_policy_items (id, tenant_id, slug, title_pl, title_en, policy_area, stage, importance, status) VALUES
   ('a5222222-2222-2222-2222-222222222201', (SELECT public.public_tenant_id()),

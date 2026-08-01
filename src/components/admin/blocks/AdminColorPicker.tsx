@@ -181,7 +181,9 @@ export function AdminColorPicker({
         <PopoverContent
           align="start"
           className="w-[520px] p-0 overflow-hidden rounded-xl border border-border shadow-2xl"
-          style={{ fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif' }}
+          style={{
+            fontFamily: '"Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif',
+          }}
         >
           <div className="flex">
             {/* LEFT: Canvas + hue slider */}

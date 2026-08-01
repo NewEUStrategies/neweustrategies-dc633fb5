@@ -92,9 +92,12 @@ describe("useHistory", () => {
   });
 
   it("syncExternal resyncs present when initial changes without recording history", () => {
-    const { result, rerender } = renderHook(({ initial }) => useHistory(initial, { syncExternal: true }), {
-      initialProps: { initial: { n: 0 } },
-    });
+    const { result, rerender } = renderHook(
+      ({ initial }) => useHistory(initial, { syncExternal: true }),
+      {
+        initialProps: { initial: { n: 0 } },
+      },
+    );
     act(() => result.current.set({ n: 1 }));
     rerender({ initial: { n: 42 } });
     // Present resyncs to the external value; existing history stacks are

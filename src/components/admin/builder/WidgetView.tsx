@@ -24,10 +24,7 @@ import {
   resolveWidgetTypography,
 } from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
-import {
-  resolveGlobalWidgetInstance,
-  useGlobalWidgetNode,
-} from "@/lib/builder/globalWidgets";
+import { resolveGlobalWidgetInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
 import { processWidgetFootnotes } from "@/lib/footnotes";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
@@ -1094,7 +1091,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
 
     case "onboarding-form":
       return wrap(<OnboardingFormView c={c} lang={lang} />);
-
 
     case "cta": {
       const tKey = `title_${lang}`;

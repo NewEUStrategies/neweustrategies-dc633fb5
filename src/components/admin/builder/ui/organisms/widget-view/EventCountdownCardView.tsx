@@ -11,12 +11,7 @@ import { safeUrl } from "@/lib/sanitize";
 import { AppLink } from "@/components/atoms/AppLink";
 import { CalendarDays, Clock, Users, MapPin, ArrowRight } from "@/lib/lucide-shim";
 import { eventByIdQueryOptions, eventRsvpCountsQueryOptions } from "@/lib/builder/eventsQuery";
-import {
-  countdownParts,
-  isStartingSoon,
-  pad2,
-  parseCountdownTarget,
-} from "@/lib/events/countdown";
+import { countdownParts, isStartingSoon, pad2, parseCountdownTarget } from "@/lib/events/countdown";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { getBool, getNum, getStr, type Lang } from "./frame";
 
@@ -84,7 +79,8 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
   const doneHint =
     locStr(c, "doneHint", lang) ||
     (lang === "pl" ? "Dołącz teraz, aby wziąć udział" : "Join now to participate");
-  const location = locStr(c, "location", lang) || (mode === "event" ? (eventRow?.location ?? "") : "");
+  const location =
+    locStr(c, "location", lang) || (mode === "event" ? (eventRow?.location ?? "") : "");
   const eventHref = mode === "event" && eventRow ? `/events/${eventRow.slug}` : "";
   const ctaHref = href || eventHref;
 

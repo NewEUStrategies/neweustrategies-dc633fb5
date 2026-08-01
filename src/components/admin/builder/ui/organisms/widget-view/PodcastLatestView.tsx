@@ -31,11 +31,7 @@ export function PodcastLatestView({ c, lang }: Props) {
 
   if (isLoading) return <div className="cms-meta">…</div>;
   if (!data?.length) {
-    return (
-      <div className="cms-meta">
-        {lang === "en" ? "No podcasts yet." : "Brak odcinków."}
-      </div>
-    );
+    return <div className="cms-meta">{lang === "en" ? "No podcasts yet." : "Brak odcinków."}</div>;
   }
 
   if (variant === "featured") {

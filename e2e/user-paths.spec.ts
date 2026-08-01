@@ -18,6 +18,26 @@ const POST = {
   title_en: "A new security architecture for Europe",
 };
 
+// Logowanie odporne na wyścig z hydratacją. Formularz /login jest renderowany
+// serwerowo, a wysyłkę obsługuje reactowy onSubmit - klik ODDANY ZANIM React
+// podepnie handler wykonuje natywny submit GET i przeglądarka ląduje z powrotem
+// na "/login?" (dokładnie ten objaw miały oba testy logowania w CI: "navigated
+// to http://127.0.0.1:4173/login?"). Powtarzamy więc wypełnienie i klik, aż
+// nawigacja wyprowadzi poza /login. To NIE maskuje realnej awarii logowania:
+// przy złych danych albo zepsutej hydratacji blok nigdy nie przechodzi i test
+// pada tak samo jak wcześniej - znika wyłącznie zależność od momentu kliknięcia.
+async function signIn(page: import("@playwright/test").Page, email: string) {
+  await page.goto("/login");
+  await expect(page.locator('button[type="submit"]').first()).toBeVisible();
+
+  await expect(async () => {
+    await page.locator('input[type="email"]').fill(email);
+    await page.locator('input[type="password"]').fill("nes-dev-1234");
+    await page.locator('button[type="submit"]').first().click();
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 5_000 });
+  }).toPass({ timeout: 40_000 });
+}
+
 test.describe("user paths (seeded)", () => {
   test.skip(!SEEDED, "requires seeded local Supabase (E2E_SEEDED=1 after supabase db reset)");
 
@@ -57,14 +77,14 @@ test.describe("user paths (seeded)", () => {
 
   test("full-text search finds a seeded article", async ({ page }) => {
     await page.goto("/search?q=bezpiecze%C5%84stwa");
-    await expect(page.getByText(POST.title_pl).first()).toBeVisible();
+    // Wyniki dociągane są po hydratacji (RPC wyszukiwarki), więc pod
+    // obciążeniem CI domyślne 10 s bywa za krótkie - test bywał "flaky",
+    // przechodząc dopiero w retry. Dłuższy budżet, ta sama asercja.
+    await expect(page.getByText(POST.title_pl).first()).toBeVisible({ timeout: 30_000 });
   });
 
   test("staff sign-in lands in the admin panel", async ({ page }) => {
-    await page.goto("/login");
-    await page.locator('input[type="email"]').fill("admin@nes.local");
-    await page.locator('input[type="password"]').fill("nes-dev-1234");
-    await page.locator('button[type="submit"]').first().click();
+    await signIn(page, "admin@nes.local");
     await page.waitForURL("**/admin**", { timeout: 15_000 });
     expect(page.url()).toContain("/admin");
   });
@@ -72,11 +92,7 @@ test.describe("user paths (seeded)", () => {
   test("signed-in reader can open My Network with tabs and the people directory link", async ({
     page,
   }) => {
-    await page.goto("/login");
-    await page.locator('input[type="email"]').fill("reader@nes.local");
-    await page.locator('input[type="password"]').fill("nes-dev-1234");
-    await page.locator('button[type="submit"]').first().click();
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
+    await signIn(page, "reader@nes.local");
 
     await page.goto("/network");
     // Zakładki sieci widoczne = AuthGate przepuścił, moduł włączony.

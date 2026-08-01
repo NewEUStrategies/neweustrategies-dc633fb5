@@ -67,17 +67,13 @@ function SponsorCard({
           }
         />
       ) : (
-        <span className="font-display text-base font-semibold text-foreground">
-          {sponsor.name}
-        </span>
+        <span className="font-display text-base font-semibold text-foreground">{sponsor.name}</span>
       )}
       {logo && sponsor.name && size !== "sm" && (
         <span className="text-xs font-medium text-muted-foreground">{sponsor.name}</span>
       )}
       {showDescription && (
-        <p className="cms-post-excerpt line-clamp-3 text-sm text-muted-foreground">
-          {description}
-        </p>
+        <p className="cms-post-excerpt line-clamp-3 text-sm text-muted-foreground">{description}</p>
       )}
     </article>
   );
@@ -99,7 +95,8 @@ function SponsorCard({
 }
 
 export function EventSponsorsView({ c, lang }: { c: WidgetContent; lang: Lang }) {
-  const heading = getStr(c, `heading_${lang}`) || getStr(c, "heading_pl") || getStr(c, "heading_en");
+  const heading =
+    getStr(c, `heading_${lang}`) || getStr(c, "heading_pl") || getStr(c, "heading_en");
   const intro = getStr(c, `intro_${lang}`) || getStr(c, "intro_pl") || getStr(c, "intro_en");
   const accent = getStr(c, "accentColor");
   const grayscale = getBool(c, "grayscale", true);

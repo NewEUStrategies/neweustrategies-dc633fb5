@@ -199,10 +199,14 @@ describe("spacer", () => {
   });
 
   it("keeps the editable spacer at its configured width even when widget text is aligned", () => {
-    renderNode("spacer", { height: 32, widthPct: 100 }, {
-      editable: true,
-      style: { align: { desktop: "center" } },
-    });
+    renderNode(
+      "spacer",
+      { height: 32, widthPct: 100 },
+      {
+        editable: true,
+        style: { align: { desktop: "center" } },
+      },
+    );
 
     const spacer = screen.getByLabelText("Odstęp");
     expect(spacer.style.width).toBe("100%");

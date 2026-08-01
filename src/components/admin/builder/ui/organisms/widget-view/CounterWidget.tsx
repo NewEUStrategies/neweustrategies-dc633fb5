@@ -28,8 +28,10 @@ export function CounterWidget({ content, lang }: CounterWidgetProps): ReactEleme
   const prefix = getStr(content, "prefix");
   const suffix = getStr(content, "suffix");
   const delimiter = getStr(content, "delimiter") || ",";
-  const label = getStr(content, lang === "pl" ? "label_pl" : "label_en") ||
-    getStr(content, "label_pl") || getStr(content, "label_en");
+  const label =
+    getStr(content, lang === "pl" ? "label_pl" : "label_en") ||
+    getStr(content, "label_pl") ||
+    getStr(content, "label_en");
   const alignRaw = getStr(content, "align") || "center";
   const align: "left" | "center" | "right" =
     alignRaw === "left" ? "left" : alignRaw === "right" ? "right" : "center";

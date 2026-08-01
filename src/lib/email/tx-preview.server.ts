@@ -177,7 +177,6 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         ctaUrl: `${SITE_URL}/profile/subscription`,
       };
     case "event_registered":
-
       return {
         subjectName: eventTitle,
         details: [
@@ -239,14 +238,11 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
     case "team_seat_access_ended":
       return {
         subjectName: "Acme Group",
-        details: [
-          { label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" },
-        ],
+        details: [{ label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" }],
         ctaUrl: `${SITE_URL}/pricing`,
       };
   }
 }
-
 
 /** Renderuje pojedynczy mail transakcyjny z danymi demonstracyjnymi. */
 export async function renderTxEmailPreview(
@@ -293,10 +289,7 @@ export async function renderTxEmailPreview(
     ctaLabel: ov("cta") ?? undefined,
   });
 
-  const [html, text] = await Promise.all([
-    render(element),
-    render(element, { plainText: true }),
-  ]);
+  const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
 
   return {
     type,

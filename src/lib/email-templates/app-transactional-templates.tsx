@@ -30,7 +30,7 @@ function createAppEmailTemplate(
       lang,
       siteUrl: SITE_URL,
       firstName: readString(data, "firstName") ?? (lang === "pl" ? "Anna" : "Anna"),
-      vocativePl: lang === "pl" ? readString(data, "vocativePl") ?? "Anno" : undefined,
+      vocativePl: lang === "pl" ? (readString(data, "vocativePl") ?? "Anno") : undefined,
       ctaUrl: readString(data, "ctaUrl") ?? SITE_URL,
       details: Array.isArray(data.details)
         ? data.details.filter(
@@ -74,21 +74,17 @@ export const freeRsvpPlTemplate = createAppEmailTemplate(
   },
 );
 
-export const freeRsvpEnTemplate = createAppEmailTemplate(
-  "event_registered",
-  "Free RSVP - EN",
-  {
-    lang: "en",
-    firstName: "Anna",
-    subjectName: "European Strategic Briefing",
-    details: [
-      { label: "Event", value: "European Strategic Briefing" },
-      { label: "Date", value: "29 July 2026, 18:00" },
-      { label: "Location", value: "Warsaw / online" },
-    ],
-    ctaUrl: `${SITE_URL}/events`,
-  },
-);
+export const freeRsvpEnTemplate = createAppEmailTemplate("event_registered", "Free RSVP - EN", {
+  lang: "en",
+  firstName: "Anna",
+  subjectName: "European Strategic Briefing",
+  details: [
+    { label: "Event", value: "European Strategic Briefing" },
+    { label: "Date", value: "29 July 2026, 18:00" },
+    { label: "Location", value: "Warsaw / online" },
+  ],
+  ctaUrl: `${SITE_URL}/events`,
+});
 
 export const subscriptionConfirmedTemplate = createAppEmailTemplate(
   "subscription_confirmed",

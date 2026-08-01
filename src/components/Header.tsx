@@ -177,7 +177,9 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
               decoding="async"
             />
           ) : (
-            <span className="text-base font-bold tracking-tight truncate min-w-0 max-w-[180px]">{siteName}</span>
+            <span className="text-base font-bold tracking-tight truncate min-w-0 max-w-[180px]">
+              {siteName}
+            </span>
           )}
         </AppLink>
         <div className="flex items-center gap-2 justify-self-end">
@@ -289,7 +291,10 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
     const el = headerRef.current;
     if (!el) return;
     const apply = () => {
-      root.style.setProperty("--sticky-header-h", `${Math.round(el.getBoundingClientRect().height)}px`);
+      root.style.setProperty(
+        "--sticky-header-h",
+        `${Math.round(el.getBoundingClientRect().height)}px`,
+      );
     };
     apply();
     const ro = new ResizeObserver(apply);
@@ -315,9 +320,7 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
         <HeaderInner adPageType={adPageType} isHome={isHome} />
       </Suspense>
     </header>
-
   );
 });
-
 
 Header.displayName = "Header";

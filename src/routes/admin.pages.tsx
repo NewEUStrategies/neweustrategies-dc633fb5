@@ -473,7 +473,6 @@ function PagesList() {
         lang={lang}
       />
 
-
       <AdminListToolbar
         search={search}
         onSearch={setSearch}
@@ -618,7 +617,8 @@ function PagesList() {
                           ) : (
                             <Link
                               to="/admin/pages/$slug"
-                              params={{ slug: p.slug }} search={{ lang: viewLang }}
+                              params={{ slug: p.slug }}
+                              search={{ lang: viewLang }}
                               className="font-medium text-[13px] truncate max-w-[360px] text-[#231f20] dark:text-[#F8F6F4] hover:text-[#FDB078] hover:underline"
                             >
                               {(viewLang === "en" ? p.title_en : p.title_pl) ||
@@ -643,7 +643,8 @@ function PagesList() {
                         ) : (
                           <Link
                             to="/admin/pages/$slug"
-                            params={{ slug: p.slug }} search={{ lang: viewLang }}
+                            params={{ slug: p.slug }}
+                            search={{ lang: viewLang }}
                             className="block text-[10px] text-[#231f20] dark:text-[#F8F6F4] truncate max-w-[360px] hover:text-[#FDB078] hover:underline"
                           >
                             /{p.slug}
@@ -740,7 +741,11 @@ function PagesList() {
                                   className={`w-3.5 h-3.5 ${currentHome === p.slug ? "text-primary" : ""}`}
                                 />
                               </Button>
-                              <Link to="/admin/pages/$slug" params={{ slug: p.slug }} search={{ lang: viewLang }}>
+                              <Link
+                                to="/admin/pages/$slug"
+                                params={{ slug: p.slug }}
+                                search={{ lang: viewLang }}
+                              >
                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>

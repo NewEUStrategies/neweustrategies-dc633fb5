@@ -24,11 +24,9 @@ ALTER TABLE auth.users DISABLE TRIGGER USER;
 SELECT public.public_tenant_id() AS nes \gset
 
 -- ── (0) Definicja i uprawnienia ─────────────────────────────────────────────
-SELECT ok(
-  NOT is_definer(
-    'public', 'get_expert_materials',
-    ARRAY['text','text','text','text','text','text','integer','integer','integer']
-  ),
+SELECT isnt_definer(
+  'public', 'get_expert_materials',
+  ARRAY['text','text','text','text','text','text','integer','integer','integer'],
   'get_expert_materials() jest SECURITY INVOKER (pelny RLS wolajacego)'
 );
 SELECT ok(
@@ -54,9 +52,9 @@ INSERT INTO public.profiles (id, email, display_name, slug, tenant_id) VALUES
   ('ee000000-0000-0000-0000-00000000e002', 'other@ep.test', 'Inny Autor',
    'ep-other', :'nes');
 
--- Taksonomie filtrow.
-INSERT INTO public.tags (id, slug, name) VALUES
-  ('ee000000-0000-0000-0000-00000000d001', 'ep-energia', 'Energia');
+-- Taksonomie filtrow (tags.tenant_id jest NOT NULL od utenantowienia taksonomii).
+INSERT INTO public.tags (id, tenant_id, slug, name) VALUES
+  ('ee000000-0000-0000-0000-00000000d001', :'nes', 'ep-energia', 'Energia');
 INSERT INTO public.programs (id, tenant_id, slug, name_pl, name_en) VALUES
   ('ee000000-0000-0000-0000-00000000d002', :'nes', 'ep-defence',
    'Obronnosc', 'Defence');

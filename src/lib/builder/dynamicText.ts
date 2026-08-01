@@ -96,9 +96,7 @@ function resolveToken(
   const c = ctx ?? null;
   switch (token) {
     case "post.title":
-      return (
-        (lang === "en" ? c?.title_en : c?.title_pl) || c?.title_pl || c?.title_en || null
-      );
+      return (lang === "en" ? c?.title_en : c?.title_pl) || c?.title_pl || c?.title_en || null;
     case "post.excerpt":
       return (
         (lang === "en" ? c?.excerpt_en : c?.excerpt_pl) || c?.excerpt_pl || c?.excerpt_en || null

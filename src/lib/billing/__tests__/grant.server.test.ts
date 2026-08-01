@@ -32,7 +32,13 @@ const h = vi.hoisted(() => {
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.chain }));
 
-import { grantEntitlement, type GrantableOrder } from "@/lib/billing/grant.server";
+import {
+  grantEntitlement,
+  revokeOrderEntitlement,
+  revokeSubscriptionEntitlement,
+  type GrantableOrder,
+  type RevocableOrder,
+} from "@/lib/billing/grant.server";
 
 const find = (method: string) => h.state.calls.find((c) => c.method === method);
 const findLast = (method: string) => h.state.calls.filter((c) => c.method === method).at(-1);
@@ -275,5 +281,130 @@ describe("grantEntitlement", () => {
         /sub_traceable.*rls_denied/,
       );
     });
+  });
+});
+
+// Lustro grantów: zwrot/chargeback musi trafić dokładnie w rekord, który nadał
+// dostęp (ten sam external_ref / klucz user+encja) i ustawić `refunded` - nie
+// `canceled` - żeby raporty odróżniały rezygnację od zwrotu pieniędzy.
+describe("revokeSubscriptionEntitlement", () => {
+  beforeEach(() => {
+    h.state.calls = [];
+    h.state.maybeSingleQueue = [];
+    h.state.writeResult = { data: null, error: null };
+  });
+
+  it("ustawia refunded po external_ref i zwraca true, gdy trafiła jakikolwiek wiersz", async () => {
+    h.state.writeResult = { data: [{ id: "sub_row_1" }], error: null };
+
+    const revoked = await revokeSubscriptionEntitlement("sub_999", "2026-08-01T00:00:00.000Z");
+
+    expect(revoked).toBe(true);
+    expect(tables()).toEqual(["user_subscriptions"]);
+    const patch = find("update")!.args[0] as Record<string, unknown>;
+    expect(patch.status).toBe("refunded");
+    expect(patch.current_period_end).toBe("2026-08-01T00:00:00.000Z");
+    expect(patch.canceled_at).toBe("2026-08-01T00:00:00.000Z");
+    expect(find("eq")?.args).toEqual(["external_ref", "sub_999"]);
+    // Idempotencja: już zrefundowane wiersze zostają nietknięte.
+    expect(find("neq")?.args).toEqual(["status", "refunded"]);
+  });
+
+  it("zwraca false, gdy nic nie odebrano (brak wiersza pod external_ref)", async () => {
+    h.state.writeResult = { data: [], error: null };
+    await expect(revokeSubscriptionEntitlement("sub_missing")).resolves.toBe(false);
+  });
+
+  it("toleruje null w data (zero wierszy) i domyślny znacznik czasu", async () => {
+    h.state.writeResult = { data: null, error: null };
+    await expect(revokeSubscriptionEntitlement("sub_null")).resolves.toBe(false);
+    const patch = find("update")!.args[0] as Record<string, unknown>;
+    // Domyślny revokedAt = teraz (ISO); wystarczy poprawny, świeży timestamp.
+    expect(typeof patch.current_period_end).toBe("string");
+    expect(
+      Math.abs(new Date(patch.current_period_end as string).getTime() - Date.now()),
+    ).toBeLessThan(60_000);
+  });
+
+  it("rzuca z identyfikatorem, gdy UPDATE padł (webhook musi dostać 500 i ponowić)", async () => {
+    h.state.writeResult = { data: null, error: { message: "rls_denied" } };
+    await expect(revokeSubscriptionEntitlement("sub_e1")).rejects.toThrow(/sub_e1.*rls_denied/);
+  });
+});
+
+describe("revokeOrderEntitlement", () => {
+  beforeEach(() => {
+    h.state.calls = [];
+    h.state.maybeSingleQueue = [];
+    h.state.writeResult = { data: null, error: null };
+  });
+
+  const subRevocable: RevocableOrder = {
+    id: "ord_sub",
+    user_id: "user_1",
+    kind: "subscription",
+    plan_id: "plan_1",
+    entity_type: null,
+    entity_id: null,
+  };
+
+  const purchaseRevocable: RevocableOrder = {
+    id: "ord_buy",
+    user_id: "user_2",
+    kind: "one_time",
+    plan_id: null,
+    entity_type: "post",
+    entity_id: "post_1",
+  };
+
+  it("zamówienie planu cofa wiersz user_subscriptions po external_ref = id zamówienia", async () => {
+    await revokeOrderEntitlement(subRevocable, "2026-08-01T00:00:00.000Z");
+
+    expect(tables()).toEqual(["user_subscriptions"]);
+    const patch = find("update")!.args[0] as Record<string, unknown>;
+    expect(patch.status).toBe("refunded");
+    expect(patch.current_period_end).toBe("2026-08-01T00:00:00.000Z");
+    expect(find("eq")?.args).toEqual(["external_ref", "ord_sub"]);
+    expect(find("neq")?.args).toEqual(["status", "refunded"]);
+  });
+
+  it("jednorazowy zakup planu (lifetime) też cofa się po ścieżce subskrypcyjnej", async () => {
+    await revokeOrderEntitlement({ ...subRevocable, id: "ord_life", kind: "one_time" });
+    expect(tables()).toEqual(["user_subscriptions"]);
+    expect(find("eq")?.args).toEqual(["external_ref", "ord_life"]);
+  });
+
+  it("zakup jednorazowy cofa wiersz user_purchases po kluczu user+encja", async () => {
+    await revokeOrderEntitlement(purchaseRevocable);
+
+    expect(tables()).toEqual(["user_purchases"]);
+    const patch = find("update")!.args[0] as Record<string, unknown>;
+    expect(patch).toEqual({ status: "refunded" });
+    const eqs = h.state.calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eqs).toEqual([
+      ["user_id", "user_2"],
+      ["entity_type", "post"],
+      ["entity_id", "post_1"],
+    ]);
+    expect(find("neq")?.args).toEqual(["status", "refunded"]);
+  });
+
+  it("niekompletne zamówienie (bez planu i encji) nie dotyka bazy", async () => {
+    await revokeOrderEntitlement({ ...subRevocable, id: "ord_x", plan_id: null });
+    expect(h.state.calls).toHaveLength(0);
+  });
+
+  it("rzuca, gdy cofnięcie subskrypcji padło", async () => {
+    h.state.writeResult = { data: null, error: { message: "rls_denied" } };
+    await expect(revokeOrderEntitlement(subRevocable)).rejects.toThrow(
+      /user_subscriptions.*ord_sub.*rls_denied/,
+    );
+  });
+
+  it("rzuca, gdy cofnięcie zakupu padło", async () => {
+    h.state.writeResult = { data: null, error: { message: "rls_denied" } };
+    await expect(revokeOrderEntitlement(purchaseRevocable)).rejects.toThrow(
+      /user_purchases.*ord_buy.*rls_denied/,
+    );
   });
 });

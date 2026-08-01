@@ -100,7 +100,10 @@ export function PolicyVersionsPane({ lang }: { lang: "pl" | "en" }) {
             <ul className="divide-y divide-border">
               <VersionRow
                 title={L("Treść z kodu", "Code baseline")}
-                meta={L("Zawsze dostępna jako punkt wyjścia", "Always available as a starting point")}
+                meta={L(
+                  "Zawsze dostępna jako punkt wyjścia",
+                  "Always available as a starting point",
+                )}
                 active={selectedId === BASELINE_ID}
                 onSelect={() => setSelectedId(BASELINE_ID)}
                 badge={<VersionStatusBadge status="baseline" lang={lang} />}

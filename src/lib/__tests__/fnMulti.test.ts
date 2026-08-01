@@ -30,10 +30,7 @@ describe("multi [fn] w jednym stringu (silnik)", () => {
 
   it("markery numerują się kolejno w obrębie jednego stringa", () => {
     const col = createCounter(1);
-    const out = expandFootnotes(
-      "A[fn]one[/fn] B[fn]two[/fn] C[fn]three[/fn]",
-      col,
-    );
+    const out = expandFootnotes("A[fn]one[/fn] B[fn]two[/fn] C[fn]three[/fn]", col);
     expect(col.notes).toEqual([
       { id: 1, html: "one" },
       { id: 2, html: "two" },
@@ -76,10 +73,7 @@ describe("multi [fn] w jednym stringu (silnik)", () => {
 
   it("puste [fn][/fn] w środku sekwencji nie zużywa numeru", () => {
     const col = createCounter(1);
-    const out = expandFootnotes(
-      "A[fn]one[/fn] B[fn]  [/fn] C[fn]two[/fn]",
-      col,
-    );
+    const out = expandFootnotes("A[fn]one[/fn] B[fn]  [/fn] C[fn]two[/fn]", col);
     expect(col.notes).toEqual([
       { id: 1, html: "one" },
       { id: 2, html: "two" },
@@ -148,9 +142,7 @@ describe("multi [fn] w blokach (pre-pass renderera)", () => {
     const fn: FootnoteCollector = createCounter(1);
     const out = new Map<string, string>();
     precomputeFootnotes(blocks, fn, out);
-    expect(fn.notes.map((n) => n.html)).toEqual([
-      "l1", "l2", "q1", "q2", "q3", "t1", "t2",
-    ]);
+    expect(fn.notes.map((n) => n.html)).toEqual(["l1", "l2", "q1", "q2", "q3", "t1", "t2"]);
     // Pojedynczy klucz mapy dla pola nadal niesie oba markery.
     expect(out.get("l:item:0")).toMatch(/data-fn="1"[\s\S]*data-fn="2"/);
     expect(out.get("q:text")).toMatch(/data-fn="3"[\s\S]*data-fn="4"/);
@@ -163,21 +155,15 @@ describe("multi [fn] w blokach (pre-pass renderera)", () => {
         id: "c",
         type: "columns",
         data: {
-          left: [
-            { id: "cl", type: "paragraph", data: { html: "L[fn]l1[/fn] L2[fn]l2[/fn]" } },
-          ],
-          right: [
-            { id: "cr", type: "paragraph", data: { html: "R[fn]r1[/fn]" } },
-          ],
+          left: [{ id: "cl", type: "paragraph", data: { html: "L[fn]l1[/fn] L2[fn]l2[/fn]" } }],
+          right: [{ id: "cr", type: "paragraph", data: { html: "R[fn]r1[/fn]" } }],
         },
       },
       {
         id: "g",
         type: "group",
         data: {
-          children: [
-            { id: "gc", type: "paragraph", data: { html: "G[fn]g1[/fn] G2[fn]g2[/fn]" } },
-          ],
+          children: [{ id: "gc", type: "paragraph", data: { html: "G[fn]g1[/fn] G2[fn]g2[/fn]" } }],
         },
       },
     ];

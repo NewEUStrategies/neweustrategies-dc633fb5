@@ -121,8 +121,6 @@ function speakerRowToItem(row: PublicSpeakerRow): SpeakerItem {
   };
 }
 
-
-
 export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const c = (node.content ?? {}) as WidgetContent;
   const cRaw = c as unknown as Record<string, unknown>;
@@ -163,7 +161,6 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
       source === "manual" ? manualSpeakers : (dbQ.data ?? []).map((row) => speakerRowToItem(row)),
     [source, manualSpeakers, dbQ.data],
   );
-
 
   // Stabilne ID per pozycja (fallback po indeksie) - używane do bookmarków
   // i kluczy Reacta, liczone raz zamiast w każdym miejscu osobno.
@@ -384,10 +381,7 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
             <label className="relative flex-1">
               <span className="sr-only">{lang === "pl" ? "Szukaj" : "Search"}</span>
               <span className="pointer-events-none absolute left-3 top-0 flex h-10 w-10 items-center justify-center">
-                <SearchIcon
-                  aria-hidden
-                  className="h-4 w-4 text-muted-foreground/60"
-                />
+                <SearchIcon aria-hidden className="h-4 w-4 text-muted-foreground/60" />
               </span>
               <input
                 type="search"
@@ -468,7 +462,6 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
                     : lang === "pl"
                       ? "Brak prelegentów w tej kategorii."
                       : "No speakers in this category."}
-
             </p>
             {hasActiveFilters && (
               <button

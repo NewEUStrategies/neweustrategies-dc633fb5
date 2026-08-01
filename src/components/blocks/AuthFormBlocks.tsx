@@ -229,7 +229,9 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
             </Link>
           )}
         </div>
-        <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">{submitLabel}</SubscribeButton>
+        <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">
+          {submitLabel}
+        </SubscribeButton>
         {data.showOAuthGoogle && (
           <>
             <div className="relative my-2 text-center text-xs text-muted-foreground">
@@ -427,7 +429,9 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
             <span className="flex-1 min-w-0">{consentLabel || t("authForms.consentDefault")}</span>
           </label>
         )}
-        <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">{submitLabel}</SubscribeButton>
+        <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">
+          {submitLabel}
+        </SubscribeButton>
         <p className="text-center text-sm text-muted-foreground m-0">
           <Link to={data.loginHref || "?mode=signin"} className="form-link">
             {L.login}
@@ -521,7 +525,9 @@ export function LostPasswordFormView({ data, lang }: { data: LostPasswordData; l
             label={L.email}
           />
 
-          <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">{submitLabel}</SubscribeButton>
+          <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">
+            {submitLabel}
+          </SubscribeButton>
           <p className="text-center text-sm text-muted-foreground m-0">
             <Link to={data.loginHref || "?mode=signin"} className="form-link">
               {L.login}
@@ -640,7 +646,9 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
             />
           )}
 
-          <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">{submitLabel}</SubscribeButton>
+          <SubscribeButton type="submit" className="w-full" loading={busy} loadingLabel="…">
+            {submitLabel}
+          </SubscribeButton>
         </form>
       )}
     </>,

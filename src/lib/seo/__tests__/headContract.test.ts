@@ -126,9 +126,11 @@ describe("public routes declare their own head()", () => {
   it("no public route hardcodes a lovable.app absolute URL in head metadata", () => {
     const offenders = readdirSync(ROUTES_DIR)
       .filter((f) => f.endsWith(".tsx") && !f.startsWith("admin."))
-      .filter((f) => /https?:\/\/[^"'\s]*lovable(project)?\.(app|com)/.test(
-        readFileSync(join(ROUTES_DIR, f), "utf8"),
-      ));
+      .filter((f) =>
+        /https?:\/\/[^"'\s]*lovable(project)?\.(app|com)/.test(
+          readFileSync(join(ROUTES_DIR, f), "utf8"),
+        ),
+      );
     expect(offenders).toEqual([]);
   });
 });

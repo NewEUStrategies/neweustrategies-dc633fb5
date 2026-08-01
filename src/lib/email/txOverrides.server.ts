@@ -2,7 +2,12 @@
 // stronie serwera - używany przez sender oraz podgląd w panelu.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { parseTxOverrides, TX_OVERRIDES_DEFAULTS, TX_OVERRIDES_SETTING_KEY, type TxOverrides } from "./txOverrides";
+import {
+  parseTxOverrides,
+  TX_OVERRIDES_DEFAULTS,
+  TX_OVERRIDES_SETTING_KEY,
+  type TxOverrides,
+} from "./txOverrides";
 
 /**
  * Pobiera nadpisania treści. Fail-soft: każdy błąd (brak wiersza, brak

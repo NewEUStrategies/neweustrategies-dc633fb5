@@ -6,14 +6,15 @@
 --      członkowi tenanta A zobaczyć ŻADNYCH wierszy tenanta B (ani szkiców,
 --      ani opublikowanych - polityka publiczna jest zawężona do tenanta
 --      publicznego, więc opublikowane posty obcego tenanta też nie wyciekają).
---   2. „UPDATE tenant_id jest ignorowany" - trigger profiles_pin_tenant cicho
---      cofa próbę zmiany własnego tenant_id (przejęcie kontekstu innej firmy),
---      nie wywracając przy tym legalnych zmian innych kolumn profilu.
+--   2. „UPDATE tenant_id jest odrzucany" - trigger profiles_pin_tenant_id
+--      (20260721052806) rzuca 42501 przy próbie zmiany własnego tenant_id
+--      (przejęcie kontekstu innej firmy); legalne zmiany innych kolumn
+--      przechodzą normalnie osobnym UPDATE.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(6);
+SELECT plan(7);
 
 -- ── Seed ───────────────────────────────────────────────────────────────────
 -- Seedujemy jako właściciel/superuser (RLS pomijane). Wyłączamy WSZYSTKIE
@@ -77,19 +78,35 @@ SELECT is(
   'user tenanta A czyta własny post'
 );
 
+-- Zakres zawężony do tenantów fikstury: seed.sql dokłada opublikowane wpisy
+-- tenanta PUBLICZNEGO (seed-wpis-*), które polityka „Public reads published
+-- posts" celowo pokazuje wszystkim - nie są wyciekiem między A i B.
 SELECT is(
-  (SELECT array_agg(slug ORDER BY slug) FROM public.posts),
+  (SELECT array_agg(slug ORDER BY slug) FROM public.posts
+    WHERE tenant_id IN ('a1111111-1111-1111-1111-111111111111',
+                        'b2222222-2222-2222-2222-222222222222')),
   ARRAY['a-post'],
-  'RLS pokazuje userowi A wyłącznie posty jego tenanta'
+  'RLS: spośród postów tenantów fikstury user A widzi wyłącznie własny post'
 );
 
--- ── „UPDATE tenant_id jest ignorowany" ──────────────────────────────────────
+-- ── „UPDATE tenant_id jest odrzucany" ───────────────────────────────────────
 -- User A aktualizuje WŁASNY profil i przy okazji próbuje przejąć tenant B.
 -- RLS „Users update own profile" przepuszcza (auth.uid() = id), ale trigger
--- BEFORE UPDATE cofa tenant_id.
+-- BEFORE UPDATE (profiles_pin_tenant_id z 20260721052806) rzuca 42501 -
+-- dawna semantyka „cichego cofnięcia" została zaostrzona do twardej odmowy.
+SELECT throws_ok(
+  $$UPDATE public.profiles
+       SET tenant_id    = 'b2222222-2222-2222-2222-222222222222',
+           display_name = 'Hacked A'
+     WHERE id = 'a0000000-0000-0000-0000-0000000000aa'$$,
+  '42501',
+  NULL,
+  'próba przejęcia cudzego tenanta własnym UPDATE odrzucona (42501)'
+);
+
+-- Legalna zmiana innych kolumn przechodzi - przypięcie dotyczy tylko tenant_id.
 UPDATE public.profiles
-   SET tenant_id    = 'b2222222-2222-2222-2222-222222222222',
-       display_name = 'Hacked A'
+   SET display_name = 'Legalnie zmieniony A'
  WHERE id = 'a0000000-0000-0000-0000-0000000000aa';
 
 RESET ROLE;  -- czytamy zapisany wiersz jako właściciel (z pominięciem RLS)
@@ -97,13 +114,12 @@ RESET ROLE;  -- czytamy zapisany wiersz jako właściciel (z pominięciem RLS)
 SELECT is(
   (SELECT tenant_id FROM public.profiles WHERE id = 'a0000000-0000-0000-0000-0000000000aa'),
   'a1111111-1111-1111-1111-111111111111'::uuid,
-  'UPDATE tenant_id jest ignorowany (tenant_id przypięty do pierwotnej wartości)'
+  'tenant_id pozostaje przypięty do pierwotnej wartości (nic z ataku się nie zapisało)'
 );
 
--- Trigger nie może wywracać legalnych zmian - inne kolumny zapisują się normalnie.
 SELECT is(
   (SELECT display_name FROM public.profiles WHERE id = 'a0000000-0000-0000-0000-0000000000aa'),
-  'Hacked A',
+  'Legalnie zmieniony A',
   'pozostałe kolumny profilu aktualizują się normalnie (przypięcie dotyczy tylko tenant_id)'
 );
 

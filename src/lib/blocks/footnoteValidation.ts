@@ -20,12 +20,7 @@
 import type { Block, BlocksDoc } from "./types";
 import type { PathSegment } from "./footnoteOrigins";
 
-export type FootnoteIssueKind =
-  | "UNCLOSED"
-  | "STRAY_CLOSE"
-  | "NESTED"
-  | "EMPTY"
-  | "MALFORMED_TAG";
+export type FootnoteIssueKind = "UNCLOSED" | "STRAY_CLOSE" | "NESTED" | "EMPTY" | "MALFORMED_TAG";
 
 export interface FootnoteIssue {
   kind: FootnoteIssueKind;
@@ -117,7 +112,7 @@ function scanField(ctx: FieldCtx, value: unknown): void {
         pushIssue(
           ctx,
           "NESTED",
-          "Zagnieżdżony przypis: znaleziono kolejne \"[fn]\" przed zamknięciem poprzedniego. Zamknij wcześniejszy \"[/fn]\" lub usuń zagnieżdżenie.",
+          'Zagnieżdżony przypis: znaleziono kolejne "[fn]" przed zamknięciem poprzedniego. Zamknij wcześniejszy "[/fn]" lub usuń zagnieżdżenie.',
           at,
           tag.length,
           value,
@@ -131,7 +126,7 @@ function scanField(ctx: FieldCtx, value: unknown): void {
         pushIssue(
           ctx,
           "STRAY_CLOSE",
-          "Zamknięcie \"[/fn]\" bez wcześniejszego \"[fn]\". Dodaj otwierający marker lub usuń nadmiarowy koniec.",
+          'Zamknięcie "[/fn]" bez wcześniejszego "[fn]". Dodaj otwierający marker lub usuń nadmiarowy koniec.',
           at,
           tag.length,
           value,
@@ -144,7 +139,7 @@ function scanField(ctx: FieldCtx, value: unknown): void {
         pushIssue(
           ctx,
           "EMPTY",
-          "Pusty przypis \"[fn][/fn]\" - zostanie pominięty przy publikacji. Uzupełnij treść lub usuń marker.",
+          'Pusty przypis "[fn][/fn]" - zostanie pominięty przy publikacji. Uzupełnij treść lub usuń marker.',
           opened.index,
           at - opened.index + tag.length,
           value,
@@ -157,7 +152,7 @@ function scanField(ctx: FieldCtx, value: unknown): void {
     pushIssue(
       ctx,
       "UNCLOSED",
-      "Otwarty \"[fn]\" bez zamykającego \"[/fn]\". Silnik pominie ten przypis - dodaj zamknięcie.",
+      'Otwarty "[fn]" bez zamykającego "[/fn]". Silnik pominie ten przypis - dodaj zamknięcie.',
       opened.index,
       4,
       value,
@@ -201,18 +196,14 @@ function walk(ctx: WalkCtx, blocks: readonly Block[], prefix: PathSegment[]): vo
     } else if (b.type === "list") {
       const items = (b.data as { items?: unknown }).items;
       if (Array.isArray(items)) {
-        items.forEach((it, idx) =>
-          scanField(fieldCtx(ctx, [...base, "items", idx]), it),
-        );
+        items.forEach((it, idx) => scanField(fieldCtx(ctx, [...base, "items", idx]), it));
       }
     } else if (b.type === "table") {
       const rows = (b.data as { rows?: unknown }).rows;
       if (Array.isArray(rows)) {
         rows.forEach((row, ri) => {
           if (!Array.isArray(row)) return;
-          row.forEach((cell, ci) =>
-            scanField(fieldCtx(ctx, [...base, "rows", ri, ci]), cell),
-          );
+          row.forEach((cell, ci) => scanField(fieldCtx(ctx, [...base, "rows", ri, ci]), cell));
         });
       }
     } else if (b.type === "columns") {

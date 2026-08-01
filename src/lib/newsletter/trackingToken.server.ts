@@ -74,17 +74,9 @@ export function verifyTrackingToken(campaignId: string, token: string | null): s
  * URL-a /api/public/nl-click byłby otwartym przekierowaniem (phishing z naszej
  * domeny). `k` wiąże adres docelowy z konkretną wysyłką.
  */
-export function signTrackingLink(
-  campaignId: string,
-  subscriberId: string,
-  target: string,
-): string {
+export function signTrackingLink(campaignId: string, subscriberId: string, target: string): string {
   return bytesToHex(
-    hmac(
-      sha256,
-      utf8ToBytes(getSecret()),
-      utf8ToBytes(`${campaignId}:${subscriberId}:${target}`),
-    ),
+    hmac(sha256, utf8ToBytes(getSecret()), utf8ToBytes(`${campaignId}:${subscriberId}:${target}`)),
   ).slice(0, SIG_HEX_LEN);
 }
 

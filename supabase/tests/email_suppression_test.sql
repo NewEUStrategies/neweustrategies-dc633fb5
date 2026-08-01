@@ -240,4 +240,5 @@ SELECT throws_ok(
 );
 RESET ROLE;
 
-COMMIT;
+SELECT * FROM finish();
+ROLLBACK;

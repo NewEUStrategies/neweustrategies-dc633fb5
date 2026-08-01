@@ -7,10 +7,7 @@
 // Tryb `dryRun` (domyślny) tylko raportuje, ile wpisów wymaga migracji.
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import {
-  buildTypographyPatch,
-  type TypographyPostInput,
-} from "@/lib/theme/typographyApply";
+import { buildTypographyPatch, type TypographyPostInput } from "@/lib/theme/typographyApply";
 
 interface ApplyTypographyInput {
   dryRun: boolean;
@@ -26,9 +23,11 @@ export interface ApplyTypographyResult {
 
 export const applyTypographyToPublished = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: Partial<ApplyTypographyInput> | undefined): ApplyTypographyInput => ({
-    dryRun: input?.dryRun !== false,
-  }))
+  .inputValidator(
+    (input: Partial<ApplyTypographyInput> | undefined): ApplyTypographyInput => ({
+      dryRun: input?.dryRun !== false,
+    }),
+  )
   .handler(async ({ data, context }): Promise<ApplyTypographyResult> => {
     const { data: isAdmin, error: roleError } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,

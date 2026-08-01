@@ -37,10 +37,11 @@ export function LazyQuizIframe({ src, title, className, fallbackDelayMs = 250 }:
 
     // Preferuj requestIdleCallback → montuj po pierwszym paincie,
     // gdy główny wątek jest wolny.
-    const idle =
-      (window as unknown as {
+    const idle = (
+      window as unknown as {
         requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-      }).requestIdleCallback;
+      }
+    ).requestIdleCallback;
 
     let cancelled = false;
     let timeoutId: number | undefined;
@@ -93,9 +94,7 @@ export function LazyQuizIframe({ src, title, className, fallbackDelayMs = 250 }:
             role="status"
             aria-label={t("common.loading")}
           />
-          <span className="text-xs font-medium tracking-wide">
-            {t("common.loading")}
-          </span>
+          <span className="text-xs font-medium tracking-wide">{t("common.loading")}</span>
         </div>
       )}
       {mounted && (

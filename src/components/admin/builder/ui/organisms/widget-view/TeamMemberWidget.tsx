@@ -228,9 +228,7 @@ export function TeamMemberWidget({
                 <dl className="grid gap-2 text-sm">
                   {phone && (
                     <div className="flex items-center gap-3">
-                      <dt className="cms-meta w-16">
-                        {lang === "pl" ? "Telefon" : "Phone"}:
-                      </dt>
+                      <dt className="cms-meta w-16">{lang === "pl" ? "Telefon" : "Phone"}:</dt>
                       <dd>
                         <a href={`tel:${phone}`} className="hover:text-[color:var(--brand)]">
                           {phone}

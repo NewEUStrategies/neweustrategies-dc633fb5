@@ -26,7 +26,6 @@ export interface PostRow {
   author_slug?: string | null;
 }
 
-
 interface PostListInput {
   variant: string;
   /** Number of rows to FETCH. Over-fetched past the display limit when
@@ -336,12 +335,14 @@ async function attachAuthorNames(rows: PostRow[], variant: string): Promise<Post
     .select("id, display_name, avatar_url, slug")
     .in("id", authorIds);
   const map = new Map(
-    ((profs ?? []) as Array<{
-      id: string;
-      display_name: string | null;
-      avatar_url: string | null;
-      slug: string | null;
-    }>).map((p) => [p.id, p]),
+    (
+      (profs ?? []) as Array<{
+        id: string;
+        display_name: string | null;
+        avatar_url: string | null;
+        slug: string | null;
+      }>
+    ).map((p) => [p.id, p]),
   );
   return rows.map((r) => {
     const p = r.author_id ? map.get(r.author_id) : undefined;
@@ -353,7 +354,6 @@ async function attachAuthorNames(rows: PostRow[], variant: string): Promise<Post
     };
   });
 }
-
 
 export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
   const input = postListInput(c, lang);

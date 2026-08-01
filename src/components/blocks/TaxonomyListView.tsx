@@ -47,7 +47,11 @@ function useTaxonomyItems(kind: Kind, lang: "pl" | "en", limit?: number) {
   return {
     ...tags,
     data: tags.data?.map(
-      (t): TaxonomyItem => ({ label: t.name, href: `/tag/${t.slug}`, count: 0 }),
+      (t): TaxonomyItem => ({
+        label: t.name,
+        href: `/tag/${t.slug}`,
+        count: 0,
+      }),
     ),
   };
 }

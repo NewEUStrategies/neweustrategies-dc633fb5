@@ -41,11 +41,7 @@ import {
   sameReminderDays,
 } from "@/lib/organizations/teamSeats";
 
-import {
-  clampSeats,
-  seatsAtRisk,
-  summarizeSeats,
-} from "@/lib/organizations/teamSeats";
+import { clampSeats, seatsAtRisk, summarizeSeats } from "@/lib/organizations/teamSeats";
 import { billingKeys } from "@/lib/billing/keys";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -293,7 +289,6 @@ function AdminOrganizationDetailPage() {
             seatsSource={draft.seats_source}
             graceDays={draft.seats_grace_days ?? DEFAULT_GRACE_DAYS}
             reminderDays={effectiveReminderDays(draft.seats_grace_reminder_days)}
-
           />
         </TabsContent>
       </Tabs>
@@ -462,7 +457,6 @@ function GeneralPane({
                     )}
               </p>
             </Field>
-
           </div>
         </Card>
 
@@ -818,7 +812,6 @@ function SeatsPane({
   graceDays: number;
   reminderDays: number[];
 }) {
-
   const L = tr(lang);
   const qc = useQueryClient();
   const seatsKey = billingKeys.admin.orgSeats(orgId);
@@ -863,7 +856,6 @@ function SeatsPane({
       ),
   });
 
-
   // Okres karencji: ile dni osoby ponad limit zachowują dostęp, zanim
   // faktycznie go stracą. 0 = odcięcie od razu przy zmianie limitu.
   const setGrace = useServerFn(setTeamSeatGraceDays);
@@ -901,7 +893,8 @@ function SeatsPane({
       );
       void qc.invalidateQueries({ queryKey: seatsKey });
     },
-    onError: () => toast.error(L("Nie udało się domknąć karencji", "Could not close grace periods")),
+    onError: () =>
+      toast.error(L("Nie udało się domknąć karencji", "Could not close grace periods")),
   });
 
   // Progi przypomnień w trakcie karencji - konfigurowalne per organizacja
@@ -921,13 +914,15 @@ function SeatsPane({
     onSuccess: (res) => {
       toast.success(
         res.days.length > 0
-          ? L(`Przypomnienia: ${res.days.join(", ")} dni przed`, `Reminders: ${res.days.join(", ")} days before`)
+          ? L(
+              `Przypomnienia: ${res.days.join(", ")} dni przed`,
+              `Reminders: ${res.days.join(", ")} days before`,
+            )
           : L("Przypomnienia wyłączone", "Reminders disabled"),
       );
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(orgId) });
     },
-    onError: () =>
-      toast.error(L("Nie udało się zapisać progów", "Could not save reminder days")),
+    onError: () => toast.error(L("Nie udało się zapisać progów", "Could not save reminder days")),
   });
 
   const toggleDay = (day: number) => {
@@ -946,11 +941,8 @@ function SeatsPane({
       return res;
     },
     onSuccess: (res) =>
-      toast.success(
-        L(`Wysłano przypomnień: ${res.sent}`, `Reminders sent: ${res.sent}`),
-      ),
-    onError: () =>
-      toast.error(L("Nie udało się wysłać przypomnień", "Could not send reminders")),
+      toast.success(L(`Wysłano przypomnień: ${res.sent}`, `Reminders sent: ${res.sent}`)),
+    onError: () => toast.error(L("Nie udało się wysłać przypomnień", "Could not send reminders")),
   });
 
   const [email, setEmail] = useState("");
@@ -1065,7 +1057,9 @@ function SeatsPane({
             size="sm"
             variant="secondary"
             className="h-8"
-            disabled={applyGrace.isPending || clampGraceDays(nextGrace) === clampGraceDays(graceDays)}
+            disabled={
+              applyGrace.isPending || clampGraceDays(nextGrace) === clampGraceDays(graceDays)
+            }
             onClick={() => applyGrace.mutate()}
           >
             {applyGrace.isPending
@@ -1140,7 +1134,10 @@ function SeatsPane({
           </Button>
           <Badge variant="outline" className="text-[10px] tabular-nums">
             {parsedDays.length > 0
-              ? L(`${parsedDays.length}/${MAX_REMINDER_SLOTS} progów`, `${parsedDays.length}/${MAX_REMINDER_SLOTS} steps`)
+              ? L(
+                  `${parsedDays.length}/${MAX_REMINDER_SLOTS} progów`,
+                  `${parsedDays.length}/${MAX_REMINDER_SLOTS} steps`,
+                )
               : L("wyłączone", "disabled")}
           </Badge>
         </div>
@@ -1151,7 +1148,6 @@ function SeatsPane({
           )}
         </p>
       </div>
-
 
       {seatsQ.isLoading ? (
         <p className="text-xs text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>

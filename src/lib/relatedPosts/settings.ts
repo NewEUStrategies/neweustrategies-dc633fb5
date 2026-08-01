@@ -149,7 +149,11 @@ export function buildRelatedPostsConfigRow(
 }
 
 /** Rozpoznawalne powody nieudanego zapisu - panel mapuje je na komunikat i18n. */
-export type RelatedPostsSaveFailure = "no_tenant" | "tenant_lookup_failed" | "write_failed" | "not_persisted";
+export type RelatedPostsSaveFailure =
+  | "no_tenant"
+  | "tenant_lookup_failed"
+  | "write_failed"
+  | "not_persisted";
 
 export class RelatedPostsSaveError extends Error {
   readonly reason: RelatedPostsSaveFailure;

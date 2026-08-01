@@ -247,8 +247,13 @@ export function usePeerProfiles(
 }
 
 /**
- * Internal people search (registered users only). Empty query browses the
- * directory; the RPC returns only opted-in (discoverable) same-tenant users.
+ * Wyszukiwarka ODBIORCÓW czatu (tylko zalogowani). Pusta fraza przegląda
+ * listę; RPC search_chat_contacts (20260801124000) zwraca wyłącznie
+ * discoverable osoby z tego samego tenanta połączone zaakceptowanym
+ * kontaktem - dokładnie te, do których get_or_create_direct_conversation
+ * pozwoli napisać. Wcześniejsze wywołanie search_people({p_query,p_limit})
+ * było niejednoznaczne między przeciążeniami (42725) i wyszukiwarka była
+ * martwa; wariant katalogowy (8-arg) pokazywałby z kolei osoby spoza sieci.
  */
 export function usePeopleSearch(query: string, limit = 20): UseQueryResult<PersonHit[]> {
   const { user } = useAuth();
@@ -258,12 +263,14 @@ export function usePeopleSearch(query: string, limit = 20): UseQueryResult<Perso
     enabled: !!user,
     staleTime: 30_000,
     queryFn: async (): Promise<PersonHit[]> => {
-      const { data, error } = await supabase.rpc("search_people", {
-        p_query: q,
-        p_limit: limit,
-      });
+      // `as never` do czasu regeneracji types.ts (konwencja repo, patrz
+      // chat_check_upload_quota w attachments.ts).
+      const { data, error } = await supabase.rpc(
+        "search_chat_contacts" as never,
+        { p_query: q, p_limit: limit } as never,
+      );
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as PersonHit[];
     },
   });
 }
@@ -311,9 +318,7 @@ export function useStartConversation() {
     onSuccess: (conversationId) => {
       if (user?.id && conversationId) {
         const key = chatKeys.conversations(user.id);
-        qc.setQueryData<ConversationView[]>(key, (old) =>
-          applyReopenToViews(old, conversationId),
-        );
+        qc.setQueryData<ConversationView[]>(key, (old) => applyReopenToViews(old, conversationId));
       }
       void qc.invalidateQueries({ queryKey: chatKeys.conversations(user?.id) });
     },

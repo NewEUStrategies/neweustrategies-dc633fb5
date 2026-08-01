@@ -469,7 +469,8 @@ SELECT is(
 );
 
 -- ---------------------------------------------------------------------------
--- 42-45. Konstrukcja tabeli: RLS wlaczone, brak polityk, indeks pary
+-- 42-45. Konstrukcja tabeli: RLS wlaczone, wylacznie polityka self-read
+--        (martwa bez grantu SELECT - test 44), indeks pary
 -- ---------------------------------------------------------------------------
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class
@@ -477,11 +478,17 @@ SELECT ok(
   'RLS na user_connections jest wlaczone (deny-all bez polityk)'
 );
 
+-- 20260725181005 + 20260731141437 dodaly own-rows/admin SELECT w zakresie
+-- tenanta. Przypinamy DOKLADNIE te polityke: cokolwiek szerszego (INSERT/
+-- UPDATE/DELETE, inna rola, druga polityka) obala asercje. Prywatnosc
+-- odmowy dalej gwarantuje brak grantu SELECT (asercja nizej).
 SELECT is(
-  (SELECT count(*)::int FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'user_connections'),
-  0,
-  'user_connections nie ma polityk RLS (dostep wylacznie przez RPC)'
+  (SELECT array_agg(p.policyname || '|' || p.cmd || '|'
+                    || array_to_string(p.roles, ',') ORDER BY p.policyname)
+     FROM pg_policies p
+    WHERE p.schemaname = 'public' AND p.tablename = 'user_connections'),
+  ARRAY['user_connections_self_read|SELECT|authenticated'],
+  'user_connections ma wylacznie polityke user_connections_self_read (SELECT, authenticated)'
 );
 
 SELECT ok(

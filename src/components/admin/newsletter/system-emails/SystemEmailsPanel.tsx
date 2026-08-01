@@ -29,12 +29,7 @@ import "@/lib/i18n-system-emails";
 const RANGES = [1, 7, 30] as const;
 type Range = (typeof RANGES)[number];
 
-const STATUSES: readonly SystemEmailStatus[] = [
-  "sent",
-  "pending",
-  "dlq",
-  "suppressed",
-];
+const STATUSES: readonly SystemEmailStatus[] = ["sent", "pending", "dlq", "suppressed"];
 
 const PAGE_SIZE = 50;
 
@@ -262,7 +257,9 @@ export function SystemEmailsPanel() {
         <table className="w-full text-[0.8125rem]">
           <thead className="bg-muted/50 text-muted-foreground">
             <tr>
-              <th className="text-left font-medium px-4 py-2">{t("systemEmails.table.template")}</th>
+              <th className="text-left font-medium px-4 py-2">
+                {t("systemEmails.table.template")}
+              </th>
               <th className="text-left font-medium px-4 py-2">
                 {t("systemEmails.table.recipient")}
               </th>

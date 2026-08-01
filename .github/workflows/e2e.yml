@@ -110,7 +110,13 @@ jobs:
           export VITE_SUPABASE_PROJECT_ID="local"
           export SUPABASE_URL="$API_URL"
           export SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
-          export SUPABASE_SECRET_KEY="$SERVICE_ROLE_KEY"
+          # Klucz service_role MUSI trafić pod nazwę SUPABASE_SERVICE_ROLE_KEY -
+          # tylko tę czyta client.server.ts (i cała reszta kodu serwerowego).
+          # Wcześniejsze SUPABASE_SECRET_KEY nie było czytane NIGDZIE, więc
+          # supabaseAdmin rzucał "Missing Supabase environment variable(s)" na
+          # każdej trasie serwerowej: sitemap.xml/rss.xml oddawały sam statyczny
+          # szkielet (bez zaseedowanego wpisu), a panel admina nie miał danych.
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
           export E2E_SEEDED=1
           bun run test:e2e e2e/user-paths.spec.ts
         env:

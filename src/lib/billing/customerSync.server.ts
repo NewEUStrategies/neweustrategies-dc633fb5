@@ -28,10 +28,7 @@ async function admin() {
  * wiarygodnym powiązaniem jest tabela `subscriptions` - to ona powstaje z
  * `custom_data.userId` przy zakupie.
  */
-async function userForCustomer(
-  customerId: string | null,
-  env: PaddleEnv,
-): Promise<string | null> {
+async function userForCustomer(customerId: string | null, env: PaddleEnv): Promise<string | null> {
   if (!customerId) return null;
   const supabase = await admin();
   const { data, error } = await supabase

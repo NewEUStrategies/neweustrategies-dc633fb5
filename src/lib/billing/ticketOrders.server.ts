@@ -96,7 +96,10 @@ export async function loadTicketOrders(
 
   const [eventsRes, profilesRes] = await Promise.all([
     supabase.from("events").select("id,slug,title_pl,title_en,starts_at").in("id", eventIds),
-    supabase.from("profiles").select("id,display_name,first_name,last_name,email").in("id", buyerIds),
+    supabase
+      .from("profiles")
+      .select("id,display_name,first_name,last_name,email")
+      .in("id", buyerIds),
   ]);
 
   const eventById = new Map(

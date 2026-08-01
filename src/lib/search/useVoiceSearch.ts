@@ -261,8 +261,10 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
     // Highpass 90 Hz odcina buczenie klimatyzacji/wiatru, a smoothing EMA tłumi
     // pojedyncze piki (klaśnięcie, uderzenie w klawiaturę).
     try {
-      const ctx = new (window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      const ctx = new (
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      )();
       audioCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
       const highpass = ctx.createBiquadFilter();

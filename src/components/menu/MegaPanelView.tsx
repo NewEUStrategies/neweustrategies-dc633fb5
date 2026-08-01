@@ -93,11 +93,7 @@ export function MegaPanelView({
         {/* Nav columns */}
         <div
           className="flex flex-col p-4 sm:p-5"
-          style={
-            showFeatured
-              ? { gridColumn: "span 8 / span 8" }
-              : { gridColumn: "1 / -1" }
-          }
+          style={showFeatured ? { gridColumn: "span 8 / span 8" } : { gridColumn: "1 / -1" }}
         >
           {parentLabel && parentHref ? (
             <div className="mb-1 h-5 leading-none">
@@ -123,83 +119,81 @@ export function MegaPanelView({
                 : `repeat(${gridCols}, minmax(0, 1fr))`,
             }}
           >
-
-          {cols.map((col, i) => {
-            const title = pickLocalized(col.title_pl, col.title_en, lang);
-            return (
+            {cols.map((col, i) => {
+              const title = pickLocalized(col.title_pl, col.title_en, lang);
+              return (
                 <div key={i} className="flex min-w-0 flex-col">
-                {title ? (
-                  col.href ? (
-                    <AppLink
-                      href={safeUrl(col.href) || "#"}
-                      className="-mx-1.5 mb-1 flex items-center gap-1.5 rounded-sm px-1.5 py-1 transition-colors hover:bg-muted/60"
-                    >
-                      <span
-                        aria-hidden
-                        className="inline-block h-3 w-1 shrink-0 rounded-sm"
-                        style={{ background: "var(--brand)" }}
-                      />
-                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground group-hover:text-foreground">
-                        {title}
-                      </span>
-                    </AppLink>
-                  ) : (
-                    <div className="-mx-1.5 mb-1 flex items-center gap-1.5 px-1.5 py-1">
-                      <span
-                        aria-hidden
-                        className="inline-block h-3 w-1 shrink-0 rounded-sm"
-                        style={{ background: "var(--brand)" }}
-                      />
-                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
-                        {title}
-                      </span>
+                  {title ? (
+                    col.href ? (
+                      <AppLink
+                        href={safeUrl(col.href) || "#"}
+                        className="-mx-1.5 mb-1 flex items-center gap-1.5 rounded-sm px-1.5 py-1 transition-colors hover:bg-muted/60"
+                      >
+                        <span
+                          aria-hidden
+                          className="inline-block h-3 w-1 shrink-0 rounded-sm"
+                          style={{ background: "var(--brand)" }}
+                        />
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground group-hover:text-foreground">
+                          {title}
+                        </span>
+                      </AppLink>
+                    ) : (
+                      <div className="-mx-1.5 mb-1 flex items-center gap-1.5 px-1.5 py-1">
+                        <span
+                          aria-hidden
+                          className="inline-block h-3 w-1 shrink-0 rounded-sm"
+                          style={{ background: "var(--brand)" }}
+                        />
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                          {title}
+                        </span>
+                      </div>
+                    )
+                  ) : null}
+                  <ul className="flex flex-col gap-1">
+                    {(col.links ?? []).map((lnk, j) => {
+                      const label = pickLocalized(lnk.label_pl, lnk.label_en, lang);
+                      if (!label) return null;
+                      return (
+                        <li key={j}>
+                          <AppLink
+                            href={safeUrl(lnk.href) || "#"}
+                            className="menu-card-item"
+                            role="menuitem"
+                          >
+                            {lnk.icon ? (
+                              <span className="menu-card-item__icon" aria-hidden>
+                                <DynamicIcon name={lnk.icon} size={14} strokeWidth={1.75} />
+                              </span>
+                            ) : null}
+                            <span className="menu-card-item__label">{label}</span>
+                            <ArrowRight size={13} className="menu-card-item__chevron" aria-hidden />
+                          </AppLink>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {col.href ? (
+                    <div className="mt-3 border-t border-border/60 pt-2">
+                      <AppLink
+                        href={safeUrl(col.href) || "#"}
+                        className="group inline-flex items-center gap-1 text-[10px] font-bold text-brand hover:opacity-80"
+                      >
+                        {browseAll}
+                        <ArrowRight
+                          size={11}
+                          className="transition-transform group-hover:translate-x-0.5"
+                          aria-hidden
+                        />
+                      </AppLink>
                     </div>
-                  )
-                ) : null}
-                <ul className="flex flex-col gap-1">
-                  {(col.links ?? []).map((lnk, j) => {
-                    const label = pickLocalized(lnk.label_pl, lnk.label_en, lang);
-                    if (!label) return null;
-                    return (
-                      <li key={j}>
-                        <AppLink
-                          href={safeUrl(lnk.href) || "#"}
-                          className="menu-card-item"
-                          role="menuitem"
-                        >
-                          {lnk.icon ? (
-                            <span className="menu-card-item__icon" aria-hidden>
-                              <DynamicIcon name={lnk.icon} size={14} strokeWidth={1.75} />
-                            </span>
-                          ) : null}
-                          <span className="menu-card-item__label">{label}</span>
-                          <ArrowRight size={13} className="menu-card-item__chevron" aria-hidden />
-                        </AppLink>
-                      </li>
-                    );
-                  })}
-                </ul>
-                {col.href ? (
-                  <div className="mt-3 border-t border-border/60 pt-2">
-                    <AppLink
-                      href={safeUrl(col.href) || "#"}
-                      className="group inline-flex items-center gap-1 text-[10px] font-bold text-brand hover:opacity-80"
-                    >
-                      {browseAll}
-                      <ArrowRight
-                        size={11}
-                        className="transition-transform group-hover:translate-x-0.5"
-                        aria-hidden
-                      />
-                    </AppLink>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
-
 
         {/* Featured column */}
         {showFeatured && featured ? (

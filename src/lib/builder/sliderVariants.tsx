@@ -888,7 +888,6 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     Math.min(64, typeof config.authorAvatarSizePx === "number" ? config.authorAvatarSizePx : 20),
   );
 
-
   const sharedProps = {
     items,
     safeIdx,

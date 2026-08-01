@@ -8,12 +8,7 @@
 // podgląd "dry-run" w panelu.
 
 /** Właściwości CSS, które musi kontrolować motyw, a nie inline style. */
-const TYPO_PROPS = [
-  "font-size",
-  "line-height",
-  "font-family",
-  "letter-spacing",
-] as const;
+const TYPO_PROPS = ["font-size", "line-height", "font-family", "letter-spacing"] as const;
 
 const TYPO_JSON_KEYS = new Set([
   "fontSize",

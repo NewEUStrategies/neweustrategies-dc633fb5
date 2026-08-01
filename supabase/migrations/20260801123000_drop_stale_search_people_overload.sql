@@ -1,0 +1,23 @@
+-- ============================================================================
+-- Naprawa 42725: dwa przeciążenia public.search_people.
+--
+-- 20260713160000 utworzyło kanoniczną, 8-argumentową wersję
+--   (p_query, p_specialization, p_company, p_location, p_limit, p_offset,
+--    p_job_title, p_verified_only) - z flagą verified w wyniku i filtrami
+-- katalogu osób. 20260721204040 odtworzyło potem STARĄ, 6-argumentową
+-- sygnaturę (bez p_job_title/p_verified_only) zwykłym CREATE OR REPLACE,
+-- niczego nie zdejmując - od tej pory istnieją OBA przeciążenia i każde
+-- wywołanie po nazwach argumentów będące podzbiorem obu sygnatur, np.
+-- rpc('search_people', { p_query, p_limit }) w useConversations.ts albo
+-- pgTAP (people_search_trgm_test, people_verification_test), kończy się
+-- 42725 "function public.search_people(...) is not unique".
+--
+-- Aplikacja woła wariant 8-arg (usePeopleDirectory przekazuje p_job_title
+-- i p_verified_only), więc on zostaje; zdejmujemy przeciążenie 6-arg.
+-- Gating "tylko zaakceptowane kontakty" z wersji 6-arg i tak był martwy
+-- (katalog /people od 20260713160000 zawsze korzystał z wariantu 8-arg),
+-- a tworzenie rozmów nadal pilnuje is_connected_pair w
+-- get_or_create_direct_conversation. Idempotentne (IF EXISTS).
+-- ============================================================================
+
+DROP FUNCTION IF EXISTS public.search_people(text, text, text, text, integer, integer);

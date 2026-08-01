@@ -83,7 +83,7 @@ INSERT INTO public.wp_import_jobs (
 INSERT INTO public.domain_events (tenant_id, actor_id, aggregate_type, aggregate_id, event_type, payload)
 VALUES ('d4444444-4444-4444-4444-444444444444',
         'd0000000-0000-0000-0000-000000000001',
-        'test', gen_random_uuid(), 'test.event', '{}'::jsonb);
+        'test', gen_random_uuid(), 'test.event.v1', '{}'::jsonb);
 
 -- tenant_pending_counters: seed (klucz per-tenant)
 INSERT INTO public.tenant_pending_counters (tenant_id, counter_key, value)
@@ -157,14 +157,19 @@ SELECT is(
 
 SELECT is(
   (SELECT count(*)::int FROM public.tenant_pending_counters
-     WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'),
+     WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'
+       AND counter_key = 'pending'),
   1,
   'admin tenanta (is_staff) CZYTA tenant_pending_counters swojego tenanta'
 );
 
+-- Zawężenie do zaseedowanego zdarzenia: triggery domenowe (sync CRM,
+-- liczniki) emitują własne domain_events przy fixturach i globalny count
+-- nie jest deterministyczny.
 SELECT is(
   (SELECT count(*)::int FROM public.domain_events
-     WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'),
+     WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'
+       AND event_type = 'test.event.v1'),
   1,
   'admin tenanta (is_staff) CZYTA domain_events swojego tenanta'
 );
@@ -212,7 +217,7 @@ SELECT throws_ok(
        (tenant_id, actor_id, aggregate_type, aggregate_id, event_type, payload)
      VALUES ('d4444444-4444-4444-4444-444444444444',
              'd0000000-0000-0000-0000-000000000001',
-             'test', gen_random_uuid(), 'test.event', '{}'::jsonb) $$,
+             'test', gen_random_uuid(), 'test.event.v1', '{}'::jsonb) $$,
   '42501', NULL,
   'anon: INSERT domain_events odrzucone (brak grantu)'
 );
@@ -262,7 +267,7 @@ SELECT throws_ok(
        (tenant_id, actor_id, aggregate_type, aggregate_id, event_type, payload)
      VALUES ('d4444444-4444-4444-4444-444444444444',
              'd0000000-0000-0000-0000-000000000003',
-             'test', gen_random_uuid(), 'test.event', '{}'::jsonb) $$,
+             'test', gen_random_uuid(), 'test.event.v1', '{}'::jsonb) $$,
   '42501', NULL,
   'reader: INSERT domain_events odrzucone (brak polityki INSERT dla klienta)'
 );

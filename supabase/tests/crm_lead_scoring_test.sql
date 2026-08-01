@@ -36,6 +36,13 @@ INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
   ('cc000000-0000-0000-0000-0000000000aa', 'admin', 'cc111111-1111-1111-1111-111111111111'),
   ('cc000000-0000-0000-0000-0000000000bb', 'admin', 'cc222222-2222-2222-2222-222222222222');
 
+-- Trigger profile_sync_crm_lead (20260722080948) założył już lead dla profilu
+-- Lead User przy INSERT do profiles - usuwamy go, żeby fikstura o znanym id
+-- nie kolidowała po unikalnym (tenant_id, email_norm).
+DELETE FROM public.crm_leads
+ WHERE tenant_id = 'cc111111-1111-1111-1111-111111111111'
+   AND email_norm = 'lead-user@sc.test';
+
 -- Lead z pelnym profilem fit: company + position + phone + linkedin + marketing.
 -- Trigger tg_score_on_lead_change przeliczy wynik od razu po INSERT.
 INSERT INTO public.crm_leads
@@ -122,20 +129,54 @@ SELECT ok(
   'email click recomputes lead and records the email_click signal'
 );
 
+-- ── Treść pod komentarze i odsłony ─────────────────────────────────────────
+-- comments.post_id jest NOT NULL, a comments_before_insert (20260720212853)
+-- odrzuca wpis bez istniejącego posta ("comments: post <NULL> does not
+-- exist") - strona i post muszą więc powstać przed sekcją 3b (sekcja 3c
+-- korzysta z tych samych rekordów przy post_views).
+INSERT INTO public.pages (id, tenant_id, slug) VALUES
+  ('cc666666-6666-6666-6666-666666666666', 'cc111111-1111-1111-1111-111111111111', 'sc-home');
+INSERT INTO public.posts (id, slug, author_id, status, tenant_id, parent_page_id, title_pl)
+VALUES ('cc777777-7777-7777-7777-777777777777', 'sc-post',
+        'cc000000-0000-0000-0000-0000000000aa', 'published',
+        'cc111111-1111-1111-1111-111111111111',
+        'cc666666-6666-6666-6666-666666666666', 'Post scoringu');
+
+-- comments_before_insert wymaga włączonej dyskusji w tenancie
+-- (site_settings.key='discussion'), inaczej rzuca 'comments_disabled'.
+-- moderate_new_comments=false, żeby wpis lądował od razu jako 'approved' -
+-- trigger i tak nadpisuje status przy INSERT, a test 3b bada właśnie
+-- rozróżnienie approved vs spam/deleted.
+INSERT INTO public.site_settings (tenant_id, key, value) VALUES
+  ('cc111111-1111-1111-1111-111111111111', 'discussion',
+   '{"allow_comments": true, "moderate_new_comments": false}'::jsonb)
+ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value;
+
 -- ── 3b. Komentarze: spam/deleted NIE liczą się, approved/pending liczą ───────
 SELECT score INTO TEMP score_before_comment
   FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333';
-INSERT INTO public.comments (tenant_id, user_id, status) VALUES
-  ('cc111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000cc', 'spam'),
-  ('cc111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000cc', 'deleted');
+-- comments_before_insert NADPISUJE status wg polityki moderacji
+-- ('pending'/'approved'), więc docelowe statusy ustawiamy dopiero UPDATE-em.
+-- (comments_guard_update przepuszcza, bo w tym miejscu pliku nie ma jeszcze
+-- kontekstu JWT - auth.uid() jest NULL.)
+INSERT INTO public.comments (tenant_id, post_id, user_id, body) VALUES
+  ('cc111111-1111-1111-1111-111111111111', 'cc777777-7777-7777-7777-777777777777',
+   'cc000000-0000-0000-0000-0000000000cc', 'Spam komentarz'),
+  ('cc111111-1111-1111-1111-111111111111', 'cc777777-7777-7777-7777-777777777777',
+   'cc000000-0000-0000-0000-0000000000cc', 'Skasowany komentarz');
+UPDATE public.comments SET status = 'spam'
+ WHERE post_id = 'cc777777-7777-7777-7777-777777777777' AND body = 'Spam komentarz';
+UPDATE public.comments SET status = 'deleted'
+ WHERE post_id = 'cc777777-7777-7777-7777-777777777777' AND body = 'Skasowany komentarz';
 SELECT public.compute_crm_lead_score('cc333333-3333-3333-3333-333333333333');
 SELECT is(
   (SELECT score FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333'),
   (SELECT score FROM score_before_comment),
   'spam/deleted comments do NOT contribute to the score'
 );
-INSERT INTO public.comments (tenant_id, user_id, status) VALUES
-  ('cc111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000cc', 'approved');
+INSERT INTO public.comments (tenant_id, post_id, user_id, body, status) VALUES
+  ('cc111111-1111-1111-1111-111111111111', 'cc777777-7777-7777-7777-777777777777',
+   'cc000000-0000-0000-0000-0000000000cc', 'Zatwierdzony komentarz', 'approved');
 SELECT public.compute_crm_lead_score('cc333333-3333-3333-3333-333333333333');
 SELECT ok(
   EXISTS (
@@ -148,14 +189,7 @@ SELECT ok(
 );
 
 -- ── 3c. Odsłony treści (page_view): trigger + wpis w breakdown ───────────────
-INSERT INTO public.pages (id, tenant_id, slug) VALUES
-  ('cc666666-6666-6666-6666-666666666666', 'cc111111-1111-1111-1111-111111111111', 'sc-home');
-INSERT INTO public.posts (id, slug, author_id, status, tenant_id, parent_page_id, title_pl)
-VALUES ('cc777777-7777-7777-7777-777777777777', 'sc-post',
-        'cc000000-0000-0000-0000-0000000000aa', 'published',
-        'cc111111-1111-1111-1111-111111111111',
-        'cc666666-6666-6666-6666-666666666666', 'Post scoringu');
-
+-- Strona i post zaseedowane wyżej (potrzebne już komentarzom w 3b).
 SELECT score INTO TEMP score_before_view
   FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333';
 

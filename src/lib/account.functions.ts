@@ -49,7 +49,6 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
       throw new Error(`Nie udało się usunąć konta: ${deleteError.message}`);
     }
 
-
     return { ok: true as const };
   });
 

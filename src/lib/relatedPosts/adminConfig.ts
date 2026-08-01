@@ -28,7 +28,10 @@ const CONFIG_COLUMNS =
   "weight_popularity, weight_dwell, weight_personalization, use_idf, min_score";
 
 /** `current_tenant_id()` - tenant domowy zalogowanego użytkownika. */
-async function resolveCurrentTenantId(): Promise<{ tenantId: string | null; error: string | null }> {
+async function resolveCurrentTenantId(): Promise<{
+  tenantId: string | null;
+  error: string | null;
+}> {
   const { data, error } = await supabase.rpc("current_tenant_id");
   if (error) return { tenantId: null, error: error.message };
   return { tenantId: typeof data === "string" && data ? data : null, error: null };

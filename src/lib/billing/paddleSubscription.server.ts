@@ -8,13 +8,13 @@
 import { PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
 import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
 
-// eslint-disable-next-line @typescript-eslint/ban-types
+// `{}` jest tu celowe: domyślny wariant NIE dokłada żadnych pól do `{ok:true}`.
+// (Reguła ban-types została zastąpiona przez no-empty-object-type - stara nazwa
+// w dyrektywie sama w sobie była błędem "rule not found".)
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type SubscriptionOpResult<T extends object = {}> =
   | ({ ok: true } & T)
   | { ok: false; error: string };
-
-
-
 
 /** Identyfikator subskrypcji u dostawcy (`sub_...`); inne wartości ignorujemy. */
 export function isProviderSubscriptionRef(ref: string | null | undefined): ref is string {
@@ -73,8 +73,6 @@ export async function cancelSubscriptionImmediately(
   }
 }
 
-
-
 /** Cofnięcie zaplanowanego anulowania, dopóki opłacony okres trwa. */
 export async function resumeScheduledCancellation(
   env: PaddleEnv,
@@ -102,7 +100,9 @@ export function catalogPriceFor(
   interval: string,
 ): string | null {
   if (!tierKey) return null;
-  return PADDLE_CATALOG.find((e) => e.tierKey === tierKey && e.interval === interval)?.priceId ?? null;
+  return (
+    PADDLE_CATALOG.find((e) => e.tierKey === tierKey && e.interval === interval)?.priceId ?? null
+  );
 }
 
 /** Wewnętrzny identyfikator ceny dostawcy dla czytelnego `external_id`. */

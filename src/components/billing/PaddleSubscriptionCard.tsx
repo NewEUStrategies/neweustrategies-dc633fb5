@@ -96,7 +96,8 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
   };
 
   const changePlan = useMutation({
-    mutationFn: (priceId: string) => changePaddlePlan({ data: { targetPriceId: priceId, environment } }),
+    mutationFn: (priceId: string) =>
+      changePaddlePlan({ data: { targetPriceId: priceId, environment } }),
     onSuccess: (result) => {
       setTargetPriceId("");
       refresh();
@@ -199,14 +200,14 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("profile.subscription.plan")}>
             <div className="text-lg font-semibold">
-              {currentPlan ? planName(currentPlan, lang) : (entry?.tierKey ?? subscription.price_id)}
+              {currentPlan
+                ? planName(currentPlan, lang)
+                : (entry?.tierKey ?? subscription.price_id)}
             </div>
             {currentPlan && (
               <div className="text-sm text-muted-foreground">
                 {formatMoney(currentPlan.price_cents, currentPlan.currency, lang)}
-                {subscription.quantity > 1
-                  ? ` × ${subscription.quantity}`
-                  : ""}
+                {subscription.quantity > 1 ? ` × ${subscription.quantity}` : ""}
               </div>
             )}
           </Field>
@@ -366,7 +367,6 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
             </div>
           </div>
         )}
-
 
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={busy} onClick={() => portal.mutate("payment")}>

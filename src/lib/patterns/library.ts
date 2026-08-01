@@ -317,7 +317,10 @@ const eventPageDoc = (): BuilderDocument => ({
           }),
         ]),
       ],
-      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "64px 24px" } } },
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "64px 24px" } },
+      },
     ),
     s(
       [
@@ -333,7 +336,10 @@ const eventPageDoc = (): BuilderDocument => ({
           }),
         ]),
       ],
-      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "64px 24px" } } },
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "64px 24px" } },
+      },
     ),
     s(
       [
@@ -345,7 +351,10 @@ const eventPageDoc = (): BuilderDocument => ({
           }),
         ]),
       ],
-      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "64px 24px 96px" } } },
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "64px 24px 96px" } },
+      },
     ),
   ],
 });
@@ -378,26 +387,44 @@ const chathamPageDoc = (): BuilderDocument => ({
     s(
       [
         c(6, [
-          w("heading", { text_pl: "Kiedy i gdzie", text_en: "When & where", tag: "h3", sizePreset: "md" }),
+          w("heading", {
+            text_pl: "Kiedy i gdzie",
+            text_en: "When & where",
+            tag: "h3",
+            sizePreset: "md",
+          }),
           w("text", {
             html_pl: "<p>Data: -<br/>Miejsce: -<br/>Format: dyskusja moderowana</p>",
             html_en: "<p>Date: -<br/>Venue: -<br/>Format: moderated discussion</p>",
           }),
         ]),
         c(6, [
-          w("heading", { text_pl: "Dla kogo", text_en: "Who it is for", tag: "h3", sizePreset: "md" }),
+          w("heading", {
+            text_pl: "Dla kogo",
+            text_en: "Who it is for",
+            tag: "h3",
+            sizePreset: "md",
+          }),
           w("text", {
             html_pl: "<p>Zaproszeni eksperci, decydenci i analitycy - lista zamknięta.</p>",
             html_en: "<p>Invited experts, decision-makers and analysts - closed list.</p>",
           }),
         ]),
       ],
-      { layout: { contentWidth: "boxed", width: 960 }, style: { padding: { desktop: "16px 24px 32px" } } },
+      {
+        layout: { contentWidth: "boxed", width: 960 },
+        style: { padding: { desktop: "16px 24px 32px" } },
+      },
     ),
     s(
       [
         c(12, [
-          w("heading", { text_pl: "Uczestnicy", text_en: "Participants", tag: "h2", sizePreset: "lg" }),
+          w("heading", {
+            text_pl: "Uczestnicy",
+            text_en: "Participants",
+            tag: "h2",
+            sizePreset: "lg",
+          }),
           w("speakers", {
             heading_pl: "",
             heading_en: "",
@@ -409,7 +436,10 @@ const chathamPageDoc = (): BuilderDocument => ({
           }),
         ]),
       ],
-      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "32px 24px 96px" } } },
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "32px 24px 96px" } },
+      },
     ),
   ],
 });
@@ -445,7 +475,10 @@ const speakersPageDoc = (): BuilderDocument => ({
           }),
         ]),
       ],
-      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "24px 24px 96px" } } },
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "24px 24px 96px" } },
+      },
     ),
   ],
 });
@@ -480,7 +513,10 @@ const agendaPageDoc = (): BuilderDocument => ({
           }),
         ]),
       ],
-      { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "24px 24px 96px" } } },
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "24px 24px 96px" } },
+      },
     ),
   ],
 });

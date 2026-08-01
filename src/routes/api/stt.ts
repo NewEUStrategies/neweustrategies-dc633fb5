@@ -32,8 +32,19 @@ export const Route = createFileRoute("/api/stt")({
 
         const userId = userData.user.id;
         const [minuteOk, hourOk] = await Promise.all([
-          rateLimit({ scope: "stt.minute", subjectId: userId, max: STT_LIMIT_PER_MINUTE, failClosed: true }),
-          rateLimit({ scope: "stt.hour", subjectId: userId, max: STT_LIMIT_PER_HOUR, windowMinutes: 60, failClosed: true }),
+          rateLimit({
+            scope: "stt.minute",
+            subjectId: userId,
+            max: STT_LIMIT_PER_MINUTE,
+            failClosed: true,
+          }),
+          rateLimit({
+            scope: "stt.hour",
+            subjectId: userId,
+            max: STT_LIMIT_PER_HOUR,
+            windowMinutes: 60,
+            failClosed: true,
+          }),
         ]);
         if (!minuteOk || !hourOk) {
           return new Response(JSON.stringify({ error: "Too Many Requests" }), {
@@ -75,7 +86,10 @@ export const Route = createFileRoute("/api/stt")({
         if (!res.ok) {
           const errText = await res.text().catch(() => "");
           console.error("STT upstream error", res.status, errText);
-          return json({ error: "STT upstream error", status: res.status }, res.status === 402 ? 402 : 502);
+          return json(
+            { error: "STT upstream error", status: res.status },
+            res.status === 402 ? 402 : 502,
+          );
         }
         const data = (await res.json()) as { text?: string };
         return json({ text: (data.text ?? "").trim() }, 200);

@@ -131,7 +131,6 @@ function toCssSize(value: ResponsiveSizeValue | undefined): string | number | un
   return value === "auto" ? "auto" : value;
 }
 
-
 export const getWidgetFrameStyle = (
   node: WidgetNode,
   device: Device = "desktop",

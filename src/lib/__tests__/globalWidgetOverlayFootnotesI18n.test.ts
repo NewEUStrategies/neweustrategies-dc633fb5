@@ -46,46 +46,28 @@ function readHtml(widget: WidgetNode, lang: Lang): string {
 
 describe("footnote tooltip snapshots - PL vs EN", () => {
   it("PL only: single-language widget renders PL tooltips with numbering 1..N", () => {
-    const raw = singleLangText(
-      "pl",
-      "Kot[fn]ssak domowy[/fn] pije mleko[fn]płyn[/fn].",
-    );
+    const raw = singleLangText("pl", "Kot[fn]ssak domowy[/fn] pije mleko[fn]płyn[/fn].");
     const { widget, notes } = processWidgetFootnotes(raw, "pl");
 
     expect(readHtml(widget, "pl")).toMatchInlineSnapshot(
       `"Kot<sup class="fn-ref"><span title="ssak domowy" role="note">[1]</span></sup> pije mleko<sup class="fn-ref"><span title="płyn" role="note">[2]</span></sup>."`,
     );
-    expect(notes.map((n) => `${n.id}:${n.html}`)).toEqual([
-      "1:ssak domowy",
-      "2:płyn",
-    ]);
+    expect(notes.map((n) => `${n.id}:${n.html}`)).toEqual(["1:ssak domowy", "2:płyn"]);
   });
 
   it("EN only: single-language widget renders EN tooltips with numbering 1..N", () => {
-    const raw = singleLangText(
-      "en",
-      "Cat[fn]domestic mammal[/fn] drinks milk[fn]liquid[/fn].",
-    );
+    const raw = singleLangText("en", "Cat[fn]domestic mammal[/fn] drinks milk[fn]liquid[/fn].");
     const { widget, notes } = processWidgetFootnotes(raw, "en");
 
     expect(readHtml(widget, "en")).toMatchInlineSnapshot(
       `"Cat<sup class="fn-ref"><span title="domestic mammal" role="note">[1]</span></sup> drinks milk<sup class="fn-ref"><span title="liquid" role="note">[2]</span></sup>."`,
     );
-    expect(notes.map((n) => `${n.id}:${n.html}`)).toEqual([
-      "1:domestic mammal",
-      "2:liquid",
-    ]);
+    expect(notes.map((n) => `${n.id}:${n.html}`)).toEqual(["1:domestic mammal", "2:liquid"]);
   });
 
   it("PL and EN produce independent counters when processed separately (single-lang widgets)", () => {
-    const pl = processWidgetFootnotes(
-      singleLangText("pl", "A[fn]jeden[/fn] B[fn]dwa[/fn]"),
-      "pl",
-    );
-    const en = processWidgetFootnotes(
-      singleLangText("en", "A[fn]one[/fn] B[fn]two[/fn]"),
-      "en",
-    );
+    const pl = processWidgetFootnotes(singleLangText("pl", "A[fn]jeden[/fn] B[fn]dwa[/fn]"), "pl");
+    const en = processWidgetFootnotes(singleLangText("en", "A[fn]one[/fn] B[fn]two[/fn]"), "en");
 
     expect(pl.notes.map((n) => n.id)).toEqual([1, 2]);
     expect(en.notes.map((n) => n.id)).toEqual([1, 2]);
@@ -95,10 +77,7 @@ describe("footnote tooltip snapshots - PL vs EN", () => {
 
   it("PL: escapes HTML specials in tooltip, keeps Polish diacritics literal", () => {
     const { widget } = processWidgetFootnotes(
-      singleLangText(
-        "pl",
-        `Zażółć[fn]gęślą jaźń — "cytat" & <em>tag</em>[/fn].`,
-      ),
+      singleLangText("pl", `Zażółć[fn]gęślą jaźń — "cytat" & <em>tag</em>[/fn].`),
       "pl",
     );
     expect(readHtml(widget, "pl")).toMatchInlineSnapshot(
@@ -108,10 +87,7 @@ describe("footnote tooltip snapshots - PL vs EN", () => {
 
   it("EN: escapes HTML specials in tooltip, keeps smart quotes/em-dash literal", () => {
     const { widget } = processWidgetFootnotes(
-      singleLangText(
-        "en",
-        `Note[fn]“smart quotes” — em‑dash & <b>bold</b>[/fn].`,
-      ),
+      singleLangText("en", `Note[fn]“smart quotes” — em‑dash & <b>bold</b>[/fn].`),
       "en",
     );
     expect(readHtml(widget, "en")).toMatchInlineSnapshot(

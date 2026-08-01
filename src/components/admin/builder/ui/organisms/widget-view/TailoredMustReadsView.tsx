@@ -91,13 +91,7 @@ function useAuthorsMap(authorIds: string[]) {
   });
 }
 
-export function TailoredMustReadsView({
-  c,
-  lang,
-}: {
-  c: WidgetContent;
-  lang: Lang;
-}) {
+export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const { t } = useTranslation();
   const firstName = useCurrentUserFirstName();
   const { user, loading: authLoading } = useAuth();
@@ -111,15 +105,12 @@ export function TailoredMustReadsView({
   const audience: "auth" | "all" | "guest" =
     audienceRaw === "all" || audienceRaw === "guest" ? audienceRaw : "auth";
   const kicker =
-    getStr(c, `kicker_${lang}`) ||
-    (lang === "pl" ? "Polecane dla ciebie" : "Recommended for you");
+    getStr(c, `kicker_${lang}`) || (lang === "pl" ? "Polecane dla ciebie" : "Recommended for you");
 
   const template =
-    getStr(c, `label_${lang}`) ||
-    (lang === "pl" ? DEFAULT_LABEL_PL : DEFAULT_LABEL_EN);
+    getStr(c, `label_${lang}`) || (lang === "pl" ? DEFAULT_LABEL_PL : DEFAULT_LABEL_EN);
   const fallbackNoUser =
-    getStr(c, `fallback_${lang}`) ||
-    (lang === "pl" ? FALLBACK_LABEL_PL : FALLBACK_LABEL_EN);
+    getStr(c, `fallback_${lang}`) || (lang === "pl" ? FALLBACK_LABEL_PL : FALLBACK_LABEL_EN);
 
   const heading = useMemo(() => {
     const rendered = renderLabel(template, firstName, lang);
@@ -139,8 +130,6 @@ export function TailoredMustReadsView({
   if (authLoading) return null;
   if (audience === "auth" && !user) return null;
   if (audience === "guest" && user) return null;
-
-
 
   const gridCols =
     columns === 1
@@ -191,15 +180,10 @@ export function TailoredMustReadsView({
             const href = localizedPath(`/post/${p.slug}`, lang);
             const author = p.author_id ? authorsMap[p.author_id] : undefined;
             const authorName = author?.display_name?.trim() || "";
-            const authorHref = author?.slug
-              ? localizedPath(`/author/${author.slug}`, lang)
-              : null;
+            const authorHref = author?.slug ? localizedPath(`/author/${author.slug}`, lang) : null;
             return (
               <li key={p.id} className="group flex flex-col gap-3">
-                <AppLink
-                  href={href}
-                  className="relative block w-full overflow-hidden rounded-md"
-                >
+                <AppLink href={href} className="relative block w-full overflow-hidden rounded-md">
                   <WidgetMediaImage
                     src={p.cover_image_url}
                     alt={title ?? ""}
@@ -268,4 +252,3 @@ export function TailoredMustReadsView({
     </section>
   );
 }
-

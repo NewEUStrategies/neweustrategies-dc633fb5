@@ -34,9 +34,10 @@ async function seatsFor(supabase: SupabaseClient, eventId: string): Promise<Even
     supabase.rpc("get_event_rsvp_counts", { p_event_ids: [eventId] }),
   ]);
 
-  const row = (Array.isArray(counts) ? counts[0] : null) as
-    | { going?: number; waitlist?: number }
-    | null;
+  const row = (Array.isArray(counts) ? counts[0] : null) as {
+    going?: number;
+    waitlist?: number;
+  } | null;
   const capacity =
     typeof event?.capacity === "number" && event.capacity > 0 ? Number(event.capacity) : null;
   const going = Number(row?.going ?? 0);

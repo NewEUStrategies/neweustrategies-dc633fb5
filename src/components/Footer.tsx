@@ -30,8 +30,6 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
   const lang = useLang();
   const isPl = lang === "pl";
 
-
-
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<FooterSettings>(settingsMap, "footer", {});
 
@@ -49,10 +47,7 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
   const chrome = FooterChromeSchema.safeParse({ ...defaultFooterChrome(), ...(cfg.chrome ?? {}) });
   const chromeCfg = chrome.success ? chrome.data : defaultFooterChrome();
 
-
   const footerRef = useRef<HTMLElement | null>(null);
-
-
 
   useEffect(() => {
     const el = footerRef.current;
@@ -75,8 +70,7 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
       const form = ev.target as HTMLFormElement | null;
       if (!form) return;
       const isNewsletter =
-        form.matches("[data-newsletter-form]") ||
-        form.querySelector("input[type='email']") != null;
+        form.matches("[data-newsletter-form]") || form.querySelector("input[type='email']") != null;
       if (!isNewsletter) return;
       trackFooterNewsletterSubmit("success", { form_id: form.id || undefined });
     };

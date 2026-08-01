@@ -8,10 +8,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { requestPublicHost } from "@/lib/http/requestHost";
 
 const CANONICAL_ORIGIN = "https://neweuropeanstrategies.com";
-const CANONICAL_HOSTS = new Set([
-  "neweuropeanstrategies.com",
-  "www.neweuropeanstrategies.com",
-]);
+const CANONICAL_HOSTS = new Set(["neweuropeanstrategies.com", "www.neweuropeanstrategies.com"]);
 
 function isLegacyPublicHost(host: string): boolean {
   if (!host) return false;
@@ -57,19 +54,13 @@ export const Route = createFileRoute("/robots.txt")({
                 "Disallow: /",
                 "",
               ].join("\n")
-            : [
-                "User-agent: *",
-                "Disallow: /",
-                "",
-              ].join("\n");
+            : ["User-agent: *", "Disallow: /", ""].join("\n");
 
         return new Response(body, {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",
             "Cache-Control": "public, max-age=3600",
-            "X-Robots-Tag": CANONICAL_HOSTS.has(host)
-              ? "all"
-              : "noindex, nofollow",
+            "X-Robots-Tag": CANONICAL_HOSTS.has(host) ? "all" : "noindex, nofollow",
           },
         });
       },

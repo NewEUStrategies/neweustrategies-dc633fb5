@@ -95,7 +95,6 @@ export async function claimWebhookEvent(ref: WebhookEventRef): Promise<boolean> 
   return true;
 }
 
-
 /** Domyka wiersz zdarzenia statusem końcowym. Nigdy nie rzuca. */
 export async function finishWebhookEvent(
   ref: Pick<WebhookEventRef, "eventId" | "environment">,

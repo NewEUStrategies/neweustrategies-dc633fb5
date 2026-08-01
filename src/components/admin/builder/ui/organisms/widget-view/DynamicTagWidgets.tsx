@@ -247,9 +247,7 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
             a.name
           )}
         </div>
-        {getBool(c, "showBio", true) && bio && (
-          <p className="cms-post-excerpt mt-1.5">{bio}</p>
-        )}
+        {getBool(c, "showBio", true) && bio && <p className="cms-post-excerpt mt-1.5">{bio}</p>}
       </div>
     </aside>
   );

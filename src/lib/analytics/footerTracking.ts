@@ -7,11 +7,7 @@
 import { track } from "@/lib/analytics/track";
 import type { FooterLinkGroup } from "@/lib/seo/footerNavigation";
 
-type GtagFn = (
-  command: "event",
-  name: string,
-  params?: Record<string, unknown>,
-) => void;
+type GtagFn = (command: "event", name: string, params?: Record<string, unknown>) => void;
 
 function gtag(): GtagFn | null {
   if (typeof window === "undefined") return null;

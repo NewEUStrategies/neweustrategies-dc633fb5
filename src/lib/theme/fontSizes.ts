@@ -241,8 +241,6 @@ function lineHeightRulesCss(): string {
   ].join("");
 }
 
-
-
 /**
  * Reguły odstępów treści. Podwojona specyficzność klas, żeby wygrać z
  * <ContentAreaStyle/> (margin-bottom list/cytatów) niezależnie od kolejności
@@ -273,6 +271,4 @@ function spacingRulesCss(): string {
     `[data-builder-renderer] > [data-block-type="quote"] blockquote`,
     `{margin-top:0;margin-bottom:0;}`,
   ].join("");
-
 }
-

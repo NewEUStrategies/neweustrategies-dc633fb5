@@ -89,8 +89,8 @@ describe("global widget overlay footnotes", () => {
     const raw = makeTextWidget("X[fn]raz[/fn]");
     const first = processWidgetFootnotes(raw, "pl");
     const second = processWidgetFootnotes(first.widget, "pl");
-    expect(
-      String((second.widget.content as Record<string, unknown>).html_pl),
-    ).toBe(String((first.widget.content as Record<string, unknown>).html_pl));
+    expect(String((second.widget.content as Record<string, unknown>).html_pl)).toBe(
+      String((first.widget.content as Record<string, unknown>).html_pl),
+    );
   });
 });

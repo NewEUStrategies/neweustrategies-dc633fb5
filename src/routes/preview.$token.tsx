@@ -51,6 +51,9 @@ function PreviewPage() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const c = COPY[lang];
+  // Wszystkie hooki PRZED wczesnym returnem - inaczej render bez posta
+  // wywołuje ich inną liczbę i React gubi kolejność (rules-of-hooks).
+  const articleRef = useRef<HTMLDivElement>(null);
 
   if (!post) {
     return (
@@ -71,7 +74,6 @@ function PreviewPage() {
     : null;
   const rawHtml = lang === "en" ? post.content_en || post.content_pl : post.content_pl;
   const expires = new Date(post.expires_at).toLocaleString(lang === "en" ? "en-GB" : "pl-PL");
-  const articleRef = useRef<HTMLDivElement>(null);
 
   // Ta sama pre-transformacja co na produkcyjnym /$slug: [fn] rozwijane pod
   // wspólnym licznikiem, sekcja przypisów + tooltips zamontowane na dole.

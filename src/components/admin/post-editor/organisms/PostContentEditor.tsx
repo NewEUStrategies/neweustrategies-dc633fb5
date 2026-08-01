@@ -87,7 +87,6 @@ export function PostContentEditor({
                     set("blocks_data", { ...cur, [lang]: nextDoc });
                   }}
                 />
-
               </LayoutScaffold>
             );
           }}

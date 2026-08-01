@@ -23,12 +23,9 @@ export function DisplayLivePreview({ c, lang }: Props) {
   const rawAuthor = s(c, "authorDisplay", "avatar");
   const authorDisplay: "avatar" | "label" | "none" =
     rawAuthor === "label" || rawAuthor === "none" ? rawAuthor : "avatar";
-  const authorLabel =
-    s(c, `authorLabel_${lang}`).trim() ||
-    (lang === "pl" ? "Autor" : "By");
+  const authorLabel = s(c, `authorLabel_${lang}`).trim() || (lang === "pl" ? "Autor" : "By");
 
-  const sampleTitle =
-    lang === "pl" ? "Przykładowy tytuł wpisu" : "Sample post title";
+  const sampleTitle = lang === "pl" ? "Przykładowy tytuł wpisu" : "Sample post title";
   const sampleExcerpt =
     lang === "pl"
       ? "Krótki opis (excerpt) prezentowany pod tytułem."
@@ -86,17 +83,11 @@ export function DisplayLivePreview({ c, lang }: Props) {
                 />
               )}
               {authorDisplay === "label" && (
-                <span
-                  className="opacity-70"
-                  data-testid="preview-author-label"
-                >
+                <span className="opacity-70" data-testid="preview-author-label">
                   {authorLabel}:
                 </span>
               )}
-              <span
-                className="truncate text-foreground"
-                data-testid="preview-author-name"
-              >
+              <span className="truncate text-foreground" data-testid="preview-author-name">
                 {sampleAuthor}
               </span>
             </div>

@@ -172,8 +172,7 @@ export function WidgetProperties({
   const setWidgetWidth = (value: number | "auto" | `${number}%` | undefined) =>
     setAdvanced((a) => {
       const previous = a.width;
-      const responsive =
-        previous && typeof previous === "object" ? { ...previous } : {};
+      const responsive = previous && typeof previous === "object" ? { ...previous } : {};
       if (value === undefined) delete responsive[device];
       else responsive[device] = value;
       a.width = Object.keys(responsive).length > 0 ? responsive : undefined;
@@ -247,11 +246,7 @@ export function WidgetProperties({
   const setFlatBorderStyle = (v: CommonStyle["borderStyle"] | undefined) =>
     setStyle((s) => {
       const prev = s.borderStyle as Themed<string> | string | undefined;
-      const next = setThemedMode<string>(
-        prev as Themed<string> | undefined,
-        mode,
-        v ?? undefined,
-      );
+      const next = setThemedMode<string>(prev as Themed<string> | undefined, mode, v ?? undefined);
       (s as Record<string, unknown>).borderStyle = next;
     });
 
@@ -272,7 +267,9 @@ export function WidgetProperties({
     broadcastWidgetTypography(widget.id, next);
     setStyle((s) => {
       const prev = s.typography as unknown as Themed<WidgetTypography> | undefined;
-      s.typography = setThemedMode<WidgetTypography>(prev, mode, next) as unknown as WidgetTypography | undefined;
+      s.typography = setThemedMode<WidgetTypography>(prev, mode, next) as unknown as
+        | WidgetTypography
+        | undefined;
     });
   };
 
@@ -317,8 +314,7 @@ export function WidgetProperties({
   // Resolve inherited colors from the actually rendered widget DOM (global colors cascade).
   const inherited = useInheritedColors(widget.id, mode, widget.style);
 
-  const widgetLabel =
-    bl(WIDGETS.find((w) => w.type === widget.type)?.label) ?? widget.type;
+  const widgetLabel = bl(WIDGETS.find((w) => w.type === widget.type)?.label) ?? widget.type;
 
   const highlightPreviewTarget = (key: string) => {
     if (typeof document === "undefined") return;
@@ -392,7 +388,9 @@ export function WidgetProperties({
                 <div className="text-[9px] font-semibold uppercase text-muted-foreground">
                   {lang === "en" ? "Widget settings" : "Ustawienia widgetu"}
                 </div>
-                <div className="truncate text-[12px] font-semibold text-foreground">{widgetLabel}</div>
+                <div className="truncate text-[12px] font-semibold text-foreground">
+                  {widgetLabel}
+                </div>
               </div>
             </div>
             <div
@@ -428,26 +426,35 @@ export function WidgetProperties({
           </div>
           {widget.globalId && (
             <div className="px-2.5 pb-2">
-            <GlobalWidgetBanner
-              globalId={widget.globalId}
-              onUnlink={() =>
-                onChange((w) => {
-                  delete w.globalId;
-                })
-              }
-            />
+              <GlobalWidgetBanner
+                globalId={widget.globalId}
+                onUnlink={() =>
+                  onChange((w) => {
+                    delete w.globalId;
+                  })
+                }
+              />
             </div>
           )}
           <TabsList className="grid h-9 w-full grid-cols-3 rounded-none border-t border-border bg-muted/30 p-1">
-            <TabsTrigger value="content" className="h-7 gap-1.5 rounded-[4px] text-[10.5px] font-semibold">
+            <TabsTrigger
+              value="content"
+              className="h-7 gap-1.5 rounded-[4px] text-[10.5px] font-semibold"
+            >
               <FileText className="h-3 w-3" />
               {t("builder.widgetProps.tabContent")}
             </TabsTrigger>
-            <TabsTrigger value="style" className="h-7 gap-1.5 rounded-[4px] text-[10.5px] font-semibold">
+            <TabsTrigger
+              value="style"
+              className="h-7 gap-1.5 rounded-[4px] text-[10.5px] font-semibold"
+            >
               <Palette className="h-3 w-3" />
               {t("builder.widgetProps.tabStyle")}
             </TabsTrigger>
-            <TabsTrigger value="advanced" className="h-7 gap-1.5 rounded-[4px] text-[10.5px] font-semibold">
+            <TabsTrigger
+              value="advanced"
+              className="h-7 gap-1.5 rounded-[4px] text-[10.5px] font-semibold"
+            >
               <SlidersHorizontal className="h-3 w-3" />
               {t("builder.widgetProps.tabAdvanced")}
             </TabsTrigger>
@@ -821,7 +828,11 @@ export function WidgetProperties({
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {t("builder.widgetProps.widgetWidth")}
             </h4>
-            <div className="wp-seg wp-seg-grid" role="group" aria-label={t("builder.widgetProps.widgetWidth")}>
+            <div
+              className="wp-seg wp-seg-grid"
+              role="group"
+              aria-label={t("builder.widgetProps.widgetWidth")}
+            >
               {(
                 [
                   ["full", t("builder.widgetProps.widthFull")],
@@ -995,8 +1006,7 @@ export function WidgetProperties({
               }
               disabledReason={(() => {
                 if (widget.type !== "image") return undefined;
-                const r =
-                  typeof widget.content?.ratio === "string" ? widget.content.ratio : "";
+                const r = typeof widget.content?.ratio === "string" ? widget.content.ratio : "";
                 if (!r || r === "auto") return undefined;
                 return t("builder.widgetProps.dimensionsRatioLock", {
                   defaultValue:
@@ -1005,7 +1015,6 @@ export function WidgetProperties({
                 });
               })()}
             />
-
           </section>
 
           <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
@@ -1117,135 +1126,132 @@ function WidgetHeightControl({
   const disabled = !!disabledReason;
   return (
     <>
-    <div
-      className={`space-y-2 ${disabled ? "opacity-60 pointer-events-none select-none" : ""}`}
-      aria-disabled={disabled || undefined}
-    >
-
-
       <div
-        className="relative h-20 overflow-hidden rounded-md border border-border bg-muted/30 p-2"
-        aria-label={t("builder.widgetProps.dimensionsPreview", {
-          defaultValue: "Podgląd wysokości widgetu",
-        })}
+        className={`space-y-2 ${disabled ? "opacity-60 pointer-events-none select-none" : ""}`}
+        aria-disabled={disabled || undefined}
       >
-        <div className="absolute inset-x-2 top-2 flex items-center justify-between text-[9px] text-muted-foreground">
-          <span>{t("builder.widgetProps.preview", { defaultValue: "Podgląd" })}</span>
-          <span className="inline-flex items-center gap-1 font-medium text-foreground">
-            <MoveVertical className="size-3" />
-            {typeof value === "number"
-              ? `${value}px`
-              : value === "auto"
-                ? t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" })
-                : t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" })}
-          </span>
-        </div>
-        <div className="absolute inset-x-2 bottom-2 top-7 flex items-center justify-center border-x border-dashed border-brand/50">
-          <div
-            className="w-full rounded-[5px] border border-brand bg-brand/10 transition-[height] duration-200"
-            style={{
-              height:
-                typeof value === "number"
-                  ? `${Math.max(12, Math.min(34, value / 24))}px`
-                  : value === "auto"
-                    ? "18px"
-                    : "26px",
-            }}
-          />
-        </div>
-      </div>
-      <div className="wp-seg" role="group">
-        {(
-          [
-            [
-              "auto",
-              t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" }),
-              undefined as DesktopHeight,
-            ],
-            [
-              "fixed",
-              t("builder.widgetProps.dimensionsFixed", { defaultValue: "Ustalona (px)" }),
-              typeof value === "number" ? value : 480,
-            ],
-            [
-              "hug",
-              t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" }),
-              "auto" as DesktopHeight,
-            ],
-          ] as const
-        ).map(([key, label, target]) => {
-          const active =
-            (key === "auto" && value === undefined) ||
-            (key === "fixed" && typeof value === "number") ||
-            (key === "hug" && isAuto);
-          return (
-            <button
-              key={key}
-              type="button"
-              data-active={active}
-              onClick={() => onChange(target)}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-      {typeof value === "number" && (
-        <PropField
-          label={t("builder.widgetProps.dimensionsDesktopPx", {
-            defaultValue: "Wysokość desktop (px)",
+        <div
+          className="relative h-20 overflow-hidden rounded-md border border-border bg-muted/30 p-2"
+          aria-label={t("builder.widgetProps.dimensionsPreview", {
+            defaultValue: "Podgląd wysokości widgetu",
           })}
         >
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="size-8 shrink-0 rounded-md"
-              onClick={() => setFixedHeight(Number(numeric) - 10)}
-              aria-label={t("builder.widgetProps.decreaseHeight", {
-                defaultValue: "Zmniejsz wysokość",
-              })}
-              title={t("builder.widgetProps.decreaseHeight", { defaultValue: "Zmniejsz wysokość" })}
-            >
-              <Minus className="size-3.5" />
-            </Button>
-            <div className="relative min-w-0 flex-1">
-              <Input
-                type="number"
-                min={40}
-                max={2400}
-                step={10}
-                value={numeric}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === "") return;
-                  const n = Number(raw);
-                  if (Number.isFinite(n) && n > 0) setFixedHeight(Math.round(n));
-                }}
-                className="h-8 pr-7 text-xs"
-              />
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-                px
-              </span>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="size-8 shrink-0 rounded-md"
-              onClick={() => setFixedHeight(Number(numeric) + 10)}
-              aria-label={t("builder.widgetProps.increaseHeight", {
-                defaultValue: "Zwiększ wysokość",
-              })}
-              title={t("builder.widgetProps.increaseHeight", { defaultValue: "Zwiększ wysokość" })}
-            >
-              <Plus className="size-3.5" />
-            </Button>
+          <div className="absolute inset-x-2 top-2 flex items-center justify-between text-[9px] text-muted-foreground">
+            <span>{t("builder.widgetProps.preview", { defaultValue: "Podgląd" })}</span>
+            <span className="inline-flex items-center gap-1 font-medium text-foreground">
+              <MoveVertical className="size-3" />
+              {typeof value === "number"
+                ? `${value}px`
+                : value === "auto"
+                  ? t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" })
+                  : t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" })}
+            </span>
           </div>
-        </PropField>
-      )}
-    </div>
+          <div className="absolute inset-x-2 bottom-2 top-7 flex items-center justify-center border-x border-dashed border-brand/50">
+            <div
+              className="w-full rounded-[5px] border border-brand bg-brand/10 transition-[height] duration-200"
+              style={{
+                height:
+                  typeof value === "number"
+                    ? `${Math.max(12, Math.min(34, value / 24))}px`
+                    : value === "auto"
+                      ? "18px"
+                      : "26px",
+              }}
+            />
+          </div>
+        </div>
+        <div className="wp-seg" role="group">
+          {(
+            [
+              [
+                "auto",
+                t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" }),
+                undefined as DesktopHeight,
+              ],
+              [
+                "fixed",
+                t("builder.widgetProps.dimensionsFixed", { defaultValue: "Ustalona (px)" }),
+                typeof value === "number" ? value : 480,
+              ],
+              [
+                "hug",
+                t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" }),
+                "auto" as DesktopHeight,
+              ],
+            ] as const
+          ).map(([key, label, target]) => {
+            const active =
+              (key === "auto" && value === undefined) ||
+              (key === "fixed" && typeof value === "number") ||
+              (key === "hug" && isAuto);
+            return (
+              <button key={key} type="button" data-active={active} onClick={() => onChange(target)}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {typeof value === "number" && (
+          <PropField
+            label={t("builder.widgetProps.dimensionsDesktopPx", {
+              defaultValue: "Wysokość desktop (px)",
+            })}
+          >
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-8 shrink-0 rounded-md"
+                onClick={() => setFixedHeight(Number(numeric) - 10)}
+                aria-label={t("builder.widgetProps.decreaseHeight", {
+                  defaultValue: "Zmniejsz wysokość",
+                })}
+                title={t("builder.widgetProps.decreaseHeight", {
+                  defaultValue: "Zmniejsz wysokość",
+                })}
+              >
+                <Minus className="size-3.5" />
+              </Button>
+              <div className="relative min-w-0 flex-1">
+                <Input
+                  type="number"
+                  min={40}
+                  max={2400}
+                  step={10}
+                  value={numeric}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") return;
+                    const n = Number(raw);
+                    if (Number.isFinite(n) && n > 0) setFixedHeight(Math.round(n));
+                  }}
+                  className="h-8 pr-7 text-xs"
+                />
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                  px
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-8 shrink-0 rounded-md"
+                onClick={() => setFixedHeight(Number(numeric) + 10)}
+                aria-label={t("builder.widgetProps.increaseHeight", {
+                  defaultValue: "Zwiększ wysokość",
+                })}
+                title={t("builder.widgetProps.increaseHeight", {
+                  defaultValue: "Zwiększ wysokość",
+                })}
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            </div>
+          </PropField>
+        )}
+      </div>
       {disabledReason ? (
         <p className="mt-2 rounded-md border border-brand/30 bg-brand/5 px-2 py-1.5 text-[10.5px] leading-snug text-foreground/80">
           {disabledReason}
@@ -1254,8 +1260,6 @@ function WidgetHeightControl({
     </>
   );
 }
-
-
 
 function ThemedColorField({
   label,

@@ -130,7 +130,10 @@ export async function syncCrmSubscriptionState(
 
     if (lead) {
       const tags = Array.from(
-        new Set([...(lead.tags ?? []).filter((t) => !dropTags[state].includes(t)), ...stateTags[state]]),
+        new Set([
+          ...(lead.tags ?? []).filter((t) => !dropTags[state].includes(t)),
+          ...stateTags[state],
+        ]),
       );
       await supabaseAdmin
         .from("crm_leads")
@@ -228,7 +231,6 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     periodEnd: ctx.periodEnd,
   });
 
-
   await notifySubscriptionEmail({
     kind: "subscription_confirmed",
     userId: ctx.userId,
@@ -247,7 +249,6 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     tierKey: entry.tierKey,
     subscriptionId: ctx.subscriptionId,
   });
-
 
   await pushAppNotification({
     userId: ctx.userId,
@@ -391,9 +392,7 @@ export interface StatusTransitionContext {
  * rozliczeń). Uprawnienie synchronizuje webhook; tutaj domykamy warstwy
  * widoczne dla człowieka: CRM i powiadomienie w aplikacji.
  */
-export async function applyStatusTransitionEffects(
-  ctx: StatusTransitionContext,
-): Promise<void> {
+export async function applyStatusTransitionEffects(ctx: StatusTransitionContext): Promise<void> {
   if (ctx.previousStatus === ctx.status) return;
   const entry = catalogEntryByPriceId(ctx.priceId);
   const plan = await resolvePlanForPrice(ctx.priceId);
@@ -448,4 +447,3 @@ export async function applyStatusTransitionEffects(
     }
   }
 }
-

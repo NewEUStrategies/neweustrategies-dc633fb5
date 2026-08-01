@@ -124,10 +124,7 @@ describe("wordPaste - media, listy wielopoziomowe, tabele", () => {
     expect(blocks[0].type).toBe("table");
     expect(blocks[0].data).toMatchObject({
       header: true,
-      rows: [
-        ["A", "B"],
-        ["Razem"],
-      ],
+      rows: [["A", "B"], ["Razem"]],
       spans: [
         [
           [1, 1],
@@ -135,10 +132,7 @@ describe("wordPaste - media, listy wielopoziomowe, tabele", () => {
         ],
         [[2, 1]],
       ],
-      aligns: [
-        ["", ""],
-        ["right"],
-      ],
+      aligns: [["", ""], ["right"]],
     });
   });
 
@@ -215,9 +209,7 @@ describe("parseWordHtml - nagłówki i przypisy górne", () => {
   });
 
   it("scala kilka odsyłaczy z jednego indeksu górnego", () => {
-    const blocks = parseWordHtml(
-      `<p>Teza<sup>1,2</sup>.</p><p>1. Pierwsze.</p><p>2. Drugie.</p>`,
-    );
+    const blocks = parseWordHtml(`<p>Teza<sup>1,2</sup>.</p><p>1. Pierwsze.</p><p>2. Drugie.</p>`);
     const html = String(blocks[0].data.html);
     expect(html).toContain("[fn]Pierwsze.[/fn][fn]Drugie.[/fn]");
   });

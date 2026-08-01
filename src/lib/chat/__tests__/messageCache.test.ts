@@ -135,7 +135,10 @@ describe("seedMessageInCache", () => {
   });
 
   it("promotes the optimistic row to the server row once history exists", () => {
-    const seeded = seedMessageInCache(undefined, msg({ id: "pending-1", body: "hi", pending: true }));
+    const seeded = seedMessageInCache(
+      undefined,
+      msg({ id: "pending-1", body: "hi", pending: true }),
+    );
     const out = seedMessageInCache(seeded, msg({ id: "s1", body: "hi" }), {
       replaceId: "pending-1",
     });

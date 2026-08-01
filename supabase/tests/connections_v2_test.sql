@@ -210,13 +210,13 @@ INSERT INTO public.eu_policy_follows (item_id, user_id, tenant_id) VALUES
   ('cb333333-3333-3333-3333-333333333332', 'cb000000-0000-0000-0000-0000000000e1',
    'cb111111-1111-1111-1111-111111111111');
 
-INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, status, host_user_id) VALUES
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, status, host_user_id, starts_at) VALUES
   ('cb444444-4444-4444-4444-444444444441',
    'cb111111-1111-1111-1111-111111111111', 'event-cb1', 'Briefing CB', 'Briefing CB',
-   'published', 'cb000000-0000-0000-0000-000000000090'),
+   'published', 'cb000000-0000-0000-0000-000000000090', now() + interval '7 days'),
   ('cb444444-4444-4444-4444-444444444442',
    'cb111111-1111-1111-1111-111111111111', 'event-cb2', 'Szkic CB', 'Draft CB',
-   'draft', 'cb000000-0000-0000-0000-000000000090');
+   'draft', 'cb000000-0000-0000-0000-000000000090', now() + interval '14 days');
 
 INSERT INTO public.event_rsvps (tenant_id, event_id, user_id, status) VALUES
   ('cb111111-1111-1111-1111-111111111111', 'cb444444-4444-4444-4444-444444444441',
@@ -268,6 +268,17 @@ SELECT is(
 -- ---------------------------------------------------------------------------
 -- 19-24. create_event_group
 -- ---------------------------------------------------------------------------
+-- create_event_group -> create_group_conversation wymaga od hosta warstwy
+-- z chat_enabled (gate 'chat: tier disabled' z 20260725175514) - host dostaje
+-- grant członkowski jak w pozostałych testach czatu.
+-- UWAGA: ten plik celowo NIE przełącza roli na authenticated - jedzie jako
+-- właściciel i steruje tożsamością wyłącznie przez request.jwt.claims
+-- (auth.uid()). Wejście w rolę authenticated odcięłoby dalsze asercje od
+-- tabel bez grantu (notifications cudzego usera, user_reports,
+-- tenant_pending_counters).
+INSERT INTO public.membership_grants (tenant_id, user_id, tier_key)
+VALUES ('cb111111-1111-1111-1111-111111111111',
+        'cb000000-0000-0000-0000-000000000090', 'member');
 SELECT set_config('request.jwt.claims',
   '{"sub":"cb000000-0000-0000-0000-000000000090","role":"authenticated"}', true);
 
@@ -276,19 +287,22 @@ SELECT ok(
   'host tworzy grupe wydarzenia'
 );
 
+-- Id rozmowy wydarzenia zdejmujemy raz do tabeli tymczasowej - dalsze
+-- asercje (w tym idempotencja) porównują się już przeciwko niej.
+CREATE TEMP TABLE evconv AS
+SELECT conversation_id FROM public.events
+ WHERE id = 'cb444444-4444-4444-4444-444444444441';
+
 SELECT is(
   (SELECT count(*)::int FROM public.conversation_participants cp
-    WHERE cp.conversation_id =
-          (SELECT e.conversation_id FROM public.events e
-            WHERE e.id = 'cb444444-4444-4444-4444-444444444441')),
+    WHERE cp.conversation_id = (SELECT conversation_id FROM evconv)),
   3,
   'grupa wydarzenia = host(owner) + uczestnicy going (A, X)'
 );
 
 SELECT is(
   public.create_event_group('cb444444-4444-4444-4444-444444444441'),
-  (SELECT e.conversation_id FROM public.events e
-    WHERE e.id = 'cb444444-4444-4444-4444-444444444441'),
+  (SELECT conversation_id FROM evconv),
   'create_event_group jest idempotentne'
 );
 

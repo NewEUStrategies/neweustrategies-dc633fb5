@@ -85,12 +85,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
     onChange({ ...block, data: { ...block.data, ...patch } });
   const toggle = (field: string) => set({ [field]: !d[field] });
 
-  const promptFor = async (
-    field: string,
-    title: string,
-    label: string,
-    defaultValue = "",
-  ) => {
+  const promptFor = async (field: string, title: string, label: string, defaultValue = "") => {
     const v = await promptDialog({
       title,
       label,
@@ -147,11 +142,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
             title={i18n.t("blocks.toolbar.link", { defaultValue: "Link" })}
             active={Boolean(d.href)}
             onClick={() =>
-              promptFor(
-                "href",
-                i18n.t("blocks.toolbar.link", { defaultValue: "Link" }),
-                "URL",
-              )
+              promptFor("href", i18n.t("blocks.toolbar.link", { defaultValue: "Link" }), "URL")
             }
           >
             <LinkIcon className="h-3.5 w-3.5" />
@@ -285,11 +276,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
             title={i18n.t("blocks.toolbar.cover", { defaultValue: "Okładka" })}
             active={Boolean(d.cover)}
             onClick={() =>
-              promptFor(
-                "cover",
-                i18n.t("blocks.toolbar.cover", { defaultValue: "Okładka" }),
-                "URL",
-              )
+              promptFor("cover", i18n.t("blocks.toolbar.cover", { defaultValue: "Okładka" }), "URL")
             }
           >
             <Disc className="h-3.5 w-3.5" />
@@ -308,18 +295,10 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
       {(kind === "video" || kind === "audio") && (
         <>
           <Divider />
-          <TBtn
-            title="Autoplay"
-            active={Boolean(d.autoplay)}
-            onClick={() => toggle("autoplay")}
-          >
+          <TBtn title="Autoplay" active={Boolean(d.autoplay)} onClick={() => toggle("autoplay")}>
             <Play className="h-3.5 w-3.5" />
           </TBtn>
-          <TBtn
-            title="Loop"
-            active={Boolean(d.loop)}
-            onClick={() => toggle("loop")}
-          >
+          <TBtn title="Loop" active={Boolean(d.loop)} onClick={() => toggle("loop")}>
             <RotateCw className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
@@ -327,11 +306,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
             active={Boolean(d.muted)}
             onClick={() => toggle("muted")}
           >
-            {d.muted ? (
-              <VolumeX className="h-3.5 w-3.5" />
-            ) : (
-              <Volume2 className="h-3.5 w-3.5" />
-            )}
+            {d.muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
           </TBtn>
         </>
       )}

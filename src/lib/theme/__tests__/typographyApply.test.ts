@@ -21,7 +21,9 @@ describe("typographyApply", () => {
 
   it("czyści klucze typografii w JSON bloków", () => {
     const json = stripTypographyFromJson({
-      blocks: [{ type: "paragraph", fontSize: 22, data: { html: '<em style="line-height:3">x</em>' } }],
+      blocks: [
+        { type: "paragraph", fontSize: 22, data: { html: '<em style="line-height:3">x</em>' } },
+      ],
     });
     expect(JSON.stringify(json)).not.toContain("fontSize");
     expect(JSON.stringify(json)).not.toContain("line-height");

@@ -229,9 +229,7 @@ export function ImageWidget({
       >
         {linkedImg}
       </ResizableImageWrap>
-      {caption && (
-        <figcaption className="cms-meta text-center">{caption}</figcaption>
-      )}
+      {caption && <figcaption className="cms-meta text-center">{caption}</figcaption>}
     </figure>
   );
 }

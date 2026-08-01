@@ -159,7 +159,6 @@ export function PostSettingsCard({
           onChange={(e) => set("slug", normalizeSlugInput(e.target.value))}
           onBlur={(e) => set("slug", slugifyTaxonomy(e.target.value))}
         />
-
       </div>
       <div>
         <Label className="inline-flex items-center gap-1">

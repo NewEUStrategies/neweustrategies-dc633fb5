@@ -37,7 +37,6 @@ const HEADING_COLORS: readonly { value: string; label: string }[] = [
   { value: "#ffffff", label: "Biały" },
 ];
 
-
 interface Props {
   block: Block;
   onChange: (next: Block) => void;
@@ -109,7 +108,6 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
 
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-
   return (
     <div
       ref={rootRef}
@@ -150,9 +148,7 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
           </TBtn>
           <TBtn
             title={i18n.t("blocks.toolbar.normalText", { defaultValue: "Tekst normalny" })}
-            onClick={() =>
-              editor.chain().focus().unsetAllMarks().unsetMark("textStyle").run()
-            }
+            onClick={() => editor.chain().focus().unsetAllMarks().unsetMark("textStyle").run()}
           >
             <RemoveFormatting className="h-3.5 w-3.5" />
           </TBtn>
@@ -195,7 +191,9 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
               <input
                 type="color"
                 aria-label={i18n.t("blocks.toolbar.colorCustom", { defaultValue: "Własny kolor" })}
-                value={/^#[0-9a-fA-F]{6}$/.test(String(d.color ?? "")) ? String(d.color) : "#111111"}
+                value={
+                  /^#[0-9a-fA-F]{6}$/.test(String(d.color ?? "")) ? String(d.color) : "#111111"
+                }
                 onChange={(e) => applyColor(e.target.value)}
                 className="h-6 w-10 cursor-pointer rounded border border-border bg-transparent p-0"
               />
@@ -215,7 +213,6 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
       </div>
 
       <Divider />
-
 
       {/* Wyrównanie */}
       <TBtn

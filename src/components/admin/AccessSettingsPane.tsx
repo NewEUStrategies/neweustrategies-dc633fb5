@@ -73,13 +73,13 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
 
   useEffect(() => {
     (async () => {
-      const [{ data: pl }, { data: r }, { data: hp }] = await Promise.all([
+      const [{ data: pl }, { data: r }, { data: hp }, { data: hints }] = await Promise.all([
         supabase.from("access_plans").select("*").eq("active", true).order("sort_order"),
         entityId
           ? supabase
               .from("content_access")
               .select(
-                "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, min_tier_rank, metering_policy, password_hint_pl, password_hint_en, tenant_id",
+                "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, min_tier_rank, metering_policy, tenant_id",
               )
               .eq("entity_type", entityType)
               .eq("entity_id", entityId)
@@ -91,15 +91,26 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
               _entity_id: entityId,
             })
           : Promise.resolve({ data: false }),
+        // Kolumny password_hint_* są odebrane rolom klienckim (REVOKE
+        // 20260801121000 - kontrakt security_hardening_rls_test) - hinty
+        // czytamy przez SECURITY DEFINER get_password_hint, jak Paywall.
+        // RPC zwraca wiersz tylko w trybie 'password' - w innych trybach
+        // hinty i tak są NULL-owane przy zapisie.
+        entityId
+          ? supabase
+              .rpc("get_password_hint", { _entity_type: entityType, _entity_id: entityId })
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
       ]);
       setPlans((pl as AccessPlan[]) ?? []);
       if (r) {
         setRule(r as ContentAccessRule);
+        const hintRow = hints as { hint_pl?: string | null; hint_en?: string | null } | null;
         setPwd({
           hasPassword: !!hp,
           newPassword: "",
-          hintPl: (r as { password_hint_pl?: string | null }).password_hint_pl ?? "",
-          hintEn: (r as { password_hint_en?: string | null }).password_hint_en ?? "",
+          hintPl: hintRow?.hint_pl ?? "",
+          hintEn: hintRow?.hint_en ?? "",
         });
       }
       setLoading(false);
