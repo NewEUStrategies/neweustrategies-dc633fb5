@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import type { Block, LocalizedBlocks } from "@/lib/blocks/types";
 import { BlockCanvas } from "./BlockCanvas";
 import { BlockSidebar } from "./BlockSidebar";
@@ -17,6 +17,7 @@ import { Undo, Redo, PanelLeft, Eye } from "@/lib/lucide-shim";
 import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
 import { BLOCK_TOUR_STEPS } from "@/lib/onboarding/tours";
+import { EditorLangSwitch } from "@/components/admin/atoms/EditorLangSwitch";
 
 interface Props {
   value: LocalizedBlocks | null;
@@ -111,18 +112,15 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
         className="bg-background border border-border rounded-lg p-4 lg:p-6"
       >
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-          <Tabs
-            value={lang}
-            onValueChange={(v) => {
-              setLang(v as "pl" | "en");
-              setActiveId(null);
-            }}
-          >
-            <TabsList data-tour="blocks-lang">
-              <TabsTrigger value="pl">🇵🇱 PL</TabsTrigger>
-              <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div data-tour="blocks-lang">
+            <EditorLangSwitch
+              lang={lang}
+              onLangChange={(v) => {
+                setLang(v);
+                setActiveId(null);
+              }}
+            />
+          </div>
           <div className="flex items-center gap-2">
             {previewHref ? (
               <a
