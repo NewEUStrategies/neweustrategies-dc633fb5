@@ -35,6 +35,7 @@ import {
   Gauge,
   MousePointerClick,
   Clock as HistoryIcon,
+  Globe2,
   FlaskConical,
   Link as LinkIcon,
   Search,
@@ -381,6 +382,13 @@ function AdminShellInner({
           icon: HistoryIcon,
           label: t("admin.nav.versions", {
             defaultValue: lang === "pl" ? "Wersje i polityki" : "Versions & policies",
+          }),
+        },
+        {
+          to: "/admin/i18n",
+          icon: Globe2,
+          label: t("admin.nav.i18nAudit", {
+            defaultValue: lang === "pl" ? "Tłumaczenia widgetów" : "Widget translations",
           }),
         },
         {

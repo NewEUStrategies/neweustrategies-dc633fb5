@@ -135,6 +135,7 @@ import { Route as AdminKeyTakeawaysRouteImport } from './routes/admin.key-takeaw
 import { Route as AdminIntegrationsRouteImport } from './routes/admin.integrations'
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
+import { Route as AdminI18nRouteImport } from './routes/admin.i18n'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
 import { Route as AdminGlossaryRouteImport } from './routes/admin.glossary'
 import { Route as AdminGiftingRouteImport } from './routes/admin.gifting'
@@ -885,6 +886,11 @@ const AdminIconsRoute = AdminIconsRouteImport.update({
   path: '/icons',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminI18nRoute = AdminI18nRouteImport.update({
+  id: '/i18n',
+  path: '/i18n',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminGreetingsRoute = AdminGreetingsRouteImport.update({
   id: '/greetings',
   path: '/greetings',
@@ -1572,6 +1578,7 @@ export interface FileRoutesByFullPath {
   '/admin/gifting': typeof AdminGiftingRoute
   '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
+  '/admin/i18n': typeof AdminI18nRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
@@ -1813,6 +1820,7 @@ export interface FileRoutesByTo {
   '/admin/gifting': typeof AdminGiftingRoute
   '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
+  '/admin/i18n': typeof AdminI18nRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
@@ -2057,6 +2065,7 @@ export interface FileRoutesById {
   '/admin/gifting': typeof AdminGiftingRoute
   '/admin/glossary': typeof AdminGlossaryRoute
   '/admin/greetings': typeof AdminGreetingsRoute
+  '/admin/i18n': typeof AdminI18nRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
@@ -2306,6 +2315,7 @@ export interface FileRouteTypes {
     | '/admin/gifting'
     | '/admin/glossary'
     | '/admin/greetings'
+    | '/admin/i18n'
     | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/integrations'
@@ -2547,6 +2557,7 @@ export interface FileRouteTypes {
     | '/admin/gifting'
     | '/admin/glossary'
     | '/admin/greetings'
+    | '/admin/i18n'
     | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/integrations'
@@ -2790,6 +2801,7 @@ export interface FileRouteTypes {
     | '/admin/gifting'
     | '/admin/glossary'
     | '/admin/greetings'
+    | '/admin/i18n'
     | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/integrations'
@@ -3955,6 +3967,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIconsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/i18n': {
+      id: '/admin/i18n'
+      path: '/i18n'
+      fullPath: '/admin/i18n'
+      preLoaderRoute: typeof AdminI18nRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/greetings': {
       id: '/admin/greetings'
       path: '/greetings'
@@ -5076,6 +5095,7 @@ interface AdminRouteChildren {
   AdminGiftingRoute: typeof AdminGiftingRoute
   AdminGlossaryRoute: typeof AdminGlossaryRoute
   AdminGreetingsRoute: typeof AdminGreetingsRoute
+  AdminI18nRoute: typeof AdminI18nRoute
   AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
   AdminIntegrationsRoute: typeof AdminIntegrationsRoute
@@ -5145,6 +5165,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminGiftingRoute: AdminGiftingRoute,
   AdminGlossaryRoute: AdminGlossaryRoute,
   AdminGreetingsRoute: AdminGreetingsRoute,
+  AdminI18nRoute: AdminI18nRoute,
   AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
   AdminIntegrationsRoute: AdminIntegrationsRoute,
