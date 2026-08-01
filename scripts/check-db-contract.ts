@@ -38,6 +38,19 @@ const key =
 
 const CONCURRENCY = 8;
 
+/**
+ * Obiekty świadomie wycofane po zmianie nazewnictwa: migracja
+ * 20260723180000 przemianowywała expert_inmails -> expert_requests, ale
+ * produkcja (i kod aplikacji) została przy `expert_inmails` / `send_expert_request`
+ * + `resolve_expert_inmail`. Nie są to luki wdrożenia, więc nie blokują bramki.
+ */
+const SUPERSEDED = new Set([
+  "expert_requests",
+  "admin_list_expert_requests",
+  "list_my_expert_requests",
+  "resolve_expert_request",
+]);
+
 function loadMigrations() {
   return readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith(".sql"))
@@ -91,7 +104,9 @@ async function main(): Promise<void> {
   }
 
   const contract = extractExpectedContract(loadMigrations());
-  const all: DbObject[] = [...contract.tables, ...contract.views, ...contract.functions];
+  const all: DbObject[] = [...contract.tables, ...contract.views, ...contract.functions].filter(
+    (o) => !SUPERSEDED.has(o.name),
+  );
 
   const missing: DbObject[] = [];
   const inconclusive: DbObject[] = [];
