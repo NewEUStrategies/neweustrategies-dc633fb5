@@ -13847,6 +13847,20 @@ export type Database = {
           slug: string
         }[]
       }
+      search_chat_contacts: {
+        Args: { p_limit?: number; p_query?: string }
+        Returns: {
+          avatar_url: string
+          current_company: string
+          display_name: string
+          id: string
+          job_title: string
+          location: string
+          slug: string
+          specialization: string
+          total_count: number
+        }[]
+      }
       search_companies_public: {
         Args: { _limit?: number; _query: string }
         Returns: {
@@ -13902,27 +13916,6 @@ export type Database = {
           rank: number
           sender_id: string
           snippet: string
-          total_count: number
-        }[]
-      }
-      search_people: {
-        Args: {
-          p_company?: string
-          p_limit?: number
-          p_location?: string
-          p_offset?: number
-          p_query?: string
-          p_specialization?: string
-        }
-        Returns: {
-          avatar_url: string
-          current_company: string
-          display_name: string
-          id: string
-          job_title: string
-          location: string
-          slug: string
-          specialization: string
           total_count: number
         }[]
       }
