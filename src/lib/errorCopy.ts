@@ -172,12 +172,17 @@ export function classifyError(error: unknown): ErrorKind {
     return message.includes("expired") ? "sessionExpired" : "unauthorized";
   }
 
+  // Uwaga: sam `name === "TypeError"` NIE wystarcza za sygnał sieciowy.
+  // Większość błędów renderu Reacta ("Cannot read properties of undefined")
+  // to też TypeError - pokazywanie im karty "Problem z połączeniem / sprawdź
+  // internet" wysyłało diagnozę w maliny. Prawdziwe błędy sieciowe fetch()
+  // rozpoznajemy po komunikacie: Chrome "Failed to fetch", Safari
+  // "Load failed", Firefox "NetworkError when attempting to fetch resource".
   if (
     message.includes("failed to fetch") ||
     message.includes("load failed") ||
     message.includes("network") ||
     message.includes("fetch") ||
-    e.name === "TypeError" ||
     message.includes("timeout") ||
     message.includes("abort")
   ) {

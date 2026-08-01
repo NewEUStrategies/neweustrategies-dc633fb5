@@ -28,7 +28,6 @@ function isInternalPlatformPath(pathname: string): boolean {
 }
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
-
   try {
     return await next();
   } catch (error) {
@@ -63,9 +62,15 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, next }) => {
   const url = new URL(request.url);
   if (isInternalPlatformPath(url.pathname)) return next();
+  // W panelu admina `?lang=pl|en` to stan aplikacji, nie legacy deep-link SEO:
+  // lista wpisów przekazuje nim język edytorowi (validateSearch w
+  // admin.posts.$slug). Kanonizacja 302 zjadała parametr przy twardym
+  // przeładowaniu edytora i przypinała PUBLICZNE cookie językowe czytelnika
+  // językiem panelu. Admin jest noindex/no-store, więc nie ma tu nic do
+  // kanonizowania.
+  if (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) return next();
   const lang = normalizeLang(url.searchParams.get("lang"));
   if (!lang) return next();
-
 
   url.searchParams.delete("lang");
   const query = url.searchParams.toString();
@@ -144,8 +149,6 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
   return new Response(null, { status: 302, headers });
 });
 
-
-
 /**
  * Baseline security headers: HSTS for every https response plus the document
  * set (CSP / X-Frame-Options / nosniff / referrer / permissions) for HTML. The
@@ -220,7 +223,6 @@ function contentSecurityPolicy(request?: Request): string {
     "upgrade-insecure-requests",
   ].join("; ");
 }
-
 
 const securityHeadersMiddleware = createMiddleware().server(async ({ request, next }) => {
   const result = await next();
@@ -300,7 +302,6 @@ const defaultCacheControlMiddleware = createMiddleware().server(async ({ request
     }),
   );
 });
-
 
 /**
  * Add response headers without mutating a framework/fetch-owned Headers object.
