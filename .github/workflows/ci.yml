@@ -213,3 +213,64 @@ jobs:
 
       - name: Run pgTAP tests
         run: supabase test db
+
+  # Bramka PO WDROŻENIU: sprawdza, że wszystkie obiekty wynikające z migracji
+  # (tabele, widoki, RPC schematu public) faktycznie istnieją w bazie, a na
+  # koniec generuje raport zgodności wdrożenia (PR-y, liczba testów, status CI,
+  # smoke). Uruchamiany na push do main i ręcznie - PR-y nie dotykają produkcji.
+  post-deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [verify, pgtap]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Pełna historia: raport wylicza zakres PR-ów od poprzedniego tagu.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      - name: Repoint lockfile to the public npm registry
+        run: |
+          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          npm_config_registry: https://registry.npmjs.org
+
+      # Sonduje Data API: PGRST205 (tabela/widok) i PGRST202 (RPC) to jedyne
+      # kody oznaczające brak obiektu; 401/403 znaczy "istnieje, ale RLS".
+      - name: Database contract (tables / views / RPC)
+        run: bun run check:db-contract
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Download i18n parity report
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: i18n-parity-report
+          path: reports
+
+      - name: Deployment compliance report
+        if: always()
+        run: bun run report:deployment
+        env:
+          CI_STATUS: ${{ job.status }}
+
+      - name: Upload deployment compliance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report
+          path: |
+            reports/deployment-report.md
+            reports/deployment-report.json
+            reports/db-contract.json
+          if-no-files-found: ignore
