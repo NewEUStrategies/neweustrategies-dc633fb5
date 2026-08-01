@@ -35,10 +35,15 @@ INSERT INTO public.profiles (id, email, display_name, job_title, tenant_id) VALU
    'e1b22222-2222-2222-2222-222222222222');
 
 -- Autor i odbiorca są połączeni (warunek write_recommendation).
-INSERT INTO public.user_connections (tenant_id, requester_id, addressee_id, status) VALUES
+-- Guard tg_user_connections_guard wymusza INSERT jako 'pending';
+-- akceptację wykonuje osobny UPDATE (dozwolona tranzycja pending->accepted).
+INSERT INTO public.user_connections (tenant_id, requester_id, addressee_id) VALUES
   ('e1a11111-1111-1111-1111-111111111111',
    'e0000000-0000-0000-0000-0000000000b1',
-   'e0000000-0000-0000-0000-0000000000a1', 'accepted');
+   'e0000000-0000-0000-0000-0000000000a1');
+UPDATE public.user_connections SET status = 'accepted'
+ WHERE requester_id = 'e0000000-0000-0000-0000-0000000000b1'
+   AND addressee_id = 'e0000000-0000-0000-0000-0000000000a1';
 
 SET LOCAL ROLE authenticated;
 

@@ -26,6 +26,18 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) V
   ('a0000000-0000-0000-0000-00000000c3a1', 'r3-a1@chat.test', 'R3 A1', 'a1111111-1111-1111-1111-11111111c3aa', false),
   ('a0000000-0000-0000-0000-00000000c3a2', 'r3-a2@chat.test', 'R3 A2', 'a1111111-1111-1111-1111-11111111c3aa', true);
 
+-- Bramki czatu (21-25.07): zaakceptowane połączenie + próg Plus wołającego.
+INSERT INTO public.user_connections (tenant_id, requester_id, addressee_id)
+VALUES ('a1111111-1111-1111-1111-11111111c3aa',
+        'a0000000-0000-0000-0000-00000000c3a1',
+        'a0000000-0000-0000-0000-00000000c3a2');
+UPDATE public.user_connections SET status = 'accepted'
+ WHERE requester_id = 'a0000000-0000-0000-0000-00000000c3a1'
+   AND addressee_id = 'a0000000-0000-0000-0000-00000000c3a2';
+INSERT INTO public.membership_grants (tenant_id, user_id, tier_key)
+VALUES ('a1111111-1111-1111-1111-11111111c3aa',
+        'a0000000-0000-0000-0000-00000000c3a1', 'member');
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-0000-0000-00000000c3a1","role":"authenticated"}', true);

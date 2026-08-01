@@ -41,6 +41,20 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) V
   ('a0000000-0000-0000-0000-0000000000a3', 'a3@chat.test', 'User A3', 'a1111111-1111-1111-1111-111111111111', true),
   ('b0000000-0000-0000-0000-0000000000b1', 'b1@chat.test', 'User B1', 'b2222222-2222-2222-2222-222222222222', true);
 
+-- Bramki czatu (21-25.07): DM wymaga zaakceptowanego połączenia i progu Plus.
+-- A1<->A2 oraz A1<->A3 (asercja allow_messages_from='nobody' ma być testem
+-- polityki prywatności, nie bramki sieci). Guard: INSERT pending -> accepted.
+INSERT INTO public.user_connections (tenant_id, requester_id, addressee_id) VALUES
+  ('a1111111-1111-1111-1111-111111111111',
+   'a0000000-0000-0000-0000-0000000000a1', 'a0000000-0000-0000-0000-0000000000a2'),
+  ('a1111111-1111-1111-1111-111111111111',
+   'a0000000-0000-0000-0000-0000000000a1', 'a0000000-0000-0000-0000-0000000000a3');
+UPDATE public.user_connections SET status = 'accepted'
+ WHERE requester_id = 'a0000000-0000-0000-0000-0000000000a1';
+INSERT INTO public.membership_grants (tenant_id, user_id, tier_key)
+VALUES ('a1111111-1111-1111-1111-111111111111',
+        'a0000000-0000-0000-0000-0000000000a1', 'member');
+
 -- ── A1 tworzy konwersację z A2 i wysyła wiadomość ──────────────────────────
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',

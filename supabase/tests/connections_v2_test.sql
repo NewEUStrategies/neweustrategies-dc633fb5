@@ -210,13 +210,13 @@ INSERT INTO public.eu_policy_follows (item_id, user_id, tenant_id) VALUES
   ('cb333333-3333-3333-3333-333333333332', 'cb000000-0000-0000-0000-0000000000e1',
    'cb111111-1111-1111-1111-111111111111');
 
-INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, status, host_user_id) VALUES
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, status, host_user_id, starts_at) VALUES
   ('cb444444-4444-4444-4444-444444444441',
    'cb111111-1111-1111-1111-111111111111', 'event-cb1', 'Briefing CB', 'Briefing CB',
-   'published', 'cb000000-0000-0000-0000-000000000090'),
+   'published', 'cb000000-0000-0000-0000-000000000090', now() + interval '7 days'),
   ('cb444444-4444-4444-4444-444444444442',
    'cb111111-1111-1111-1111-111111111111', 'event-cb2', 'Szkic CB', 'Draft CB',
-   'draft', 'cb000000-0000-0000-0000-000000000090');
+   'draft', 'cb000000-0000-0000-0000-000000000090', now() + interval '14 days');
 
 INSERT INTO public.event_rsvps (tenant_id, event_id, user_id, status) VALUES
   ('cb111111-1111-1111-1111-111111111111', 'cb444444-4444-4444-4444-444444444441',

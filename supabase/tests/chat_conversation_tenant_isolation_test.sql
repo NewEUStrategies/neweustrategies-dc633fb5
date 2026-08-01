@@ -40,6 +40,22 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) V
   ('a0000000-0000-0000-0000-00000000e6a3', 'iso-a3@chat.test', 'Iso A3', 'a1111111-1111-1111-1111-11111111e6aa', true),
   ('b0000000-0000-0000-0000-00000000e6b1', 'iso-b1@chat.test', 'Iso B1', 'b2222222-2222-2222-2222-22222222e6bb', true);
 
+-- Bramki czatu (21-25.07): DM wymaga zaakceptowanego połączenia (sieć
+-- kontaktów) oraz progu Plus (features.chat_enabled) u wołającego.
+-- Guard user_connections wymusza INSERT 'pending' -> UPDATE 'accepted'.
+INSERT INTO public.user_connections (tenant_id, requester_id, addressee_id)
+VALUES ('a1111111-1111-1111-1111-11111111e6aa',
+        'a0000000-0000-0000-0000-00000000e6a1',
+        'a0000000-0000-0000-0000-00000000e6a2');
+UPDATE public.user_connections SET status = 'accepted'
+ WHERE requester_id = 'a0000000-0000-0000-0000-00000000e6a1'
+   AND addressee_id = 'a0000000-0000-0000-0000-00000000e6a2';
+-- Tiery tenanta zasiał trigger tenants_seed_pricing_defaults ('member' ma
+-- chat_enabled); wołający dostaje nadanie warstwy.
+INSERT INTO public.membership_grants (tenant_id, user_id, tier_key)
+VALUES ('a1111111-1111-1111-1111-11111111e6aa',
+        'a0000000-0000-0000-0000-00000000e6a1', 'member');
+
 -- A1 zakłada rozmowę z A2 i nadaje jej pseudonim; A3 (ten sam tenant) i B1
 -- (inny tenant) NIE są członkami.
 SET LOCAL ROLE authenticated;
