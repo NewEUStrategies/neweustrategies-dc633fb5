@@ -13,7 +13,10 @@ const PAGES = [
   { path: "/", label: "home (PL)" },
   { path: "/en", label: "home (EN)" },
   { path: "/blog", label: "blog listing" },
-  { path: "/o-nas", label: "about (PL)" },
+  // Trasa PLIKOWA, nie strona z bazy: suita jest backend-agnostyczna
+  // (placeholderowe Supabase w CI), a strony CMS-owe (np. /o-nas) nie
+  // istnieją bez seeda - katalog ekspertów renderuje się zawsze.
+  { path: "/experts", label: "experts directory" },
 ];
 
 test.describe("SSR HTML completeness", () => {

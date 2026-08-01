@@ -12,7 +12,7 @@ import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/s
 import { buildRssXml, type RssItem } from "@/lib/seo/rss";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
-import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
+import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 function requestContext(): { origin: string; host: string; lang: AppLang } {
   const req = getRequest();
@@ -37,16 +37,19 @@ export const Route = createFileRoute("/rss.xml")({
         // MUST be scoped to the tenant owning this request host. FAIL-CLOSED:
         // a host no tenant has claimed (and that is not a preview host) gets
         // a 404 instead of the default tenant's feed on a foreign domain.
+        // DEGRADACJA ≠ fail-closed: pusty/nieosiągalny katalog domen albo host
+        // podglądowy/lokalny (dev, e2e z placeholderowym Supabase) dostaje
+        // poprawny, PUSTY feed - nie ma treści żadnego tenanta do wycieku.
         const tenantId = await resolveCrawlerTenantIdForHost(host);
-        if (!tenantId) {
+        if (!tenantId && !(await crawlerDegradeIsSafe(host))) {
           return new Response("Unknown host", { status: 404 });
         }
-        const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
+        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
         if (!settings.rss_enabled) {
           return new Response("Feed disabled", { status: 404 });
         }
 
-        const posts = await fetchPublishedPosts(tenantId, settings.rss_item_count);
+        const posts = tenantId ? await fetchPublishedPosts(tenantId, settings.rss_item_count) : [];
         const items: RssItem[] = posts.map((post) => ({
           url: `${origin}${localizedPath(post.path, lang)}`,
           title:

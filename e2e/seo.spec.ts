@@ -67,9 +67,15 @@ test.describe("SEO surfaces", () => {
       expect(lang, "html[lang]").toMatch(/^(pl|en)$/);
       const viewport = await page.locator('meta[name="viewport"]').first().getAttribute("content");
       expect(viewport ?? "", "viewport").toContain("width=device-width");
-      const ogTitle = await page.locator('meta[property="og:title"]').first().getAttribute("content");
+      const ogTitle = await page
+        .locator('meta[property="og:title"]')
+        .first()
+        .getAttribute("content");
       expect((ogTitle ?? "").length, "og:title").toBeGreaterThan(3);
-      const ogImage = await page.locator('meta[property="og:image"]').first().getAttribute("content");
+      const ogImage = await page
+        .locator('meta[property="og:image"]')
+        .first()
+        .getAttribute("content");
       expect(ogImage ?? "", "og:image absolute").toMatch(/^https?:\/\//);
       const canonical = await page.locator('link[rel="canonical"]').first().getAttribute("href");
       expect(canonical ?? "", "canonical absolute").toMatch(/^https?:\/\//);
@@ -102,7 +108,9 @@ test.describe("SEO surfaces", () => {
     // Auth gate w _authenticated/route.tsx robi redirect na /auth; niektore
     // starsze setupy uzywają /login. Akceptujemy oba - kluczowe jest, ze
     // niezalogowany uzytkownik NIE widzi surowego dashboardu.
-    await expect.poll(() => page.url(), { timeout: 5_000 }).toMatch(/\/(auth|login)/);
+    // Timeout 30 s, nie 5 s: suita jedzie na dev-serverze (patrz e2e.yml),
+    // a pierwsze wejście w /admin/* kompiluje cały graf panelu na zimno -
+    // guard klienta odpala się dopiero po dociągnięciu chunka trasy.
+    await expect.poll(() => page.url(), { timeout: 30_000 }).toMatch(/\/(auth|login)/);
   });
 });
-

@@ -73,12 +73,10 @@ function requestContext(): { origin: string; host: string; legacy: boolean } {
   // Legacy / canonical brand hosts always emit URLs on the canonical origin
   // so search engines converge on neweuropeanstrategies.com regardless of
   // which alias served the sitemap request.
-  const origin = legacy || CANONICAL_HOSTS.has(host)
-    ? CANONICAL_ORIGIN
-    : host ? `${proto}://${host}` : "";
+  const origin =
+    legacy || CANONICAL_HOSTS.has(host) ? CANONICAL_ORIGIN : host ? `${proto}://${host}` : "";
   return { origin, host, legacy };
 }
-
 
 // Paths of ALL published pages (a noindex page still parents indexable posts,
 // so it stays in the path map) + the set of page ids excluded from their own
@@ -115,9 +113,14 @@ export const Route = createFileRoute("/sitemap.xml")({
         // FAIL-CLOSED: a host no tenant has claimed (and that is not a
         // preview host) must not advertise anyone's URLs - answer 404 rather
         // than map the default tenant's content onto a foreign domain.
-        const { resolveCrawlerTenantIdForHost } = await import("@/lib/server/tenant.server");
+        // DEGRADACJA ≠ fail-closed: gdy tenanta nie ma, bo katalog domen jest
+        // pusty/nieosiągalny albo host jest podglądowy/lokalny (dev, e2e z
+        // placeholderowym Supabase), crawler dostaje statyczny szkielet mapy
+        // zamiast 404 - nie ma tu żadnej cudzej treści do wycieku.
+        const { resolveCrawlerTenantIdForHost, crawlerDegradeIsSafe } =
+          await import("@/lib/server/tenant.server");
         const tenantId = await resolveCrawlerTenantIdForHost(host);
-        if (!tenantId) {
+        if (!tenantId && !(await crawlerDegradeIsSafe(host))) {
           return new Response("Unknown host", { status: 404 });
         }
 
@@ -141,7 +144,10 @@ export const Route = createFileRoute("/sitemap.xml")({
 
         // Crawler surfaces degrade, never 500: on a DB failure the sitemap
         // still serves the static entries instead of poisoning the crawl.
+        // Bez tenanta (tryb degradacji powyżej) sekcja dynamiczna nie ma
+        // czego czytać - zostaje sam statyczny szkielet.
         try {
+          if (!tenantId) throw new Error("degraded: no tenant directory");
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { paths: pagePaths, noindex: noindexPages } = await buildPagePaths(tenantId);
           for (const [id, path] of pagePaths) {
