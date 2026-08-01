@@ -384,6 +384,13 @@ function AdminShellInner({
           }),
         },
         {
+          to: "/admin/i18n",
+          icon: Globe2,
+          label: t("admin.nav.i18nAudit", {
+            defaultValue: lang === "pl" ? "Tłumaczenia widgetów" : "Widget translations",
+          }),
+        },
+        {
           to: "/admin/experiments",
           icon: FlaskConical,
           label: t("admin.nav.experiments", {
