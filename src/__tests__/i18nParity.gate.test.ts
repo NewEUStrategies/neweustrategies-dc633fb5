@@ -40,10 +40,26 @@ function loadOverlays(): void {
   expect(Object.keys(modules).length).toBeGreaterThan(0);
 }
 
+function isTree(value: unknown): value is ResourceTree {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Głębokie scalenie - i18n rejestruje rdzeń tylko dla aktywnego języka,
+ *  więc płytki spread gubiłby gałęzie drugiego języka i dawał fałszywe braki. */
+function deepMerge(base: ResourceTree, overlay: ResourceTree): ResourceTree {
+  const out: ResourceTree = { ...base };
+  for (const [key, value] of Object.entries(overlay)) {
+    const existing = out[key];
+    out[key] = isTree(value) && isTree(existing) ? deepMerge(existing, value) : value;
+  }
+  return out;
+}
+
 function bundle(lang: "pl" | "en", core: ResourceTree): ResourceTree {
   const registered = i18n.getResourceBundle(lang, "translation") as ResourceTree | undefined;
-  return { ...core, ...(registered ?? {}) };
+  return deepMerge(core, registered ?? {});
 }
+
 
 describe("parytet tłumaczeń PL/EN (bramka CI)", () => {
   it("każdy bramkowany klucz ma wersję PL i EN", () => {
