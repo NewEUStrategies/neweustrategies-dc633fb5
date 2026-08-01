@@ -29,19 +29,7 @@ export function Toolbar({
   const { t } = useTranslation();
   return (
     <div className="border-b border-border p-2 flex items-center justify-between gap-2 bg-card">
-      <div className="flex items-center gap-1">
-        {(["pl", "en"] as const).map((l) => (
-          <button
-            key={l}
-            onClick={() => onLangChange(l)}
-            data-active={lang === l}
-            className="cms-tb-btn text-xs"
-            style={{ minWidth: 32 }}
-          >
-            {l.toUpperCase()}
-          </button>
-        ))}
-      </div>
+      <EditorLangSwitch lang={lang} onLangChange={onLangChange} />
       <div className="flex items-center gap-2">
         <div className="flex gap-1">
           {(
