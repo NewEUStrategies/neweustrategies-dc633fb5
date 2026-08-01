@@ -66,9 +66,7 @@ export function organizationJsonLd(input: OrganizationJsonLdInput): Record<strin
           ...(cp.email ? { email: cp.email } : {}),
           ...(cp.telephone ? { telephone: cp.telephone } : {}),
           ...(cp.areaServed ? { areaServed: cp.areaServed } : {}),
-          ...(cp.availableLanguage?.length
-            ? { availableLanguage: [...cp.availableLanguage] }
-            : {}),
+          ...(cp.availableLanguage?.length ? { availableLanguage: [...cp.availableLanguage] } : {}),
         }
       : null;
   return {
@@ -303,6 +301,108 @@ export function qaCollectionJsonLd(input: QaListJsonLdInput): Record<string, unk
         position: i + 1,
         name: s.title,
         url: absoluteUrl(input.origin, localizedPath(`/qa/${s.slug}`, input.lang)),
+      })),
+    },
+  };
+}
+
+/** Jedno nadchodzące wydarzenie listy /events w postaci węzła schema.org Event. */
+export interface EventsListJsonLdEvent {
+  slug: string;
+  name: string;
+  /** ISO 8601 (timestamptz z bazy). */
+  startDate: string;
+  endDate?: string | null;
+  /** events.kind (webinar/briefing/ama/online/in_person/hybrid/...). */
+  kind?: string | null;
+  /** Miejsce fizyczne (events.location); brak = wydarzenie bez sali. */
+  location?: string | null;
+  image?: string | null;
+}
+
+export interface EventsListJsonLdInput {
+  origin: string;
+  lang: Lang;
+  path: string;
+  name: string;
+  description?: string | null;
+  events: ReadonlyArray<EventsListJsonLdEvent>;
+}
+
+const ONLINE_MODE = "https://schema.org/OnlineEventAttendanceMode";
+const OFFLINE_MODE = "https://schema.org/OfflineEventAttendanceMode";
+const MIXED_MODE = "https://schema.org/MixedEventAttendanceMode";
+
+// events.kind -> eventAttendanceMode. Rodzaje czysto zdalne (webinar/ama/
+// online) i briefing (transmisja na żywo) są Online, in_person - Offline,
+// hybrid - Mixed. Nieznane rodzaje (np. roundtable) niczego nie zgadują -
+// markup bez trybu jest poprawny, kłamliwy tryb grozi karą za rich results.
+const ATTENDANCE_MODE_BY_KIND: Record<string, string> = {
+  webinar: ONLINE_MODE,
+  ama: ONLINE_MODE,
+  online: ONLINE_MODE,
+  briefing: ONLINE_MODE,
+  in_person: OFFLINE_MODE,
+  hybrid: MIXED_MODE,
+};
+
+function publicEventNode(
+  origin: string,
+  lang: Lang,
+  ev: EventsListJsonLdEvent,
+): Record<string, unknown> {
+  const url = absoluteUrl(origin, localizedPath(`/events/${ev.slug}`, lang));
+  const mode = ev.kind ? ATTENDANCE_MODE_BY_KIND[ev.kind] : undefined;
+  const physical = ev.location?.trim();
+  const location: Array<Record<string, unknown>> = [];
+  if (physical) location.push({ "@type": "Place", name: physical, address: physical });
+  // Wydarzenia zdalne/hybrydowe: VirtualLocation wskazuje stronę wydarzenia -
+  // właściwy link do transmisji stoi za bramką RSVP (get_event_access) i nigdy
+  // nie trafia do publicznego markupu.
+  if (mode === ONLINE_MODE || mode === MIXED_MODE) {
+    location.push({ "@type": "VirtualLocation", url });
+  }
+  return {
+    "@type": "Event",
+    "@id": `${url}#event`,
+    name: ev.name,
+    url,
+    startDate: ev.startDate,
+    ...(ev.endDate ? { endDate: ev.endDate } : {}),
+    // Lista pobiera wyłącznie opublikowane, a projekcja head tylko nadchodzące
+    // wydarzenia, więc status jest zawsze "zaplanowane".
+    eventStatus: "https://schema.org/EventScheduled",
+    ...(mode ? { eventAttendanceMode: mode } : {}),
+    ...(location.length > 0 ? { location: location.length === 1 ? location[0] : location } : {}),
+    ...(ev.image ? { image: [ev.image] } : {}),
+    inLanguage: lang,
+    organizer: { "@id": `${origin}/#organization` },
+  };
+}
+
+/**
+ * CollectionPage + ItemList pełnych węzłów Event dla listy /events - crawler
+ * dostaje z SSR nazwy, daty, tryby uczestnictwa i adresy nadchodzących
+ * wydarzeń (typ kwalifikujący się do rich results), zamiast listy widocznej
+ * dopiero po hydratacji.
+ */
+export function eventsCollectionJsonLd(input: EventsListJsonLdInput): Record<string, unknown> {
+  const url = absoluteUrl(input.origin, localizedPath(input.path, input.lang));
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${url}#collection`,
+    url,
+    name: input.name,
+    inLanguage: input.lang,
+    ...(input.description?.trim() ? { description: input.description.trim() } : {}),
+    isPartOf: { "@id": `${input.origin}/#website` },
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: input.events.map((ev, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        item: publicEventNode(input.origin, input.lang, ev),
       })),
     },
   };

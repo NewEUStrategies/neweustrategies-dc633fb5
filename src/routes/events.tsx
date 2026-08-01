@@ -1,63 +1,159 @@
 // Lista publicznych wydarzeń. URL: /events
 // Filtry: nadchodzące vs. archiwum. RSVP wymaga logowania.
+// SSR: loader rozgrzewa ["public-events"] przez ensureQueryData, więc HTML
+// listy i JSON-LD (CollectionPage z węzłami Event) schodzą z serwera zamiast
+// renderować się dopiero po hydratacji (audyt 2026-07-30: "Brak SSR listy").
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { BadgeCheck, Calendar, Lock, MapPin, Users, Video } from "lucide-react";
-import { fetchPublicEvents, type PublicEvent } from "@/lib/community/publicQueries";
+import { publicEventsQueryOptions, type PublicEvent } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
+import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead } from "@/lib/seo/meta";
+import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
+import { breadcrumbListJsonLd, eventsCollectionJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
+import { EventsListSkeleton } from "@/components/community/EventsListSkeleton";
+import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
+
+/** Ile nadchodzących wydarzeń trafia do projekcji head (JSON-LD). */
+const HEAD_EVENTS_LIMIT = 30;
+
+interface EventsHeadEvent {
+  slug: string;
+  titlePl: string;
+  titleEn: string;
+  startsAt: string;
+  endsAt: string | null;
+  kind: string;
+  location: string | null;
+  cover: string | null;
+}
+
+interface EventsLoaderData {
+  /** Lekka projekcja nadchodzących wydarzeń pod JSON-LD w head(); pełne
+   *  wiersze jadą raz - w dehydratowanym cache React Query. */
+  headEvents: EventsHeadEvent[];
+}
+
 export const Route = createFileRoute("/events")({
-  component: EventsPage,
-  head: () => {
+  // Bramka modułu jest fail-soft (toggle ma bezpieczne domyślne "włączone",
+  // a odczyt dedupuje się z root loaderem - ten sam klucz zapytania, zero
+  // dodatkowych round-tripów). Sama lista jest fail-loud: awaria backendu
+  // renderuje errorComponent z retry zamiast pustej strony.
+  loader: async ({ context }): Promise<EventsLoaderData> => {
+    const settings = await context.queryClient
+      .ensureQueryData(siteSettingsQueryOptions)
+      .catch(() => undefined);
+    const modules = resolveSetting(settings, COMMUNITY_MODULES_KEY, COMMUNITY_MODULES_DEFAULTS);
+    if (!modules.events_enabled) return { headEvents: [] };
+
+    const events = await context.queryClient.ensureQueryData(publicEventsQueryOptions());
+    const now = Date.now();
+    return {
+      headEvents: events
+        .filter((ev) => new Date(ev.ends_at ?? ev.starts_at).getTime() >= now)
+        .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
+        .slice(0, HEAD_EVENTS_LIMIT)
+        .map((ev) => ({
+          slug: ev.slug,
+          titlePl: ev.title_pl,
+          titleEn: ev.title_en,
+          startsAt: ev.starts_at,
+          endsAt: ev.ends_at,
+          kind: ev.kind,
+          location: ev.location,
+          cover: ev.cover_url,
+        })),
+    };
+  },
+  head: ({ loaderData }) => {
     const url = getRequestUrl() || "/events";
     const lang = activeLang(url);
-    return buildContentHead({
+    const title = lang === "en" ? "Events" : "Wydarzenia";
+    const description =
+      lang === "en"
+        ? "Panels, webinars, live briefings and members-only meet-ups on European affairs."
+        : "Panele, webinaria, spotkania na żywo i briefingi tylko dla społeczności.";
+    const head = buildContentHead({
       url,
       lang,
       type: "website",
-      title:
-        lang === "en" ? "Events - New European Strategies" : "Wydarzenia - New European Strategies",
-      description:
-        lang === "en"
-          ? "Panels, webinars, live briefings and members-only meet-ups on European affairs."
-          : "Panele, webinaria, spotkania na żywo i briefingi tylko dla społeczności.",
+      title,
+      // Marka w tytule karty przeglądarki/SERP; og:title zostaje krótki.
+      documentTitle: `${title} - ${SITE_NAME}`,
+      description,
     });
+    const { origin } = splitUrl(url);
+    const collection = eventsCollectionJsonLd({
+      origin,
+      lang,
+      path: "/events",
+      name: title,
+      description,
+      events: (loaderData?.headEvents ?? []).map((ev) => ({
+        slug: ev.slug,
+        name: (lang === "en" ? ev.titleEn || ev.titlePl : ev.titlePl || ev.titleEn) || ev.slug,
+        startDate: ev.startsAt,
+        endDate: ev.endsAt,
+        kind: ev.kind,
+        location: ev.location,
+        image: ev.cover,
+      })),
+    });
+    const breadcrumbs = breadcrumbListJsonLd([{ label: title, href: "/events" }], origin, lang);
+    return {
+      ...head,
+      scripts: [
+        { type: "application/ld+json", children: safeJsonLd(collection) },
+        { type: "application/ld+json", children: safeJsonLd(breadcrumbs) },
+      ],
+    };
   },
+  component: EventsPage,
+  pendingComponent: () => <EventsListSkeleton />,
+  errorComponent: (props) => (
+    <RouteErrorFallback
+      {...props}
+      title={activeLang() === "en" ? "Failed to load events" : "Nie udało się załadować wydarzeń"}
+    />
+  ),
 });
 
 function EventsPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureCommunityI18n();
+  const modules = useCommunityModules();
+  if (!modules.events_enabled) return <CommunityDisabled />;
+  return <EventsPageBody />;
+}
+
+// Osobny komponent, bo useSuspenseQuery nie zna `enabled`: bramkę modułu
+// rozstrzyga rodzic (przy wyłączonym module loader nie rozgrzewa zapytania,
+// a body się nie montuje), stany ładowania/błędu obsługują pendingComponent
+// i errorComponent trasy - lista nigdy nie miga komunikatem przejściowym.
+function EventsPageBody() {
   const { t, i18n } = useTranslation();
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
-  const modules = useCommunityModules();
-  const query = useQuery({
-    queryKey: ["public-events"],
-    queryFn: fetchPublicEvents,
-    enabled: modules.events_enabled,
-  });
+  const { data } = useSuspenseQuery(publicEventsQueryOptions());
 
   const { upcoming, past } = useMemo(() => {
     const now = Date.now();
-    const rows = query.data ?? [];
     const u: PublicEvent[] = [];
     const p: PublicEvent[] = [];
-    for (const ev of rows) {
+    for (const ev of data) {
       const t2 = ev.ends_at ? new Date(ev.ends_at).getTime() : new Date(ev.starts_at).getTime();
       (t2 >= now ? u : p).push(ev);
     }
     u.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
     p.sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
     return { upcoming: u, past: p };
-  }, [query.data]);
-
-  if (!modules.events_enabled) return <CommunityDisabled />;
+  }, [data]);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-12 md:py-16">
@@ -66,26 +162,19 @@ function EventsPage() {
         <p className="mt-3 text-muted-foreground">{t("community.events.subtitle")}</p>
       </header>
 
-      {query.isLoading && <p className="text-muted-foreground">{t("community.common.loading")}</p>}
-      {query.isError && <p className="text-destructive">{t("community.common.loadError")}</p>}
-
-      {!query.isLoading && !query.isError && (
-        <>
-          <Section
-            title={t("community.events.upcoming")}
-            events={upcoming}
-            lang={lang}
-            emptyKey="community.events.empty"
-          />
-          <Section
-            title={t("community.events.past")}
-            events={past}
-            lang={lang}
-            emptyKey="community.events.pastEmpty"
-            className="mt-14"
-          />
-        </>
-      )}
+      <Section
+        title={t("community.events.upcoming")}
+        events={upcoming}
+        lang={lang}
+        emptyKey="community.events.empty"
+      />
+      <Section
+        title={t("community.events.past")}
+        events={past}
+        lang={lang}
+        emptyKey="community.events.pastEmpty"
+        className="mt-14"
+      />
     </div>
   );
 }
