@@ -12,12 +12,9 @@ import { describe, it, expect } from "vitest";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import { createCounter } from "@/lib/footnotes";
 import { precomputeFootnotes } from "@/components/blocks/renderer/footnotes";
-import {
-  collectFootnoteOrigins,
-  updateFootnoteAtOrigin,
-} from "@/lib/blocks/footnoteOrigins";
+import { collectFootnoteOrigins, updateFootnoteAtOrigin } from "@/lib/blocks/footnoteOrigins";
 
-const doc = (blocks: Block[]): BlocksDoc => ({ blocks } as unknown as BlocksDoc);
+const doc = (blocks: Block[]): BlocksDoc => ({ blocks }) as unknown as BlocksDoc;
 
 describe("collectFootnoteOrigins", () => {
   it("numeruje identycznie jak precomputeFootnotes", () => {
@@ -71,9 +68,7 @@ describe("updateFootnoteAtOrigin", () => {
     const d = doc(blocks);
     const origins = collectFootnoteOrigins(d);
     const next = updateFootnoteAtOrigin(d, origins[1].origin, "second");
-    expect((next.blocks[0].data as { html: string }).html).toBe(
-      "X[fn]same[/fn] Y[fn]second[/fn]",
-    );
+    expect((next.blocks[0].data as { html: string }).html).toBe("X[fn]same[/fn] Y[fn]second[/fn]");
   });
 
   it("puste newHtml usuwa marker", () => {
@@ -104,9 +99,7 @@ describe("updateFootnoteAtOrigin", () => {
     expect(origins.map((o) => o.html)).toEqual(["a", "b", "c", "d", "e", "f", "g"]);
     // Edycja "c" (drugi fn w items[1])
     const nc = updateFootnoteAtOrigin(d, origins[2].origin, "C-NEW");
-    expect((nc.blocks[0].data as { items: string[] }).items[1]).toBe(
-      "y[fn]b[/fn] z[fn]C-NEW[/fn]",
-    );
+    expect((nc.blocks[0].data as { items: string[] }).items[1]).toBe("y[fn]b[/fn] z[fn]C-NEW[/fn]");
     // Edycja "f" (cite w quote)
     const nf = updateFootnoteAtOrigin(d, origins[5].origin, "F-NEW");
     expect((nf.blocks[2].data as { cite: string }).cite).toBe("C[fn]F-NEW[/fn]");

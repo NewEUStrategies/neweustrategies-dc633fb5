@@ -21,8 +21,7 @@ const ALLOWED_MODELS = new Set<string>([
 
 export type TtsBody = { text?: string; voiceId?: string; model?: string };
 export type TtsNormalized =
-  | { ok: true; safeText: string; voiceId: string; model: string }
-  | { ok: false; error: string };
+  { ok: true; safeText: string; voiceId: string; model: string } | { ok: false; error: string };
 
 /**
  * Validate + normalize a TTS request body: trims text, applies voice/model

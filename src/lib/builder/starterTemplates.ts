@@ -10,13 +10,7 @@
 // biblioteka (heading, text, button, section-label, counter, accordion, cta,
 // newsletter, gallery, testimonial, post-list) - to kompletne strony, nie
 // pojedyncze bloki.
-import type {
-  ColumnNode,
-  SectionNode,
-  WidgetContent,
-  WidgetNode,
-  WidgetType,
-} from "./types";
+import type { ColumnNode, SectionNode, WidgetContent, WidgetNode, WidgetType } from "./types";
 import { newId, toJson } from "./types";
 import { WIDGET_MAP } from "./registry";
 
@@ -518,8 +512,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     name_en: "Speakers directory (CRM)",
     description_pl:
       "Publiczne profile prelegentów z wyszukiwarką, sortowaniem i dialogiem profilu + CTA.",
-    description_en:
-      "Public speaker profiles with search, sorting and the profile dialog + a CTA.",
+    description_en: "Public speaker profiles with search, sorting and the profile dialog + a CTA.",
     build: () => [
       section(
         [
@@ -555,8 +548,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     id: "starter-sponsors-page",
     name_pl: "Strona sponsorów i partnerów",
     name_en: "Sponsors & partners page",
-    description_pl:
-      "Poziomy sponsorskie z logotypami, liczby wydarzenia i CTA „Zostań sponsorem”.",
+    description_pl: "Poziomy sponsorskie z logotypami, liczby wydarzenia i CTA „Zostań sponsorem”.",
     description_en: "Sponsor tiers with logos, event counters and a „Become a sponsor” CTA.",
     build: () => [
       section(

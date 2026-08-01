@@ -96,7 +96,6 @@ export function QuoteBlock({ block, onChange }: Props) {
         className="cms-quote-cite w-full max-w-full bg-transparent text-sm text-muted-foreground not-italic border-none outline-none focus:ring-0 p-0"
         style={variant === "minimal" ? { textAlign: "center" } : undefined}
       />
-
     </blockquote>
   );
 }

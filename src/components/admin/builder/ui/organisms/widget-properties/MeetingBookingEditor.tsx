@@ -65,9 +65,7 @@ export function MeetingBookingEditor({ c, lang, setContent }: Props) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="host">{l("Sloty hosta", "Host slots")}</SelectItem>
-            <SelectItem value="event">
-              {l("Networking wydarzenia", "Event networking")}
-            </SelectItem>
+            <SelectItem value="event">{l("Networking wydarzenia", "Event networking")}</SelectItem>
           </SelectContent>
         </Select>
       </PropField>
@@ -127,10 +125,7 @@ export function MeetingBookingEditor({ c, lang, setContent }: Props) {
           />
         </PropField>
         {mode === "event" && (
-          <PropField
-            label={l("Pokazuj hosta przy slocie", "Show host on the slot")}
-            inline
-          >
+          <PropField label={l("Pokazuj hosta przy slocie", "Show host on the slot")} inline>
             <Switch
               checked={c.showHost !== false}
               onCheckedChange={(v) => setContent("showHost", v)}

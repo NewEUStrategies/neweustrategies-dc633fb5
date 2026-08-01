@@ -116,5 +116,4 @@ const en = {
 i18n.addResourceBundle("pl", "translation", pl, true, true);
 i18n.addResourceBundle("en", "translation", en, true, true);
 
-
 export {};

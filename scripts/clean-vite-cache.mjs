@@ -17,7 +17,9 @@ const readIfExists = (p) => (existsSync(p) ? readFileSync(p, "utf8") : "");
 
 const viteVersion = (() => {
   try {
-    const pkg = JSON.parse(readFileSync(join(root, "node_modules", "vite", "package.json"), "utf8"));
+    const pkg = JSON.parse(
+      readFileSync(join(root, "node_modules", "vite", "package.json"), "utf8"),
+    );
     return typeof pkg.version === "string" ? pkg.version : "unknown";
   } catch {
     return "unknown";
@@ -49,7 +51,9 @@ try {
 if (previous !== signature) {
   if (existsSync(cacheDir)) {
     rmSync(cacheDir, { recursive: true, force: true });
-    console.log(`[vite-cache] Wykryto zmianę (Vite ${viteVersion}/lock) - wyczyszczono node_modules/.vite`);
+    console.log(
+      `[vite-cache] Wykryto zmianę (Vite ${viteVersion}/lock) - wyczyszczono node_modules/.vite`,
+    );
   }
   mkdirSync(dirname(stampFile), { recursive: true });
   writeFileSync(

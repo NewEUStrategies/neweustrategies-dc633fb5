@@ -66,9 +66,7 @@ export function organizationJsonLd(input: OrganizationJsonLdInput): Record<strin
           ...(cp.email ? { email: cp.email } : {}),
           ...(cp.telephone ? { telephone: cp.telephone } : {}),
           ...(cp.areaServed ? { areaServed: cp.areaServed } : {}),
-          ...(cp.availableLanguage?.length
-            ? { availableLanguage: [...cp.availableLanguage] }
-            : {}),
+          ...(cp.availableLanguage?.length ? { availableLanguage: [...cp.availableLanguage] } : {}),
         }
       : null;
   return {

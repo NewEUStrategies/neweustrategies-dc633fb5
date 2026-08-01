@@ -56,4 +56,3 @@ export function CopyrightBar({ chrome, lang }: Props) {
     </div>
   );
 }
-

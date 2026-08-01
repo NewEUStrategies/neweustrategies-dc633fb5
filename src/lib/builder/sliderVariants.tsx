@@ -14,11 +14,7 @@ import { useRouter } from "@tanstack/react-router";
 import type { WidgetTypography } from "./types";
 
 export type SliderVariant =
-  | "editorial-hero"
-  | "multi-card"
-  | "cinematic-overlay"
-  | "split-feature"
-  | "minimal-strip";
+  "editorial-hero" | "multi-card" | "cinematic-overlay" | "split-feature" | "minimal-strip";
 
 export interface SliderItem {
   image: string;
@@ -887,7 +883,6 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     8,
     Math.min(64, typeof config.authorAvatarSizePx === "number" ? config.authorAvatarSizePx : 20),
   );
-
 
   const sharedProps = {
     items,

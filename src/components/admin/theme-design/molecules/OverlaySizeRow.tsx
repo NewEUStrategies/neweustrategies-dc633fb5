@@ -9,10 +9,7 @@ import "@/lib/i18n-admin-theme-design";
 
 /** The four size groups this row can drive, each expanded to `_base/_md/_lg`. */
 export type OverlaySizeField =
-  | "overlay_title_size"
-  | "overlay_excerpt_size"
-  | "header_title_size"
-  | "header_excerpt_size";
+  "overlay_title_size" | "overlay_excerpt_size" | "header_title_size" | "header_excerpt_size";
 
 type Breakpoint = "base" | "md" | "lg";
 const BREAKPOINTS: readonly Breakpoint[] = ["base", "md", "lg"];

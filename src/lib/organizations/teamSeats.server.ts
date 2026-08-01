@@ -192,7 +192,10 @@ export async function notifySeatAccessChanges(input: {
           : []),
       ],
       ctaPath: "/profile/subscription",
-      bodyVars: { planName: orgName, accessUntil: seat.graceUntil ? formatDate(seat.graceUntil, lang) : null },
+      bodyVars: {
+        planName: orgName,
+        accessUntil: seat.graceUntil ? formatDate(seat.graceUntil, lang) : null,
+      },
       // Ten sam okres karencji = ten sam mail, nawet przy kilku przeliczeniach.
       idempotencyKey: `team-seat-grace:${seat.seatId}:${seat.graceUntil ?? "none"}`,
     });
@@ -293,7 +296,6 @@ export interface SeatGraceReminderResult {
   /** Czy progi pochodziły z konfiguracji organizacji. */
   perOrg: boolean;
 }
-
 
 /**
  * Przypomnienia dla miejsc w karencji, którym zostało dokładnie N dni.

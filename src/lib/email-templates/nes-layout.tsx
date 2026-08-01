@@ -171,7 +171,6 @@ export const NesEmailLayout = ({
             <Text style={footerNote}>{f.auto}</Text>
             <Text style={footerNote}>© {new Date().getFullYear()} New European Strategies</Text>
           </Section>
-
         </Container>
       </Body>
     </Html>
@@ -337,7 +336,6 @@ const footerNote: React.CSSProperties = {
   margin: "4px 0 0",
 };
 
-
 export const eyebrow: React.CSSProperties = {
   color: ORANGE,
   fontSize: "11px",
@@ -379,7 +377,6 @@ export const buttonStyle: React.CSSProperties = {
   textDecoration: "none",
   display: "inline-block",
 };
-
 
 export const linkStyle: React.CSSProperties = {
   color: INK,

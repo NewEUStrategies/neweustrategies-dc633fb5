@@ -37,7 +37,9 @@ describe("resolveAuthEmailLang", () => {
   });
 
   it("falls back to the path prefix when the param is unknown", () => {
-    const r = resolveAuthEmailLang({ redirectTo: "https://neweuropeanstrategies.com/en/account?lang=de" });
+    const r = resolveAuthEmailLang({
+      redirectTo: "https://neweuropeanstrategies.com/en/account?lang=de",
+    });
     expect(r.lang).toBe("en");
     expect(r.source).toBe("path");
     expect(r.unknownParam).toBe(true);

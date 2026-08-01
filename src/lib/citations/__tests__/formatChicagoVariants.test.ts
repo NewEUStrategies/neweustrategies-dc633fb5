@@ -34,7 +34,11 @@ function makeSource(
   };
 }
 
-const A = (first: string | null, last: string | null, display: string | null = null): CitationAuthor => ({
+const A = (
+  first: string | null,
+  last: string | null,
+  display: string | null = null,
+): CitationAuthor => ({
   firstName: first,
   lastName: last,
   displayName: display,
@@ -69,7 +73,6 @@ function assertInvariants(html: string, plain: string) {
   expect(html.replace(/<\/?em>/g, "")).toBe(plain);
 }
 
-
 interface Scenario {
   name: string;
   source: CitationSource;
@@ -80,7 +83,10 @@ const scenarios: Scenario[] = [
   { name: "PL: 1 autor", source: makeSource([A("Anna", "Kowalska")]) },
   { name: "EN: 1 autor", source: makeSource([A("Anna", "Kowalska")], { lang: "en" }) },
   { name: "PL: 2 autorów", source: makeSource([A("Anna", "Kowalska"), A("Jan", "Nowak")]) },
-  { name: "EN: 2 autorów", source: makeSource([A("Anna", "Kowalska"), A("Jan", "Nowak")], { lang: "en" }) },
+  {
+    name: "EN: 2 autorów",
+    source: makeSource([A("Anna", "Kowalska"), A("Jan", "Nowak")], { lang: "en" }),
+  },
   {
     name: "PL: 3 autorów",
     source: makeSource([A("Anna", "Kowalska"), A("Jan", "Nowak"), A("Piotr", "Zieliński")]),
@@ -102,11 +108,16 @@ const scenarios: Scenario[] = [
   },
   {
     name: "EN: mieszani - jeden pusty rekord pomijany",
-    source: makeSource([A("Anna", "Kowalska"), A(null, null, "  "), A("Jan", "Nowak")], { lang: "en" }),
+    source: makeSource([A("Anna", "Kowalska"), A(null, null, "  "), A("Jan", "Nowak")], {
+      lang: "en",
+    }),
   },
   { name: "PL: brak autorów", source: makeSource([]) },
   // Warianty danych źródłowych.
-  { name: "PL: pusty tytuł - fallback językowy", source: makeSource([A("Anna", "Kowalska")], { title: "" }) },
+  {
+    name: "PL: pusty tytuł - fallback językowy",
+    source: makeSource([A("Anna", "Kowalska")], { title: "" }),
+  },
   {
     name: "EN: pusty tytuł - fallback językowy",
     source: makeSource([A("Anna", "Kowalska")], { title: "   ", lang: "en" }),
@@ -119,7 +130,11 @@ const scenarios: Scenario[] = [
   },
   {
     name: "EN: brak daty publikacji + accessedOn",
-    source: makeSource([A("Anna", "Kowalska")], { publishedAt: null, accessedOn: "2026-08-01", lang: "en" }),
+    source: makeSource([A("Anna", "Kowalska")], {
+      publishedAt: null,
+      accessedOn: "2026-08-01",
+      lang: "en",
+    }),
   },
   {
     name: "PL: brak wszystkich dat",

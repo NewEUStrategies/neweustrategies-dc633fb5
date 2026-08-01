@@ -12,7 +12,6 @@ import { looksLikeInlineHtml, safeCssColor } from "@/lib/blocks/inlineHtml";
 import type { BlockRenderer } from "./context";
 import { bool, num, sanitize, str, strList } from "./data";
 
-
 /** Akapit z formatowaniem inline (HTML sanitizowany, z rozwiniętymi przypisami). */
 export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
   const safe = fnHtml.get(block.id) ?? str(block.data, "html");
@@ -64,7 +63,6 @@ export const renderHeading: BlockRenderer = ({ block, fnHtml, cls, allBlocks }) 
   );
 };
 
-
 /** Kotwica aliasowa MUSI być czystym slugiem - twardy warunek przed wejściem do HTML. */
 const SAFE_ANCHOR_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -112,7 +110,6 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
       return <span dangerouslySetInnerHTML={{ __html: sanitize(entry.it) }} />;
     return <>{entry.it}</>;
   };
-
 
   /** Renderuje jeden poziom listy, rekurencyjnie schodząc do zagnieżdżeń. */
   const renderLevel = (

@@ -5,11 +5,7 @@
 import { describe, it, expect } from "vitest";
 import type { SectionNode, WidgetNode } from "@/lib/builder/types";
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
-import {
-  STARTER_TEMPLATES,
-  starterDescription,
-  starterName,
-} from "@/lib/builder/starterTemplates";
+import { STARTER_TEMPLATES, starterDescription, starterName } from "@/lib/builder/starterTemplates";
 
 function collectWidgets(sections: SectionNode[]): WidgetNode[] {
   const out: WidgetNode[] = [];

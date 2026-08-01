@@ -55,7 +55,8 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
       });
     } else if (h.kind === "multiple_h1") {
       text = t("admin.seo.validation.multipleH1", {
-        defaultValue: "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden{{pos}}{{snip}}.",
+        defaultValue:
+          "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden{{pos}}{{snip}}.",
         count: h.count ?? 2,
         pos,
         snip,
@@ -78,30 +79,26 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
       });
     } else if (h.kind === "empty_heading") {
       text = t("admin.seo.validation.emptyHeading", {
-        defaultValue:
-          "Pusty nagłówek w treści{{pos}}{{extra}} - usuń lub uzupełnij tekst.",
+        defaultValue: "Pusty nagłówek w treści{{pos}}{{extra}} - usuń lub uzupełnij tekst.",
         pos,
         extra: h.count && h.count > 1 ? ` (łącznie ${h.count})` : "",
       });
     } else if (h.kind === "duplicate_heading") {
       text = t("admin.seo.validation.duplicateHeading", {
-        defaultValue:
-          "Powtórzony nagłówek{{pos}}{{snip}} - użyj unikalnych tytułów sekcji.",
+        defaultValue: "Powtórzony nagłówek{{pos}}{{snip}} - użyj unikalnych tytułów sekcji.",
         pos,
         snip,
       });
     } else if (h.kind === "too_long_heading") {
       text = t("admin.seo.validation.tooLongHeading", {
-        defaultValue:
-          "Nagłówek za długi{{pos}} ({{count}} znaków) - skróć do ~70{{snip}}.",
+        defaultValue: "Nagłówek za długi{{pos}} ({{count}} znaków) - skróć do ~70{{snip}}.",
         pos,
         count: h.count,
         snip,
       });
     } else if (h.kind === "shouty_heading") {
       text = t("admin.seo.validation.shoutyHeading", {
-        defaultValue:
-          "Nagłówek pisany WERSALIKAMI{{pos}}{{snip}} - użyj zwykłej wielkości liter.",
+        defaultValue: "Nagłówek pisany WERSALIKAMI{{pos}}{{snip}} - użyj zwykłej wielkości liter.",
         pos,
         snip,
       });

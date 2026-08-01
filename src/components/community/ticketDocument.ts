@@ -63,10 +63,7 @@ export function buildTicketDocument({
 
   const body = rows
     .filter((row): row is [string, string] => !!row[1])
-    .map(
-      ([label, value]) =>
-        `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`,
-    )
+    .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
     .join("");
 
   return `<!doctype html>

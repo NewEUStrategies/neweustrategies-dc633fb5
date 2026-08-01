@@ -7,11 +7,7 @@
 // ponowną synchronizację, zanim ktokolwiek kliknie "Kup".
 
 export type ResyncReason =
-  | "first_run"
-  | "integration_restarted"
-  | "catalog_changed"
-  | "retry_after_failure"
-  | "stale";
+  "first_run" | "integration_restarted" | "catalog_changed" | "retry_after_failure" | "stale";
 
 export interface IntegrationSyncState {
   fingerprint: string | null;
@@ -107,12 +103,11 @@ export function resyncReason(input: ResyncInput): ResyncReason | null {
   return age >= ttlMs ? "stale" : null;
 }
 
-
 /** Status wyniku synchronizacji zapisywany w stanie integracji. */
-export function syncStatusFrom(report: { failed: number; items: unknown[] }):
-  | "ok"
-  | "partial"
-  | "failed" {
+export function syncStatusFrom(report: {
+  failed: number;
+  items: unknown[];
+}): "ok" | "partial" | "failed" {
   if (report.failed === 0) return "ok";
   return report.failed >= report.items.length ? "failed" : "partial";
 }

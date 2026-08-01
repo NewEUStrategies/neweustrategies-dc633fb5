@@ -63,8 +63,7 @@ export function AuthEmailPreviewPanel() {
       const input = {
         data: { lang, firstName: firstName.trim() ? firstName.trim() : null, gender },
       };
-      const rows =
-        scope === "auth" ? await fetchAuthPreviews(input) : await fetchTxPreviews(input);
+      const rows = scope === "auth" ? await fetchAuthPreviews(input) : await fetchTxPreviews(input);
       return rows as Array<{
         type: string;
         lang: Lang;

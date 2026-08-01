@@ -13,7 +13,6 @@ function stripEm(html: string): string {
   return html.replace(/<em>([^<]*)<\/em>/g, "$1");
 }
 
-
 const base: CitationSource = {
   authors: [{ firstName: "Anna", lastName: "Kowalska", displayName: null }],
   title: "Bezpieczeństwo energetyczne Europy Środkowej",
@@ -89,7 +88,6 @@ describe("formatChicagoPlain", () => {
     expect(stripEm(formatChicago(source))).toBe(formatChicagoPlain(source));
   });
 });
-
 
 describe("formatApa", () => {
   it("formatuje inicjały i datę dzienną po polsku", () => {

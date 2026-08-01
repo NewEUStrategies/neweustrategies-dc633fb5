@@ -84,7 +84,10 @@ function OrderHistory({ orderId, lang }: { orderId: string; lang: "pl" | "en" })
           <span className="font-medium">{labelFor(entry.kind, entry.label)}</span>
           {entry.status && <StatusBadge value={entry.status} />}
           {entry.environment === "sandbox" && (
-            <Badge variant="outline" className="border-0 bg-muted text-[0.7rem] text-muted-foreground">
+            <Badge
+              variant="outline"
+              className="border-0 bg-muted text-[0.7rem] text-muted-foreground"
+            >
               test
             </Badge>
           )}
@@ -119,9 +122,10 @@ export function AdminTicketOrdersPanel() {
   }, [rows]);
 
   const money = (cents: number, currency: string) =>
-    new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB", { style: "currency", currency }).format(
-      cents / 100,
-    );
+    new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+      style: "currency",
+      currency,
+    }).format(cents / 100);
 
   return (
     <Card>
@@ -174,8 +178,9 @@ export function AdminTicketOrdersPanel() {
                 {rows.map((row) => {
                   const open = openId === row.id;
                   const title =
-                    (lang === "en" ? row.eventTitleEn || row.eventTitlePl : row.eventTitlePl || row.eventTitleEn) ??
-                    row.eventId;
+                    (lang === "en"
+                      ? row.eventTitleEn || row.eventTitlePl
+                      : row.eventTitlePl || row.eventTitleEn) ?? row.eventId;
                   return (
                     <Fragment key={row.id}>
                       <tr className="border-t border-border/60 align-top">
@@ -200,21 +205,27 @@ export function AdminTicketOrdersPanel() {
                           <span className="font-medium">{title}</span>
                           {row.eventStartsAt && (
                             <span className="block text-xs text-muted-foreground">
-                              {new Date(row.eventStartsAt).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB")}
+                              {new Date(row.eventStartsAt).toLocaleString(
+                                lang === "pl" ? "pl-PL" : "en-GB",
+                              )}
                             </span>
                           )}
                         </td>
                         <td className="px-3 py-2">
                           <span>{row.buyerName ?? row.buyerEmail ?? row.buyerId}</span>
                           {row.buyerName && row.buyerEmail && (
-                            <span className="block text-xs text-muted-foreground">{row.buyerEmail}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {row.buyerEmail}
+                            </span>
                           )}
                         </td>
                         <td className="px-3 py-2 tabular-nums">{row.tickets}</td>
                         <td className="px-3 py-2 tabular-nums">
                           {money(row.amountCents, row.currency)}
                           {row.couponCode && (
-                            <span className="block text-xs text-muted-foreground">{row.couponCode}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {row.couponCode}
+                            </span>
                           )}
                         </td>
                         <td className="px-3 py-2">

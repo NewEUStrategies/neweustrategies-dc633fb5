@@ -80,7 +80,6 @@ export function MobileArticleActions({ lang }: Props) {
         <Download className="h-[14px] w-[14px] text-brand" aria-hidden />
         <span>{t.download}</span>
       </button>
-
     </div>
   );
 }

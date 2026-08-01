@@ -221,12 +221,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // backend, one corrupt row) must degrade to defaults, never throw and 500
     // the whole site. `allSettled` never rejects; per-route content loaders
     // still fail loud (and render the localized error boundary) as before.
-    await withBudget(Promise.allSettled([
-      context.queryClient.ensureQueryData(siteSettingsQueryOptions),
-      context.queryClient.ensureQueryData(designTokensQueryOptions),
-      context.queryClient.ensureQueryData(globalColorsQueryOptions),
-      context.queryClient.ensureQueryData(postLayoutSettingsQueryOptions()),
-    ]), ROOT_WARM_BUDGET_MS);
+    await withBudget(
+      Promise.allSettled([
+        context.queryClient.ensureQueryData(siteSettingsQueryOptions),
+        context.queryClient.ensureQueryData(designTokensQueryOptions),
+        context.queryClient.ensureQueryData(globalColorsQueryOptions),
+        context.queryClient.ensureQueryData(postLayoutSettingsQueryOptions()),
+      ]),
+      ROOT_WARM_BUDGET_MS,
+    );
     if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
       context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, Object.freeze({}));
     }
@@ -292,9 +295,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // będzie. Fallbackiem renderu jest komponent menu z własnym `useQuery`.
         const { menuWithItemsQueryOptions } = await import("../lib/menus/queries");
         const warmMenu = (key: string) =>
-          context.queryClient
-            .ensureQueryData(menuWithItemsQueryOptions(key))
-            .catch(() => null);
+          context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)).catch(() => null);
         chromeWarm.push(warmMenu("main"), warmMenu("footer"));
         if (headerVisible && header.builder_data) {
           chromeWarm.push(
@@ -442,7 +443,6 @@ function RootComponent() {
     <I18nextProvider i18n={renderI18n}>
       <ThemeProvider>
         <AuthProvider>
-          
           <IconPackSync />
           <WidgetLiveSync />
           <SiteSettingsLiveSync />

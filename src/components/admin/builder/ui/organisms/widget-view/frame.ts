@@ -131,14 +131,12 @@ function toCssSize(value: ResponsiveSizeValue | undefined): string | number | un
   return value === "auto" ? "auto" : value;
 }
 
-
 export const getWidgetFrameStyle = (
   node: WidgetNode,
   device: Device = "desktop",
 ): CSSProperties => {
   const adv = node.advanced as
-    | { width?: ResponsiveSize; height?: ResponsiveSize; layout?: "block" | "inline" }
-    | undefined;
+    { width?: ResponsiveSize; height?: ResponsiveSize; layout?: "block" | "inline" } | undefined;
   const wRaw = pickSize(adv?.width, device);
   // Image widgets that declare an aspect ratio derive height from width;
   // an explicit advanced.height would clip the aspect-ratio wrapper and hide

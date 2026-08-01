@@ -24,10 +24,7 @@ import {
   resolveWidgetTypography,
 } from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
-import {
-  resolveGlobalWidgetInstance,
-  useGlobalWidgetNode,
-} from "@/lib/builder/globalWidgets";
+import { resolveGlobalWidgetInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
 import { processWidgetFootnotes } from "@/lib/footnotes";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
@@ -1095,7 +1092,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "onboarding-form":
       return wrap(<OnboardingFormView c={c} lang={lang} />);
 
-
     case "cta": {
       const tKey = `title_${lang}`;
       const cKey = `cta_${lang}`;
@@ -1341,12 +1337,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "donations": {
       const variant = (getStr(c, "variant") || "hero") as
-        | "hero"
-        | "progress"
-        | "stats-strip"
-        | "compact-card"
-        | "inline-bar"
-        | "thermometer";
+        "hero" | "progress" | "stats-strip" | "compact-card" | "inline-bar" | "thermometer";
       const title = lang === "pl" ? getStr(c, "title_pl") : getStr(c, "title_en");
       const subtitle = lang === "pl" ? getStr(c, "subtitle_pl") : getStr(c, "subtitle_en");
       const cta = lang === "pl" ? getStr(c, "cta_pl") : getStr(c, "cta_en");

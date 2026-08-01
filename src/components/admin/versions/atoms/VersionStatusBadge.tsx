@@ -16,8 +16,7 @@ export function VersionStatusBadge({
   status: LegalVersionStatus | "baseline";
   lang: "pl" | "en";
 }) {
-  const variant =
-    status === "published" ? "default" : status === "draft" ? "secondary" : "outline";
+  const variant = status === "published" ? "default" : status === "draft" ? "secondary" : "outline";
   return (
     <Badge variant={variant} className="text-[0.6875rem]">
       {LABELS[status][lang]}

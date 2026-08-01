@@ -27,13 +27,16 @@ export const Route = createFileRoute("/unsubscribe")({
 });
 
 function UnsubscribePage() {
-  const token = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("token");
+  const token =
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("token");
   const [state, setState] = useState<UnsubscribeState>(token ? "checking" : "invalid");
 
   useEffect(() => {
     if (!token) return;
     const controller = new AbortController();
-    void fetch(`/email/unsubscribe?token=${encodeURIComponent(token)}`, { signal: controller.signal })
+    void fetch(`/email/unsubscribe?token=${encodeURIComponent(token)}`, {
+      signal: controller.signal,
+    })
       .then(async (response) => {
         const body: unknown = await response.json();
         if (!response.ok) return setState("invalid");
@@ -59,7 +62,13 @@ function UnsubscribePage() {
         body: JSON.stringify({ token }),
       });
       const body: unknown = await response.json();
-      if (response.ok && typeof body === "object" && body !== null && "success" in body && body.success === true) {
+      if (
+        response.ok &&
+        typeof body === "object" &&
+        body !== null &&
+        "success" in body &&
+        body.success === true
+      ) {
         setState("success");
       } else if (response.ok) {
         setState("used");

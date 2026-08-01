@@ -93,10 +93,7 @@ export async function renderAuthEmailPreview(
   };
 
   const element = React.createElement(Component, props);
-  const [html, text] = await Promise.all([
-    render(element),
-    render(element, { plainText: true }),
-  ]);
+  const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
 
   return {
     type: input.type,
@@ -115,8 +112,6 @@ export async function renderAllAuthEmailPreviews(
   gender: PolishGender,
 ): Promise<AuthEmailPreview[]> {
   return Promise.all(
-    AUTH_EMAIL_TYPES.map((type) =>
-      renderAuthEmailPreview({ type, lang, firstName, gender }),
-    ),
+    AUTH_EMAIL_TYPES.map((type) => renderAuthEmailPreview({ type, lang, firstName, gender })),
   );
 }

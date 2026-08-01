@@ -92,8 +92,6 @@ describe("splitArchived", () => {
   });
 });
 
-
-
 describe("applyReopenToViews", () => {
   it("clears the caller's archived_at on the reopened conversation only", () => {
     const a = view({ archived_at: "2026-01-01T09:00:00.000Z" }, "conv-a");

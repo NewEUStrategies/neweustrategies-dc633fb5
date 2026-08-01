@@ -30,9 +30,7 @@ export function WebStoriesCarouselView({ c, lang }: Props) {
   if (isLoading) return <div className="cms-meta">…</div>;
   if (!data?.length) {
     return (
-      <div className="cms-meta">
-        {lang === "en" ? "No web stories yet." : "Brak historii."}
-      </div>
+      <div className="cms-meta">{lang === "en" ? "No web stories yet." : "Brak historii."}</div>
     );
   }
 

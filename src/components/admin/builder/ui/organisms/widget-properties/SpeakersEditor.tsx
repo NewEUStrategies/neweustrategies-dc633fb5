@@ -377,7 +377,11 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
           items={speakers as unknown as Item[]}
           onAdd={add}
         >
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
             <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
               <div className="space-y-2">
                 {speakers.map((it, i) => (

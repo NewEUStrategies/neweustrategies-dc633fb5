@@ -19,8 +19,7 @@ export interface PortalUrls {
 }
 
 export type PortalLinkResult =
-  | { ok: true; urls: PortalUrls }
-  | { ok: false; error: "no_customer" | "portal_failed" };
+  { ok: true; urls: PortalUrls } | { ok: false; error: "no_customer" | "portal_failed" };
 
 /** Najnowsza subskrypcja użytkownika w danym środowisku (service role). */
 async function latestSubscription(

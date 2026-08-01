@@ -15,12 +15,7 @@ import { getDonationsPublicStats } from "@/lib/billing/donations.functions";
 import "@/lib/i18n-donations-widget";
 
 export type DonationsVariant =
-  | "hero"
-  | "progress"
-  | "stats-strip"
-  | "compact-card"
-  | "inline-bar"
-  | "thermometer";
+  "hero" | "progress" | "stats-strip" | "compact-card" | "inline-bar" | "thermometer";
 
 export interface DonationsWidgetProps {
   variant?: DonationsVariant;

@@ -48,13 +48,7 @@ export function buildGiftUrl(baseUrl: string, code: string): string {
 
 /** Kanaly udostepniania - spojne z SocialKey panelu czytania (FloatingShareBar). */
 export type GiftChannelId =
-  | "mail"
-  | "facebook"
-  | "linkedin"
-  | "whatsapp"
-  | "telegram"
-  | "x"
-  | "reddit";
+  "mail" | "facebook" | "linkedin" | "whatsapp" | "telegram" | "x" | "reddit";
 
 export interface GiftShareTarget {
   id: GiftChannelId;
@@ -135,12 +129,7 @@ export interface GiftLinkResult {
  *  - "loading"              - czekamy na stan z serwera.
  */
 export type GiftUiPhase =
-  | "loading"
-  | "disabled"
-  | "requiresAuth"
-  | "requiresSubscription"
-  | "limitReached"
-  | "ready";
+  "loading" | "disabled" | "requiresAuth" | "requiresSubscription" | "limitReached" | "ready";
 
 /**
  * Macierz stanow popovera - JEDYNE miejsce, ktore tlumaczy (auth, ustawienia,
@@ -168,12 +157,7 @@ export function resolveGiftPhase(input: {
 
 /** Klucze bledow RPC create_gift_link -> klucze i18n / decyzje UI. */
 export type GiftErrorKey =
-  | "authRequired"
-  | "subscriptionRequired"
-  | "limitReached"
-  | "disabled"
-  | "notFound"
-  | "unknown";
+  "authRequired" | "subscriptionRequired" | "limitReached" | "disabled" | "notFound" | "unknown";
 
 const ERROR_PATTERNS: ReadonlyArray<readonly [string, GiftErrorKey]> = [
   ["gift_auth_required", "authRequired"],

@@ -220,7 +220,6 @@ export function WordStyleToolbar({ editor }: Props) {
     editor.chain().focus().insertContentAt(at, `[fn]${body}[/fn]`).run();
   };
 
-
   return (
     <div
       ref={rootRef}

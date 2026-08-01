@@ -28,13 +28,7 @@ describe("global widget overlay footnotes - multi + rehydration", () => {
 
     expect(html).not.toContain("[fn]");
     expect(notes.map((n) => n.id)).toEqual([1, 2, 3, 4, 5]);
-    expect(notes.map((n) => n.html)).toEqual([
-      "pierwszy",
-      "drugi",
-      "trzeci",
-      "czwarty",
-      "piąty",
-    ]);
+    expect(notes.map((n) => n.html)).toEqual(["pierwszy", "drugi", "trzeci", "czwarty", "piąty"]);
     for (const n of [1, 2, 3, 4, 5]) expect(hasMarker(html, n)).toBe(true);
   });
 
@@ -56,9 +50,17 @@ describe("global widget overlay footnotes - multi + rehydration", () => {
 
   it("shares a counter across sibling global widgets in document order", () => {
     const col = createCounter(1);
-    const w1 = processWidgetFootnotes(makeTextWidget("A[fn]a1[/fn] B[fn]a2[/fn]", "w-a"), "pl", col);
+    const w1 = processWidgetFootnotes(
+      makeTextWidget("A[fn]a1[/fn] B[fn]a2[/fn]", "w-a"),
+      "pl",
+      col,
+    );
     const w2 = processWidgetFootnotes(makeTextWidget("C[fn]b1[/fn]", "w-b"), "pl", col);
-    const w3 = processWidgetFootnotes(makeTextWidget("D[fn]c1[/fn] E[fn]c2[/fn]", "w-c"), "pl", col);
+    const w3 = processWidgetFootnotes(
+      makeTextWidget("D[fn]c1[/fn] E[fn]c2[/fn]", "w-c"),
+      "pl",
+      col,
+    );
 
     expect(w3.notes.map((n) => n.id)).toEqual([1, 2, 3, 4, 5]);
     expect(w3.notes.map((n) => n.html)).toEqual(["a1", "a2", "b1", "c1", "c2"]);

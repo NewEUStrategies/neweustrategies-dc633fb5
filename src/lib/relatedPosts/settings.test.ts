@@ -122,9 +122,9 @@ describe("buildRelatedPostsConfigRow", () => {
     );
     expect(row.title_pl).toBe("Zobacz też");
     expect(row.title_en).toBe(RELATED_POSTS_DEFAULTS.title_en);
-    expect(buildRelatedPostsConfigRow({ title_pl: "x".repeat(500) }, TENANT_A).title_pl).toHaveLength(
-      200,
-    );
+    expect(
+      buildRelatedPostsConfigRow({ title_pl: "x".repeat(500) }, TENANT_A).title_pl,
+    ).toHaveLength(200);
   });
 
   it("coerces booleans strictly (no truthy strings sneaking through)", () => {

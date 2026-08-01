@@ -98,8 +98,7 @@ async function fetchMeetingSlots(input: MeetingSlotsInput): Promise<MeetingSlotR
   const rows = Array.isArray(data) ? data : [];
   return rows
     .filter(
-      (x): x is Record<string, unknown> =>
-        typeof x === "object" && x !== null && !Array.isArray(x),
+      (x): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x),
     )
     .map(mapMeetingSlotRow)
     .filter((row) => row.id !== "");

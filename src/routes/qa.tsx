@@ -74,8 +74,6 @@ export const Route = createFileRoute("/qa")({
   },
 });
 
-
-
 function statusBadge(status: string, t: (k: string) => string) {
   if (status === "open" || status === "answering") return t("community.qa.openSession");
   if (status === "closed") return t("community.qa.closedSession");

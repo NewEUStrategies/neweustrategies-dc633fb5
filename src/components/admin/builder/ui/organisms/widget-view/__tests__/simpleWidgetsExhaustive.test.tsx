@@ -158,7 +158,11 @@ describe("social-icons (color/bg/shape permutations)", () => {
     }
     for (const themeAdapt of ["auto", "force-light", "force-dark"]) {
       expect(() =>
-        renderNode("social-icons", { spotify: "https://open.spotify.com/artist/x", themeAdapt, colorMode: "dark" }),
+        renderNode("social-icons", {
+          spotify: "https://open.spotify.com/artist/x",
+          themeAdapt,
+          colorMode: "dark",
+        }),
       ).not.toThrow();
     }
   });

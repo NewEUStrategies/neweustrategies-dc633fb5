@@ -477,7 +477,6 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           <div className="hidden sm:flex h-7 sm:h-8 items-center">
             <LangSwitcherDropdown label={t.lang} />
           </div>
-
         </div>
       </div>
     </div>

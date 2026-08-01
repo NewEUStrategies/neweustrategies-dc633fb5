@@ -184,8 +184,7 @@ export function initWebVitals(): () => void {
       );
     }
     const nav = performance.getEntriesByType("navigation")[0] as
-      | PerformanceNavigationTiming
-      | undefined;
+      PerformanceNavigationTiming | undefined;
     if (nav) {
       const ttfb = nav.responseStart;
       report({ name: "TTFB", value: ttfb, rating: rate("TTFB", ttfb), id: uid() }, currentPath);

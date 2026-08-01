@@ -5,10 +5,7 @@ import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
-import {
-  SectionLabelRender,
-  readSectionLabelProps,
-} from "@/lib/builder/sectionLabelVariants";
+import { SectionLabelRender, readSectionLabelProps } from "@/lib/builder/sectionLabelVariants";
 // Type-only z ciężkich modułów wariantów - runtime dociera lazy przez
 // lazyWidgets (slider ~53 KB i animowane nagłówki nie obciążają stron,
 // które ich nie renderują).
@@ -302,8 +299,7 @@ export function renderSimpleWidget(
             >
               {showLabel ? (
                 <span className="pointer-events-none select-none text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                  ↕ {hDesktop}px · {widthPct}%
-                  {align !== "left" ? ` · ${align}` : ""}
+                  ↕ {hDesktop}px · {widthPct}%{align !== "left" ? ` · ${align}` : ""}
                   {needsResponsive ? ` · ↔ ${hTablet}/${hMobile}` : ""}
                 </span>
               ) : null}
@@ -443,8 +439,7 @@ export function renderSimpleWidget(
         };
         const rows = items
           .map(({ k, altKeys, Cmp, label }) => {
-            const href =
-              getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
+            const href = getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
             if (!href && !showEmpty) return null;
             const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
             const cta = getStr(c, ctaKey) || defaultCta[k] || "";
@@ -462,10 +457,7 @@ export function renderSimpleWidget(
                 >
                   <Cmp size={size} />
                 </span>
-                <span
-                  className="mx-1 h-4 w-px shrink-0 bg-border/70"
-                  aria-hidden="true"
-                />
+                <span className="mx-1 h-4 w-px shrink-0 bg-border/70" aria-hidden="true" />
                 <span className="flex-1 truncate text-sm font-medium">{label}</span>
                 {cta && (
                   <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground group-hover:text-foreground">
@@ -516,7 +508,12 @@ export function renderSimpleWidget(
                 <Cmp size={size} />
               </AppLink>
             ) : (
-              <span key={k} aria-label={`${label} (${lang === "pl" ? "brak linku" : "no link"})`} className={cls} style={style}>
+              <span
+                key={k}
+                aria-label={`${label} (${lang === "pl" ? "brak linku" : "no link"})`}
+                className={cls}
+                style={style}
+              >
                 <Cmp size={size} />
               </span>
             );
@@ -883,19 +880,9 @@ export function renderSimpleWidget(
         navBgColor: typeof c.navBgColor === "string" ? c.navBgColor : undefined,
         navArrowColor: typeof c.navArrowColor === "string" ? c.navArrowColor : undefined,
         navBgStyle: (typeof c.navBgStyle === "string" ? c.navBgStyle : undefined) as
-          | "glass"
-          | "solid"
-          | "outline"
-          | "soft"
-          | "gradient"
-          | "shadow"
-          | undefined,
+          "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow" | undefined,
         navPosition: (typeof c.navPosition === "string" ? c.navPosition : undefined) as
-          | "mid"
-          | "mid-outside"
-          | "bottom"
-          | "top"
-          | undefined,
+          "mid" | "mid-outside" | "bottom" | "top" | undefined,
         navArrowVariant: (typeof c.navArrowVariant === "string" ? c.navArrowVariant : undefined) as
           | "chevron"
           | "chevron-bold"
@@ -960,7 +947,10 @@ export function renderSimpleWidget(
       const texts = Array.isArray(rawTexts)
         ? rawTexts.filter((x): x is string => typeof x === "string")
         : typeof rawTexts === "string"
-          ? rawTexts.split("\n").map((s) => s.trim()).filter(Boolean)
+          ? rawTexts
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean)
           : [];
       const trTag = (getStr(c, "tag") || "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "span";
       const trAlign = (getStr(c, "align") || "left") as "left" | "center" | "right";
@@ -1249,9 +1239,7 @@ export function renderSimpleWidget(
             <LucideIcons.Quote className="absolute left-0 top-0 w-7 h-7 text-brand/40" />
           )}
           {stars}
-          <blockquote className="cms-post-excerpt italic">
-            "{quote}"
-          </blockquote>
+          <blockquote className="cms-post-excerpt italic">"{quote}"</blockquote>
           <figcaption
             className={`flex items-center gap-3 ${variant === "centered" ? "justify-center" : ""}`}
           >
@@ -1316,7 +1304,6 @@ export function renderSimpleWidget(
                   </span>
                 </div>
                 <ul className="cms-post-excerpt space-y-2 mb-6 flex-1">
-
                   {features.map((f, j) => (
                     <li key={j} className="flex items-start gap-2">
                       <span className="text-brand mt-0.5">✓</span>
@@ -1342,7 +1329,6 @@ export function renderSimpleWidget(
       });
       return <SectionLabelRender {...props} />;
     }
-
 
     case "hot-topic-bar": {
       const badge = getStr(c, `badge_${lang}`) || getStr(c, "badge_pl") || "Hot topic";

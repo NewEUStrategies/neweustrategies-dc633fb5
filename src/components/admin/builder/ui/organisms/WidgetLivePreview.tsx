@@ -67,9 +67,7 @@ export function WidgetLivePreview({ widget, lang, device, mode }: Props) {
           <Eye className="h-3 w-3" />
           {t("builder.widgetProps.livePreview", { defaultValue: "Podgląd na żywo" })}
         </span>
-        <ChevronDown
-          className={cn("h-3 w-3 transition-transform", open ? "" : "-rotate-90")}
-        />
+        <ChevronDown className={cn("h-3 w-3 transition-transform", open ? "" : "-rotate-90")} />
       </button>
       {open && (
         <div

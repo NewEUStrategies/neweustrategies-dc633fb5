@@ -15,7 +15,6 @@ import { errorCopy } from "@/lib/errorCopy";
 // Redirect responses must never be CDN-cached as if they were content.
 const NO_STORE = contentCacheControl({ preview: true });
 
-
 export const Route = createFileRoute("/post/$slug")({
   loader: async ({ params }) => {
     const splat = await resolveLegacyPostPath(params.slug);

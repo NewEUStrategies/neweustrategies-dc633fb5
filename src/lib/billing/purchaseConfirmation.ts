@@ -48,11 +48,13 @@ export function buildPurchaseSummary(input: {
   const sub = input.subscription ?? null;
   const order = input.order ?? null;
 
-  if (sub && (ACTIVE_STATUSES.has(sub.status) || sub.status === "canceled" || sub.status === "paused")) {
+  if (
+    sub &&
+    (ACTIVE_STATUSES.has(sub.status) || sub.status === "canceled" || sub.status === "paused")
+  ) {
     const endsTs = parseTs(sub.current_period_end);
     const expired = endsTs !== null && endsTs <= now;
-    const renews =
-      !sub.cancel_at_period_end && ACTIVE_STATUSES.has(sub.status) && !expired;
+    const renews = !sub.cancel_at_period_end && ACTIVE_STATUSES.has(sub.status) && !expired;
     return {
       kind: "subscription",
       status: sub.status,

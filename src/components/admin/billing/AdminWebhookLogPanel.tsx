@@ -70,10 +70,9 @@ export function AdminWebhookLogPanel() {
     mutationFn: (id: string) => retryFn({ data: { id } }),
     onSuccess: (result) => {
       if (result.status === "failed") {
-        toast.error(
-          L("Ponowienie nie powiodło się", "Retry failed"),
-          { description: result.error ?? undefined },
-        );
+        toast.error(L("Ponowienie nie powiodło się", "Retry failed"), {
+          description: result.error ?? undefined,
+        });
       } else {
         toast.success(
           result.status === "processed"
@@ -85,10 +84,9 @@ export function AdminWebhookLogPanel() {
       void queryClient.invalidateQueries({ queryKey: billingKeys.admin.paymentWebhookEvents() });
     },
     onError: (err: unknown) => {
-      toast.error(
-        L("Nie udało się ponowić zdarzenia", "Could not retry the event"),
-        { description: err instanceof Error ? err.message : undefined },
-      );
+      toast.error(L("Nie udało się ponowić zdarzenia", "Could not retry the event"), {
+        description: err instanceof Error ? err.message : undefined,
+      });
     },
   });
 
@@ -209,9 +207,7 @@ export function AdminWebhookLogPanel() {
                   <th className="px-3 py-2 font-medium">{L("Środowisko", "Environment")}</th>
                   <th className="px-3 py-2 font-medium">{L("Czas obsługi", "Handling time")}</th>
                   <th className="px-3 py-2 font-medium">{L("Odebrano", "Received")}</th>
-                  <th className="px-3 py-2 text-right font-medium">
-                    {L("Ponowienie", "Retry")}
-                  </th>
+                  <th className="px-3 py-2 text-right font-medium">{L("Ponowienie", "Retry")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -257,7 +253,9 @@ export function AdminWebhookLogPanel() {
                           )}
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          {row.environment === "sandbox" ? L("testowe", "test") : L("produkcja", "live")}
+                          {row.environment === "sandbox"
+                            ? L("testowe", "test")
+                            : L("produkcja", "live")}
                         </td>
                         <td className="px-3 py-2 tabular-nums text-muted-foreground">
                           {row.duration_ms === null ? "-" : `${row.duration_ms} ms`}
@@ -284,7 +282,8 @@ export function AdminWebhookLogPanel() {
                           </Button>
                           {(row.retry_count ?? 0) > 0 && (
                             <span className="mt-1 block text-[0.7rem] text-muted-foreground">
-                              {L("prób", "attempts")}: {row.retry_count} · {fmt(row.last_retried_at)}
+                              {L("prób", "attempts")}: {row.retry_count} ·{" "}
+                              {fmt(row.last_retried_at)}
                             </span>
                           )}
                         </td>
@@ -294,7 +293,9 @@ export function AdminWebhookLogPanel() {
                           <td colSpan={7} className="px-4 py-3">
                             <dl className="mb-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
                               <div>
-                                <dt className="inline font-medium">{L("Identyfikator", "Event id")}: </dt>
+                                <dt className="inline font-medium">
+                                  {L("Identyfikator", "Event id")}:{" "}
+                                </dt>
                                 <dd className="inline font-mono">{row.event_id}</dd>
                               </div>
                               <div>
@@ -302,7 +303,9 @@ export function AdminWebhookLogPanel() {
                                 <dd className="inline font-mono">{row.user_id ?? "-"}</dd>
                               </div>
                               <div>
-                                <dt className="inline font-medium">{L("Domknięto", "Finished")}: </dt>
+                                <dt className="inline font-medium">
+                                  {L("Domknięto", "Finished")}:{" "}
+                                </dt>
                                 <dd className="inline">{fmt(row.processed_at)}</dd>
                               </div>
                               <div>

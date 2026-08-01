@@ -13,10 +13,7 @@ import { redirect } from "@tanstack/react-router";
 import { normalizeHost } from "./host";
 
 const CANONICAL_ORIGIN = "https://neweuropeanstrategies.com";
-const CANONICAL_HOSTS = new Set([
-  "neweuropeanstrategies.com",
-  "www.neweuropeanstrategies.com",
-]);
+const CANONICAL_HOSTS = new Set(["neweuropeanstrategies.com", "www.neweuropeanstrategies.com"]);
 
 // Hosts we intentionally do NOT redirect: local dev + Lovable in-editor
 // live preview iframe (id-preview--<uuid>.lovable.app / *.lovable.dev),

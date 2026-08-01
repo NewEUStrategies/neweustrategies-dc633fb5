@@ -127,4 +127,3 @@ export function emailGreeting(
   }
   return name ? `Hi ${name.split(/\s+/)[0]},` : "Hello,";
 }
-

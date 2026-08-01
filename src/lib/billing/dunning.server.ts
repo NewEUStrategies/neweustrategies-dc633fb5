@@ -51,7 +51,6 @@ async function loadSubscription(ctx: DunningContext): Promise<SubRow | null> {
   return (data as SubRow | null) ?? null;
 }
 
-
 async function pushNotification(params: {
   userId: string;
   tenantId: string;
@@ -114,7 +113,6 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     .eq("paddle_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment);
 
-
   const plan = await resolvePlanForPrice(sub.price_id);
 
   await notifyPaymentEmail({
@@ -157,7 +155,6 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
       // cyklu ma znowu uruchomić pełną windykację.
       last_dunning_transaction_id: null,
       updated_at: new Date().toISOString(),
-
     })
     .eq("paddle_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment);

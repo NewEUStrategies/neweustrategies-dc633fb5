@@ -116,8 +116,7 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
     extra:
       (v.amount && v.interval
         ? `Od kolejnego okresu rozliczeniowego kwota wyniesie ${v.amount} ${v.interval}.`
-        : "") +
-      (v.renewsAt ? ` Najbliższe odnowienie: ${v.renewsAt}.` : ""),
+        : "") + (v.renewsAt ? ` Najbliższe odnowienie: ${v.renewsAt}.` : ""),
     note: g(
       "Nie musisz nic robić - wyższy poziom dostępu otrzymałeś automatycznie.",
       "Nie musisz nic robić - wyższy poziom dostępu otrzymałaś automatycznie.",
@@ -172,8 +171,7 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
     ),
   }),
   payment_refunded: (v, gender) => ({
-    intro:
-      `Potwierdzamy zwrot płatności${v.amount ? ` na kwotę ${v.amount}` : ""}${v.planName ? ` za plan ${plan(v, "pl")}` : ""}. Środki wracają na tę samą metodę płatności, z której wykonano zakup.`,
+    intro: `Potwierdzamy zwrot płatności${v.amount ? ` na kwotę ${v.amount}` : ""}${v.planName ? ` za plan ${plan(v, "pl")}` : ""}. Środki wracają na tę samą metodę płatności, z której wykonano zakup.`,
     extra: g(
       `Dostęp premium powiązany z tą płatnością został zakończony${v.accessUntil ? ` (${v.accessUntil})` : ""}. Zachowujesz konto, zapisane materiały i historię czytania - w każdej chwili możesz wykupić dostęp ponownie.`,
       `Dostęp premium powiązany z tą płatnością został zakończony${v.accessUntil ? ` (${v.accessUntil})` : ""}. Zachowujesz konto, zapisane materiały i historię czytania - w każdej chwili możesz wykupić dostęp ponownie.`,
@@ -222,8 +220,9 @@ const EN: Partial<Record<TxEmailType, Builder>> = {
         ? ` A pro-rated charge of ${v.prorationAmount} covers the remainder of the current period.`
         : ""),
     extra:
-      (v.amount && v.interval ? `From the next billing period you pay ${v.amount} ${v.interval}.` : "") +
-      (v.renewsAt ? ` Next renewal: ${v.renewsAt}.` : ""),
+      (v.amount && v.interval
+        ? `From the next billing period you pay ${v.amount} ${v.interval}.`
+        : "") + (v.renewsAt ? ` Next renewal: ${v.renewsAt}.` : ""),
     note: "No action is needed - the higher access level was applied automatically.",
   }),
   subscription_downgraded: (v) => ({

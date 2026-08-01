@@ -22,13 +22,7 @@ import {
 } from "@/lib/lucide-shim";
 
 export type CommandSection =
-  | "navigation"
-  | "admin"
-  | "settings"
-  | "appearance"
-  | "account"
-  | "actions"
-  | "content";
+  "navigation" | "admin" | "settings" | "appearance" | "account" | "actions" | "content";
 
 export interface PaletteCommand {
   id: string;

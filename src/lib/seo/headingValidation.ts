@@ -145,9 +145,7 @@ export function validateHeadings(
 
   const issues: HeadingIssue[] = [];
 
-  const h1Indices = headings
-    .map((h, i) => (h.level === 1 ? i : -1))
-    .filter((i) => i >= 0);
+  const h1Indices = headings.map((h, i) => (h.level === 1 ? i : -1)).filter((i) => i >= 0);
   if (rendersTitleAsH1) {
     // Layout renders the H1; any body H1 is a duplicate.
     if (h1Indices.length > 0) {

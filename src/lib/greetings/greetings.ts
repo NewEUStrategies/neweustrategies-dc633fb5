@@ -6,13 +6,7 @@
 export type Lang = "pl" | "en";
 export type Gender = "male" | "female" | "neutral";
 export type TimeBucket =
-  | "night"
-  | "earlyMorning"
-  | "morning"
-  | "noon"
-  | "afternoon"
-  | "evening"
-  | "lateEvening";
+  "night" | "earlyMorning" | "morning" | "noon" | "afternoon" | "evening" | "lateEvening";
 
 export interface NameEntry {
   name: string;

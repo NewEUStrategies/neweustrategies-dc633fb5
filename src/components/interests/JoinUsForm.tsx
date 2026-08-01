@@ -140,13 +140,7 @@ export interface JoinUsFormProps {
 }
 
 type ExtraKey =
-  | "firstName"
-  | "lastName"
-  | "position"
-  | "linkedin"
-  | "phone"
-  | "company"
-  | "country";
+  "firstName" | "lastName" | "position" | "linkedin" | "phone" | "company" | "country";
 
 export function JoinUsForm({
   variant = "card",

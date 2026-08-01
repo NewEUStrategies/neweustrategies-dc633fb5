@@ -135,7 +135,6 @@ export function readSectionLabelProps(
   };
 }
 
-
 interface RenderProps {
   label: string;
   action?: string;

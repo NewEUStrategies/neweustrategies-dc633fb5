@@ -77,11 +77,15 @@ export async function recordTransactionDocument(
     .eq("provider_document_id", input.transactionId)
     .maybeSingle();
   if (loadError) {
-    console.error("[payments] billing document lookup failed", input.transactionId, loadError.message);
+    console.error(
+      "[payments] billing document lookup failed",
+      input.transactionId,
+      loadError.message,
+    );
     return "skipped";
   }
 
-  const status = input.status === "completed" ? "paid" : input.status ?? "pending";
+  const status = input.status === "completed" ? "paid" : (input.status ?? "pending");
   const amount = Number.isFinite(input.amountCents ?? NaN) ? (input.amountCents as number) : 0;
 
   if (existing) {
@@ -98,12 +102,13 @@ export async function recordTransactionDocument(
     if (status !== existing.status) patch.status = status;
     if (Object.keys(patch).length === 1) return "skipped";
 
-    const { error } = await supabase
-      .from("billing_documents")
-      .update(patch)
-      .eq("id", existing.id);
+    const { error } = await supabase.from("billing_documents").update(patch).eq("id", existing.id);
     if (error) {
-      console.error("[payments] billing document update failed", input.transactionId, error.message);
+      console.error(
+        "[payments] billing document update failed",
+        input.transactionId,
+        error.message,
+      );
       return "skipped";
     }
     return "updated";
@@ -139,7 +144,8 @@ export function documentInputFromTransaction(
   const id = str(row, "id");
   if (!id) return null;
   const totals = (row.details as Raw | undefined)?.totals as Raw | undefined;
-  const grand = typeof totals?.grandTotal === "string" ? Number.parseInt(totals.grandTotal, 10) : NaN;
+  const grand =
+    typeof totals?.grandTotal === "string" ? Number.parseInt(totals.grandTotal, 10) : NaN;
   return {
     transactionId: id,
     subscriptionId: str(row, "subscriptionId"),

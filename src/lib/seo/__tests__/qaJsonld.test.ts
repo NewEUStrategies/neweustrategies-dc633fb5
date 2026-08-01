@@ -92,7 +92,10 @@ describe("qaCollectionJsonLd", () => {
       lang: "en",
       path: "/qa",
       name: "Q&A sessions",
-      sessions: [{ slug: "a", title: "A" }, { slug: "b", title: "B" }],
+      sessions: [
+        { slug: "a", title: "A" },
+        { slug: "b", title: "B" },
+      ],
     });
     const list = graph.mainEntity as { itemListElement: Array<{ url: string; position: number }> };
     expect(list.itemListElement.map((i) => i.url)).toEqual([

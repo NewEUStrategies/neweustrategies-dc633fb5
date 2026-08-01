@@ -42,11 +42,7 @@ export function TabsBlock({
 }) {
   const [active, setActive] = useState(0);
   if (!tabs.length)
-    return (
-      <div className="cms-meta">
-        {lang === "pl" ? "Brak zakładek" : "No tabs"}
-      </div>
-    );
+    return <div className="cms-meta">{lang === "pl" ? "Brak zakładek" : "No tabs"}</div>;
   const safe = Math.min(active, tabs.length - 1);
   const cur = tabs[safe];
 

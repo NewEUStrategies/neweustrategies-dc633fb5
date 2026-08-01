@@ -51,10 +51,7 @@ export function EventCountdownCardEditor({ c, lang, setContent }: Props) {
         />
 
         <PropField label={l("Pokaż uczestników", "Show attendees")} inline>
-          <Switch
-            checked={showAttendees}
-            onCheckedChange={(v) => setContent("showAttendees", v)}
-          />
+          <Switch checked={showAttendees} onCheckedChange={(v) => setContent("showAttendees", v)} />
         </PropField>
 
         {showAttendees ? (
@@ -80,10 +77,7 @@ export function EventCountdownCardEditor({ c, lang, setContent }: Props) {
         ) : null}
 
         <PropField label={l("Pokaż odliczanie", "Show countdown")} inline>
-          <Switch
-            checked={showCountdown}
-            onCheckedChange={(v) => setContent("showCountdown", v)}
-          />
+          <Switch checked={showCountdown} onCheckedChange={(v) => setContent("showCountdown", v)} />
         </PropField>
 
         <PropField label={l("Pokaż lokalizację", "Show location")} inline>
@@ -112,7 +106,10 @@ export function EventCountdownCardEditor({ c, lang, setContent }: Props) {
         ) : null}
 
         <PropField
-          label={l("Tekst pod komunikatem końca", "Text under finished message") + ` (${lang.toUpperCase()})`}
+          label={
+            l("Tekst pod komunikatem końca", "Text under finished message") +
+            ` (${lang.toUpperCase()})`
+          }
         >
           <Input
             value={strOf(c[`doneHint_${lang}`])}

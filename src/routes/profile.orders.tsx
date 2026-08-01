@@ -115,7 +115,6 @@ function OrdersPage() {
 
       {/* Odzyskanie faktury po numerze transakcji + mail z linkiem do portalu. */}
       <InvoiceLookupCard />
-
     </div>
   );
 }

@@ -94,9 +94,8 @@ export const Route = createFileRoute("/api/public/billing-cron")({
           const result = await runBillingReminders(leadDays);
           // Ta sama doba: domykamy karencje miejsc zespołowych, którym minął
           // termin - dostęp gaśnie dopiero tutaj, wraz z mailem końcowym.
-          const { expireSeatGrace, sendSeatGraceReminders } = await import(
-            "@/lib/organizations/teamSeats.server"
-          );
+          const { expireSeatGrace, sendSeatGraceReminders } =
+            await import("@/lib/organizations/teamSeats.server");
           // Najpierw przypomnienia (progi per organizacja albo z body jako
           // nadpisanie), potem domknięcie karencji, żeby ta sama doba nie
           // wysłała przypomnienia i maila końcowego naraz.
@@ -119,7 +118,6 @@ export const Route = createFileRoute("/api/public/billing-cron")({
           console.error("[billing-cron] failed", err);
           return json({ error: "cron_failed" }, 500);
         }
-
       },
     },
   },

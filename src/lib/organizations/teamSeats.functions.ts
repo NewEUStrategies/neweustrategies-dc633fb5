@@ -24,7 +24,6 @@ import {
   type SeatsSource,
 } from "@/lib/organizations/teamSeats";
 
-
 const seatsSchema = z.object({
   org_id: z.string().uuid(),
   seats: z.number().int().min(MIN_TEAM_SEATS).max(MAX_TEAM_SEATS),
@@ -94,9 +93,8 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
       if (!sub) {
         return { ok: false as const, error: "orgs: subscription not visible" };
       }
-      const { updateSubscriptionQuantity } = await import(
-        "@/lib/billing/paddleSubscription.server"
-      );
+      const { updateSubscriptionQuantity } =
+        await import("@/lib/billing/paddleSubscription.server");
       const res = await updateSubscriptionQuantity(
         sub.environment === "live" ? "live" : "sandbox",
         org.paddle_subscription_id,
@@ -218,7 +216,6 @@ export const reconcileTeamSeats = createServerFn({ method: "POST" })
     return { ok: true as const, ...readReconcile(result) };
   });
 
-
 /**
  * Długość okresu karencji organizacji (0-90 dni). 0 = utrata dostępu od razu
  * po zmniejszeniu limitu. Zmiana od razu przelicza miejsca i wysyła
@@ -319,5 +316,4 @@ export const runSeatGraceReminders = createServerFn({ method: "POST" })
     const { sendSeatGraceReminders } = await import("@/lib/organizations/teamSeats.server");
     const result = await sendSeatGraceReminders(data.days ?? null);
     return { ok: true as const, ...result };
-
   });

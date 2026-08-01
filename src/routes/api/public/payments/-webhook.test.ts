@@ -65,7 +65,9 @@ const h = vi.hoisted(() => {
 
   const lookup = (): Promise<QueryResult> => {
     const queue = state.lookups[state.table];
-    return Promise.resolve(queue && queue.length > 0 ? queue.shift()! : { data: null, error: null });
+    return Promise.resolve(
+      queue && queue.length > 0 ? queue.shift()! : { data: null, error: null },
+    );
   };
 
   const settle = (): QueryResult =>
@@ -84,7 +86,6 @@ const h = vi.hoisted(() => {
       ),
   };
 
-
   const methodCache = new Map<string, unknown>();
   const chain: Chain = new Proxy({} as Chain, {
     get(_t, prop: string | symbol) {
@@ -99,7 +100,6 @@ const h = vi.hoisted(() => {
     },
   });
 
-
   // Klient NIE może być thenable - `async function admin() { return supabase }`
   // rozpakowałoby go do wyniku zapisu zamiast zwrócić builder.
   const client = { from: (t: string) => chain.from(t) };
@@ -108,7 +108,6 @@ const h = vi.hoisted(() => {
   const emails = { subscription: vi.fn(async () => {}), payment: vi.fn(async () => {}) };
   return { state, chain, client, event, emails };
 });
-
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.client }));
 vi.mock("@/lib/paddle.server", () => ({
@@ -128,7 +127,6 @@ vi.mock("@/lib/paddle.server", () => ({
     TransactionCompleted: "transaction.completed",
     TransactionPaymentFailed: "transaction.payment_failed",
   },
-
 }));
 vi.mock("@/lib/billing/notifications.server", () => ({
   notifySubscriptionEmail: (...a: unknown[]) => h.emails.subscription(...(a as [])),
@@ -149,10 +147,7 @@ function req(): Request {
   return { url: "https://example.com/api/public/payments/webhook?env=live" } as unknown as Request;
 }
 
-function subEvent(
-  eventType: string,
-  data: Record<string, unknown>,
-): Record<string, unknown> {
+function subEvent(eventType: string, data: Record<string, unknown>): Record<string, unknown> {
   return {
     eventId: `evt_${Math.random().toString(36).slice(2)}`,
     eventType,
@@ -173,7 +168,10 @@ function subEvent(
 }
 
 /** Domyślne odczyty: istniejąca subskrypcja, plan, profil, lead w CRM. */
-function seed(existing: Record<string, unknown> | null, extra?: Partial<Record<string, QueryResult[]>>) {
+function seed(
+  existing: Record<string, unknown> | null,
+  extra?: Partial<Record<string, QueryResult[]>>,
+) {
   h.state.lookups = {
     subscriptions: existing ? [{ data: existing, error: null }] : [{ data: null, error: null }],
     access_plans: [
@@ -195,11 +193,10 @@ const isClaimOnly = (arg: unknown): boolean =>
   typeof arg === "object" &&
   arg !== null &&
   Object.keys(arg as Record<string, unknown>).every((k) => k === "last_event_at");
-const payload = <T,>(table: string, method: string): T =>
+const payload = <T>(table: string, method: string): T =>
   (opsOn(table, method)
     .map((o) => o.args[0])
     .find((a) => !isClaimOnly(a)) ?? {}) as T;
-
 
 describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   beforeEach(() => {
@@ -241,9 +238,14 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("wznowienie po pauzie: przywraca dostęp, czyści znacznik CRM i powiadamia", async () => {
-    seed({ user_id: "u1", price_id: "pro_monthly", status: "paused" }, {
-      crm_leads: [{ data: { id: "lead_1", tags: ["customer", "subscription:paused"] }, error: null }],
-    });
+    seed(
+      { user_id: "u1", price_id: "pro_monthly", status: "paused" },
+      {
+        crm_leads: [
+          { data: { id: "lead_1", tags: ["customer", "subscription:paused"] }, error: null },
+        ],
+      },
+    );
     h.event.value = subEvent("subscription.updated", {
       status: "active",
       currentBillingPeriod: { startsAt: "2026-08-01T00:00:00Z", endsAt: "2026-09-01T00:00:00Z" },
@@ -303,9 +305,12 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("uprawnienie po zwrocie nie wraca do życia na spóźnionym zdarzeniu", async () => {
-    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" }, {
-      user_subscriptions: [{ data: { id: "us_1", status: "refunded" }, error: null }],
-    });
+    seed(
+      { user_id: "u1", price_id: "pro_monthly", status: "active" },
+      {
+        user_subscriptions: [{ data: { id: "us_1", status: "refunded" }, error: null }],
+      },
+    );
     h.event.value = subEvent("subscription.updated", {
       status: "active",
       currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
@@ -317,7 +322,6 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("past_due: nie odbiera dostępu, ale zapisuje stan w panelu", async () => {
-
     seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
     h.event.value = subEvent("subscription.updated", {
       status: "past_due",
@@ -339,9 +343,9 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
 
     await handle(req());
 
-    expect(payload<{ current_period_end: string }>("subscriptions", "update").current_period_end).toBe(
-      "2026-09-01T00:00:00Z",
-    );
+    expect(
+      payload<{ current_period_end: string }>("subscriptions", "update").current_period_end,
+    ).toBe("2026-09-01T00:00:00Z");
     const ent = payload<{ status: string; current_period_end: string }>(
       "user_subscriptions",
       "update",
@@ -435,6 +439,8 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
     expect(payload<{ event_type: string }>("payment_webhook_events", "insert").event_type).toBe(
       "subscription.updated",
     );
-    expect(payload<{ status: string }>("payment_webhook_events", "update").status).toBe("processed");
+    expect(payload<{ status: string }>("payment_webhook_events", "update").status).toBe(
+      "processed",
+    );
   });
 });

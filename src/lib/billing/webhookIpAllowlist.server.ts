@@ -62,7 +62,6 @@ export function clientIpFromHeaders(headers: Headers | null | undefined): string
   return headers.get("cf-connecting-ip") ?? headers.get("x-real-ip");
 }
 
-
 /**
  * Sprawdza, czy żądanie przyszło z adresu operatora.
  * Zwraca `true` również wtedy, gdy listy nie da się pobrać ani odtworzyć z

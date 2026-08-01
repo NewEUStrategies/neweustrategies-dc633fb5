@@ -160,7 +160,6 @@ function CheckoutPage() {
       } else {
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
       }
-
     } catch {
       // Never surface a raw backend error string to the visitor.
       toast.error(t("checkout.paymentsNotConfigured"));

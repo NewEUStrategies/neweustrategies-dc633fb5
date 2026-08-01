@@ -238,7 +238,12 @@ export function EdgeCacheCard() {
                     onChange={(event) => setProbePath(event.target.value)}
                   />
                 </div>
-                <Button type="submit" variant="outline" size="sm" disabled={probeMutation.isPending}>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  disabled={probeMutation.isPending}
+                >
                   <Search className="h-3.5 w-3.5" aria-hidden />
                   {t("adminEdgeCache.diag.probeRun")}
                 </Button>
@@ -261,9 +266,7 @@ export function EdgeCacheCard() {
                 </div>
               )}
 
-              <div className="mt-4 text-xs font-medium">
-                {t("adminEdgeCache.diag.recentTitle")}
-              </div>
+              <div className="mt-4 text-xs font-medium">{t("adminEdgeCache.diag.recentTitle")}</div>
               {snapshot.recent.length === 0 ? (
                 <p className="mt-1 text-xs text-muted-foreground">
                   {t("adminEdgeCache.diag.recentEmpty")}
@@ -305,9 +308,7 @@ export function EdgeCacheCard() {
                           <td className="px-2 py-1 text-muted-foreground">
                             {[
                               decision.ageS === undefined ? null : `age ${decision.ageS}s`,
-                              decision.renderMs === undefined
-                                ? null
-                                : `ssr ${decision.renderMs}ms`,
+                              decision.renderMs === undefined ? null : `ssr ${decision.renderMs}ms`,
                               decision.cacheControl ?? null,
                             ]
                               .filter(Boolean)

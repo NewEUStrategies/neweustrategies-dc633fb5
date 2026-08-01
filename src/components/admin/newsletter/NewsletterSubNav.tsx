@@ -4,7 +4,18 @@
 // builderow.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { FileText, LayoutDashboard, Mail, MailCheck, MailOpen, ScrollText, Send, ShieldCheck, Users, Megaphone } from "lucide-react";
+import {
+  FileText,
+  LayoutDashboard,
+  Mail,
+  MailCheck,
+  MailOpen,
+  ScrollText,
+  Send,
+  ShieldCheck,
+  Users,
+  Megaphone,
+} from "lucide-react";
 
 const tabs = [
   {
@@ -78,7 +89,6 @@ const tabs = [
     labelEn: "Email preview",
   },
 ] as const;
-
 
 export function NewsletterSubNav() {
   const { i18n } = useTranslation();

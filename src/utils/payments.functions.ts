@@ -61,9 +61,8 @@ export const changePaddlePlan = createServerFn({ method: "POST" })
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { catalogEntryByPriceId, planChangeDirection } = await import(
-      "@/lib/billing/paddleCatalog"
-    );
+    const { catalogEntryByPriceId, planChangeDirection } =
+      await import("@/lib/billing/paddleCatalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
 
@@ -89,8 +88,7 @@ export const changePaddlePlan = createServerFn({ method: "POST" })
     const paddle = getPaddleClient(data.environment);
     await paddle.subscriptions.update(sub.paddle_subscription_id, {
       items: [{ priceId: paddlePriceId, quantity: 1 }],
-      prorationBillingMode:
-        direction === "upgrade" ? "prorated_immediately" : "do_not_bill",
+      prorationBillingMode: direction === "upgrade" ? "prorated_immediately" : "do_not_bill",
       ...(direction === "downgrade" ? { onPaymentFailure: "prevent_change" as const } : {}),
     });
 
@@ -247,9 +245,8 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { catalogEntryByPriceId, planChangeDirection } = await import(
-      "@/lib/billing/paddleCatalog"
-    );
+    const { catalogEntryByPriceId, planChangeDirection } =
+      await import("@/lib/billing/paddleCatalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
 
@@ -266,7 +263,13 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
 
     const direction = planChangeDirection(sub.price_id, target.priceId);
     if (direction === "same") {
-      return { ok: true as const, direction, amountCents: null, currency: null, nextBilledAt: null };
+      return {
+        ok: true as const,
+        direction,
+        amountCents: null,
+        currency: null,
+        nextBilledAt: null,
+      };
     }
 
     const paddlePriceId = await resolvePaddlePrice({
@@ -280,8 +283,7 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
         method: "PATCH",
         body: JSON.stringify({
           items: [{ price_id: paddlePriceId, quantity: Math.max(1, sub.quantity ?? 1) }],
-          proration_billing_mode:
-            direction === "upgrade" ? "prorated_immediately" : "do_not_bill",
+          proration_billing_mode: direction === "upgrade" ? "prorated_immediately" : "do_not_bill",
           ...(direction === "downgrade"
             ? { billing_cycle: { effective_from: "next_billing_period" } }
             : {}),
@@ -291,7 +293,13 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
     if (!res.ok) {
       console.error("[payments] plan preview failed", res.status, await res.text());
       // Brak podglądu nie może blokować zmiany planu - UI pokaże samą regułę.
-      return { ok: false as const, direction, amountCents: null, currency: null, nextBilledAt: null };
+      return {
+        ok: false as const,
+        direction,
+        amountCents: null,
+        currency: null,
+        nextBilledAt: null,
+      };
     }
     const json = (await res.json()) as {
       data?: {
@@ -344,9 +352,7 @@ export const updatePaddleSubscriptionSeats = createServerFn({ method: "POST" })
     const entry = catalogEntryByPriceId(sub.price_id);
     if (!entry?.perSeat) throw new Error("not_per_seat_plan");
 
-    const { updateSubscriptionQuantity } = await import(
-      "@/lib/billing/paddleSubscription.server"
-    );
+    const { updateSubscriptionQuantity } = await import("@/lib/billing/paddleSubscription.server");
     const result = await updateSubscriptionQuantity(data.environment, sub.paddle_subscription_id, {
       priceExternalId: entry.priceId,
       quantity: data.quantity,

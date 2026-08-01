@@ -44,20 +44,11 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const variant = ((typeof c.variant === "string" && c.variant) ||
     "editorial-hero") as SliderVariant;
   const ratio = (typeof c.ratio === "string" ? c.ratio : "16/9") as
-    | "16/9"
-    | "4/3"
-    | "1/1"
-    | "21/9"
-    | "3/2";
+    "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
   const autoplay = c.autoplay !== false;
   const intervalMs = typeof c.intervalMs === "number" ? c.intervalMs : 4500;
   const rounded = (typeof c.rounded === "string" ? c.rounded : "md") as
-    | "none"
-    | "sm"
-    | "md"
-    | "lg"
-    | "xl"
-    | "full";
+    "none" | "sm" | "md" | "lg" | "xl" | "full";
   const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
   const source = (typeof c.source === "string" ? c.source : "manual") as "manual" | "posts";
   const limit = typeof c.limit === "number" ? c.limit : 5;
@@ -65,18 +56,18 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const tagSlugs = typeof c.tagSlugs === "string" ? c.tagSlugs : "";
   const excludeIds = typeof c.excludeIds === "string" ? c.excludeIds : "";
   const orderBy = (typeof c.orderBy === "string" ? c.orderBy : "newest") as
-    | "newest"
-    | "oldest"
-    | "title";
+    "newest" | "oldest" | "title";
   const showExcerpt = c.showExcerpt !== false;
   const showAuthor = c.showAuthor !== false;
   const showCover = c.showCover !== false;
   const showTitle = c.showTitle !== false;
-  const authorDisplay = (typeof c.authorDisplay === "string"
-    ? c.authorDisplay
-    : c.showAuthor === false
-      ? "none"
-      : "avatar") as "avatar" | "label" | "none";
+  const authorDisplay = (
+    typeof c.authorDisplay === "string"
+      ? c.authorDisplay
+      : c.showAuthor === false
+        ? "none"
+        : "avatar"
+  ) as "avatar" | "label" | "none";
   const authorLabelPl = typeof c.authorLabel_pl === "string" ? c.authorLabel_pl : "";
   const authorLabelEn = typeof c.authorLabel_en === "string" ? c.authorLabel_en : "";
   const authorSizePx = typeof c.authorSizePx === "number" ? c.authorSizePx : 12;
@@ -404,9 +395,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           <Switch checked={showExcerpt} onCheckedChange={(v) => setContent("showExcerpt", v)} />
         </label>
         <div className="border-t border-brand/20 pt-2 space-y-2">
-          <PropField
-            label={t("builder.sliderEditor.authorDisplay", { defaultValue: "Autor" })}
-          >
+          <PropField label={t("builder.sliderEditor.authorDisplay", { defaultValue: "Autor" })}>
             <Select
               value={authorDisplay}
               onValueChange={(v) => {
@@ -447,7 +436,10 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 value={authorSizePx}
                 onChange={(e) => {
                   const n = Number(e.target.value);
-                  setContent("authorSizePx", Number.isFinite(n) ? Math.max(8, Math.min(24, n)) : 12);
+                  setContent(
+                    "authorSizePx",
+                    Number.isFinite(n) ? Math.max(8, Math.min(24, n)) : 12,
+                  );
                 }}
                 className="h-8 text-xs"
               />

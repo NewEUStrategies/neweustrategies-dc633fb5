@@ -2,7 +2,6 @@ import type { Block } from "@/lib/blocks/types";
 import { useRef } from "react";
 import { InlineHtmlEditable } from "../atoms/InlineHtmlEditable";
 
-
 interface Props {
   block: Block;
   onChange: (next: Block) => void;
@@ -22,7 +21,6 @@ export function ListBlockEdit({ block, onChange }: Props) {
   const levels = readLevels(block, items.length);
   const nested = levels.some((l) => l > 1);
   const refs = useRef<(HTMLDivElement | null)[]>([]);
-
 
   const commit = (nextItems: string[], nextLevels: number[]) => {
     const data: Record<string, typeof block.data.items> = { ...block.data, items: nextItems };
@@ -105,7 +103,6 @@ export function ListBlockEdit({ block, onChange }: Props) {
               onKeyDown={(e) => onKeyDown(i, e)}
               className="flex-1 bg-transparent border-0 p-0 m-0 text-foreground text-base leading-relaxed"
             />
-
           </li>
         );
       })}

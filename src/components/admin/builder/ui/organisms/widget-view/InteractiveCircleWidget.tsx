@@ -146,10 +146,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
         />
       )}
 
-      <div
-        className="relative"
-        style={{ width: "100%", maxWidth: size, height: containerHeight }}
-      >
+      <div className="relative" style={{ width: "100%", maxWidth: size, height: containerHeight }}>
         {/* Circle / semicircle */}
         <svg
           viewBox="0 0 100 100"
@@ -194,9 +191,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
             className="animate-fade-in"
             style={{ animationDuration: "260ms" }}
           >
-            {activeTitle && (
-              <h4 className="font-display text-foreground m-0">{activeTitle}</h4>
-            )}
+            {activeTitle && <h4 className="font-display text-foreground m-0">{activeTitle}</h4>}
             {activeDesc && (
               <p
                 className="cms-post-excerpt mt-2 mb-0"
@@ -253,11 +248,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
                   }}
                 />
               )}
-              <DynamicIcon
-                name={iconName}
-                size={Math.round(itemSize * 0.32)}
-                aria-hidden
-              />
+              <DynamicIcon name={iconName} size={Math.round(itemSize * 0.32)} aria-hidden />
               <span
                 className="cms-meta mt-1 px-1 truncate max-w-full relative"
                 style={{ color: fg }}

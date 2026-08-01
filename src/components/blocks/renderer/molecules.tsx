@@ -95,16 +95,9 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
     Number.isFinite(rawW) && Number.isFinite(rawH) && rawW > 0 && rawH > 0
       ? { width: Math.round(rawW), height: Math.round(rawH) }
       : undefined;
-  const sizeCls =
-    size === "small" ? "max-w-xs" : size === "medium" ? "max-w-md" : "w-full";
-  const alignCls =
-    align === "left" ? "mr-auto" : align === "right" ? "ml-auto" : "mx-auto";
-  const imgCls = [
-    rounded ? "rounded-lg" : "",
-    shadow ? "shadow-lg" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const sizeCls = size === "small" ? "max-w-xs" : size === "medium" ? "max-w-md" : "w-full";
+  const alignCls = align === "left" ? "mr-auto" : align === "right" ? "ml-auto" : "mx-auto";
+  const imgCls = [rounded ? "rounded-lg" : "", shadow ? "shadow-lg" : ""].filter(Boolean).join(" ");
   const img = (
     <OptimizedImage
       src={url}
@@ -151,8 +144,6 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
     </figure>
   );
 };
-
-
 
 /** Blok kodu z podświetlaniem. */
 export const renderCode: BlockRenderer = ({ block, cls }) => {
@@ -220,9 +211,7 @@ export const renderVideo: BlockRenderer = ({ block, cls }) => {
           muted={Boolean(block.data.muted)}
           playsInline
         >
-          {captionsUrl && (
-            <track kind="captions" src={captionsUrl} srcLang="pl" default />
-          )}
+          {captionsUrl && <track kind="captions" src={captionsUrl} srcLang="pl" default />}
         </video>
       </div>
       {caption && (
@@ -251,7 +240,6 @@ export const renderVideo: BlockRenderer = ({ block, cls }) => {
   );
 };
 
-
 /** Galeria - siatka obrazów. */
 export const renderGallery: BlockRenderer = ({ block, cls }) => {
   const images = objList(block.data, "images", (o) => ({
@@ -274,11 +262,7 @@ export const renderAudio: BlockRenderer = ({ block, cls }) => {
     <figure className={`not-prose my-4 ${cls}`}>
       <div className="flex items-center gap-4 rounded-lg border border-border bg-card p-3">
         {cover && (
-          <img
-            src={cover}
-            alt=""
-            className="h-16 w-16 rounded-md object-cover flex-shrink-0"
-          />
+          <img src={cover} alt="" className="h-16 w-16 rounded-md object-cover flex-shrink-0" />
         )}
         <audio
           src={url}
@@ -292,11 +276,7 @@ export const renderAudio: BlockRenderer = ({ block, cls }) => {
       </div>
       {showDownload && (
         <p className="text-xs text-center mt-2">
-          <a
-            href={url}
-            download
-            className="underline text-muted-foreground hover:text-foreground"
-          >
+          <a href={url} download className="underline text-muted-foreground hover:text-foreground">
             ⬇ Pobierz plik
           </a>
         </p>
@@ -326,8 +306,6 @@ export const renderAudio: BlockRenderer = ({ block, cls }) => {
     </figure>
   );
 };
-
-
 
 /** Okładka - obraz tła z nakładką i tytułem. */
 export const renderCover: BlockRenderer = ({ block, cls }) => {
@@ -524,12 +502,7 @@ export const renderButtons: BlockRenderer = ({ block, cls }) => {
 };
 
 const SpotifyIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    aria-hidden="true"
-  >
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424a.622.622 0 0 1-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.623.623 0 0 1-.276-1.215c3.809-.88 7.076-.502 9.712 1.115a.623.623 0 0 1 .206.857zm1.223-2.722a.78.78 0 0 1-1.072.257c-2.686-1.652-6.785-2.131-9.965-1.165a.781.781 0 0 1-.348-1.525c3.626-1.08 8.12-.543 11.128 1.305a.78.78 0 0 1 .257 1.128zm.105-2.835c-3.223-1.914-8.54-2.09-11.618-1.156a.937.937 0 1 1-.543-1.793c3.53-1.072 9.405-.865 13.115 1.338a.938.938 0 0 1-.954 1.611z" />
   </svg>
 );
@@ -701,9 +674,7 @@ export const renderFaq: BlockRenderer = ({ block, cls, lang }) => {
 export const renderToc: BlockRenderer = ({ block, cls, lang, allBlocks }) => {
   const cols = str(block.data, "columns", "col-1");
   const columns = (cols === "col-2" || cols === "half" ? cols : "col-1") as
-    | "col-1"
-    | "col-2"
-    | "half";
+    "col-1" | "col-2" | "half";
   return (
     <div className={cls}>
       <TocBlockView
@@ -725,8 +696,7 @@ export const renderNewsletter: BlockRenderer = ({ block, cls, lang }) => {
   const title = str(block.data, "title");
   const description = str(block.data, "description");
   const variant = (str(block.data, "variant", "card") === "inline" ? "inline" : "card") as
-    | "card"
-    | "inline";
+    "card" | "inline";
   return (
     <section
       className={`not-prose my-6 rounded-lg border border-border bg-gradient-to-br from-primary/10 to-transparent p-5 ${cls}`}

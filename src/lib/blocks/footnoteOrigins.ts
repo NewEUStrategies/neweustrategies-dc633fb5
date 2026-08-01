@@ -85,9 +85,7 @@ function scanBlocks(ctx: Ctx, blocks: readonly Block[], prefix: PathSegment[]): 
       if (Array.isArray(rows)) {
         rows.forEach((row, ri) => {
           if (!Array.isArray(row)) return;
-          row.forEach((cell, ci) =>
-            scanField(ctx, cell, [...base, "rows", ri, ci]),
-          );
+          row.forEach((cell, ci) => scanField(ctx, cell, [...base, "rows", ri, ci]));
         });
       }
     } else if (b.type === "columns") {

@@ -14,7 +14,8 @@ import { newBlockId } from "./types";
 import { toJson } from "@/lib/builder/types";
 
 /** Znaczniki, po których poznajemy że schowek niesie realną strukturę. */
-const RICH_MARKERS = /<(h[1-6]|ul|ol|li|table|tr|td|th|figure|img|blockquote|pre|p|br|strong|b|em|i|u|sup|sub|a)\b/i;
+const RICH_MARKERS =
+  /<(h[1-6]|ul|ol|li|table|tr|td|th|figure|img|blockquote|pre|p|br|strong|b|em|i|u|sup|sub|a)\b/i;
 
 /** Czy warto uruchamiać import strukturalny dla danego HTML ze schowka. */
 export function looksLikeRichPaste(html: string): boolean {
@@ -35,7 +36,6 @@ function footnoteKey(raw: string): string | null {
   const m = raw.replace(/^#/, "").match(/(\d+)/);
   return m ? m[1] : null;
 }
-
 
 /** Ten sam zabieg na fragmencie HTML (marker bywa opakowany w `<sup>`/`<span>`). */
 function stripLeadingMarkerHtml(html: string): string {
@@ -133,7 +133,6 @@ function inlineFootnoteRefs(root: HTMLElement, notes: Map<string, string>): void
     target.replaceWith(replacement);
   }
 }
-
 
 // --- przypisy „ręczne" (indeks górny + lista na końcu) ---------------------
 
@@ -287,10 +286,6 @@ function inlineSuperscriptRefs(root: HTMLElement, notes: Map<string, string>): v
   }
 }
 
-
-
-
-
 // --- inline ---------------------------------------------------------------
 
 const INLINE_TAGS: Record<string, string> = {
@@ -414,7 +409,6 @@ function isOrderedWordItem(el: Element): boolean {
   return /^(\d+|[a-z]|[ivx]+)\s*[.)]/i.test(wordListMarker(el));
 }
 
-
 /**
  * Poziom zagnieżdżenia punktu Worda. Priorytet: jawne `mso-list:… levelN`,
  * potem wcięcie `margin-left` (Word stosuje ok. 36 pt na poziom, LibreOffice
@@ -439,7 +433,6 @@ function wordListStart(el: Element): number {
   const n = m ? Number(m[1]) : 1;
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
-
 
 /** Usuwa wiodący punktor („·", „1.", „a)") wygenerowany przez Worda. */
 function stripBullet(html: string): string {
@@ -480,7 +473,6 @@ function wordHeadingLevel(el: Element): number | null {
   return null;
 }
 
-
 const paragraph = (html: string): Block => ({
   id: newBlockId(),
   type: "paragraph",
@@ -509,7 +501,6 @@ function quoteBlock(el: Element): Block | null {
 }
 
 // --- media ze schowka -----------------------------------------------------
-
 
 /** Osadzalne źródła obrazu: zdalne URL-e i base64. `file:///` z Worda odpada. */
 const EMBEDDABLE_IMG = /^(https?:\/\/|\/\/|data:image\/)/i;
@@ -565,7 +556,9 @@ function isCaptionEl(el: Element): boolean {
   if (el.tagName === "FIGCAPTION") return true;
   const cls = el.getAttribute("class") ?? "";
   const style = (el.getAttribute("style") ?? "").toLowerCase();
-  return /MsoCaption|(^|\s|-)caption(\s|$|-)/i.test(cls) || style.includes("mso-style-name:caption");
+  return (
+    /MsoCaption|(^|\s|-)caption(\s|$|-)/i.test(cls) || style.includes("mso-style-name:caption")
+  );
 }
 
 const plainText = (el: Element): string => (el.textContent ?? "").replace(/\u00A0/g, " ").trim();
@@ -668,7 +661,11 @@ interface PendingList {
 function pushList(out: Block[], list: PendingList | null): void {
   if (!list) return;
   const keep = list.items
-    .map((text, i) => ({ text, level: list.levels[i] ?? 1, ordered: list.itemsOrdered[i] ?? false }))
+    .map((text, i) => ({
+      text,
+      level: list.levels[i] ?? 1,
+      ordered: list.itemsOrdered[i] ?? false,
+    }))
     .filter((x) => x.text.trim().length > 0);
   if (!keep.length) return;
   const nested = keep.some((x) => x.level > 1);
@@ -779,7 +776,6 @@ function convertChildren(parent: Element, out: Block[]): void {
       continue;
     }
 
-
     if (tag === "PRE") {
       flush();
       const code = child.textContent ?? "";
@@ -810,8 +806,6 @@ function convertChildren(parent: Element, out: Block[]): void {
         if (q) out.push(q);
         continue;
       }
-
-
 
       if (isWordListItem(child)) {
         const ordered = isOrderedWordItem(child);
@@ -919,7 +913,6 @@ function parseBody(html: string): HTMLElement | null {
   normalizeUnicodeSuperscripts(body);
   return body;
 }
-
 
 /**
  * Zamienia HTML ze schowka na listę bloków edytora.

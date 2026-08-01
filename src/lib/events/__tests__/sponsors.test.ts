@@ -28,7 +28,11 @@ describe("parseSponsorTiers", () => {
     expect(parseSponsorTiers({})).toEqual([]);
     expect(parseSponsorTiers({ tiers: "nope" } as unknown as WidgetContent)).toEqual([]);
     const tiers = parseSponsorTiers({
-      tiers: [null, 7, { sponsors: [null, {}, { name: "", logo: "" }, { logo: "https://x/l.png" }] }],
+      tiers: [
+        null,
+        7,
+        { sponsors: [null, {}, { name: "", logo: "" }, { logo: "https://x/l.png" }] },
+      ],
     } as unknown as WidgetContent);
     expect(tiers).toHaveLength(1);
     expect(tiers[0].sponsors).toHaveLength(1);

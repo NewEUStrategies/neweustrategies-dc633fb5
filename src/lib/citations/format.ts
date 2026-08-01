@@ -282,7 +282,6 @@ export function formatChicagoPlain(source: CitationSource): string {
   return pieces.join(" ");
 }
 
-
 /**
  * APA 7, strona internetowa:
  *   Kowalska, A., & Nowak, J. (2026, 20 lipca). Tytuł. New European

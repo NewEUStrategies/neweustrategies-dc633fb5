@@ -393,7 +393,10 @@ export function NewsletterPopupForm({
             onChange={(e) => upd("terms", e.target.checked)}
             className="mt-0.5 accent-[var(--brand,#f97316)]"
           />
-          <span className="nl-consent" dangerouslySetInnerHTML={{ __html: sanitizeHtml(termsHtml) }} />
+          <span
+            className="nl-consent"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(termsHtml) }}
+          />
         </label>
       )}
 

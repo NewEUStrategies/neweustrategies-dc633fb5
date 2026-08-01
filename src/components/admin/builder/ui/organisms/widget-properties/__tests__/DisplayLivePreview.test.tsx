@@ -40,12 +40,8 @@ describe("DisplayLivePreview - sidebar toggles drive the preview", () => {
   });
 
   it("author preview only appears for the ranked variant", () => {
-    expect(html({ variant: "card" })).not.toContain(
-      'data-testid="preview-author"',
-    );
-    expect(html({ variant: "ranked" })).toContain(
-      'data-testid="preview-author"',
-    );
+    expect(html({ variant: "card" })).not.toContain('data-testid="preview-author"');
+    expect(html({ variant: "ranked" })).toContain('data-testid="preview-author"');
   });
 
   it("ranked + authorDisplay=avatar renders avatar swatch + name, no label chip", () => {

@@ -131,7 +131,10 @@ describe("ExpertRequestButton - macierz", () => {
   });
 
   it("tier vip/ekspert (direct=true): CTA znika - pisza wprost, bez zapytania", () => {
-    h.quota = { data: quotaFor({ quota: 0, remaining: 0, direct: true, unlimited: true }), isPending: false };
+    h.quota = {
+      data: quotaFor({ quota: 0, remaining: 0, direct: true, unlimited: true }),
+      isPending: false,
+    };
     const { container } = renderButton();
     expect(container).toBeEmptyDOMElement();
   });

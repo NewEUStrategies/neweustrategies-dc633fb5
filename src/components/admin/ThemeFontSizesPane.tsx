@@ -30,10 +30,7 @@ import {
   type FontSizesSettings,
   type HeadingLevel,
 } from "@/lib/theme/fontSizes";
-import {
-  usePostLayoutSettings,
-  useSavePostLayoutSettings,
-} from "@/hooks/usePostLayoutSettings";
+import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 
 type TextTransform = FontSizesSettings["headings"]["h1"]["transform"];
 
@@ -84,7 +81,6 @@ export function ThemeFontSizesPane() {
     }
   };
 
-
   const setHeading = <K extends keyof FontSizesSettings["headings"]["h1"]>(
     level: HeadingLevel,
     key: K,
@@ -110,7 +106,6 @@ export function ThemeFontSizesPane() {
   const setSpacing = (key: keyof FontSizesSettings["spacing"], value: number) => {
     setDraft((d) => ({ ...d, spacing: { ...d.spacing, [key]: value } }));
   };
-
 
   return (
     <div className="space-y-6">
@@ -357,8 +352,6 @@ export function ThemeFontSizesPane() {
           <ApplyToPublishedSection isPL={isPL} />
         </div>
 
-
-
         {/* PREVIEW */}
         <div className="lg:sticky lg:top-4 h-fit">
           <div className="rounded-lg border border-border p-6 bg-background">
@@ -545,9 +538,7 @@ function ApplyToPublishedSection({ isPL }: { isPL: boolean }) {
         );
       } else {
         toast.success(
-          isPL
-            ? `Zaktualizowano ${res.updated} wpisów`
-            : `Updated ${res.updated} posts`,
+          isPL ? `Zaktualizowano ${res.updated} wpisów` : `Updated ${res.updated} posts`,
         );
       }
     },

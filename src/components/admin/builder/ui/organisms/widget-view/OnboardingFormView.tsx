@@ -283,7 +283,8 @@ export function OnboardingFormView({ c, lang }: { c: WidgetContent; lang: Lang }
   const [consent, setConsent] = useState(false);
   const [data, setData] = useState<OnboardingData>(EMPTY);
 
-  const heading = locStr(c, "heading", lang) || (lang === "en" ? "Project brief" : "Brief projektu");
+  const heading =
+    locStr(c, "heading", lang) || (lang === "en" ? "Project brief" : "Brief projektu");
   const intro = locStr(c, "intro", lang);
   const submitLabel = locStr(c, "submitLabel", lang) || t.submit;
   const accent = getStr(c, "accentColor");

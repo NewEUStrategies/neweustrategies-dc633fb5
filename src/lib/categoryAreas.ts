@@ -31,5 +31,4 @@ export const CORE_CATEGORY_AREAS: readonly CoreCategoryArea[] = [
     color: "#63B2F2",
   },
   { slug: "wydarzenia", name_pl: "Wydarzenia", name_en: "Events", color: "#01112F" },
-
 ] as const;

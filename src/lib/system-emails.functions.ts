@@ -3,11 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
-import {
-  fetchSystemEmailReport,
-  type SystemEmailReport,
-} from "@/lib/email/system-log.server";
-
+import { fetchSystemEmailReport, type SystemEmailReport } from "@/lib/email/system-log.server";
 
 export type {
   SystemEmailReport,
@@ -34,14 +30,13 @@ export const getSystemEmailReport = createServerFn({ method: "GET" })
       .default({})
       .parse(data ?? {}),
   )
-  .handler(
-    async ({ data }): Promise<SystemEmailReport> =>
-      fetchSystemEmailReport({
-        days: data.days,
-        template: data.template,
-        status: data.status,
-        search: data.search,
-        page: data.page,
-        pageSize: data.pageSize,
-      }),
+  .handler(async ({ data }): Promise<SystemEmailReport> =>
+    fetchSystemEmailReport({
+      days: data.days,
+      template: data.template,
+      status: data.status,
+      search: data.search,
+      page: data.page,
+      pageSize: data.pageSize,
+    }),
   );

@@ -51,13 +51,17 @@ export function CollapsibleSection({
             : "text-foreground hover:text-brand hover:bg-muted/40"
         }`}
       >
-        <span className="flex min-w-0 items-center gap-2 truncate text-left before:h-1.5 before:w-1.5 before:shrink-0 before:rounded-full before:bg-current before:opacity-60">{title}</span>
+        <span className="flex min-w-0 items-center gap-2 truncate text-left before:h-1.5 before:w-1.5 before:shrink-0 before:rounded-full before:bg-current before:opacity-60">
+          {title}
+        </span>
         <ChevronDown
           className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
       {open && (
-        <div className="px-2.5 pb-2.5 pt-2.5 space-y-2.5 border-t border-border bg-background/60">{children}</div>
+        <div className="px-2.5 pb-2.5 pt-2.5 space-y-2.5 border-t border-border bg-background/60">
+          {children}
+        </div>
       )}
     </div>
   );

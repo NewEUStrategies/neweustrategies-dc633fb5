@@ -60,7 +60,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useNotificationActorProfiles, notificationActorId } from "@/lib/notifications/useActorProfiles";
+import {
+  useNotificationActorProfiles,
+  notificationActorId,
+} from "@/lib/notifications/useActorProfiles";
 import { ConsentsPanel } from "./ConsentsPanel";
 
 type Lang = "pl" | "en";
@@ -513,12 +516,13 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                       const href = n.href;
                       const actorId = notificationActorId(n.href);
                       const actor = actorId ? actorProfiles.get(actorId) : undefined;
-                      const initials = (actor?.display_name ?? pickTitle(n, lang))
-                        .split(/\s+/)
-                        .filter(Boolean)
-                        .slice(0, 2)
-                        .map((w) => w[0]?.toUpperCase() ?? "")
-                        .join("") || "•";
+                      const initials =
+                        (actor?.display_name ?? pickTitle(n, lang))
+                          .split(/\s+/)
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .map((w) => w[0]?.toUpperCase() ?? "")
+                          .join("") || "•";
                       return (
                         <li key={g.key} className="py-3 flex items-start gap-3">
                           <Avatar

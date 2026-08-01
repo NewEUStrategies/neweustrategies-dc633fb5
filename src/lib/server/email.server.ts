@@ -32,8 +32,7 @@ export interface SendEmailInput {
 }
 
 export type SendEmailResult =
-  | { ok: true; messageId: string | null }
-  | { ok: false; status?: number; error: string };
+  { ok: true; messageId: string | null } | { ok: false; status?: number; error: string };
 
 /** Czy adres ma TRWAŁĄ blokadę w tym tenancie (best-effort, fail-open). */
 async function isPermanentlySuppressed(tenantId: string, email: string): Promise<boolean> {

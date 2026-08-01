@@ -15,11 +15,7 @@ import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
-import {
-  safeCssColor,
-  stripParagraphWrapper,
-  toParagraphDoc,
-} from "@/lib/blocks/inlineHtml";
+import { safeCssColor, stripParagraphWrapper, toParagraphDoc } from "@/lib/blocks/inlineHtml";
 import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
 import { HeadingWidgetToolbar } from "../HeadingWidgetToolbar";
 

@@ -1,11 +1,7 @@
 // Serializowalna treść dokumentu prawnego (ikony jako nazwy, nie komponenty).
 // Jedno źródło prawdy dla publicznej strony oraz dla wersjonowania w /admin.
 import type { LegalDocContent } from "../types";
-import {
-  LEGAL_CONTACT_EMAIL,
-  LEGAL_ENTITY,
-  LEGAL_UPDATED,
-} from "@/lib/legal/entity";
+import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY, LEGAL_UPDATED } from "@/lib/legal/entity";
 
 export const PRIVACY_CONTENT: LegalDocContent = {
   pl: {
@@ -86,9 +82,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
           "Logi bezpieczeństwa i zdarzenia techniczne - do 12 miesięcy.",
           "Korespondencja i zgłoszenia - do 24 miesięcy od zakończenia sprawy.",
         ],
-        paragraphs: [
-          "Po upływie tych okresów dane usuwamy lub nieodwracalnie anonimizujemy.",
-        ],
+        paragraphs: ["Po upływie tych okresów dane usuwamy lub nieodwracalnie anonimizujemy."],
       },
       {
         id: "prawa",
@@ -191,9 +185,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
           "Legal, accounting and audit advisers - as needed to run our business.",
           "Public authorities - where required by law.",
         ],
-        paragraphs: [
-          "We do not sell personal data and do not share it for third-party marketing.",
-        ],
+        paragraphs: ["We do not sell personal data and do not share it for third-party marketing."],
       },
       {
         id: "transfery",

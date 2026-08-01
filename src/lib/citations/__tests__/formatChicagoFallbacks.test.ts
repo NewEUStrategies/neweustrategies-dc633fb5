@@ -35,17 +35,13 @@ const noTrailingCommaSpace = (s: string) => expect(s).not.toMatch(/,\s+$/);
 
 describe("Chicago - walidacja i fallbacki", () => {
   it("autor tylko z firstName -> pojawia się jako family (nie znika)", () => {
-    const out = formatChicago(
-      src([{ firstName: "Anna", lastName: null, displayName: null }]),
-    );
+    const out = formatChicago(src([{ firstName: "Anna", lastName: null, displayName: null }]));
     expect(out).toContain("Anna,");
     noDoubleCommas(out);
   });
 
   it("autor tylko z displayName jednowyrazowym -> family", () => {
-    const out = formatChicagoPlain(
-      src([{ firstName: null, lastName: null, displayName: "OECD" }]),
-    );
+    const out = formatChicagoPlain(src([{ firstName: null, lastName: null, displayName: "OECD" }]));
     expect(out.startsWith("OECD,")).toBe(true);
   });
 
@@ -101,9 +97,7 @@ describe("Chicago - walidacja i fallbacki", () => {
   });
 
   it("brak publishedAt + accessedOn -> segment 'Udostępniono/Accessed'", () => {
-    const pl = formatChicagoPlain(
-      src([], { publishedAt: null, accessedOn: "2026-08-01" }),
-    );
+    const pl = formatChicagoPlain(src([], { publishedAt: null, accessedOn: "2026-08-01" }));
     const en = formatChicagoPlain(
       src([], { publishedAt: null, accessedOn: "2026-08-01", lang: "en" }),
     );

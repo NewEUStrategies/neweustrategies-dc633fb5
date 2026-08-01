@@ -81,5 +81,4 @@ export interface ImageSize {
 
 /** Pending destructive action awaiting confirmation. */
 export type ConfirmDeleteState =
-  | { kind: "files"; ids: string[] }
-  | { kind: "folder"; folder: string };
+  { kind: "files"; ids: string[] } | { kind: "folder"; folder: string };

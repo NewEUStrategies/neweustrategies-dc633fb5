@@ -47,9 +47,7 @@ describe("validateFootnotes", () => {
   });
 
   it("flags malformed variants like [FN], [ fn ], [fn/]", () => {
-    const issues = validateFootnotes(
-      doc(p("A [FN]x[/FN] B [ fn ]y[ /fn ] C [fn/]z")),
-    );
+    const issues = validateFootnotes(doc(p("A [FN]x[/FN] B [ fn ]y[ /fn ] C [fn/]z")));
     const kinds = issues.map((i) => i.kind);
     // 4 warianty niepoprawnych tagów w powyższym łańcuchu.
     expect(kinds.filter((k) => k === "MALFORMED_TAG").length).toBeGreaterThanOrEqual(4);
@@ -86,9 +84,7 @@ describe("validateFootnotes", () => {
   });
 
   it("does not flag correctly-paired markers even with malformed nearby", () => {
-    const issues = validateFootnotes(
-      doc(p("[fn]poprawny[/fn] oraz [FN]zly[/FN]")),
-    );
+    const issues = validateFootnotes(doc(p("[fn]poprawny[/fn] oraz [FN]zly[/FN]")));
     expect(issues.every((i) => i.kind === "MALFORMED_TAG")).toBe(true);
     expect(issues).toHaveLength(2);
   });

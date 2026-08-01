@@ -10,12 +10,7 @@
 
 export type EmailLangCode = "pl" | "en";
 
-export type AuthLangSource =
-  | "param"
-  | "path"
-  | "metadata"
-  | "header"
-  | "default";
+export type AuthLangSource = "param" | "path" | "metadata" | "header" | "default";
 
 export interface AuthLangInput {
   /** `payload.data.redirect_to` */
@@ -92,9 +87,7 @@ function headerLangFrom(header: string | null | undefined): string | null {
     .split(",")
     .map((part) => {
       const [tag, ...params] = part.trim().split(";");
-      const q = params
-        .map((p) => /q=([\d.]+)/i.exec(p)?.[1])
-        .find((v): v is string => Boolean(v));
+      const q = params.map((p) => /q=([\d.]+)/i.exec(p)?.[1]).find((v): v is string => Boolean(v));
       return { tag: tag.trim(), q: q ? Number.parseFloat(q) : 1 };
     })
     .filter((p) => p.tag.length > 0)

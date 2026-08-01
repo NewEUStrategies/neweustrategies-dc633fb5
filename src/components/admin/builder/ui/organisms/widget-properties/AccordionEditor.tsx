@@ -27,11 +27,7 @@ export function AccordionEditor({ c, lang, setContent }: Props) {
     update([...items, { [`q_${lang}`]: q, [`a_${lang}`]: a }]);
   };
   return (
-    <ListShell
-      title={t("builder.accordionEditor.title")}
-      items={items}
-      onAdd={addItem}
-    >
+    <ListShell title={t("builder.accordionEditor.title")} items={items} onAdd={addItem}>
       <div className="space-y-2">
         {items.map((it, i) => (
           <ItemFrame

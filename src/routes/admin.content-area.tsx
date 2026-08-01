@@ -343,7 +343,6 @@ function Page() {
               })}
             </p>
             <FieldShell label={t("admin.contentArea.listStyle")}>
-
               <SelectField
                 value={local.list_style || "disc"}
                 onChange={(v) => upd({ list_style: v })}

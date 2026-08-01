@@ -39,7 +39,8 @@ export function normalizeBuilderRichHtml(html: string): string {
     for (const item of items) {
       const text = item.text.replace(/\u00a0/g, "").trim();
       if (text.length > 0) continue;
-      const hasKeeper = item.querySelectorAll("a[href], ul, ol, img, iframe, video, audio, button").length > 0;
+      const hasKeeper =
+        item.querySelectorAll("a[href], ul, ol, img, iframe, video, audio, button").length > 0;
       if (hasKeeper) continue;
       item.remove();
       changed = true;

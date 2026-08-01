@@ -166,8 +166,6 @@ export const Route = createFileRoute("/qa/$slug")({
   },
 });
 
-
-
 function QaDetail() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureCommunityI18n();

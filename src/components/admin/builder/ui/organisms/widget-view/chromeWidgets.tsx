@@ -27,12 +27,7 @@ function FlagSvg({ code }: { code: FlagCode }) {
       </defs>
       <rect width="60" height="40" fill="#012169" />
       <path d="M0,0 L60,40 M60,0 L0,40" stroke="#ffffff" strokeWidth="8" />
-      <path
-        d="M0,0 L60,40 M60,0 L0,40"
-        stroke="#C8102E"
-        strokeWidth="4"
-        clipPath="url(#uj-diag)"
-      />
+      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" strokeWidth="4" clipPath="url(#uj-diag)" />
       <path d="M30,0 v40 M0,20 h60" stroke="#ffffff" strokeWidth="10" />
       <path d="M30,0 v40 M0,20 h60" stroke="#C8102E" strokeWidth="6" />
     </svg>
@@ -44,9 +39,7 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
   const router = useRouter({ warn: false });
   const routerPath = router?.state?.location?.pathname ?? "/";
   const pathLang = stripLangPrefix(routerPath).lang;
-  const current: AppLang =
-    pathLang ?? ((i18n.language ?? "pl").startsWith("en") ? "en" : "pl");
-
+  const current: AppLang = pathLang ?? ((i18n.language ?? "pl").startsWith("en") ? "en" : "pl");
 
   const switchTo = (target: AppLang) => {
     if (target === current) return;
@@ -122,7 +115,6 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
             {active && <span className="uppercase">{lang}</span>}
           </button>
         );
-
       })}
     </div>
   );

@@ -56,9 +56,8 @@ export function TableBlockEdit({ block, onChange }: Props) {
       (meta, filler) => meta.map((r) => [...r, filler]),
     );
   const removeRow = (i: number) =>
-    set(
-      rows.length > 1 ? rows.filter((_, j) => j !== i) : rows,
-      (meta) => (rows.length > 1 ? meta.filter((_, j) => j !== i) : meta),
+    set(rows.length > 1 ? rows.filter((_, j) => j !== i) : rows, (meta) =>
+      rows.length > 1 ? meta.filter((_, j) => j !== i) : meta,
     );
   const removeCol = (i: number) =>
     set(

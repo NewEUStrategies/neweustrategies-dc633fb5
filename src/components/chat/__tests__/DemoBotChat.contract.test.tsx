@@ -50,22 +50,22 @@ const forwardedToMessageList = [
 // gwarantuje, że lista jest faktycznie typowana względem MessageListProps
 // (nieużywana zmienna zniknęłaby przy refaktoryzacji, ale typ zostaje
 // zweryfikowany przez kompilator TS podczas `tsgo`/vitest).
-type _AssertKeysExistOnMessageList = (typeof forwardedToMessageList)[number] extends keyof ComponentProps<
-  typeof MessageList
->
-  ? true
-  : never;
+type _AssertKeysExistOnMessageList =
+  (typeof forwardedToMessageList)[number] extends keyof ComponentProps<typeof MessageList>
+    ? true
+    : never;
 const _typeCheck: _AssertKeysExistOnMessageList = true;
 void _typeCheck;
 
 // ChatWindow jest importowany, żeby udokumentować w kodzie (i w typach),
 // że DemoBotChat to lekki odpowiednik ChatWindow - oba renderują ten sam
 // MessageList, więc oba muszą pozostawać zgodne z MessageListProps.
-type _ChatWindowRendersMessageList = ComponentProps<typeof ChatWindow> extends {
-  conversationId: string;
-}
-  ? true
-  : never;
+type _ChatWindowRendersMessageList =
+  ComponentProps<typeof ChatWindow> extends {
+    conversationId: string;
+  }
+    ? true
+    : never;
 const _chatWindowTypeCheck: _ChatWindowRendersMessageList = true;
 void _chatWindowTypeCheck;
 

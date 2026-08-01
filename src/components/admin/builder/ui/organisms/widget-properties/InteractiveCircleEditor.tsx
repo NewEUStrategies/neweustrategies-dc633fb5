@@ -113,10 +113,7 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.interactiveCircleEditor.animation")}>
-          <Select
-            value={s(c.animation, "none")}
-            onValueChange={(v) => setContent("animation", v)}
-          >
+          <Select value={s(c.animation, "none")} onValueChange={(v) => setContent("animation", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -146,15 +143,14 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.interactiveCircleEditor.autoplay")}>
-          <Select
-            value={s(c.autoplay, "off")}
-            onValueChange={(v) => setContent("autoplay", v)}
-          >
+          <Select value={s(c.autoplay, "off")} onValueChange={(v) => setContent("autoplay", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="off">{t("builder.interactiveCircleEditor.autoplayOff")}</SelectItem>
+              <SelectItem value="off">
+                {t("builder.interactiveCircleEditor.autoplayOff")}
+              </SelectItem>
               <SelectItem value="on">{t("builder.interactiveCircleEditor.autoplayOn")}</SelectItem>
             </SelectContent>
           </Select>

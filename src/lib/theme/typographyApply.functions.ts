@@ -7,10 +7,7 @@
 // Tryb `dryRun` (domyślny) tylko raportuje, ile wpisów wymaga migracji.
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import {
-  buildTypographyPatch,
-  type TypographyPostInput,
-} from "@/lib/theme/typographyApply";
+import { buildTypographyPatch, type TypographyPostInput } from "@/lib/theme/typographyApply";
 
 interface ApplyTypographyInput {
   dryRun: boolean;

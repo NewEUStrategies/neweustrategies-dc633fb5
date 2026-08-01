@@ -47,10 +47,10 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
   const after = (c[`after_${lang}`] as string) || "";
   const texts = readTexts(c, lang);
 
-  const tag = ((typeof c.tag === "string" ? c.tag : "h2") as Tag);
-  const align = ((typeof c.align === "string" ? c.align : "left") as Align);
-  const splitBy = ((typeof c.splitBy === "string" ? c.splitBy : "characters") as SplitBy);
-  const staggerFrom = ((typeof c.staggerFrom === "string" ? c.staggerFrom : "first") as StaggerFrom);
+  const tag = (typeof c.tag === "string" ? c.tag : "h2") as Tag;
+  const align = (typeof c.align === "string" ? c.align : "left") as Align;
+  const splitBy = (typeof c.splitBy === "string" ? c.splitBy : "characters") as SplitBy;
+  const staggerFrom = (typeof c.staggerFrom === "string" ? c.staggerFrom : "first") as StaggerFrom;
 
   const color = (typeof c.color === "string" ? c.color : "") || "";
   const accent = (typeof c.accentColor === "string" ? c.accentColor : "") || "#f97316";
@@ -72,7 +72,11 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
     align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left";
   const Tag = tag;
 
-  const previewTexts = texts.length ? texts : (isPl ? ["szybko", "łatwo", "skutecznie"] : ["fast", "easy", "effective"]);
+  const previewTexts = texts.length
+    ? texts
+    : isPl
+      ? ["szybko", "łatwo", "skutecznie"]
+      : ["fast", "easy", "effective"];
 
   return (
     <div className="space-y-4">
@@ -80,11 +84,15 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
         <div className="flex items-center gap-2">
           <span className="inline-block h-4 w-1 rounded bg-muted-foreground/50" />
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("builder.textRotateEditor.staticText", { defaultValue: isPl ? "Tekst statyczny" : "Static text" })}
+            {t("builder.textRotateEditor.staticText", {
+              defaultValue: isPl ? "Tekst statyczny" : "Static text",
+            })}
           </h4>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label={isPl ? `Przed (${lang.toUpperCase()})` : `Before (${lang.toUpperCase()})`}>
+          <PropField
+            label={isPl ? `Przed (${lang.toUpperCase()})` : `Before (${lang.toUpperCase()})`}
+          >
             <Input
               value={before}
               onChange={(e) => setContent(`before_${lang}`, e.target.value)}
@@ -102,7 +110,11 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
           </PropField>
         </div>
         <PropField label={isPl ? "Kolor tekstu statycznego" : "Static text color"}>
-          <ColorField value={color} onChange={(v) => setContent("color", v ?? "")} placeholder="—" />
+          <ColorField
+            value={color}
+            onChange={(v) => setContent("color", v ?? "")}
+            placeholder="—"
+          />
         </PropField>
       </section>
 
@@ -114,7 +126,11 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
           </h4>
         </div>
         <PropField
-          label={isPl ? `Teksty (${lang.toUpperCase()}, po jednym na linię)` : `Texts (${lang.toUpperCase()}, one per line)`}
+          label={
+            isPl
+              ? `Teksty (${lang.toUpperCase()}, po jednym na linię)`
+              : `Texts (${lang.toUpperCase()}, one per line)`
+          }
         >
           <Textarea
             rows={4}
@@ -125,24 +141,34 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
           />
         </PropField>
         <PropField label={isPl ? "Kolor akcentu" : "Accent color"}>
-          <ColorField value={accent} onChange={(v) => setContent("accentColor", v ?? "")} placeholder="#f97316" />
+          <ColorField
+            value={accent}
+            onChange={(v) => setContent("accentColor", v ?? "")}
+            placeholder="#f97316"
+          />
         </PropField>
       </section>
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={isPl ? "Znacznik HTML" : "HTML tag"}>
           <Select value={tag} onValueChange={(v) => setContent("tag", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {(["h1", "h2", "h3", "h4", "h5", "h6", "span"] as Tag[]).map((x) => (
-                <SelectItem key={x} value={x}>{x.toUpperCase()}</SelectItem>
+                <SelectItem key={x} value={x}>
+                  {x.toUpperCase()}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </PropField>
         <PropField label={isPl ? "Wyrównanie" : "Align"}>
           <Select value={align} onValueChange={(v) => setContent("align", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="left">{isPl ? "Lewo" : "Left"}</SelectItem>
               <SelectItem value="center">{isPl ? "Środek" : "Center"}</SelectItem>
@@ -152,7 +178,9 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
         </PropField>
         <PropField label={isPl ? "Podział" : "Split by"}>
           <Select value={splitBy} onValueChange={(v) => setContent("splitBy", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="characters">{isPl ? "Znaki" : "Characters"}</SelectItem>
               <SelectItem value="words">{isPl ? "Słowa" : "Words"}</SelectItem>
@@ -162,7 +190,9 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
         </PropField>
         <PropField label={isPl ? "Kierunek staggeru" : "Stagger from"}>
           <Select value={staggerFrom} onValueChange={(v) => setContent("staggerFrom", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="first">{isPl ? "Od początku" : "First"}</SelectItem>
               <SelectItem value="last">{isPl ? "Od końca" : "Last"}</SelectItem>
@@ -205,7 +235,9 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
         </PropField>
         <PropField label={isPl ? "Pętla" : "Loop"}>
           <Select value={loop ? "on" : "off"} onValueChange={(v) => setContent("loop", v === "on")}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="on">{isPl ? "Tak" : "Yes"}</SelectItem>
               <SelectItem value="off">{isPl ? "Nie" : "No"}</SelectItem>
@@ -214,7 +246,9 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
         </PropField>
         <PropField label={isPl ? "Auto-rotacja" : "Auto rotate"}>
           <Select value={auto ? "on" : "off"} onValueChange={(v) => setContent("auto", v === "on")}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="on">{isPl ? "Tak" : "Yes"}</SelectItem>
               <SelectItem value="off">{isPl ? "Nie" : "No"}</SelectItem>

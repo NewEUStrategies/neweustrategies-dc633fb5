@@ -63,7 +63,11 @@ function safeKey(key: QueryKey): string {
   }
 }
 
-function sectionGateKey(section: SectionNode, lang: Lang, pendingKeys: readonly QueryKey[]): string {
+function sectionGateKey(
+  section: SectionNode,
+  lang: Lang,
+  pendingKeys: readonly QueryKey[],
+): string {
   return `${lang}:${section.id}:${pendingKeys.map(safeKey).join("|")}`;
 }
 
@@ -101,7 +105,9 @@ function createBoundedSectionPrefetch(
   const budget = new Promise<void>((resolve) => {
     timer = setTimeout(() => {
       record.exhausted = true;
-      void queryClient.cancelQueries({ predicate: (query) => pendingKeySet.has(safeKey(query.queryKey)) });
+      void queryClient.cancelQueries({
+        predicate: (query) => pendingKeySet.has(safeKey(query.queryKey)),
+      });
       removeDeadSectionQueries(queryClient, pendingKeys);
       resolve();
     }, SERVER_SECTION_STREAM_BUDGET_MS);

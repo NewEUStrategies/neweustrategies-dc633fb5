@@ -3,7 +3,6 @@
 import { createPortal } from "react-dom";
 import {
   Fragment,
-
   Suspense,
   createContext,
   lazy,
@@ -34,12 +33,7 @@ import {
   COMPACT_WIDGET_TYPES,
 } from "@/components/admin/builder/ui/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
-import {
-  sanitizeHtmlId,
-  sanitizeCssClass,
-  safeImageUrl,
-  hardenStyleCss,
-} from "@/lib/sanitize";
+import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import {
   sectionWrapperStyle,
   sectionContainerStyle,
@@ -250,7 +244,6 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   useEffect(() => {
-
     if (!import.meta.env.DEV || !debug || typeof window === "undefined") return;
     const annotate = () => {
       document
@@ -295,7 +288,6 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
       {mounted ? createPortal(toggle, document.body) : null}
     </>
   );
-
 }
 
 const SectionsList = memo(function SectionsList({

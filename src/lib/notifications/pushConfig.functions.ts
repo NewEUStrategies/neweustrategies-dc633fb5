@@ -5,7 +5,6 @@
 import { createServerFn } from "@tanstack/react-start";
 
 export const getPushPublicKey = createServerFn({ method: "GET" }).handler(async () => {
-  const publicKey =
-    process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || null;
+  const publicKey = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || null;
   return { publicKey: publicKey && publicKey.length > 0 ? publicKey : null };
 });

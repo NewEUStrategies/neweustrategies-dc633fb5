@@ -170,13 +170,18 @@ export function SponsorsEditor({ c, lang, setContent }: Props) {
         </PropField>
       </div>
 
-      <ListShell title={l("Poziomy sponsorskie", "Sponsor tiers")} items={tiers as unknown as Item[]} onAdd={addTier}>
+      <ListShell
+        title={l("Poziomy sponsorskie", "Sponsor tiers")}
+        items={tiers as unknown as Item[]}
+        onAdd={addTier}
+      >
         <div className="space-y-2">
           {tiers.map((tier, i) => (
             <ItemFrame
               key={tier.id}
               title={
-                ((lang === "pl" ? tier.name_pl : tier.name_en) || tier.name_pl) ||
+                (lang === "pl" ? tier.name_pl : tier.name_en) ||
+                tier.name_pl ||
                 `${l("Poziom", "Tier")} #${i + 1}`
               }
               onRemove={() => commit(tiers.filter((_, j) => j !== i))}
@@ -204,9 +209,7 @@ export function SponsorsEditor({ c, lang, setContent }: Props) {
                 </span>
                 <Select
                   value={tier.size}
-                  onValueChange={(v) =>
-                    patchTier(i, { size: v === "lg" || v === "sm" ? v : "md" })
-                  }
+                  onValueChange={(v) => patchTier(i, { size: v === "lg" || v === "sm" ? v : "md" })}
                 >
                   <SelectTrigger className="h-7 w-[150px] text-[11px]">
                     <SelectValue />

@@ -64,8 +64,7 @@ function transformOne(nameRaw: string): string {
     return preserveCase(name, lower.slice(0, -3) + last3.slice(0, 2) + "u");
   // szeleszczące / miękkie -> +u
   if ("chghkjlńśźćż".includes(last)) return preserveCase(name, lower + "u");
-  if (last2 === "sz" || last2 === "cz" || last2 === "rz")
-    return preserveCase(name, lower + "u");
+  if (last2 === "sz" || last2 === "cz" || last2 === "rz") return preserveCase(name, lower + "u");
   // -ł twarda spółgł.: Michał -> Michale
   if (last === "ł") return preserveCase(name, lower.slice(0, -1) + "le");
   // -r -> -rze (Piotr -> Piotrze, Igor -> Igorze)

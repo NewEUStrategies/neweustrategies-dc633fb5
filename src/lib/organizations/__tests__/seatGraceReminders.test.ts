@@ -31,7 +31,6 @@ describe("harmonogram przypomnień o karencji miejsc", () => {
         daysLeft: 1,
       });
 
-
       expect(body.intro).toContain("Acme");
     }
   });

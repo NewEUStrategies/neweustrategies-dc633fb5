@@ -79,10 +79,7 @@ export function TxEmailContentPanel() {
   }, [JSON.stringify(saved)]);
 
   const current = draft[type][lang];
-  const dirty = useMemo(
-    () => JSON.stringify(draft) !== JSON.stringify(saved),
-    [draft, saved],
-  );
+  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(saved), [draft, saved]);
 
   const setField = (key: keyof TxCopyOverride, value: string) =>
     setDraft((prev) => ({
@@ -121,7 +118,9 @@ export function TxEmailContentPanel() {
           </div>
           <div>
             <h2 className="font-display text-base leading-tight">
-              {isPl ? "Treści maili - karencja i koniec dostępu" : "Email content - grace & access end"}
+              {isPl
+                ? "Treści maili - karencja i koniec dostępu"
+                : "Email content - grace & access end"}
             </h2>
             <p className="text-xs text-muted-foreground">
               {isPl
@@ -144,11 +143,7 @@ export function TxEmailContentPanel() {
           <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
           {isPl ? "Przywróć domyślne" : "Reset to default"}
         </Button>
-        <Button
-          size="sm"
-          onClick={() => save.mutate(draft)}
-          disabled={!dirty || save.isPending}
-        >
+        <Button size="sm" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
           {save.isPending ? (
             <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
           ) : (

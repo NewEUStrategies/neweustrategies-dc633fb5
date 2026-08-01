@@ -97,9 +97,8 @@ describe("deduplikacja windykacji", () => {
   });
 
   it("zaksięgowanie płatności zwalnia klucz deduplikacji", async () => {
-    const { applyPaymentFailedEffects, applyPaymentRecoveredEffects } = await import(
-      "../dunning.server"
-    );
+    const { applyPaymentFailedEffects, applyPaymentRecoveredEffects } =
+      await import("../dunning.server");
     await applyPaymentFailedEffects(ctx("txn_1"));
     await applyPaymentRecoveredEffects(ctx("txn_1"));
 

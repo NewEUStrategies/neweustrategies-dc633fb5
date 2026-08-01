@@ -28,9 +28,7 @@ export function decodeHtmlEntities(input: string): string {
     .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) =>
       String.fromCodePoint(Number.parseInt(hex, 16)),
     )
-    .replace(/&#(\d+);/g, (_m, dec: string) =>
-      String.fromCodePoint(Number.parseInt(dec, 10)),
-    )
+    .replace(/&#(\d+);/g, (_m, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
     .replace(/&([a-zA-Z]+);/g, (m, name: string) => NAMED_ENTITIES[name] ?? m);
 }
 
