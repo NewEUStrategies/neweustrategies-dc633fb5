@@ -2,6 +2,7 @@ import { Monitor, Tablet, Smartphone, Undo, Redo, Sun, Moon } from "@/lib/lucide
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 import type { Device, Mode } from "@/lib/builder/types";
+import { EditorLangSwitch } from "@/components/admin/atoms/EditorLangSwitch";
 
 export function Toolbar({
   lang,
