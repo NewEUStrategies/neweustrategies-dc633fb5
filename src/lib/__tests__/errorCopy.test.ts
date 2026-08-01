@@ -39,6 +39,37 @@ describe("classifyError", () => {
     expect(classifyError({ message: "Failed to fetch" })).toBe("network");
     expect(classifyError({ message: "Network error occurred" })).toBe("network");
     expect(classifyError({ name: "TypeError", message: "Load failed" })).toBe("network");
+    // Nieudany lazy-load chunka trasy - komunikaty różnią się per przeglądarka
+    // i nie każdy zawiera "fetch" (Firefox) czy "load failed" (Safari).
+    expect(
+      classifyError({
+        name: "TypeError",
+        message: "Failed to fetch dynamically imported module: /assets/route.js",
+      }),
+    ).toBe("network");
+    expect(
+      classifyError({
+        name: "TypeError",
+        message: "error loading dynamically imported module: /assets/route.js",
+      }),
+    ).toBe("network");
+    expect(classifyError({ name: "TypeError", message: "Importing a module script failed." })).toBe(
+      "network",
+    );
+  });
+
+  it("does not mistake render-time TypeErrors for network problems", () => {
+    // Błąd renderu (dostęp do undefined) też jest TypeError - karta
+    // "sprawdź łącze internetowe" byłaby mylącą diagnozą błędu w kodzie.
+    expect(
+      classifyError({
+        name: "TypeError",
+        message: "Cannot read properties of undefined (reading 'slice')",
+      }),
+    ).toBe("generic");
+    expect(classifyError({ name: "TypeError", message: "x.map is not a function" })).toBe(
+      "generic",
+    );
   });
 
   it("falls back to generic for unknown errors", () => {
