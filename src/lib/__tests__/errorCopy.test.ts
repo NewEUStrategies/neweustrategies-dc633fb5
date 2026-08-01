@@ -39,13 +39,23 @@ describe("classifyError", () => {
     expect(classifyError({ message: "Failed to fetch" })).toBe("network");
     expect(classifyError({ message: "Network error occurred" })).toBe("network");
     expect(classifyError({ name: "TypeError", message: "Load failed" })).toBe("network");
-    // Nieudany lazy-load chunka trasy to TypeError z fetchem w komunikacie.
+    // Nieudany lazy-load chunka trasy - komunikaty różnią się per przeglądarka
+    // i nie każdy zawiera "fetch" (Firefox) czy "load failed" (Safari).
     expect(
       classifyError({
         name: "TypeError",
         message: "Failed to fetch dynamically imported module: /assets/route.js",
       }),
     ).toBe("network");
+    expect(
+      classifyError({
+        name: "TypeError",
+        message: "error loading dynamically imported module: /assets/route.js",
+      }),
+    ).toBe("network");
+    expect(classifyError({ name: "TypeError", message: "Importing a module script failed." })).toBe(
+      "network",
+    );
   });
 
   it("does not mistake render-time TypeErrors for network problems", () => {
