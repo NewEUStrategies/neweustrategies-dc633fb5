@@ -17,6 +17,7 @@ import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import { safeCssColor, stripParagraphWrapper, toParagraphDoc } from "@/lib/blocks/inlineHtml";
+import { reapplyPendingBlockFocus } from "@/lib/blocks/focus";
 import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
 import { HeadingWidgetToolbar } from "../HeadingWidgetToolbar";
 
@@ -217,11 +218,14 @@ export function HeadingBlock({
     },
   });
 
+  // Po synchronizacji treści przywracamy oczekujący fokus (scalenie/undo) -
+  // `setContent` mapuje selekcję na koniec dokumentu.
   useEffect(() => {
     if (editor && text !== stripParagraphWrapper(editor.getHTML())) {
       editor.commands.setContent(toParagraphDoc(text), { emitUpdate: false });
+      reapplyPendingBlockFocus(block.id);
     }
-  }, [text, editor]);
+  }, [text, editor, block.id]);
 
   if (!editor) return null;
 
@@ -235,7 +239,7 @@ export function HeadingBlock({
         style={color ? { color } : undefined}
         data-heading-level={level}
       >
-        <EditorContent editor={editor} />
+        <EditorContent editor={editor} data-block-editable="true" />
         {isEmpty && (
           <span className="pointer-events-none absolute inset-0 select-none opacity-40">
             {bt.editor("heading", "placeholder", { level })}

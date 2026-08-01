@@ -29,8 +29,11 @@ import { isTextEntryBlockType, requestBlockFocus } from "@/lib/blocks/focus";
 /**
  * Stos zamontowanych kanw - moduł współdzielony przez wszystkie instancje
  * hooka. Wierzchnia kanwa (ostatnio zamontowana) wygrywa zdarzenia globalne.
+ * Trzymamy REFERENCJE (nie elementy): kanwa podmienia węzeł DOM przy przejściu
+ * pusty dokument <-> lista bloków, a ref zawsze wskazuje żywy element -
+ * porównywanie zapamiętanych elementów blokowało schowek po takiej podmianie.
  */
-const MOUNTED_CANVASES: HTMLElement[] = [];
+const MOUNTED_CANVAS_REFS: Array<React.RefObject<HTMLDivElement | null>> = [];
 
 export interface UseBlockClipboardArgs {
   /** Root kanwy (element z `data-block-canvas`). */
@@ -61,14 +64,12 @@ export function useBlockClipboard(args: UseBlockClipboardArgs): void {
     insertBlocksAt,
   } = args;
 
-  // Rejestracja kanwy w stosie arbitrażu zagnieżdżeń.
+  // Rejestracja kanwy w stosie arbitrażu zagnieżdżeń (raz na mount hooka).
   useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    MOUNTED_CANVASES.push(el);
+    MOUNTED_CANVAS_REFS.push(rootRef);
     return () => {
-      const i = MOUNTED_CANVASES.indexOf(el);
-      if (i >= 0) MOUNTED_CANVASES.splice(i, 1);
+      const i = MOUNTED_CANVAS_REFS.indexOf(rootRef);
+      if (i >= 0) MOUNTED_CANVAS_REFS.splice(i, 1);
     };
   }, [rootRef]);
 
@@ -130,7 +131,7 @@ export function useBlockClipboard(args: UseBlockClipboardArgs): void {
       const inSomeCanvas = el?.closest?.("[data-block-canvas]") ?? null;
       if (inSomeCanvas) return inSomeCanvas === root;
       // Zdarzenie poza jakąkolwiek kanwą (fokus na body) - obsługuje wierzchnia.
-      return MOUNTED_CANVASES[MOUNTED_CANVASES.length - 1] === root;
+      return MOUNTED_CANVAS_REFS[MOUNTED_CANVAS_REFS.length - 1]?.current === root;
     };
 
     const onCopyOrCut = (e: ClipboardEvent) => {

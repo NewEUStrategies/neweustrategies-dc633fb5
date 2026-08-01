@@ -35,6 +35,11 @@ describe("collectDataUrlImages", () => {
 });
 
 describe("replaceDataUrlImages", () => {
+  it("returns the SAME reference when the map hits nothing (no phantom form change)", () => {
+    const map = new Map([["data:image/png;base64,INNY-OBRAZ", "https://cdn/x.png"]]);
+    expect(replaceDataUrlImages(doc, map)).toBe(doc);
+  });
+
   it("replaces values and HTML-embedded occurrences", () => {
     const map = new Map([[PNG, "https://cdn/site/img.png"]]);
     const out = replaceDataUrlImages(doc, map) as {
