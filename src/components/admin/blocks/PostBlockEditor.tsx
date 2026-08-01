@@ -218,6 +218,12 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
           />
         </aside>
       </div>
+      <CodeViewDialog
+        doc={history.doc}
+        lang={lang}
+        open={codeViewOpen}
+        onOpenChange={setCodeViewOpen}
+      />
     </BlockEditorProvider>
   );
 }
