@@ -49,7 +49,12 @@ function ReadingSettings() {
     <div>
       <h2 className="font-display text-xl mb-4">{t("admin.reading.title")}</h2>
 
-      <Field label={t("admin.reading.homepageShows")}>
+      <Field
+        label={t("admin.reading.homepageShows")}
+        hint={
+          draft.homepage_mode === "latest_posts" ? t("admin.reading.latestPostsHint") : undefined
+        }
+      >
         <Select
           value={draft.homepage_mode}
           onChange={(e) => set("homepage_mode", e.target.value as Reading["homepage_mode"])}
