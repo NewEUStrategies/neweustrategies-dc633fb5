@@ -17,6 +17,8 @@ import { Undo, Redo, PanelLeft, Eye } from "@/lib/lucide-shim";
 import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
 import { BLOCK_TOUR_STEPS } from "@/lib/onboarding/tours";
+import { EditorLangSwitch } from "@/components/admin/atoms/EditorLangSwitch";
+import type { AppLang } from "@/lib/i18n/localePath";
 
 interface Props {
   value: LocalizedBlocks | null;
