@@ -36,7 +36,13 @@ export const Route = createFileRoute("/admin/categories")({
 });
 
 type CategoryKind =
-  "category" | "pub_type" | "region" | "topic" | "project" | "series" | "organization";
+  | "category"
+  | "pub_type"
+  | "region"
+  | "topic"
+  | "project"
+  | "series"
+  | "organization";
 
 const KIND_ORDER: readonly CategoryKind[] = [
   "category",

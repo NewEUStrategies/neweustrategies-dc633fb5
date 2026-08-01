@@ -37,7 +37,8 @@ export interface AdhocTransactionInput {
 }
 
 export type AdhocTransactionResult =
-  { ok: true; transactionId: string } | { ok: false; error: string };
+  | { ok: true; transactionId: string }
+  | { ok: false; error: string };
 
 const productIdCache = new Map<string, string>();
 

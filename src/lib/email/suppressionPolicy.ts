@@ -24,7 +24,13 @@ import type { TxEmailType } from "@/lib/email-templates/tx-copy";
 
 /** Powody blokady - domena kolumny reason w public.email_suppressions. */
 export type SuppressionReason =
-  "hard_bounce" | "soft_bounce" | "complaint" | "manual" | "unsubscribe" | "invalid" | "blocked";
+  | "hard_bounce"
+  | "soft_bounce"
+  | "complaint"
+  | "manual"
+  | "unsubscribe"
+  | "invalid"
+  | "blocked";
 
 export type SuppressionScope = "permanent" | "transient";
 

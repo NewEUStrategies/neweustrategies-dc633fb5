@@ -9,7 +9,13 @@
 // w middleware server function.
 
 export type SystemEmailStatus =
-  "pending" | "sent" | "dlq" | "suppressed" | "failed" | "bounced" | "complained";
+  | "pending"
+  | "sent"
+  | "dlq"
+  | "suppressed"
+  | "failed"
+  | "bounced"
+  | "complained";
 
 export interface SystemEmailRow {
   messageId: string;

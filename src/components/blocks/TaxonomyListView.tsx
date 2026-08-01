@@ -46,11 +46,13 @@ function useTaxonomyItems(kind: Kind, lang: "pl" | "en", limit?: number) {
   if (kind === "archives") return archives;
   return {
     ...tags,
-    data: tags.data?.map((t): TaxonomyItem => ({
-      label: t.name,
-      href: `/tag/${t.slug}`,
-      count: 0,
-    })),
+    data: tags.data?.map(
+      (t): TaxonomyItem => ({
+        label: t.name,
+        href: `/tag/${t.slug}`,
+        count: 0,
+      }),
+    ),
   };
 }
 

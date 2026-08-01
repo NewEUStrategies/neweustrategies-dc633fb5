@@ -1017,7 +1017,8 @@ async function dispatchMerydian(
     _tenant: cfg.tenant_id ?? null,
   });
   const secretRow = (Array.isArray(secretsData) ? secretsData[0] : secretsData) as
-    { webhook_secret: string | null; api_key: string | null } | undefined;
+    | { webhook_secret: string | null; api_key: string | null }
+    | undefined;
   const webhookSecret = secretRow?.webhook_secret ?? "";
   const apiSecret = secretRow?.api_key ?? "";
 

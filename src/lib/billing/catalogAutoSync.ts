@@ -7,7 +7,11 @@
 // ponowną synchronizację, zanim ktokolwiek kliknie "Kup".
 
 export type ResyncReason =
-  "first_run" | "integration_restarted" | "catalog_changed" | "retry_after_failure" | "stale";
+  | "first_run"
+  | "integration_restarted"
+  | "catalog_changed"
+  | "retry_after_failure"
+  | "stale";
 
 export interface IntegrationSyncState {
   fingerprint: string | null;

@@ -86,7 +86,8 @@ export function maxBytesForMime(mime: string): number {
 }
 
 export type UploadRejection =
-  { kind: "mime"; mime: string } | { kind: "size"; sizeBytes: number; maxBytes: number };
+  | { kind: "mime"; mime: string }
+  | { kind: "size"; sizeBytes: number; maxBytes: number };
 
 /** Zwraca `null`, gdy plik jest do przyjęcia, albo powód odrzucenia. */
 export function checkUploadable(

@@ -262,7 +262,8 @@ function AdminShellInner({
   // usługa zewnętrzna (`href`, nowa karta przez SidebarExternalNavLink) - np.
   // Darowizny, których zbiórka żyje na zrzutka.pl i nie ma trasy w panelu.
   type NavItem =
-    { to: string; icon: NavIcon; label: string } | { href: string; icon: NavIcon; label: string };
+    | { to: string; icon: NavIcon; label: string }
+    | { href: string; icon: NavIcon; label: string };
   type NavGroup = { id: string; label?: string; items: NavItem[] };
 
   const groups: NavGroup[] = [

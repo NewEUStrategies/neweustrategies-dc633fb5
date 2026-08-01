@@ -34,7 +34,9 @@ export interface ExpertMaterialsParams {
 }
 
 type RpcMaterialsResult =
-  { kind: "ok"; page: ExpertMaterialsPage } | { kind: "not-found" } | { kind: "unavailable" };
+  | { kind: "ok"; page: ExpertMaterialsPage }
+  | { kind: "not-found" }
+  | { kind: "unavailable" };
 
 async function fetchMaterialsPageFromRpc(
   slugOrId: string,

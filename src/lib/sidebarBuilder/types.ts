@@ -3,7 +3,12 @@
 import { z } from "zod";
 
 export type SidebarWidgetType =
-  "reading-panel" | "tags" | "author-card" | "related-posts" | "newsletter" | "ad-slot";
+  | "reading-panel"
+  | "tags"
+  | "author-card"
+  | "related-posts"
+  | "newsletter"
+  | "ad-slot";
 
 export const SOCIAL_KEYS = [
   "x",

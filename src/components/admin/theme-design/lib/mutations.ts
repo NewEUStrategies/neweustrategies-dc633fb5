@@ -37,7 +37,8 @@ export function applyColor(
 ): ThemeDesign {
   if (mode === "light") {
     const current = (draft as Record<string, unknown>)[section] as
-      Record<string, unknown> | undefined;
+      | Record<string, unknown>
+      | undefined;
     return {
       ...draft,
       [section]: {

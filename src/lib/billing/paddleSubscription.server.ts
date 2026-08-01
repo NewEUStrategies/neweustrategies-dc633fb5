@@ -13,7 +13,8 @@ import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
 // w dyrektywie sama w sobie była błędem "rule not found".)
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type SubscriptionOpResult<T extends object = {}> =
-  ({ ok: true } & T) | { ok: false; error: string };
+  | ({ ok: true } & T)
+  | { ok: false; error: string };
 
 /** Identyfikator subskrypcji u dostawcy (`sub_...`); inne wartości ignorujemy. */
 export function isProviderSubscriptionRef(ref: string | null | undefined): ref is string {
