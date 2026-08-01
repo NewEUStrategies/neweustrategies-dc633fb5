@@ -59,6 +59,24 @@ jobs:
       - name: SEO head + schema contract
         run: bunx vitest run src/lib/seo/__tests__ src/routes/-sitemap.xml.test.ts
 
+      # Blokująca bramka i18n: każdy klucz bramkowanych powierzchni (bloki
+      # Gutenberga, widgety buildera, raport porównawczy) musi mieć wersję PL
+      # i EN. Nowy blok dodany tylko po polsku wcześniej trafiał na produkcję
+      # i renderował surowy klucz na /en/*. Zapisuje reports/i18n-parity.json,
+      # który konsumuje raport zgodności wdrożenia.
+      - name: i18n PL/EN parity gate
+        run: bun run check:i18n-parity
+
+      - name: Upload i18n parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: i18n-parity-report
+          path: reports/i18n-parity.json
+          if-no-files-found: ignore
+
+
+
 
 
       - name: Build
