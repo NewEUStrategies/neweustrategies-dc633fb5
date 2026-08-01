@@ -6415,6 +6415,7 @@ export type Database = {
           currency: string
           entity_id: string | null
           entity_type: Database["public"]["Enums"]["access_entity_type"] | null
+          environment: string
           id: string
           invoice_url: string | null
           kind: Database["public"]["Enums"]["order_kind"]
@@ -6437,6 +6438,7 @@ export type Database = {
           currency?: string
           entity_id?: string | null
           entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
+          environment?: string
           id?: string
           invoice_url?: string | null
           kind: Database["public"]["Enums"]["order_kind"]
@@ -6459,6 +6461,7 @@ export type Database = {
           currency?: string
           entity_id?: string | null
           entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
+          environment?: string
           id?: string
           invoice_url?: string | null
           kind?: Database["public"]["Enums"]["order_kind"]
