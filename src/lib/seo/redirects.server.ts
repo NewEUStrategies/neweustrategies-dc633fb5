@@ -94,9 +94,19 @@ async function getIndexForTenant(tenantId: string): Promise<RedirectIndex> {
   return p;
 }
 
+/**
+ * Indeks reguł tenanta dla konsumentów spoza ścieżki żądania (sitemap, feedy).
+ * Korzysta z tego samego cache co middleware, więc sitemapa i 301-ki nigdy nie
+ * rozjadą się w interpretacji reguł.
+ */
+export async function getRedirectIndexForTenant(tenantId: string): Promise<RedirectIndex> {
+  return getIndexForTenant(tenantId);
+}
+
 // ---------------------------------------------------------------------------
 // Request-time helpers
 // ---------------------------------------------------------------------------
+
 
 /** Match a raw GET/HEAD request against the tenant's redirect rules. */
 export async function resolveRedirectForRequest(request: Request): Promise<{
