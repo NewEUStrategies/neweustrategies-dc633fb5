@@ -10,6 +10,8 @@
 // After the first hit, exact-path chains are followed up to MAX_CHAIN_HOPS so
 // stale multi-step redirects still land on the final URL in a single 301.
 
+import { addLangPrefix, stripLangPrefix } from "@/lib/i18n/localePath";
+
 export const REDIRECT_STATUS_CODES = [301, 302, 307, 308, 410] as const;
 export type RedirectStatusCode = (typeof REDIRECT_STATUS_CODES)[number];
 
@@ -231,6 +233,45 @@ export function matchRedirect(
   if (!isAbsoluteUrl(target) && cleanPathname(target.split("?")[0]) === pathname) return null;
   return { ...resolved, target };
 }
+
+/**
+ * Language-aware wrapper around `matchRedirect`.
+ *
+ * Rules are authored once for the canonical (un-prefixed, PL) path, exactly
+ * like the route tree. A request on a language-prefixed URL ("/en/about-us")
+ * first tries a literal match (so an operator can still write an /en-specific
+ * rule), then falls back to matching the canonical path and re-applies the
+ * same language prefix to the relative destination:
+ *
+ *   "/en/about-us"  --rule "/about-us" -> "/o-nas"--  "/en/o-nas"
+ *
+ * Without this, every legacy English URL under "/en" stayed a 404 even though
+ * its rule existed, and the PL variant silently dropped visitors out of their
+ * language.
+ */
+export function matchRedirectForPath(
+  index: RedirectIndex,
+  rawPathname: string,
+  search = "",
+): RedirectMatch | null {
+  const direct = matchRedirect(index, rawPathname, search);
+  if (direct) return direct;
+
+  const { lang, pathname: canonical } = stripLangPrefix(rawPathname);
+  if (!lang) return null;
+
+  const hit = matchRedirect(index, canonical, search);
+  if (!hit || hit.gone || isAbsoluteUrl(hit.target)) return hit;
+
+  const [pathPart, ...queryParts] = hit.target.split("?");
+  const query = queryParts.length ? `?${queryParts.join("?")}` : "";
+  const target = `${addLangPrefix(pathPart, lang)}${query}`;
+  // Self-redirect after re-prefixing would loop forever.
+  if (cleanPathname(target.split("?")[0]) === cleanPathname(rawPathname)) return null;
+  return { ...hit, target };
+}
+
+
 
 // ---------------------------------------------------------------------------
 // CSV import/export (admin UI + WP migration tooling)
