@@ -1,6 +1,10 @@
 // Dynamic sitemap for crawlers. Pulls all published pages + posts and
 // emits absolute URLs derived from the incoming request host (works on
 // preview, custom domain and prod without baking a placeholder URL).
+//
+// Każdy adres przechodzi przez indeks przekierowań tenanta, więc sitemapa
+// publikuje wyłącznie docelowe, kanoniczne URL-e (bez 301/410), a dokument
+// dostaje osobne wpisy PL i EN z pełnym, wzajemnym klastrem hreflang.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { requestPublicHost } from "@/lib/http/requestHost";
@@ -10,6 +14,9 @@ import {
   localizedPath,
   stripLangPrefix,
 } from "@/lib/i18n/localePath";
+import { sitemapLanguageUrls } from "@/lib/seo/sitemapUrls";
+import type { RedirectIndex } from "@/lib/seo/redirects";
+
 
 interface SitemapEntry {
   loc: string;
