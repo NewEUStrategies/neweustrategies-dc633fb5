@@ -51,6 +51,18 @@ function isGated(key: string, prefixes: readonly string[] | undefined): boolean 
   return prefixes.some((p) => key === p || key.startsWith(`${p}.`));
 }
 
+/**
+ * Kategorie liczby mnogiej CLDR występujące tylko w polskim (`few`, `many`).
+ * Angielski ma wyłącznie `one`/`other`, więc brak takiego wariantu po stronie
+ * EN nie jest luką w tłumaczeniu, tylko cechą języka.
+ */
+const PL_ONLY_PLURAL = /_(few|many)$/;
+
+function isPlOnlyPluralVariant(key: string): boolean {
+  return PL_ONLY_PLURAL.test(key);
+}
+
+
 /** Porównuje drzewa PL i EN i zwraca różnice ograniczone do bramkowanych prefiksów. */
 export function diffParity(
   pl: ResourceTree,
