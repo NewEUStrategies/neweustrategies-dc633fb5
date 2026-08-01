@@ -187,6 +187,10 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   }, []);
 
   const selectAllBlocks = useCallback(() => {
+    // Zaznaczenie blokowe zastępuje zaznaczenie tekstowe. Bez wyczyszczenia
+    // DOM-owej selekcji Ctrl+C po drugim Ctrl+A trafiałoby w natywne
+    // kopiowanie tekstu akapitu zamiast w schowek bloków.
+    window.getSelection()?.removeAllRanges();
     setSelectedIds(docRef.current.blocks.map((b) => b.id));
     onSelect(null);
   }, [onSelect]);
