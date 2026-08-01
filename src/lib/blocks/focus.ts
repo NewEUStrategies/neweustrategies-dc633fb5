@@ -49,14 +49,27 @@ function setCaretAtTextOffset(editable: HTMLElement, offset: number): void {
   selection.addRange(range);
 }
 
-/** Ustawia fokus + karetkę w edytowalnym elemencie bloku. `false` gdy bloku
- *  jeszcze nie ma w DOM (wołający może ponowić) lub nie ma pola tekstowego. */
+/**
+ * Ustawia fokus + karetkę w edytowalnym elemencie bloku. `false` gdy bloku
+ * (lub jego pola tekstowego) jeszcze nie ma w DOM - wołający ponawia.
+ *
+ * Wybór pola: najpierw jawny marker `[data-block-editable]` (bloki z wieloma
+ * polami - np. `code` ma input języka PRZED textarea kodu - wskazują nim
+ * właściwe pole), dopiero potem heurystyka "pierwszy edytowalny w poddrzewie".
+ */
 export function focusBlockEditable(blockId: string, pos: CaretPlacement): boolean {
   if (typeof document === "undefined") return true;
-  const host = document.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"]`);
+  // Id bloków to `b_[a-z0-9]+`; CSS.escape defensywnie, z fallbackiem dla
+  // środowisk testowych bez implementacji.
+  const escaped = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(blockId) : blockId;
+  const host = document.querySelector<HTMLElement>(`[data-block-id="${escaped}"]`);
   if (!host) return false;
-  const editable = host.querySelector<HTMLElement>(EDITABLE_SELECTOR);
-  if (!editable) return true; // blok bez pola tekstowego (obraz, embed…) - nic do fokusowania
+  const marked = host.querySelector<HTMLElement>("[data-block-editable]");
+  const scope = marked ?? host;
+  const editable = scope.matches(EDITABLE_SELECTOR)
+    ? scope
+    : scope.querySelector<HTMLElement>(EDITABLE_SELECTOR);
+  if (!editable) return false; // pole montuje się po hoście (TipTap) - ponów
 
   editable.focus();
   if (editable instanceof HTMLTextAreaElement || editable instanceof HTMLInputElement) {
@@ -86,11 +99,30 @@ export function focusBlockEditable(blockId: string, pos: CaretPlacement): boolea
 
 const MAX_ATTEMPTS = 30; // ~0,5 s przy 60 fps - nowy blok montuje się znacznie szybciej
 
+/** Czas ważności oczekującego fokusu - okno na wyścig z `setContent` TipTapa. */
+const PENDING_FOCUS_TTL_MS = 800;
+
+interface PendingFocus {
+  id: string;
+  pos: CaretPlacement;
+  until: number;
+}
+
+/**
+ * Ostatnie żądanie fokusu. `setContent` TipTapa (synchronizacja treści po
+ * scaleniu/undo) mapuje selekcję na KONIEC dokumentu i może wygrać wyścig
+ * z pętlą rAF - edytory inline po własnym `setContent` wołają
+ * `reapplyPendingBlockFocus`, żeby karetka wróciła w żądane miejsce.
+ */
+let pendingFocus: PendingFocus | null = null;
+
 /** Ponawia fokus przez kilka klatek, aż świeżo wstawiony blok się zamontuje. */
 export function requestBlockFocus(blockId: string, pos: CaretPlacement): void {
   if (typeof window === "undefined") return;
+  pendingFocus = { id: blockId, pos, until: Date.now() + PENDING_FOCUS_TTL_MS };
   let attempts = 0;
   const tick = () => {
+    if (pendingFocus?.id !== blockId) return; // nowsze żądanie przejęło karetkę
     if (focusBlockEditable(blockId, pos)) return;
     attempts += 1;
     if (attempts < MAX_ATTEMPTS) window.requestAnimationFrame(tick);
@@ -98,18 +130,36 @@ export function requestBlockFocus(blockId: string, pos: CaretPlacement): void {
   window.requestAnimationFrame(tick);
 }
 
-/** Typy bloków, w których po wstawieniu ma się dać od razu pisać. */
+/**
+ * Ponowne nałożenie oczekującego fokusu na blok - wołane przez edytory inline
+ * bezpośrednio po ich `setContent`, aby deterministycznie wygrać wyścig
+ * o pozycję karetki niezależnie od kolejności rAF vs efekty Reacta.
+ */
+export function reapplyPendingBlockFocus(blockId: string): void {
+  if (!pendingFocus || pendingFocus.id !== blockId) return;
+  if (Date.now() > pendingFocus.until) {
+    pendingFocus = null;
+    return;
+  }
+  focusBlockEditable(blockId, pendingFocus.pos);
+}
+
+/**
+ * Typy bloków, w których po wstawieniu ma się dać od razu pisać.
+ * Celowo BEZ "html" - jego edycja żyje w sidebarze (kanwa to sam podgląd),
+ * a heurystyka mogłaby złapać pole wewnątrz sanitizowanego HTML-a użytkownika.
+ */
 const TEXT_ENTRY_TYPES = new Set([
   "paragraph",
   "heading",
   "list",
   "quote",
   "code",
-  "html",
   "preformatted",
   "verse",
   "pullquote",
   "callout",
+  "details",
 ]);
 
 export function isTextEntryBlockType(type: string): boolean {

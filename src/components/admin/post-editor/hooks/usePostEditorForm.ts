@@ -144,22 +144,24 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         // Ten sam mapping nakładamy na BIEŻĄCY stan formularza (mógł już
         // zawierać nowsze zmiany tekstu) - edytor od razu pokazuje URL-e
         // storage i kolejny autosave nie wgrywa grafik ponownie.
+        // `replaceDataUrlImages` zachowuje referencję przy braku trafień,
+        // więc niezmieniony formularz nie generuje dodatkowego autosave'u.
         setSlug((f) => {
           if (!f) return f;
-          const next = { ...f };
-          if (next.blocks_data) {
-            next.blocks_data = replaceDataUrlImages(
-              next.blocks_data as unknown as Json,
-              result.replacements,
-            ) as unknown as typeof next.blocks_data;
-          }
-          if (next.builder_data) {
-            next.builder_data = replaceDataUrlImages(
-              next.builder_data as unknown as Json,
-              result.replacements,
-            ) as unknown as typeof next.builder_data;
-          }
-          return next;
+          const blocksJson = f.blocks_data as unknown as Json | null;
+          const builderJson = f.builder_data as unknown as Json | null;
+          const nextBlocks = blocksJson
+            ? replaceDataUrlImages(blocksJson, result.replacements)
+            : blocksJson;
+          const nextBuilder = builderJson
+            ? replaceDataUrlImages(builderJson, result.replacements)
+            : builderJson;
+          if (nextBlocks === blocksJson && nextBuilder === builderJson) return f;
+          return {
+            ...f,
+            blocks_data: nextBlocks as unknown as typeof f.blocks_data,
+            builder_data: nextBuilder as unknown as typeof f.builder_data,
+          };
         });
       }
       return { doc: result.doc, changed: result.changed };

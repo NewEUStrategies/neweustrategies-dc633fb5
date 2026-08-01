@@ -98,12 +98,26 @@ wszystkie dotyczą kompozycji layoutów, do której w NES służy builder (archi
 
 ## 3. Weryfikacja techniczna (adwersaryjny przegląd 8 przepływów)
 
-<!-- WYNIKI_WERYFIKACJI -->
+Niezależny przegląd nastawiony na ZNALEZIENIE błędów (nie potwierdzenie sukcesu) prześledził
+8 przepływów end-to-end po kodzie, łącznie z wnętrzami zależności (prosemirror-view, @tiptap/core).
+Werdykty przed poprawkami i stan po poprawkach (wszystkie naprawione w tym PR):
 
-Sygnały jakości na HEAD gałęzi: `vitest` - pełna suita zielona (3918+ testów, w tym 63 testy
-jednostkowe modułów tej fali: clipboard round-trip + interop WP, merge z offsetem karetki,
-zakresy zaznaczeń, imagePaste, persistImages, transforms); `tsc --noEmit` czysto; `eslint`
-na zmienionych plikach 0 błędów; zero `any`/`as any` w kodzie fali.
+| # | Przepływ | Werdykt przeglądu | Stan po poprawkach |
+| --- | --- | --- | --- |
+| 1 | Enter-split + fokus | **BUG (krytyczny, sprzed tej fali)**: `insertAt` czytał `docRef` aktualizowany dopiero przy re-renderze, więc przycięcie bloku źródłowego (`deleteRange`) przegrywało z wstawieniem ogona - treść się duplikowała ("Hello World" -> "Hello World" + " World") | **NAPRAWIONE**: `emitChange` aktualizuje `docRef` optymistycznie - sekwencyjne mutacje w jednym ticku się składają; wszystkie 12 mutatorów + schowek przechodzą tędy |
+| 2 | Merge Backspace | OK merytorycznie (offsety/encje/`<br>`/prev-heading poprawne); RYZYKO wyścigu `setContent` (mapuje selekcję na koniec) z pętlą rAF fokusu | **DOMKNIĘTE**: rejestr oczekującego fokusu w `focus.ts`; `Paragraph`/`Heading` po własnym `setContent` wołają `reapplyPendingBlockFocus` - karetka deterministycznie ląduje w punkcie złączenia |
+| 3 | Schowek | **BUG**: stos kanw trzymał ELEMENTY - po podmianie węzła (pusty<->niepusty dokument) arbitraż wskazywał odpięty div i Ctrl+C/X/V milkło; RYZYKO: Firefox/Safari nie gwarantują zdarzenia `copy` przy fokusie na `<body>` | **NAPRAWIONE**: stos trzyma REFERENCJE (`ref.current` zawsze żywy); kanwa ma `tabIndex=-1`, a `selectAllBlocks` fokusuje kanwę - zdarzenia schowka mają target wewnątrz `[data-block-canvas]` (wzorzec WP). Podwójne paste: przegląd potwierdził, że NIE występuje |
+| 4 | Persist images | OK (kolejność przed `update$`, `File` z `Uint8Array` poprawny, brak pętli); RYZYKO: zbędny drugi zapis przez głęboki klon `builder_data` bez zmian | **ZMITYGOWANE**: `replaceDataUrlImages` zwraca oryginalną referencję przy braku trafień; synchronizacja formularza nie tworzy pozornych zmian |
+| 5 | Transforms | **OK** (kompletność ikon/i18n wymuszona typami; cache na `[t]` unieważnia się przy zmianie języka) | bez zmian; bonus: `details` dodane do typów z fokusem po transformacji |
+| 6 | Inserter | **OK** (kolejność `visibleSpecs` = kolejność renderu we wszystkich 3 trybach; clamp odporny na kurczące się wyniki; slash-menu działa) | bez zmian |
+| 7 | Appender | **OK** (fokus na świeżym akapicie; retry 30 klatek pokrywa montowanie TipTapa) | bez zmian |
+| 8 | Regresje | **BUG (mały)**: heurystyka "pierwszy edytowalny" w `focus.ts` trafiała w pole JĘZYKA bloku `code` (input przed textarea) i mieliła podgląd bloku `html`; brak retry gdy pole montuje się po hoście | **NAPRAWIONE**: opt-in marker `[data-block-editable]` (paragraph/heading/code), retry gdy host jest a pola brak, `html` usunięty z typów fokusowanych (edycja żyje w sidebarze) |
+
+Sygnały jakości na HEAD gałęzi po poprawkach: `vitest` - pełna suita zielona (**3928 testów**,
+w tym 73 testy jednostkowe modułów tej fali: clipboard round-trip + interop WP, merge z offsetem
+karetki, zakresy zaznaczeń, imagePaste, persistImages z identycznością referencji, transforms,
+focus z markerem/retry/reapply); `tsc --noEmit` czysto; `eslint` na zmienionych plikach 0 błędów;
+zero `any`/`as any` w kodzie fali.
 
 ---
 

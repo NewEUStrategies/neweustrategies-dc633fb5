@@ -26,6 +26,7 @@ import { detectMarkdownShortcut, htmlToPlain, shortcutToBlock } from "@/lib/bloc
 import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
 import { parseBlocksFromClipboard } from "@/lib/blocks/clipboard";
 import { filesToImageBlocks } from "@/lib/blocks/imagePaste";
+import { reapplyPendingBlockFocus } from "@/lib/blocks/focus";
 
 import { WordStyleToolbar } from "../WordStyleToolbar";
 import { BlockInserter } from "../BlockInserter";
@@ -301,12 +302,15 @@ export function ParagraphBlock({
     );
   }
 
-  // Sync external content changes (undo/redo, programmatic transforms)
+  // Sync external content changes (undo/redo, programmatic transforms).
+  // `setContent` mapuje selekcję na koniec dokumentu - po synchronizacji
+  // przywracamy ewentualny oczekujący fokus (np. karetkę w punkcie scalenia).
   useEffect(() => {
     if (editor && html !== editor.getHTML()) {
       editor.commands.setContent(html || "<p></p>", { emitUpdate: false });
+      reapplyPendingBlockFocus(block.id);
     }
-  }, [html, editor]);
+  }, [html, editor, block.id]);
 
   if (!editor) return null;
 
@@ -314,7 +318,7 @@ export function ParagraphBlock({
     <div className="relative">
       {isActive && !slashOpen && <WordStyleToolbar editor={editor} />}
 
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} data-block-editable="true" />
 
       {editor.isEmpty && isActive && !slashOpen && (
         <p className="pointer-events-none absolute inset-0 text-muted-foreground/60 text-sm select-none italic">

@@ -50,14 +50,20 @@ export function collectDataUrlImages(doc: Json): string[] {
  */
 export function replaceDataUrlImages<T extends Json>(doc: T, replacements: Map<string, string>): T {
   if (replacements.size === 0) return doc;
+  let mutations = 0;
   const visit = (value: Json): Json => {
     if (typeof value === "string") {
       const direct = replacements.get(value);
-      if (direct) return direct;
+      if (direct) {
+        mutations += 1;
+        return direct;
+      }
       DATA_URL_IN_HTML.lastIndex = 0;
       return value.replace(DATA_URL_IN_HTML, (whole, prefix: string, url: string) => {
         const mapped = replacements.get(url);
-        return mapped ? `${prefix}${mapped}` : whole;
+        if (!mapped) return whole;
+        mutations += 1;
+        return `${prefix}${mapped}`;
       });
     }
     if (Array.isArray(value)) return value.map(visit);
@@ -68,7 +74,10 @@ export function replaceDataUrlImages<T extends Json>(doc: T, replacements: Map<s
     }
     return value;
   };
-  return visit(doc) as T;
+  const next = visit(doc) as T;
+  // Identyczność referencji, gdy mapa nie trafiła w żaden URL - wołający
+  // (autosave, synchronizacja formularza) nie widzi wtedy pozornej zmiany.
+  return mutations > 0 ? next : doc;
 }
 
 const EXT_BY_MIME: Record<string, string> = {

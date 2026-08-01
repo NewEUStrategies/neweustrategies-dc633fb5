@@ -174,11 +174,31 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
 
+  /**
+   * KAŻDA mutacja dokumentu przechodzi tędy: `docRef` jest aktualizowany
+   * OPTYMISTYCZNIE (nie dopiero przy re-renderze), więc sekwencyjne mutacje
+   * w jednym ticku się SKŁADAJĄ. Bez tego Enter-split gubił przycięcie bloku
+   * źródłowego: `deleteRange` -> onChange(przycięty), a `insertAt` czytał
+   * jeszcze stary `docRef` i nadpisywał dokument wersją sprzed przycięcia
+   * (ogon się duplikował).
+   */
+  const emitChange = useCallback(
+    (next: BlocksDoc, immediate?: boolean) => {
+      docRef.current = next;
+      onChange(next, immediate);
+    },
+    [onChange],
+  );
+
   const selectAllBlocks = useCallback(() => {
     // Zaznaczenie blokowe zastępuje zaznaczenie tekstowe. Bez wyczyszczenia
     // DOM-owej selekcji Ctrl+C po drugim Ctrl+A trafiałoby w natywne
     // kopiowanie tekstu akapitu zamiast w schowek bloków.
     window.getSelection()?.removeAllRanges();
+    // Fokus na kanwie (tabIndex=-1): zdarzenia copy/cut/paste dostają target
+    // wewnątrz [data-block-canvas] - Firefox/Safari nie gwarantują `copy`
+    // przy pustej selekcji i fokusie na <body> (WP robi to samo na wrapperze).
+    rootRef.current?.focus({ preventScroll: true });
     setSelectedIds(docRef.current.blocks.map((b) => b.id));
     onSelect(null);
   }, [onSelect]);
@@ -189,10 +209,10 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     const set = new Set(selectedIds);
     if (set.size === 0) return;
     const next = docRef.current.blocks.filter((b) => !set.has(b.id));
-    onChange({ ...docRef.current, blocks: next.length ? next : [] }, true);
+    emitChange({ ...docRef.current, blocks: next.length ? next : [] }, true);
     setSelectedIds([]);
     onSelect(null);
-  }, [selectedIds, onChange, onSelect]);
+  }, [selectedIds, emitChange, onSelect]);
 
   /**
    * Ctrl+Shift+D (jak w WP): duplikuje zaznaczenie wielokrotne albo aktywny
@@ -213,7 +233,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     const lastIdx = arr.reduce((acc, b, i) => (chosenIds.has(b.id) ? i : acc), -1);
     const next = [...arr];
     next.splice(lastIdx + 1, 0, ...copies);
-    onChange({ ...docRef.current, blocks: next }, true);
+    emitChange({ ...docRef.current, blocks: next }, true);
     if (copies.length === 1) {
       setSelectedIds([]);
       onSelect(copies[0].id);
@@ -222,7 +242,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       onSelect(null);
     }
     return true;
-  }, [onChange, onSelect]);
+  }, [emitChange, onSelect]);
 
   /**
    * Klik w blok z modyfikatorami (jak w WP): Shift = zakres od kotwicy,
@@ -310,21 +330,21 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     (idx: number, block: Block, immediate = true) => {
       const next = [...docRef.current.blocks];
       next.splice(idx, 0, block);
-      onChange({ ...docRef.current, blocks: next }, immediate);
+      emitChange({ ...docRef.current, blocks: next }, immediate);
       onSelect(block.id);
       // Gutenberg-flow: po Enter / wstawieniu bloku tekstowego piszesz dalej
       // bez klikania - karetka ląduje na początku świeżego bloku.
       if (isTextEntryBlockType(block.type)) requestBlockFocus(block.id, "start");
     },
-    [onChange, onSelect],
+    [emitChange, onSelect],
   );
 
   const replaceBlock = useCallback(
     (id: string, next: Block, immediate = false) => {
       const updated = docRef.current.blocks.map((b) => (b.id === id ? next : b));
-      onChange({ ...docRef.current, blocks: updated }, immediate);
+      emitChange({ ...docRef.current, blocks: updated }, immediate);
     },
-    [onChange],
+    [emitChange],
   );
 
   /** Replace a block in place with one or more new blocks (e.g. markdown transform). */
@@ -334,14 +354,14 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       if (idx < 0) return;
       const next = [...docRef.current.blocks];
       next.splice(idx, 1, ...replacement);
-      onChange({ ...docRef.current, blocks: next }, true);
+      emitChange({ ...docRef.current, blocks: next }, true);
       const last = replacement[replacement.length - 1];
       onSelect(last?.id ?? null);
       // Transformacja (markdown "## " / slash / wklejka) nie może gubić
       // karetki - piszesz dalej na końcu ostatniego bloku zamiennika.
       if (last && isTextEntryBlockType(last.type)) requestBlockFocus(last.id, "end");
     },
-    [onChange, onSelect],
+    [emitChange, onSelect],
   );
 
   /** Usuwa pusty blok (Backspace) i cofa karetkę na koniec sąsiada - jak w WP. */
@@ -351,7 +371,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       if (arr.length <= 1) return;
       const neighbor = arr[idx - 1] ?? arr[idx + 1];
       const next = arr.filter((_, i) => i !== idx);
-      onChange({ ...docRef.current, blocks: next }, true);
+      emitChange({ ...docRef.current, blocks: next }, true);
       if (neighbor) {
         onSelect(neighbor.id);
         if (isTextEntryBlockType(neighbor.type)) requestBlockFocus(neighbor.id, "end");
@@ -359,7 +379,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
         onSelect(null);
       }
     },
-    [onChange, onSelect],
+    [emitChange, onSelect],
   );
 
   /**
@@ -399,12 +419,12 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       const next = arr
         .filter((_, i) => i !== idx)
         .map((b) => (b.id === prev.id && mergedPrev ? mergedPrev : b));
-      onChange({ ...docRef.current, blocks: next }, true);
+      emitChange({ ...docRef.current, blocks: next }, true);
       onSelect(prev.id);
       requestBlockFocus(prev.id, caretOffset);
       return true;
     },
-    [onChange, onSelect],
+    [emitChange, onSelect],
   );
 
   /**
@@ -432,12 +452,12 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       if (!incoming.length) return;
       const next = [...docRef.current.blocks];
       next.splice(idx, 0, ...incoming);
-      onChange({ ...docRef.current, blocks: next }, true);
+      emitChange({ ...docRef.current, blocks: next }, true);
       const last = incoming[incoming.length - 1];
       onSelect(last.id);
       if (isTextEntryBlockType(last.type)) requestBlockFocus(last.id, "end");
     },
-    [onChange, onSelect],
+    [emitChange, onSelect],
   );
 
   const move = useCallback(
@@ -446,9 +466,9 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       const arr = docRef.current.blocks;
       if (j < 0 || j >= arr.length) return;
       const next = arrayMove(arr, idx, j);
-      onChange({ ...docRef.current, blocks: next }, true);
+      emitChange({ ...docRef.current, blocks: next }, true);
     },
-    [onChange],
+    [emitChange],
   );
 
   const duplicate = useCallback(
@@ -460,19 +480,19 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       const copy: Block = regenerateBlockIds([orig])[0];
       const next = [...docRef.current.blocks];
       next.splice(idx + 1, 0, copy);
-      onChange({ ...docRef.current, blocks: next }, true);
+      emitChange({ ...docRef.current, blocks: next }, true);
     },
-    [onChange],
+    [emitChange],
   );
 
   const remove = useCallback(
     (idx: number) => {
       const removed = docRef.current.blocks[idx];
       const next = docRef.current.blocks.filter((_, i) => i !== idx);
-      onChange({ ...docRef.current, blocks: next }, true);
+      emitChange({ ...docRef.current, blocks: next }, true);
       if (activeId === removed?.id) onSelect(null);
     },
-    [onChange, onSelect, activeId],
+    [emitChange, onSelect, activeId],
   );
 
   const onDragEnd = useCallback(
@@ -482,9 +502,9 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       const from = docRef.current.blocks.findIndex((b) => b.id === active.id);
       const to = docRef.current.blocks.findIndex((b) => b.id === over.id);
       if (from < 0 || to < 0) return;
-      onChange({ ...docRef.current, blocks: arrayMove(docRef.current.blocks, from, to) }, true);
+      emitChange({ ...docRef.current, blocks: arrayMove(docRef.current.blocks, from, to) }, true);
     },
-    [onChange],
+    [emitChange],
   );
 
   // Schowek bloków (Ctrl+C/X/V, interop z WordPressem, wklejki Word/obrazy).
@@ -493,7 +513,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     docRef,
     activeIdRef,
     selectedIdsRef,
-    onChange,
+    onChange: emitChange,
     onSelect,
     clearSelection,
     insertBlocksAt,
@@ -536,7 +556,8 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
         <div
           ref={rootRef}
           data-block-canvas
-          className="block-canvas space-y-0.5"
+          tabIndex={-1}
+          className="block-canvas space-y-0.5 outline-none"
           data-builder-renderer
           data-cms-content
         >

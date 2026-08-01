@@ -47,6 +47,7 @@ export function CodeBlock({ block, onChange }: Props) {
         onChange={(e) => onChange({ ...block, data: { ...block.data, code: e.target.value } })}
         placeholder={cc("codePh")}
         spellCheck={false}
+        data-block-editable="true"
         className="w-full bg-transparent font-mono text-sm p-3 outline-none focus:ring-0 border-none resize-y min-h-[120px]"
       />
     </div>
