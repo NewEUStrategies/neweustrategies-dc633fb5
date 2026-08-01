@@ -15,8 +15,12 @@ SELECT plan(7);
 -- kontrolować seed. Transakcyjne - cofane przez ROLLBACK.
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
--- Tenant publiczny ('nes') jest już zaseedowany przez migracje.
-SELECT public.public_tenant_id() AS nes \gset
+-- Własny tenant fixture z domeną: search_posts rozstrzyga tenant z nagłówka
+-- x-tenant-host (public_tenant_id()), więc seed tenanta domyślnego
+-- (seed-wpis-1..5) nie zanieczyszcza wyników.
+INSERT INTO public.tenants (id, slug, name, domain) VALUES
+  ('dddd1111-1111-1111-1111-111111111111', 'tenant-s', 'Tenant S', 'smoke.example');
+SELECT 'dddd1111-1111-1111-1111-111111111111' AS nes \gset
 
 -- Drugi, NIEpubliczny tenant - jego treść nie może trafić do publicznego search.
 INSERT INTO public.tenants (id, slug, name) VALUES
@@ -38,6 +42,7 @@ INSERT INTO public.posts (id, slug, status, tenant_id, parent_page_id, title_pl,
 -- ── Wcielenie: anonimowy odwiedzający ───────────────────────────────────────
 SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims', '', true);
+SELECT set_config('request.headers', '{"x-tenant-host":"smoke.example"}', true);
 
 -- Komplet: zwracany jest dokładnie opublikowany, nieusunięty post tenanta publicznego.
 SELECT is(

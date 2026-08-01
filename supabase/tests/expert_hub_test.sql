@@ -16,7 +16,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(18);
+SELECT plan(19);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 

@@ -248,6 +248,12 @@ SELECT is(
   'job_runner_settings.enabled ma DEFAULT true (dren kolejki nie czeka na przelacznik)'
 );
 
+-- Migracja 20260729093551 jawnie ustawia produkcyjny base_url
+-- (https://neweuropeanstrategies.com), a resolver slusznie daje jawnej
+-- konfiguracji pierwszenstwo. Oprozniamy kolumne (NOT NULL DEFAULT ''),
+-- zeby przetestowac FALLBACK do domeny tenanta domyslnego.
+UPDATE public.job_runner_settings SET base_url = '' WHERE id = 1;
+
 SELECT is(
   public.job_runner_base_url(),
   'https://uni-a.test',

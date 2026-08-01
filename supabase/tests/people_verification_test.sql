@@ -57,12 +57,26 @@ SELECT is(
 );
 
 -- -- 3. Samodzielna "weryfikacja" jest blokowana przez trigger guard -----------
-SELECT throws_like(
-  $$ UPDATE public.profiles SET verified_at = now()
-      WHERE id = 'a8000000-0000-0000-0000-0000000000bb' $$,
-  '%verification can only be changed by an admin%',
+-- Mechanizm się zmienia (20260725180745: profiles_guard_privileged_columns po
+-- cichu wycofuje zmianę zamiast rzucać; po zdjęciu grantów SELECT z profiles
+-- UPDATE pada 42501 zanim odpali jakikolwiek trigger), więc testujemy WŁASNOŚĆ
+-- - odznaka NIE została nadana - a nie konkretny komunikat błędu.
+DO $selfverify$
+BEGIN
+  UPDATE public.profiles SET verified_at = now()
+   WHERE id = 'a8000000-0000-0000-0000-0000000000bb';
+EXCEPTION WHEN insufficient_privilege THEN
+  NULL;  -- 42501 to też poprawna odmowa
+END $selfverify$;
+
+RESET ROLE;
+SELECT is(
+  (SELECT verified_at FROM public.profiles
+    WHERE id = 'a8000000-0000-0000-0000-0000000000bb'),
+  NULL::timestamptz,
   'zwykly uzytkownik nie moze nadac sobie odznaki'
 );
+SET LOCAL ROLE authenticated;
 
 -- -- 4. RPC odmawia nie-adminowi ------------------------------------------------
 SELECT throws_like(

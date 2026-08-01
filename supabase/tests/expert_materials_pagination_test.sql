@@ -24,11 +24,9 @@ ALTER TABLE auth.users DISABLE TRIGGER USER;
 SELECT public.public_tenant_id() AS nes \gset
 
 -- ── (0) Definicja i uprawnienia ─────────────────────────────────────────────
-SELECT ok(
-  NOT is_definer(
-    'public', 'get_expert_materials',
-    ARRAY['text','text','text','text','text','text','integer','integer','integer']
-  ),
+SELECT isnt_definer(
+  'public', 'get_expert_materials',
+  ARRAY['text','text','text','text','text','text','integer','integer','integer'],
   'get_expert_materials() jest SECURITY INVOKER (pelny RLS wolajacego)'
 );
 SELECT ok(

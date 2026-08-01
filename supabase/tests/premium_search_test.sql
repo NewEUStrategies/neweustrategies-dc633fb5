@@ -12,14 +12,18 @@
 --      organizacja z licznikiem publikacji, prefiks nazwiska, tryb
 --      przeglądania (pusta fraza) i niewidoczność osób bez dorobku.
 --
--- Wszystko z perspektywy anona; tenant rozstrzygany serwerowo (publiczny).
+-- Wszystko z perspektywy anona; tenant rozstrzygany serwerowo z nagłówka
+-- x-tenant-host (public_tenant_id()), więc fixture dostaje WŁASNY tenant
+-- z domeną - seed tenanta domyślnego (seed-wpis-1..5) nie wchodzi do wyników.
 
 BEGIN;
 SELECT plan(14);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
-SELECT public.public_tenant_id() AS nes \gset
+INSERT INTO public.tenants (id, slug, name, domain) VALUES
+  ('ab111111-1111-1111-1111-111111111111', 'tenant-prem', 'Tenant Premium', 'prem.example');
+SELECT 'ab111111-1111-1111-1111-111111111111' AS nes \gset
 
 INSERT INTO public.pages (id, tenant_id, slug) VALUES
   ('22222222-0000-0000-0000-0000000000fe', :'nes', 'ps-home');
@@ -28,11 +32,14 @@ INSERT INTO public.pages (id, tenant_id, slug) VALUES
 INSERT INTO auth.users (id, email) VALUES
   ('aa000000-0000-0000-0000-0000000000b1', 'nowak@ps.test'),
   ('aa000000-0000-0000-0000-0000000000b2', 'cichy@ps.test');
-INSERT INTO public.profiles (id, email, display_name, slug, tenant_id, job_title) VALUES
+-- search_people_orgs (20260719201038+) wymaga jawnego opt-in discoverable=true
+-- dla osób (DEFAULT false); Piotr też dostaje opt-in, żeby test 14 mierzył
+-- dokładnie bramkę "dorobek/publiczny profil", a nie discoverable.
+INSERT INTO public.profiles (id, email, display_name, slug, tenant_id, job_title, discoverable) VALUES
   ('aa000000-0000-0000-0000-0000000000b1', 'nowak@ps.test', 'Anna Nowak',
-   'anna-nowak', :'nes', 'Analityczka'),
+   'anna-nowak', :'nes', 'Analityczka', true),
   ('aa000000-0000-0000-0000-0000000000b2', 'cichy@ps.test', 'Piotr Cichy',
-   'piotr-cichy', :'nes', 'Redaktor');
+   'piotr-cichy', :'nes', 'Redaktor', true);
 INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
   ('aa000000-0000-0000-0000-0000000000b1', 'author', :'nes'),
   ('aa000000-0000-0000-0000-0000000000b2', 'author', :'nes');
@@ -73,6 +80,7 @@ INSERT INTO public.post_categories (post_id, category_id) VALUES
 
 SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims', '', true);
+SELECT set_config('request.headers', '{"x-tenant-host":"prem.example"}', true);
 
 -- 1. Tryb all (domyślny): oba słowa gdziekolwiek -> Q1 i Q2.
 SELECT is(
