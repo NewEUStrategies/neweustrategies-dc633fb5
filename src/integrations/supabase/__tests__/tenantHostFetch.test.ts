@@ -13,6 +13,14 @@ vi.mock("@/lib/http/requestHost", () => ({
   requestPublicHost: () => state.host,
 }));
 
+// Telemetria SSR jest ładowana dynamicznie wewnątrz timedFetch. Bez mocka
+// pierwszy test płaci za transformację całego łańcucha @tanstack/react-start
+// /server (>5 s w zimnym runnerze) i wywala się na timeoucie.
+vi.mock("@/lib/http/ssrTiming.server", () => ({
+  recordDbRoundTrip: vi.fn(),
+}));
+
+
 interface CapturedCall {
   input: RequestInfo | URL;
   init: RequestInit | undefined;
