@@ -27,6 +27,20 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
   void qc.invalidateQueries({
     predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "builder_templates",
   });
+  // Publiczne query strony głównej i listy wpisów POCHODZĄ z site_settings
+  // (reading.homepage_mode / homepage_page_slug / posts_per_page), ale żyją
+  // pod kluczami ["public", ...] z 10-minutowym staleTime. Bez tej inwalidacji
+  // admin po przełączeniu trybu "Strona główna pokazuje" widział starą stronę
+  // do 10 minut (SPA nie refetchowała). Wąski, jawny zestaw prefiksów - nie
+  // cały korzeń ["public"] - żeby zapis np. nagłówka nie zrzucał cache
+  // niezależnych treści.
+  for (const key of [
+    ["public", "home-mode"],
+    ["public", "home-page"],
+    ["public", "blog"],
+  ] as const) {
+    void qc.invalidateQueries({ queryKey: [...key] });
+  }
 }
 
 /** Mount once at the app root. */
