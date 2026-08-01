@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import type { Block, LocalizedBlocks } from "@/lib/blocks/types";
 import { BlockCanvas } from "./BlockCanvas";
 import { BlockEditorProvider } from "./BlockEditorContext";
@@ -20,6 +20,7 @@ import { FileCode2 } from "lucide-react";
 import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
 import { BLOCK_TOUR_STEPS } from "@/lib/onboarding/tours";
+import { EditorLangSwitch } from "@/components/admin/atoms/EditorLangSwitch";
 
 interface Props {
   value: LocalizedBlocks | null;
@@ -112,25 +113,32 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
           sidebarCollapsed ? "lg:grid-cols-[1fr_48px]" : "lg:grid-cols-[1fr_320px]",
         )}
       >
-        <CoachmarkTour controller={tour} />
-        <CodeViewDialog
-          doc={history.doc}
-          lang={lang}
-          open={codeViewOpen}
-          onOpenChange={setCodeViewOpen}
-        />
-        <div
-          data-tour="blocks-canvas"
-          className="bg-background border border-border rounded-lg p-4 lg:p-6"
-        >
-          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-            <Tabs
-              value={lang}
-              onValueChange={(v) => {
-                setLang(v as "pl" | "en");
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+          <div data-tour="blocks-lang">
+            <EditorLangSwitch
+              lang={lang}
+              onLangChange={(v) => {
+                setLang(v);
                 setActiveId(null);
-                setSelectedIds([]);
               }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            {previewHref ? (
+              <a
+                href={previewHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                title={t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>{t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}</span>
+              </a>
+            ) : null}
+            <div
+              data-tour="blocks-history"
+              className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-1"
             >
               <TabsList data-tour="blocks-lang">
                 <TabsTrigger value="pl">🇵🇱 PL</TabsTrigger>

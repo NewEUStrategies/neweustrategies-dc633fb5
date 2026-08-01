@@ -117,7 +117,9 @@ export type BlockType =
   | "video-hero"
   // Phase 5 - wizualizacja danych (silnik: src/components/charts)
   | "chart"
-  | "data-map";
+  | "data-map"
+  // Faza 6 - opcjonalny hover-podgląd linku
+  | "link-preview";
 
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 

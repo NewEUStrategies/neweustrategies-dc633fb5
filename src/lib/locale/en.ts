@@ -1459,6 +1459,7 @@ export const en = {
       map: "Map",
       chart: "Chart",
       "data-map": "Data map",
+      "link-preview": "Link preview",
       "contact-form": "Contact form",
       "social-icons": "Social icons",
       "share-buttons": "Share",

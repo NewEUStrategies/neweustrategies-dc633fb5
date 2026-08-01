@@ -79,6 +79,7 @@ import {
   TabsEditor,
   TimelineEditor,
   LogoCloudEditor,
+  ProgressCarouselEditor,
   PricingEditor,
   RatedListEditor,
   ImageEditor,
@@ -1479,6 +1480,8 @@ function ContentFields({
       return <TimelineEditor c={c} lang={lang} setContent={setContent} />;
     case "logo-cloud":
       return <LogoCloudEditor c={c} lang={lang} setContent={setContent} />;
+    case "progress-carousel":
+      return <ProgressCarouselEditor c={c} lang={lang} setContent={setContent} />;
     case "pricing":
       return <PricingEditor c={c} lang={lang} setContent={setContent} />;
     case "image":

@@ -41,3 +41,6 @@ test-results/
 *.njsproj
 *.sln
 *.sw?
+
+# Raporty bramek CI (kontrakt bazy, parytet i18n, raport wdrożenia)
+reports/

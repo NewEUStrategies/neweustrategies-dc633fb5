@@ -29,6 +29,7 @@ import {
   ShoppingBag as AffiliateIcon,
   Twitter as XIcon,
   GitCompareArrows as CompareIcon,
+  Link2 as LinkPreviewIcon,
   LogIn as LoginIcon,
   UserPlus as RegisterIcon,
   KeyRound as LostPasswordIcon,
@@ -396,6 +397,24 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
         after: "",
         labelBefore: "Przed",
         labelAfter: "Po",
+      },
+    }),
+  },
+  "link-preview": {
+    type: "link-preview",
+    label: "Podgląd linku",
+    description: "Linki z opcjonalnym podglądem strony po najechaniu.",
+    icon: LinkPreviewIcon,
+    category: "widgets",
+    create: () => ({
+      id: newBlockId(),
+      type: "link-preview",
+      data: {
+        introPl: "",
+        introEn: "",
+        items: [],
+        preview: true,
+        layout: "inline",
       },
     }),
   },
@@ -1555,4 +1574,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "video-hero",
   "chart",
   "data-map",
+  "link-preview",
 ];

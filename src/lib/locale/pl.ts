@@ -1482,6 +1482,7 @@ export const pl = {
       map: "Mapa",
       chart: "Wykres",
       "data-map": "Mapa danych",
+      "link-preview": "Podgląd linku",
       "contact-form": "Formularz kontaktu",
       "social-icons": "Ikony społecznościowe",
       "share-buttons": "Udostępnianie",

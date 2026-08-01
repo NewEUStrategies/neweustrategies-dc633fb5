@@ -175,6 +175,7 @@ export function WidgetLibrary({
     "contact-form": "utility",
     contact: "utility",
     "onboarding-form": "utility",
+    "progress-carousel": "blocks",
     // navigation
     "nav-link": "menus",
     "mega-menu": "menus",
