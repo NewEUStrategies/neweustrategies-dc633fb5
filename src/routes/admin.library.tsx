@@ -1,8 +1,10 @@
 // Panel biblioteki materiałów członkowskich: metadane w member_resources,
 // pliki w prywatnym buckecie Storage 'member-resources'. Upload + publikacja
-// (Switch inline), bramka rangi warstwy (min_tier_rank), usuwanie (metadane +
-// obiekt storage). Publiczne pobranie idzie osobno przez server fn z podpisanym
-// URL-em; tutaj tylko zarządzanie (staff, RLS).
+// (Switch inline), bramka rangi warstwy (min_tier_rank), podmiana pliku w
+// edycji (nowy obiekt najpierw, jeden UPDATE metadanych, stary obiekt schodzi
+// best-effort po sukcesie), usuwanie (metadane + obiekt storage). Publiczne
+// pobranie idzie osobno przez server fn z podpisanym URL-em; tutaj tylko
+// zarządzanie (staff, RLS).
 import { useMemo, useState, type ChangeEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -36,8 +38,10 @@ import {
   createResource,
   updateResource,
   deleteResource,
+  removeResourceObject,
   type MemberResourceRow,
   type ResourceCategory,
+  type ResourceFilePatch,
   type ResourceInput,
 } from "@/lib/admin/library";
 import { useMembershipTiers, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
@@ -66,7 +70,7 @@ function categoryLabel(cat: string, lang: Lang): string {
 
 /** Rozmiar w B/KB/MB/GB (jednostki binarne). */
 function formatBytes(bytes: number | null): string {
-  if (bytes === null || !Number.isFinite(bytes) || bytes < 0) return "—";
+  if (bytes === null || !Number.isFinite(bytes) || bytes < 0) return "-";
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB"];
   let val = bytes / 1024;
@@ -105,7 +109,7 @@ function emptyForm(): ResourceForm {
   };
 }
 
-function AdminLibraryPage() {
+export function AdminLibraryPage() {
   const { i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
@@ -175,8 +179,8 @@ function AdminLibraryPage() {
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             {L(
-              "Pliki trafiają do prywatnego bucketu Storage i są chronione bramką rangi — pobierze je tylko zalogowany użytkownik o wystarczającej randze warstwy.",
-              "Files go to a private Storage bucket and are protected by a tier gate — only a signed-in user with a sufficient tier rank can download them.",
+              "Pliki trafiają do prywatnego bucketu Storage i są chronione bramką rangi - pobierze je tylko zalogowany użytkownik o wystarczającej randze warstwy.",
+              "Files go to a private Storage bucket and are protected by a tier gate - only a signed-in user with a sufficient tier rank can download them.",
             )}
           </p>
         </div>
@@ -272,7 +276,8 @@ function AdminLibraryPage() {
 
 // ---------------------------------------------------------------------------
 // Współdzielone pola metadanych (tytuł/opis PL+EN, kategoria, warstwa, kolejność,
-// publikacja). Nie obejmuje pliku — upload jest tylko w dialogu Nowy materiał.
+// publikacja). Nie obejmuje pliku - uploadem zajmują się dialogi: Nowy materiał
+// (plik wymagany) i Edytuj (opcjonalna podmiana).
 // ---------------------------------------------------------------------------
 function ResourceFields({
   lang,
@@ -387,7 +392,7 @@ function ResourceFields({
 }
 
 // ---------------------------------------------------------------------------
-// Dialog: nowy materiał — upload pliku do prywatnego bucketu + metadane.
+// Dialog: nowy materiał - upload pliku do prywatnego bucketu + metadane.
 // ---------------------------------------------------------------------------
 function NewResourceDialog({
   lang,
@@ -463,14 +468,22 @@ function NewResourceDialog({
     });
   };
 
+  // Wspólna ścieżka zamykania: przycisk Anuluj MUSI przechodzić tędy (a nie
+  // przez samo setOpen), inaczej wgrany obiekt bez wiersza metadanych zostaje
+  // w buckecie na zawsze.
+  const handleOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (v) {
+      reset();
+    } else if (upload.data && !create.isPending) {
+      // Zamknięcie bez zapisu: upload nie ma wiersza metadanych - sprzątamy.
+      void removeResourceObject(upload.data.path);
+      reset();
+    }
+  };
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        if (v) reset();
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
@@ -502,8 +515,8 @@ function NewResourceDialog({
             ) : (
               <p className="text-xs text-muted-foreground">
                 {L(
-                  "Wybierz plik — zostanie wysłany do prywatnego bucketu.",
-                  "Pick a file — it uploads to the private bucket.",
+                  "Wybierz plik - zostanie wysłany do prywatnego bucketu.",
+                  "Pick a file - it uploads to the private bucket.",
                 )}
               </p>
             )}
@@ -517,7 +530,7 @@ function NewResourceDialog({
           />
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
+          <Button variant="ghost" onClick={() => handleOpenChange(false)}>
             {L("Anuluj", "Cancel")}
           </Button>
           <Button onClick={submit} disabled={!canSubmit}>
@@ -531,8 +544,24 @@ function NewResourceDialog({
 }
 
 // ---------------------------------------------------------------------------
-// Dialog: edycja metadanych istniejącego materiału (bez podmiany pliku).
+// Dialog: edycja materiału - metadane + opcjonalna podmiana pliku.
+// Kolejność podmiany gwarantuje spójność bez transakcji po stronie klienta:
+//   1. nowy obiekt idzie do bucketu (stary wciąż obsługuje pobrania),
+//   2. jeden UPDATE metadanych przełącza file_path/name/size/mime atomowo,
+//   3. dopiero po sukcesie stary obiekt schodzi best-effort; porzucenie
+//      dialogu sprząta osierocony upload zamiast zostawiać śmieci w buckecie.
+// Licznik pobrań i historia (resource_downloads) zostają - podmieniamy plik,
+// nie tożsamość materiału.
 // ---------------------------------------------------------------------------
+
+/** Świeżo wgrany, jeszcze niezapisany plik podmiany. */
+interface PendingReplacement {
+  path: string;
+  name: string;
+  size: number;
+  mime: string | null;
+}
+
 function EditResourceDialog({
   lang,
   tierOptions,
@@ -545,6 +574,7 @@ function EditResourceDialog({
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<PendingReplacement | null>(null);
 
   const formFromRow = (): ResourceForm => ({
     title_pl: row.title_pl,
@@ -559,9 +589,48 @@ function EditResourceDialog({
 
   const [form, setForm] = useState<ResourceForm>(formFromRow);
 
+  const upload = useMutation({
+    mutationFn: async (f: File): Promise<PendingReplacement> => {
+      const res = await uploadResourceFile(f);
+      return { path: res.path, name: f.name, size: res.size, mime: f.type || null };
+    },
+    onSuccess: (uploaded) => {
+      // Poprzedni niezapisany upload jest już osierocony - sprzątamy od razu.
+      if (pendingFile) void removeResourceObject(pendingFile.path);
+      setPendingFile(uploaded);
+    },
+    onError: (e: unknown) =>
+      toast.error(
+        e instanceof Error ? e.message : L("Nie udało się wysłać pliku.", "Upload failed."),
+      ),
+  });
+
+  const onPick = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    // Czyścimy input, żeby ponowny wybór tego samego pliku znów odpalił change.
+    e.target.value = "";
+    if (f) upload.mutate(f);
+  };
+
+  const cancelReplacement = () => {
+    if (pendingFile) void removeResourceObject(pendingFile.path);
+    setPendingFile(null);
+    upload.reset();
+  };
+
   const update = useMutation({
-    mutationFn: () =>
-      updateResource(row.id, {
+    mutationFn: () => {
+      // Metadane i (ewentualna) podmiana pliku w JEDNYM update - wiersz nigdy
+      // nie wskazuje pliku "w połowie podmienionego".
+      const filePatch: Partial<ResourceFilePatch> = pendingFile
+        ? {
+            file_path: pendingFile.path,
+            file_name: pendingFile.name,
+            file_size: pendingFile.size,
+            mime_type: pendingFile.mime,
+          }
+        : {};
+      return updateResource(row.id, {
         title_pl: form.title_pl.trim(),
         title_en: form.title_en.trim(),
         description_pl: form.description_pl.trim() || null,
@@ -570,8 +639,16 @@ function EditResourceDialog({
         min_tier_rank: form.min_tier_rank,
         sort_order: form.sort_order,
         published: form.published,
-      }),
+        ...filePatch,
+      });
+    },
     onSuccess: () => {
+      // Wiersz wskazuje już nowy plik - stary obiekt schodzi best-effort.
+      if (pendingFile && row.file_path && row.file_path !== pendingFile.path) {
+        void removeResourceObject(row.file_path);
+      }
+      setPendingFile(null);
+      upload.reset();
       toast.success(L("Zapisano zmiany.", "Changes saved."));
       void qc.invalidateQueries({ queryKey: ["admin", "member-resources"] });
       setOpen(false);
@@ -580,17 +657,25 @@ function EditResourceDialog({
       toast.error(e instanceof Error ? e.message : L("Nie udało się zapisać.", "Could not save.")),
   });
 
-  const canSubmit =
-    form.title_pl.trim().length > 0 && form.title_en.trim().length > 0 && !update.isPending;
+  const busy = upload.isPending || update.isPending;
+  const canSubmit = form.title_pl.trim().length > 0 && form.title_en.trim().length > 0 && !busy;
+
+  // Wspólna ścieżka zamykania: przycisk Anuluj MUSI przechodzić tędy (a nie
+  // przez samo setOpen), inaczej niezapisana podmiana osieroca obiekt w buckecie.
+  const handleOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (v) {
+      setForm(formFromRow());
+      setPendingFile(null);
+      upload.reset();
+    } else if (pendingFile && !update.isPending) {
+      // Zamknięcie bez zapisu: świeżo wgrany obiekt byłby osierocony.
+      cancelReplacement();
+    }
+  };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        if (v) setForm(formFromRow());
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           size="icon"
@@ -606,11 +691,58 @@ function EditResourceDialog({
           <DialogTitle>{L("Edytuj materiał", "Edit resource")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span className="truncate font-mono">{row.file_name}</span>
-            <span className="shrink-0">· {formatBytes(row.file_size)}</span>
-          </p>
+          <div className="space-y-1.5">
+            <Label className="text-xs">{L("Plik", "File")}</Label>
+            <div className="space-y-1 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <p
+                className={`flex items-center gap-1.5 ${pendingFile ? "line-through opacity-60" : ""}`}
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate font-mono">{row.file_name}</span>
+                <span className="shrink-0">· {formatBytes(row.file_size)}</span>
+              </p>
+              {pendingFile && (
+                <p className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <Upload className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate font-mono">{pendingFile.name}</span>
+                  <span className="shrink-0">· {formatBytes(pendingFile.size)}</span>
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="file"
+                onChange={onPick}
+                disabled={busy}
+                aria-label={L("Wybierz nowy plik (podmiana)", "Choose a replacement file")}
+                className="block w-full min-w-0 flex-1 text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90 disabled:opacity-50"
+              />
+              {pendingFile && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={cancelReplacement}
+                  disabled={busy}
+                >
+                  {L("Zostaw obecny plik", "Keep current file")}
+                </Button>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {upload.isPending
+                ? L("Wysyłanie...", "Uploading...")
+                : pendingFile
+                  ? L(
+                      "Nowy plik zastąpi obecny przy zapisie; stary zniknie z bucketu.",
+                      "The new file replaces the current one on save; the old object is removed.",
+                    )
+                  : L(
+                      "Możesz podmienić plik - licznik pobrań i metadane zostają.",
+                      "You can replace the file - the download counter and metadata stay.",
+                    )}
+            </p>
+          </div>
           <ResourceFields
             lang={lang}
             value={form}
@@ -619,7 +751,7 @@ function EditResourceDialog({
           />
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
+          <Button variant="ghost" onClick={() => handleOpenChange(false)}>
             {L("Anuluj", "Cancel")}
           </Button>
           <Button onClick={() => update.mutate()} disabled={!canSubmit}>

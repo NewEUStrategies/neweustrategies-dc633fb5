@@ -3,6 +3,12 @@
 // zapisy i dane wrażliwe WYŁĄCZNIE przez utwardzone RPC (rate limity, limit
 // miejsc pod FOR UPDATE, bramki warstw, anti-anchoring ankiet, anonimowość
 // Chatham House) - nigdy bezpośrednimi insertami do tabel.
+//
+// queryOptions poniżej są JEDYNĄ definicją kluczy cache dla tych odczytów:
+// loader trasy zasiewa nimi cache w SSR (ensureQueryData), a komponent czyta
+// ten sam klucz w pierwszym renderze - rozjazd kształtu klucza oznaczałby
+// zimny cache po hydratacji i drugi fetch tego samego zasobu.
+import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PublicEvent {
@@ -216,6 +222,27 @@ export async function fetchPollResults(pollIds: string[]): Promise<Map<string, P
   return map;
 }
 
+/** Lista publicznych ankiet - klucz współdzielony przez loader SSR /polls
+ *  i render strony (hydratacja bez ponownego fetcha). */
+export const publicPollsQueryOptions = () =>
+  queryOptions({
+    queryKey: ["public-polls"],
+    queryFn: fetchPublicPolls,
+  });
+
+/**
+ * Wyniki ankiet dla widocznych poll_ids. Klucz zawiera użytkownika, bo RPC
+ * personalizuje odpowiedź (my_vote + anti-anchoring): po zalogowaniu klucz
+ * zmienia się z "anon" na uid i klient dociąga własny wariant. Wyniki są
+ * CELOWO wyłącznie klienckie (loader ich nie zasiewa) - edge cache nigdy nie
+ * zapieka rozkładu głosów, dokładnie jak w bloku poll (PollBlockView).
+ */
+export const pollResultsQueryOptions = (pollIds: string[], userId: string | null) =>
+  queryOptions({
+    queryKey: ["public-poll-results", pollIds.join(","), userId ?? "anon"],
+    queryFn: () => fetchPollResults(pollIds),
+  });
+
 /** Głos przez RPC (walidacja opcji i okna czasowego); zwraca świeże wyniki. */
 export async function votePoll(pollId: string, optionIdx: number): Promise<PollResults> {
   const { data, error } = await supabase.rpc("vote_poll", {
@@ -373,3 +400,12 @@ export async function fetchLibraryResources(): Promise<PublicResource[]> {
   if (error) throw error;
   return (data ?? []) as PublicResource[];
 }
+
+/** Opublikowane materiały biblioteki - klucz współdzielony przez loader SSR
+ *  /library i render strony. Metadane są publiczne (teaser z kłódką); sam
+ *  plik i tak wymaga server fn z bramką rangi, więc SSR niczego nie odsłania. */
+export const libraryResourcesQueryOptions = () =>
+  queryOptions({
+    queryKey: ["library-resources"],
+    queryFn: fetchLibraryResources,
+  });

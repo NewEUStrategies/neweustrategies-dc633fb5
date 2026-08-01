@@ -1,4 +1,7 @@
 // Publiczne ankiety Community. URL: /polls
+// SSR: loader zasiewa cache react-query listą ankiet (ensureQueryData), więc
+// pytania i opcje są w HTML z serwera; wyniki głosowania pozostają wyłącznie
+// klienckie (per-user anti-anchoring - patrz pollResultsQueryOptions).
 // Realtime: subskrypcja postgres_changes na tabeli poll_votes unieważnia cache
 // wyników po każdym insert/update/delete, co daje płynne animacje słupków
 // (transition-[width] + animate-fade-in na etykiecie procentów).
@@ -7,9 +10,11 @@ import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchPublicPolls, fetchPollResults } from "@/lib/community/publicQueries";
+import { publicPollsQueryOptions, pollResultsQueryOptions } from "@/lib/community/publicQueries";
 import { PollCard } from "@/components/community/PollCard";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
+import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { useAuth } from "@/hooks/useAuth";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
@@ -18,6 +23,19 @@ import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 export const Route = createFileRoute("/polls")({
   component: PollsPage,
+  // Loader nigdy nie wywraca trasy: awaria backendu degraduje do klienckiego
+  // fetcha (komponent pokaże stan błędu), a wyłączony moduł nie kosztuje
+  // żadnego zapytania o ankiety.
+  loader: async ({ context }) => {
+    // Bramka modułu z tej samej mapy site_settings, którą rozgrzewa root
+    // loader - ensureQueryData deduplikuje z jego równoległym fetchem.
+    const settings = await context.queryClient
+      .ensureQueryData(siteSettingsQueryOptions)
+      .catch(() => undefined);
+    const modules = resolveSetting(settings, COMMUNITY_MODULES_KEY, COMMUNITY_MODULES_DEFAULTS);
+    if (!modules.polls_enabled) return;
+    await context.queryClient.ensureQueryData(publicPollsQueryOptions()).catch(() => undefined);
+  },
   head: () => {
     const url = getRequestUrl() || "/polls";
     const lang = activeLang(url);
@@ -44,16 +62,14 @@ function PollsPage() {
   const qc = useQueryClient();
 
   const pollsQ = useQuery({
-    queryKey: ["public-polls"],
-    queryFn: fetchPublicPolls,
+    ...publicPollsQueryOptions(),
     enabled: modules.polls_enabled,
   });
 
   const ids = useMemo(() => (pollsQ.data ?? []).map((p) => p.id), [pollsQ.data]);
   const idsKey = ids.join(",");
   const resultsQ = useQuery({
-    queryKey: ["public-poll-results", idsKey, user?.id ?? "anon"],
-    queryFn: () => fetchPollResults(ids),
+    ...pollResultsQueryOptions(ids, user?.id ?? null),
     enabled: ids.length > 0,
   });
 
