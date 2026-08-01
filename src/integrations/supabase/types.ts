@@ -13919,6 +13919,30 @@ export type Database = {
           total_count: number
         }[]
       }
+      search_people: {
+        Args: {
+          p_company?: string
+          p_job_title?: string
+          p_limit?: number
+          p_location?: string
+          p_offset?: number
+          p_query?: string
+          p_specialization?: string
+          p_verified_only?: boolean
+        }
+        Returns: {
+          avatar_url: string
+          current_company: string
+          display_name: string
+          id: string
+          job_title: string
+          location: string
+          slug: string
+          specialization: string
+          total_count: number
+          verified: boolean
+        }[]
+      }
       search_people_orgs: {
         Args: { _limit?: number; _q?: string }
         Returns: {
