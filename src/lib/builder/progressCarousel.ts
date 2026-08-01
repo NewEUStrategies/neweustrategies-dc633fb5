@@ -30,6 +30,7 @@ const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 export function slugifySlideValue(input: string, index: number): string {
   const base = input
     .toLowerCase()
+    .replace(/ł/g, "l")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
