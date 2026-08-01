@@ -7,26 +7,8 @@
     "adminBlocks",
     "adminThemeDesign"
   ],
-  "missing": [
-    "blocks.clipboard.copied_few",
-    "blocks.clipboard.copied_many",
-    "blocks.clipboard.cutDone_few",
-    "blocks.clipboard.cutDone_many",
-    "blocks.clipboard.imagePersistFailed_few",
-    "blocks.clipboard.imagePersistFailed_many",
-    "blocks.clipboard.pasted_few",
-    "blocks.clipboard.pasted_many"
-  ],
-  "missingEn": [
-    "blocks.clipboard.copied_few",
-    "blocks.clipboard.copied_many",
-    "blocks.clipboard.cutDone_few",
-    "blocks.clipboard.cutDone_many",
-    "blocks.clipboard.imagePersistFailed_few",
-    "blocks.clipboard.imagePersistFailed_many",
-    "blocks.clipboard.pasted_few",
-    "blocks.clipboard.pasted_many"
-  ],
+  "missing": [],
+  "missingEn": [],
   "missingPl": [],
   "untranslated": [
     "adminThemeDesign.f.paddingX",
@@ -136,7 +118,7 @@
     "builder.widgetLibrary.sub.marketing"
   ],
   "repoWide": {
-    "missingEn": 70,
+    "missingEn": 0,
     "missingPl": 0,
     "untranslated": 381
   }
