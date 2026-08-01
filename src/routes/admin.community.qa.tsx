@@ -443,7 +443,7 @@ function QuestionCard({
                 ? isPl
                   ? "anonimowo"
                   : "anonymous"
-                : (q.author_display ?? q.user_id.slice(0, 8))}
+                : (q.author_display ?? (isPl ? "uczestnik" : "participant"))}
             </span>
           </div>
           <p className="text-sm whitespace-pre-wrap">{q.body}</p>

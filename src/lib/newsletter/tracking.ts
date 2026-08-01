@@ -25,19 +25,31 @@ function escAttr(url: string): string {
   return url.replace(/&/g, "&amp;");
 }
 
+/**
+ * Podpis KONKRETNEGO linku (HMAC per campaign+subscriber+target). Bez niego
+ * /api/public/nl-click byłby otwartym przekierowaniem: każdy mógłby podstawić
+ * dowolny `u` i wysyłać phishing z naszej domeny. Handler przekierowuje na
+ * `u` wyłącznie, gdy ten podpis się zgadza.
+ */
+export type LinkSigner = (target: string) => string;
+
 /** Absolute click-tracking redirect URL. `target` is fully percent-encoded. */
 export function buildTrackedClickUrl(
   origin: string,
   campaignId: string,
   token: string,
   target: string,
+  signLink?: LinkSigner,
 ): string {
   const u = new URL("/api/public/nl-click", origin);
   u.searchParams.set("c", campaignId);
   u.searchParams.set("s", token);
   u.searchParams.set("u", target);
+  const k = signLink?.(target);
+  if (k) u.searchParams.set("k", k);
   return u.toString();
 }
+
 
 /** Absolute open-tracking pixel URL. */
 export function trackingPixelUrl(origin: string, campaignId: string, token: string): string {
@@ -67,10 +79,12 @@ export function rewriteTrackingLinks(
   origin: string,
   campaignId: string,
   token: string,
+  signLink?: LinkSigner,
 ): string {
   return html.replace(HREF_RE, (_m, quote: string, url: string) => {
     const decoded = url.replace(/&amp;/gi, "&");
-    const tracked = escAttr(buildTrackedClickUrl(origin, campaignId, token, decoded));
+    const tracked = escAttr(buildTrackedClickUrl(origin, campaignId, token, decoded, signLink));
     return `href=${quote}${tracked}${quote}`;
   });
+
 }

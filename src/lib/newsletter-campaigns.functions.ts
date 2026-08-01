@@ -40,7 +40,7 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/tracking";
-import { signTrackingToken } from "@/lib/newsletter/trackingToken.server";
+import { signTrackingToken, signTrackingLink } from "@/lib/newsletter/trackingToken.server";
 import { parseEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
 import { renderEmailHtml } from "@/lib/newsletter/renderEmailHtml";
 import {
@@ -805,7 +805,14 @@ async function runCampaignSend(
             // per (kampania, subskrybent), więc jego wyciek w URL-u nie pozwala
             // wypisać odbiorcy (unsubscribe dalej wymaga unsubscribe_token).
             origin
-              ? { origin, campaignId: camp.id, token: signTrackingToken(camp.id, sub.id) }
+              ? {
+                  origin,
+                  campaignId: camp.id,
+                  token: signTrackingToken(camp.id, sub.id),
+                  // Podpis per-link: tylko adresy z tej wysyłki mogą być celem
+                  // przekierowania /api/public/nl-click (brak open redirect).
+                  signLink: (target: string) => signTrackingLink(camp.id, sub.id, target),
+                }
               : null,
           );
           const result = await sendEmail({
@@ -906,7 +913,12 @@ function renderCampaignHtml(
   // and an open-tracking pixel is appended. `token` is the SIGNED tracking token
   // (HMAC per campaign+subscriber, see trackingToken.server) - NOT the
   // unsubscribe token. Null for test sends (no tracking).
-  tracking: { origin: string; campaignId: string; token: string } | null = null,
+  tracking: {
+    origin: string;
+    campaignId: string;
+    token: string;
+    signLink?: (target: string) => string;
+  } | null = null,
 ): string {
   const replaced = rawHtml
     .replaceAll("{{email}}", esc(vars.email))
@@ -916,7 +928,13 @@ function renderCampaignHtml(
   // one-click unsubscribe link (and List-Unsubscribe / RFC-8058) is never
   // routed through the tracker.
   const content = tracking
-    ? rewriteTrackingLinks(replaced, tracking.origin, tracking.campaignId, tracking.token)
+    ? rewriteTrackingLinks(
+        replaced,
+        tracking.origin,
+        tracking.campaignId,
+        tracking.token,
+        tracking.signLink,
+      )
     : replaced;
   const footer = unsubscribeUrl
     ? `<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
