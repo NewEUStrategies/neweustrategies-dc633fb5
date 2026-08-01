@@ -9,6 +9,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { updatePost, deletePost } from "@/lib/content.functions";
+import { registerMediaUpload } from "@/lib/media.functions";
+import { uploadAndRegisterMedia, IMAGE_MIME } from "@/lib/media/upload";
+import {
+  persistDataUrlImages,
+  replaceDataUrlImages,
+  type DecodedDataUrl,
+} from "@/lib/blocks/persistImages";
+import type { Json } from "@/lib/blocks/types";
 import { isEditConflict } from "@/lib/content/saveConflict";
 import { useHistory } from "@/hooks/useHistory";
 import { useAutosave } from "@/hooks/useAutosave";
@@ -34,9 +42,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   const { tenantId, post, id } = data;
   // Editorial workflow: only admin / super_admin publish or schedule directly;
   // authors and editors submit for review (mirrored server-side + DB trigger).
-  const { isAdmin: canPublish } = useAuth();
+  const { isAdmin: canPublish, user } = useAuth();
   const update$ = useServerFn(updatePost);
   const delete$ = useServerFn(deletePost);
+  const registerUpload$ = useServerFn(registerMediaUpload);
+  // Wklejone grafiki: dataUrl -> publiczny URL. Cache chroni przed ponownym
+  // uploadem tej samej grafiki przy kolejnych autosave'ach tej sesji edycji.
+  const imageUploadCacheRef = useRef(new Map<string, string>());
 
   const history = useHistory<PostForm | null>(null);
   const form = history.state;
@@ -98,9 +110,84 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
     return () => window.removeEventListener("keydown", onKey);
   }, [history.undo, history.redo]);
 
+  // Wklejone grafiki (data-URL z Worda / zrzutów ekranu) muszą przy zapisie
+  // trafić do biblioteki mediów, a dokument dostać publiczne adresy storage -
+  // baza nie przechowuje base64, a grafika jest widoczna w /admin/media.
+  const persistPastedImages = useCallback(
+    async (doc: Json | null | undefined): Promise<{ doc: Json | null; changed: boolean }> => {
+      if (!doc || !user?.id || !tenantId) return { doc: doc ?? null, changed: false };
+      const upload = async (decoded: DecodedDataUrl): Promise<string> => {
+        const file = new File([decoded.bytes as BlobPart], decoded.filename, {
+          type: decoded.mime,
+        });
+        const uploaded = await uploadAndRegisterMedia({
+          file,
+          tenantId,
+          userId: user.id,
+          registerMedia: registerUpload$,
+          allowedMime: IMAGE_MIME,
+          subfolder: "posts",
+        });
+        return uploaded.publicUrl;
+      };
+      const result = await persistDataUrlImages(doc, upload, imageUploadCacheRef.current);
+      if (result.failed > 0) {
+        toast.warning(
+          t("blocks.clipboard.imagePersistFailed", {
+            defaultValue: "Nie udało się zapisać {{count}} wklejonych grafik do biblioteki mediów.",
+            count: result.failed,
+          }),
+          { id: "blocks-image-persist" },
+        );
+      }
+      if (result.changed) {
+        // Ten sam mapping nakładamy na BIEŻĄCY stan formularza (mógł już
+        // zawierać nowsze zmiany tekstu) - edytor od razu pokazuje URL-e
+        // storage i kolejny autosave nie wgrywa grafik ponownie.
+        setSlug((f) => {
+          if (!f) return f;
+          const next = { ...f };
+          if (next.blocks_data) {
+            next.blocks_data = replaceDataUrlImages(
+              next.blocks_data as unknown as Json,
+              result.replacements,
+            ) as unknown as typeof next.blocks_data;
+          }
+          if (next.builder_data) {
+            next.builder_data = replaceDataUrlImages(
+              next.builder_data as unknown as Json,
+              result.replacements,
+            ) as unknown as typeof next.builder_data;
+          }
+          return next;
+        });
+      }
+      return { doc: result.doc, changed: result.changed };
+    },
+    [user?.id, tenantId, registerUpload$, setSlug, t],
+  );
+
   const saveFn = useCallback(
     async (snapshot: PostForm | null) => {
       if (!snapshot) return;
+      const persistedBlocks = await persistPastedImages(
+        snapshot.blocks_data as unknown as Json | null,
+      );
+      const persistedBuilder = await persistPastedImages(
+        snapshot.builder_data as unknown as Json | null,
+      );
+      if (persistedBlocks.changed) {
+        snapshot = {
+          ...snapshot,
+          blocks_data: persistedBlocks.doc as unknown as PostForm["blocks_data"],
+        };
+      }
+      if (persistedBuilder.changed) {
+        snapshot = {
+          ...snapshot,
+          builder_data: persistedBuilder.doc as unknown as PostForm["builder_data"],
+        };
+      }
       const result = await update$({
         data: {
           id,
@@ -190,6 +277,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
     [
       id,
       update$,
+      persistPastedImages,
       selectedCats,
       selectedTags,
       selectedPrograms,

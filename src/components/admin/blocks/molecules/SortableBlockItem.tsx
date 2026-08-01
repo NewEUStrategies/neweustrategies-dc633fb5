@@ -31,8 +31,18 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import type { BlockVariantOption } from "@/lib/blocks/variants";
+
+type BlockIcon = React.ComponentType<{ className?: string }>;
+
+/** Pozycja menu „Przekształć w" (jak w WP: akapit -> nagłówek/lista/cytat…). */
+export interface BlockTransformOption {
+  type: string;
+  label: string;
+  icon: BlockIcon;
+}
 
 interface Props {
   id: string;
@@ -43,13 +53,19 @@ interface Props {
   selected?: boolean;
   /** Etykieta typu bloku widoczna w stałym badge'u (np. "AKAPIT", "OBRAZ"). */
   typeLabel?: string;
-  onSelect: () => void;
+  /** Ikona bieżącego typu - trigger menu „Przekształć w" w toolbarze. */
+  typeIcon?: BlockIcon;
+  /** Klik w blok; zdarzenie niesie modyfikatory (Shift/Ctrl = multi-select). */
+  onSelect: (e?: React.MouseEvent) => void;
   onMove: (dir: -1 | 1) => void;
   onDuplicate: () => void;
   onRemove: () => void;
   variants?: BlockVariantOption[] | null;
   currentVariant?: string;
   onVariantChange?: (v: string) => void;
+  /** Dostępne transformacje typu (puste/undefined = menu ukryte). */
+  transforms?: BlockTransformOption[];
+  onTransform?: (type: string) => void;
   children: ReactNode;
 }
 
@@ -142,6 +158,29 @@ export function SortableBlockItem(props: Props) {
     }
   };
 
+  const [transformOpen, setTransformOpen] = useState(false);
+  const hasTransforms = Boolean(props.transforms?.length && props.onTransform);
+  const TypeIcon = props.typeIcon;
+
+  const transformItems = (onPick: (type: string) => void) =>
+    (props.transforms ?? []).map((option) => {
+      const OptionIcon = option.icon;
+      return (
+        <button
+          key={option.type}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPick(option.type);
+          }}
+          className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-left"
+        >
+          <OptionIcon className="w-4 h-4 text-muted-foreground" />
+          {option.label}
+        </button>
+      );
+    });
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -150,7 +189,7 @@ export function SortableBlockItem(props: Props) {
           style={style}
           data-block-id={props.id}
           onClick={props.onSelect}
-          onContextMenu={props.onSelect}
+          onContextMenu={() => props.onSelect()}
           aria-selected={props.selected || undefined}
           data-block-selected={props.selected ? "true" : undefined}
           className={`group relative pl-8 pr-3 pt-2 pb-2 scroll-mt-24 rounded-sm ${
@@ -188,6 +227,43 @@ export function SortableBlockItem(props: Props) {
                 : "opacity-0 invisible pointer-events-none translate-y-1"
             }`}
           >
+            {hasTransforms && (
+              <>
+                <Popover open={transformOpen} onOpenChange={setTransformOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      title={t("blocks.transform.menuLabel", { defaultValue: "Przekształć w" })}
+                      aria-label={t("blocks.transform.menuLabel", {
+                        defaultValue: "Przekształć w",
+                      })}
+                      className="flex items-center gap-0.5 px-1.5 h-6 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      {TypeIcon ? <TypeIcon className="w-3.5 h-3.5" /> : null}
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    className="w-56 p-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {t("blocks.transform.menuLabel", { defaultValue: "Przekształć w" })}
+                    </p>
+                    <div className="max-h-72 overflow-y-auto">
+                      {transformItems((type) => {
+                        setTransformOpen(false);
+                        props.onTransform?.(type);
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+              </>
+            )}
+
             {props.variants && props.variants.length > 1 && props.onVariantChange && (
               <>
                 <div
@@ -295,6 +371,31 @@ export function SortableBlockItem(props: Props) {
                     </ContextMenuRadioItem>
                   ))}
                 </ContextMenuRadioGroup>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            <ContextMenuSeparator />
+          </>
+        )}
+
+        {hasTransforms && (
+          <>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                {t("blocks.transform.menuLabel", { defaultValue: "Przekształć w" })}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="max-h-72 overflow-y-auto">
+                {(props.transforms ?? []).map((option) => {
+                  const OptionIcon = option.icon;
+                  return (
+                    <ContextMenuItem
+                      key={option.type}
+                      onSelect={() => props.onTransform?.(option.type)}
+                    >
+                      <OptionIcon className="w-3.5 h-3.5 mr-2" />
+                      {option.label}
+                    </ContextMenuItem>
+                  );
+                })}
               </ContextMenuSubContent>
             </ContextMenuSub>
             <ContextMenuSeparator />

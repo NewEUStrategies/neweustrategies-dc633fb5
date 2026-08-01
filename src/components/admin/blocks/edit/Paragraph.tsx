@@ -1,9 +1,11 @@
-// Akapit oparty na TipTap z obsługą:
+// Akapit oparty na TipTap z obsługą (parytet z WordPress Gutenberg):
 // - inline formatting (bold, italic, code, link)
 // - markdown shortcuts (## , > , - , 1. , --- , ``` ) -> transformacja w inny blok
 // - slash command (`/` na pustej linii -> otwiera inserter)
-// - Enter na pustym akapicie -> nowy akapit poniżej
+// - Enter -> podział bloku (ogon za kursorem przechodzi do nowego akapitu)
 // - Backspace na pustym akapicie -> usuwa blok i przenosi focus
+// - Backspace na POCZĄTKU niepustego akapitu -> scala z poprzednim blokiem
+// - strzałki na krawędziach treści -> płynne przejście do sąsiedniego bloku
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import { getHTMLFromFragment } from "@tiptap/core";
@@ -22,6 +24,8 @@ import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import { detectMarkdownShortcut, htmlToPlain, shortcutToBlock } from "@/lib/blocks/markdown";
 import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
+import { parseBlocksFromClipboard } from "@/lib/blocks/clipboard";
+import { filesToImageBlocks } from "@/lib/blocks/imagePaste";
 
 import { WordStyleToolbar } from "../WordStyleToolbar";
 import { BlockInserter } from "../BlockInserter";
@@ -33,6 +37,12 @@ interface Props {
   onTransform?: (replacement: Block[]) => void;
   onInsertAfter?: (block: Block) => void;
   onDeleteEmpty?: () => void;
+  /** Backspace na początku niepustego bloku - scalenie z poprzednim (WP). */
+  onMergeWithPrevious?: () => boolean;
+  /** Strzałka w górę/lewo na początku treści - fokus na poprzedni blok. */
+  onFocusPrevious?: () => boolean;
+  /** Strzałka w dół/prawo na końcu treści - fokus na następny blok. */
+  onFocusNext?: () => boolean;
   /** Ctrl/Cmd+A przy zaznaczonej całej treści bloku - eskalacja do dokumentu. */
   onSelectAllBlocks?: () => void;
 }
@@ -44,14 +54,35 @@ export function ParagraphBlock({
   onTransform,
   onInsertAfter,
   onDeleteEmpty,
+  onMergeWithPrevious,
+  onFocusPrevious,
+  onFocusNext,
   onSelectAllBlocks,
 }: Props) {
   const { t } = useTranslation();
   const html = String(block.data.html ?? "");
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const handlersRef = useRef({ onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks });
-  handlersRef.current = { onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks };
+  const handlersRef = useRef({
+    onTransform,
+    onInsertAfter,
+    onDeleteEmpty,
+    onMergeWithPrevious,
+    onFocusPrevious,
+    onFocusNext,
+    onSelectAllBlocks,
+  });
+  handlersRef.current = {
+    onTransform,
+    onInsertAfter,
+    onDeleteEmpty,
+    onMergeWithPrevious,
+    onFocusPrevious,
+    onFocusNext,
+    onSelectAllBlocks,
+  };
+  const blockRef = useRef(block);
+  blockRef.current = block;
 
   const [slashOpen, setSlashOpen] = useState(false);
 
@@ -76,16 +107,44 @@ export function ParagraphBlock({
         class:
           "prose prose-sm dark:prose-invert max-w-none outline-none min-h-[1.5em] focus:outline-none",
       },
-      // Wklejanie z Worda / Google Docs: zachowujemy strukturę (nagłówki,
-      // listy, tabele, cytaty, entery) i zamieniamy przypisy dolne na wspólny
-      // shortcode [fn]…[/fn]. Styl źródłowy jest odrzucany.
+      // Wklejanie (kolejność jak w Gutenbergu):
+      //   1. payload blokowy - nasz sentinel albo markup `<!-- wp:… -->`
+      //      skopiowany z WordPressa - odtwarza bloki 1:1,
+      //   2. pliki graficzne ze schowka (zrzut ekranu / "kopiuj obraz")
+      //      -> bloki obrazów (upload do biblioteki mediów przy zapisie),
+      //   3. Word / Google Docs: zachowujemy strukturę (nagłówki, listy,
+      //      tabele, cytaty, entery), przypisy dolne -> shortcode [fn]…[/fn].
       handlePaste: (_view, event) => {
         const rich = event.clipboardData?.getData("text/html") ?? "";
+        const plain = event.clipboardData?.getData("text/plain") ?? "";
+        const ed = editor;
+        const transform = handlersRef.current.onTransform;
+
+        const blockPayload = parseBlocksFromClipboard(rich, plain);
+        if (blockPayload?.length && transform && ed) {
+          event.preventDefault();
+          const current = blockRef.current;
+          const keepCurrent = !ed.isEmpty;
+          transform(
+            keepCurrent
+              ? [{ ...current, data: { ...current.data, html: ed.getHTML() } }, ...blockPayload]
+              : blockPayload,
+          );
+          return true;
+        }
+
+        const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
+          f.type.startsWith("image/"),
+        );
+        if (files.length && transform && ed) {
+          event.preventDefault();
+          void pasteImagesAsBlocks(files);
+          return true;
+        }
+
         if (!looksLikeRichPaste(rich)) return false;
         const blocks = parseWordHtml(rich);
         if (!blocks.length) return false;
-        const ed = editor;
-        const transform = handlersRef.current.onTransform;
         const singleParagraph =
           blocks.length === 1 && blocks[0].type === "paragraph" ? blocks[0] : null;
         if (singleParagraph || !transform || !ed) {
@@ -99,15 +158,16 @@ export function ParagraphBlock({
         }
         event.preventDefault();
         const keepCurrent = !ed.isEmpty;
+        const current = blockRef.current;
         transform(
           keepCurrent
-            ? [{ ...block, data: { ...block.data, html: ed.getHTML() } }, ...blocks]
+            ? [{ ...current, data: { ...current.data, html: ed.getHTML() } }, ...blocks]
             : blocks,
         );
         return true;
       },
 
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
         const ed = editor;
         if (!ed) return false;
 
@@ -116,6 +176,39 @@ export function ParagraphBlock({
           event.preventDefault();
           setSlashOpen(true);
           return true;
+        }
+
+        // Strzałki na krawędziach treści -> sąsiedni blok (pisanie płynie
+        // przez cały dokument jak w WP). `endOfTextblock` respektuje realne
+        // linie wizualne (zawijanie, bidi), a indeks dziecka pilnuje, żeby
+        // wewnętrzne akapity bloku nie wyrzucały kursora przedwcześnie.
+        if (!event.shiftKey && ed.state.selection.empty) {
+          const sel = ed.state.selection;
+          const handlers = handlersRef.current;
+          const inFirstChild = sel.$from.index(0) === 0;
+          const inLastChild = sel.$to.index(0) === ed.state.doc.childCount - 1;
+          const atDocStart = sel.from <= 1;
+          const atDocEnd = sel.to >= ed.state.doc.content.size - 1;
+          if (
+            handlers.onFocusPrevious &&
+            ((event.key === "ArrowUp" && inFirstChild && view.endOfTextblock("up")) ||
+              (event.key === "ArrowLeft" && atDocStart))
+          ) {
+            if (handlers.onFocusPrevious()) {
+              event.preventDefault();
+              return true;
+            }
+          }
+          if (
+            handlers.onFocusNext &&
+            ((event.key === "ArrowDown" && inLastChild && view.endOfTextblock("down")) ||
+              (event.key === "ArrowRight" && atDocEnd))
+          ) {
+            if (handlers.onFocusNext()) {
+              event.preventDefault();
+              return true;
+            }
+          }
         }
 
         // Ctrl/Cmd+A: jak w Word - pierwsze naciśnięcie zaznacza treść bloku,
@@ -159,6 +252,21 @@ export function ParagraphBlock({
           return true;
         }
 
+        // Backspace na POCZĄTKU niepustego akapitu -> scal z poprzednim
+        // blokiem; karetka ląduje w punkcie złączenia (WP-flow).
+        if (
+          event.key === "Backspace" &&
+          !ed.isEmpty &&
+          ed.state.selection.empty &&
+          ed.state.selection.from <= 1 &&
+          handlersRef.current.onMergeWithPrevious
+        ) {
+          if (handlersRef.current.onMergeWithPrevious()) {
+            event.preventDefault();
+            return true;
+          }
+        }
+
         return false;
       },
     },
@@ -176,6 +284,22 @@ export function ParagraphBlock({
       }
     },
   });
+
+  /** Pliki graficzne ze schowka -> bloki obrazów za bieżącym akapitem. */
+  async function pasteImagesAsBlocks(files: File[]): Promise<void> {
+    const ed = editor;
+    const transform = handlersRef.current.onTransform;
+    if (!ed || !transform) return;
+    const imageBlocks = await filesToImageBlocks(files);
+    if (!imageBlocks.length) return;
+    const current = blockRef.current;
+    const keepCurrent = !ed.isEmpty;
+    transform(
+      keepCurrent
+        ? [{ ...current, data: { ...current.data, html: ed.getHTML() } }, ...imageBlocks]
+        : imageBlocks,
+    );
+  }
 
   // Sync external content changes (undo/redo, programmatic transforms)
   useEffect(() => {

@@ -144,7 +144,8 @@ function mapBlock(tag: string, inner: string, openAttrs: string): Block | null {
     const lang = codeMatch
       ? (attr(`<code ${codeMatch[1]}>`, "class") ?? "").replace(/^language-/, "")
       : "";
-    return { id: newBlockId(), type: "code", data: { code, language: lang } };
+    // `lang` to klucz kanoniczny (renderer + sidebar); `language` dla zgodności.
+    return { id: newBlockId(), type: "code", data: { code, lang, language: lang } };
   }
   if (lower === "figure") {
     // figure with img + optional figcaption

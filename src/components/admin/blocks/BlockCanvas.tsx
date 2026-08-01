@@ -1,7 +1,17 @@
-// Refaktor: kanwa bloków z drag&drop (@dnd-kit), atomowymi akcjami i obsługą Enter/Backspace.
-// Każda mutacja przechodzi przez `onChange`, który u góry trafia w history hook (undo/redo).
+// Kanwa bloków z drag&drop (@dnd-kit), atomowymi akcjami i pisaniem płynącym
+// przez cały dokument (parytet z WordPress Gutenberg). Każda mutacja
+// przechodzi przez `onChange`, który u góry trafia w history hook (undo/redo).
+//
+// Zachowania Gutenberga:
+//   - Enter przenosi karetkę do nowego bloku, Backspace na pustym bloku wraca
+//     na koniec poprzedniego, Backspace na początku niepustego SCALA bloki
+//     (karetka w punkcie złączenia), strzałki przechodzą między blokami,
+//   - zaznaczenie wielokrotne: dwustopniowe Ctrl+A, Shift+klik (zakres),
+//     Ctrl/Cmd+klik (przełączanie), Ctrl+Shift+D (duplikat),
+//   - schowek Ctrl+C/X/V przez `useBlockClipboard` (interop z WordPressem).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   DndContext,
   type DragEndEvent,
@@ -17,10 +27,17 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import type { Block, BlocksDoc } from "@/lib/blocks/types";
+import type { Block, BlocksDoc, BlockType } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
+import { isTextEntryBlockType, requestBlockFocus } from "@/lib/blocks/focus";
+import { regenerateBlockIds } from "@/lib/blocks/clipboard";
+import { htmlTextLength, innerInlineHtml, mergeInlineIntoHtml } from "@/lib/blocks/merge";
+import { blockRange, toggleInSelection } from "@/lib/blocks/selection";
+import { getTransformTargets, transformBlock } from "@/lib/blocks/transforms";
+import { useBlockClipboard } from "./hooks/useBlockClipboard";
 import { BlockInserter } from "./BlockInserter";
-import { SortableBlockItem } from "./molecules/SortableBlockItem";
+import { BlockAppender } from "./molecules/BlockAppender";
+import { SortableBlockItem, type BlockTransformOption } from "./molecules/SortableBlockItem";
 import { GenericWidgetToolbar } from "./GenericWidgetToolbar";
 import { getBlockVariants } from "@/lib/blocks/variants";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
@@ -137,19 +154,31 @@ interface Props {
 }
 
 export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
+  const { t } = useTranslation();
   const blocks = doc.blocks;
   const ids = useMemo(() => blocks.map((b) => b.id), [blocks]);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   // Zaznaczenie WIELU bloków (Ctrl/Cmd+A jak w Word). Puste = brak zaznaczenia
   // dokumentu; wtedy obowiązuje zwykłe zaznaczenie pojedynczego bloku.
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  // Kotwica zaznaczenia zakresowego (ostatni blok kliknięty bez modyfikatorów).
+  const anchorIdRef = useRef<string | null>(null);
 
   // Stable ref to current doc/blocks so callbacks don't churn.
   const docRef = useRef(doc);
   docRef.current = doc;
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
 
   const selectAllBlocks = useCallback(() => {
+    // Zaznaczenie blokowe zastępuje zaznaczenie tekstowe. Bez wyczyszczenia
+    // DOM-owej selekcji Ctrl+C po drugim Ctrl+A trafiałoby w natywne
+    // kopiowanie tekstu akapitu zamiast w schowek bloków.
+    window.getSelection()?.removeAllRanges();
     setSelectedIds(docRef.current.blocks.map((b) => b.id));
     onSelect(null);
   }, [onSelect]);
@@ -165,8 +194,80 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     onSelect(null);
   }, [selectedIds, onChange, onSelect]);
 
+  /**
+   * Ctrl+Shift+D (jak w WP): duplikuje zaznaczenie wielokrotne albo aktywny
+   * blok; kopie (ze świeżymi id, także w zagnieżdżeniach) lądują za ostatnim
+   * duplikowanym blokiem i przejmują zaznaczenie.
+   */
+  const duplicateSelection = useCallback((): boolean => {
+    const arr = docRef.current.blocks;
+    const chosenIds = selectedIdsRef.current.length
+      ? new Set(selectedIdsRef.current)
+      : activeIdRef.current
+        ? new Set([activeIdRef.current])
+        : null;
+    if (!chosenIds?.size) return false;
+    const chosen = arr.filter((b) => chosenIds.has(b.id));
+    if (!chosen.length) return false;
+    const copies = regenerateBlockIds(chosen);
+    const lastIdx = arr.reduce((acc, b, i) => (chosenIds.has(b.id) ? i : acc), -1);
+    const next = [...arr];
+    next.splice(lastIdx + 1, 0, ...copies);
+    onChange({ ...docRef.current, blocks: next }, true);
+    if (copies.length === 1) {
+      setSelectedIds([]);
+      onSelect(copies[0].id);
+    } else {
+      setSelectedIds(copies.map((c) => c.id));
+      onSelect(null);
+    }
+    return true;
+  }, [onChange, onSelect]);
+
+  /**
+   * Klik w blok z modyfikatorami (jak w WP): Shift = zakres od kotwicy,
+   * Ctrl/Cmd = przełączenie pojedynczego bloku, bez modyfikatorów = zwykłe
+   * zaznaczenie aktywnego bloku (i nowa kotwica). Modyfikatory działają tylko
+   * poza polami tekstowymi - wewnątrz treści Shift+klik rozszerza tekst.
+   */
+  const handleBlockClick = useCallback(
+    (id: string, e?: React.MouseEvent) => {
+      const target = e?.target as HTMLElement | null;
+      const inEditable = Boolean(
+        target?.closest?.('[contenteditable="true"], input, textarea, select'),
+      );
+      const docIds = docRef.current.blocks.map((b) => b.id);
+      if (e?.shiftKey && !inEditable) {
+        const anchor = anchorIdRef.current ?? activeIdRef.current;
+        if (anchor && anchor !== id) {
+          e.preventDefault();
+          window.getSelection()?.removeAllRanges();
+          setSelectedIds(blockRange(docIds, anchor, id));
+          onSelect(null);
+          return;
+        }
+      }
+      if ((e?.metaKey || e?.ctrlKey) && !inEditable) {
+        const base = selectedIdsRef.current.length
+          ? selectedIdsRef.current
+          : activeIdRef.current
+            ? [activeIdRef.current]
+            : [];
+        window.getSelection()?.removeAllRanges();
+        setSelectedIds(toggleInSelection(docIds, base, id));
+        onSelect(null);
+        anchorIdRef.current ??= id;
+        return;
+      }
+      anchorIdRef.current = id;
+      setSelectedIds([]);
+      onSelect(id);
+    },
+    [onSelect],
+  );
+
   // Klawiatura dokumentu: Ctrl/Cmd+A poza edytorem zaznacza wszystkie bloki,
-  // Delete/Backspace usuwa zaznaczone, Escape czyści zaznaczenie.
+  // Ctrl+Shift+D duplikuje, Delete/Backspace usuwa zaznaczone, Escape czyści.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -176,6 +277,11 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
           target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
           target.tagName === "SELECT");
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "d") {
+        // Działa też podczas pisania (duplikuje aktywny blok) - parytet z WP.
+        if (duplicateSelection()) e.preventDefault();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && !inEditable) {
         e.preventDefault();
         selectAllBlocks();
@@ -193,7 +299,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [selectAllBlocks, clearSelection, removeSelected, selectedIds.length]);
+  }, [selectAllBlocks, clearSelection, removeSelected, duplicateSelection, selectedIds.length]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -206,6 +312,9 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       next.splice(idx, 0, block);
       onChange({ ...docRef.current, blocks: next }, immediate);
       onSelect(block.id);
+      // Gutenberg-flow: po Enter / wstawieniu bloku tekstowego piszesz dalej
+      // bez klikania - karetka ląduje na początku świeżego bloku.
+      if (isTextEntryBlockType(block.type)) requestBlockFocus(block.id, "start");
     },
     [onChange, onSelect],
   );
@@ -226,7 +335,107 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       const next = [...docRef.current.blocks];
       next.splice(idx, 1, ...replacement);
       onChange({ ...docRef.current, blocks: next }, true);
-      onSelect(replacement[replacement.length - 1]?.id ?? null);
+      const last = replacement[replacement.length - 1];
+      onSelect(last?.id ?? null);
+      // Transformacja (markdown "## " / slash / wklejka) nie może gubić
+      // karetki - piszesz dalej na końcu ostatniego bloku zamiennika.
+      if (last && isTextEntryBlockType(last.type)) requestBlockFocus(last.id, "end");
+    },
+    [onChange, onSelect],
+  );
+
+  /** Usuwa pusty blok (Backspace) i cofa karetkę na koniec sąsiada - jak w WP. */
+  const deleteEmptyAt = useCallback(
+    (idx: number) => {
+      const arr = docRef.current.blocks;
+      if (arr.length <= 1) return;
+      const neighbor = arr[idx - 1] ?? arr[idx + 1];
+      const next = arr.filter((_, i) => i !== idx);
+      onChange({ ...docRef.current, blocks: next }, true);
+      if (neighbor) {
+        onSelect(neighbor.id);
+        if (isTextEntryBlockType(neighbor.type)) requestBlockFocus(neighbor.id, "end");
+      } else {
+        onSelect(null);
+      }
+    },
+    [onChange, onSelect],
+  );
+
+  /**
+   * Backspace na początku niepustego akapitu/nagłówka scala go z poprzednim
+   * blokiem tekstowym; karetka ląduje dokładnie w punkcie złączenia - jak w WP.
+   * `false`, gdy scalenie nie ma sensu (brak poprzednika / typ nietekstowy) -
+   * wtedy edytor inline zostawia domyślne zachowanie przeglądarki.
+   */
+  const mergeWithPrevious = useCallback(
+    (idx: number): boolean => {
+      const arr = docRef.current.blocks;
+      const current = arr[idx];
+      const prev = arr[idx - 1];
+      if (!current || !prev) return false;
+      const incomingInner =
+        current.type === "paragraph"
+          ? innerInlineHtml(String(current.data.html ?? ""))
+          : current.type === "heading"
+            ? String(current.data.text ?? "")
+            : null;
+      if (incomingInner === null) return false;
+
+      let mergedPrev: Block | null = null;
+      let caretOffset = 0;
+      if (prev.type === "paragraph") {
+        const merged = mergeInlineIntoHtml(String(prev.data.html ?? ""), incomingInner);
+        mergedPrev = { ...prev, data: { ...prev.data, html: merged.html } };
+        caretOffset = merged.caretOffset;
+      } else if (prev.type === "heading") {
+        const prevText = String(prev.data.text ?? "");
+        caretOffset = htmlTextLength(prevText);
+        mergedPrev = { ...prev, data: { ...prev.data, text: `${prevText}${incomingInner}` } };
+      } else {
+        return false;
+      }
+
+      const next = arr
+        .filter((_, i) => i !== idx)
+        .map((b) => (b.id === prev.id && mergedPrev ? mergedPrev : b));
+      onChange({ ...docRef.current, blocks: next }, true);
+      onSelect(prev.id);
+      requestBlockFocus(prev.id, caretOffset);
+      return true;
+    },
+    [onChange, onSelect],
+  );
+
+  /**
+   * Fokus na najbliższy blok TEKSTOWY nad/pod wskazanym indeksem (strzałki na
+   * krawędziach treści). `false` gdy w tym kierunku nie ma już gdzie pisać.
+   */
+  const focusNeighborText = useCallback(
+    (idx: number, dir: -1 | 1): boolean => {
+      const arr = docRef.current.blocks;
+      for (let i = idx + dir; i >= 0 && i < arr.length; i += dir) {
+        if (isTextEntryBlockType(arr[i].type)) {
+          onSelect(arr[i].id);
+          requestBlockFocus(arr[i].id, dir < 0 ? "end" : "start");
+          return true;
+        }
+      }
+      return false;
+    },
+    [onSelect],
+  );
+
+  /** Wstawia wiele bloków pod wskazany indeks (wklejka ze schowka). */
+  const insertBlocksAt = useCallback(
+    (idx: number, incoming: Block[]) => {
+      if (!incoming.length) return;
+      const next = [...docRef.current.blocks];
+      next.splice(idx, 0, ...incoming);
+      onChange({ ...docRef.current, blocks: next }, true);
+      const last = incoming[incoming.length - 1];
+      onSelect(last.id);
+      if (isTextEntryBlockType(last.type)) requestBlockFocus(last.id, "end");
     },
     [onChange, onSelect],
   );
@@ -246,7 +455,9 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     (idx: number) => {
       const orig = docRef.current.blocks[idx];
       if (!orig) return;
-      const copy: Block = { ...orig, id: newBlockId() };
+      // Świeże id także w zagnieżdżeniach (columns/group) - kopia nie może
+      // współdzielić identyfikatorów z oryginałem.
+      const copy: Block = regenerateBlockIds([orig])[0];
       const next = [...docRef.current.blocks];
       next.splice(idx + 1, 0, copy);
       onChange({ ...docRef.current, blocks: next }, true);
@@ -276,10 +487,45 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     [onChange],
   );
 
+  // Schowek bloków (Ctrl+C/X/V, interop z WordPressem, wklejki Word/obrazy).
+  useBlockClipboard({
+    rootRef,
+    docRef,
+    activeIdRef,
+    selectedIdsRef,
+    onChange,
+    onSelect,
+    clearSelection,
+    insertBlocksAt,
+  });
+
+  // Memoizowane pozycje menu „Przekształć w" - lista zależy wyłącznie od TYPU
+  // bloku i języka UI, więc jedna mapa obsługuje wszystkie bloki kanwy.
+  const transformOptionsFor = useMemo(() => {
+    const cache = new Map<BlockType, BlockTransformOption[]>();
+    return (block: Block): BlockTransformOption[] => {
+      const hit = cache.get(block.type);
+      if (hit) return hit;
+      const options = getTransformTargets(block).map((type) => ({
+        type,
+        label: t(`blocks.types.${type}`),
+        icon: BLOCK_SPECS[type].icon,
+      }));
+      cache.set(block.type, options);
+      return options;
+    };
+  }, [t]);
+
   if (blocks.length === 0) {
+    // Pusty dokument jak w WP: wiersz „Wpisz / aby wybrać blok" + przycisk „+".
     return (
-      <div className="py-12">
-        <BlockInserter variant="fab" onInsert={(b) => insertAt(0, b)} />
+      <div ref={rootRef} data-block-canvas className="py-8">
+        <BlockAppender
+          onAppendParagraph={() =>
+            insertAt(0, { id: newBlockId(), type: "paragraph", data: { html: "" } })
+          }
+          onInsert={(b) => insertAt(0, b)}
+        />
       </div>
     );
   }
@@ -287,7 +533,13 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div className="block-canvas space-y-0.5" data-builder-renderer data-cms-content>
+        <div
+          ref={rootRef}
+          data-block-canvas
+          className="block-canvas space-y-0.5"
+          data-builder-renderer
+          data-cms-content
+        >
           <BlockInserter onInsert={(b) => insertAt(0, b)} />
           {blocks.map((b, idx) => {
             const variants = getBlockVariants(b.type);
@@ -302,10 +554,8 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                   active={b.id === activeId}
                   selected={selectedSet.has(b.id)}
                   typeLabel={BLOCK_SPECS[b.type]?.label ?? b.type}
-                  onSelect={() => {
-                    setSelectedIds([]);
-                    onSelect(b.id);
-                  }}
+                  typeIcon={BLOCK_SPECS[b.type]?.icon}
+                  onSelect={(e) => handleBlockClick(b.id, e)}
                   onMove={(dir) => move(idx, dir)}
                   onDuplicate={() => duplicate(idx)}
                   onRemove={() => remove(idx)}
@@ -314,6 +564,11 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                   onVariantChange={(v) =>
                     replaceBlock(b.id, { ...b, data: { ...b.data, variant: v } })
                   }
+                  transforms={transformOptionsFor(b)}
+                  onTransform={(type) => {
+                    const replacement = transformBlock(b, type as BlockType);
+                    if (replacement) replaceWith(b.id, replacement);
+                  }}
                 >
                   <BlockWithToolbar
                     block={b}
@@ -326,9 +581,10 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                       onChange={(n) => replaceBlock(b.id, n)}
                       onTransform={(replacement) => replaceWith(b.id, replacement)}
                       onInsertAfter={(blk) => insertAt(idx + 1, blk)}
-                      onDeleteEmpty={() => {
-                        if (blocks.length > 1) remove(idx);
-                      }}
+                      onDeleteEmpty={() => deleteEmptyAt(idx)}
+                      onMergeWithPrevious={() => mergeWithPrevious(idx)}
+                      onFocusPrevious={() => focusNeighborText(idx, -1)}
+                      onFocusNext={() => focusNeighborText(idx, 1)}
                       onSelectAllBlocks={selectAllBlocks}
                     />
                   </BlockWithToolbar>
@@ -337,6 +593,12 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
               </div>
             );
           })}
+          <BlockAppender
+            onAppendParagraph={() =>
+              insertAt(blocks.length, { id: newBlockId(), type: "paragraph", data: { html: "" } })
+            }
+            onInsert={(b) => insertAt(blocks.length, b)}
+          />
         </div>
       </SortableContext>
     </DndContext>
@@ -374,6 +636,12 @@ interface RendererProps {
   onTransform: (replacement: Block[]) => void;
   onInsertAfter: (b: Block) => void;
   onDeleteEmpty: () => void;
+  /** Scalenie z poprzednim blokiem (Backspace na początku treści). */
+  onMergeWithPrevious: () => boolean;
+  /** Fokus na poprzedni blok tekstowy (strzałka w górę/lewo na krawędzi). */
+  onFocusPrevious: () => boolean;
+  /** Fokus na następny blok tekstowy (strzałka w dół/prawo na krawędzi). */
+  onFocusNext: () => boolean;
   onSelectAllBlocks: () => void;
 }
 
@@ -384,6 +652,9 @@ function BlockRenderer({
   onTransform,
   onInsertAfter,
   onDeleteEmpty,
+  onMergeWithPrevious,
+  onFocusPrevious,
+  onFocusNext,
   onSelectAllBlocks,
 }: RendererProps) {
   switch (block.type) {
@@ -396,6 +667,9 @@ function BlockRenderer({
           onTransform={onTransform}
           onInsertAfter={onInsertAfter}
           onDeleteEmpty={onDeleteEmpty}
+          onMergeWithPrevious={onMergeWithPrevious}
+          onFocusPrevious={onFocusPrevious}
+          onFocusNext={onFocusNext}
           onSelectAllBlocks={onSelectAllBlocks}
         />
       );
@@ -408,6 +682,9 @@ function BlockRenderer({
           onTransform={onTransform}
           onInsertAfter={onInsertAfter}
           onDeleteEmpty={onDeleteEmpty}
+          onMergeWithPrevious={onMergeWithPrevious}
+          onFocusPrevious={onFocusPrevious}
+          onFocusNext={onFocusNext}
           onSelectAllBlocks={onSelectAllBlocks}
         />
       );

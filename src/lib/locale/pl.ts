@@ -1331,6 +1331,36 @@ export const pl = {
     slash: {
       hint: "Wpisz / aby wybrać blok",
     },
+    clipboard: {
+      copied_one: "Skopiowano 1 blok do schowka.",
+      copied_few: "Skopiowano {{count}} bloki do schowka.",
+      copied_many: "Skopiowano {{count}} bloków do schowka.",
+      copied_other: "Skopiowano {{count}} bloku do schowka.",
+      cutDone_one: "Wycięto 1 blok do schowka.",
+      cutDone_few: "Wycięto {{count}} bloki do schowka.",
+      cutDone_many: "Wycięto {{count}} bloków do schowka.",
+      cutDone_other: "Wycięto {{count}} bloku do schowka.",
+      pasted_one: "Wklejono 1 blok.",
+      pasted_few: "Wklejono {{count}} bloki.",
+      pasted_many: "Wklejono {{count}} bloków.",
+      pasted_other: "Wklejono {{count}} bloku.",
+      imagePersistFailed_one: "Nie udało się zapisać 1 wklejonej grafiki do biblioteki mediów.",
+      imagePersistFailed_few:
+        "Nie udało się zapisać {{count}} wklejonych grafik do biblioteki mediów.",
+      imagePersistFailed_many:
+        "Nie udało się zapisać {{count}} wklejonych grafik do biblioteki mediów.",
+      imagePersistFailed_other:
+        "Nie udało się zapisać {{count}} wklejonej grafiki do biblioteki mediów.",
+    },
+    transform: {
+      menuLabel: "Przekształć w",
+    },
+    inserter: {
+      browseAll: "Przeglądaj wszystko",
+      quickTitle: "Najczęściej używane",
+      resultsLabel: "Dostępne bloki",
+      close: "Zamknij",
+    },
     types: {
       paragraph: "Akapit",
       heading: "Nagłówek",

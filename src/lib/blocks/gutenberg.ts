@@ -316,7 +316,9 @@ function tokenToBlocks(tok: GbToken): Block[] {
     case "core/syntaxhighlighter-code": {
       const code = stripTags(inner);
       const lang = typeof tok.attrs.language === "string" ? tok.attrs.language : "";
-      return [{ id: newBlockId(), type: "code", data: { code, language: lang } }];
+      // `lang` to klucz kanoniczny (renderer + sidebar); `language` zostaje
+      // dla zgodności wstecznej z wcześniej zaimportowanymi dokumentami.
+      return [{ id: newBlockId(), type: "code", data: { code, lang, language: lang } }];
     }
     case "core/separator":
     case "core/spacer":
