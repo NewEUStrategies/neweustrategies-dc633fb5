@@ -121,6 +121,14 @@ export function previewImageUrl(
   });
 }
 
+/** Obrazek podglądu: http(s) albo ścieżka względna z tego samego origin. */
+export function normalizeImageSrc(raw: string): string {
+  const value = raw.trim();
+  if (!value) return "";
+  if (value.startsWith("/")) return value;
+  return normalizeUrl(value);
+}
+
 export function normalizeLinkPreviewItem(raw: unknown): LinkPreviewItem | null {
   if (!raw || typeof raw !== "object") return null;
   const rec = raw as Record<string, Json>;
