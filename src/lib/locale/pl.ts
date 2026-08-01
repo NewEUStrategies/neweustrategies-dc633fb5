@@ -1360,6 +1360,64 @@ export const pl = {
       quickTitle: "Najczęściej używane",
       resultsLabel: "Dostępne bloki",
       close: "Zamknij",
+      tabsLabel: "Rodzaj zawartości",
+      tabBlocks: "Bloki",
+      tabPatterns: "Wzorce",
+    },
+    nested: {
+      empty: "Pusty kontener",
+    },
+    listView: {
+      title: "Struktura dokumentu",
+      empty: "Brak bloków - zacznij pisać w kanwie.",
+    },
+    codeView: {
+      title: "Widok kodu (markup Gutenberga)",
+      button: "Widok kodu",
+      desc: "Serializacja dokumentu ({{lang}}) zgodna z WordPressem - wklejenie jej do edytora bloków odtwarza treść.",
+      blockCount_one: "Bloki: {{count}}",
+      blockCount_few: "Bloki: {{count}}",
+      blockCount_many: "Bloki: {{count}}",
+      blockCount_other: "Bloki: {{count}}",
+      copy: "Kopiuj markup",
+      copied: "Skopiowano markup.",
+      copyFailed: "Nie udało się skopiować.",
+    },
+    patterns: {
+      items: {
+        "key-takeaways": {
+          name: "Kluczowe wnioski",
+          desc: "Nagłówek + lista najważniejszych punktów analizy.",
+        },
+        "expert-quote": {
+          name: "Cytat eksperta",
+          desc: "Wyróżniony cytat z podpisem autora.",
+        },
+        "chapter-break": {
+          name: "Nowy rozdział",
+          desc: "Separator, nagłówek H2 i akapit otwierający.",
+        },
+        "two-column-analysis": {
+          name: "Analiza w dwóch kolumnach",
+          desc: "Szanse i ryzyka obok siebie (kolumny z blokami).",
+        },
+        "faq-details": {
+          name: "Sekcja FAQ",
+          desc: "Nagłówek + rozwijane pytania i odpowiedzi.",
+        },
+        "newsletter-cta": {
+          name: "Zapis do newslettera",
+          desc: "Karta zachęty z opisem wartości.",
+        },
+        "data-table": {
+          name: "Tabela z danymi",
+          desc: "Nagłówek + tabela z wierszem nagłówkowym.",
+        },
+        "summary-box": {
+          name: "Ramka podsumowania",
+          desc: "Kontener z nagłówkiem i listą numerowaną.",
+        },
+      },
     },
     types: {
       paragraph: "Akapit",

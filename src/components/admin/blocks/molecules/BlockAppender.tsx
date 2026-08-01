@@ -14,9 +14,11 @@ interface Props {
   onAppendParagraph: () => void;
   /** Wybór z insertera - wstawienie wskazanego bloku. */
   onInsert: (block: Block) => void;
+  /** Wstawienie wielu bloków (wzorce z zakładki Wzorce). */
+  onInsertBlocks?: (blocks: Block[]) => void;
 }
 
-export function BlockAppender({ onAppendParagraph, onInsert }: Props) {
+export function BlockAppender({ onAppendParagraph, onInsert, onInsertBlocks }: Props) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
@@ -31,6 +33,14 @@ export function BlockAppender({ onAppendParagraph, onInsert }: Props) {
             setOpen(false);
             onInsert(b);
           }}
+          onInsertBlocks={
+            onInsertBlocks
+              ? (list) => {
+                  setOpen(false);
+                  onInsertBlocks(list);
+                }
+              : undefined
+          }
         />
       ) : (
         <div className="flex items-center gap-2">

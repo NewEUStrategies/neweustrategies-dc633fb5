@@ -18,7 +18,7 @@ import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
@@ -27,9 +27,10 @@ import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/bl
 import { parseBlocksFromClipboard } from "@/lib/blocks/clipboard";
 import { filesToImageBlocks } from "@/lib/blocks/imagePaste";
 import { reapplyPendingBlockFocus } from "@/lib/blocks/focus";
+import { parseSlashQuery, searchBlockSpecs } from "@/lib/blocks/search";
 
 import { WordStyleToolbar } from "../WordStyleToolbar";
-import { BlockInserter } from "../BlockInserter";
+import { SlashMenu } from "../molecules/SlashMenu";
 
 interface Props {
   block: Block;
@@ -85,7 +86,22 @@ export function ParagraphBlock({
   const blockRef = useRef(block);
   blockRef.current = block;
 
+  // Menu slash 1:1 z WP: "/" pisze się do akapitu, dalszy tekst filtruje listę.
   const [slashOpen, setSlashOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState("");
+  const [slashIdx, setSlashIdx] = useState(0);
+  const slashSpecs = useMemo(
+    () => searchBlockSpecs(slashQuery, (type) => t(`blocks.types.${type}`)).slice(0, 9),
+    [slashQuery, t],
+  );
+  // handleKeyDown/onUpdate TipTapa to closure'y z montowania - czytaja refy.
+  const slashRef = useRef({ open: slashOpen, idx: slashIdx, specs: slashSpecs });
+  slashRef.current = { open: slashOpen, idx: slashIdx, specs: slashSpecs };
+  const closeSlash = () => {
+    setSlashOpen(false);
+    setSlashQuery("");
+    setSlashIdx(0);
+  };
 
   const editor = useEditor({
     extensions: [
@@ -172,11 +188,42 @@ export function ParagraphBlock({
         const ed = editor;
         if (!ed) return false;
 
-        // Slash command on empty paragraph
-        if (event.key === "/" && ed.isEmpty) {
-          event.preventDefault();
+        // Slash command: "/" na pustym akapicie OTWIERA menu, ale znak
+        // normalnie trafia do treści - dalsze pisanie filtruje liste (WP).
+        if (event.key === "/" && ed.isEmpty && !slashRef.current.open) {
           setSlashOpen(true);
-          return true;
+          setSlashQuery("");
+          setSlashIdx(0);
+          return false;
+        }
+
+        // Otwarte menu slash przejmuje strzalki/Enter/Escape.
+        if (slashRef.current.open) {
+          const { idx, specs } = slashRef.current;
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setSlashIdx(Math.min(idx + 1, Math.max(specs.length - 1, 0)));
+            return true;
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setSlashIdx(Math.max(idx - 1, 0));
+            return true;
+          }
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            const spec = specs[idx] ?? specs[0];
+            if (spec && handlersRef.current.onTransform) {
+              closeSlash();
+              handlersRef.current.onTransform([spec.create()]);
+            }
+            return true;
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeSlash(); // tekst "/zapytanie" zostaje w akapicie - parytet z WP
+            return true;
+          }
         }
 
         // Strzałki na krawędziach treści -> sąsiedni blok (pisanie płynie
@@ -275,8 +322,20 @@ export function ParagraphBlock({
       const next = ed.getHTML();
       onChangeRef.current({ ...block, data: { ...block.data, html: next } });
 
-      // Markdown shortcuts: detect when user typed e.g. "## " on an otherwise plain line.
       const plain = htmlToPlain(next);
+
+      // Menu slash: dalszy tekst po "/" filtruje liste; spacja / usuniecie
+      // "/" / drugi "/" zamyka menu (uzytkownik pisze zwykla tresc).
+      if (slashRef.current.open) {
+        const q = parseSlashQuery(plain);
+        if (q === null) closeSlash();
+        else {
+          setSlashQuery(q);
+          setSlashIdx(0);
+        }
+      }
+
+      // Markdown shortcuts: detect when user typed e.g. "## " on an otherwise plain line.
       if (/[\s>`\-*.]\s*$/.test(plain) || /^---\s*$/.test(plain) || /^```\s*$/.test(plain)) {
         const transform = detectMarkdownShortcut(plain);
         if (transform && handlersRef.current.onTransform) {
@@ -301,6 +360,12 @@ export function ParagraphBlock({
         : imageBlocks,
     );
   }
+
+  // Dezaktywacja bloku (klik gdzie indziej) zamyka menu slash.
+  useEffect(() => {
+    if (!isActive && slashOpen) closeSlash();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]);
 
   // Sync external content changes (undo/redo, programmatic transforms).
   // `setContent` mapuje selekcję na koniec dokumentu - po synchronizacji
@@ -327,17 +392,13 @@ export function ParagraphBlock({
       )}
 
       {slashOpen && handlersRef.current.onTransform && (
-        <BlockInserter
-          variant="controlled"
-          open
-          autoFocus
-          onOpenChange={(v) => {
-            setSlashOpen(v);
-            if (!v) editor.commands.focus();
-          }}
-          onInsert={(blk) => {
-            setSlashOpen(false);
-            handlersRef.current.onTransform?.([blk]);
+        <SlashMenu
+          specs={slashSpecs}
+          activeIndex={Math.min(slashIdx, Math.max(slashSpecs.length - 1, 0))}
+          onHover={setSlashIdx}
+          onPick={(spec) => {
+            closeSlash();
+            handlersRef.current.onTransform?.([spec.create()]);
           }}
         />
       )}

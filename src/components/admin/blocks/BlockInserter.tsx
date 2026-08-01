@@ -4,7 +4,8 @@
 //
 // Jak w WordPress Gutenberg otwarcie pokazuje najpierw SZYBKI panel
 // (6 najczęściej używanych bloków + wyszukiwarka + „Przeglądaj wszystko"),
-// a pełna, skategoryzowana biblioteka rozwija się na życzenie.
+// a pełna biblioteka rozwija się na życzenie - z zakładkami Bloki | Wzorce
+// (wzorce = gotowe kompozycje bloków, lib/blocks/patterns.ts).
 //
 // Dostępność: pełna nawigacja klawiaturą po siatce wyników (strzałki /
 // Home / End / Enter), wzorzec combobox + listbox (`aria-activedescendant`),
@@ -12,8 +13,16 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BLOCK_LIST, BLOCK_SPECS, IMPLEMENTED_BLOCKS, type BlockSpec } from "@/lib/blocks/registry";
+import { BLOCK_SPECS, type BlockSpec } from "@/lib/blocks/registry";
 import type { Block, BlockType } from "@/lib/blocks/types";
+import { searchBlockSpecs } from "@/lib/blocks/search";
+import {
+  BLOCK_PATTERNS,
+  filterPatterns,
+  instantiatePattern,
+  type BlockPattern,
+} from "@/lib/blocks/patterns";
+import { useBlockEditorLang } from "./BlockEditorContext";
 import { Plus, X } from "@/lib/lucide-shim";
 
 /** Odpowiednik „six most used" z szybkiego insertera WP. */
@@ -31,6 +40,8 @@ const GRID_COLUMNS = 3;
 
 interface Props {
   onInsert: (block: Block) => void;
+  /** Wstawienie WIELU bloków naraz (wzorce). Bez tego zakładka Wzorce jest ukryta. */
+  onInsertBlocks?: (blocks: Block[]) => void;
   variant?: "inline" | "fab" | "controlled";
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -39,12 +50,14 @@ interface Props {
 
 export function BlockInserter({
   onInsert,
+  onInsertBlocks,
   variant = "inline",
   open: openProp,
   onOpenChange,
   autoFocus = false,
 }: Props) {
   const { t } = useTranslation();
+  const docLang = useBlockEditorLang();
   const listboxId = useId();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = openProp ?? internalOpen;
@@ -54,6 +67,7 @@ export function BlockInserter({
   };
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [tab, setTab] = useState<"blocks" | "patterns">("blocks");
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -64,30 +78,31 @@ export function BlockInserter({
     if (!open) {
       setQuery("");
       setExpanded(false);
+      setTab("blocks");
     }
   }, [open, autoFocus]);
 
   // Zmiana kontekstu wyników = powrót aktywnej pozycji na początek listy.
   useEffect(() => {
     setActiveIdx(0);
-  }, [query, expanded, open]);
+  }, [query, expanded, open, tab]);
 
   const labelFor = (type: BlockType): string => t(`blocks.types.${type}`);
+  const patternName = (p: BlockPattern): string => t(`blocks.patterns.items.${p.key}.name`);
+  const patternDesc = (p: BlockPattern): string => t(`blocks.patterns.items.${p.key}.desc`);
 
-  const filtered = useMemo(() => {
-    // Only implemented blocks are offered - a grid of disabled "coming soon"
-    // tiles reads as broken and buries the real blocks.
-    const available = BLOCK_LIST.filter((s) => IMPLEMENTED_BLOCKS.includes(s.type));
-    const q = query.trim().toLowerCase();
-    if (!q) return available;
-    return available.filter(
-      (s) =>
-        labelFor(s.type).toLowerCase().includes(q) ||
-        s.type.toLowerCase().includes(q) ||
-        s.description.toLowerCase().includes(q),
-    );
+  const filtered = useMemo(
+    () => searchBlockSpecs(query, labelFor),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, t]);
+    [query, t],
+  );
+
+  const patternsEnabled = Boolean(onInsertBlocks);
+  const filteredPatterns = useMemo(
+    () => filterPatterns(BLOCK_PATTERNS, query, patternName, patternDesc),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [query, t],
+  );
 
   const categories = useMemo(
     (): Array<{ id: BlockSpec["category"]; label: string }> => [
@@ -106,10 +121,11 @@ export function BlockInserter({
   // Płaska lista widocznych pozycji W KOLEJNOŚCI RENDEROWANIA - wspólny model
   // dla nawigacji strzałkami niezależnie od trybu (wyniki / szybki / pełny).
   const visibleSpecs = useMemo<BlockSpec[]>(() => {
+    if (tab === "patterns") return [];
     if (query.trim()) return filtered;
     if (!expanded) return QUICK_TYPES.map((type) => BLOCK_SPECS[type]);
     return categories.flatMap((cat) => filtered.filter((b) => b.category === cat.id));
-  }, [query, filtered, expanded, categories]);
+  }, [tab, query, filtered, expanded, categories]);
 
   const clampedIdx = Math.min(activeIdx, Math.max(visibleSpecs.length - 1, 0));
   const indexByType = useMemo(
@@ -131,10 +147,22 @@ export function BlockInserter({
     setOpen(false);
   };
 
+  const choosePattern = (pattern: BlockPattern) => {
+    onInsertBlocks?.(instantiatePattern(pattern, docLang));
+    setOpen(false);
+  };
+
   const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
       e.preventDefault();
       setOpen(false);
+      return;
+    }
+    if (tab === "patterns") {
+      if (e.key === "Enter" && filteredPatterns[0]) {
+        e.preventDefault();
+        choosePattern(filteredPatterns[0]);
+      }
       return;
     }
     const max = visibleSpecs.length - 1;
@@ -209,6 +237,7 @@ export function BlockInserter({
   }
 
   const activeSpec = visibleSpecs[clampedIdx];
+  const showTabs = patternsEnabled && (expanded || tab === "patterns");
 
   return (
     <div className="rounded-lg border border-border bg-card p-3 my-2 shadow-sm">
@@ -221,7 +250,9 @@ export function BlockInserter({
           role="combobox"
           aria-expanded
           aria-controls={listboxId}
-          aria-activedescendant={activeSpec ? optionId(activeSpec.type) : undefined}
+          aria-activedescendant={
+            tab === "blocks" && activeSpec ? optionId(activeSpec.type) : undefined
+          }
           placeholder={t("blocks.search")}
           className="flex-1 bg-background border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-foreground"
         />
@@ -235,48 +266,105 @@ export function BlockInserter({
         </button>
       </div>
 
-      <div
-        id={listboxId}
-        role="listbox"
-        aria-label={t("blocks.inserter.resultsLabel", { defaultValue: "Dostępne bloki" })}
-      >
-        {visibleSpecs.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic py-3 text-center">
-            {t("blocks.noResults")}
-          </p>
-        ) : query.trim() ? (
-          <div className="grid grid-cols-3 gap-1.5">{filtered.map(item)}</div>
-        ) : !expanded ? (
-          // Szybki panel jak w WP: najczęściej używane + „Przeglądaj wszystko".
-          <>
-            <div className="grid grid-cols-3 gap-1.5">
-              {QUICK_TYPES.map((type) => item(BLOCK_SPECS[type]))}
-            </div>
+      {showTabs && (
+        <div
+          role="tablist"
+          aria-label={t("blocks.inserter.tabsLabel", { defaultValue: "Rodzaj zawartości" })}
+          className="flex items-center gap-1 mb-2 border-b border-border"
+        >
+          {(["blocks", "patterns"] as const).map((key) => (
             <button
+              key={key}
               type="button"
-              onClick={() => setExpanded(true)}
-              className="w-full mt-2 py-2 rounded bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={`px-2.5 py-1.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
+                tab === key
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
             >
-              {t("blocks.inserter.browseAll", { defaultValue: "Przeglądaj wszystko" })}
+              {key === "blocks"
+                ? t("blocks.inserter.tabBlocks", { defaultValue: "Bloki" })
+                : t("blocks.inserter.tabPatterns", { defaultValue: "Wzorce" })}
             </button>
-          </>
-        ) : (
-          <div className="max-h-[26rem] overflow-y-auto pr-1">
-            {categories.map((cat) => {
-              const items = filtered.filter((b) => b.category === cat.id);
-              if (!items.length) return null;
+          ))}
+        </div>
+      )}
+
+      {tab === "patterns" ? (
+        <div className="max-h-[26rem] overflow-y-auto pr-1 space-y-1.5">
+          {filteredPatterns.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic py-3 text-center">
+              {t("blocks.noResults")}
+            </p>
+          ) : (
+            filteredPatterns.map((pattern) => {
+              const Icon = BLOCK_SPECS[pattern.iconType].icon;
               return (
-                <div key={cat.id} className="mb-3 last:mb-0" role="presentation">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-                    {cat.label}
-                  </p>
-                  <div className="grid grid-cols-3 gap-1.5">{items.map(item)}</div>
-                </div>
+                <button
+                  key={pattern.key}
+                  type="button"
+                  onClick={() => choosePattern(pattern)}
+                  className="w-full flex items-start gap-2.5 rounded border border-border p-2.5 text-left hover:border-[#FDB078] hover:bg-[#FDB078]/20 transition-colors"
+                >
+                  <Icon className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-medium">{patternName(pattern)}</span>
+                    <span className="block text-[11px] text-muted-foreground leading-snug">
+                      {patternDesc(pattern)}
+                    </span>
+                  </span>
+                </button>
               );
-            })}
-          </div>
-        )}
-      </div>
+            })
+          )}
+        </div>
+      ) : (
+        <div
+          id={listboxId}
+          role="listbox"
+          aria-label={t("blocks.inserter.resultsLabel", { defaultValue: "Dostępne bloki" })}
+        >
+          {visibleSpecs.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic py-3 text-center">
+              {t("blocks.noResults")}
+            </p>
+          ) : query.trim() ? (
+            <div className="grid grid-cols-3 gap-1.5">{filtered.map(item)}</div>
+          ) : !expanded ? (
+            // Szybki panel jak w WP: najczęściej używane + „Przeglądaj wszystko".
+            <>
+              <div className="grid grid-cols-3 gap-1.5">
+                {QUICK_TYPES.map((type) => item(BLOCK_SPECS[type]))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setExpanded(true)}
+                className="w-full mt-2 py-2 rounded bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                {t("blocks.inserter.browseAll", { defaultValue: "Przeglądaj wszystko" })}
+              </button>
+            </>
+          ) : (
+            <div className="max-h-[26rem] overflow-y-auto pr-1">
+              {categories.map((cat) => {
+                const items = filtered.filter((b) => b.category === cat.id);
+                if (!items.length) return null;
+                return (
+                  <div key={cat.id} className="mb-3 last:mb-0" role="presentation">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                      {cat.label}
+                    </p>
+                    <div className="grid grid-cols-3 gap-1.5">{items.map(item)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
