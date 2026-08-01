@@ -750,6 +750,7 @@ export type Database = {
           coupon_id: string
           created_at: string
           currency: string
+          effects_applied_at: string | null
           id: string
           order_id: string | null
           original_cents: number
@@ -761,6 +762,7 @@ export type Database = {
           coupon_id: string
           created_at?: string
           currency: string
+          effects_applied_at?: string | null
           id?: string
           order_id?: string | null
           original_cents: number
@@ -772,6 +774,7 @@ export type Database = {
           coupon_id?: string
           created_at?: string
           currency?: string
+          effects_applied_at?: string | null
           id?: string
           order_id?: string | null
           original_cents?: number
@@ -11725,6 +11728,51 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: boolean
       }
+      admin_get_author_profile: {
+        Args: { _user_id: string }
+        Returns: {
+          avatar_url: string | null
+          bio_en: string | null
+          bio_pl: string | null
+          brand_accent: string | null
+          brand_accent_dark: string | null
+          company: string | null
+          contact_email: string | null
+          counterpart_lang: string | null
+          counterpart_user_id: string | null
+          created_at: string
+          custom_socials: Json
+          facebook_url: string | null
+          full_bio_en: string | null
+          full_bio_pl: string | null
+          id: string
+          instagram_url: string | null
+          is_public: boolean
+          job_title: string | null
+          layout_overrides: Json | null
+          layout_preset: string | null
+          layout_section_order: string[] | null
+          layout_template_id: string | null
+          linkedin_url: string | null
+          media_contact_email: string | null
+          media_contact_name: string | null
+          media_contact_phone: string | null
+          org_functions: Json
+          phone: string | null
+          spotify_url: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          website_url: string | null
+          x_url: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "author_profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       admin_get_speaker_profile: {
         Args: { p_user_id: string }
         Returns: {
@@ -11964,6 +12012,7 @@ export type Database = {
         Args: { p_since: string; p_until: string }
         Returns: Json
       }
+      apply_b2b_coupon_effects: { Args: { _order_id: string }; Returns: Json }
       apply_pricing_catalog_v3: {
         Args: { p_tenant: string }
         Returns: undefined
@@ -13059,6 +13108,10 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
+      is_experiment_running: {
+        Args: { _experiment_id: string }
+        Returns: boolean
+      }
       is_expert_user: { Args: { _uid: string }; Returns: boolean }
       is_form_field_active: {
         Args: { _field: string; _form_type: string; _tenant: string }
@@ -13544,6 +13597,12 @@ export type Database = {
           verified: boolean
         }[]
       }
+      popular_post_ids: {
+        Args: { _days?: number; _limit?: number }
+        Returns: {
+          post_id: string
+        }[]
+      }
       popular_searches: {
         Args: { _days?: number; _limit?: number }
         Returns: {
@@ -13704,6 +13763,7 @@ export type Database = {
           read_ct: number
         }[]
       }
+      recommendation_relationships: { Args: never; Returns: string[] }
       recompute_crm_lead_score: { Args: { p_lead_id: string }; Returns: Json }
       recompute_crm_lead_scores: {
         Args: { p_after_id?: string; p_limit?: number }
