@@ -107,7 +107,6 @@ export async function getRedirectIndexForTenant(tenantId: string): Promise<Redir
 // Request-time helpers
 // ---------------------------------------------------------------------------
 
-
 /** Match a raw GET/HEAD request against the tenant's redirect rules. */
 export async function resolveRedirectForRequest(request: Request): Promise<{
   target: string;

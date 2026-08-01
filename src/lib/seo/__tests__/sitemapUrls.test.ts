@@ -58,10 +58,7 @@ describe("canonicalSitemapPath", () => {
 describe("sitemapLanguageUrls", () => {
   it("tworzy wpis PL i EN z pełnym, wzajemnym klastrem hreflang", () => {
     const urls = sitemapLanguageUrls(ORIGIN, "/o-nas");
-    expect(urls.map((u) => u.loc)).toEqual([
-      `${ORIGIN}/o-nas`,
-      `${ORIGIN}/en/o-nas`,
-    ]);
+    expect(urls.map((u) => u.loc)).toEqual([`${ORIGIN}/o-nas`, `${ORIGIN}/en/o-nas`]);
     for (const u of urls) {
       expect(u.alternates).toEqual([
         { hreflang: "x-default", href: `${ORIGIN}/o-nas` },
@@ -74,20 +71,14 @@ describe("sitemapLanguageUrls", () => {
   it("hreflang wskazuje adresy po przekierowaniu, nie źródłowe", () => {
     const idx = index([{ source_path: "/about-us", target_path: "/o-nas" }]);
     const urls = sitemapLanguageUrls(ORIGIN, "/about-us", idx);
-    expect(urls.map((u) => u.loc)).toEqual([
-      `${ORIGIN}/o-nas`,
-      `${ORIGIN}/en/o-nas`,
-    ]);
+    expect(urls.map((u) => u.loc)).toEqual([`${ORIGIN}/o-nas`, `${ORIGIN}/en/o-nas`]);
     expect(urls[0].alternates.map((a) => a.href)).not.toContain(`${ORIGIN}/about-us`);
   });
 
   it("respektuje regułę zdefiniowaną wyłącznie dla wariantu /en", () => {
     const idx = index([{ source_path: "/en/o-nas", target_path: "/en/about" }]);
     const urls = sitemapLanguageUrls(ORIGIN, "/o-nas", idx);
-    expect(urls.map((u) => u.loc)).toEqual([
-      `${ORIGIN}/o-nas`,
-      `${ORIGIN}/en/about`,
-    ]);
+    expect(urls.map((u) => u.loc)).toEqual([`${ORIGIN}/o-nas`, `${ORIGIN}/en/about`]);
   });
 
   it("pomija dokument wycofany regułą 410", () => {

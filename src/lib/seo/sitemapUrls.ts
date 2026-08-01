@@ -63,9 +63,7 @@ export function canonicalSitemapPath(
         return null;
       }
       const host = url.hostname.replace(/^www\./i, "").toLowerCase();
-      const allowed = sameOriginHosts.some(
-        (h) => h.replace(/^www\./i, "").toLowerCase() === host,
-      );
+      const allowed = sameOriginHosts.some((h) => h.replace(/^www\./i, "").toLowerCase() === host);
       // Przekierowanie poza serwis - taki adres nie jest naszym kanonicznym URL-em.
       if (!allowed) return null;
       next = url.pathname;

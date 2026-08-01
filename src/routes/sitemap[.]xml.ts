@@ -17,7 +17,6 @@ import {
 import { sitemapLanguageUrls } from "@/lib/seo/sitemapUrls";
 import type { RedirectIndex } from "@/lib/seo/redirects";
 
-
 interface SitemapEntry {
   loc: string;
   lastmod?: string;
@@ -393,12 +392,17 @@ export const Route = createFileRoute("/sitemap.xml")({
         // Indeks przekierowań tenanta: sitemapa publikuje adres docelowy, nie
         // ten, który zaraz odpowie 301/410. Degraduje się do braku kanonizacji,
         // gdy warstwa danych nie odpowiada.
+        // W trybie degradacji (brak tenanta - host podglądowy albo niedostępny
+        // katalog domen) nie ma czego kanonizować: zostaje sam statyczny
+        // szkielet, więc indeks przekierowań po prostu pomijamy.
         let redirectIndex: RedirectIndex | null = null;
-        try {
-          const { getRedirectIndexForTenant } = await import("@/lib/seo/redirects.server");
-          redirectIndex = await getRedirectIndexForTenant(tenantId);
-        } catch (e) {
-          console.warn("[seo] sitemap redirect index unavailable:", e);
+        if (tenantId) {
+          try {
+            const { getRedirectIndexForTenant } = await import("@/lib/seo/redirects.server");
+            redirectIndex = await getRedirectIndexForTenant(tenantId);
+          } catch (e) {
+            console.warn("[seo] sitemap redirect index unavailable:", e);
+          }
         }
 
         const sameOriginHosts = [...CANONICAL_HOSTS, host].filter(Boolean);
@@ -439,7 +443,6 @@ export const Route = createFileRoute("/sitemap.xml")({
           ...urlBlocks,
           `</urlset>`,
         ].join("\n");
-
 
         return new Response(xml, {
           headers: {

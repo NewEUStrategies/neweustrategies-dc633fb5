@@ -103,10 +103,7 @@ export function WidgetI18nAuditPane() {
       .filter((e) => e.issues.length > 0);
   }, [data, errorsOnly]);
 
-  const total = useMemo(
-    () => summarizeI18nIssues(entities.flatMap((e) => e.issues)),
-    [entities],
-  );
+  const total = useMemo(() => summarizeI18nIssues(entities.flatMap((e) => e.issues)), [entities]);
 
   return (
     <div className="space-y-4">

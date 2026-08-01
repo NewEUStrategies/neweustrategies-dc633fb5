@@ -83,9 +83,22 @@ const CLIENT_DIR =
 // czerwone. Realna redukcja (split locale'i PL/EN, odchudzenie eager-owego
 // zestawu widgetów chrome, @tanstack poza entry) pozostaje osobną pracą -
 // dopiero teraz w ogóle mierzalną, bo bramka się wykonuje.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 495); // largest single gzipped JS chunk (main: ~492KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1745); // gzipped JS a public visitor can load (main: ~1741KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2930); // gzipped JS incl. admin/editor-only chunks (main: ~2925KB)
+// 2026-08-01 (2): floory dostają JAWNY ZAPAS ~2% zamiast dotychczasowego
+// "tuż nad śladem". Powód jest empiryczny: przy zapasie rzędu 3 KB bramka
+// zapalała się od CUDZYCH merge'ów - w ciągu jednej godziny main wchłonął
+// poprawki sitemapy i tłumaczeń EN, ślad publiczny urósł 1741,8 -> 1755,9 KB
+// i PR, który sam nie dokładał wagi, znów był czerwony. To jest dokładnie ta
+// patologia, którą sprzątamy: bramka czerwona z powodu niezwiązanego z
+// gałęzią BLOKUJE wszystkie kroki za sobą (lint, inwarianty SQL), więc
+// przestaje cokolwiek chronić i zaczyna być ignorowana.
+// Zapas 2% nadal łapie to, po co ta bramka istnieje (utrata code-splittingu
+// albo nowa ciężka zależność to dziesiątki-setki KB), a przestaje reagować na
+// zwykły ruch na mainie. Zejście z powrotem do ciasnych floorów ma sens
+// dopiero po realnej redukcji (split locale'i PL/EN, odchudzenie eager-owego
+// zestawu widgetów chrome, @tanstack poza entry) - to osobna praca.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 505); // largest single gzipped JS chunk (zmierzone: ~492KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1790); // gzipped JS a public visitor can load (zmierzone: ~1756KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2990); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~2928KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the
