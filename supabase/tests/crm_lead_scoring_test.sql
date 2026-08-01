@@ -144,19 +144,30 @@ VALUES ('cc777777-7777-7777-7777-777777777777', 'sc-post',
 
 -- comments_before_insert wymaga włączonej dyskusji w tenancie
 -- (site_settings.key='discussion'), inaczej rzuca 'comments_disabled'.
+-- moderate_new_comments=false, żeby wpis lądował od razu jako 'approved' -
+-- trigger i tak nadpisuje status przy INSERT, a test 3b bada właśnie
+-- rozróżnienie approved vs spam/deleted.
 INSERT INTO public.site_settings (tenant_id, key, value) VALUES
   ('cc111111-1111-1111-1111-111111111111', 'discussion',
-   '{"allow_comments": true}'::jsonb)
+   '{"allow_comments": true, "moderate_new_comments": false}'::jsonb)
 ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value;
 
 -- ── 3b. Komentarze: spam/deleted NIE liczą się, approved/pending liczą ───────
 SELECT score INTO TEMP score_before_comment
   FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333';
-INSERT INTO public.comments (tenant_id, post_id, user_id, body, status) VALUES
+-- comments_before_insert NADPISUJE status wg polityki moderacji
+-- ('pending'/'approved'), więc docelowe statusy ustawiamy dopiero UPDATE-em.
+-- (comments_guard_update przepuszcza, bo w tym miejscu pliku nie ma jeszcze
+-- kontekstu JWT - auth.uid() jest NULL.)
+INSERT INTO public.comments (tenant_id, post_id, user_id, body) VALUES
   ('cc111111-1111-1111-1111-111111111111', 'cc777777-7777-7777-7777-777777777777',
-   'cc000000-0000-0000-0000-0000000000cc', 'Spam komentarz', 'spam'),
+   'cc000000-0000-0000-0000-0000000000cc', 'Spam komentarz'),
   ('cc111111-1111-1111-1111-111111111111', 'cc777777-7777-7777-7777-777777777777',
-   'cc000000-0000-0000-0000-0000000000cc', 'Skasowany komentarz', 'deleted');
+   'cc000000-0000-0000-0000-0000000000cc', 'Skasowany komentarz');
+UPDATE public.comments SET status = 'spam'
+ WHERE post_id = 'cc777777-7777-7777-7777-777777777777' AND body = 'Spam komentarz';
+UPDATE public.comments SET status = 'deleted'
+ WHERE post_id = 'cc777777-7777-7777-7777-777777777777' AND body = 'Skasowany komentarz';
 SELECT public.compute_crm_lead_score('cc333333-3333-3333-3333-333333333333');
 SELECT is(
   (SELECT score FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333'),
