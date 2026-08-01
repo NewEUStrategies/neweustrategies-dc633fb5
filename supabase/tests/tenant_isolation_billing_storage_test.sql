@@ -132,12 +132,16 @@ SELECT is((SELECT count(*)::int FROM del), 0,
   'storage cv: DELETE pliku tenanta B odrzucone przez RLS w kontekście tenanta A');
 
 -- ── Przełączenie kontekstu na tenant B (ta sama auth.uid()) ────────────────
--- Symulujemy zmianę aktywnego tenanta przez przepięcie profiles.tenant_id
--- w roli service (SET LOCAL ROLE resetuje ten sam blok BEGIN).
+-- Symulujemy zmianę aktywnego tenanta przez przepięcie profiles.tenant_id.
+-- profiles_pin_tenant_id (20260721052806) blokuje zmianę tenant_id nawet
+-- superuserowi - przepuszcza wyłącznie kontekst service_role rozpoznawany po
+-- GUC request.jwt.claim.role (SECURITY DEFINER zasłania current_user).
 RESET ROLE;
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
 UPDATE public.profiles
    SET tenant_id = 'c2222222-2222-2222-2222-2222222222c2'
  WHERE id = 'c0000000-0000-0000-0000-000000000cc1';
+SELECT set_config('request.jwt.claim.role', '', true);
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',

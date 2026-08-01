@@ -268,6 +268,14 @@ SELECT is(
 -- ---------------------------------------------------------------------------
 -- 19-24. create_event_group
 -- ---------------------------------------------------------------------------
+-- create_event_group -> create_group_conversation wymaga od hosta warstwy
+-- z chat_enabled (gate 'chat: tier disabled' z 20260725175514) - host dostaje
+-- grant członkowski jak w pozostałych testach czatu.
+RESET ROLE;
+INSERT INTO public.membership_grants (tenant_id, user_id, tier_key)
+VALUES ('cb111111-1111-1111-1111-111111111111',
+        'cb000000-0000-0000-0000-000000000090', 'member');
+SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"cb000000-0000-0000-0000-000000000090","role":"authenticated"}', true);
 

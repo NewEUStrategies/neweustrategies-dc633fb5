@@ -172,18 +172,22 @@ SELECT is(
   'członek widzi swój pseudonim w rozmowie'
 );
 
--- ── 5) anon: obie tabele zwracają 0 wierszy (RLS ostatnią linią) ───────────
+-- ── 5) anon: obie tabele w ogóle niedostępne (brak grantu SELECT) ──────────
+-- Od lockdownu anon nie ma nawet tabelarycznego SELECT - ACL odrzuca zapytanie
+-- zanim RLS zdąży cokolwiek filtrować. To silniejsza własność niż "0 wierszy".
 RESET ROLE;
 SET LOCAL ROLE anon;
-SELECT is(
-  (SELECT count(*)::int FROM public.conversations WHERE id = (SELECT id FROM isoconv)),
-  0,
-  'anon: RLS ukrywa conversations (polityki są TO authenticated)'
+SELECT throws_ok(
+  $$SELECT count(*) FROM public.conversations WHERE id = (SELECT id FROM isoconv)$$,
+  '42501',
+  NULL,
+  'anon: SELECT z conversations odrzucony (brak grantu, nie tylko RLS)'
 );
-SELECT is(
-  (SELECT count(*)::int FROM public.conversation_nicknames),
-  0,
-  'anon: RLS ukrywa conversation_nicknames (polityki są TO authenticated)'
+SELECT throws_ok(
+  $$SELECT count(*) FROM public.conversation_nicknames$$,
+  '42501',
+  NULL,
+  'anon: SELECT z conversation_nicknames odrzucony (brak grantu, nie tylko RLS)'
 );
 
 -- ── 6) Metatest zakresu ról polityk SELECT ────────────────────────────────

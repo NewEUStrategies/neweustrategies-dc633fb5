@@ -52,9 +52,9 @@ INSERT INTO public.profiles (id, email, display_name, slug, tenant_id) VALUES
   ('ee000000-0000-0000-0000-00000000e002', 'other@ep.test', 'Inny Autor',
    'ep-other', :'nes');
 
--- Taksonomie filtrow.
-INSERT INTO public.tags (id, slug, name) VALUES
-  ('ee000000-0000-0000-0000-00000000d001', 'ep-energia', 'Energia');
+-- Taksonomie filtrow (tags.tenant_id jest NOT NULL od utenantowienia taksonomii).
+INSERT INTO public.tags (id, tenant_id, slug, name) VALUES
+  ('ee000000-0000-0000-0000-00000000d001', :'nes', 'ep-energia', 'Energia');
 INSERT INTO public.programs (id, tenant_id, slug, name_pl, name_en) VALUES
   ('ee000000-0000-0000-0000-00000000d002', :'nes', 'ep-defence',
    'Obronnosc', 'Defence');

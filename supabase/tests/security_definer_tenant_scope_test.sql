@@ -43,15 +43,17 @@ INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
 
 -- Przychod: zamowienie oplacone w A (1234) i w B (5000). Wyciek = zobaczenie 5000.
--- Status 'paid' moze wstawic tylko service_role (payment_orders_guard_status_trg
--- z 20260724143429; secure_insert z 20260730175806 tez bypassuje te role).
-SET LOCAL ROLE service_role;
+-- Status 'paid' moze wstawic tylko service_role. UWAGA: guard_status
+-- (20260724143429) jest SECURITY DEFINER - current_user wewnatrz to wlasciciel
+-- funkcji, nie rola z SET ROLE; oba triggery (guard_status + secure_insert
+-- z 20260730175806) honoruja za to GUC request.jwt.claim.role.
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
 INSERT INTO public.payment_orders (tenant_id, user_id, kind, status, amount_cents) VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'd1d1d1d1-0000-0000-0000-000000000001',
    'one_time', 'paid', 1234),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'd1d1d1d1-0000-0000-0000-000000000001',
    'one_time', 'paid', 5000);
-RESET ROLE;
+SELECT set_config('request.jwt.claim.role', '', true);
 
 -- Kupony B2B: po jednym na tenant (analityka nie moze pokazac kuponu B adminowi A).
 INSERT INTO public.b2b_coupons (tenant_id, code, discount_kind, discount_percent) VALUES

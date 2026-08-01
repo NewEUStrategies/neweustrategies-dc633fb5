@@ -170,10 +170,15 @@ SELECT throws_ok(
 -- ══════════════════════════════════════════════════════════════════════════
 -- KONTEKST 2: aktywny tenant = B
 -- ══════════════════════════════════════════════════════════════════════════
+-- Przepięcie tenant_id wymaga kontekstu service_role: profiles_pin_tenant_id
+-- (20260721052806) rozpoznaje go wyłącznie po GUC request.jwt.claim.role
+-- (SECURITY DEFINER zasłania current_user, superuser nie ma taryfy ulgowej).
 RESET ROLE;
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
 UPDATE public.profiles
    SET tenant_id = 'a2222222-2222-2222-2222-2222222222a2'
  WHERE id = 'a0000000-0000-0000-0000-000000000aa1';
+SELECT set_config('request.jwt.claim.role', '', true);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-0000-0000-000000000aa1","role":"authenticated"}', true);
@@ -262,9 +267,11 @@ SELECT throws_ok(
 -- KONTEKST 3: aktywny tenant = C
 -- ══════════════════════════════════════════════════════════════════════════
 RESET ROLE;
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
 UPDATE public.profiles
    SET tenant_id = 'a3333333-3333-3333-3333-3333333333a3'
  WHERE id = 'a0000000-0000-0000-0000-000000000aa1';
+SELECT set_config('request.jwt.claim.role', '', true);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-0000-0000-000000000aa1","role":"authenticated"}', true);

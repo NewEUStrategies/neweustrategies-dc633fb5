@@ -150,10 +150,13 @@ SELECT is(
 );
 
 SET LOCAL ROLE anon;
-SELECT is(
-  (SELECT count(*)::int FROM public.conversation_nicknames),
-  0,
-  'anon: RLS ukrywa pseudonimy (polityka ograniczona do authenticated)'
+-- Od lockdownu anon nie ma tabelarycznego SELECT - ACL odrzuca zapytanie,
+-- zanim RLS zdąży filtrować (silniejsza własność niż "0 wierszy").
+SELECT throws_ok(
+  $$SELECT count(*) FROM public.conversation_nicknames$$,
+  '42501',
+  NULL,
+  'anon: SELECT z conversation_nicknames odrzucony (brak grantu, nie tylko RLS)'
 );
 
 -- ── 3) Bezpośredni UPDATE / DELETE na conversation_nicknames przez członka ─

@@ -12,7 +12,9 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(14);
+-- 13 asercji poniżej (historyczne plan(14) było o jeden za wysokie; miscount
+-- maskował wcześniejszy pad fikstury na guardzie user_connections).
+SELECT plan(13);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 

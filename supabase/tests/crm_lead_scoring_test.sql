@@ -36,6 +36,13 @@ INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
   ('cc000000-0000-0000-0000-0000000000aa', 'admin', 'cc111111-1111-1111-1111-111111111111'),
   ('cc000000-0000-0000-0000-0000000000bb', 'admin', 'cc222222-2222-2222-2222-222222222222');
 
+-- Trigger profile_sync_crm_lead (20260722080948) założył już lead dla profilu
+-- Lead User przy INSERT do profiles - usuwamy go, żeby fikstura o znanym id
+-- nie kolidowała po unikalnym (tenant_id, email_norm).
+DELETE FROM public.crm_leads
+ WHERE tenant_id = 'cc111111-1111-1111-1111-111111111111'
+   AND email_norm = 'lead-user@sc.test';
+
 -- Lead z pelnym profilem fit: company + position + phone + linkedin + marketing.
 -- Trigger tg_score_on_lead_change przeliczy wynik od razu po INSERT.
 INSERT INTO public.crm_leads

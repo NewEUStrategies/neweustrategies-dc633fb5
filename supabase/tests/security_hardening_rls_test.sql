@@ -157,14 +157,19 @@ SELECT is(
 
 SELECT is(
   (SELECT count(*)::int FROM public.tenant_pending_counters
-     WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'),
+     WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'
+       AND counter_key = 'pending'),
   1,
   'admin tenanta (is_staff) CZYTA tenant_pending_counters swojego tenanta'
 );
 
+-- Zawężenie do zaseedowanego zdarzenia: triggery domenowe (sync CRM,
+-- liczniki) emitują własne domain_events przy fixturach i globalny count
+-- nie jest deterministyczny.
 SELECT is(
   (SELECT count(*)::int FROM public.domain_events
-     WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'),
+     WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'
+       AND event_type = 'test.event.v1'),
   1,
   'admin tenanta (is_staff) CZYTA domain_events swojego tenanta'
 );
