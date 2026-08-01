@@ -34,12 +34,14 @@ function fromBase64(b64: string): string {
 
 /** Nowe `id` w całym poddrzewie - wklejka nie może kolidować z oryginałem. */
 export function regenerateBlockIds(blocks: Block[]): Block[] {
-  const walk = (value: Json): Json => {
-    if (Array.isArray(value)) return value.map(walk);
+  // Zagnieżdżone bloki (columns.left/right, group.children…) żyją wewnątrz
+  // `data` jako zwykły JSON - walker rozpoznaje je po kształcie {id,type,data}.
+  const walkJson = (value: Json): Json => {
+    if (Array.isArray(value)) return value.map(walkJson);
     if (value && typeof value === "object") {
       const obj = value as Record<string, Json>;
       const out: Record<string, Json> = {};
-      for (const [k, v] of Object.entries(obj)) out[k] = walk(v);
+      for (const [k, v] of Object.entries(obj)) out[k] = walkJson(v);
       const looksLikeBlock =
         typeof obj.id === "string" && typeof obj.type === "string" && obj.data !== undefined;
       if (looksLikeBlock) out.id = newBlockId();
@@ -47,7 +49,11 @@ export function regenerateBlockIds(blocks: Block[]): Block[] {
     }
     return value;
   };
-  return walk(blocks as unknown as Json) as unknown as Block[];
+  return blocks.map((b) => ({
+    ...b,
+    id: newBlockId(),
+    data: walkJson(b.data) as Record<string, Json>,
+  }));
 }
 
 function stripTags(html: string): string {

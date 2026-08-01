@@ -55,7 +55,8 @@ interface Props {
   typeLabel?: string;
   /** Ikona bieżącego typu - trigger menu „Przekształć w" w toolbarze. */
   typeIcon?: BlockIcon;
-  onSelect: () => void;
+  /** Klik w blok; zdarzenie niesie modyfikatory (Shift/Ctrl = multi-select). */
+  onSelect: (e?: React.MouseEvent) => void;
   onMove: (dir: -1 | 1) => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -188,7 +189,7 @@ export function SortableBlockItem(props: Props) {
           style={style}
           data-block-id={props.id}
           onClick={props.onSelect}
-          onContextMenu={props.onSelect}
+          onContextMenu={() => props.onSelect()}
           aria-selected={props.selected || undefined}
           data-block-selected={props.selected ? "true" : undefined}
           className={`group relative pl-8 pr-3 pt-2 pb-2 scroll-mt-24 rounded-sm ${

@@ -1,9 +1,11 @@
-// Akapit oparty na TipTap z obsługą:
+// Akapit oparty na TipTap z obsługą (parytet z WordPress Gutenberg):
 // - inline formatting (bold, italic, code, link)
 // - markdown shortcuts (## , > , - , 1. , --- , ``` ) -> transformacja w inny blok
 // - slash command (`/` na pustej linii -> otwiera inserter)
-// - Enter na pustym akapicie -> nowy akapit poniżej
+// - Enter -> podział bloku (ogon za kursorem przechodzi do nowego akapitu)
 // - Backspace na pustym akapicie -> usuwa blok i przenosi focus
+// - Backspace na POCZĄTKU niepustego akapitu -> scala z poprzednim blokiem
+// - strzałki na krawędziach treści -> płynne przejście do sąsiedniego bloku
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import { getHTMLFromFragment } from "@tiptap/core";
@@ -23,6 +25,7 @@ import { newBlockId } from "@/lib/blocks/types";
 import { detectMarkdownShortcut, htmlToPlain, shortcutToBlock } from "@/lib/blocks/markdown";
 import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
 import { parseBlocksFromClipboard } from "@/lib/blocks/clipboard";
+import { filesToImageBlocks } from "@/lib/blocks/imagePaste";
 
 import { WordStyleToolbar } from "../WordStyleToolbar";
 import { BlockInserter } from "../BlockInserter";
@@ -34,6 +37,12 @@ interface Props {
   onTransform?: (replacement: Block[]) => void;
   onInsertAfter?: (block: Block) => void;
   onDeleteEmpty?: () => void;
+  /** Backspace na początku niepustego bloku - scalenie z poprzednim (WP). */
+  onMergeWithPrevious?: () => boolean;
+  /** Strzałka w górę/lewo na początku treści - fokus na poprzedni blok. */
+  onFocusPrevious?: () => boolean;
+  /** Strzałka w dół/prawo na końcu treści - fokus na następny blok. */
+  onFocusNext?: () => boolean;
   /** Ctrl/Cmd+A przy zaznaczonej całej treści bloku - eskalacja do dokumentu. */
   onSelectAllBlocks?: () => void;
 }
@@ -45,14 +54,33 @@ export function ParagraphBlock({
   onTransform,
   onInsertAfter,
   onDeleteEmpty,
+  onMergeWithPrevious,
+  onFocusPrevious,
+  onFocusNext,
   onSelectAllBlocks,
 }: Props) {
   const { t } = useTranslation();
   const html = String(block.data.html ?? "");
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const handlersRef = useRef({ onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks });
-  handlersRef.current = { onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks };
+  const handlersRef = useRef({
+    onTransform,
+    onInsertAfter,
+    onDeleteEmpty,
+    onMergeWithPrevious,
+    onFocusPrevious,
+    onFocusNext,
+    onSelectAllBlocks,
+  });
+  handlersRef.current = {
+    onTransform,
+    onInsertAfter,
+    onDeleteEmpty,
+    onMergeWithPrevious,
+    onFocusPrevious,
+    onFocusNext,
+    onSelectAllBlocks,
+  };
   const blockRef = useRef(block);
   blockRef.current = block;
 
@@ -139,7 +167,7 @@ export function ParagraphBlock({
         return true;
       },
 
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
         const ed = editor;
         if (!ed) return false;
 
@@ -148,6 +176,39 @@ export function ParagraphBlock({
           event.preventDefault();
           setSlashOpen(true);
           return true;
+        }
+
+        // Strzałki na krawędziach treści -> sąsiedni blok (pisanie płynie
+        // przez cały dokument jak w WP). `endOfTextblock` respektuje realne
+        // linie wizualne (zawijanie, bidi), a indeks dziecka pilnuje, żeby
+        // wewnętrzne akapity bloku nie wyrzucały kursora przedwcześnie.
+        if (!event.shiftKey && ed.state.selection.empty) {
+          const sel = ed.state.selection;
+          const handlers = handlersRef.current;
+          const inFirstChild = sel.$from.index(0) === 0;
+          const inLastChild = sel.$to.index(0) === ed.state.doc.childCount - 1;
+          const atDocStart = sel.from <= 1;
+          const atDocEnd = sel.to >= ed.state.doc.content.size - 1;
+          if (
+            handlers.onFocusPrevious &&
+            ((event.key === "ArrowUp" && inFirstChild && view.endOfTextblock("up")) ||
+              (event.key === "ArrowLeft" && atDocStart))
+          ) {
+            if (handlers.onFocusPrevious()) {
+              event.preventDefault();
+              return true;
+            }
+          }
+          if (
+            handlers.onFocusNext &&
+            ((event.key === "ArrowDown" && inLastChild && view.endOfTextblock("down")) ||
+              (event.key === "ArrowRight" && atDocEnd))
+          ) {
+            if (handlers.onFocusNext()) {
+              event.preventDefault();
+              return true;
+            }
+          }
         }
 
         // Ctrl/Cmd+A: jak w Word - pierwsze naciśnięcie zaznacza treść bloku,
@@ -191,6 +252,21 @@ export function ParagraphBlock({
           return true;
         }
 
+        // Backspace na POCZĄTKU niepustego akapitu -> scal z poprzednim
+        // blokiem; karetka ląduje w punkcie złączenia (WP-flow).
+        if (
+          event.key === "Backspace" &&
+          !ed.isEmpty &&
+          ed.state.selection.empty &&
+          ed.state.selection.from <= 1 &&
+          handlersRef.current.onMergeWithPrevious
+        ) {
+          if (handlersRef.current.onMergeWithPrevious()) {
+            event.preventDefault();
+            return true;
+          }
+        }
+
         return false;
       },
     },
@@ -214,35 +290,7 @@ export function ParagraphBlock({
     const ed = editor;
     const transform = handlersRef.current.onTransform;
     if (!ed || !transform) return;
-    const readAsDataUrl = (file: File) =>
-      new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result ?? ""));
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(file);
-      });
-    const imageBlocks: Block[] = [];
-    for (const file of files) {
-      try {
-        const url = await readAsDataUrl(file);
-        if (!url.startsWith("data:image/")) continue;
-        imageBlocks.push({
-          id: newBlockId(),
-          type: "image",
-          data: {
-            url,
-            alt: file.name.replace(/\.[a-z0-9]+$/i, ""),
-            caption: "",
-            align: "center",
-            size: "full",
-            rounded: true,
-            shadow: false,
-          },
-        });
-      } catch {
-        // nieczytelny plik nie przerywa wklejki pozostałych
-      }
-    }
+    const imageBlocks = await filesToImageBlocks(files);
     if (!imageBlocks.length) return;
     const current = blockRef.current;
     const keepCurrent = !ed.isEmpty;

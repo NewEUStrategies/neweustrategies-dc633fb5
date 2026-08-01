@@ -1,12 +1,17 @@
-// Refaktor: kanwa bloków z drag&drop (@dnd-kit), atomowymi akcjami i obsługą Enter/Backspace.
-// Każda mutacja przechodzi przez `onChange`, który u góry trafia w history hook (undo/redo).
-// Zachowania Gutenberga: Enter przenosi karetkę do nowego bloku, Backspace na
-// pustym bloku wraca na koniec poprzedniego, Ctrl+C/X/V działa na zaznaczonych
-// blokach przez systemowy schowek (interop z WordPressem i innymi wpisami).
+// Kanwa bloków z drag&drop (@dnd-kit), atomowymi akcjami i pisaniem płynącym
+// przez cały dokument (parytet z WordPress Gutenberg). Każda mutacja
+// przechodzi przez `onChange`, który u góry trafia w history hook (undo/redo).
+//
+// Zachowania Gutenberga:
+//   - Enter przenosi karetkę do nowego bloku, Backspace na pustym bloku wraca
+//     na koniec poprzedniego, Backspace na początku niepustego SCALA bloki
+//     (karetka w punkcie złączenia), strzałki przechodzą między blokami,
+//   - zaznaczenie wielokrotne: dwustopniowe Ctrl+A, Shift+klik (zakres),
+//     Ctrl/Cmd+klik (przełączanie), Ctrl+Shift+D (duplikat),
+//   - schowek Ctrl+C/X/V przez `useBlockClipboard` (interop z WordPressem).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import {
   DndContext,
   type DragEndEvent,
@@ -22,19 +27,17 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import type { Block, BlocksDoc } from "@/lib/blocks/types";
+import type { Block, BlocksDoc, BlockType } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import { isTextEntryBlockType, requestBlockFocus } from "@/lib/blocks/focus";
-import {
-  parseBlocksFromClipboard,
-  plainTextToBlocks,
-  serializeBlocksForClipboard,
-} from "@/lib/blocks/clipboard";
-import { looksLikeRichPaste, parseWordHtml } from "@/lib/blocks/wordPaste";
+import { regenerateBlockIds } from "@/lib/blocks/clipboard";
+import { htmlTextLength, innerInlineHtml, mergeInlineIntoHtml } from "@/lib/blocks/merge";
+import { blockRange, toggleInSelection } from "@/lib/blocks/selection";
 import { getTransformTargets, transformBlock } from "@/lib/blocks/transforms";
-import { Plus } from "@/lib/lucide-shim";
+import { useBlockClipboard } from "./hooks/useBlockClipboard";
 import { BlockInserter } from "./BlockInserter";
-import { SortableBlockItem } from "./molecules/SortableBlockItem";
+import { BlockAppender } from "./molecules/BlockAppender";
+import { SortableBlockItem, type BlockTransformOption } from "./molecules/SortableBlockItem";
 import { GenericWidgetToolbar } from "./GenericWidgetToolbar";
 import { getBlockVariants } from "@/lib/blocks/variants";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
@@ -150,13 +153,6 @@ interface Props {
   onChange: (doc: BlocksDoc, immediate?: boolean) => void;
 }
 
-/**
- * Stos zamontowanych kanw: przy zagnieżdżeniu (edytor bloków w modalu
- * buildera nad edytorem wpisu) globalne zdarzenia schowka obsługuje wyłącznie
- * kanwa zamontowana najpóźniej - inaczej jedno Ctrl+V wklejałoby dwa razy.
- */
-const MOUNTED_CANVASES: HTMLElement[] = [];
-
 export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   const { t } = useTranslation();
   const blocks = doc.blocks;
@@ -167,6 +163,8 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   // dokumentu; wtedy obowiązuje zwykłe zaznaczenie pojedynczego bloku.
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  // Kotwica zaznaczenia zakresowego (ostatni blok kliknięty bez modyfikatorów).
+  const anchorIdRef = useRef<string | null>(null);
 
   // Stable ref to current doc/blocks so callbacks don't churn.
   const docRef = useRef(doc);
@@ -175,16 +173,6 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   activeIdRef.current = activeId;
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
-
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    MOUNTED_CANVASES.push(el);
-    return () => {
-      const i = MOUNTED_CANVASES.indexOf(el);
-      if (i >= 0) MOUNTED_CANVASES.splice(i, 1);
-    };
-  }, []);
 
   const selectAllBlocks = useCallback(() => {
     // Zaznaczenie blokowe zastępuje zaznaczenie tekstowe. Bez wyczyszczenia
@@ -206,8 +194,80 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     onSelect(null);
   }, [selectedIds, onChange, onSelect]);
 
+  /**
+   * Ctrl+Shift+D (jak w WP): duplikuje zaznaczenie wielokrotne albo aktywny
+   * blok; kopie (ze świeżymi id, także w zagnieżdżeniach) lądują za ostatnim
+   * duplikowanym blokiem i przejmują zaznaczenie.
+   */
+  const duplicateSelection = useCallback((): boolean => {
+    const arr = docRef.current.blocks;
+    const chosenIds = selectedIdsRef.current.length
+      ? new Set(selectedIdsRef.current)
+      : activeIdRef.current
+        ? new Set([activeIdRef.current])
+        : null;
+    if (!chosenIds?.size) return false;
+    const chosen = arr.filter((b) => chosenIds.has(b.id));
+    if (!chosen.length) return false;
+    const copies = regenerateBlockIds(chosen);
+    const lastIdx = arr.reduce((acc, b, i) => (chosenIds.has(b.id) ? i : acc), -1);
+    const next = [...arr];
+    next.splice(lastIdx + 1, 0, ...copies);
+    onChange({ ...docRef.current, blocks: next }, true);
+    if (copies.length === 1) {
+      setSelectedIds([]);
+      onSelect(copies[0].id);
+    } else {
+      setSelectedIds(copies.map((c) => c.id));
+      onSelect(null);
+    }
+    return true;
+  }, [onChange, onSelect]);
+
+  /**
+   * Klik w blok z modyfikatorami (jak w WP): Shift = zakres od kotwicy,
+   * Ctrl/Cmd = przełączenie pojedynczego bloku, bez modyfikatorów = zwykłe
+   * zaznaczenie aktywnego bloku (i nowa kotwica). Modyfikatory działają tylko
+   * poza polami tekstowymi - wewnątrz treści Shift+klik rozszerza tekst.
+   */
+  const handleBlockClick = useCallback(
+    (id: string, e?: React.MouseEvent) => {
+      const target = e?.target as HTMLElement | null;
+      const inEditable = Boolean(
+        target?.closest?.('[contenteditable="true"], input, textarea, select'),
+      );
+      const docIds = docRef.current.blocks.map((b) => b.id);
+      if (e?.shiftKey && !inEditable) {
+        const anchor = anchorIdRef.current ?? activeIdRef.current;
+        if (anchor && anchor !== id) {
+          e.preventDefault();
+          window.getSelection()?.removeAllRanges();
+          setSelectedIds(blockRange(docIds, anchor, id));
+          onSelect(null);
+          return;
+        }
+      }
+      if ((e?.metaKey || e?.ctrlKey) && !inEditable) {
+        const base = selectedIdsRef.current.length
+          ? selectedIdsRef.current
+          : activeIdRef.current
+            ? [activeIdRef.current]
+            : [];
+        window.getSelection()?.removeAllRanges();
+        setSelectedIds(toggleInSelection(docIds, base, id));
+        onSelect(null);
+        anchorIdRef.current ??= id;
+        return;
+      }
+      anchorIdRef.current = id;
+      setSelectedIds([]);
+      onSelect(id);
+    },
+    [onSelect],
+  );
+
   // Klawiatura dokumentu: Ctrl/Cmd+A poza edytorem zaznacza wszystkie bloki,
-  // Delete/Backspace usuwa zaznaczone, Escape czyści zaznaczenie.
+  // Ctrl+Shift+D duplikuje, Delete/Backspace usuwa zaznaczone, Escape czyści.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -217,6 +277,11 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
           target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
           target.tagName === "SELECT");
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "d") {
+        // Działa też podczas pisania (duplikuje aktywny blok) - parytet z WP.
+        if (duplicateSelection()) e.preventDefault();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && !inEditable) {
         e.preventDefault();
         selectAllBlocks();
@@ -234,7 +299,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [selectAllBlocks, clearSelection, removeSelected, selectedIds.length]);
+  }, [selectAllBlocks, clearSelection, removeSelected, duplicateSelection, selectedIds.length]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -297,6 +362,70 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     [onChange, onSelect],
   );
 
+  /**
+   * Backspace na początku niepustego akapitu/nagłówka scala go z poprzednim
+   * blokiem tekstowym; karetka ląduje dokładnie w punkcie złączenia - jak w WP.
+   * `false`, gdy scalenie nie ma sensu (brak poprzednika / typ nietekstowy) -
+   * wtedy edytor inline zostawia domyślne zachowanie przeglądarki.
+   */
+  const mergeWithPrevious = useCallback(
+    (idx: number): boolean => {
+      const arr = docRef.current.blocks;
+      const current = arr[idx];
+      const prev = arr[idx - 1];
+      if (!current || !prev) return false;
+      const incomingInner =
+        current.type === "paragraph"
+          ? innerInlineHtml(String(current.data.html ?? ""))
+          : current.type === "heading"
+            ? String(current.data.text ?? "")
+            : null;
+      if (incomingInner === null) return false;
+
+      let mergedPrev: Block | null = null;
+      let caretOffset = 0;
+      if (prev.type === "paragraph") {
+        const merged = mergeInlineIntoHtml(String(prev.data.html ?? ""), incomingInner);
+        mergedPrev = { ...prev, data: { ...prev.data, html: merged.html } };
+        caretOffset = merged.caretOffset;
+      } else if (prev.type === "heading") {
+        const prevText = String(prev.data.text ?? "");
+        caretOffset = htmlTextLength(prevText);
+        mergedPrev = { ...prev, data: { ...prev.data, text: `${prevText}${incomingInner}` } };
+      } else {
+        return false;
+      }
+
+      const next = arr
+        .filter((_, i) => i !== idx)
+        .map((b) => (b.id === prev.id && mergedPrev ? mergedPrev : b));
+      onChange({ ...docRef.current, blocks: next }, true);
+      onSelect(prev.id);
+      requestBlockFocus(prev.id, caretOffset);
+      return true;
+    },
+    [onChange, onSelect],
+  );
+
+  /**
+   * Fokus na najbliższy blok TEKSTOWY nad/pod wskazanym indeksem (strzałki na
+   * krawędziach treści). `false` gdy w tym kierunku nie ma już gdzie pisać.
+   */
+  const focusNeighborText = useCallback(
+    (idx: number, dir: -1 | 1): boolean => {
+      const arr = docRef.current.blocks;
+      for (let i = idx + dir; i >= 0 && i < arr.length; i += dir) {
+        if (isTextEntryBlockType(arr[i].type)) {
+          onSelect(arr[i].id);
+          requestBlockFocus(arr[i].id, dir < 0 ? "end" : "start");
+          return true;
+        }
+      }
+      return false;
+    },
+    [onSelect],
+  );
+
   /** Wstawia wiele bloków pod wskazany indeks (wklejka ze schowka). */
   const insertBlocksAt = useCallback(
     (idx: number, incoming: Block[]) => {
@@ -326,7 +455,9 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     (idx: number) => {
       const orig = docRef.current.blocks[idx];
       if (!orig) return;
-      const copy: Block = { ...orig, id: newBlockId() };
+      // Świeże id także w zagnieżdżeniach (columns/group) - kopia nie może
+      // współdzielić identyfikatorów z oryginałem.
+      const copy: Block = regenerateBlockIds([orig])[0];
       const next = [...docRef.current.blocks];
       next.splice(idx + 1, 0, copy);
       onChange({ ...docRef.current, blocks: next }, true);
@@ -356,160 +487,34 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     [onChange],
   );
 
-  /** Bloki objęte operacją schowka: zaznaczenie wielokrotne albo aktywny blok. */
-  const clipboardSelection = useCallback((): Block[] => {
-    const arr = docRef.current.blocks;
-    if (selectedIdsRef.current.length) {
-      const set = new Set(selectedIdsRef.current);
-      return arr.filter((b) => set.has(b.id));
-    }
-    const aid = activeIdRef.current;
-    return aid ? arr.filter((b) => b.id === aid) : [];
-  }, []);
+  // Schowek bloków (Ctrl+C/X/V, interop z WordPressem, wklejki Word/obrazy).
+  useBlockClipboard({
+    rootRef,
+    docRef,
+    activeIdRef,
+    selectedIdsRef,
+    onChange,
+    onSelect,
+    clearSelection,
+    insertBlocksAt,
+  });
 
-  /** Wkleja bloki: zamienia zaznaczenie wielokrotne albo wstawia po aktywnym. */
-  const pasteBlocks = useCallback(
-    (incoming: Block[]) => {
-      if (!incoming.length) return;
-      const arr = docRef.current.blocks;
-      const selected = selectedIdsRef.current;
-      if (selected.length) {
-        const set = new Set(selected);
-        const firstIdx = arr.findIndex((b) => set.has(b.id));
-        const kept = arr.filter((b) => !set.has(b.id));
-        const at = firstIdx < 0 ? kept.length : firstIdx;
-        const next = [...kept];
-        next.splice(at, 0, ...incoming);
-        onChange({ ...docRef.current, blocks: next }, true);
-        setSelectedIds([]);
-        const last = incoming[incoming.length - 1];
-        onSelect(last.id);
-        if (isTextEntryBlockType(last.type)) requestBlockFocus(last.id, "end");
-      } else {
-        const aid = activeIdRef.current;
-        const idx = aid ? arr.findIndex((b) => b.id === aid) : -1;
-        insertBlocksAt(idx < 0 ? arr.length : idx + 1, incoming);
-      }
-      toast.success(t("blocks.clipboard.pasted", { count: incoming.length }));
-    },
-    [insertBlocksAt, onChange, onSelect, t],
-  );
-
-  /** Wklejone pliki graficzne -> bloki obrazów (data-URL; upload przy zapisie). */
-  const insertImageFiles = useCallback(
-    async (files: File[]) => {
-      const readAsDataUrl = (file: File) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result ?? ""));
-          reader.onerror = () => reject(reader.error);
-          reader.readAsDataURL(file);
-        });
-      const imageBlocks: Block[] = [];
-      for (const file of files) {
-        try {
-          const url = await readAsDataUrl(file);
-          if (!url.startsWith("data:image/")) continue;
-          imageBlocks.push({
-            id: newBlockId(),
-            type: "image",
-            data: {
-              url,
-              alt: file.name.replace(/\.[a-z0-9]+$/i, ""),
-              caption: "",
-              align: "center",
-              size: "full",
-              rounded: true,
-              shadow: false,
-            },
-          });
-        } catch {
-          // pojedynczy nieczytelny plik nie przerywa wklejki
-        }
-      }
-      if (imageBlocks.length) pasteBlocks(imageBlocks);
-    },
-    [pasteBlocks],
-  );
-
-  // Systemowy schowek na poziomie dokumentu (Ctrl+C/X/V jak w Gutenbergu).
-  // Zdarzenia w polach tekstowych zostawiamy edytorom inline (TipTap ma własną
-  // obsługę wklejania); przy zagnieżdżonych kanwach działa tylko wierzchnia.
-  useEffect(() => {
-    const isEditableTarget = (target: EventTarget | null): boolean => {
-      const el = target as HTMLElement | null;
-      return (
-        !!el &&
-        (el.isContentEditable ||
-          el.tagName === "INPUT" ||
-          el.tagName === "TEXTAREA" ||
-          el.tagName === "SELECT")
-      );
+  // Memoizowane pozycje menu „Przekształć w" - lista zależy wyłącznie od TYPU
+  // bloku i języka UI, więc jedna mapa obsługuje wszystkie bloki kanwy.
+  const transformOptionsFor = useMemo(() => {
+    const cache = new Map<BlockType, BlockTransformOption[]>();
+    return (block: Block): BlockTransformOption[] => {
+      const hit = cache.get(block.type);
+      if (hit) return hit;
+      const options = getTransformTargets(block).map((type) => ({
+        type,
+        label: t(`blocks.types.${type}`),
+        icon: BLOCK_SPECS[type].icon,
+      }));
+      cache.set(block.type, options);
+      return options;
     };
-    const shouldHandle = (e: ClipboardEvent): boolean => {
-      if (isEditableTarget(e.target)) return false;
-      const root = rootRef.current;
-      if (!root) return false;
-      const el = e.target as HTMLElement | null;
-      const inSomeCanvas = el?.closest?.("[data-block-canvas]") ?? null;
-      if (inSomeCanvas) return inSomeCanvas === root;
-      // Zdarzenie poza jakąkolwiek kanwą (fokus na body) - obsługuje wierzchnia.
-      return MOUNTED_CANVASES[MOUNTED_CANVASES.length - 1] === root;
-    };
-
-    const onCopyOrCut = (e: ClipboardEvent) => {
-      if (!shouldHandle(e)) return;
-      const selection = window.getSelection();
-      if (selection && !selection.isCollapsed) return; // natywne kopiowanie tekstu
-      const chosen = clipboardSelection();
-      if (!chosen.length || !e.clipboardData) return;
-      e.preventDefault();
-      const payload = serializeBlocksForClipboard(chosen);
-      e.clipboardData.setData("text/html", payload.html);
-      e.clipboardData.setData("text/plain", payload.text);
-      if (e.type === "cut") {
-        const ids = new Set(chosen.map((b) => b.id));
-        const next = docRef.current.blocks.filter((b) => !ids.has(b.id));
-        onChange({ ...docRef.current, blocks: next }, true);
-        setSelectedIds([]);
-        onSelect(null);
-        toast.success(t("blocks.clipboard.cutDone", { count: chosen.length }));
-      } else {
-        toast.success(t("blocks.clipboard.copied", { count: chosen.length }));
-      }
-    };
-
-    const onPaste = (e: ClipboardEvent) => {
-      if (!shouldHandle(e)) return;
-      const dt = e.clipboardData;
-      if (!dt) return;
-      const html = dt.getData("text/html");
-      const plain = dt.getData("text/plain");
-      let incoming = parseBlocksFromClipboard(html, plain);
-      if (!incoming) {
-        const files = Array.from(dt.files ?? []).filter((f) => f.type.startsWith("image/"));
-        if (files.length) {
-          e.preventDefault();
-          void insertImageFiles(files);
-          return;
-        }
-        if (html && looksLikeRichPaste(html)) incoming = parseWordHtml(html);
-        else if (plain.trim()) incoming = plainTextToBlocks(plain);
-      }
-      if (!incoming?.length) return;
-      e.preventDefault();
-      pasteBlocks(incoming);
-    };
-
-    document.addEventListener("copy", onCopyOrCut);
-    document.addEventListener("cut", onCopyOrCut);
-    document.addEventListener("paste", onPaste);
-    return () => {
-      document.removeEventListener("copy", onCopyOrCut);
-      document.removeEventListener("cut", onCopyOrCut);
-      document.removeEventListener("paste", onPaste);
-    };
-  }, [clipboardSelection, insertImageFiles, onChange, onSelect, pasteBlocks, t]);
+  }, [t]);
 
   if (blocks.length === 0) {
     // Pusty dokument jak w WP: wiersz „Wpisz / aby wybrać blok" + przycisk „+".
@@ -540,11 +545,6 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
             const variants = getBlockVariants(b.type);
             const currentVariant =
               typeof b.data.variant === "string" ? (b.data.variant as string) : undefined;
-            const transformTargets = getTransformTargets(b).map((type) => ({
-              type,
-              label: t(`blocks.types.${type}`),
-              icon: BLOCK_SPECS[type].icon,
-            }));
             return (
               <div key={b.id} data-block-type={b.type}>
                 <SortableBlockItem
@@ -555,10 +555,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                   selected={selectedSet.has(b.id)}
                   typeLabel={BLOCK_SPECS[b.type]?.label ?? b.type}
                   typeIcon={BLOCK_SPECS[b.type]?.icon}
-                  onSelect={() => {
-                    setSelectedIds([]);
-                    onSelect(b.id);
-                  }}
+                  onSelect={(e) => handleBlockClick(b.id, e)}
                   onMove={(dir) => move(idx, dir)}
                   onDuplicate={() => duplicate(idx)}
                   onRemove={() => remove(idx)}
@@ -567,9 +564,9 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                   onVariantChange={(v) =>
                     replaceBlock(b.id, { ...b, data: { ...b.data, variant: v } })
                   }
-                  transforms={transformTargets}
+                  transforms={transformOptionsFor(b)}
                   onTransform={(type) => {
-                    const replacement = transformBlock(b, type as Block["type"]);
+                    const replacement = transformBlock(b, type as BlockType);
                     if (replacement) replaceWith(b.id, replacement);
                   }}
                 >
@@ -585,6 +582,9 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                       onTransform={(replacement) => replaceWith(b.id, replacement)}
                       onInsertAfter={(blk) => insertAt(idx + 1, blk)}
                       onDeleteEmpty={() => deleteEmptyAt(idx)}
+                      onMergeWithPrevious={() => mergeWithPrevious(idx)}
+                      onFocusPrevious={() => focusNeighborText(idx, -1)}
+                      onFocusNext={() => focusNeighborText(idx, 1)}
                       onSelectAllBlocks={selectAllBlocks}
                     />
                   </BlockWithToolbar>
@@ -602,56 +602,6 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
         </div>
       </SortableContext>
     </DndContext>
-  );
-}
-
-/**
- * Dolny appender jak w WordPressie: wiersz-zachęta „Wpisz / aby wybrać blok"
- * (klik = nowy akapit z karetką, w nim działa `/`) + przycisk „+" otwierający
- * szybki inserter.
- */
-function BlockAppender({
-  onAppendParagraph,
-  onInsert,
-}: {
-  onAppendParagraph: () => void;
-  onInsert: (b: Block) => void;
-}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-1 pl-8 pr-3">
-      {open ? (
-        <BlockInserter
-          variant="controlled"
-          open
-          autoFocus
-          onOpenChange={setOpen}
-          onInsert={(b) => {
-            setOpen(false);
-            onInsert(b);
-          }}
-        />
-      ) : (
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onAppendParagraph}
-            className="flex-1 text-left py-2 text-sm text-muted-foreground/60 cursor-text select-none"
-          >
-            {t("blocks.slash.hint")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label={t("blocks.addBlock")}
-            className="w-6 h-6 shrink-0 rounded bg-foreground text-background flex items-center justify-center shadow hover:opacity-90 transition-opacity"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -686,6 +636,12 @@ interface RendererProps {
   onTransform: (replacement: Block[]) => void;
   onInsertAfter: (b: Block) => void;
   onDeleteEmpty: () => void;
+  /** Scalenie z poprzednim blokiem (Backspace na początku treści). */
+  onMergeWithPrevious: () => boolean;
+  /** Fokus na poprzedni blok tekstowy (strzałka w górę/lewo na krawędzi). */
+  onFocusPrevious: () => boolean;
+  /** Fokus na następny blok tekstowy (strzałka w dół/prawo na krawędzi). */
+  onFocusNext: () => boolean;
   onSelectAllBlocks: () => void;
 }
 
@@ -696,6 +652,9 @@ function BlockRenderer({
   onTransform,
   onInsertAfter,
   onDeleteEmpty,
+  onMergeWithPrevious,
+  onFocusPrevious,
+  onFocusNext,
   onSelectAllBlocks,
 }: RendererProps) {
   switch (block.type) {
@@ -708,6 +667,9 @@ function BlockRenderer({
           onTransform={onTransform}
           onInsertAfter={onInsertAfter}
           onDeleteEmpty={onDeleteEmpty}
+          onMergeWithPrevious={onMergeWithPrevious}
+          onFocusPrevious={onFocusPrevious}
+          onFocusNext={onFocusNext}
           onSelectAllBlocks={onSelectAllBlocks}
         />
       );
@@ -720,6 +682,9 @@ function BlockRenderer({
           onTransform={onTransform}
           onInsertAfter={onInsertAfter}
           onDeleteEmpty={onDeleteEmpty}
+          onMergeWithPrevious={onMergeWithPrevious}
+          onFocusPrevious={onFocusPrevious}
+          onFocusNext={onFocusNext}
           onSelectAllBlocks={onSelectAllBlocks}
         />
       );

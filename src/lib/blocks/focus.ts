@@ -9,7 +9,11 @@
 // poprawnie na ustawienie natywnej selekcji + focus. Nowy blok montuje się
 // dopiero po commicie Reacta, więc próba jest ponawiana przez kilka klatek.
 
-export type CaretPosition = "start" | "end";
+/**
+ * Umiejscowienie karetki: początek, koniec albo OFFSET znakowy w tekście
+ * (liczony jak `textContent` - scalanie bloków celuje w punkt złączenia).
+ */
+export type CaretPlacement = "start" | "end" | number;
 
 const EDITABLE_SELECTOR = [
   '[contenteditable="true"]',
@@ -18,9 +22,36 @@ const EDITABLE_SELECTOR = [
   "input:not([type])",
 ].join(", ");
 
+/** Ustawia DOM-ową selekcję na znakowym offsecie wewnątrz contentEditable. */
+function setCaretAtTextOffset(editable: HTMLElement, offset: number): void {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
+  let remaining = Math.max(0, offset);
+  let node = walker.nextNode() as Text | null;
+  while (node) {
+    const len = node.nodeValue?.length ?? 0;
+    if (remaining <= len) {
+      range.setStart(node, remaining);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return;
+    }
+    remaining -= len;
+    node = walker.nextNode() as Text | null;
+  }
+  // Offset poza treścią (lub brak węzłów tekstowych) - koniec zawartości.
+  range.selectNodeContents(editable);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 /** Ustawia fokus + karetkę w edytowalnym elemencie bloku. `false` gdy bloku
  *  jeszcze nie ma w DOM (wołający może ponowić) lub nie ma pola tekstowego. */
-export function focusBlockEditable(blockId: string, pos: CaretPosition): boolean {
+export function focusBlockEditable(blockId: string, pos: CaretPlacement): boolean {
   if (typeof document === "undefined") return true;
   const host = document.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"]`);
   if (!host) return false;
@@ -29,7 +60,8 @@ export function focusBlockEditable(blockId: string, pos: CaretPosition): boolean
 
   editable.focus();
   if (editable instanceof HTMLTextAreaElement || editable instanceof HTMLInputElement) {
-    const at = pos === "end" ? editable.value.length : 0;
+    const max = editable.value.length;
+    const at = pos === "end" ? max : pos === "start" ? 0 : Math.min(Math.max(pos, 0), max);
     try {
       editable.setSelectionRange(at, at);
     } catch {
@@ -38,6 +70,10 @@ export function focusBlockEditable(blockId: string, pos: CaretPosition): boolean
     return true;
   }
 
+  if (typeof pos === "number") {
+    setCaretAtTextOffset(editable, pos);
+    return true;
+  }
   const selection = window.getSelection();
   if (!selection) return true;
   const range = document.createRange();
@@ -51,7 +87,7 @@ export function focusBlockEditable(blockId: string, pos: CaretPosition): boolean
 const MAX_ATTEMPTS = 30; // ~0,5 s przy 60 fps - nowy blok montuje się znacznie szybciej
 
 /** Ponawia fokus przez kilka klatek, aż świeżo wstawiony blok się zamontuje. */
-export function requestBlockFocus(blockId: string, pos: CaretPosition): void {
+export function requestBlockFocus(blockId: string, pos: CaretPlacement): void {
   if (typeof window === "undefined") return;
   let attempts = 0;
   const tick = () => {

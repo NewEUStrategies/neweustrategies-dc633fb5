@@ -1337,6 +1337,8 @@ export const en = {
     inserter: {
       browseAll: "Browse all",
       quickTitle: "Most used",
+      resultsLabel: "Available blocks",
+      close: "Close",
     },
     types: {
       paragraph: "Paragraph",

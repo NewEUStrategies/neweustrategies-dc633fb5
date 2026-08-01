@@ -1,4 +1,4 @@
-// Rejestr wariantów bloków — używany przez toolbar Gutenberg-style
+// Rejestr wariantów bloków - używany przez toolbar Gutenberg-style
 // nad aktywnym blokiem (SortableBlockItem). Pozwala szybko przełączyć
 // wariant (np. "card" ↔ "split") bez otwierania panelu ustawień.
 

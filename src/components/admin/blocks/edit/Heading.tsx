@@ -4,6 +4,7 @@
 // globalne rozmiary fontów z panelu admina (--fs-h1…--fs-h6) dokładnie tak
 // samo jak strona publiczna.
 import { useEditor, EditorContent } from "@tiptap/react";
+import { getHTMLFromFragment } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import { TextStyle } from "@tiptap/extension-text-style";
@@ -26,6 +27,12 @@ interface Props {
   onTransform?: (replacement: Block[]) => void;
   onInsertAfter?: (block: Block) => void;
   onDeleteEmpty?: () => void;
+  /** Backspace na początku niepustego nagłówka - scalenie z poprzednim (WP). */
+  onMergeWithPrevious?: () => boolean;
+  /** Strzałka w górę/lewo na początku treści - fokus na poprzedni blok. */
+  onFocusPrevious?: () => boolean;
+  /** Strzałka w dół/prawo na końcu treści - fokus na następny blok. */
+  onFocusNext?: () => boolean;
   /** Ctrl/Cmd+A przy już zaznaczonej całej treści bloku - eskalacja do dokumentu. */
   onSelectAllBlocks?: () => void;
 }
@@ -37,6 +44,9 @@ export function HeadingBlock({
   onTransform,
   onInsertAfter,
   onDeleteEmpty,
+  onMergeWithPrevious,
+  onFocusPrevious,
+  onFocusNext,
   onSelectAllBlocks,
 }: Props) {
   const bt = useBlocksI18n();
@@ -47,8 +57,24 @@ export function HeadingBlock({
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const handlersRef = useRef({ onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks });
-  handlersRef.current = { onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks };
+  const handlersRef = useRef({
+    onTransform,
+    onInsertAfter,
+    onDeleteEmpty,
+    onMergeWithPrevious,
+    onFocusPrevious,
+    onFocusNext,
+    onSelectAllBlocks,
+  });
+  handlersRef.current = {
+    onTransform,
+    onInsertAfter,
+    onDeleteEmpty,
+    onMergeWithPrevious,
+    onFocusPrevious,
+    onFocusNext,
+    onSelectAllBlocks,
+  };
   const blockRef = useRef(block);
   blockRef.current = block;
 
@@ -97,7 +123,7 @@ export function HeadingBlock({
         ed.commands.insertContent(inline);
         return true;
       },
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
         const ed = editor;
         if (!ed) return false;
 
@@ -115,13 +141,49 @@ export function HeadingBlock({
           return false;
         }
 
-        // Enter -> nowy blok (akapit) poniżej nagłówka.
+        // Strzałki na krawędziach treści -> sąsiedni blok (płynne pisanie WP).
+        if (!event.shiftKey && ed.state.selection.empty) {
+          const sel = ed.state.selection;
+          const handlers = handlersRef.current;
+          const atDocStart = sel.from <= 1;
+          const atDocEnd = sel.to >= ed.state.doc.content.size - 1;
+          if (
+            handlers.onFocusPrevious &&
+            ((event.key === "ArrowUp" && view.endOfTextblock("up")) ||
+              (event.key === "ArrowLeft" && atDocStart))
+          ) {
+            if (handlers.onFocusPrevious()) {
+              event.preventDefault();
+              return true;
+            }
+          }
+          if (
+            handlers.onFocusNext &&
+            ((event.key === "ArrowDown" && view.endOfTextblock("down")) ||
+              (event.key === "ArrowRight" && atDocEnd))
+          ) {
+            if (handlers.onFocusNext()) {
+              event.preventDefault();
+              return true;
+            }
+          }
+        }
+
+        // Enter -> podział jak w WP: treść za kursorem przechodzi do NOWEGO
+        // akapitu pod nagłówkiem, nagłówek zatrzymuje część przed kursorem.
         if (event.key === "Enter" && !event.shiftKey && handlersRef.current.onInsertAfter) {
           event.preventDefault();
+          const { state } = ed;
+          const { from, to } = state.selection;
+          const end = state.doc.content.size;
+          const tailFragment = state.doc.slice(to, end).content;
+          const tailHtml = getHTMLFromFragment(tailFragment, state.schema);
+          const tail = /^\s*(<p>(\s|<br\s*\/?>)*<\/p>)?\s*$/i.test(tailHtml) ? "" : tailHtml;
+          if (from < end) ed.chain().focus().deleteRange({ from, to: end }).run();
           handlersRef.current.onInsertAfter({
             id: newBlockId(),
             type: "paragraph",
-            data: { html: "" },
+            data: { html: tail },
           });
           return true;
         }
@@ -130,6 +192,20 @@ export function HeadingBlock({
           event.preventDefault();
           handlersRef.current.onDeleteEmpty();
           return true;
+        }
+
+        // Backspace na POCZĄTKU niepustego nagłówka -> scal z poprzednim.
+        if (
+          event.key === "Backspace" &&
+          !ed.isEmpty &&
+          ed.state.selection.empty &&
+          ed.state.selection.from <= 1 &&
+          handlersRef.current.onMergeWithPrevious
+        ) {
+          if (handlersRef.current.onMergeWithPrevious()) {
+            event.preventDefault();
+            return true;
+          }
         }
         return false;
       },

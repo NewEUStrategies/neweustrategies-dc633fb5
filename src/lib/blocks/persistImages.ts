@@ -43,8 +43,12 @@ export function collectDataUrlImages(doc: Json): string[] {
   return Array.from(found);
 }
 
-/** Podmienia data-URL-e wg mapy (wartości pól i osadzenia w HTML-u). */
-export function replaceDataUrlImages(doc: Json, replacements: Map<string, string>): Json {
+/**
+ * Podmienia data-URL-e wg mapy (wartości pól i osadzenia w HTML-u).
+ * Generyk zachowuje typ dokumentu wołającego (LocalizedBlocks, BuilderDocument…)
+ * bez rzutowań po jego stronie - struktura wartości nie zmienia kształtu.
+ */
+export function replaceDataUrlImages<T extends Json>(doc: T, replacements: Map<string, string>): T {
   if (replacements.size === 0) return doc;
   const visit = (value: Json): Json => {
     if (typeof value === "string") {
@@ -64,7 +68,7 @@ export function replaceDataUrlImages(doc: Json, replacements: Map<string, string
     }
     return value;
   };
-  return visit(doc);
+  return visit(doc) as T;
 }
 
 const EXT_BY_MIME: Record<string, string> = {
@@ -98,8 +102,8 @@ export function decodeDataUrlImage(dataUrl: string, index: number): DecodedDataU
   }
 }
 
-export interface PersistImagesResult {
-  doc: Json;
+export interface PersistImagesResult<T extends Json = Json> {
+  doc: T;
   uploaded: number;
   failed: number;
   changed: boolean;
@@ -112,11 +116,11 @@ export interface PersistImagesResult {
  * z podmienionymi adresami. `cache` (dataUrl -> URL) chroni przed ponownym
  * uploadem tej samej grafiki przy kolejnych autosave'ach.
  */
-export async function persistDataUrlImages(
-  doc: Json,
+export async function persistDataUrlImages<T extends Json>(
+  doc: T,
   upload: (decoded: DecodedDataUrl) => Promise<string>,
   cache?: Map<string, string>,
-): Promise<PersistImagesResult> {
+): Promise<PersistImagesResult<T>> {
   const urls = collectDataUrlImages(doc);
   if (urls.length === 0) {
     return { doc, uploaded: 0, failed: 0, changed: false, replacements: new Map() };

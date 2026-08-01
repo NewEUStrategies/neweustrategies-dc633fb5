@@ -1358,6 +1358,8 @@ export const pl = {
     inserter: {
       browseAll: "Przeglądaj wszystko",
       quickTitle: "Najczęściej używane",
+      resultsLabel: "Dostępne bloki",
+      close: "Zamknij",
     },
     types: {
       paragraph: "Akapit",
