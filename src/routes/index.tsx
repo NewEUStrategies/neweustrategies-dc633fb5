@@ -1,24 +1,27 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useTransition } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
-import { PostListCard } from "@/components/molecules/PostListCard";
+import { PaginatedPostGrid } from "@/components/archive/PaginatedPostGrid";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import {
-  blogListQueryOptions,
+  blogArchiveQueryOptions,
   BLOG_PAGE_SIZE,
   homePageQueryOptions,
   homepageModeQueryOptions,
   resolvePostsPerPage,
+  type BlogArchiveResult,
+  type HomepageMode,
   type PageData,
 } from "@/lib/queries/public";
+import { parsePageSearch } from "@/lib/routing/pageSearch";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {
@@ -104,7 +107,14 @@ function HomeNotFoundComponent() {
 }
 
 export const Route = createFileRoute("/")({
-  loader: async ({ context }) => {
+  // Paginacja trybu "najnowsze wpisy" żyje w URL-u (?page=N) - każda strona
+  // wyników ma własny, indeksowalny i cache'owalny adres (ten sam kontrakt co
+  // /blog; wspólny parser trzyma oba URL-e w identycznej semantyce). W trybie
+  // strony statycznej parametr jest ignorowany przez render, a canonical i tak
+  // wskazuje czysty "/" (splitUrl odcina query), więc nie tworzy duplikatów.
+  validateSearch: parsePageSearch,
+  loaderDeps: ({ search }) => ({ page: search.page ?? 1 }),
+  loader: async ({ context, deps }) => {
     // The homepage `/` is the single most important - and most requested -
     // route, so it MUST NOT be a single point of total failure (the same
     // reasoning the root loader spells out for its allSettled warm-up). A
@@ -119,7 +129,7 @@ export const Route = createFileRoute("/")({
     // a clean render.
     const queryClient = context.queryClient;
     let homePage: PageData | null = null;
-    let homeMode = "";
+    let homeMode: HomepageMode = "";
     let degraded = false;
 
     // allSettled (never rejects) so one failing fetch cannot discard the other's
@@ -145,10 +155,12 @@ export const Route = createFileRoute("/")({
       queryClient.setQueryData(homepageModeQueryOptions().queryKey, "", { updatedAt: 0 });
     }
 
-    // "Najnowsze wpisy" jako strona główna: dotąd opcja z ustawień czytania nie
-    // była honorowana - trasa zawsze renderowała stronę statyczną. Rozmiar
-    // listy honoruje posts_per_page z tych samych ustawień (klucz zapytania
-    // musi być zgodny z komponentem, także w ścieżce degradacji).
+    // "Najnowsze wpisy" jako strona główna: SSR ładuje DOKŁADNIE żądaną stronę
+    // wyników (?page=N) tym samym paginowanym zapytaniem co /blog - wpisy poza
+    // pierwszą stroną mają z poziomu strony głównej realne, indeksowalne URL-e
+    // (dawny płaski limit czynił je nieosiągalnymi). Rozmiar strony honoruje
+    // posts_per_page z ustawień czytania; klucz zapytania musi być zgodny
+    // z komponentem, także w ścieżce degradacji.
     if (homeMode === "latest_posts") {
       let pageSize = BLOG_PAGE_SIZE;
       try {
@@ -156,13 +168,14 @@ export const Route = createFileRoute("/")({
       } catch {
         // Ustawienia niedostępne - komponent policzy to samo z pustej mapy.
       }
+      const listOptions = blogArchiveQueryOptions({ page: deps.page, pageSize });
       try {
-        await queryClient.ensureQueryData(blogListQueryOptions(pageSize));
+        await queryClient.ensureQueryData(listOptions);
       } catch {
         degraded = true;
         queryClient.setQueryData(
-          blogListQueryOptions(pageSize).queryKey,
-          { posts: [] },
+          listOptions.queryKey,
+          { posts: [], total: 0, page: deps.page, pageSize } satisfies BlogArchiveResult,
           { updatedAt: 0 },
         );
       }
@@ -179,7 +192,9 @@ export const Route = createFileRoute("/")({
     // (see prefetchCachedRouteQueries) and is internally allSettled, so it can
     // never throw - and the homepage is edge-cached, so the cost is paid once
     // per revalidation, not per visitor. Anything past the budget still streams
-    // via the ServerSectionGate as before.
+    // via the ServerSectionGate as before. W trybie "najnowsze wpisy" homePage
+    // jest null z konstrukcji (homePageQueryOptions), więc prefetch widgetów
+    // buildera w ogóle nie startuje - zero zmarnowanych round-tripów.
     if (homePage && homePage.editor === "builder") {
       const doc = parseBuilderDoc(homePage.builder_data);
       if (doc.sections.length > 0) {
@@ -215,7 +230,7 @@ export const Route = createFileRoute("/")({
     setCacheControlHeader(
       degraded ? cacheControlHeader({ cacheable: false }) : contentCacheControl(),
     );
-    return { seoSettings, homePage };
+    return { seoSettings, homePage, page: deps.page };
   },
 
   head: ({ loaderData }) => {
@@ -225,8 +240,12 @@ export const Route = createFileRoute("/")({
     // sync with the root <head> fallback), but a static home page built in the
     // CMS builder is a first-class SEO citizen: its own SEO overrides, excerpt
     // (meta description), social image, canonical and noindex win when set.
-    // No brand suffix here - the defaults already carry the brand.
+    // No brand suffix here - the defaults already carry the brand. W trybie
+    // "najnowsze wpisy" homePage jest z konstrukcji null (patrz
+    // homePageQueryOptions), więc metadane spadają na czyste defaulty marki -
+    // SEO ukrytej strony statycznej nie przecieka do listy wpisów.
     const homePage = loaderData?.homePage ?? null;
+    const page = loaderData?.page ?? 1;
     const fallbackDescription =
       (homePage &&
         metaDescription(
@@ -247,7 +266,10 @@ export const Route = createFileRoute("/")({
       title: seo.title,
       description: seo.description,
       image,
-      robots: homePage ? resolveRobotsMeta(homePage) : null,
+      // Strony wyników >1 (tryb "najnowsze wpisy") są noindex,follow - crawler
+      // podąża za linkami do wpisów, ale indeks buduje wyłącznie strona
+      // pierwsza (ten sam model co /blog; canonical i tak wskazuje czysty "/").
+      robots: page > 1 ? "noindex, follow" : homePage ? resolveRobotsMeta(homePage) : null,
       canonicalOverride: homePage ? seoCanonicalOverride(homePage) : null,
     });
     const { origin } = splitUrl(url);
@@ -366,44 +388,51 @@ function Index() {
 }
 
 function LatestPostsHome({ lang }: { lang: "pl" | "en" }) {
-  // Ten sam odczyt posts_per_page co loader - zgodny klucz zapytania.
+  // Ten sam odczyt posts_per_page i ta sama parametryzacja archiwum co loader
+  // - klucz zapytania musi być identyczny, inaczej hydracja robiłaby drugi
+  // fetch na najczęściej odwiedzanej trasie serwisu.
   const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
+  const pageSize = resolvePostsPerPage(settingsMap);
+  const { page = 1 } = Route.useSearch();
   const {
-    data: { posts },
-  } = useSuspenseQuery(blogListQueryOptions(resolvePostsPerPage(settingsMap)));
+    data: { posts, total },
+  } = useSuspenseQuery(blogArchiveQueryOptions({ page, pageSize }));
+  const navigate = useNavigate();
+  const router = useRouter();
+  // Zmiana strony biegnie w transition - obecna siatka zostaje na ekranie
+  // (bez pustego fallbacku), a isPending steruje stanem kontrolek paginacji.
+  const [isPending, startTransition] = useTransition();
+  const { t } = useTranslation();
   // Strona główna w trybie "najnowsze wpisy" honoruje placementy in_feed
   // zadeklarowane dla typu "Strona główna" (dotąd emitowały się tylko na /blog).
   const inFeed = useInFeedAds("home");
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // SEO: realne adresy stron wyników (linkowa paginacja). publicHref przechodzi
+  // przez rewrite routera, więc niesie właściwy prefiks języka (/en?page=2).
+  const searchFor = (nextPage: number) => ({ page: nextPage > 1 ? nextPage : undefined });
+  const hrefFor = (nextPage: number) =>
+    router.buildLocation({ to: "/", search: searchFor(nextPage) }).publicHref;
+  const onPageChange = (nextPage: number) =>
+    startTransition(() => {
+      void navigate({ to: "/", search: searchFor(nextPage) });
+    });
+
   return (
     <div className="max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
-      {posts.length === 0 ? (
-        <p className="text-muted-foreground text-center py-16">
-          {lang === "en" ? "No posts published yet." : "Brak opublikowanych wpisów."}
-        </p>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {posts.map((p, idx) => {
-            const adsAfter = inFeed(idx);
-            return (
-              <Fragment key={p.id}>
-                <PostListCard
-                  post={p}
-                  href={p.href}
-                  lang={lang}
-                  titleClassName="text-base"
-                  priority={idx === 0}
-                  viewTransitionId={p.id}
-                />
-                {adsAfter && (
-                  <div className="md:col-span-2 lg:col-span-3 flex justify-center py-2">
-                    {adsAfter}
-                  </div>
-                )}
-              </Fragment>
-            );
-          })}
-        </div>
-      )}
+      <PaginatedPostGrid
+        posts={posts}
+        page={page}
+        totalPages={totalPages}
+        lang={lang}
+        emptyText={t("home.latestEmpty", {
+          defaultValue: lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
+        })}
+        isPending={isPending}
+        onPageChange={onPageChange}
+        hrefFor={hrefFor}
+        renderAfterCard={inFeed}
+      />
     </div>
   );
 }

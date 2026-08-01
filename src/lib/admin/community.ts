@@ -434,7 +434,15 @@ export async function deleteAdminSpeakerProfile(userId: string): Promise<boolean
 
 export type QaSessionRow = Database["public"]["Tables"]["qa_sessions"]["Row"];
 export type QaSessionStatus = "draft" | "scheduled" | "open" | "answering" | "closed";
-export type QaQuestionRow = Database["public"]["Tables"]["qa_questions"]["Row"];
+/**
+ * Wiersz pytania Q&A BEZ `user_id`: kolumna jest odebrana rolom anon/authenticated
+ * (anonimowość pytających - RLS filtruje wiersze, nie kolumny), więc `select("*")`
+ * na tej tabeli by się nie powiódł. Moderacja nie potrzebuje tożsamości autora.
+ */
+export type QaQuestionRow = Omit<Database["public"]["Tables"]["qa_questions"]["Row"], "user_id">;
+
+const QA_QUESTION_COLUMNS =
+  "id, tenant_id, session_id, author_display, is_anonymous, body, status, answer_body, answered_by, answered_at, created_at, updated_at";
 export type QaQuestionStatus = "pending" | "approved" | "rejected" | "answered";
 
 export async function fetchQaSessions(status?: QaSessionStatus | "all"): Promise<QaSessionRow[]> {
@@ -459,7 +467,7 @@ export async function fetchQaQuestions(params: {
 }): Promise<QaQuestionRow[]> {
   const query = supabase
     .from("qa_questions")
-    .select("*")
+    .select(QA_QUESTION_COLUMNS)
     .order("created_at", { ascending: false })
     .limit(300);
   if (params.sessionId) query.eq("session_id", params.sessionId);

@@ -25,7 +25,7 @@ import { resolveTenantForHost } from "@/lib/server/tenant.server";
 import {
   buildRedirectIndex,
   isProtectedPath,
-  matchRedirect,
+  matchRedirectForPath,
   type RedirectIndex,
   type RedirectRule,
 } from "@/lib/seo/redirects";
@@ -111,7 +111,7 @@ export async function resolveRedirectForRequest(request: Request): Promise<{
   if (!tenant) return null;
   const index = await getIndexForTenant(tenant.id);
   if (index.exact.size === 0 && index.wildcards.length === 0) return null;
-  const hit = matchRedirect(index, url.pathname, url.search);
+  const hit = matchRedirectForPath(index, url.pathname, url.search);
   if (!hit) return null;
   if (hit.gone) return { target: "", status: 410 };
   // Relative targets stay path-only; absolute (allow-listed) URLs are already

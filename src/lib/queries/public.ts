@@ -310,12 +310,18 @@ async function fetchReadingSettings(): Promise<ReadingSettingsValue> {
   return (data?.value ?? {}) as ReadingSettingsValue;
 }
 
-// Fetches the page used as the public homepage (`/`).
-// Resolution order:
-//   1. site_settings.reading.homepage_mode === "static_page" → page by
-//      homepage_page_id or homepage_page_slug.
-//   2. fallback: top-level page with slug = "home".
-// Returns null if neither is found / published.
+/** Tryb strony głównej z ustawień czytania. Pusta wartość = brak decyzji
+ *  (zachowanie historyczne: rezolucja strony statycznej z fallbackiem "home"). */
+export type HomepageMode = "latest_posts" | "static_page" | "";
+
+/** Normalizacja surowej wartości ustawienia do zamkniętej unii - nieznane albo
+ *  uszkodzone wpisy (stare zapisy, literówki) spadają do "", czyli ścieżki
+ *  strony statycznej. Czysta funkcja, dzielona przez loader, komponent i
+ *  rezolucję strony głównej - jedna definicja tego, czym jest tryb. */
+export function normalizeHomepageMode(value: unknown): HomepageMode {
+  return value === "latest_posts" || value === "static_page" ? value : "";
+}
+
 /**
  * Homepage mode from reading settings ("static_page" | "latest_posts" | unset).
  * The settings UI offers "latest posts" but the route never honoured it - this
@@ -326,15 +332,23 @@ async function fetchReadingSettings(): Promise<ReadingSettingsValue> {
 export const homepageModeQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "home-mode"] as const,
-    queryFn: async (): Promise<string> => {
+    queryFn: async (): Promise<HomepageMode> => {
       return edgeTtlCache("public:home-mode", 60_000, async () => {
         const reading = await fetchReadingSettings();
-        return reading.homepage_mode ?? "";
+        return normalizeHomepageMode(reading.homepage_mode);
       });
     },
     staleTime: PAGE_PATH_TTL,
   });
 
+// Fetches the page used as the public homepage (`/`).
+// Resolution order:
+//   0. homepage_mode === "latest_posts" → null (strona główna renderuje
+//      paginowaną listę wpisów - żadna strona statyczna nie jest rozwiązywana).
+//   1. site_settings.reading.homepage_mode === "static_page" → page by
+//      homepage_page_id or homepage_page_slug.
+//   2. fallback: top-level page with slug = "home".
+// Returns null if neither is found / published.
 export const homePageQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "home-page"] as const,
@@ -342,6 +356,16 @@ export const homePageQueryOptions = () =>
       return edgeTtlCache("public:home-page", 60_000, async () => {
         // 1. Read reading-settings to find the designated homepage.
         const reading = await fetchReadingSettings();
+
+        // Tryb "najnowsze wpisy": nie rezolwujemy fallbacku slug="home".
+        // Dotąd ta gałąź biegła także w trybie latest_posts, co kosztowało
+        // 2 zbędne round-tripy (select strony + gated RPC), a head() trasy
+        // brał SEO ukrytej strony (title/canonical/robots/og:image) - metadane
+        // opisywały treść, której nie ma na ekranie; seo_noindex takiej strony
+        // potrafił zdeindeksować stronę główną w trybie wpisów.
+        if (normalizeHomepageMode(reading.homepage_mode) === "latest_posts") {
+          return null;
+        }
 
         // Non-gated display + SEO columns only; the body (content_*/builder_data)
         // is fetched via the gated get_entity_content RPC below, so the homepage

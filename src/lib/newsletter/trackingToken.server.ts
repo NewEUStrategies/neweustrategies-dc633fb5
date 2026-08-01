@@ -65,3 +65,36 @@ export function verifyTrackingToken(campaignId: string, token: string | null): s
   const expected = computeSig(campaignId, subscriberId);
   return constantTimeEqual(sig.toLowerCase(), expected) ? subscriberId : null;
 }
+
+/**
+ * Podpis pojedynczego linku w kampanii: HMAC(secret, `${campaignId}:${subscriberId}:${target}`).
+ *
+ * Token trackingu (`s`) jest per-subskrybent i mówi tylko KTO kliknął - nie
+ * ogranicza DOKĄD prowadzi przekierowanie. Bez dodatkowego podpisu docelowego
+ * URL-a /api/public/nl-click byłby otwartym przekierowaniem (phishing z naszej
+ * domeny). `k` wiąże adres docelowy z konkretną wysyłką.
+ */
+export function signTrackingLink(
+  campaignId: string,
+  subscriberId: string,
+  target: string,
+): string {
+  return bytesToHex(
+    hmac(
+      sha256,
+      utf8ToBytes(getSecret()),
+      utf8ToBytes(`${campaignId}:${subscriberId}:${target}`),
+    ),
+  ).slice(0, SIG_HEX_LEN);
+}
+
+/** Czy `k` to prawidłowy podpis tego dokładnie adresu w tej kampanii. */
+export function verifyTrackingLink(
+  campaignId: string,
+  subscriberId: string,
+  target: string,
+  sig: string | null,
+): boolean {
+  if (!sig || sig.length !== SIG_HEX_LEN) return false;
+  return constantTimeEqual(sig.toLowerCase(), signTrackingLink(campaignId, subscriberId, target));
+}

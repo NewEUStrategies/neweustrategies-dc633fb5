@@ -916,6 +916,8 @@ export const en = {
       title: "Reading",
       homepageShows: "Homepage shows",
       latestPosts: "Latest posts",
+      latestPostsHint:
+        "The homepage renders a paginated feed of the latest posts; the page size comes from 'Posts per blog page'.",
       staticPage: "Static page",
       homepageSlug: "Homepage slug",
       homepageSlugHint: "Slug of an existing, published page.",

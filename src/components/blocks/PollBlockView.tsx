@@ -14,7 +14,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { pollBlockQueryOptions } from "@/lib/queries/blocks";
-import { fetchPollResults } from "@/lib/community/publicQueries";
+import { pollResultsQueryOptions } from "@/lib/community/publicQueries";
 import { PollCard } from "@/components/community/PollCard";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -22,9 +22,10 @@ export function PollBlockView({ pollId, lang }: { pollId: string; lang: "pl" | "
   const { user } = useAuth();
   const qc = useQueryClient();
   const pollQ = useQuery(pollBlockQueryOptions(pollId));
+  // Ten sam helper co /polls: dla jednej ankiety klucz ma identyczny kształt
+  // jak dotychczas (["public-poll-results", pollId, użytkownik]).
   const resultsQ = useQuery({
-    queryKey: ["public-poll-results", pollId, user?.id ?? "anon"],
-    queryFn: () => fetchPollResults([pollId]),
+    ...pollResultsQueryOptions([pollId], user?.id ?? null),
     enabled: !!pollQ.data,
   });
 

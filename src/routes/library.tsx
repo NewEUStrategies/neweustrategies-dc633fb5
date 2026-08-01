@@ -2,6 +2,9 @@
 // (teaser z kłódką), ale sam plik pobiera się przez server fn
 // downloadMemberResource: baza egzekwuje bramkę rangi warstwy i loguje pobranie
 // (historia uczestnictwa), a URL powstaje dopiero po autoryzacji.
+// SSR: loader zasiewa cache react-query listą materiałów (ensureQueryData) -
+// siatka kart jest w HTML z serwera; personalizacja (ranga warstwy, stan
+// zalogowania) pozostaje kliencka i nie wpływa na cache'owalność strony.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -17,30 +20,40 @@ import {
   FileType,
   Database,
 } from "lucide-react";
-import { fetchLibraryResources, type PublicResource } from "@/lib/community/publicQueries";
+import { libraryResourcesQueryOptions, type PublicResource } from "@/lib/community/publicQueries";
 import { downloadMemberResource } from "@/lib/billing/resources.functions";
 import { useCurrentTier } from "@/lib/billing/tiers";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
 import { ensureI18n as ensureLibraryI18n } from "@/lib/i18n-library";
 export const Route = createFileRoute("/library")({
   component: LibraryPage,
+  // Loader nigdy nie wywraca trasy - awaria backendu degraduje do klienckiego
+  // fetcha (komponent pokaże loadError), a metatagi zostają nietknięte.
+  loader: async ({ context }) => {
+    await context.queryClient
+      .ensureQueryData(libraryResourcesQueryOptions())
+      .catch(() => undefined);
+  },
   head: () => {
-    const lang = activeLang(getRequestUrl() || "/library");
-    return {
-      meta: [
-        { title: lang === "en" ? "Members' library" : "Biblioteka materiałów" },
-        {
-          name: "description",
-          content:
-            lang === "en"
-              ? "Reports, briefings and data for New European Strategies members."
-              : "Raporty, briefingi i dane dla członków New European Strategies.",
-        },
-      ],
-    };
+    const url = getRequestUrl() || "/library";
+    const lang = activeLang(url);
+    const title = lang === "en" ? "Members' library" : "Biblioteka materiałów";
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title,
+      // Marka w tytule karty przeglądarki/SERP; og:title zostaje krótki.
+      documentTitle: `${title} - ${SITE_NAME}`,
+      description:
+        lang === "en"
+          ? "Reports, briefings and data for New European Strategies members."
+          : "Raporty, briefingi i dane dla członków New European Strategies.",
+    });
   },
 });
 
@@ -66,7 +79,7 @@ function LibraryPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const { user } = useAuth();
-  const resourcesQ = useQuery({ queryKey: ["library-resources"], queryFn: fetchLibraryResources });
+  const resourcesQ = useQuery(libraryResourcesQueryOptions());
   const currentTier = useCurrentTier();
   const myRank = currentTier.data?.rank ?? 0;
 

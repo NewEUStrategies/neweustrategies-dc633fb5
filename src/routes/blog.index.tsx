@@ -5,17 +5,17 @@ import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Fragment, useEffect, useTransition } from "react";
+import { useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import { useInFeedAds } from "@/components/ads/useInFeedAds";
-import { PostListCard } from "@/components/molecules/PostListCard";
-import { ArchivePagination } from "@/components/archive/layouts/ArchivePagination";
+import { PaginatedPostGrid } from "@/components/archive/PaginatedPostGrid";
 import {
   blogArchiveQueryOptions,
   resolvePostsPerPage,
   type BlogArchiveResult,
 } from "@/lib/queries/public";
+import { parsePageSearch } from "@/lib/routing/pageSearch";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { withBudget } from "@/lib/asyncBudget";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -28,16 +28,10 @@ import { contentCacheControl } from "@/lib/http/cachePolicy";
 const BLOG_LOADER_BUDGET_MS = 4_000;
 const NO_STORE = contentCacheControl({ preview: true });
 
-/** Defensywny parser `?page` - wartości domyślne zostają niejawne (bez
- *  duplikatu `?page=1` obok kanonicznego /blog), śmieciowe wejście znika. */
-function parseSearch(search: Record<string, unknown>): { page?: number } {
-  const raw = Number(search.page);
-  const page = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : undefined;
-  return page !== undefined && page > 1 ? { page } : {};
-}
-
 export const Route = createFileRoute("/blog/")({
-  validateSearch: parseSearch,
+  // Defensywny parser `?page` współdzielony ze stroną główną w trybie
+  // "najnowsze wpisy" (parsePageSearch) - jeden kontrakt URL-a paginacji.
+  validateSearch: parsePageSearch,
   loaderDeps: ({ search }) => ({ page: search.page ?? 1 }),
   // SSR ładuje DOKŁADNIE żądaną stronę archiwum (`?page=N`), jak trasy
   // taksonomii - każda strona wyników ma własny, indeksowalny URL. Dawne
@@ -182,62 +176,24 @@ function BlogIndex() {
       void navigate({ to: "/blog", search: searchFor(nextPage) });
     });
 
-  // Scroll to top when page changes (better UX than staying mid-scroll).
-  useEffect(() => {
-    if (typeof window !== "undefined" && page > 1) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [page]);
-
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
         <Breadcrumbs items={[{ label: "Blog" }]} />
         <h1 className="font-display text-4xl lg:text-5xl mb-8">Blog</h1>
-        {posts.length === 0 ? (
-          <p className="text-muted-foreground">
-            {t("blog.empty", {
-              defaultValue:
-                lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
-            })}
-          </p>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {posts.map((p, idx) => {
-              const adsAfter = inFeed(idx);
-              return (
-                <Fragment key={p.id}>
-                  <PostListCard
-                    post={p}
-                    href={p.href}
-                    lang={lang}
-                    titleClassName="text-base"
-                    priority={idx === 0}
-                    viewTransitionId={p.id}
-                  />
-                  {adsAfter && (
-                    <div className="md:col-span-2 lg:col-span-3 flex justify-center py-2">
-                      {adsAfter}
-                    </div>
-                  )}
-                </Fragment>
-              );
-            })}
-          </div>
-        )}
-        {totalPages > 1 && (
-          <div className="pt-8">
-            <ArchivePagination
-              page={page}
-              totalPages={totalPages}
-              onPageChange={onPageChange}
-              hrefFor={hrefFor}
-              isPending={isPending}
-              lang={lang}
-              t={t}
-            />
-          </div>
-        )}
+        <PaginatedPostGrid
+          posts={posts}
+          page={page}
+          totalPages={totalPages}
+          lang={lang}
+          emptyText={t("blog.empty", {
+            defaultValue: lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
+          })}
+          isPending={isPending}
+          onPageChange={onPageChange}
+          hrefFor={hrefFor}
+          renderAfterCard={inFeed}
+        />
       </div>
       <FooterSlideup pageType="archive" />
     </div>

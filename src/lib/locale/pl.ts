@@ -924,6 +924,8 @@ export const pl = {
       title: "Czytanie",
       homepageShows: "Strona główna pokazuje",
       latestPosts: "Najnowsze wpisy",
+      latestPostsHint:
+        "Strona główna wyświetla paginowaną listę najnowszych wpisów; rozmiar strony bierze z pola „Wpisów na stronę bloga”.",
       staticPage: "Statyczną stronę",
       homepageSlug: "Slug strony głównej",
       homepageSlugHint: "Slug istniejącej, opublikowanej strony.",

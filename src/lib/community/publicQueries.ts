@@ -3,7 +3,9 @@
 // zapisy i dane wrażliwe WYŁĄCZNIE przez utwardzone RPC (rate limity, limit
 // miejsc pod FOR UPDATE, bramki warstw, anti-anchoring ankiet, anonimowość
 // Chatham House) - nigdy bezpośrednimi insertami do tabel.
+import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 export interface PublicEvent {
   id: string;
@@ -38,7 +40,7 @@ export interface PublicEvent {
 const EVENT_COLUMNS =
   "id, slug, title_pl, title_en, description_pl, description_en, starts_at, ends_at, timezone, location, kind, capacity, status, chatham_house, cover_url, host_user_id, visibility, min_tier_rank, rsvp_opens_at, early_rsvp_rank, ticket_price_cents, ticket_currency";
 
-export async function fetchPublicEvents(): Promise<PublicEvent[]> {
+async function fetchPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await supabase
     .from("events")
     .select(EVENT_COLUMNS)
@@ -48,6 +50,29 @@ export async function fetchPublicEvents(): Promise<PublicEvent[]> {
   if (error) throw error;
   return (data ?? []) as PublicEvent[];
 }
+
+// Klucz identyczny po stronie loadera SSR i klienta ORAZ zarejestrowany w
+// lib/realtime/eventInvalidationMap - zmiana wiersza events unieważnia listę
+// na żywo, więc nie wolno go tu rozjechać z mapą inwalidacji.
+const PUBLIC_EVENTS_QUERY_KEY = ["public-events"] as const;
+
+const EVENTS_LIST_SSR_TTL_MS = 60_000;
+
+/**
+ * Współdzielone queryOptions listy /events: loader SSR (ensureQueryData) i
+ * render klienta widzą ten sam klucz, więc markup listy schodzi z serwera w
+ * dehydratowanym cache zamiast dociągać się po hydratacji. Na serwerze odczyt
+ * stoi za per-tenantowym TTL cache (edgeTtlCache przezroczyście kluczuje po
+ * hoście żądania; izolację danych i tak egzekwuje RLS przez public_tenant_id()),
+ * w przeglądarce cache'em jest sam React Query.
+ */
+export const publicEventsQueryOptions = () =>
+  queryOptions({
+    queryKey: PUBLIC_EVENTS_QUERY_KEY,
+    queryFn: () => edgeTtlCache("public:events-list", EVENTS_LIST_SSR_TTL_MS, fetchPublicEvents),
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+  });
 
 export async function fetchPublicEventBySlug(slug: string): Promise<PublicEvent | null> {
   const { data, error } = await supabase
@@ -216,6 +241,27 @@ export async function fetchPollResults(pollIds: string[]): Promise<Map<string, P
   return map;
 }
 
+/** Lista publicznych ankiet - klucz współdzielony przez loader SSR /polls
+ *  i render strony (hydratacja bez ponownego fetcha). */
+export const publicPollsQueryOptions = () =>
+  queryOptions({
+    queryKey: ["public-polls"],
+    queryFn: fetchPublicPolls,
+  });
+
+/**
+ * Wyniki ankiet dla widocznych poll_ids. Klucz zawiera użytkownika, bo RPC
+ * personalizuje odpowiedź (my_vote + anti-anchoring): po zalogowaniu klucz
+ * zmienia się z "anon" na uid i klient dociąga własny wariant. Wyniki są
+ * CELOWO wyłącznie klienckie (loader ich nie zasiewa) - edge cache nigdy nie
+ * zapieka rozkładu głosów, dokładnie jak w bloku poll (PollBlockView).
+ */
+export const pollResultsQueryOptions = (pollIds: string[], userId: string | null) =>
+  queryOptions({
+    queryKey: ["public-poll-results", pollIds.join(","), userId ?? "anon"],
+    queryFn: () => fetchPollResults(pollIds),
+  });
+
 /** Głos przez RPC (walidacja opcji i okna czasowego); zwraca świeże wyniki. */
 export async function votePoll(pollId: string, optionIdx: number): Promise<PollResults> {
   const { data, error } = await supabase.rpc("vote_poll", {
@@ -373,3 +419,12 @@ export async function fetchLibraryResources(): Promise<PublicResource[]> {
   if (error) throw error;
   return (data ?? []) as PublicResource[];
 }
+
+/** Opublikowane materiały biblioteki - klucz współdzielony przez loader SSR
+ *  /library i render strony. Metadane są publiczne (teaser z kłódką); sam
+ *  plik i tak wymaga server fn z bramką rangi, więc SSR niczego nie odsłania. */
+export const libraryResourcesQueryOptions = () =>
+  queryOptions({
+    queryKey: ["library-resources"],
+    queryFn: fetchLibraryResources,
+  });

@@ -1,4 +1,4 @@
-// Panel biblioteki materiałów członkowskich — warstwa danych (staff).
+// Panel biblioteki materiałów członkowskich - warstwa danych (staff).
 // Metadane w member_resources (RLS "*_staff_*"); pliki w prywatnym buckecie
 // 'member-resources' (staff insert/delete). Publiczne pobranie idzie przez
 // server fn downloadMemberResource (bramka rangi + podpisany URL).
@@ -60,6 +60,24 @@ export interface ResourceInput {
   min_tier_rank: number;
   published: boolean;
   sort_order: number;
+}
+
+/** Pola pliku aktualizowane przy podmianie w edycji (spójny podzbiór
+ *  ResourceInput - metadane i plik zapisują się jednym UPDATE, więc wiersz
+ *  nigdy nie wskazuje pliku "w połowie podmienionego"). */
+export type ResourceFilePatch = Pick<
+  ResourceInput,
+  "file_path" | "file_name" | "file_size" | "mime_type"
+>;
+
+/**
+ * Best-effort usunięcie obiektu z bucketu: stary plik po udanej podmianie
+ * albo osierocony upload po porzuceniu dialogu. Metadane są źródłem prawdy -
+ * nieusunięty obiekt to tylko szum w buckecie, dlatego błąd storage nie
+ * przerywa przepływu (parytet z deleteResource).
+ */
+export async function removeResourceObject(path: string): Promise<void> {
+  await supabase.storage.from(RESOURCE_BUCKET).remove([path]);
 }
 
 export async function createResource(input: ResourceInput): Promise<MemberResourceRow> {
