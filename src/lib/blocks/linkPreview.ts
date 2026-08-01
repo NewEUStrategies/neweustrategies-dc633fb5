@@ -130,7 +130,7 @@ export function normalizeLinkPreviewItem(raw: unknown): LinkPreviewItem | null {
     labelPl: str(rec.labelPl),
     labelEn: str(rec.labelEn),
     url,
-    imageSrc: normalizeUrl(str(rec.imageSrc)) || str(rec.imageSrc).trim().replace(/^(?!\/).*$/, ""),
+    imageSrc: normalizeImageSrc(str(rec.imageSrc)),
   };
 }
 
