@@ -49,10 +49,23 @@ describe("extractExpectedContract", () => {
 });
 
 describe("classifyProbe", () => {
-  it("traktuje PGRST205 / PGRST202 jako brak obiektu", () => {
+  it("PGRST205 oznacza brak tabeli/widoku", () => {
     expect(classifyProbe(404, "PGRST205")).toBe("missing");
-    expect(classifyProbe(404, "PGRST202")).toBe("missing");
   });
+
+  it("PGRST202 z podpowiedzią innej funkcji = brak RPC", () => {
+    expect(
+      classifyProbe(404, "PGRST202", "Perhaps you meant to call the function public.delete_my_meeting_slot"),
+    ).toBe("missing");
+  });
+
+  it("PGRST202 bez podpowiedzi = funkcja istnieje, tylko inna sygnatura", () => {
+    // Sondujemy bez argumentów (żeby nic nie wywołać), więc funkcje z parametrami
+    // zawsze zwracają PGRST202 - z pustym hintem, bo nazwa pasuje.
+    expect(classifyProbe(404, "PGRST202", null)).toBe("present");
+    expect(classifyProbe(404, "PGRST202", "")).toBe("present");
+  });
+
 
   it("brak uprawnień oznacza, że obiekt istnieje", () => {
     expect(classifyProbe(401, "42501")).toBe("present");
