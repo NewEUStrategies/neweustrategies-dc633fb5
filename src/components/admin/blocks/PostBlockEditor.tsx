@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import type { Block, LocalizedBlocks } from "@/lib/blocks/types";
 import { BlockCanvas } from "./BlockCanvas";
 import { BlockSidebar } from "./BlockSidebar";
@@ -18,7 +18,6 @@ import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
 import { BLOCK_TOUR_STEPS } from "@/lib/onboarding/tours";
 import { EditorLangSwitch } from "@/components/admin/atoms/EditorLangSwitch";
-import type { AppLang } from "@/lib/i18n/localePath";
 
 interface Props {
   value: LocalizedBlocks | null;
