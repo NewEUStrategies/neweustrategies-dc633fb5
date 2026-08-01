@@ -35,6 +35,7 @@ import {
   Gauge,
   MousePointerClick,
   Clock as HistoryIcon,
+  Globe2,
   FlaskConical,
   Link as LinkIcon,
   Search,
