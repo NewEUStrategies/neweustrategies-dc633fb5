@@ -50,7 +50,6 @@ export function buildTrackedClickUrl(
   return u.toString();
 }
 
-
 /** Absolute open-tracking pixel URL. */
 export function trackingPixelUrl(origin: string, campaignId: string, token: string): string {
   const u = new URL("/api/public/nl-open", origin);
@@ -86,5 +85,4 @@ export function rewriteTrackingLinks(
     const tracked = escAttr(buildTrackedClickUrl(origin, campaignId, token, decoded, signLink));
     return `href=${quote}${tracked}${quote}`;
   });
-
 }

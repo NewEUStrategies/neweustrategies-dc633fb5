@@ -2,10 +2,7 @@
 // Adres docelowy honorujemy wyłącznie z ważnym podpisem per-link (`k`).
 import { describe, expect, it } from "vitest";
 import { buildTrackedClickUrl } from "@/lib/newsletter/tracking";
-import {
-  signTrackingLink,
-  verifyTrackingLink,
-} from "@/lib/newsletter/trackingToken.server";
+import { signTrackingLink, verifyTrackingLink } from "@/lib/newsletter/trackingToken.server";
 
 const CID = "11111111-1111-4111-8111-111111111111";
 const SUB = "22222222-2222-4222-8222-222222222222";
