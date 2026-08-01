@@ -284,19 +284,28 @@ SELECT ok(
   'host tworzy grupe wydarzenia'
 );
 
+-- public.events nie ma grantu SELECT dla authenticated (odczyt idzie przez
+-- RPC/definer), więc id rozmowy wydarzenia zdejmujemy jako właściciel do
+-- tabeli tymczasowej i dalej porównujemy już przeciwko niej.
+RESET ROLE;
+CREATE TEMP TABLE evconv AS
+SELECT conversation_id FROM public.events
+ WHERE id = 'cb444444-4444-4444-4444-444444444441';
+GRANT SELECT ON evconv TO authenticated, anon;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"cb000000-0000-0000-0000-000000000090","role":"authenticated"}', true);
+
 SELECT is(
   (SELECT count(*)::int FROM public.conversation_participants cp
-    WHERE cp.conversation_id =
-          (SELECT e.conversation_id FROM public.events e
-            WHERE e.id = 'cb444444-4444-4444-4444-444444444441')),
+    WHERE cp.conversation_id = (SELECT conversation_id FROM evconv)),
   3,
   'grupa wydarzenia = host(owner) + uczestnicy going (A, X)'
 );
 
 SELECT is(
   public.create_event_group('cb444444-4444-4444-4444-444444444441'),
-  (SELECT e.conversation_id FROM public.events e
-    WHERE e.id = 'cb444444-4444-4444-4444-444444444441'),
+  (SELECT conversation_id FROM evconv),
   'create_event_group jest idempotentne'
 );
 

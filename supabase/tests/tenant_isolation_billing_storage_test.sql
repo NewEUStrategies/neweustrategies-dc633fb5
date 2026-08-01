@@ -133,15 +133,18 @@ SELECT is((SELECT count(*)::int FROM del), 0,
 
 -- ── Przełączenie kontekstu na tenant B (ta sama auth.uid()) ────────────────
 -- Symulujemy zmianę aktywnego tenanta przez przepięcie profiles.tenant_id.
--- profiles_pin_tenant_id (20260721052806) blokuje zmianę tenant_id nawet
--- superuserowi - przepuszcza wyłącznie kontekst service_role rozpoznawany po
--- GUC request.jwt.claim.role (SECURITY DEFINER zasłania current_user).
+-- Na profiles wiszą DWA triggery pinujące tenant_id: profiles_pin_tenant_id_bu
+-- (20260721052806, rzuca 42501, ma bypass service_role) oraz starszy
+-- profiles_pin_tenant_tg (20260628230000), który CICHO cofa tenant_id i NIE ma
+-- żadnego bypassu. Odpala się drugi (alfabetycznie po _id_bu), więc każda
+-- ścieżka "przez trigger" jest martwa - przepięcie fikstury wymaga
+-- wyłączenia triggerów użytkownika na czas UPDATE (transakcyjne, cofa ROLLBACK).
 RESET ROLE;
-SELECT set_config('request.jwt.claim.role', 'service_role', true);
+ALTER TABLE public.profiles DISABLE TRIGGER USER;
 UPDATE public.profiles
    SET tenant_id = 'c2222222-2222-2222-2222-2222222222c2'
  WHERE id = 'c0000000-0000-0000-0000-000000000cc1';
-SELECT set_config('request.jwt.claim.role', '', true);
+ALTER TABLE public.profiles ENABLE TRIGGER USER;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
@@ -224,44 +227,37 @@ SELECT throws_ok(
 );
 
 -- ── UPDATE cross-tenant / own-tenant ───────────────────────────────────────
--- Brak polityki UPDATE ⇒ 0 zaktualizowanych wierszy (bez błędu). Rekord
--- obcego tenanta jest dodatkowo niewidoczny dla SELECT-during-UPDATE, więc
--- cross-tenant UPDATE nie może nawet odnaleźć wiersza-celu.
+-- Obie tabele są dla authenticated SELECT-only (GRANT SELECT w 20260723060905
+-- / 20260714111000; zapisy wyłącznie service_role), więc UPDATE odbija się już
+-- o ACL - 42501 zamiast "0 wierszy przez RLS". To ostrzejsza własność:
+-- odmowa następuje, zanim RLS zdąży cokolwiek dopasować.
 
-WITH upd AS (
-  UPDATE public.billing_documents
-     SET amount_cents = amount_cents + 1
-   WHERE id = 'd0000000-0000-0000-0000-00000000ad01'  -- rekord tenanta A
-  RETURNING 1
-)
-SELECT is((SELECT count(*)::int FROM upd), 0,
-  'billing_documents: UPDATE cross-tenant (rekord A z kontekstu B) nie modyfikuje wierszy');
+SELECT throws_ok(
+  $$UPDATE public.billing_documents
+       SET amount_cents = amount_cents + 1
+     WHERE id = 'd0000000-0000-0000-0000-00000000ad01'$$,  -- rekord tenanta A
+  '42501', NULL,
+  'billing_documents: UPDATE cross-tenant (rekord A z kontekstu B) odrzucony (brak grantu)');
 
-WITH upd AS (
-  UPDATE public.billing_documents
-     SET amount_cents = amount_cents + 1
-   WHERE id = 'd0000000-0000-0000-0000-00000000bd01'  -- rekord aktywnego tenanta B
-  RETURNING 1
-)
-SELECT is((SELECT count(*)::int FROM upd), 0,
+SELECT throws_ok(
+  $$UPDATE public.billing_documents
+       SET amount_cents = amount_cents + 1
+     WHERE id = 'd0000000-0000-0000-0000-00000000bd01'$$,  -- rekord aktywnego tenanta B
+  '42501', NULL,
   'billing_documents: UPDATE własnego rekordu też zablokowany dla authenticated (service_role-only)');
 
-WITH upd AS (
-  UPDATE public.donations
-     SET amount_cents = amount_cents + 1
-   WHERE id = 'e0000000-0000-0000-0000-00000000ae01'  -- rekord tenanta A
-  RETURNING 1
-)
-SELECT is((SELECT count(*)::int FROM upd), 0,
-  'donations: UPDATE cross-tenant (rekord A z kontekstu B) nie modyfikuje wierszy');
+SELECT throws_ok(
+  $$UPDATE public.donations
+       SET amount_cents = amount_cents + 1
+     WHERE id = 'e0000000-0000-0000-0000-00000000ae01'$$,  -- rekord tenanta A
+  '42501', NULL,
+  'donations: UPDATE cross-tenant (rekord A z kontekstu B) odrzucony (brak grantu)');
 
-WITH upd AS (
-  UPDATE public.donations
-     SET amount_cents = amount_cents + 1
-   WHERE id = 'e0000000-0000-0000-0000-00000000be01'  -- rekord aktywnego tenanta B
-  RETURNING 1
-)
-SELECT is((SELECT count(*)::int FROM upd), 0,
+SELECT throws_ok(
+  $$UPDATE public.donations
+       SET amount_cents = amount_cents + 1
+     WHERE id = 'e0000000-0000-0000-0000-00000000be01'$$,  -- rekord aktywnego tenanta B
+  '42501', NULL,
   'donations: UPDATE własnego rekordu też zablokowany dla authenticated (service_role-only)');
 
 -- ── Storage CV: INSERT (upload) i UPDATE (podgląd/metadata) ────────────────

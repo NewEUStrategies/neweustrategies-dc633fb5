@@ -129,20 +129,36 @@ SELECT ok(
   'email click recomputes lead and records the email_click signal'
 );
 
+-- ── Treść pod komentarze i odsłony ─────────────────────────────────────────
+-- comments.post_id jest NOT NULL, a comments_before_insert (20260720212853)
+-- odrzuca wpis bez istniejącego posta ("comments: post <NULL> does not
+-- exist") - strona i post muszą więc powstać przed sekcją 3b (sekcja 3c
+-- korzysta z tych samych rekordów przy post_views).
+INSERT INTO public.pages (id, tenant_id, slug) VALUES
+  ('cc666666-6666-6666-6666-666666666666', 'cc111111-1111-1111-1111-111111111111', 'sc-home');
+INSERT INTO public.posts (id, slug, author_id, status, tenant_id, parent_page_id, title_pl)
+VALUES ('cc777777-7777-7777-7777-777777777777', 'sc-post',
+        'cc000000-0000-0000-0000-0000000000aa', 'published',
+        'cc111111-1111-1111-1111-111111111111',
+        'cc666666-6666-6666-6666-666666666666', 'Post scoringu');
+
 -- ── 3b. Komentarze: spam/deleted NIE liczą się, approved/pending liczą ───────
 SELECT score INTO TEMP score_before_comment
   FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333';
-INSERT INTO public.comments (tenant_id, user_id, status) VALUES
-  ('cc111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000cc', 'spam'),
-  ('cc111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000cc', 'deleted');
+INSERT INTO public.comments (tenant_id, post_id, user_id, body, status) VALUES
+  ('cc111111-1111-1111-1111-111111111111', 'cc777777-7777-7777-7777-777777777777',
+   'cc000000-0000-0000-0000-0000000000cc', 'Spam komentarz', 'spam'),
+  ('cc111111-1111-1111-1111-111111111111', 'cc777777-7777-7777-7777-777777777777',
+   'cc000000-0000-0000-0000-0000000000cc', 'Skasowany komentarz', 'deleted');
 SELECT public.compute_crm_lead_score('cc333333-3333-3333-3333-333333333333');
 SELECT is(
   (SELECT score FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333'),
   (SELECT score FROM score_before_comment),
   'spam/deleted comments do NOT contribute to the score'
 );
-INSERT INTO public.comments (tenant_id, user_id, status) VALUES
-  ('cc111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000cc', 'approved');
+INSERT INTO public.comments (tenant_id, post_id, user_id, body, status) VALUES
+  ('cc111111-1111-1111-1111-111111111111', 'cc777777-7777-7777-7777-777777777777',
+   'cc000000-0000-0000-0000-0000000000cc', 'Zatwierdzony komentarz', 'approved');
 SELECT public.compute_crm_lead_score('cc333333-3333-3333-3333-333333333333');
 SELECT ok(
   EXISTS (
@@ -155,14 +171,7 @@ SELECT ok(
 );
 
 -- ── 3c. Odsłony treści (page_view): trigger + wpis w breakdown ───────────────
-INSERT INTO public.pages (id, tenant_id, slug) VALUES
-  ('cc666666-6666-6666-6666-666666666666', 'cc111111-1111-1111-1111-111111111111', 'sc-home');
-INSERT INTO public.posts (id, slug, author_id, status, tenant_id, parent_page_id, title_pl)
-VALUES ('cc777777-7777-7777-7777-777777777777', 'sc-post',
-        'cc000000-0000-0000-0000-0000000000aa', 'published',
-        'cc111111-1111-1111-1111-111111111111',
-        'cc666666-6666-6666-6666-666666666666', 'Post scoringu');
-
+-- Strona i post zaseedowane wyżej (potrzebne już komentarzom w 3b).
 SELECT score INTO TEMP score_before_view
   FROM public.crm_leads WHERE id = 'cc333333-3333-3333-3333-333333333333';
 

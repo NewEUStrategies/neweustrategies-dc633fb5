@@ -20,7 +20,9 @@
 --      0 wierszy tak samo jak SELECT id.
 
 BEGIN;
-SELECT plan(14);
+-- 15 asercji (historyczne plan(14) było o jeden za niskie; miscount maskował
+-- wcześniejszy pad sekcji anon w połowie pliku).
+SELECT plan(15);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 

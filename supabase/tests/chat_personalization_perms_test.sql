@@ -29,7 +29,9 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(24);
+-- 23 asercje (historyczne plan(24) było o jeden za wysokie; miscount maskował
+-- wcześniejszy pad sekcji anon w połowie pliku).
+SELECT plan(23);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 

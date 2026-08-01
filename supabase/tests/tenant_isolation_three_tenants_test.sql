@@ -170,15 +170,17 @@ SELECT throws_ok(
 -- ══════════════════════════════════════════════════════════════════════════
 -- KONTEKST 2: aktywny tenant = B
 -- ══════════════════════════════════════════════════════════════════════════
--- Przepięcie tenant_id wymaga kontekstu service_role: profiles_pin_tenant_id
--- (20260721052806) rozpoznaje go wyłącznie po GUC request.jwt.claim.role
--- (SECURITY DEFINER zasłania current_user, superuser nie ma taryfy ulgowej).
+-- Przepięcie tenant_id wymaga wyłączenia triggerów pinujących: obok
+-- profiles_pin_tenant_id_bu (20260721052806, rzuca 42501, ma bypass
+-- service_role) wisi starszy profiles_pin_tenant_tg (20260628230000), który
+-- CICHO cofa tenant_id i nie ma żadnego bypassu - a odpala się jako drugi.
+-- DISABLE TRIGGER USER jest transakcyjne (cofa je ROLLBACK na końcu pliku).
 RESET ROLE;
-SELECT set_config('request.jwt.claim.role', 'service_role', true);
+ALTER TABLE public.profiles DISABLE TRIGGER USER;
 UPDATE public.profiles
    SET tenant_id = 'a2222222-2222-2222-2222-2222222222a2'
  WHERE id = 'a0000000-0000-0000-0000-000000000aa1';
-SELECT set_config('request.jwt.claim.role', '', true);
+ALTER TABLE public.profiles ENABLE TRIGGER USER;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-0000-0000-000000000aa1","role":"authenticated"}', true);
@@ -267,11 +269,11 @@ SELECT throws_ok(
 -- KONTEKST 3: aktywny tenant = C
 -- ══════════════════════════════════════════════════════════════════════════
 RESET ROLE;
-SELECT set_config('request.jwt.claim.role', 'service_role', true);
+ALTER TABLE public.profiles DISABLE TRIGGER USER;
 UPDATE public.profiles
    SET tenant_id = 'a3333333-3333-3333-3333-3333333333a3'
  WHERE id = 'a0000000-0000-0000-0000-000000000aa1';
-SELECT set_config('request.jwt.claim.role', '', true);
+ALTER TABLE public.profiles ENABLE TRIGGER USER;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-0000-0000-000000000aa1","role":"authenticated"}', true);
