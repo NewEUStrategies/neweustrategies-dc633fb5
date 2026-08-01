@@ -384,24 +384,56 @@ export const Route = createFileRoute("/sitemap.xml")({
           console.warn("[seo] sitemap content read failed:", e);
         }
 
+        // Indeks przekierowań tenanta: sitemapa publikuje adres docelowy, nie
+        // ten, który zaraz odpowie 301/410. Degraduje się do braku kanonizacji,
+        // gdy warstwa danych nie odpowiada.
+        let redirectIndex: RedirectIndex | null = null;
+        try {
+          const { getRedirectIndexForTenant } = await import("@/lib/seo/redirects.server");
+          redirectIndex = await getRedirectIndexForTenant(tenantId);
+        } catch (e) {
+          console.warn("[seo] sitemap redirect index unavailable:", e);
+        }
+
+        const sameOriginHosts = [...CANONICAL_HOSTS, host].filter(Boolean);
+        const seen = new Set<string>();
+        const urlBlocks: string[] = [];
+        for (const entry of entries) {
+          const path = entry.loc.startsWith(origin) ? entry.loc.slice(origin.length) : entry.loc;
+          for (const variant of sitemapLanguageUrls(
+            origin,
+            path || "/",
+            redirectIndex,
+            sameOriginHosts,
+          )) {
+            if (seen.has(variant.loc)) continue;
+            seen.add(variant.loc);
+            urlBlocks.push(
+              [
+                "  <url>",
+                `    <loc>${xmlEscape(variant.loc)}</loc>`,
+                ...variant.alternates.map(
+                  (a) =>
+                    `    <xhtml:link rel="alternate" hreflang="${a.hreflang}" href="${xmlEscape(a.href)}"/>`,
+                ),
+                entry.lastmod ? `    <lastmod>${entry.lastmod}</lastmod>` : null,
+                entry.changefreq ? `    <changefreq>${entry.changefreq}</changefreq>` : null,
+                entry.priority ? `    <priority>${entry.priority}</priority>` : null,
+                "  </url>",
+              ]
+                .filter(Boolean)
+                .join("\n"),
+            );
+          }
+        }
+
         const xml = [
           `<?xml version="1.0" encoding="UTF-8"?>`,
           `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">`,
-          ...entries.map((e) =>
-            [
-              "  <url>",
-              `    <loc>${xmlEscape(e.loc)}</loc>`,
-              ...alternateLinks(e.loc),
-              e.lastmod ? `    <lastmod>${e.lastmod}</lastmod>` : null,
-              e.changefreq ? `    <changefreq>${e.changefreq}</changefreq>` : null,
-              e.priority ? `    <priority>${e.priority}</priority>` : null,
-              "  </url>",
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          ),
+          ...urlBlocks,
           `</urlset>`,
         ].join("\n");
+
 
         return new Response(xml, {
           headers: {
