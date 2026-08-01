@@ -37,6 +37,7 @@ import {
   renderChart,
   renderCode,
   renderCompare,
+  renderLinkPreview,
   renderComparisonTable,
   renderContactForm,
   renderCover,
@@ -189,6 +190,7 @@ export const BLOCK_RENDERERS: Record<BlockType, BlockRenderer> = {
   "video-hero": renderVideoHero,
   chart: renderChart,
   "data-map": renderDataMap,
+  "link-preview": renderLinkPreview,
   // organisms - kontenery
   columns: renderColumns,
   group: renderGroup,

@@ -65,6 +65,7 @@ import { NewsletterBlock } from "./edit/Newsletter";
 import { AffiliateBlock } from "./edit/Affiliate";
 import { XQuoteBlock } from "./edit/XQuote";
 import { CompareBlock } from "./edit/Compare";
+import { LinkPreviewBlock } from "./edit/LinkPreviewBlock";
 import { LoginFormBlock } from "./edit/LoginForm";
 import { RegisterFormBlock } from "./edit/RegisterForm";
 import { LostPasswordFormBlock } from "./edit/LostPasswordForm";
@@ -753,6 +754,8 @@ function BlockRenderer({
       return <XQuoteBlock block={block} onChange={onChange} />;
     case "compare":
       return <CompareBlock block={block} onChange={onChange} />;
+    case "link-preview":
+      return <LinkPreviewBlock block={block} onChange={onChange} />;
     case "login-form":
       return <LoginFormBlock block={block} onChange={onChange} />;
     case "register-form":
