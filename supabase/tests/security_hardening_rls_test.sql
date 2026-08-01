@@ -83,7 +83,7 @@ INSERT INTO public.wp_import_jobs (
 INSERT INTO public.domain_events (tenant_id, actor_id, aggregate_type, aggregate_id, event_type, payload)
 VALUES ('d4444444-4444-4444-4444-444444444444',
         'd0000000-0000-0000-0000-000000000001',
-        'test', gen_random_uuid(), 'test.event', '{}'::jsonb);
+        'test', gen_random_uuid(), 'test.event.v1', '{}'::jsonb);
 
 -- tenant_pending_counters: seed (klucz per-tenant)
 INSERT INTO public.tenant_pending_counters (tenant_id, counter_key, value)
@@ -212,7 +212,7 @@ SELECT throws_ok(
        (tenant_id, actor_id, aggregate_type, aggregate_id, event_type, payload)
      VALUES ('d4444444-4444-4444-4444-444444444444',
              'd0000000-0000-0000-0000-000000000001',
-             'test', gen_random_uuid(), 'test.event', '{}'::jsonb) $$,
+             'test', gen_random_uuid(), 'test.event.v1', '{}'::jsonb) $$,
   '42501', NULL,
   'anon: INSERT domain_events odrzucone (brak grantu)'
 );
@@ -262,7 +262,7 @@ SELECT throws_ok(
        (tenant_id, actor_id, aggregate_type, aggregate_id, event_type, payload)
      VALUES ('d4444444-4444-4444-4444-444444444444',
              'd0000000-0000-0000-0000-000000000003',
-             'test', gen_random_uuid(), 'test.event', '{}'::jsonb) $$,
+             'test', gen_random_uuid(), 'test.event.v1', '{}'::jsonb) $$,
   '42501', NULL,
   'reader: INSERT domain_events odrzucone (brak polityki INSERT dla klienta)'
 );

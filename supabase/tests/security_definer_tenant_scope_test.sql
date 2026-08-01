@@ -43,11 +43,15 @@ INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
 
 -- Przychod: zamowienie oplacone w A (1234) i w B (5000). Wyciek = zobaczenie 5000.
+-- Status 'paid' moze wstawic tylko service_role (payment_orders_guard_status_trg
+-- z 20260724143429; secure_insert z 20260730175806 tez bypassuje te role).
+SET LOCAL ROLE service_role;
 INSERT INTO public.payment_orders (tenant_id, user_id, kind, status, amount_cents) VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'd1d1d1d1-0000-0000-0000-000000000001',
    'one_time', 'paid', 1234),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'd1d1d1d1-0000-0000-0000-000000000001',
    'one_time', 'paid', 5000);
+RESET ROLE;
 
 -- Kupony B2B: po jednym na tenant (analityka nie moze pokazac kuponu B adminowi A).
 INSERT INTO public.b2b_coupons (tenant_id, code, discount_kind, discount_percent) VALUES

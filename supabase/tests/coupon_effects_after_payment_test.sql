@@ -36,6 +36,11 @@ VALUES
    'PRO90', 'Pro na 90 dni', 'percent', 20, true, 'pro-cpn', 90);
 
 -- Dwa zamówienia: jedno nieopłacone, jedno opłacone.
+-- payment_orders ma triggery BEFORE INSERT (payment_orders_guard_status_trg z
+-- 20260724143429 + payment_orders_secure_insert_trg z 20260711085449/20260730175806):
+-- INSERT spoza service_role wymaga auth.uid()=user_id i wymusza status='pending'.
+-- Seed wstawiamy więc jak webhook płatności - jako service_role (bypass obu guardów).
+SET LOCAL ROLE service_role;
 INSERT INTO public.payment_orders
   (id, tenant_id, user_id, kind, status, amount_cents, currency, provider)
 VALUES
@@ -43,6 +48,7 @@ VALUES
    'f0000000-0000-0000-0000-0000000000a1', 'subscription', 'pending', 8000, 'PLN', 'stripe'),
   ('f3000000-0000-0000-0000-000000000002', 'f1a11111-1111-1111-1111-111111111111',
    'f0000000-0000-0000-0000-0000000000a1', 'subscription', 'paid', 8000, 'PLN', 'stripe');
+RESET ROLE;
 
 INSERT INTO public.b2b_coupon_redemptions
   (tenant_id, coupon_id, order_id, user_id, applied_cents, original_cents, currency)

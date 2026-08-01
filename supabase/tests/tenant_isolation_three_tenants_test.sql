@@ -57,6 +57,13 @@ VALUES
    'a0000000-0000-0000-0000-000000000aa1', 'iso3_sess_c', 300, 'USD', 'iso3-shared@iso.test');
 
 -- storage.objects: po jednym pliku CV w każdym tenancie.
+-- storage-api >= 0055 (prevent-direct-deletes) blokuje KAZDY DELETE na
+-- storage.objects statementowym triggerem protect_objects_delete, o ile nie
+-- ustawiono GUC storage.allow_delete_query. Odpala sie on zanim RLS odfiltruje
+-- wiersze, wiec bez tego GUC nie da sie przetestowac "DELETE zwraca 0 wierszy".
+-- set_config(..., true) jest transakcyjne - znika przy ROLLBACK-u.
+SELECT set_config('storage.allow_delete_query', 'true', true);
+
 INSERT INTO storage.buckets (id, name, public) VALUES ('cv', 'cv', false)
   ON CONFLICT (id) DO NOTHING;
 
