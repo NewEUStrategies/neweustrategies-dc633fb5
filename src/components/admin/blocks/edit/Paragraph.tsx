@@ -22,6 +22,7 @@ import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import { detectMarkdownShortcut, htmlToPlain, shortcutToBlock } from "@/lib/blocks/markdown";
 import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
+import { parseBlocksFromClipboard } from "@/lib/blocks/clipboard";
 
 import { WordStyleToolbar } from "../WordStyleToolbar";
 import { BlockInserter } from "../BlockInserter";
@@ -52,6 +53,8 @@ export function ParagraphBlock({
   onChangeRef.current = onChange;
   const handlersRef = useRef({ onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks });
   handlersRef.current = { onTransform, onInsertAfter, onDeleteEmpty, onSelectAllBlocks };
+  const blockRef = useRef(block);
+  blockRef.current = block;
 
   const [slashOpen, setSlashOpen] = useState(false);
 
@@ -76,16 +79,44 @@ export function ParagraphBlock({
         class:
           "prose prose-sm dark:prose-invert max-w-none outline-none min-h-[1.5em] focus:outline-none",
       },
-      // Wklejanie z Worda / Google Docs: zachowujemy strukturę (nagłówki,
-      // listy, tabele, cytaty, entery) i zamieniamy przypisy dolne na wspólny
-      // shortcode [fn]…[/fn]. Styl źródłowy jest odrzucany.
+      // Wklejanie (kolejność jak w Gutenbergu):
+      //   1. payload blokowy - nasz sentinel albo markup `<!-- wp:… -->`
+      //      skopiowany z WordPressa - odtwarza bloki 1:1,
+      //   2. pliki graficzne ze schowka (zrzut ekranu / "kopiuj obraz")
+      //      -> bloki obrazów (upload do biblioteki mediów przy zapisie),
+      //   3. Word / Google Docs: zachowujemy strukturę (nagłówki, listy,
+      //      tabele, cytaty, entery), przypisy dolne -> shortcode [fn]…[/fn].
       handlePaste: (_view, event) => {
         const rich = event.clipboardData?.getData("text/html") ?? "";
+        const plain = event.clipboardData?.getData("text/plain") ?? "";
+        const ed = editor;
+        const transform = handlersRef.current.onTransform;
+
+        const blockPayload = parseBlocksFromClipboard(rich, plain);
+        if (blockPayload?.length && transform && ed) {
+          event.preventDefault();
+          const current = blockRef.current;
+          const keepCurrent = !ed.isEmpty;
+          transform(
+            keepCurrent
+              ? [{ ...current, data: { ...current.data, html: ed.getHTML() } }, ...blockPayload]
+              : blockPayload,
+          );
+          return true;
+        }
+
+        const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
+          f.type.startsWith("image/"),
+        );
+        if (files.length && transform && ed) {
+          event.preventDefault();
+          void pasteImagesAsBlocks(files);
+          return true;
+        }
+
         if (!looksLikeRichPaste(rich)) return false;
         const blocks = parseWordHtml(rich);
         if (!blocks.length) return false;
-        const ed = editor;
-        const transform = handlersRef.current.onTransform;
         const singleParagraph =
           blocks.length === 1 && blocks[0].type === "paragraph" ? blocks[0] : null;
         if (singleParagraph || !transform || !ed) {
@@ -99,9 +130,10 @@ export function ParagraphBlock({
         }
         event.preventDefault();
         const keepCurrent = !ed.isEmpty;
+        const current = blockRef.current;
         transform(
           keepCurrent
-            ? [{ ...block, data: { ...block.data, html: ed.getHTML() } }, ...blocks]
+            ? [{ ...current, data: { ...current.data, html: ed.getHTML() } }, ...blocks]
             : blocks,
         );
         return true;
@@ -176,6 +208,50 @@ export function ParagraphBlock({
       }
     },
   });
+
+  /** Pliki graficzne ze schowka -> bloki obrazów za bieżącym akapitem. */
+  async function pasteImagesAsBlocks(files: File[]): Promise<void> {
+    const ed = editor;
+    const transform = handlersRef.current.onTransform;
+    if (!ed || !transform) return;
+    const readAsDataUrl = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    const imageBlocks: Block[] = [];
+    for (const file of files) {
+      try {
+        const url = await readAsDataUrl(file);
+        if (!url.startsWith("data:image/")) continue;
+        imageBlocks.push({
+          id: newBlockId(),
+          type: "image",
+          data: {
+            url,
+            alt: file.name.replace(/\.[a-z0-9]+$/i, ""),
+            caption: "",
+            align: "center",
+            size: "full",
+            rounded: true,
+            shadow: false,
+          },
+        });
+      } catch {
+        // nieczytelny plik nie przerywa wklejki pozostałych
+      }
+    }
+    if (!imageBlocks.length) return;
+    const current = blockRef.current;
+    const keepCurrent = !ed.isEmpty;
+    transform(
+      keepCurrent
+        ? [{ ...current, data: { ...current.data, html: ed.getHTML() } }, ...imageBlocks]
+        : imageBlocks,
+    );
+  }
 
   // Sync external content changes (undo/redo, programmatic transforms)
   useEffect(() => {

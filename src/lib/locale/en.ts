@@ -1321,6 +1321,23 @@ export const en = {
     slash: {
       hint: "Type / to pick a block",
     },
+    clipboard: {
+      copied_one: "Copied 1 block to clipboard.",
+      copied_other: "Copied {{count}} blocks to clipboard.",
+      cutDone_one: "Cut 1 block to clipboard.",
+      cutDone_other: "Cut {{count}} blocks to clipboard.",
+      pasted_one: "Pasted 1 block.",
+      pasted_other: "Pasted {{count}} blocks.",
+      imagePersistFailed_one: "Failed to save 1 pasted image to the media library.",
+      imagePersistFailed_other: "Failed to save {{count}} pasted images to the media library.",
+    },
+    transform: {
+      menuLabel: "Transform to",
+    },
+    inserter: {
+      browseAll: "Browse all",
+      quickTitle: "Most used",
+    },
     types: {
       paragraph: "Paragraph",
       heading: "Heading",

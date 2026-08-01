@@ -1,7 +1,12 @@
 // Refaktor: kanwa bloków z drag&drop (@dnd-kit), atomowymi akcjami i obsługą Enter/Backspace.
 // Każda mutacja przechodzi przez `onChange`, który u góry trafia w history hook (undo/redo).
+// Zachowania Gutenberga: Enter przenosi karetkę do nowego bloku, Backspace na
+// pustym bloku wraca na koniec poprzedniego, Ctrl+C/X/V działa na zaznaczonych
+// blokach przez systemowy schowek (interop z WordPressem i innymi wpisami).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   DndContext,
   type DragEndEvent,
@@ -19,6 +24,13 @@ import {
 } from "@dnd-kit/sortable";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
+import { isTextEntryBlockType, requestBlockFocus } from "@/lib/blocks/focus";
+import {
+  parseBlocksFromClipboard,
+  plainTextToBlocks,
+  serializeBlocksForClipboard,
+} from "@/lib/blocks/clipboard";
+import { looksLikeRichPaste, parseWordHtml } from "@/lib/blocks/wordPaste";
 import { BlockInserter } from "./BlockInserter";
 import { SortableBlockItem } from "./molecules/SortableBlockItem";
 import { GenericWidgetToolbar } from "./GenericWidgetToolbar";
@@ -136,9 +148,18 @@ interface Props {
   onChange: (doc: BlocksDoc, immediate?: boolean) => void;
 }
 
+/**
+ * Stos zamontowanych kanw: przy zagnieżdżeniu (edytor bloków w modalu
+ * buildera nad edytorem wpisu) globalne zdarzenia schowka obsługuje wyłącznie
+ * kanwa zamontowana najpóźniej - inaczej jedno Ctrl+V wklejałoby dwa razy.
+ */
+const MOUNTED_CANVASES: HTMLElement[] = [];
+
 export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
+  const { t } = useTranslation();
   const blocks = doc.blocks;
   const ids = useMemo(() => blocks.map((b) => b.id), [blocks]);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   // Zaznaczenie WIELU bloków (Ctrl/Cmd+A jak w Word). Puste = brak zaznaczenia
   // dokumentu; wtedy obowiązuje zwykłe zaznaczenie pojedynczego bloku.
@@ -148,6 +169,20 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   // Stable ref to current doc/blocks so callbacks don't churn.
   const docRef = useRef(doc);
   docRef.current = doc;
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    MOUNTED_CANVASES.push(el);
+    return () => {
+      const i = MOUNTED_CANVASES.indexOf(el);
+      if (i >= 0) MOUNTED_CANVASES.splice(i, 1);
+    };
+  }, []);
 
   const selectAllBlocks = useCallback(() => {
     setSelectedIds(docRef.current.blocks.map((b) => b.id));
@@ -206,6 +241,9 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       next.splice(idx, 0, block);
       onChange({ ...docRef.current, blocks: next }, immediate);
       onSelect(block.id);
+      // Gutenberg-flow: po Enter / wstawieniu bloku tekstowego piszesz dalej
+      // bez klikania - karetka ląduje na początku świeżego bloku.
+      if (isTextEntryBlockType(block.type)) requestBlockFocus(block.id, "start");
     },
     [onChange, onSelect],
   );
@@ -226,7 +264,43 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
       const next = [...docRef.current.blocks];
       next.splice(idx, 1, ...replacement);
       onChange({ ...docRef.current, blocks: next }, true);
-      onSelect(replacement[replacement.length - 1]?.id ?? null);
+      const last = replacement[replacement.length - 1];
+      onSelect(last?.id ?? null);
+      // Transformacja (markdown "## " / slash / wklejka) nie może gubić
+      // karetki - piszesz dalej na końcu ostatniego bloku zamiennika.
+      if (last && isTextEntryBlockType(last.type)) requestBlockFocus(last.id, "end");
+    },
+    [onChange, onSelect],
+  );
+
+  /** Usuwa pusty blok (Backspace) i cofa karetkę na koniec sąsiada - jak w WP. */
+  const deleteEmptyAt = useCallback(
+    (idx: number) => {
+      const arr = docRef.current.blocks;
+      if (arr.length <= 1) return;
+      const neighbor = arr[idx - 1] ?? arr[idx + 1];
+      const next = arr.filter((_, i) => i !== idx);
+      onChange({ ...docRef.current, blocks: next }, true);
+      if (neighbor) {
+        onSelect(neighbor.id);
+        if (isTextEntryBlockType(neighbor.type)) requestBlockFocus(neighbor.id, "end");
+      } else {
+        onSelect(null);
+      }
+    },
+    [onChange, onSelect],
+  );
+
+  /** Wstawia wiele bloków pod wskazany indeks (wklejka ze schowka). */
+  const insertBlocksAt = useCallback(
+    (idx: number, incoming: Block[]) => {
+      if (!incoming.length) return;
+      const next = [...docRef.current.blocks];
+      next.splice(idx, 0, ...incoming);
+      onChange({ ...docRef.current, blocks: next }, true);
+      const last = incoming[incoming.length - 1];
+      onSelect(last.id);
+      if (isTextEntryBlockType(last.type)) requestBlockFocus(last.id, "end");
     },
     [onChange, onSelect],
   );
@@ -276,9 +350,164 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
     [onChange],
   );
 
+  /** Bloki objęte operacją schowka: zaznaczenie wielokrotne albo aktywny blok. */
+  const clipboardSelection = useCallback((): Block[] => {
+    const arr = docRef.current.blocks;
+    if (selectedIdsRef.current.length) {
+      const set = new Set(selectedIdsRef.current);
+      return arr.filter((b) => set.has(b.id));
+    }
+    const aid = activeIdRef.current;
+    return aid ? arr.filter((b) => b.id === aid) : [];
+  }, []);
+
+  /** Wkleja bloki: zamienia zaznaczenie wielokrotne albo wstawia po aktywnym. */
+  const pasteBlocks = useCallback(
+    (incoming: Block[]) => {
+      if (!incoming.length) return;
+      const arr = docRef.current.blocks;
+      const selected = selectedIdsRef.current;
+      if (selected.length) {
+        const set = new Set(selected);
+        const firstIdx = arr.findIndex((b) => set.has(b.id));
+        const kept = arr.filter((b) => !set.has(b.id));
+        const at = firstIdx < 0 ? kept.length : firstIdx;
+        const next = [...kept];
+        next.splice(at, 0, ...incoming);
+        onChange({ ...docRef.current, blocks: next }, true);
+        setSelectedIds([]);
+        const last = incoming[incoming.length - 1];
+        onSelect(last.id);
+        if (isTextEntryBlockType(last.type)) requestBlockFocus(last.id, "end");
+      } else {
+        const aid = activeIdRef.current;
+        const idx = aid ? arr.findIndex((b) => b.id === aid) : -1;
+        insertBlocksAt(idx < 0 ? arr.length : idx + 1, incoming);
+      }
+      toast.success(t("blocks.clipboard.pasted", { count: incoming.length }));
+    },
+    [insertBlocksAt, onChange, onSelect, t],
+  );
+
+  /** Wklejone pliki graficzne -> bloki obrazów (data-URL; upload przy zapisie). */
+  const insertImageFiles = useCallback(
+    async (files: File[]) => {
+      const readAsDataUrl = (file: File) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+      const imageBlocks: Block[] = [];
+      for (const file of files) {
+        try {
+          const url = await readAsDataUrl(file);
+          if (!url.startsWith("data:image/")) continue;
+          imageBlocks.push({
+            id: newBlockId(),
+            type: "image",
+            data: {
+              url,
+              alt: file.name.replace(/\.[a-z0-9]+$/i, ""),
+              caption: "",
+              align: "center",
+              size: "full",
+              rounded: true,
+              shadow: false,
+            },
+          });
+        } catch {
+          // pojedynczy nieczytelny plik nie przerywa wklejki
+        }
+      }
+      if (imageBlocks.length) pasteBlocks(imageBlocks);
+    },
+    [pasteBlocks],
+  );
+
+  // Systemowy schowek na poziomie dokumentu (Ctrl+C/X/V jak w Gutenbergu).
+  // Zdarzenia w polach tekstowych zostawiamy edytorom inline (TipTap ma własną
+  // obsługę wklejania); przy zagnieżdżonych kanwach działa tylko wierzchnia.
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null): boolean => {
+      const el = target as HTMLElement | null;
+      return (
+        !!el &&
+        (el.isContentEditable ||
+          el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT")
+      );
+    };
+    const shouldHandle = (e: ClipboardEvent): boolean => {
+      if (isEditableTarget(e.target)) return false;
+      const root = rootRef.current;
+      if (!root) return false;
+      const el = e.target as HTMLElement | null;
+      const inSomeCanvas = el?.closest?.("[data-block-canvas]") ?? null;
+      if (inSomeCanvas) return inSomeCanvas === root;
+      // Zdarzenie poza jakąkolwiek kanwą (fokus na body) - obsługuje wierzchnia.
+      return MOUNTED_CANVASES[MOUNTED_CANVASES.length - 1] === root;
+    };
+
+    const onCopyOrCut = (e: ClipboardEvent) => {
+      if (!shouldHandle(e)) return;
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) return; // natywne kopiowanie tekstu
+      const chosen = clipboardSelection();
+      if (!chosen.length || !e.clipboardData) return;
+      e.preventDefault();
+      const payload = serializeBlocksForClipboard(chosen);
+      e.clipboardData.setData("text/html", payload.html);
+      e.clipboardData.setData("text/plain", payload.text);
+      if (e.type === "cut") {
+        const ids = new Set(chosen.map((b) => b.id));
+        const next = docRef.current.blocks.filter((b) => !ids.has(b.id));
+        onChange({ ...docRef.current, blocks: next }, true);
+        setSelectedIds([]);
+        onSelect(null);
+        toast.success(t("blocks.clipboard.cutDone", { count: chosen.length }));
+      } else {
+        toast.success(t("blocks.clipboard.copied", { count: chosen.length }));
+      }
+    };
+
+    const onPaste = (e: ClipboardEvent) => {
+      if (!shouldHandle(e)) return;
+      const dt = e.clipboardData;
+      if (!dt) return;
+      const html = dt.getData("text/html");
+      const plain = dt.getData("text/plain");
+      let incoming = parseBlocksFromClipboard(html, plain);
+      if (!incoming) {
+        const files = Array.from(dt.files ?? []).filter((f) => f.type.startsWith("image/"));
+        if (files.length) {
+          e.preventDefault();
+          void insertImageFiles(files);
+          return;
+        }
+        if (html && looksLikeRichPaste(html)) incoming = parseWordHtml(html);
+        else if (plain.trim()) incoming = plainTextToBlocks(plain);
+      }
+      if (!incoming?.length) return;
+      e.preventDefault();
+      pasteBlocks(incoming);
+    };
+
+    document.addEventListener("copy", onCopyOrCut);
+    document.addEventListener("cut", onCopyOrCut);
+    document.addEventListener("paste", onPaste);
+    return () => {
+      document.removeEventListener("copy", onCopyOrCut);
+      document.removeEventListener("cut", onCopyOrCut);
+      document.removeEventListener("paste", onPaste);
+    };
+  }, [clipboardSelection, insertImageFiles, onChange, onSelect, pasteBlocks, t]);
+
   if (blocks.length === 0) {
     return (
-      <div className="py-12">
+      <div ref={rootRef} data-block-canvas className="py-12">
         <BlockInserter variant="fab" onInsert={(b) => insertAt(0, b)} />
       </div>
     );
@@ -287,7 +516,13 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div className="block-canvas space-y-0.5" data-builder-renderer data-cms-content>
+        <div
+          ref={rootRef}
+          data-block-canvas
+          className="block-canvas space-y-0.5"
+          data-builder-renderer
+          data-cms-content
+        >
           <BlockInserter onInsert={(b) => insertAt(0, b)} />
           {blocks.map((b, idx) => {
             const variants = getBlockVariants(b.type);
@@ -326,9 +561,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                       onChange={(n) => replaceBlock(b.id, n)}
                       onTransform={(replacement) => replaceWith(b.id, replacement)}
                       onInsertAfter={(blk) => insertAt(idx + 1, blk)}
-                      onDeleteEmpty={() => {
-                        if (blocks.length > 1) remove(idx);
-                      }}
+                      onDeleteEmpty={() => deleteEmptyAt(idx)}
                       onSelectAllBlocks={selectAllBlocks}
                     />
                   </BlockWithToolbar>
