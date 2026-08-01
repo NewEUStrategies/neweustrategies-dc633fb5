@@ -77,7 +77,10 @@ test.describe("user paths (seeded)", () => {
 
   test("full-text search finds a seeded article", async ({ page }) => {
     await page.goto("/search?q=bezpiecze%C5%84stwa");
-    await expect(page.getByText(POST.title_pl).first()).toBeVisible();
+    // Wyniki dociągane są po hydratacji (RPC wyszukiwarki), więc pod
+    // obciążeniem CI domyślne 10 s bywa za krótkie - test bywał "flaky",
+    // przechodząc dopiero w retry. Dłuższy budżet, ta sama asercja.
+    await expect(page.getByText(POST.title_pl).first()).toBeVisible({ timeout: 30_000 });
   });
 
   test("staff sign-in lands in the admin panel", async ({ page }) => {
