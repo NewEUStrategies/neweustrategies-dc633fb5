@@ -111,18 +111,15 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
         className="bg-background border border-border rounded-lg p-4 lg:p-6"
       >
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-          <Tabs
-            value={lang}
-            onValueChange={(v) => {
-              setLang(v as "pl" | "en");
-              setActiveId(null);
-            }}
-          >
-            <TabsList data-tour="blocks-lang">
-              <TabsTrigger value="pl">🇵🇱 PL</TabsTrigger>
-              <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div data-tour="blocks-lang">
+            <EditorLangSwitch
+              lang={lang}
+              onLangChange={(v) => {
+                setLang(v);
+                setActiveId(null);
+              }}
+            />
+          </div>
           <div className="flex items-center gap-2">
             {previewHref ? (
               <a
