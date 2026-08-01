@@ -113,38 +113,17 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
           sidebarCollapsed ? "lg:grid-cols-[1fr_48px]" : "lg:grid-cols-[1fr_320px]",
         )}
       >
-        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-          <div data-tour="blocks-lang">
-            <EditorLangSwitch
-              lang={lang}
-              onLangChange={(v) => {
-                setLang(v);
-                setActiveId(null);
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            {previewHref ? (
-              <a
-                href={previewHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                title={t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>{t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}</span>
-              </a>
-            ) : null}
-            <div
-              data-tour="blocks-history"
-              className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-1"
-            >
-              <TabsList data-tour="blocks-lang">
-                <TabsTrigger value="pl">🇵🇱 PL</TabsTrigger>
-                <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
-              </TabsList>
-            </Tabs>
+        <div className="min-w-0">
+          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+            <div data-tour="blocks-lang">
+              <EditorLangSwitch
+                lang={lang}
+                onLangChange={(v) => {
+                  setLang(v);
+                  setActiveId(null);
+                }}
+              />
+            </div>
             <div className="flex items-center gap-2">
               {previewHref ? (
                 <a
