@@ -32,6 +32,8 @@
     "check:i18n-parity": "vitest run src/__tests__/i18nParity.gate.test.ts src/lib/ci/__tests__",
     "report:deployment": "bun run scripts/deployment-report.ts",
     "cron:tick": "node scripts/scheduler-tick.mjs"
+  },
+
 
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
