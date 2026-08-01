@@ -63,19 +63,22 @@ async function probe(object: DbObject): Promise<"present" | "missing" | "inconcl
       ...(object.kind === "function" ? { body: "{}" } : {}),
     });
     let code: string | null = null;
+    let hint: string | null = null;
     if (!res.ok) {
       const text = await res.text();
       try {
         const parsed: unknown = JSON.parse(text);
-        if (parsed !== null && typeof parsed === "object" && "code" in parsed) {
-          const raw = (parsed as { code?: unknown }).code;
-          code = typeof raw === "string" ? raw : null;
+        if (parsed !== null && typeof parsed === "object") {
+          const body = parsed as { code?: unknown; hint?: unknown };
+          code = typeof body.code === "string" ? body.code : null;
+          hint = typeof body.hint === "string" ? body.hint : null;
         }
       } catch {
         code = null;
       }
     }
-    return classifyProbe(res.status, code);
+    return classifyProbe(res.status, code, hint);
+
   } catch {
     return "inconclusive";
   }
