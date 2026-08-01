@@ -117,13 +117,21 @@ export function extractExpectedContract(files: readonly MigrationFile[]): Expect
 /**
  * Tłumaczy odpowiedź Data API na werdykt istnienia obiektu.
  *
- * - `PGRST205` (nieznana tabela/widok) i `PGRST202` (nieznana funkcja) to
- *   JEDYNE kody, które oznaczają brak obiektu.
- * - 401/403/42501 to brak uprawnień - obiekt ISTNIEJE (RLS/GRANT to inny gate).
+ * - `PGRST205` = tabeli/widoku nie ma w cache schematu → brak obiektu.
+ * - `PGRST202` jest niejednoznaczny: PostgREST zwraca go ZARÓWNO gdy funkcji
+ *   nie ma, JAK I gdy istnieje pod inną sygnaturą niż sondowana (my sondujemy
+ *   bezpiecznie, bez argumentów, żeby niczego nie wywołać). Rozróżnia je
+ *   `hint`: dla nieznanej nazwy PostgREST podpowiada INNĄ, najbliższą funkcję
+ *   ("Perhaps you meant to call the function public.X"); gdy nazwa istnieje
+ *   i nie zgadzają się tylko argumenty - `hint` jest pusty.
+ * - 401/403/42501 to brak uprawnień - obiekt ISTNIEJE (RLS/GRANT to inne bramki).
  * - 400 (np. zły typ argumentu RPC) też oznacza, że funkcja istnieje.
  */
-export function classifyProbe(status: number, code: string | null): ProbeVerdict {
-  if (code === "PGRST205" || code === "PGRST202") return "missing";
+export function classifyProbe(status: number, code: string | null, hint?: string | null): ProbeVerdict {
+  if (code === "PGRST205") return "missing";
+  if (code === "PGRST202") {
+    return typeof hint === "string" && hint.trim() !== "" ? "missing" : "present";
+  }
   if (status >= 200 && status < 300) return "present";
   if (status === 400 || status === 401 || status === 403 || status === 404) {
     // 404 bez kodu PGRST20x nie rozstrzyga (np. proxy/edge), reszta = istnieje.
@@ -132,6 +140,7 @@ export function classifyProbe(status: number, code: string | null): ProbeVerdict
   if (status === 409 || status === 422 || status === 500) return "present";
   return "inconclusive";
 }
+
 
 export interface ContractReport {
   readonly checked: number;
