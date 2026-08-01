@@ -31,6 +31,8 @@ import {
   serializeBlocksForClipboard,
 } from "@/lib/blocks/clipboard";
 import { looksLikeRichPaste, parseWordHtml } from "@/lib/blocks/wordPaste";
+import { getTransformTargets, transformBlock } from "@/lib/blocks/transforms";
+import { Plus } from "@/lib/lucide-shim";
 import { BlockInserter } from "./BlockInserter";
 import { SortableBlockItem } from "./molecules/SortableBlockItem";
 import { GenericWidgetToolbar } from "./GenericWidgetToolbar";
@@ -506,9 +508,15 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   }, [clipboardSelection, insertImageFiles, onChange, onSelect, pasteBlocks, t]);
 
   if (blocks.length === 0) {
+    // Pusty dokument jak w WP: wiersz „Wpisz / aby wybrać blok" + przycisk „+".
     return (
-      <div ref={rootRef} data-block-canvas className="py-12">
-        <BlockInserter variant="fab" onInsert={(b) => insertAt(0, b)} />
+      <div ref={rootRef} data-block-canvas className="py-8">
+        <BlockAppender
+          onAppendParagraph={() =>
+            insertAt(0, { id: newBlockId(), type: "paragraph", data: { html: "" } })
+          }
+          onInsert={(b) => insertAt(0, b)}
+        />
       </div>
     );
   }
@@ -528,6 +536,11 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
             const variants = getBlockVariants(b.type);
             const currentVariant =
               typeof b.data.variant === "string" ? (b.data.variant as string) : undefined;
+            const transformTargets = getTransformTargets(b).map((type) => ({
+              type,
+              label: t(`blocks.types.${type}`),
+              icon: BLOCK_SPECS[type].icon,
+            }));
             return (
               <div key={b.id} data-block-type={b.type}>
                 <SortableBlockItem
@@ -537,6 +550,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                   active={b.id === activeId}
                   selected={selectedSet.has(b.id)}
                   typeLabel={BLOCK_SPECS[b.type]?.label ?? b.type}
+                  typeIcon={BLOCK_SPECS[b.type]?.icon}
                   onSelect={() => {
                     setSelectedIds([]);
                     onSelect(b.id);
@@ -549,6 +563,11 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
                   onVariantChange={(v) =>
                     replaceBlock(b.id, { ...b, data: { ...b.data, variant: v } })
                   }
+                  transforms={transformTargets}
+                  onTransform={(type) => {
+                    const replacement = transformBlock(b, type as Block["type"]);
+                    if (replacement) replaceWith(b.id, replacement);
+                  }}
                 >
                   <BlockWithToolbar
                     block={b}
@@ -570,9 +589,65 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
               </div>
             );
           })}
+          <BlockAppender
+            onAppendParagraph={() =>
+              insertAt(blocks.length, { id: newBlockId(), type: "paragraph", data: { html: "" } })
+            }
+            onInsert={(b) => insertAt(blocks.length, b)}
+          />
         </div>
       </SortableContext>
     </DndContext>
+  );
+}
+
+/**
+ * Dolny appender jak w WordPressie: wiersz-zachęta „Wpisz / aby wybrać blok"
+ * (klik = nowy akapit z karetką, w nim działa `/`) + przycisk „+" otwierający
+ * szybki inserter.
+ */
+function BlockAppender({
+  onAppendParagraph,
+  onInsert,
+}: {
+  onAppendParagraph: () => void;
+  onInsert: (b: Block) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1 pl-8 pr-3">
+      {open ? (
+        <BlockInserter
+          variant="controlled"
+          open
+          autoFocus
+          onOpenChange={setOpen}
+          onInsert={(b) => {
+            setOpen(false);
+            onInsert(b);
+          }}
+        />
+      ) : (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onAppendParagraph}
+            className="flex-1 text-left py-2 text-sm text-muted-foreground/60 cursor-text select-none"
+          >
+            {t("blocks.slash.hint")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label={t("blocks.addBlock")}
+            className="w-6 h-6 shrink-0 rounded bg-foreground text-background flex items-center justify-center shadow hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

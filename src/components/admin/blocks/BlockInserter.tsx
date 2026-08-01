@@ -1,12 +1,26 @@
 // Inserter z wyszukiwarką (command palette UX), grupowaniem po kategoriach
 // oraz wsparciem dla wariantu "fab" (puste) i "inline" (między blokami).
 // Wspiera tryb "open by default" do użycia jako slash-menu.
+//
+// Jak w WordPress Gutenberg otwarcie pokazuje najpierw SZYBKI panel
+// (6 najczęściej używanych bloków + wyszukiwarka + „Przeglądaj wszystko"),
+// a pełna, skategoryzowana biblioteka rozwija się na życzenie.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BLOCK_LIST, IMPLEMENTED_BLOCKS, type BlockSpec } from "@/lib/blocks/registry";
+import { BLOCK_LIST, BLOCK_SPECS, IMPLEMENTED_BLOCKS, type BlockSpec } from "@/lib/blocks/registry";
 import type { Block, BlockType } from "@/lib/blocks/types";
 import { Plus, X } from "@/lib/lucide-shim";
+
+/** Odpowiednik „six most used" z szybkiego insertera WP. */
+const QUICK_TYPES: readonly BlockType[] = [
+  "paragraph",
+  "heading",
+  "image",
+  "list",
+  "quote",
+  "separator",
+];
 
 interface Props {
   onInsert: (block: Block) => void;
@@ -31,13 +45,17 @@ export function BlockInserter({
     else setInternalOpen(v);
   };
   const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open && autoFocus) {
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-    if (!open) setQuery("");
+    if (!open) {
+      setQuery("");
+      setExpanded(false);
+    }
   }, [open, autoFocus]);
 
   const labelFor = (type: BlockType): string => t(`blocks.types.${type}`);
@@ -137,21 +155,37 @@ export function BlockInserter({
         <div className="grid grid-cols-3 gap-1.5">
           {filtered.map((spec) => renderItem(spec, labelFor, choose))}
         </div>
+      ) : !expanded ? (
+        // Szybki panel jak w WP: najczęściej używane + „Przeglądaj wszystko".
+        <>
+          <div className="grid grid-cols-3 gap-1.5">
+            {QUICK_TYPES.map((type) => renderItem(BLOCK_SPECS[type], labelFor, choose))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="w-full mt-2 py-2 rounded bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            {t("blocks.inserter.browseAll", { defaultValue: "Przeglądaj wszystko" })}
+          </button>
+        </>
       ) : (
-        categories.map((cat) => {
-          const items = filtered.filter((b) => b.category === cat.id);
-          if (!items.length) return null;
-          return (
-            <div key={cat.id} className="mb-3 last:mb-0">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-                {cat.label}
-              </p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {items.map((spec) => renderItem(spec, labelFor, choose))}
+        <div className="max-h-[26rem] overflow-y-auto pr-1">
+          {categories.map((cat) => {
+            const items = filtered.filter((b) => b.category === cat.id);
+            if (!items.length) return null;
+            return (
+              <div key={cat.id} className="mb-3 last:mb-0">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                  {cat.label}
+                </p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {items.map((spec) => renderItem(spec, labelFor, choose))}
+                </div>
               </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
     </div>
   );
