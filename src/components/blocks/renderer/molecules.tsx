@@ -32,6 +32,7 @@ import { TocBlockView } from "../TocBlockView";
 import { AffiliateBlockView } from "../AffiliateBlockView";
 import { XQuoteShare } from "../XQuoteShare";
 import { CompareSlider } from "../CompareSlider";
+import { LinkPreviewBlockView } from "../LinkPreviewBlockView";
 import {
   LoginFormView,
   RegisterFormView,
@@ -783,6 +784,13 @@ export const renderCompare: BlockRenderer = ({ block, cls, t }) => {
     </div>
   );
 };
+
+/** Podgląd linku - linki z opcjonalnym hover-podglądem strony. */
+export const renderLinkPreview: BlockRenderer = ({ block, cls, lang }) => (
+  <div className={cls}>
+    <LinkPreviewBlockView data={block.data} lang={lang === "en" ? "en" : "pl"} />
+  </div>
+);
 
 // ---------------------------------------------------------------------------
 // Formularze auth (strukturalne)

@@ -127,6 +127,7 @@ const BlockSchema = z
       "video-hero",
       "chart",
       "data-map",
+      "link-preview",
     ]),
     data: z.record(z.string(), JsonSchema),
     style: BlockStyleSchema.optional(),
