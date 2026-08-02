@@ -1078,6 +1078,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           placeholderSize={getNum(c, "placeholderSize", 0) || undefined}
           buttonSize={getNum(c, "buttonSize", 0) || undefined}
           consentSize={getNum(c, "consentSize", 0) || undefined}
+          iconSize={getNum(c, "iconSize", 0) || undefined}
           customFields={customFields}
           source={`widget:${node.id}`}
         />,

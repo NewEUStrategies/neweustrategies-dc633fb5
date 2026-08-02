@@ -3,6 +3,12 @@
 // - Użytkownik może wybrać z listy albo wpisać własną nazwę (free text zapisywany 1:1).
 // - Dostępny z klawiatury (↑ ↓ Enter Esc), aria zgodne z combobox pattern.
 // - Dropdown renderowany przez portal (fixed) - nie jest przycinany przez overflow-hidden.
+//
+// Geometria pola jest TA SAMA co w atomie <FloatingInput/> (`.input-group` +
+// `.input` + `.user-label`), więc "Kraj" wygląda i zachowuje się identycznie
+// jak Imię / Nazwisko / Telefon / Firma w formularzu "Dołącz do nas", a
+// rozmiary z buildera (`placeholderSize` / `labelSize`) działają na nim tak
+// samo jak na pozostałych polach.
 import {
   useCallback,
   useEffect,
@@ -24,14 +30,30 @@ interface CountryComboboxProps {
   value: string;
   onChange: (v: string) => void;
   lang: "pl" | "en";
-  placeholder?: string;
+  /** Etykieta pola (floating label), np. "Kraj" / "Country". */
+  label: string;
   required?: boolean;
   className?: string;
   style?: CSSProperties;
-  ariaLabel?: string;
   maxLength?: number;
   name?: string;
+  /** Klucz rozmiaru dla floating labelki (builder: "Etykiety pól"). */
+  labelEditTarget?: string;
 }
+
+/**
+ * Slot flagi wewnątrz pola. Wszystko w `em`, żeby proporcje trzymały się przy
+ * dowolnym `placeholderSize` z buildera:
+ *   [ 0.9rem wcięcia ][ flaga 1.5em ][ 0.5em ][ kreska 1px ][ 0.5em ][ tekst ]
+ * `paddingLeft` idzie STYLEM INLINE, bo globalna reguła platformy
+ * `:where(input…){padding-inline:var(--form-input-padding-x)}` jest zapisana
+ * poza `@layer`, więc bije utility Tailwinda (`pl-9`) niezależnie od
+ * specyficzności - i to właśnie przez nią flaga nachodziła na nazwę kraju.
+ */
+const FLAG_GUTTER = "0.9rem";
+const FLAG_WIDTH = "1.5em";
+const FLAG_HEIGHT = "1.125em";
+const TEXT_PADDING_WITH_FLAG = `calc(${FLAG_GUTTER} + 2.5em + 1px)`;
 
 function useCountryList(lang: "pl" | "en"): string[] {
   return useMemo(() => {
@@ -51,13 +73,13 @@ export function CountryCombobox({
   value,
   onChange,
   lang,
-  placeholder,
+  label,
   required,
   className,
   style,
-  ariaLabel,
   maxLength = 100,
   name,
+  labelEditTarget,
 }: CountryComboboxProps) {
   const list = useCountryList(lang);
   const [open, setOpen] = useState(false);
@@ -67,6 +89,7 @@ export function CountryCombobox({
   const inputRef = useRef<HTMLInputElement>(null);
   const popupRef = useRef<HTMLUListElement>(null);
   const listId = useId();
+  const inputId = useId();
 
   const filtered = useMemo(() => {
     const q = normalize(value.trim());
@@ -152,37 +175,33 @@ export function CountryCombobox({
 
   const activeId = open && filtered[highlight] ? `${listId}-opt-${highlight}` : undefined;
 
-  const inputBase =
-    "h-10 pl-9 pr-3 rounded border border-border bg-background font-sans leading-none w-full";
-
   const codeFor = (name: string): string | undefined => {
     const c = getAlpha2Code(name, lang) || getAlpha2Code(name, "en");
     return c ? c.toLowerCase() : undefined;
   };
   const selectedCode = codeFor(value.trim());
 
+  const flagStyle: CSSProperties = { width: FLAG_WIDTH, height: FLAG_HEIGHT };
+  // Slot flagi liczy swoje `em` od kontenera, a padding tekstu - od inputa.
+  // Zrównujemy obie bazy, inaczej przy zmianie "Pola / placeholder" flaga i
+  // wcięcie tekstu rozjeżdżałyby się i znów wchodziłyby na nazwę kraju.
+  const emBase = style?.fontSize ?? "0.95rem";
+
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
-      {selectedCode ? (
-        <img
-          src={`https://flagcdn.com/w40/${selectedCode}.png`}
-          srcSet={`https://flagcdn.com/w80/${selectedCode}.png 2x`}
-          alt=""
-          aria-hidden
-          className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-4 w-5 object-cover rounded-[6px] border border-border/60"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : null}
+    <div
+      ref={rootRef}
+      className={cn("input-group", className)}
+      style={{ fontSize: emBase } as CSSProperties}
+    >
       <input
         ref={inputRef}
+        id={inputId}
         type="text"
         role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
         aria-controls={listId}
         aria-activedescendant={activeId}
-        aria-label={ariaLabel}
         name={name}
         autoComplete="off"
         autoCorrect="off"
@@ -192,8 +211,10 @@ export function CountryCombobox({
         data-lpignore="true"
         data-1p-ignore="true"
         value={value}
-        placeholder={placeholder}
+        /* Spacja (nie pusty string) - `:placeholder-shown` steruje floating labelką. */
+        placeholder=" "
         required={required}
+        aria-required={required || undefined}
         maxLength={maxLength}
         onChange={(e) => {
           onChange(e.target.value);
@@ -201,10 +222,34 @@ export function CountryCombobox({
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        className={cn(inputBase, !selectedCode && "pl-3")}
-        style={style}
+        className="input"
+        style={selectedCode ? { ...style, paddingLeft: TEXT_PADDING_WITH_FLAG } : style}
         data-edit-target="placeholderSize"
       />
+      <label htmlFor={inputId} className="user-label" data-edit-target={labelEditTarget}>
+        {label}
+      </label>
+      {/* Flaga + pionowa kreska: wybrany kraj jest wyraźnie ODDZIELONY od
+          wpisanej nazwy, nigdy jej nie przykrywa. Renderowana po labelce, żeby
+          w stanie spoczynku (pole puste = brak flagi) nie było kolizji. */}
+      {selectedCode ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 flex items-center gap-[0.5em]"
+          style={{ paddingLeft: FLAG_GUTTER }}
+        >
+          <img
+            src={`https://flagcdn.com/w40/${selectedCode}.png`}
+            srcSet={`https://flagcdn.com/w80/${selectedCode}.png 2x`}
+            alt=""
+            className="shrink-0 rounded-[6px] border border-border/60 object-cover"
+            style={flagStyle}
+            loading="lazy"
+            decoding="async"
+          />
+          <span className="h-[1.3em] w-px shrink-0 bg-border" />
+        </span>
+      ) : null}
       {open &&
         filtered.length > 0 &&
         typeof document !== "undefined" &&
@@ -241,13 +286,19 @@ export function CountryCombobox({
                       srcSet={`https://flagcdn.com/w80/${code}.png 2x`}
                       alt=""
                       aria-hidden
-                      className="h-4 w-5 object-cover rounded-[6px] border border-border/60 shrink-0"
+                      className="shrink-0 rounded-[6px] border border-border/60 object-cover"
+                      style={flagStyle}
                       loading="lazy"
                       decoding="async"
                     />
                   ) : (
-                    <span className="h-4 w-5 rounded-[6px] bg-muted shrink-0" aria-hidden />
+                    <span
+                      className="shrink-0 rounded-[6px] bg-muted"
+                      style={flagStyle}
+                      aria-hidden
+                    />
                   )}
+                  <span className="w-px self-stretch shrink-0 bg-border/70" aria-hidden />
                   <span className="truncate">{countryName}</span>
                 </li>
               );
