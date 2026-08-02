@@ -173,7 +173,15 @@ export const WIDGETS: WidgetDef[] = [
     icon: MousePointerClick,
     defaults: () => ({ label_pl: "Przycisk", label_en: "Button", href: "#", variant: "primary" }),
   },
-  { type: "divider", label: "Rozdzielacz", category: "basic", icon: Minus, defaults: () => ({}) },
+  {
+    type: "divider",
+    label: "Rozdzielacz",
+    category: "basic",
+    icon: Minus,
+    // `thickness: 2` musi być zgodne ze schematem (WIDGET_SCHEMAS.divider) i z
+    // rendererem - rozjazd dawał 2px w panelu/kanwie i 1px publicznie.
+    defaults: () => ({ variant: "line", thickness: 2, widthPct: 100, align: "center" }),
+  },
   {
     type: "spacer",
     label: "Odstępnik",
@@ -912,6 +920,9 @@ export const WIDGETS: WidgetDef[] = [
     category: "blocks",
     icon: List,
     defaults: () => ({
+      // Wariant musi mieć default, inaczej kontrolka w AccordionEditor startuje
+      // "pusta", a renderer i tak rysuje obramowany układ.
+      variant: "bordered",
       items: [
         { q_pl: "Pytanie 1", q_en: "Question 1", a_pl: "Odpowiedź…", a_en: "Answer…" },
         { q_pl: "Pytanie 2", q_en: "Question 2", a_pl: "Odpowiedź…", a_en: "Answer…" },
@@ -1909,7 +1920,7 @@ export const WIDGETS: WidgetDef[] = [
       showCompany: false,
       showSubject: true,
       showMessage: true,
-      // per-field "wymagane" — spójne z polityką w bazie
+      // per-field "wymagane" - spójne z polityką w bazie
       requireFirstName: true,
       requireLastName: false,
       requireEmail: true,

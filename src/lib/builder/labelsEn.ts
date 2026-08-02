@@ -486,8 +486,10 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "The higher the value, the slower the scroll.",
   "Indeks kolumny do podświetlenia akcentem marki. Puste = brak.":
     "Index of the column highlighted with the brand accent. Empty = none.",
-  "Jak ikony mają się zachowywać w dark / light mode.":
-    "How the icons should behave in dark / light mode.",
+  "Jawny kolor ma pierwszeństwo przed adaptacją dark / light.":
+    "An explicit color takes precedence over the dark / light adaptation.",
+  "Dotyczy kolorów dziedziczonych - nie nadpisuje jawnego wyboru w polu „Kolory ikon”.":
+    "Applies to inherited colors - it does not override an explicit choice in the Icon colors field.",
   "Klucz menu zdefiniowanego w Wygląd → Menu (domyślnie: main).":
     "Key of a menu defined under Appearance → Menu (default: main).",
   "Kliknięcie zdjęcia otwiera je na pełnym ekranie (Esc zamyka, strzałki przewijają).":

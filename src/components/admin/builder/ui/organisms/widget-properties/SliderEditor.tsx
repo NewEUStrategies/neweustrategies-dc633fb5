@@ -22,12 +22,17 @@ import {
   SLIDER_VARIANTS,
   SliderRender,
   NAV_ARROW_VARIANTS,
-  type SliderVariant,
+  NAV_ARROW_VARIANT_VALUES,
+  NAV_BG_STYLES,
+  NAV_POSITIONS,
+  SLIDER_AUTHOR_DISPLAYS,
+  SLIDER_RATIOS,
+  SLIDER_ROUNDED_VALUES,
+  SLIDER_VARIANT_VALUES,
+  type SliderConfig,
   type SliderItem,
-  type NavBgStyle,
-  type NavPosition,
-  type NavArrowVariant,
 } from "@/lib/builder/sliderVariants";
+import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/builder/contentValue";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
@@ -41,88 +46,75 @@ interface Props {
 export function SliderEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
-  const variant = ((typeof c.variant === "string" && c.variant) ||
-    "editorial-hero") as SliderVariant;
-  const ratio = (typeof c.ratio === "string" ? c.ratio : "16/9") as
-    | "16/9"
-    | "4/3"
-    | "1/1"
-    | "21/9"
-    | "3/2";
-  const autoplay = c.autoplay !== false;
-  const intervalMs = typeof c.intervalMs === "number" ? c.intervalMs : 4500;
-  const rounded = (typeof c.rounded === "string" ? c.rounded : "md") as
-    | "none"
-    | "sm"
-    | "md"
-    | "lg"
-    | "xl"
-    | "full";
-  const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
-  const source = (typeof c.source === "string" ? c.source : "manual") as "manual" | "posts";
-  const limit = typeof c.limit === "number" ? c.limit : 5;
-  const categorySlugs = typeof c.categorySlugs === "string" ? c.categorySlugs : "";
-  const tagSlugs = typeof c.tagSlugs === "string" ? c.tagSlugs : "";
-  const excludeIds = typeof c.excludeIds === "string" ? c.excludeIds : "";
-  const orderBy = (typeof c.orderBy === "string" ? c.orderBy : "newest") as
-    | "newest"
-    | "oldest"
-    | "title";
-  const showExcerpt = c.showExcerpt !== false;
-  const showAuthor = c.showAuthor !== false;
-  const showCover = c.showCover !== false;
-  const showTitle = c.showTitle !== false;
-  const authorDisplay = (
-    typeof c.authorDisplay === "string"
-      ? c.authorDisplay
-      : c.showAuthor === false
-        ? "none"
-        : "avatar"
-  ) as "avatar" | "label" | "none";
-  const authorLabelPl = typeof c.authorLabel_pl === "string" ? c.authorLabel_pl : "";
-  const authorLabelEn = typeof c.authorLabel_en === "string" ? c.authorLabel_en : "";
-  const authorSizePx = typeof c.authorSizePx === "number" ? c.authorSizePx : 12;
-  const authorAvatarSizePx = typeof c.authorAvatarSizePx === "number" ? c.authorAvatarSizePx : 20;
+  // Wszystkie odczyty przez contentValue - panel commituje raz boolean, raz
+  // string ("0"/"1"), a stare dokumenty trzymają liczby w stringach.
+  const variant = asOneOf(c.variant, SLIDER_VARIANT_VALUES, "editorial-hero");
+  const ratio = asOneOf(c.ratio, SLIDER_RATIOS, "16/9");
+  const autoplay = asBool(c.autoplay, true);
+  const intervalMs = asNum(c.intervalMs, 4500);
+  const rounded = asOneOf(c.rounded, SLIDER_ROUNDED_VALUES, "md");
+  const overlayOpacity = asNumInRange(c.overlayOpacity, 0.45, 0, 1);
+  const source = asOneOf(c.source, ["manual", "posts"] as const, "manual");
+  const limit = asNum(c.limit, 5);
+  const categorySlugs = asStr(c.categorySlugs);
+  const tagSlugs = asStr(c.tagSlugs);
+  const excludeIds = asStr(c.excludeIds);
+  const orderBy = asOneOf(c.orderBy, ["newest", "oldest", "title"] as const, "newest");
+  const showExcerpt = asBool(c.showExcerpt, true);
+  const showCover = asBool(c.showCover, true);
+  const showTitle = asBool(c.showTitle, true);
+  const authorDisplay = asOneOf(
+    c.authorDisplay,
+    SLIDER_AUTHOR_DISPLAYS,
+    asBool(c.showAuthor, true) ? "avatar" : "none",
+  );
+  const showAuthor = authorDisplay !== "none";
+  const authorLabelPl = asStr(c.authorLabel_pl);
+  const authorLabelEn = asStr(c.authorLabel_en);
+  const authorSizePx = asNumInRange(c.authorSizePx, 12, 8, 24);
+  const authorAvatarSizePx = asNumInRange(c.authorAvatarSizePx, 20, 8, 64);
 
   const ctaKey = `cta_${lang}` as const;
-  const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
-  const titleSizePx = typeof c.titleSizePx === "number" ? c.titleSizePx : 0;
-  const titleWeight = typeof c.titleWeight === "number" ? c.titleWeight : 700;
-  const subtitleSizePx = typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : 0;
-  const subtitleWeight = typeof c.subtitleWeight === "number" ? c.subtitleWeight : 400;
-  const columnsRaw = typeof c.columns === "number" ? c.columns : 3;
-  const columns = Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4;
+  const ctaValue = asStr(c[ctaKey]);
+  const titleSizePx = asNum(c.titleSizePx, 0);
+  const titleWeight = asNum(c.titleWeight, 700);
+  const subtitleSizePx = asNum(c.subtitleSizePx, 0);
+  const subtitleWeight = asNum(c.subtitleWeight, 400);
+  const columns = Math.round(asNumInRange(c.columns, 3, 1, 4)) as 1 | 2 | 3 | 4;
 
   // Navigation buttons style
-  const navSizePx = typeof c.navSizePx === "number" ? c.navSizePx : 52;
-  const navRoundedPx = typeof c.navRoundedPx === "number" ? c.navRoundedPx : 999;
-  const navBgColor = typeof c.navBgColor === "string" ? c.navBgColor : "#ffffff";
-  const navArrowColor = typeof c.navArrowColor === "string" ? c.navArrowColor : "#ffffff";
-  const navBgStyle = (typeof c.navBgStyle === "string" ? c.navBgStyle : "glass") as NavBgStyle;
-  const navPosition = (typeof c.navPosition === "string" ? c.navPosition : "mid") as NavPosition;
-  const navArrowVariant = (
-    typeof c.navArrowVariant === "string" ? c.navArrowVariant : "chevron"
-  ) as NavArrowVariant;
-  const navArrowStroke = typeof c.navArrowStroke === "number" ? c.navArrowStroke : 2.25;
+  const navSizePx = asNumInRange(c.navSizePx, 52, 28, 96);
+  const navRoundedPx = asNum(c.navRoundedPx, 999);
+  const navBgColor = asStr(c.navBgColor) || "#ffffff";
+  const navArrowColor = asStr(c.navArrowColor) || "#ffffff";
+  const navBgStyle = asOneOf(c.navBgStyle, NAV_BG_STYLES, "glass");
+  const navPosition = asOneOf(c.navPosition, NAV_POSITIONS, "mid");
+  const navArrowVariant = asOneOf(c.navArrowVariant, NAV_ARROW_VARIANT_VALUES, "chevron");
+  const navArrowStroke = asNumInRange(c.navArrowStroke, 2.25, 0.5, 4);
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
   const items: SliderItem[] = rawItems
     .filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null)
     .map((it) => ({
-      image: typeof it.image === "string" ? it.image : "",
-      postId: typeof it.postId === "string" ? it.postId : undefined,
-      title_pl: typeof it.title_pl === "string" ? it.title_pl : "",
-      title_en: typeof it.title_en === "string" ? it.title_en : "",
-      subtitle_pl: typeof it.subtitle_pl === "string" ? it.subtitle_pl : "",
-      subtitle_en: typeof it.subtitle_en === "string" ? it.subtitle_en : "",
-      href: typeof it.href === "string" ? it.href : "",
-      cta_pl: typeof it.cta_pl === "string" ? it.cta_pl : "",
-      cta_en: typeof it.cta_en === "string" ? it.cta_en : "",
-      category_pl: typeof it.category_pl === "string" ? it.category_pl : "",
-      category_en: typeof it.category_en === "string" ? it.category_en : "",
-      categoryColor: typeof it.categoryColor === "string" ? it.categoryColor : "",
-      author: typeof it.author === "string" ? it.author : "",
-      readTime: typeof it.readTime === "string" ? it.readTime : "",
+      image: asStr(it.image),
+      postId: asStr(it.postId) || undefined,
+      title_pl: asStr(it.title_pl),
+      title_en: asStr(it.title_en),
+      subtitle_pl: asStr(it.subtitle_pl),
+      subtitle_en: asStr(it.subtitle_en),
+      href: asStr(it.href),
+      cta_pl: asStr(it.cta_pl),
+      cta_en: asStr(it.cta_en),
+      category_pl: asStr(it.category_pl),
+      category_en: asStr(it.category_en),
+      categoryColor: asStr(it.categoryColor),
+      author: asStr(it.author),
+      // Awatar i slug autora nie mają własnych kontrolek (pochodzą z podpiętego
+      // wpisu), ale muszą przetrwać mapowanie - inaczej każda edycja slajdu
+      // kasowała je z dokumentu, a podgląd rysował sam inicjał.
+      authorAvatar: asStr(it.authorAvatar),
+      authorSlug: asStr(it.authorSlug),
+      readTime: asStr(it.readTime),
     }));
 
   const updateItems = (next: SliderItem[]) => setContent("items", toJson(next));
@@ -179,7 +171,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     },
   });
   const hasRealItems = items.some((it) => it.image);
-  const previewCfg = {
+  const previewCfg: SliderConfig = {
     variant,
     ratio,
     autoplay: true,
@@ -191,11 +183,17 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     titleWeight,
     subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
     subtitleWeight,
+    // Podgląd MUSI dostać komplet sekcji "Wyświetlanie" - inaczej redakcja
+    // widzi tu jedno, a na kanwie i stronie publicznej drugie.
     showExcerpt,
     showAuthor,
+    showTitle,
+    showCover,
+    authorDisplay,
+    authorLabel_pl: authorLabelPl,
+    authorLabel_en: authorLabelEn,
     authorSizePx,
     authorAvatarSizePx,
-    showCover,
 
     navSizePx,
     navRoundedPx,
@@ -710,7 +708,10 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {t("builder.sliderEditor.livePreview")}
         </div>
-        <div className="rounded-md border border-border p-2 bg-muted/20">
+        <div
+          className="rounded-md border border-border p-2 bg-muted/20"
+          data-testid="slider-live-preview"
+        >
           <SliderRender config={previewCfg} lang={lang} />
         </div>
       </div>

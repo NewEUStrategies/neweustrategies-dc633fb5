@@ -1821,6 +1821,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "dark", label: "ciemne (czarne)" },
         { value: "light", label: "jasne (białe)" },
       ],
+      hint: "Jawny kolor ma pierwszeństwo przed adaptacją dark / light.",
     },
     {
       key: "customColor",
@@ -1872,7 +1873,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "force-dark", label: "wymuś ciemny styl" },
         { value: "off", label: "wyłączona" },
       ],
-      hint: "Jak ikony mają się zachowywać w dark / light mode.",
+      hint: "Dotyczy kolorów dziedziczonych - nie nadpisuje jawnego wyboru w polu „Kolory ikon”.",
     },
     {
       key: "layout",
@@ -1916,6 +1917,13 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       key: "ctaLinkedin",
       type: "text",
       label: "CTA LinkedIn",
+      placeholder: "Follow",
+      visibleWhen: (c) => c.layout === "list",
+    },
+    {
+      key: "ctaSpotify",
+      type: "text",
+      label: "CTA Spotify",
       placeholder: "Follow",
       visibleWhen: (c) => c.layout === "list",
     },
