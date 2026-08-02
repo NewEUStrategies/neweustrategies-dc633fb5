@@ -132,8 +132,7 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
   const showAuthor = asBool(c["showAuthor"], true);
   const audience = asOneOf(c["audience"], ["auth", "all", "guest"] as const, "auth");
   const kicker =
-    pickI18n(c, "kicker", lang) ||
-    (lang === "pl" ? "Polecane dla ciebie" : "Recommended for you");
+    pickI18n(c, "kicker", lang) || (lang === "pl" ? "Polecane dla ciebie" : "Recommended for you");
 
   const template =
     pickI18n(c, "label", lang) || (lang === "pl" ? DEFAULT_LABEL_PL : DEFAULT_LABEL_EN);

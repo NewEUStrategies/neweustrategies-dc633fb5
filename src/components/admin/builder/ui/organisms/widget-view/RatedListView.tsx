@@ -4,18 +4,44 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import type { WidgetContent } from "@/lib/builder/types";
-import { getStr } from "./frame";
+import {
+  asBool,
+  asNum,
+  asNumInRange,
+  asOneOf,
+  asStr,
+  pickI18n,
+  type ContentBag,
+} from "@/lib/builder/contentValue";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { AppLink } from "@/components/atoms/AppLink";
 import { hardenStyleCss } from "@/lib/sanitize";
 
 // Auto-derive a dark-mode color from the light value when the user hasn't
-// explicitly set one (and vice versa). Empty string === inherit/default.
+// explicitly set one. Empty string === inherit/default.
 const autoDark = (light: string, dark: string): string =>
   dark || (light ? autoInvertColor(light, "dark") : "");
-const autoLight = (dark: string, light: string): string =>
-  light || (dark ? autoInvertColor(dark, "light") : "");
-void autoLight;
+
+/**
+ * Breakpointy siatki. Zgodne z reszta widget-view (SimpleWidgets: spacer) i ze
+ * skala Tailwinda: mobile < 641px, tablet 641-1023px, desktop >= 1024px.
+ * Reguly sa pisane mobile-first, zeby kolejne media query tylko nadpisywaly
+ * poprzednie - bez `!important` i bez zaleznosci od kolejnosci wstrzykniecia.
+ */
+const RL_TABLET_MIN_PX = 641;
+const RL_DESKTOP_MIN_PX = 1024;
+
+/**
+ * Swiezosc listy dynamicznej. Ta sama wartosc co `postListQuery` - to ta sama
+ * klasa danych (opublikowane wpisy), wiec rozjazd TTL-i byloby zaskoczeniem.
+ * Wczesniej TTL byl niejawny (domyslny dla klienta), a klucz nie zawieral
+ * jezyka, wiec przelaczenie PL/EN pokazywalo stary jezyk az do wygasniecia.
+ */
+const RATED_LIST_STALE_MS = 2 * 60_000;
+
+/** Sentinel: "uzytkownik nie ustawil liczby" (odrozniane od zera). */
+const UNSET_NUMBER = Number.NaN;
 
 type Lang = "pl" | "en";
 
@@ -30,6 +56,28 @@ type RatedItem = {
   format?: string;
 };
 
+type PostRow = {
+  id: string;
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  excerpt_pl: string | null;
+  excerpt_en: string | null;
+  published_at: string | null;
+  post_format: string | null;
+  author_id: string | null;
+};
+
+type ProfileRow = { id: string; display_name: string | null };
+
+const FONT_FAMILIES = ["display", "sans", "serif", "mono"] as const;
+const NUMBER_POSITIONS = ["behind", "left", "top"] as const;
+const SCROLLING_MODES = ["none", "scroll", "loadmore", "carousel"] as const;
+const GRID_BORDERS = ["none", "between", "full"] as const;
+const COLOR_SCHEMES = ["auto", "light", "dark"] as const;
+const ORDER_BY = ["last_published", "title_asc", "title_desc", "random"] as const;
+const SOURCES = ["manual", "dynamic"] as const;
+
 export function RatedListView({
   c,
   lang,
@@ -39,85 +87,98 @@ export function RatedListView({
   lang: Lang;
   mode?: "light" | "dark";
 }) {
-  const source = getStr(c, "source") || "manual";
-  const numFont = getStr(c, "numberFont") || "display";
+  const bag: ContentBag = c;
+  const source = asOneOf(bag.source, SOURCES, "manual");
+  const numFont = asOneOf(bag.numberFont, FONT_FAMILIES, "display");
   // Weight: widget override wins; otherwise inherit Theme Design token.
-  const numWeight = getStr(c, "numberWeight") || "var(--td-li-weight, 700)";
-  const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 52;
+  const numWeight = asStr(bag.numberWeight) || "var(--td-li-weight, 700)";
+  const numSize = asNumInRange(bag.numberSizePx, 52, 12, 240);
   // Number colors: mirror PostListView (numbered / ranked) so ranked-lists,
   // rated-lists AND all fallbacks share the SAME single source of truth -
   // Theme Design → "Numeracja list" (`--td-li-*`). Only when the user sets
   // an explicit widget-level override does it win over the global token.
   // Fallback literals align with PostListView (rgb(35,31,32) / rgb(250,147,70)).
-  const numColorRaw = getStr(c, "numberColor");
-  const numColorDarkRaw = getStr(c, "numberColorDark");
+  const numColorRaw = asStr(bag.numberColor);
+  const numColorDarkRaw = asStr(bag.numberColorDark);
   const numColor = numColorRaw || "var(--td-li-light, rgb(35,31,32))";
   const numColorDark = numColorDarkRaw
     ? numColorDarkRaw
     : numColorRaw
       ? autoInvertColor(numColorRaw, "dark")
       : "var(--td-li-dark, rgb(250,147,70))";
-  const numOpacity: number | string =
-    typeof c.numberOpacity === "number" ? c.numberOpacity : "var(--td-li-opacity, 0.18)";
-  const numPos = getStr(c, "numberPosition") || "behind";
-  const showRating = c.showRating !== false;
+  // Brak jawnej wartosci musi zostawic token Theme Design, dlatego czytamy z
+  // sentinelem zamiast podstawiac liczbe domyslna.
+  const numOpacityRaw = asNum(bag.numberOpacity, UNSET_NUMBER);
+  const numOpacity: number | string = Number.isNaN(numOpacityRaw)
+    ? "var(--td-li-opacity, 0.18)"
+    : Math.min(1, Math.max(0, numOpacityRaw));
+  const numPos = asOneOf(bag.numberPosition, NUMBER_POSITIONS, "behind");
+  // Ocena istnieje wylacznie w recznych pozycjach - tabela `posts` nie ma
+  // kolumny z ocena, wiec w trybie dynamicznym przelacznik jest ukryty w
+  // edytorze i tutaj tez nie ma czego wlaczac.
+  const showRating = source === "manual" && asBool(bag.showRating, true);
 
-  const showCategory = c.showCategory === true;
-  const categoryColor = getStr(c, "categoryColor") || "#dc2626";
-  const categoryColorDarkRaw = getStr(c, "categoryColorDark");
+  const showCategory = asBool(bag.showCategory, false);
+  const categoryColor = asStr(bag.categoryColor) || "#dc2626";
+  const categoryColorDarkRaw = asStr(bag.categoryColorDark);
   const categoryColorDark = categoryColorDarkRaw || autoInvertColor(categoryColor, "dark");
-  const categorySize = typeof c.categorySizePx === "number" ? c.categorySizePx : 11;
-  const categoryWeight = getStr(c, "categoryWeight") || "700";
-  const categoryUppercase = c.categoryUppercase !== false;
+  const categorySize = asNumInRange(bag.categorySizePx, 11, 8, 32);
+  const categoryWeight = asStr(bag.categoryWeight) || "700";
+  const categoryUppercase = asBool(bag.categoryUppercase, true);
 
-  const titleColor = getStr(c, "titleColor");
-  const titleColorDark = autoDark(titleColor, getStr(c, "titleColorDark"));
-  const titleHoverColor = getStr(c, "titleHoverColor");
+  const titleColor = asStr(bag.titleColor);
+  const titleColorDark = autoDark(titleColor, asStr(bag.titleColorDark));
+  const titleHoverColor = asStr(bag.titleHoverColor);
   const titleHoverColorDark = titleHoverColor ? autoInvertColor(titleHoverColor, "dark") : "";
-  const titleWeight = getStr(c, "titleWeight") || "700";
-  const titleFont = getStr(c, "titleFont") || "display";
+  const titleWeight = asStr(bag.titleWeight) || "700";
+  const titleFont = asOneOf(bag.titleFont, FONT_FAMILIES, "display");
 
-  const showAuthor = c.showAuthor !== false;
-  const showDate = c.showDate === true;
-  const metaColor = getStr(c, "metaColor");
-  const metaColorDark = autoDark(metaColor, getStr(c, "metaColorDark"));
-  const metaSize = typeof c.metaSizePx === "number" ? c.metaSizePx : 12;
+  const showAuthor = asBool(bag.showAuthor, true);
+  const showDate = asBool(bag.showDate, false);
+  const metaColor = asStr(bag.metaColor);
+  const metaColorDark = autoDark(metaColor, asStr(bag.metaColorDark));
+  const metaSize = asNumInRange(bag.metaSizePx, 12, 8, 20);
 
-  const showExcerpt = c.showExcerpt !== false;
-  const excerptColor = getStr(c, "excerptColor");
-  const excerptColorDark = autoDark(excerptColor, getStr(c, "excerptColorDark"));
-  const excerptLines = typeof c.excerptLines === "number" ? c.excerptLines : 3;
+  const showExcerpt = asBool(bag.showExcerpt, true);
+  const excerptColor = asStr(bag.excerptColor);
+  const excerptColorDark = autoDark(excerptColor, asStr(bag.excerptColorDark));
+  const excerptLines = asNumInRange(bag.excerptLines, 3, 1, 10);
 
-  const showReadMore = c.showReadMore === true;
+  const showReadMore = asBool(bag.showReadMore, false);
+  // Etykieta ma wbudowany, zlokalizowany default, wiec NIE uzywamy tu
+  // fallbacku PL->EN z `pickI18n`: pusty tekst EN musi dac "Read more",
+  // a nie polski napis wpisany w drugiej zakladce jezykowej.
   const readMoreText =
-    getStr(c, `readMoreText_${lang}`) || (lang === "pl" ? "Czytaj więcej" : "Read more");
-  const readMoreColor = getStr(c, "readMoreColor");
-  const readMoreColorDark = autoDark(readMoreColor, getStr(c, "readMoreColorDark"));
+    asStr(bag[`readMoreText_${lang}`]) || (lang === "pl" ? "Czytaj więcej" : "Read more");
+  const readMoreColor = asStr(bag.readMoreColor);
+  const readMoreColorDark = autoDark(readMoreColor, asStr(bag.readMoreColorDark));
 
-  const showBookmark = c.showBookmark === true;
-  const bookmarkColor = getStr(c, "bookmarkColor");
-  const bookmarkColorDark = autoDark(bookmarkColor, getStr(c, "bookmarkColorDark"));
-  const bookmarkSize = typeof c.bookmarkSizePx === "number" ? c.bookmarkSizePx : 16;
+  const showBookmark = asBool(bag.showBookmark, false);
+  const bookmarkColor = asStr(bag.bookmarkColor);
+  const bookmarkColorDark = autoDark(bookmarkColor, asStr(bag.bookmarkColorDark));
+  const bookmarkSize = asNumInRange(bag.bookmarkSizePx, 16, 10, 32);
 
-  const showPostFormat = c.showPostFormat === true;
-  const postFormatColor = getStr(c, "postFormatColor");
-  const postFormatColorDark = autoDark(postFormatColor, getStr(c, "postFormatColorDark"));
+  const showPostFormat = asBool(bag.showPostFormat, false);
+  const postFormatColor = asStr(bag.postFormatColor);
+  const postFormatColorDark = autoDark(postFormatColor, asStr(bag.postFormatColorDark));
 
-  const colorScheme = getStr(c, "colorScheme") || "auto";
+  const colorScheme = asOneOf(bag.colorScheme, COLOR_SCHEMES, "auto");
 
-  const colsD = typeof c.columnsDesktop === "number" ? c.columnsDesktop : 1;
-  const colsT = typeof c.columnsTablet === "number" ? c.columnsTablet : Math.min(colsD, 2);
-  const colsM = typeof c.columnsMobile === "number" ? c.columnsMobile : 1;
-  const colGap = typeof c.columnGapPx === "number" ? c.columnGapPx : 24;
-  const rowGap = typeof c.rowGapPx === "number" ? c.rowGapPx : 28;
-  const gridBorders = getStr(c, "gridBorders") || "none";
-  const gridBorderColor = getStr(c, "gridBorderColor") || "";
-  const gridBorderWidth = typeof c.gridBorderWidthPx === "number" ? c.gridBorderWidthPx : 1;
-  const itemSpacing = typeof c.itemSpacingPx === "number" ? c.itemSpacingPx : rowGap;
-  const itemPadding = typeof c.itemPaddingPx === "number" ? c.itemPaddingPx : 0;
-  const scrollingMode = getStr(c, "scrollingMode") || "none";
-  const scrollMaxHeight = typeof c.scrollMaxHeightPx === "number" ? c.scrollMaxHeightPx : 400;
-  const pageSize = typeof c.pageSize === "number" ? c.pageSize : 4;
+  const colsD = asNumInRange(bag.columnsDesktop, 1, 1, 6);
+  // Domyslny tablet = min(desktop, 2), tak samo jak w edytorze - inaczej panel
+  // pokazywalby inna liczbe kolumn niz renderuje kanwa.
+  const colsT = asNumInRange(bag.columnsTablet, Math.min(colsD, 2), 1, 6);
+  const colsM = asNumInRange(bag.columnsMobile, 1, 1, 3);
+  const colGap = asNumInRange(bag.columnGapPx, 24, 0, 120);
+  const rowGap = asNumInRange(bag.rowGapPx, 28, 0, 120);
+  const gridBorders = asOneOf(bag.gridBorders, GRID_BORDERS, "none");
+  const gridBorderColor = asStr(bag.gridBorderColor);
+  const gridBorderWidth = asNumInRange(bag.gridBorderWidthPx, 1, 0, 8);
+  const itemSpacing = asNumInRange(bag.itemSpacingPx, rowGap, 0, 80);
+  const itemPadding = asNumInRange(bag.itemPaddingPx, 0, 0, 40);
+  const scrollingMode = asOneOf(bag.scrollingMode, SCROLLING_MODES, "none");
+  const scrollMaxHeight = asNumInRange(bag.scrollMaxHeightPx, 400, 120, 1200);
+  const pageSize = asNumInRange(bag.pageSize, 4, 1, 50);
 
   const fontCls =
     numFont === "sans"
@@ -144,17 +205,20 @@ export function RatedListView({
   const manualItems: RatedItem[] = (
     Array.isArray(c.items) ? (c.items as Array<Record<string, unknown>>) : []
   ).map((it) => ({
-    title: (it[`title_${lang}`] || it.title_pl || "") as string,
-    excerpt: (it[`excerpt_${lang}`] || it.excerpt_pl || "") as string,
-    author: (it.author || "") as string,
-    rating: typeof it.rating === "number" ? it.rating : 0,
-    category: (it[`category_${lang}`] || it.category_pl || "") as string,
-    date: (it.date || "") as string,
-    format: (it.format || "standard") as string,
+    title: pickI18n(it, "title", lang),
+    excerpt: pickI18n(it, "excerpt", lang),
+    author: asStr(it.author),
+    rating: asNum(it.rating, 0),
+    // Link pozycji: bez niego "Czytaj wiecej" i klikalny tytul byly martwe w
+    // trybie recznym (przycisk jest bramkowany na `href`).
+    href: asStr(it.href) || undefined,
+    category: pickI18n(it, "category", lang),
+    date: asStr(it.date),
+    format: asStr(it.format) || "standard",
   }));
 
   const csv = (k: string) =>
-    (getStr(c, k) || "")
+    asStr(bag[k])
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
@@ -162,17 +226,21 @@ export function RatedListView({
   const excludeCats = csv("excludeCategories");
   const tagSlugs = csv("tagsFilter");
   const excludeTagSlugs = csv("excludeTags");
-  const postFormat = getStr(c, "postFormatFilter");
+  const postFormat = asStr(bag.postFormatFilter);
   const authors = csv("authorFilter");
   const postIds = csv("postIdsFilter");
   const excludePostIds = csv("excludePostIds");
-  const orderBy = getStr(c, "orderBy") || "last_published";
-  const limit = typeof c.numberOfPosts === "number" ? c.numberOfPosts : 4;
-  const offset = typeof c.postOffset === "number" ? c.postOffset : 0;
+  const orderBy = asOneOf(bag.orderBy, ORDER_BY, "last_published");
+  const limit = asNumInRange(bag.numberOfPosts, 4, 1, 50);
+  const offset = Math.max(0, asNum(bag.postOffset, 0));
 
+  // `lang` NALEZY do klucza: queryFn sortuje po `title_${lang}` i wpieka
+  // zlokalizowany tytul/zajawke w cache'owane wiersze. Bez jezyka w kluczu
+  // przelaczenie PL/EN oddawalo poprzedni jezyk az do wygasniecia swiezosci.
   const queryKey = [
-    "rated-list-dyn",
+    WIDGET_QUERY_ROOTS.ratedList,
     {
+      lang,
       cats,
       excludeCats,
       tagSlugs,
@@ -189,6 +257,10 @@ export function RatedListView({
   const { data: dynItems } = useQuery({
     queryKey,
     enabled: source === "dynamic",
+    staleTime: RATED_LIST_STALE_MS,
+    // Tenant scoping: wszystkie tabele ponizej (posts, post_categories,
+    // post_tags, profiles) sa odcinane przez RLS po public_tenant_id() - taki
+    // sam wzorzec jak w sasiednich zapytaniach widgetowych (postListQuery).
     queryFn: async (): Promise<RatedItem[]> => {
       const resolveByCategory = async (slugs: string[]) => {
         if (!slugs.length) return null;
@@ -214,6 +286,28 @@ export function RatedListView({
         resolveByTag(excludeTagSlugs),
       ]);
 
+      // Filtr autora MUSI zawezic zapytanie, a nie jego wynik. Filtrowanie po
+      // stronie klienta dzialo sie PO `.range(offset, offset+limit-1)`, wiec
+      // widget oddawal mniej wierszy niz `numberOfPosts` (a przy autorze spoza
+      // pierwszej strony - zero). Rozwiazujemy nazwy na identyfikatory i
+      // wkladamy je do zapytania o wpisy.
+      const authorNameById = new Map<string, string>();
+      let authorIdFilter: string[] | null = null;
+      if (authors.length) {
+        const { data: matched } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("display_name", authors);
+        const matchedRows = (matched ?? []) as ProfileRow[];
+        for (const p of matchedRows) {
+          if (p.display_name) authorNameById.set(p.id, p.display_name);
+        }
+        authorIdFilter = matchedRows.map((p) => p.id);
+        // Zaden profil o takiej nazwie = pusty wynik. Bez tego `.in()` z pusta
+        // lista i tak nie zwrocilby nic, ale oszczedzamy round-trip.
+        if (authorIdFilter.length === 0) return [];
+      }
+
       let q = supabase
         .from("posts")
         .select(
@@ -223,6 +317,7 @@ export function RatedListView({
 
       if (postFormat && postFormat !== "all") q = q.eq("post_format", postFormat);
       if (postIds.length) q = q.in("id", postIds);
+      if (authorIdFilter) q = q.in("author_id", authorIdFilter);
 
       const includeIds = new Set<string>();
       let haveInclude = false;
@@ -254,46 +349,32 @@ export function RatedListView({
         q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: false });
       else q = q.order("published_at", { ascending: false });
 
-      const from = Math.max(0, offset);
-      const to = from + Math.max(1, limit) - 1;
+      const from = offset;
+      const to = from + limit - 1;
       q = q.range(from, to);
 
       const { data } = await q;
-      let rows = (data ?? []) as Array<{
-        id: string;
-        slug: string;
-        title_pl: string;
-        title_en: string;
-        excerpt_pl: string | null;
-        excerpt_en: string | null;
-        published_at: string | null;
-        post_format: string | null;
-        author_id: string | null;
-      }>;
+      let rows = (data ?? []) as PostRow[];
 
-      const authorIds = Array.from(
+      const missingAuthorIds = Array.from(
         new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
-      );
-      const authorMap = new Map<string, string>();
-      if (authorIds.length) {
+      ).filter((id) => !authorNameById.has(id));
+      if (missingAuthorIds.length) {
         const { data: profs } = await supabase
           .from("profiles")
           .select("id, display_name")
-          .in("id", authorIds);
-        (profs ?? []).forEach((p) => {
-          if (p.display_name) authorMap.set(p.id, p.display_name);
-        });
+          .in("id", missingAuthorIds);
+        for (const p of (profs ?? []) as ProfileRow[]) {
+          if (p.display_name) authorNameById.set(p.id, p.display_name);
+        }
       }
-      if (authors.length)
-        rows = rows.filter(
-          (r) => r.author_id && authors.includes(authorMap.get(r.author_id) ?? ""),
-        );
-      if (orderBy === "random") rows = rows.sort(() => Math.random() - 0.5);
+      if (orderBy === "random") rows = [...rows].sort(() => Math.random() - 0.5);
 
       return rows.map((r) => ({
         title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl,
-        excerpt: ((lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "") as string,
-        author: (r.author_id && authorMap.get(r.author_id)) || "",
+        excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "",
+        author: (r.author_id && authorNameById.get(r.author_id)) || "",
+        // Wpisy nie maja oceny w bazie - patrz `showRating` wyzej.
         rating: 0,
         href: `/post/${r.slug}`,
         date: r.published_at || "",
@@ -315,7 +396,14 @@ export function RatedListView({
     : isGrid
       ? {
           display: "grid",
-          gridTemplateColumns: `repeat(${colsD}, minmax(0, 1fr))`,
+          // Liczba kolumn NIE moze isc inline: styl inline wygrywa z kazda
+          // regula arkusza, wiec media query nigdy by nie zadzialaly. Inline
+          // ida wylacznie zmienne CSS, ktore te reguly czytaja - dzieki temu
+          // kilka rated-list na jednej stronie ma wlasne liczby kolumn mimo
+          // wspoldzielonego selektora `.rl-wrap`.
+          ["--rl-cols-d" as string]: colsD,
+          ["--rl-cols-t" as string]: colsT,
+          ["--rl-cols-m" as string]: colsM,
           columnGap: colGap,
           rowGap,
         }
@@ -357,9 +445,16 @@ export function RatedListView({
   const schemeCls =
     colorScheme === "dark" ? "dark" : colorScheme === "light" ? "" : mode === "dark" ? "dark" : "";
 
-  // Mark unused locals (used in CSS template only)
-  void colsT;
-  void colsM;
+  // Realnie responsywna siatka: mobile jest baza, tablet i desktop tylko
+  // nadpisuja liczbe kolumn. Wartosci ida przez zmienne ustawione inline na
+  // konkretnym `<ol>`, wiec regula moze byc wspolna dla wszystkich instancji.
+  const responsiveGridCss = isGrid
+    ? `
+        .rl-wrap.rl-grid{grid-template-columns:repeat(var(--rl-cols-m,1),minmax(0,1fr));}
+        @media (min-width:${RL_TABLET_MIN_PX}px){.rl-wrap.rl-grid{grid-template-columns:repeat(var(--rl-cols-t,1),minmax(0,1fr));}}
+        @media (min-width:${RL_DESKTOP_MIN_PX}px){.rl-wrap.rl-grid{grid-template-columns:repeat(var(--rl-cols-d,1),minmax(0,1fr));}}
+      `
+    : "";
 
   const ratedListColorCss = hardenStyleCss(`
         .rl-wrap .rl-num{color:${numColor};}
@@ -381,13 +476,14 @@ export function RatedListView({
         ${postFormatColor ? `.rl-wrap .rl-format{color:${postFormatColor};}` : ""}
         ${postFormatColorDark ? `.dark .rl-wrap .rl-format{color:${postFormatColorDark};}` : ""}
         .rl-wrap .rl-item + .rl-item{${gridBorders === "between" && !isGrid ? `border-top:${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"};padding-top:${itemSpacing}px;` : ""}}
+        ${responsiveGridCss}
       `);
 
   return (
     <div className={schemeCls}>
       <style dangerouslySetInnerHTML={{ __html: ratedListColorCss }} />
       <ol
-        className="rl-wrap"
+        className={`rl-wrap${isGrid ? " rl-grid" : ""}`}
         style={{
           ...containerStyle,
           ...gridStyle,
@@ -430,7 +526,7 @@ export function RatedListView({
           return (
             <li
               key={i}
-              className={`rl-item relative ${isLeft ? "flex items-start gap-3 sm:gap-4" : ""}`}
+              className={`rl-item relative min-w-0 ${isLeft ? "flex items-start gap-3 sm:gap-4" : ""}`}
               style={{ ...itemStyle, overflow: "visible" }}
             >
               {isLeft ? (
@@ -449,7 +545,7 @@ export function RatedListView({
                   {n}
                 </span>
               )}
-              <div className={isLeft ? "flex-1 min-w-0" : ""}>
+              <div className={isLeft ? "flex-1 min-w-0" : "min-w-0"}>
                 {showBookmark && BookmarkIcon && (
                   <div className="float-right ml-2">
                     <BookmarkIcon
@@ -496,7 +592,7 @@ export function RatedListView({
                 )}
                 {showRating && it.rating > 0 && (
                   <div className="mt-3 flex items-center gap-3">
-                    <div className="relative h-1.5 w-32 overflow-hidden rounded-full">
+                    <div className="relative h-1.5 w-32 max-w-full overflow-hidden rounded-full">
                       <div
                         className="absolute inset-0"
                         style={{

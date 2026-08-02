@@ -832,11 +832,6 @@ const pl = {
       uniqueOnPage: "Nie powtarzaj wpisów z wcześniejszych widgetów na stronie",
       mobileScroll: "Tryb przewijania poziomego na mobile",
       behaviourHint: "Działa dla widoku kart / overlay / minimal. Na desktop nic się nie zmienia.",
-      carouselTitle: "Karuzela",
-      autoplay: "Autoodtwarzanie",
-      autoplayHint:
-        "Karuzela przewija się sama i zatrzymuje na najechaniu, fokusie klawiatury oraz przyciskiem pauzy. Czytelnicy z ustawieniem „ogranicz ruch” widzą ją statycznie.",
-      autoplayInterval: "Czas slajdu (ms)",
       sortPaging: "Sortowanie i ilość",
       sortBy: "Sortuj wg",
       direction: "Kierunek",
@@ -2223,11 +2218,6 @@ const en: typeof pl = {
       uniqueOnPage: "Don't repeat posts from earlier widgets on the page",
       mobileScroll: "Horizontal scroll mode on mobile",
       behaviourHint: "Works for card / overlay / minimal views. Nothing changes on desktop.",
-      carouselTitle: "Carousel",
-      autoplay: "Autoplay",
-      autoplayHint:
-        "The carousel advances on its own and stops on hover, on keyboard focus and via the pause button. Readers who ask for reduced motion see it static.",
-      autoplayInterval: "Slide duration (ms)",
       sortPaging: "Sorting and count",
       sortBy: "Sort by",
       direction: "Direction",

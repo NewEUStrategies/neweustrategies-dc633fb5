@@ -385,63 +385,63 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
           </PropField>
         </div>
         {supportsByline && (
-        <div className="mt-2">
-          <PropField
-            label={t("builder.postListEditor.authorDisplay", { defaultValue: "Autor" })}
-            hint={t("builder.postListEditor.authorDisplayHint", {
-              defaultValue: "Sposób prezentacji autora pod tytułem.",
-            })}
-          >
-            <Select
-              value={str(c, "authorDisplay", "avatar")}
-              onValueChange={(v) => {
-                setContent("authorDisplay", v);
-                // Keep legacy toggles in sync so older variants that read them still update.
-                setContent("showAuthor", v !== "none" ? "1" : "0");
-                setContent("showAuthorAvatar", v === "avatar" ? "1" : "0");
-                setContent("showAuthorLabel", v === "label" ? "1" : "0");
-              }}
+          <div className="mt-2">
+            <PropField
+              label={t("builder.postListEditor.authorDisplay", { defaultValue: "Autor" })}
+              hint={t("builder.postListEditor.authorDisplayHint", {
+                defaultValue: "Sposób prezentacji autora pod tytułem.",
+              })}
             >
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="avatar" className="text-xs">
-                  {t("builder.postListEditor.authorAvatar", {
-                    defaultValue: "Zdjęcie + imię i nazwisko",
-                  })}
-                </SelectItem>
-                <SelectItem value="label" className="text-xs">
-                  {t("builder.postListEditor.authorLabelMode", {
-                    defaultValue: 'Etykieta: „Autor: Imię Nazwisko"',
-                  })}
-                </SelectItem>
-                <SelectItem value="none" className="text-xs">
-                  {t("builder.postListEditor.authorNone", { defaultValue: "Bez autora" })}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </PropField>
-          {str(c, "authorDisplay", "avatar") === "label" && (
-            <div className="mt-2">
-              <PropField
-                label={t("builder.postListEditor.authorLabelText", {
-                  defaultValue: "Etykieta autora (i18n)",
-                })}
-                hint={t("builder.postListEditor.authorLabelHint", {
-                  defaultValue: 'Puste = „Autor" (PL) / „By" (EN).',
-                })}
+              <Select
+                value={str(c, "authorDisplay", "avatar")}
+                onValueChange={(v) => {
+                  setContent("authorDisplay", v);
+                  // Keep legacy toggles in sync so older variants that read them still update.
+                  setContent("showAuthor", v !== "none" ? "1" : "0");
+                  setContent("showAuthorAvatar", v === "avatar" ? "1" : "0");
+                  setContent("showAuthorLabel", v === "label" ? "1" : "0");
+                }}
               >
-                <Input
-                  value={str(c, `authorLabel_${lang}`, "")}
-                  placeholder={lang === "pl" ? "Autor" : "By"}
-                  onChange={(e) => setContent(`authorLabel_${lang}`, e.target.value)}
-                  className="h-8 text-xs"
-                />
-              </PropField>
-            </div>
-          )}
-        </div>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="avatar" className="text-xs">
+                    {t("builder.postListEditor.authorAvatar", {
+                      defaultValue: "Zdjęcie + imię i nazwisko",
+                    })}
+                  </SelectItem>
+                  <SelectItem value="label" className="text-xs">
+                    {t("builder.postListEditor.authorLabelMode", {
+                      defaultValue: 'Etykieta: „Autor: Imię Nazwisko"',
+                    })}
+                  </SelectItem>
+                  <SelectItem value="none" className="text-xs">
+                    {t("builder.postListEditor.authorNone", { defaultValue: "Bez autora" })}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </PropField>
+            {str(c, "authorDisplay", "avatar") === "label" && (
+              <div className="mt-2">
+                <PropField
+                  label={t("builder.postListEditor.authorLabelText", {
+                    defaultValue: "Etykieta autora (i18n)",
+                  })}
+                  hint={t("builder.postListEditor.authorLabelHint", {
+                    defaultValue: 'Puste = „Autor" (PL) / „By" (EN).',
+                  })}
+                >
+                  <Input
+                    value={str(c, `authorLabel_${lang}`, "")}
+                    placeholder={lang === "pl" ? "Autor" : "By"}
+                    onChange={(e) => setContent(`authorLabel_${lang}`, e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </PropField>
+              </div>
+            )}
+          </div>
         )}
         <DisplayLivePreview c={c} lang={lang} />
       </Collapsible>
