@@ -171,13 +171,16 @@ export function FriendlyErrorPage({
           )}
         </div>
 
-        <div className="mt-5 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+        <div className="mt-5 flex items-center justify-start gap-1 text-left text-xs text-muted-foreground">
           <HelpCircle size={14} />
           <span>{lang === "pl" ? "Potrzebujesz pomocy? " : "Need help? "}</span>
-          <Link to="/support" search={{ status: undefined }} className="text-brand hover:underline">
+          {/* Strona kontaktu jest treścią CMS (trasa catch-all), więc zwykły
+              anchor - Link nie zna tej ścieżki w typach routera. */}
+          <a href={lang === "en" ? "/en/kontakt" : "/kontakt"} className="text-brand hover:underline">
             {lang === "pl" ? "Skontaktuj się z nami" : "Contact support"}
-          </Link>
+          </a>
         </div>
+
       </div>
     </div>
   );
