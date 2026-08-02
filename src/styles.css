@@ -3079,44 +3079,58 @@ textarea::placeholder {
   height: 14px;
 }
 
-/* ============================================================
-   Widget form fields — global baseline
-   - Kills the browser-default blue focus glow (Chrome/Safari)
-   - Enforces a uniform default input SIZE across every widget
-   - Uses :where() so any per-widget override still wins
-     (Tailwind utilities like h-9/h-11 always beat this)
-   ============================================================ */
-:where(
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
-      [type="file"]
-    ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])
-),
-:where(select) {
-  height: var(--form-input-height);
-  padding-inline: var(--form-input-padding-x);
-  font-size: var(--form-input-font-size);
-  line-height: var(--form-input-line-height);
-}
-:where(textarea) {
-  min-height: var(--form-textarea-min-height);
-  padding: var(--form-textarea-padding-y) var(--form-input-padding-x);
-  font-size: var(--form-input-font-size);
-  line-height: 1.35;
-}
+@layer components {
+  /* ============================================================
+     Widget form fields — global baseline
+     - Kills the browser-default blue focus glow (Chrome/Safari)
+     - Enforces a uniform default input SIZE across every widget
+     - Zero-specificity (:where()) AND inside `@layer components`, więc
+       KAŻDE utility Tailwinda (h-9, px-2, text-xs, min-h-[48px]) wygrywa
+       z tym baseline'em.
 
-/* Neutralize the browser's default focus outline (blue glow) everywhere. */
-:where(input, textarea, select):focus {
-  outline: none;
-}
-:where(input, textarea, select):focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--foreground) 35%, transparent);
-  outline-offset: 1px;
-  box-shadow: none;
-}
+     UWAGA - dlaczego warstwa jest tu obowiązkowa: `@import "tailwindcss"`
+     deklaruje `@layer theme, base, components, utilities`, a reguły pisane
+     POZA jakąkolwiek warstwą biją wszystko, co jest w warstwach - niezależnie
+     od specyficzności. Ten blok był kiedyś bezwarstwowy i mimo `:where()`
+     kasował utility na polach formularzy (m.in. `pl-9` pod flagę kraju w
+     widgecie „Dołącz do nas"). Nie wyciągaj go z `@layer` - `:where()` samo
+     w sobie NIE wystarcza. Warstwą docelową są `components`, nie `base`:
+     w `base` siedzi preflight Tailwinda, którego `input { font: inherit }`
+     ma wyższą specyficzność niż `:where(input)` i zjadłby font-size pól.
+     Gwarantuje to test src/lib/ci/__tests__/cssLayers.test.ts.
+     ============================================================ */
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+        [type="file"]
+      ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])
+  ),
+  :where(select) {
+    height: var(--form-input-height);
+    padding-inline: var(--form-input-padding-x);
+    font-size: var(--form-input-font-size);
+    line-height: var(--form-input-line-height);
+  }
+  :where(textarea) {
+    min-height: var(--form-textarea-min-height);
+    padding: var(--form-textarea-padding-y) var(--form-input-padding-x);
+    font-size: var(--form-input-font-size);
+    line-height: 1.35;
+  }
 
-/* Some browsers (Firefox) still paint a text-input inner focus ring. */
-:where(input, textarea, select)::-moz-focus-inner {
-  border: 0;
+  /* Neutralize the browser's default focus outline (blue glow) everywhere. */
+  :where(input, textarea, select):focus {
+    outline: none;
+  }
+  :where(input, textarea, select):focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--foreground) 35%, transparent);
+    outline-offset: 1px;
+    box-shadow: none;
+  }
+
+  /* Some browsers (Firefox) still paint a text-input inner focus ring. */
+  :where(input, textarea, select)::-moz-focus-inner {
+    border: 0;
+  }
 }
 
 /* Contact-form input focus: orange border only, no glow. */
@@ -3125,35 +3139,37 @@ textarea::placeholder {
   border-color: var(--gc-input-focus-border, #fdb078);
 }
 
-/* ============================================================
-   Unify EVERY frontend widget input with the contact-form look.
-   Every widget renders inside [data-w-id="..."], so we scope there.
-   Admin panel inputs (sidebar, property editors) are outside that
-   subtree and keep shadcn's default styling.
-   Uses :where() so per-widget/tailwind overrides still win.
-   ============================================================ */
-:where([data-w-id])
-  :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
-        [type="file"]
-      ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
-    textarea,
-    select
-  ) {
-  display: block;
-  width: 100%;
-  border: 1.5px solid var(--gc-input-border, var(--cf-border, var(--border)));
-  background: var(--gc-input-bg, var(--background));
-  border-radius: 8px;
-  color: var(--gc-input-text, var(--foreground));
-  outline: none;
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent),
-    0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent);
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    background 0.15s ease;
+@layer components {
+  /* ============================================================
+     Unify EVERY frontend widget input with the contact-form look.
+     Every widget renders inside [data-w-id="..."], so we scope there.
+     Admin panel inputs (sidebar, property editors) are outside that
+     subtree and keep shadcn's default styling.
+     Uses :where() so per-widget/tailwind overrides still win.
+     ============================================================ */
+  :where([data-w-id])
+    :where(
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+          [type="file"]
+        ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+      textarea,
+      select
+    ) {
+    display: block;
+    width: 100%;
+    border: 1.5px solid var(--gc-input-border, var(--cf-border, var(--border)));
+    background: var(--gc-input-bg, var(--background));
+    border-radius: 8px;
+    color: var(--gc-input-text, var(--foreground));
+    outline: none;
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent),
+      0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent);
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      background 0.15s ease;
+  }
 }
 :where([data-w-id])
   :where(
@@ -3208,15 +3224,17 @@ textarea::placeholder {
   opacity: 1;
 }
 
-/* CMS/Elementor widgets and live previews share one field geometry, including
-   native/schema-driven fields that do not render through the React Input atom. */
-:where([data-w-id], .cms-widget-form, .cf-shell, .nl-shell, .auth-shell, .join-us-shell)
-  :where(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
-    textarea,
-    select
-  ) {
-  border-radius: 6px !important;
+@layer components {
+  /* CMS/Elementor widgets and live previews share one field geometry, including
+     native/schema-driven fields that do not render through the React Input atom. */
+  :where([data-w-id], .cms-widget-form, .cf-shell, .nl-shell, .auth-shell, .join-us-shell)
+    :where(
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+      textarea,
+      select
+    ) {
+    border-radius: 6px !important;
+  }
 }
 
 /* ============================================================
@@ -3442,167 +3460,172 @@ input.icon-input-with-action {
   caret-color: var(--foreground);
 }
 
-/* ============================================================
-   Widget form fields — checkbox / radio / date / file baseline
-   Applied ONLY inside frontend widget shells so admin panels
-   and shadcn primitives are not affected. Uses :where() so
-   Tailwind utilities and per-widget overrides always win.
-   ============================================================ */
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="checkbox"], input[type="radio"]) {
-  appearance: none;
-  -webkit-appearance: none;
-  width: var(--form-control-size);
-  height: var(--form-control-size);
-
-  margin: 0;
-  padding: 0;
-  border: 1.5px solid var(--border);
-  background: var(--background);
-  display: inline-block;
-  vertical-align: middle;
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease;
-  flex-shrink: 0;
-}
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="checkbox"]) {
-  border-radius: 4px;
-}
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="radio"]) {
-  border-radius: 999px;
-}
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="checkbox"]:hover, input[type="radio"]:hover) {
-  border-color: color-mix(in oklab, var(--foreground) 55%, transparent);
-}
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="checkbox"]:checked, input[type="radio"]:checked) {
-  border-color: var(--primary);
-  background-color: var(--primary);
-}
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="checkbox"]:checked) {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3.5 8.5 6.5 11.5 12.5 5'/%3E%3C/svg%3E");
-  background-size: 80% 80%;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="radio"]:checked) {
-  box-shadow: inset 0 0 0 3px var(--background);
-}
-
-/* Date / time inputs — match text input sizing */
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(
-    input[type="date"],
-    input[type="datetime-local"],
-    input[type="time"],
-    input[type="month"],
-    input[type="week"]
-  ) {
-  height: var(--form-input-height);
-  padding-inline: var(--form-input-padding-x);
-  font-size: var(--form-input-font-size);
-  line-height: var(--form-input-line-height);
-  border: 1.5px solid var(--border);
-  border-radius: var(--form-input-radius);
-
-  background: var(--background);
-  color: var(--foreground);
-  font-family: inherit;
-}
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(
-    input[type="date"],
-    input[type="datetime-local"],
-    input[type="time"]
-  )::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  opacity: 0.7;
-  filter: invert(0);
-}
-.dark
+@layer components {
+  /* ============================================================
+     Widget form fields — checkbox / radio / date / file baseline
+     Applied ONLY inside frontend widget shells so admin panels
+     and shadcn primitives are not affected. Zero-specificity
+     (:where()) + `@layer components`, więc utility Tailwinda i
+     per-widgetowe override'y wygrywają - patrz komentarz przy
+     baseline'ie geometrii wyżej: sam `:where()` tego nie załatwia,
+     bezwarstwowa reguła bije każdą warstwę.
+     ============================================================ */
   :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(
-    input[type="date"],
-    input[type="datetime-local"],
-    input[type="time"]
-  )::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-}
+    :where(input[type="checkbox"], input[type="radio"]) {
+    appearance: none;
+    -webkit-appearance: none;
+    width: var(--form-control-size);
+    height: var(--form-control-size);
 
-/* File inputs — uniform look across widgets */
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="file"]) {
-  height: auto;
-  min-height: var(--form-input-height);
-  padding: 0.4rem 0.5rem;
-  font-size: var(--form-input-font-size);
-  line-height: var(--form-input-line-height);
-  border: 1.5px dashed var(--border);
-  border-radius: var(--form-input-radius);
+    margin: 0;
+    padding: 0;
+    border: 1.5px solid var(--border);
+    background: var(--background);
+    display: inline-block;
+    vertical-align: middle;
+    cursor: pointer;
+    transition:
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+    flex-shrink: 0;
+  }
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(input[type="checkbox"]) {
+    border-radius: 4px;
+  }
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(input[type="radio"]) {
+    border-radius: 999px;
+  }
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(input[type="checkbox"]:hover, input[type="radio"]:hover) {
+    border-color: color-mix(in oklab, var(--foreground) 55%, transparent);
+  }
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(input[type="checkbox"]:checked, input[type="radio"]:checked) {
+    border-color: var(--primary);
+    background-color: var(--primary);
+  }
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(input[type="checkbox"]:checked) {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3.5 8.5 6.5 11.5 12.5 5'/%3E%3C/svg%3E");
+    background-size: 80% 80%;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(input[type="radio"]:checked) {
+    box-shadow: inset 0 0 0 3px var(--background);
+  }
 
-  background: var(--background);
-  color: var(--foreground);
-  cursor: pointer;
-  width: 100%;
-}
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="file"])::file-selector-button {
-  margin-right: 0.75rem;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  border: 0;
-  border-radius: 6px;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    opacity 0.15s ease;
-}
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(input[type="file"])::file-selector-button:hover {
-  opacity: 0.9;
-}
+  /* Date / time inputs — match text input sizing */
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(
+      input[type="date"],
+      input[type="datetime-local"],
+      input[type="time"],
+      input[type="month"],
+      input[type="week"]
+    ) {
+    height: var(--form-input-height);
+    padding-inline: var(--form-input-padding-x);
+    font-size: var(--form-input-font-size);
+    line-height: var(--form-input-line-height);
+    border: 1.5px solid var(--border);
+    border-radius: var(--form-input-radius);
 
-/* Textarea — match input border/background inside widget shells */
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell) :where(textarea) {
-  border: 1.5px solid var(--border);
-  border-radius: var(--form-input-radius);
+    background: var(--background);
+    color: var(--foreground);
+    font-family: inherit;
+  }
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(
+      input[type="date"],
+      input[type="datetime-local"],
+      input[type="time"]
+    )::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+    filter: invert(0);
+  }
+  .dark
+    :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(
+      input[type="date"],
+      input[type="datetime-local"],
+      input[type="time"]
+    )::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
 
-  background: var(--background);
-  color: var(--foreground);
-  font-family: inherit;
-  resize: vertical;
-}
+  /* File inputs — uniform look across widgets */
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(input[type="file"]) {
+    height: auto;
+    min-height: var(--form-input-height);
+    padding: 0.4rem 0.5rem;
+    font-size: var(--form-input-font-size);
+    line-height: var(--form-input-line-height);
+    border: 1.5px dashed var(--border);
+    border-radius: var(--form-input-radius);
 
-/* Select — match input styling */
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell) :where(select) {
-  border: 1.5px solid var(--border);
-  border-radius: var(--form-input-radius);
+    background: var(--background);
+    color: var(--foreground);
+    cursor: pointer;
+    width: 100%;
+  }
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(input[type="file"])::file-selector-button {
+    margin-right: 0.75rem;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border: 0;
+    border-radius: 6px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    cursor: pointer;
+    transition:
+      background-color 0.15s ease,
+      opacity 0.15s ease;
+  }
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(input[type="file"])::file-selector-button:hover {
+    opacity: 0.9;
+  }
 
-  background: var(--background);
-  color: var(--foreground);
-  font-family: inherit;
-  cursor: pointer;
-}
+  /* Textarea — match input border/background inside widget shells */
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell) :where(textarea) {
+    border: 1.5px solid var(--border);
+    border-radius: var(--form-input-radius);
 
-/* Field labels — checkbox/radio wrapper alignment */
-:where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-  :where(label):has(> input[type="checkbox"], > input[type="radio"]) {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  line-height: 1.35;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: inherit;
+    resize: vertical;
+  }
+
+  /* Select — match input styling */
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell) :where(select) {
+    border: 1.5px solid var(--border);
+    border-radius: var(--form-input-radius);
+
+    background: var(--background);
+    color: var(--foreground);
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  /* Field labels — checkbox/radio wrapper alignment */
+  :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
+    :where(label):has(> input[type="checkbox"], > input[type="radio"]) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    line-height: 1.35;
+  }
 }
 
 /* ============================================================

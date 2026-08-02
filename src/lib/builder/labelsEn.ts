@@ -120,6 +120,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Układ": "Layout",
   "Dane": "Data",
   "Kolory ikon": "Icon colours",
+  "Ikony": "Icons",
   "Kolory wariantu": "Variant colours",
   "Pola / placeholder": "Fields / placeholders",
   "Zgody / stopka": "Consents / footer",

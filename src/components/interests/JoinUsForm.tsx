@@ -137,7 +137,19 @@ export interface JoinUsFormProps {
   placeholderSize?: number;
   buttonSize?: number;
   consentSize?: number;
+  /** Sztywny bok ikon (px). undefined = ikony skalują się z własnym tekstem. */
+  iconSize?: number;
 }
+
+/**
+ * Bok ikony wyrażony w `em`, czyli względem tekstu, przy którym ikona stoi
+ * (✓ przy korzyściach → perkSize, ikona przycisku → buttonSize, chevron
+ * droplisty → placeholderSize). Dzięki temu zmiana rozmiaru czcionki w
+ * tooltipie / panelu buildera rusza też ikony - wcześniej były przybite
+ * klasami `w-4 h-4` i nie reagowały na nic. 1.15em ≈ 16px przy domyślnych
+ * 14px tekstu, więc domyślny wygląd pozostaje bez zmian.
+ */
+const ICON_EM = 1.15;
 
 type ExtraKey =
   | "firstName"
@@ -211,6 +223,7 @@ export function JoinUsForm({
   placeholderSize,
   buttonSize,
   consentSize,
+  iconSize,
 }: JoinUsFormProps) {
   const jusId = useId();
   const hasCustomBg = Boolean(bgLight || bgDark);
@@ -686,6 +699,7 @@ export function JoinUsForm({
     placeholderSize,
     buttonSize,
     consentSize,
+    iconSize,
   });
   const bgCss = hasCustomBg
     ? `[data-jus-id="${jusId}"]{background:${bgLight || "var(--card)"} !important;}` +
@@ -693,12 +707,52 @@ export function JoinUsForm({
     : "";
   const bgStyleTag = bgCss || sizeCss ? <style>{bgCss + sizeCss}</style> : null;
 
+  // Nagłówek musi mieć id UNIKALNE w dokumencie - dwa widgety "Dołącz do nas"
+  // na jednej stronie (np. w sidebarze i w stopce) dawały wcześniej dwa
+  // elementy o id="joinus-heading", więc aria-labelledby wskazywało na cudzy
+  // nagłówek.
+  const headingId = `${jusId}-heading`;
+
+  // Ikony: bok w `em` (skaluje się z tekstem obok) + `data-jus-icon`, po którym
+  // celuje sztywny override `iconSize` z buildera.
+  //
+  // KONTRAKT: `data-jus-icon` i `data-edit-target="iconSize"` chodzą PARAMI.
+  // Ikona sterowana polem „Ikony" musi być też klikalnym celem tego pola na
+  // canvasie - inaczej operator klika ikonę, a otwiera mu się edytor rodzica
+  // (rozmiar przycisku / pola) i zmiana „nie działa". Wyjątkiem jest ✕ w
+  // pigułce wybranego tematu: to mikro-chrome tagu, które ma trzymać się
+  // rozmiaru samej pigułki, nie rozmiaru ikon treści - dlatego nie ma żadnego
+  // z tych dwóch atrybutów i skaluje się wyłącznie przez `em`.
+  const iconStyle: CSSProperties = { width: `${ICON_EM}em`, height: `${ICON_EM}em` };
+  const iconTargetProps = { "data-jus-icon": true, "data-edit-target": "iconSize" } as const;
+
+  /** Jeden bulletpoint korzyści - wspólny atom wariantów split / split-image.
+   *  `data-keep-color` chroni własny kolor ikony przed globalnym override'em
+   *  kolorów ikon widgetu, gdy operator ustawił `perkIconColor`. */
+  const perkItem = (text: string, tone: "brand" | "on-image") => (
+    <li className="flex items-start gap-2">
+      <Check
+        className={cn("mt-[0.15em] shrink-0", tone === "on-image" ? "text-white" : "text-brand")}
+        style={{ ...iconStyle, ...(perkIconColor ? { color: perkIconColor } : null) }}
+        {...iconTargetProps}
+        data-keep-color={perkIconColor ? "" : undefined}
+        aria-hidden
+      />
+      <span>{text}</span>
+    </li>
+  );
+
   if (state === "ok") {
     return (
       <section data-jus-id={jusId} className={cn(containerCls, className)} aria-live="polite">
         {bgStyleTag}
         <div className="flex items-center gap-3 text-foreground">
-          <Check className="w-5 h-5 text-emerald-500" />
+          <Check
+            className="text-emerald-500 shrink-0"
+            style={iconStyle}
+            {...iconTargetProps}
+            aria-hidden
+          />
           <p className="text-sm font-medium">{okText}</p>
         </div>
       </section>
@@ -822,11 +876,11 @@ export function JoinUsForm({
         value={extra.country}
         onChange={(v) => updateExtra("country", v)}
         lang={lang}
-        placeholder={withMark(phCountry, requireCountry)}
+        label={withMark(phCountry, requireCountry)}
         required={requireCountry}
         maxLength={100}
         style={inputStyle}
-        ariaLabel={phCountry}
+        labelEditTarget="labelSize"
       />,
     );
   }
@@ -943,16 +997,21 @@ export function JoinUsForm({
                     .map((it) => (
                       <span
                         key={`sel:${it.type}:${it.id}`}
-                        className="inline-flex items-center gap-1 rounded-full border border-brand bg-brand px-2.5 py-1 text-xs text-brand-foreground"
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border border-brand bg-brand px-2.5 py-1 text-brand-foreground",
+                          !labelSize && "text-xs",
+                        )}
+                        style={chipStyle}
                       >
                         {it.label}
                         <button
                           type="button"
                           onClick={() => togglePick(it.id)}
                           aria-label={lang === "en" ? `Remove ${it.label}` : `Usuń ${it.label}`}
-                          className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full hover:opacity-80"
+                          className="inline-flex items-center justify-center rounded-full hover:opacity-80"
+                          style={{ width: "1em", height: "1em" }}
                         >
-                          <X className="h-3 w-3" />
+                          <X style={{ width: "0.9em", height: "0.9em" }} aria-hidden />
                         </button>
                       </span>
                     ))}
@@ -982,9 +1041,12 @@ export function JoinUsForm({
                   </span>
                   <ChevronDown
                     className={cn(
-                      "h-4 w-4 shrink-0 opacity-60 transition-transform",
+                      "shrink-0 opacity-60 transition-transform",
                       dropOpen && "rotate-180",
                     )}
+                    style={iconStyle}
+                    {...iconTargetProps}
+                    aria-hidden
                   />
                 </button>
 
@@ -1146,7 +1208,7 @@ export function JoinUsForm({
         style={{ fontSize: buttonSize ? `${buttonSize}px` : undefined }}
         data-edit-target="buttonSize"
       >
-        <UserPlus className="w-4 h-4" aria-hidden />
+        <UserPlus className="shrink-0" style={iconStyle} {...iconTargetProps} aria-hidden />
         {btnLabel}
       </SubscribeButton>
 
@@ -1182,13 +1244,13 @@ export function JoinUsForm({
       <section
         data-jus-id={jusId}
         className={cn(containerCls, className)}
-        aria-labelledby="joinus-heading"
+        aria-labelledby={headingId}
       >
         {bgStyleTag}
         {disabledNotice && <div className="md:col-span-2">{disabledNotice}</div>}
         <div>
           <h3
-            id="joinus-heading"
+            id={headingId}
             className={cn("font-display mb-2", !titleSize && "text-2xl")}
             style={titleStyle}
             data-edit-target="titleSize"
@@ -1207,27 +1269,9 @@ export function JoinUsForm({
             style={perkStyle}
             data-edit-target="perkSize"
           >
-            <li className="flex items-start gap-2">
-              <Check
-                className="w-4 h-4 mt-0.5 text-brand shrink-0"
-                style={perkIconColor ? { color: perkIconColor } : undefined}
-              />
-              <span>{p1}</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <Check
-                className="w-4 h-4 mt-0.5 text-brand shrink-0"
-                style={perkIconColor ? { color: perkIconColor } : undefined}
-              />
-              <span>{p2}</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <Check
-                className="w-4 h-4 mt-0.5 text-brand shrink-0"
-                style={perkIconColor ? { color: perkIconColor } : undefined}
-              />
-              <span>{p3}</span>
-            </li>
+            {perkItem(p1, "brand")}
+            {perkItem(p2, "brand")}
+            {perkItem(p3, "brand")}
           </ul>
         </div>
         <div>{form}</div>
@@ -1245,7 +1289,7 @@ export function JoinUsForm({
       <section
         data-jus-id={jusId}
         className={cn(containerCls, className)}
-        aria-labelledby="joinus-heading"
+        aria-labelledby={headingId}
       >
         {bgStyleTag}
         {disabledNotice && <div className="md:col-span-2 p-4">{disabledNotice}</div>}
@@ -1290,7 +1334,7 @@ export function JoinUsForm({
           )}
           <div className="relative flex h-full flex-col justify-end gap-3 p-6 sm:p-8 text-white">
             <h3
-              id="joinus-heading"
+              id={headingId}
               className={cn("font-display drop-shadow-md", !titleSize && "text-2xl")}
               style={titleStyle}
               data-edit-target="titleSize"
@@ -1311,27 +1355,9 @@ export function JoinUsForm({
               style={perkStyle}
               data-edit-target="perkSize"
             >
-              <li className="flex items-start gap-2">
-                <Check
-                  className="w-4 h-4 mt-0.5 text-white shrink-0"
-                  style={perkIconColor ? { color: perkIconColor } : undefined}
-                />
-                <span>{p1}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check
-                  className="w-4 h-4 mt-0.5 text-white shrink-0"
-                  style={perkIconColor ? { color: perkIconColor } : undefined}
-                />
-                <span>{p2}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check
-                  className="w-4 h-4 mt-0.5 text-white shrink-0"
-                  style={perkIconColor ? { color: perkIconColor } : undefined}
-                />
-                <span>{p3}</span>
-              </li>
+              {perkItem(p1, "on-image")}
+              {perkItem(p2, "on-image")}
+              {perkItem(p3, "on-image")}
             </ul>
           </div>
         </div>
@@ -1345,12 +1371,12 @@ export function JoinUsForm({
     <section
       data-jus-id={jusId}
       className={cn(containerCls, className)}
-      aria-labelledby="joinus-heading"
+      aria-labelledby={headingId}
     >
       {bgStyleTag}
       {disabledNotice}
       <h3
-        id="joinus-heading"
+        id={headingId}
         className={cn("font-display mb-2", !titleSize && "text-2xl")}
         style={titleStyle}
         data-edit-target="titleSize"
