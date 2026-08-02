@@ -26,6 +26,8 @@ import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
+import { setMyConsent } from "@/lib/consents.functions";
+import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { cn } from "@/lib/utils";
@@ -40,6 +42,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { buildJoinUsSizeCss } from "@/lib/interests/joinUsSizeCss";
 
 import "@/lib/i18n-interests";
+
+/** Klucz zgody marketingowej w katalogu RODO - jedno źródło prawdy. */
+export const MARKETING_CONSENT_KEY = "marketing_email";
+export const MARKETING_CONSENT_VERSION =
+  getConsentDefinition(MARKETING_CONSENT_KEY)?.version ?? "1.0";
+
+
 
 export interface JoinUsFormProps {
   variant?: "card" | "split" | "inline" | "split-image";
@@ -236,6 +245,7 @@ export function JoinUsForm({
   const subscribe = useServerFn(subscribeToNewsletter);
   const fetchPrefill = useServerFn(getJoinUsPrefill);
   const linkAndBackfill = useServerFn(linkJoinUsAndBackfill);
+  const saveConsent = useServerFn(setMyConsent);
   // Non-null only inside the CMS builder canvas (BuilderModeProvider). In the
   // builder the widget must NEVER unmount to null — otherwise disabling the
   // newsletter in settings makes it silently vanish from the canvas.
@@ -322,6 +332,12 @@ export function JoinUsForm({
   }, [dropOpen]);
   const cfList = customFields ?? [];
   const setCustom = (id: string, v: string) => setCustomValues((prev) => ({ ...prev, [id]: v }));
+
+  // Zgoda marketingowa (RODO) - checkbox wymagany do wysyłki. Stan trzymamy
+  // lokalnie, a po udanym zapisie propagujemy do rejestru `user_consents`
+  // (jedno źródło prawdy widoczne w profilu użytkownika).
+  const [consentAccepted, setConsentAccepted] = useState(false);
+
 
   const useSplitName = showFirstName || showLastName;
 
@@ -499,6 +515,13 @@ export function JoinUsForm({
       setState("err");
       return;
     }
+    if (!consentAccepted) {
+      setErrMsg(t("joinUs.consentRequired"));
+      setState("err");
+      return;
+    }
+
+
 
     try {
       const nlText =
@@ -630,7 +653,25 @@ export function JoinUsForm({
       } catch {
         /* non-fatal */
       }
+
+      // Jedno źródło prawdy dla zgód: rejestr `user_consents` (widoczny w
+      // profilu, z audit-logiem IP/UA/wersja). Niekrytyczne dla subskrypcji.
+      try {
+        await saveConsent({
+          data: {
+            key: MARKETING_CONSENT_KEY,
+            given: true,
+            version: MARKETING_CONSENT_VERSION,
+            lang,
+            source: "join_us_form",
+          },
+        });
+      } catch {
+        /* non-fatal */
+      }
     }
+
+
 
     setState("ok");
     setEmail("");
@@ -645,6 +686,7 @@ export function JoinUsForm({
       country: "",
     });
     setCustomValues({});
+    setConsentAccepted(false);
   };
 
   // Resolved copy (props override → newsletter settings → i18n default)
@@ -1201,6 +1243,23 @@ export function JoinUsForm({
         </div>
       )}
 
+      <label
+        className="flex cursor-pointer items-start gap-2 font-sans leading-relaxed text-muted-foreground"
+        style={{ fontSize: consentSize ? `${consentSize}px` : "11px" }}
+        data-edit-target="consentSize"
+      >
+        <Checkbox
+          checked={consentAccepted}
+          onCheckedChange={(v) => setConsentAccepted(v === true)}
+          aria-required="true"
+          className="mt-0.5 h-[16px] w-[16px] shrink-0"
+        />
+        <span>
+          {consent}
+          <span className="ml-1 text-destructive">*</span>
+        </span>
+      </label>
+
       <SubscribeButton
         loading={state === "loading"}
         loadingLabel={btnLoading}
@@ -1213,13 +1272,8 @@ export function JoinUsForm({
       </SubscribeButton>
 
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
-      <p
-        className="font-sans leading-relaxed text-muted-foreground"
-        style={{ fontSize: consentSize ? `${consentSize}px` : "11px" }}
-        data-edit-target="consentSize"
-      >
-        {consent}
-      </p>
+
+
     </form>
   );
 

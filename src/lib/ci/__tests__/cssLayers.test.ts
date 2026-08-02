@@ -83,18 +83,39 @@ describe("kaskada src/styles.css", () => {
     ).toEqual([]);
   });
 
-  it("baseline pól formularza faktycznie siedzi w @layer components", () => {
-    const baseline = CSS.indexOf("padding-inline: var(--form-input-padding-x)");
-    expect(baseline).toBeGreaterThan(-1);
-    const layerOpen = CSS.lastIndexOf("@layer components {", baseline);
-    expect(layerOpen).toBeGreaterThan(-1);
-    // Warstwa nie może się domknąć przed baseline'em.
-    const between = CSS.slice(layerOpen, baseline);
+  /** Czy deklaracja pod danym offsetem leży wewnątrz otwartego `@layer components`. */
+  function insideComponentsLayer(offset: number): boolean {
+    const layerOpen = CSS.lastIndexOf("@layer components {", offset);
+    if (layerOpen === -1) return false;
     let depth = 0;
-    for (const ch of between) {
+    for (const ch of CSS.slice(layerOpen, offset)) {
       if (ch === "{") depth++;
       else if (ch === "}") depth--;
     }
-    expect(depth).toBeGreaterThan(0);
+    return depth > 0;
+  }
+
+  const at = (needle: string): number => {
+    const i = CSS.indexOf(needle);
+    expect(i, `nie znaleziono w styles.css: ${needle}`).toBeGreaterThan(-1);
+    return i;
+  };
+
+  it.each([
+    ["baseline geometrii pól", "padding-inline: var(--form-input-padding-x)"],
+    ["shell-owy baseline tekstu pól", "font-size: var(--gc-input-font-size, 14px)"],
+    ["atom .input-group", ".input-group {"],
+    ["atom .input (standalone)", "\n  .input {"],
+  ])("%s siedzi w @layer components", (_label, needle) => {
+    expect(insideComponentsLayer(at(needle))).toBe(true);
+  });
+
+  // Obie reguły mają specyficzność (0,1,0), więc o wyniku decyduje kolejność
+  // w pliku - ale TYLKO gdy są w tej samej warstwie. Gdyby ktoś przeniósł do
+  // warstwy sam atom `.input`, zostawiając shell-owy baseline bez warstwy,
+  // baseline (bezwarstwowy) zacząłby wygrywać i font pól w widgetach skoczyłby
+  // z 0.875rem na 14px. Zmierzone: 12 kontrolek. Stąd ten test kolejności.
+  it("atom .input jest w pliku PONIŻEJ shell-owego baseline'u tekstu", () => {
+    expect(at("\n  .input {")).toBeGreaterThan(at("font-size: var(--gc-input-font-size, 14px)"));
   });
 });
