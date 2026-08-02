@@ -12383,7 +12383,7 @@ export type Database = {
         }[]
       }
       crm_enqueue_lead_push: {
-        Args: { p_lead_id: string; p_endpoint_id?: string }
+        Args: { p_endpoint_id?: string; p_lead_id: string }
         Returns: number
       }
       crm_funnel_stats: {
