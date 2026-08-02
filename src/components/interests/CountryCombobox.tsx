@@ -45,10 +45,10 @@ interface CountryComboboxProps {
  * Slot flagi wewnątrz pola. Wszystko w `em`, żeby proporcje trzymały się przy
  * dowolnym `placeholderSize` z buildera:
  *   [ 0.9rem wcięcia ][ flaga 1.5em ][ 0.5em ][ kreska 1px ][ 0.5em ][ tekst ]
- * `paddingLeft` idzie STYLEM INLINE, bo globalna reguła platformy
- * `:where(input…){padding-inline:var(--form-input-padding-x)}` jest zapisana
- * poza `@layer`, więc bije utility Tailwinda (`pl-9`) niezależnie od
- * specyficzności - i to właśnie przez nią flaga nachodziła na nazwę kraju.
+ * `paddingLeft` idzie STYLEM INLINE, a nie klasą `pl-*`, bo wartość zależy od
+ * rozmiaru czcionki pola (`em`) - żadne utility tego nie wyrazi. Klasa i tak
+ * by tu zadziałała: baseline pól siedzi w `@layer components` (patrz
+ * `src/lib/ci/cssLayers.ts`), więc utility go nadpisują.
  */
 const FLAG_GUTTER = "0.9rem";
 const FLAG_WIDTH = "1.5em";
