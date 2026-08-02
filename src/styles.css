@@ -6153,8 +6153,8 @@ header[data-site-header].site-header-shrink .cms-trending {
   grid-template-rows: minmax(0, 1fr);
   opacity: 1;
   transition:
-    grid-template-rows 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    opacity 360ms ease-in-out;
+    grid-template-rows 380ms cubic-bezier(0.33, 1, 0.68, 1),
+    opacity 280ms cubic-bezier(0.33, 1, 0.68, 1);
   overflow: hidden;
 }
 header[data-site-header].site-header-shrink .cms-trending > div {
@@ -6172,7 +6172,7 @@ header[data-site-header][data-scrolled="true"].site-header-shrink .cms-trending 
   overflow: visible;
 }
 .home-header-grow > div > section[data-sec-id]:first-of-type > div:nth-of-type(2) {
-  transition: transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: transform 380ms cubic-bezier(0.33, 1, 0.68, 1);
   transform-origin: top center;
 }
 header[data-scrolled="true"]
