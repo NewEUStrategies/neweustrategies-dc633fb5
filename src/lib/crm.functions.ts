@@ -6,30 +6,45 @@ import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
 import { z } from "zod";
-async function hmacSha256Hex(secret: string, body: string): Promise<string> {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(body));
-  return Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 const STAGE_ENUM = z.enum(["new", "contacted", "qualified", "proposal", "won", "lost", "archived"]);
-type Stage = z.infer<typeof STAGE_ENUM>;
+
+// Sortowanie serwerowe: przy paginacji porządek MUSI liczyć się w SQL (strona
+// posortowana klientem kłamałaby o kolejności globalnej). Klucze odpowiadają
+// LeadSortSchema (lib/crm/leadViews.ts).
+const SORT_ENUM = z.enum([
+  "activity",
+  "score",
+  "created",
+  "followUp",
+  "company",
+  "country",
+  "stage",
+  "name",
+]);
+type SortKey = z.infer<typeof SORT_ENUM>;
+
+const SORT_COLUMNS: Record<SortKey, string> = {
+  activity: "last_activity_at",
+  score: "score",
+  created: "created_at",
+  followUp: "follow_up_at",
+  company: "company",
+  country: "country",
+  stage: "stage",
+  name: "first_name",
+};
 
 const ListInput = z.object({
   search: z.string().trim().max(200).optional(),
   stage: STAGE_ENUM.optional(),
   scope: z.enum(["tenant", "all"]).default("tenant"),
+  // Paginacja serwerowa: limit = rozmiar strony, page liczona od 1. Odpowiedź
+  // niesie total z count:"exact", więc admin zawsze widzi pełny rozmiar zbioru.
   limit: z.number().int().min(1).max(500).default(200),
-  sort: z.enum(["activity", "score"]).default("activity"),
+  page: z.number().int().min(1).max(10_000).default(1),
+  sort: SORT_ENUM.default("activity"),
+  sort_dir: z.enum(["asc", "desc"]).default("desc"),
   band: z.enum(["hot", "warm", "cool", "cold"]).optional(),
   // Rozszerzone filtry: wybór właściciela (multi), tagi (multi, overlaps),
   // przedział score (0-100), kraj (dokładne dopasowanie po dwuznakowym kodzie
@@ -40,18 +55,29 @@ const ListInput = z.object({
   score_min: z.number().int().min(0).max(100).optional(),
   score_max: z.number().int().min(0).max(100).optional(),
   country: z.string().trim().max(120).optional(),
+  company: z.string().trim().max(200).optional(),
   newsletter_status: z.string().trim().max(40).optional(),
+  consent_only: z.boolean().optional(),
+  // Źródło jak w LeadFilterSchema: newsletter (status niepusty), form
+  // (zgłoszenia formularzy bez newslettera), import (reszta).
+  source: z.enum(["form", "newsletter", "import"]).optional(),
   activity_from: z.string().datetime().optional(),
   activity_to: z.string().datetime().optional(),
   created_from: z.string().datetime().optional(),
   created_to: z.string().datetime().optional(),
 });
+type ListParams = z.infer<typeof ListInput>;
+
+type QueryResult = { data: unknown; error: { message: string } | null; count?: number | null };
 
 type AnyQuery = {
-  select: (s: string) => AnyQuery;
-  order: (c: string, o: { ascending: boolean }) => AnyQuery;
+  select: (s: string, opts?: { count?: "exact" }) => AnyQuery;
+  order: (c: string, o: { ascending: boolean; nullsFirst?: boolean }) => AnyQuery;
   limit: (n: number) => AnyQuery;
+  range: (from: number, to: number) => AnyQuery;
   eq: (c: string, v: unknown) => AnyQuery;
+  is: (c: string, v: unknown) => AnyQuery;
+  not: (c: string, op: string, v: unknown) => AnyQuery;
   in: (c: string, v: unknown[]) => AnyQuery;
   or: (f: string) => AnyQuery;
   ilike: (c: string, v: string) => AnyQuery;
@@ -62,47 +88,80 @@ type AnyQuery = {
   insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
   update: (v: unknown) => AnyQuery;
   delete: () => AnyQuery;
-  then: <R>(fn: (r: { data: unknown; error: { message: string } | null }) => R) => Promise<R>;
+  then: <R>(fn: (r: QueryResult) => R) => Promise<R>;
 };
 const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
   (ctx.supabase as { from: (t: string) => AnyQuery }).from(name);
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
+// Wspólna aplikacja filtrów listy leadów - jedno źródło prawdy dla listy
+// (paginowanej) i eksportu CSV, żeby eksport zawsze odpowiadał temu, co admin
+// widzi po filtrach.
+function applyLeadListFilters(q: AnyQuery, data: ListParams): AnyQuery {
+  if (data.stage) q = q.eq("stage", data.stage);
+  if (data.band) q = q.eq("score_band", data.band);
+  if (data.owner_ids && data.owner_ids.length > 0) q = q.in("owner_id", data.owner_ids);
+  if (data.tags && data.tags.length > 0) q = q.overlaps("tags", data.tags);
+  if (typeof data.score_min === "number") q = q.gte("score", data.score_min);
+  if (typeof data.score_max === "number") q = q.lte("score", data.score_max);
+  if (data.country) q = q.eq("country", data.country);
+  if (data.company) q = q.eq("company", data.company);
+  if (data.newsletter_status) q = q.eq("newsletter_status", data.newsletter_status);
+  if (data.consent_only) q = q.eq("marketing_consent", true);
+  if (data.source === "newsletter") q = q.not("newsletter_status", "is", null);
+  if (data.source === "form") q = q.is("newsletter_status", null).gte("source_count", 1);
+  if (data.source === "import") {
+    q = q.is("newsletter_status", null).or("source_count.is.null,source_count.lte.0");
+  }
+  if (data.activity_from) q = q.gte("last_activity_at", data.activity_from);
+  if (data.activity_to) q = q.lte("last_activity_at", data.activity_to);
+  if (data.created_from) q = q.gte("created_at", data.created_from);
+  if (data.created_to) q = q.lte("created_at", data.created_to);
+  if (data.search) {
+    // Strip LIKE wildcards and PostgREST .or() metacharacters so the search
+    // term can't inject extra filter conditions (RLS still scopes rows, but
+    // the term must not alter the query's filter logic).
+    const s = `%${data.search.toLowerCase().replace(/[%_,()"\\]/g, "")}%`;
+    q = q.or(`email.ilike.${s},first_name.ilike.${s},last_name.ilike.${s},company.ilike.${s}`);
+  }
+  return q;
+}
+
+function applyLeadListSort(q: AnyQuery, data: ListParams): AnyQuery {
+  const ascending = data.sort_dir === "asc";
+  // nullsFirst: false trzyma puste follow-upy/firmy na końcu niezależnie od
+  // kierunku; id jako tiebreaker daje deterministyczne okna paginacji.
+  q = q.order(SORT_COLUMNS[data.sort], { ascending, nullsFirst: false });
+  if (data.sort === "name") q = q.order("last_name", { ascending, nullsFirst: false });
+  return q.order("id", { ascending: true });
+}
+
 export const listCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
-    let q = tbl(context, view)
-      .select("*")
-      .order(data.sort === "score" ? "score" : "last_activity_at", { ascending: false })
-      .limit(data.limit);
-    if (data.stage) q = q.eq("stage", data.stage);
-    if (data.band) q = q.eq("score_band", data.band);
-    if (data.owner_ids && data.owner_ids.length > 0) q = q.in("owner_id", data.owner_ids);
-    if (data.tags && data.tags.length > 0) q = q.overlaps("tags", data.tags);
-    if (typeof data.score_min === "number") q = q.gte("score", data.score_min);
-    if (typeof data.score_max === "number") q = q.lte("score", data.score_max);
-    if (data.country) q = q.eq("country", data.country);
-    if (data.newsletter_status) q = q.eq("newsletter_status", data.newsletter_status);
-    if (data.activity_from) q = q.gte("last_activity_at", data.activity_from);
-    if (data.activity_to) q = q.lte("last_activity_at", data.activity_to);
-    if (data.created_from) q = q.gte("created_at", data.created_from);
-    if (data.created_to) q = q.lte("created_at", data.created_to);
-    if (data.search) {
-      // Strip LIKE wildcards and PostgREST .or() metacharacters so the search
-      // term can't inject extra filter conditions (RLS still scopes rows, but
-      // the term must not alter the query's filter logic).
-      const s = `%${data.search.toLowerCase().replace(/[%_,()"\\]/g, "")}%`;
-      q = q.or(`email.ilike.${s},first_name.ilike.${s},last_name.ilike.${s},company.ilike.${s}`);
-    }
-    const { data: leads, error } = await (q as unknown as Promise<{
+    const from = (data.page - 1) * data.limit;
+    let q = tbl(context, view).select("*", { count: "exact" });
+    q = applyLeadListFilters(q, data);
+    q = applyLeadListSort(q, data).range(from, from + data.limit - 1);
+    const {
+      data: leads,
+      error,
+      count,
+    } = await (q as unknown as Promise<{
       data: unknown[];
       error: { message: string } | null;
+      count: number | null;
     }>);
     if (error) throw new Error(error.message);
-    return { json: j(leads ?? []) };
+    return {
+      json: j(leads ?? []),
+      total: count ?? 0,
+      page: data.page,
+      pageSize: data.limit,
+    };
   });
 
 const IdInput = z.object({ id: z.string().uuid() });
@@ -563,11 +622,11 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
-    let q = tbl(context, view)
-      .select("*")
-      .order("last_activity_at", { ascending: false })
-      .limit(5000);
-    if (data.stage) q = q.eq("stage", data.stage);
+    let q = tbl(context, view).select("*");
+    // Eksport = dokładnie ten sam zestaw filtrów i porządek co lista (bez
+    // paginacji, z twardym sufitem wierszy).
+    q = applyLeadListFilters(q, data);
+    q = applyLeadListSort(q, data).limit(5000);
     const { data: rows, error } = await (q as unknown as Promise<{
       data: Record<string, unknown>[];
       error: { message: string } | null;
@@ -604,147 +663,51 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
     return { csv: lines.join("\n"), count: rows?.length ?? 0 };
   });
 
-// ============ Integrations: Merydian ============
+// ============ Integrations: partnerzy CRM (multi-endpoint) ============
+//
+// Konfiguracja partnerów żyje w integration_endpoints (transport + sekret w
+// Vault) i crm_webhook_endpoints (profil CRM: auth_kind, forward_stages,
+// consent_mapping) - migracja 20260802131000. CRUD idzie klientem pod RLS
+// (jak /admin/integrations); tutaj tylko ręczny push leada, który zamiast
+// synchronicznego fetch-a ląduje w outboxie integration_deliveries (retry +
+// backoff + status dead), a potem opportunistycznie budzi dispatcher.
 
-const ConsentMappingItem = z.object({
-  source_key: z.string().trim().min(1).max(120),
-  source_label: z.string().trim().max(200).optional().default(""),
-  merydian_field: z.string().trim().max(120).optional().default(""),
-  merydian_category: z.string().trim().max(120).optional().default(""),
-  required: z.boolean().optional().default(false),
+const PushInput = z.object({
+  lead_id: z.string().uuid(),
+  endpoint_id: z.string().uuid().optional(),
 });
 
-const IntegrationsInput = z.object({
-  merydian_enabled: z.boolean(),
-  merydian_mode: z.enum(["webhook", "api", "both"]).default("webhook"),
-  merydian_webhook_url: z.string().url().nullable().optional(),
-  merydian_webhook_secret: z.string().max(200).nullable().optional(),
-  merydian_api_base: z.string().url().nullable().optional(),
-  merydian_api_key: z.string().max(500).nullable().optional(),
-  merydian_workspace_id: z.string().max(120).nullable().optional(),
-  forward_stages: z.array(STAGE_ENUM).default(["new"]),
-  consent_mapping: z.array(ConsentMappingItem).max(50).default([]),
-});
+export type PushLeadResult = {
+  ok: boolean;
+  enqueued: number;
+  delivered: number;
+  failed: number;
+  error?: string;
+};
 
-export const getCrmIntegrations = createServerFn({ method: "GET" })
-  .middleware([requireCrmStaff])
-  .handler(async ({ context }) => {
-    const { data, error } = await tbl(context, "crm_integrations").select("*").maybeSingle();
-    if (error) throw new Error(error.message);
-    // Secrets never leave the server. Expose only booleans derived from the
-    // Vault reference columns so the UI can render a "already set" placeholder.
-    const row = data as Record<string, unknown> | null;
-    const withFlags = row
-      ? {
-          ...row,
-          has_webhook_secret: row.merydian_webhook_secret_id != null,
-          has_api_key: row.merydian_api_key_id != null,
-        }
-      : null;
-    return { json: j(withFlags) };
-  });
-
-export const upsertCrmIntegrations = createServerFn({ method: "POST" })
-  .middleware([requireCrmStaff])
-  .validator((d) => IntegrationsInput.parse(d))
-  .handler(async ({ data, context }) => {
-    const userId = (context as { userId: string }).userId;
-    const supabase = (
-      context as unknown as {
-        supabase: {
-          rpc: (
-            n: string,
-            a: Record<string, unknown>,
-          ) => Promise<{ data: unknown; error: { message: string } | null }>;
-        };
-      }
-    ).supabase;
-    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
-    if (!isAdmin) throw new Error("Forbidden");
-    // Secrets are stored in Supabase Vault via a SECURITY DEFINER RPC, never in
-    // crm_integrations columns. Keep them out of the row payload.
-    const { merydian_webhook_secret, merydian_api_key, ...config } = data;
-    const { data: existing } = await tbl(context, "crm_integrations").select("id").maybeSingle();
-    const E = existing as { id: string } | null;
-    const res = E
-      ? await (tbl(context, "crm_integrations")
-          .update(config)
-          .eq("id", E.id) as unknown as Promise<{
-          error: { message: string } | null;
-        }>)
-      : await tbl(context, "crm_integrations").insert(config);
-    if (res.error) throw new Error(res.error.message);
-    // Route secret material to Vault. undefined => not submitted (leave as-is);
-    // empty/null => clear; non-empty => create or update.
-    if (merydian_webhook_secret !== undefined) {
-      const { error } = await supabase.rpc("crm_set_merydian_secret", {
-        _kind: "webhook",
-        _plaintext: merydian_webhook_secret ?? "",
-      });
-      if (error) throw new Error(error.message);
-    }
-    if (merydian_api_key !== undefined) {
-      const { error } = await supabase.rpc("crm_set_merydian_secret", {
-        _kind: "api",
-        _plaintext: merydian_api_key ?? "",
-      });
-      if (error) throw new Error(error.message);
-    }
-    return { ok: true };
-  });
-
-const PushInput = z.object({ lead_id: z.string().uuid() });
-
-export const pushLeadToMerydian = createServerFn({ method: "POST" })
+export const pushLeadToPartners = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => PushInput.parse(d))
-  .handler(async ({ data, context }) => {
-    const userId = (context as { userId: string }).userId;
-    const { data: lead, error } = await tbl(context, "crm_leads")
-      .select("*")
-      .eq("id", data.lead_id)
-      .maybeSingle();
-    if (error || !lead) throw new Error(error?.message ?? "Lead not found");
-    const L = lead as LeadRow;
-    const { data: cfg } = await tbl(context, "crm_integrations")
-      .select("*")
-      .eq("tenant_id", L.tenant_id)
-      .maybeSingle();
-    if (!cfg || !(cfg as { merydian_enabled: boolean }).merydian_enabled)
-      throw new Error("Merydian integration is disabled");
-    const supabase = (
-      context as unknown as {
-        supabase: {
-          rpc: (
-            n: string,
-            a?: Record<string, unknown>,
-          ) => Promise<{ data: unknown; error: { message: string } | null }>;
-        };
-      }
-    ).supabase;
-    const result = await dispatchMerydian(L, cfg as Record<string, unknown>, (n, a) =>
-      supabase.rpc(n, a),
-    );
-    await (tbl(context, "crm_integrations")
-      .update({
-        last_sync_at: new Date().toISOString(),
-        last_sync_status: result.ok ? "ok" : "error",
-        last_sync_error: result.ok ? null : (result.error ?? "unknown"),
-      })
-      .eq("tenant_id", L.tenant_id) as unknown as Promise<unknown>);
-    await tbl(context, "audit_log").insert({
-      tenant_id: L.tenant_id,
-      actor_id: userId,
-      action: result.ok ? "crm_lead.webhook_ok" : "crm_lead.webhook_error",
-      entity_type: "crm_lead",
-      entity_id: L.id,
-      metadata: {
-        via: result.via ?? null,
-        status: result.ok ? "ok" : "error",
-        error: result.error ?? null,
-      },
+  .handler(async ({ data, context }): Promise<PushLeadResult> => {
+    const rpc = rpcOf(context);
+    const { data: enqueued, error } = await rpc("crm_enqueue_lead_push", {
+      p_lead_id: data.lead_id,
+      p_endpoint_id: data.endpoint_id ?? null,
     });
-    return result;
+    if (error) throw new Error(error.message);
+    const queued = Number(enqueued ?? 0);
+    if (queued === 0) {
+      return { ok: false, enqueued: 0, delivered: 0, failed: 0, error: "no_active_endpoints" };
+    }
+    // Natychmiastowy tick dispatchera, żeby ręczny push miał efekt od ręki;
+    // gdy tick padnie, dostawa i tak zostaje w outboxie i pójdzie retry-em.
+    const { runIntegrationDispatch } = await import("@/lib/integrations/dispatch.functions");
+    try {
+      const summary = await runIntegrationDispatch(Math.min(Math.max(queued * 2, 5), 20));
+      return { ok: true, enqueued: queued, delivered: summary.delivered, failed: summary.failed };
+    } catch {
+      return { ok: true, enqueued: queued, delivered: 0, failed: 0 };
+    }
   });
 
 // ============ Timeline & exports ============
@@ -944,158 +907,6 @@ export const exportCrmLeadTimelineCsv = createServerFn({ method: "POST" })
     };
   });
 
-export type LeadRow = {
-  id: string;
-  tenant_id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  phone: string | null;
-  company: string | null;
-  stage: Stage;
-  tags: string[] | null;
-  marketing_consent: boolean;
-  newsletter_status: string | null;
-  created_at: string;
-  last_activity_at: string;
-};
-
-async function dispatchMerydian(
-  lead: LeadRow,
-  cfg: Record<string, unknown>,
-  rpc: (
-    name: string,
-    args?: Record<string, unknown>,
-  ) => Promise<{ data: unknown; error: { message: string } | null }>,
-): Promise<{ ok: boolean; via?: string; status?: number; error?: string }> {
-  const mode = String(cfg.merydian_mode ?? "webhook");
-  const stages = (cfg.forward_stages as Stage[] | null) ?? ["new"];
-  if (!stages.includes(lead.stage)) return { ok: true, via: "skipped_stage" };
-
-  const mapping =
-    (cfg.consent_mapping as Array<{
-      source_key: string;
-      source_label?: string;
-      merydian_field?: string;
-      merydian_category?: string;
-      required?: boolean;
-    }> | null) ?? [];
-  const consents = mapping.map((m) => ({
-    source_key: m.source_key,
-    source_label: m.source_label ?? "",
-    merydian_field: m.merydian_field ?? "",
-    merydian_category: m.merydian_category ?? "",
-    required: !!m.required,
-    granted:
-      m.source_key === "newsletter_opt_in"
-        ? lead.newsletter_status != null
-        : m.source_key === "marketing_consent"
-          ? lead.marketing_consent
-          : false,
-  }));
-
-  const payload = {
-    id: lead.id,
-    email: lead.email,
-    first_name: lead.first_name,
-    last_name: lead.last_name,
-    phone: lead.phone,
-    company: lead.company,
-    stage: lead.stage,
-    tags: lead.tags ?? [],
-    marketing_consent: lead.marketing_consent,
-    newsletter_status: lead.newsletter_status,
-    workspace_id: cfg.merydian_workspace_id ?? null,
-    consents,
-    created_at: lead.created_at,
-    last_activity_at: lead.last_activity_at,
-  };
-  const body = JSON.stringify(payload);
-
-  // Secrets live in Supabase Vault; fetch decrypted values once via RPC.
-  const { data: secretsData } = await rpc("crm_get_merydian_secrets", {
-    _tenant: cfg.tenant_id ?? null,
-  });
-  const secretRow = (Array.isArray(secretsData) ? secretsData[0] : secretsData) as
-    | { webhook_secret: string | null; api_key: string | null }
-    | undefined;
-  const webhookSecret = secretRow?.webhook_secret ?? "";
-  const apiSecret = secretRow?.api_key ?? "";
-
-  const out: {
-    webhook?: { ok: boolean; status?: number; error?: string };
-    api?: { ok: boolean; status?: number; error?: string };
-  } = {};
-
-  // SSRF guard for the user-configured integration URLs. Dynamic import keeps
-  // the node: builtins out of the client bundle (same pattern as *.server).
-  const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
-
-  if (mode === "webhook" || mode === "both") {
-    const url = String(cfg.merydian_webhook_url ?? "");
-    if (!url) out.webhook = { ok: false, error: "missing_webhook_url" };
-    else {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "User-Agent": "NES-CRM/1.0",
-      };
-      const secret = webhookSecret;
-      if (secret) headers["X-Signature"] = await hmacSha256Hex(secret, body);
-      try {
-        await assertPublicHttpUrl(url); // rejects private/internal/metadata targets
-        const r = await fetch(url, { method: "POST", headers, body, redirect: "manual" });
-        // Status only - never echo the upstream body (would be an SSRF exfil channel).
-        out.webhook = {
-          ok: r.ok,
-          status: r.status,
-          error: r.ok ? undefined : `upstream_${r.status}`,
-        };
-      } catch (e) {
-        out.webhook = {
-          ok: false,
-          error: e instanceof Error && e.name === "BlockedUrlError" ? e.message : "request_failed",
-        };
-      }
-    }
-  }
-
-  if (mode === "api" || mode === "both") {
-    const base = String(cfg.merydian_api_base ?? "");
-    const apiKey = apiSecret;
-    if (!base || !apiKey) out.api = { ok: false, error: "missing_api_config" };
-    else {
-      const apiUrl = `${base.replace(/\/$/, "")}/leads`;
-      try {
-        await assertPublicHttpUrl(apiUrl); // rejects private/internal/metadata targets
-        const r = await fetch(apiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-            "User-Agent": "NES-CRM/1.0",
-          },
-          body,
-          redirect: "manual",
-        });
-        out.api = {
-          ok: r.ok,
-          status: r.status,
-          error: r.ok ? undefined : `upstream_${r.status}`,
-        };
-      } catch (e) {
-        out.api = {
-          ok: false,
-          error: e instanceof Error && e.name === "BlockedUrlError" ? e.message : "request_failed",
-        };
-      }
-    }
-  }
-
-  const okAny = (out.webhook?.ok ?? false) || (out.api?.ok ?? false);
-  const errs = [out.webhook?.error, out.api?.error].filter(Boolean).join(" | ");
-  return { ok: okAny, via: mode, error: okAny ? undefined : errs || "no_target" };
-}
-
 // ============ Lead scoring ============
 //
 // Liczenie żyje w bazie (compute_crm_lead_score, migracja 20260718130000);
@@ -1265,7 +1076,7 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
     }
 
     if ((addTags?.length ?? 0) > 0 || (removeTags?.length ?? 0) > 0) {
-      // Tagi to text[] — potrzebujemy per-rekord read-modify-write (Postgrest
+      // Tagi to text[] - potrzebujemy per-rekord read-modify-write (Postgrest
       // nie udostępnia array_append/remove w PATCH bulk). Robimy w porcjach.
       const { data: rows } = (await tbl(context, "crm_leads")
         .select("id, tags")

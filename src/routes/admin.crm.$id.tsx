@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 
 import { getCrmLead, updateCrmLead, getCrmLeadTimeline } from "@/lib/crm.functions";
-import { useLeadNoteMutations, useMerydianPush } from "@/lib/crm/leadMutations";
+import { useLeadNoteMutations, usePartnerPush } from "@/lib/crm/leadMutations";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
@@ -192,15 +192,15 @@ function AdminCrmDetailPage() {
   });
 
   // Wspólna warstwa logiki mutacji (współdzielona z drawerem quick-view na
-  // liście CRM): notatki (idempotencja + inwalidacja) + push Merydian. Karta
-  // zachowuje swoje zachowanie - dodanie notatki toastuje i czyści szkic.
+  // liście CRM): notatki (idempotencja + inwalidacja) + push do partnerów CRM.
+  // Karta zachowuje swoje zachowanie - dodanie notatki toastuje i czyści szkic.
   const { addNote: noteMut, deleteNote: noteDelMut } = useLeadNoteMutations(id, {
     onAdded: () => {
       toast.success(t("Notatka dodana", "Note added"));
       setNoteDraft("");
     },
   });
-  const pushMut = useMerydianPush(id);
+  const pushMut = usePartnerPush(id, lang);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Lead>>({});
@@ -742,7 +742,7 @@ function AdminCrmDetailPage() {
               className="w-full h-8 gap-1 text-[12px]"
             >
               <Send className="h-3 w-3" />
-              {t("Wyślij do Merydiana", "Send to Merydian")}
+              {t("Wyślij do partnerów CRM", "Send to CRM partners")}
             </Button>
           </SidebarCard>
         </aside>

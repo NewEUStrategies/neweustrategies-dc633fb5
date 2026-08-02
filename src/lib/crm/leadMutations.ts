@@ -13,7 +13,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { addCrmNote, deleteCrmNote, pushLeadToMerydian } from "@/lib/crm.functions";
+import {
+  addCrmNote,
+  deleteCrmNote,
+  pushLeadToPartners,
+  type PushLeadResult,
+} from "@/lib/crm.functions";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 
 /** Mutacje notatek leada (dodaj z idempotencją / usuń) + inwalidacja cache. */
@@ -54,17 +59,36 @@ export function useLeadNoteMutations(
 }
 
 /**
- * Push leada do Merydiana. Logika i komunikaty identyczne na obu powierzchniach
- * (toast `Merydian: <via>` przy sukcesie, `Merydian: <error>` przy odmowie),
- * więc dzielony w całości - żadna strona nie różni się zachowaniem.
+ * Ręczny push leada do partnerów CRM (crm_webhook_endpoints). Wysyłka idzie
+ * przez outbox integration_deliveries: enqueue + natychmiastowy tick
+ * dispatchera; nieudane dostawy zostają w kolejce i wracają retry-em.
+ * Komunikaty identyczne na obu powierzchniach (drawer i pełna karta).
  */
-export function useMerydianPush(leadId: string) {
+export function usePartnerPush(leadId: string, lang: "pl" | "en" = "pl") {
   return useMutation({
-    mutationFn: async () => pushLeadToMerydian({ data: { lead_id: leadId } }),
-    onSuccess: (r: unknown) => {
-      const x = r as { ok: boolean; error?: string; via?: string };
-      if (x.ok) toast.success(`Merydian: ${x.via}`);
-      else toast.error(`Merydian: ${x.error}`);
+    mutationFn: async () => pushLeadToPartners({ data: { lead_id: leadId } }),
+    onSuccess: (r: PushLeadResult) => {
+      if (!r.ok) {
+        toast.error(
+          lang === "pl"
+            ? "Brak aktywnych partnerów CRM - dodaj endpoint w zakładce Integracje"
+            : "No active CRM partners - add an endpoint in the Integrations tab",
+        );
+        return;
+      }
+      if (r.delivered > 0) {
+        toast.success(
+          lang === "pl"
+            ? `Wysłano do partnerów CRM (${r.delivered}/${r.enqueued})`
+            : `Sent to CRM partners (${r.delivered}/${r.enqueued})`,
+        );
+      } else {
+        toast.info(
+          lang === "pl"
+            ? `W kolejce do wysyłki (${r.enqueued}) - retry automatyczny`
+            : `Queued for delivery (${r.enqueued}) - automatic retry`,
+        );
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });

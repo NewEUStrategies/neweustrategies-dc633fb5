@@ -5,18 +5,31 @@
 // - buduje żądanie w formacie natywnym odbiorcy:
 //   - webhook (i nieobsłużone rodzaje): dotychczasowa koperta JSON + HMAC,
 //   - slack:   Slack Block Kit (incoming webhook; bez podpisu HMAC),
-//   - hubspot: upsert kontaktu przez CRM v3 batch API (Bearer = sekret z Vault).
+//   - hubspot: upsert kontaktu przez CRM v3 batch API (Bearer = sekret z Vault),
+//   - crm_partner: snapshot leada + zmapowane zgody (kontrakt Merydian) dla
+//     endpointów z profilem crm_webhook_endpoints; HMAC X-Signature lub Bearer.
 //
 // Moduł jest CZYSTY (bez importów serwerowych) - formatery testuje vitest bez
 // sieci, a dispatcher pozostaje jedynym miejscem wykonującym HTTP.
 import type { Json } from "@/integrations/supabase/types";
 
-export const INTEGRATION_KINDS = ["webhook", "slack", "hubspot", "gcal", "confluence"] as const;
+export const INTEGRATION_KINDS = [
+  "webhook",
+  "slack",
+  "hubspot",
+  "gcal",
+  "confluence",
+  "crm_partner",
+] as const;
 
 export type IntegrationKind = (typeof INTEGRATION_KINDS)[number];
 
 /** Rodzaje z dedykowanym adapterem payloadu (reszta idzie generyczną kopertą). */
-export const ADAPTER_KINDS: readonly IntegrationKind[] = ["slack", "hubspot"] as const;
+export const ADAPTER_KINDS: readonly IntegrationKind[] = [
+  "slack",
+  "hubspot",
+  "crm_partner",
+] as const;
 
 export function normalizeIntegrationKind(raw: string | null | undefined): IntegrationKind {
   const value = (raw ?? "").trim().toLowerCase();
@@ -65,8 +78,13 @@ export interface FormattedRequest {
   url: string;
   body: string;
   headers: Record<string, string>;
-  /** Czy dispatcher ma doliczyć podpis HMAC x-nes-signature (tylko generyczny webhook). */
+  /** Czy dispatcher ma doliczyć podpis HMAC body (generyczny webhook, crm_partner/hmac). */
   sign: boolean;
+  /**
+   * Nagłówki, do których trafia podpis HMAC. Domyślnie x-nes-signature;
+   * crm_partner dokłada X-Signature (kontrakt Merydian sprzed generalizacji).
+   */
+  signHeaders?: readonly string[];
 }
 
 export type FormatDeliveryResult =
@@ -82,8 +100,171 @@ export interface FormatDeliveryOptions {
   envelope: DeliveryEnvelope;
   /** Surowa koperta jsonb z outboxu - generyczny webhook wysyła ją 1:1 (stabilny kontrakt). */
   raw: Json;
-  /** Sekret endpointu z Vault: klucz HMAC (webhook) lub token Bearer (HubSpot). */
+  /** Sekret endpointu z Vault: klucz HMAC (webhook/crm_partner) lub token Bearer. */
   secret: string | null;
+  /** Kontekst partnera CRM (tylko kind=crm_partner): profil + świeży snapshot leada. */
+  crm?: CrmPartnerContext;
+}
+
+// ----------------------------------------------------------------------------
+// Partner CRM (crm_webhook_endpoints nad integration_endpoints)
+// ----------------------------------------------------------------------------
+
+const EVENT_HEADER = "x-nes-event";
+
+/** Zdarzenia leadowe mapowane na payload partnera CRM; reszta jest pomijana. */
+export const CRM_PARTNER_EVENT_TYPES: readonly string[] = [
+  "crm_lead.created.v1",
+  "crm_lead.updated.v1",
+  "crm_lead.stage_changed.v1",
+  "crm_lead.pushed.v1",
+] as const;
+
+/** Pozycja mapowania zgód. Akceptujemy klucze legacy (merydian_*) i neutralne. */
+export interface CrmConsentMappingItem {
+  source_key: string;
+  source_label: string;
+  partner_field: string;
+  partner_category: string;
+  required: boolean;
+}
+
+export interface CrmPartnerProfile {
+  auth_kind: "hmac" | "bearer";
+  consent_mapping: readonly CrmConsentMappingItem[];
+  workspace_id: string | null;
+}
+
+/** Świeży snapshot leada czytany przez dispatcher w chwili dostawy. */
+export interface CrmLeadSnapshot {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  company: string | null;
+  stage: string;
+  tags: string[] | null;
+  marketing_consent: boolean;
+  newsletter_status: string | null;
+  created_at: string;
+  last_activity_at: string;
+}
+
+export interface CrmPartnerContext {
+  profile: CrmPartnerProfile;
+  /** null = lead usunięty między zdarzeniem a dostawą (dostawa = skip). */
+  lead: CrmLeadSnapshot | null;
+}
+
+/** Defensywny parser jsonb consent_mapping (klucze legacy merydian_* i neutralne). */
+export function parseCrmConsentMapping(raw: unknown): CrmConsentMappingItem[] {
+  if (!Array.isArray(raw)) return [];
+  const items: CrmConsentMappingItem[] = [];
+  for (const entry of raw) {
+    const m = asRecord(entry);
+    const sourceKey = asText(m.source_key).trim();
+    if (!sourceKey) continue;
+    items.push({
+      source_key: sourceKey,
+      source_label: asText(m.source_label),
+      partner_field: asText(m.partner_field) || asText(m.merydian_field),
+      partner_category: asText(m.partner_category) || asText(m.merydian_category),
+      required: m.required === true,
+    });
+  }
+  return items;
+}
+
+/**
+ * Payload partnera CRM: snapshot leada + tablica `consents` zmapowana wg
+ * profilu. Klucze merydian_field/merydian_category są emitowane RÓWNOLEGLE z
+ * neutralnymi field/category - istniejący odbiorca (Merydian) czyta stare,
+ * nowi partnerzy dostają neutralne.
+ */
+export function crmPartnerBody(
+  envelope: DeliveryEnvelope,
+  profile: CrmPartnerProfile,
+  lead: CrmLeadSnapshot,
+): Record<string, unknown> {
+  const consents = profile.consent_mapping.map((m) => ({
+    source_key: m.source_key,
+    source_label: m.source_label,
+    field: m.partner_field,
+    category: m.partner_category,
+    merydian_field: m.partner_field,
+    merydian_category: m.partner_category,
+    required: m.required,
+    granted:
+      m.source_key === "newsletter_opt_in"
+        ? lead.newsletter_status != null
+        : m.source_key === "marketing_consent"
+          ? lead.marketing_consent
+          : false,
+  }));
+  return {
+    id: lead.id,
+    email: lead.email,
+    first_name: lead.first_name,
+    last_name: lead.last_name,
+    phone: lead.phone,
+    company: lead.company,
+    stage: lead.stage,
+    tags: lead.tags ?? [],
+    marketing_consent: lead.marketing_consent,
+    newsletter_status: lead.newsletter_status,
+    workspace_id: profile.workspace_id,
+    consents,
+    created_at: lead.created_at,
+    last_activity_at: lead.last_activity_at,
+    event_type: envelope.event_type,
+  };
+}
+
+/** Legacy nagłówek podpisu partnera CRM (kontrakt Merydian: X-Signature). */
+export const CRM_PARTNER_SIGNATURE_HEADERS: readonly string[] = [
+  "X-Signature",
+  "x-nes-signature",
+] as const;
+
+function crmPartnerDelivery(options: FormatDeliveryOptions): FormatDeliveryResult {
+  const { endpointUrl, envelope, secret, crm } = options;
+  if (!CRM_PARTNER_EVENT_TYPES.includes(envelope.event_type)) {
+    return { kind: "skip", reason: `event ${envelope.event_type} not mapped for crm partner` };
+  }
+  if (!crm) {
+    // Endpoint crm_partner bez profilu = błąd konfiguracji; retry po naprawie.
+    return { kind: "fail", reason: "crm partner profile missing (crm_webhook_endpoints row)" };
+  }
+  if (!crm.lead) {
+    // Lead usunięty między zdarzeniem a dostawą - nie ma czego wysyłać.
+    return { kind: "skip", reason: "lead no longer exists" };
+  }
+  const body = JSON.stringify(crmPartnerBody(envelope, crm.profile, crm.lead));
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "user-agent": "NES-CRM/1.0",
+    [EVENT_HEADER]: envelope.event_type,
+  };
+  if (crm.profile.auth_kind === "bearer") {
+    if (!secret) {
+      return { kind: "fail", reason: "partner api key missing (set endpoint secret)" };
+    }
+    headers.authorization = `Bearer ${secret}`;
+    return { kind: "send", request: { url: endpointUrl, body, headers, sign: false } };
+  }
+  // hmac: dispatcher liczy podpis body i wpisuje go w oba nagłówki; brak
+  // sekretu = wysyłka bez podpisu (identycznie jak legacy dispatchMerydian).
+  return {
+    kind: "send",
+    request: {
+      url: endpointUrl,
+      body,
+      headers,
+      sign: true,
+      signHeaders: CRM_PARTNER_SIGNATURE_HEADERS,
+    },
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -309,10 +490,12 @@ export function hubspotContactBody(envelope: DeliveryEnvelope): HubSpotBatchUpse
 // Wspólny punkt wejścia dla dispatchera
 // ----------------------------------------------------------------------------
 
-const EVENT_HEADER = "x-nes-event";
-
 export function formatDelivery(options: FormatDeliveryOptions): FormatDeliveryResult {
   const { kind, endpointUrl, envelope, raw, secret } = options;
+
+  if (kind === "crm_partner") {
+    return crmPartnerDelivery(options);
+  }
 
   if (kind === "slack") {
     const message = slackMessageForEvent(envelope);
