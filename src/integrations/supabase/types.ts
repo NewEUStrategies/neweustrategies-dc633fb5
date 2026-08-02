@@ -2549,54 +2549,6 @@ export type Database = {
           },
         ]
       }
-      crm_webhook_endpoints: {
-        Row: {
-          auth_kind: string
-          consent_mapping: Json
-          created_at: string
-          endpoint_id: string
-          forward_stages: Database["public"]["Enums"]["crm_stage"][]
-          tenant_id: string
-          updated_at: string
-          workspace_id: string | null
-        }
-        Insert: {
-          auth_kind?: string
-          consent_mapping?: Json
-          created_at?: string
-          endpoint_id: string
-          forward_stages?: Database["public"]["Enums"]["crm_stage"][]
-          tenant_id?: string
-          updated_at?: string
-          workspace_id?: string | null
-        }
-        Update: {
-          auth_kind?: string
-          consent_mapping?: Json
-          created_at?: string
-          endpoint_id?: string
-          forward_stages?: Database["public"]["Enums"]["crm_stage"][]
-          tenant_id?: string
-          updated_at?: string
-          workspace_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "crm_webhook_endpoints_endpoint_id_fkey"
-            columns: ["endpoint_id"]
-            isOneToOne: true
-            referencedRelation: "integration_endpoints"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_webhook_endpoints_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       cross_references: {
         Row: {
           created_at: string
@@ -4133,7 +4085,7 @@ export type Database = {
           integration?: string
           name: string
           secret_id?: string | null
-          tenant_id?: string
+          tenant_id: string
           updated_at?: string
           url: string
         }
@@ -12380,21 +12332,6 @@ export type Database = {
           contacts_count: number
           last_lead_activity_at: string
           leads_count: number
-        }[]
-      }
-      crm_enqueue_lead_push: {
-        Args: { p_lead_id: string; p_endpoint_id?: string }
-        Returns: number
-      }
-      crm_funnel_stats: {
-        Args: never
-        Returns: {
-          contacts: number
-          pending: number
-          registered: number
-          subscribed: number
-          total: number
-          unsubscribed: number
         }[]
       }
       crm_get_merydian_secrets: {
