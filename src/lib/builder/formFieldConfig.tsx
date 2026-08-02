@@ -194,33 +194,28 @@ export function CustomFieldsRenderer({
         }
 
         if (f.type === "select") {
+          const options = (f.options ?? []).map((o) => ({
+            value: o.value,
+            label: (lang === "en" ? o.labelEn : o.labelPl) || o.labelPl || o.labelEn || o.value,
+          }));
           return (
-            <label key={f.id} className="block">
+            <div key={f.id} className="block">
               <span className="mb-1 block text-xs font-medium text-muted-foreground">
                 {label}
                 {f.required && <span className="ml-1 text-destructive">*</span>}
               </span>
-              <select
-                {...commonAria}
+              <FormSelect
+                aria-label={commonAria["aria-label"]}
                 value={value}
-                onChange={(e) => onChange(f.id, e.target.value)}
+                onValueChange={(v) => onChange(f.id, v)}
                 required={f.required}
+                options={options}
+                placeholder={placeholder || (lang === "en" ? "Choose..." : "Wybierz...")}
                 className={baseInput}
                 style={inputStyle}
                 data-edit-target={inputEditTarget}
-              >
-                <option value="">{placeholder || "-"}</option>
-                {(f.options ?? []).map((o) => {
-                  const oLabel =
-                    (lang === "en" ? o.labelEn : o.labelPl) || o.labelPl || o.labelEn || o.value;
-                  return (
-                    <option key={o.value} value={o.value}>
-                      {oLabel}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
+              />
+            </div>
           );
         }
 
