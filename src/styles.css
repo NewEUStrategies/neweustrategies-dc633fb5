@@ -3249,19 +3249,30 @@ textarea::placeholder {
   font-size: var(--gc-label-font-size, 0.75rem);
 }
 
-/* ============================================================
-   Global input/select/textarea text + placeholder — unified
-   across every widget to match the contact-form baseline.
-   ============================================================ */
-.cf-shell :where(input, select, textarea),
-[data-w-id] :where(input, select, textarea),
-.cms-widget-form :where(input, select, textarea),
-.nl-shell :where(input, select, textarea),
-.auth-shell :where(input, select, textarea),
-.join-us-shell :where(input, select, textarea) {
-  font-size: var(--gc-input-font-size, 14px);
-  line-height: var(--gc-input-line-height, 1.4);
-  color: var(--gc-input-text, var(--foreground));
+@layer components {
+  /* ============================================================
+     Global input/select/textarea text + placeholder — unified
+     across every widget to match the contact-form baseline.
+
+     W `@layer components` z dwóch powodów. Po pierwsze: to baseline, więc
+     `text-sm` / `text-xs` na polu w widgecie ma go nadpisywać (bezwarstwowo
+     nie nadpisywał - patrz komentarz przy baseline'ie geometrii wyżej).
+     Po drugie: musi być w TEJ SAMEJ warstwie co `.input`, inaczej atom
+     `.input` (warstwa) przegrałby z tą regułą (bez warstwy) i pola w
+     shellach widgetów urosłyby z 0.875rem na 14px. W jednej warstwie
+     decyduje kolejność w pliku, a `.input` jest niżej - czyli wygrywa,
+     dokładnie jak przed wprowadzeniem warstw.
+     ============================================================ */
+  .cf-shell :where(input, select, textarea),
+  [data-w-id] :where(input, select, textarea),
+  .cms-widget-form :where(input, select, textarea),
+  .nl-shell :where(input, select, textarea),
+  .auth-shell :where(input, select, textarea),
+  .join-us-shell :where(input, select, textarea) {
+    font-size: var(--gc-input-font-size, 14px);
+    line-height: var(--gc-input-line-height, 1.4);
+    color: var(--gc-input-text, var(--foreground));
+  }
 }
 
 /* Join-us form inputs must stay left-aligned even when the parent builder
@@ -5078,237 +5089,253 @@ textarea::placeholder {
   animation: accordion-up 0.2s ease-out;
 }
 
-/* =========================================================================
-   Floating-label input (platform-wide atom)
-   Semantic tokens only (border/input/ring/background/foreground/primary).
-   Works in light + dark. Consumed by <FloatingInput/> and <FloatingTextarea/>
-   in src/components/ui/floating-input.tsx.
-   ------------------------------------------------------------------------- */
-.input-group {
-  position: relative;
-  width: 100%;
-  height: fit-content;
-  align-self: start;
-}
-.input-group > .input {
-  display: block;
-  width: 100%;
-  border: 1.5px solid var(--border);
-  border-radius: 6px !important;
-  background: transparent;
-  padding: 1rem 0.9rem;
-  font-size: 0.95rem;
-  line-height: 1.25rem;
-  color: var(--foreground);
-  text-align: left !important;
-  transition:
-    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  outline: none;
-}
-.input-group > .input:hover:not(:disabled) {
-  border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 20%);
-}
-.input-group > textarea.input {
-  min-height: 6.5rem;
-  resize: vertical;
-}
-.input-group > .input::placeholder {
-  color: transparent;
-}
-.input-group > .user-label {
-  position: absolute;
-  left: 0.85rem;
-  top: 50%;
-  /* Rest state: lighter gray so the placeholder feels subtle; float state
-     switches to the branded ring color for clarity. */
-  color: var(--gc-input-placeholder, var(--muted-foreground));
-  pointer-events: none;
-  /* The label itself has no vertical padding: its line box is centered on the
-     control axis, avoiding optical drift in scaled article/widget layouts. */
-  transform: translateY(-50%);
-  transform-origin: left center;
-  transition:
-    transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    top 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  /* Smaller rest-state font so long placeholders fit narrow fields and the
-     label feels lighter before the user interacts with the field. */
-  font-size: 0.8125rem;
-  line-height: 1;
-  padding: 0;
-  max-width: calc(100% - 1.7rem);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: left !important;
-}
-/* The wrapper is prevented from stretching beside taller controls. Its center
-   therefore always follows the actual rendered input height, including widget
-   and compact-admin overrides. */
-.input-group > input.input ~ .user-label {
-  top: 50%;
-  height: auto;
-  transform: translateY(-50%);
-}
-/* Selects have no reliable :placeholder-shown state. Keep their labels on the
-   border while preserving the same floating-label geometry and 6px control. */
-.input-group > select.input {
-  padding-top: 0.8rem;
-  padding-bottom: 0.2rem;
-}
-.input-group > select.input ~ .user-label {
-  top: 0;
-  height: auto;
-  transform: translateY(-50%) scale(0.8);
-  transform-origin: left center;
-  background-color: var(--background);
-  padding: 0 0.35em;
-  color: var(--ring);
-}
-.input-group--on-dark > select.input ~ .user-label {
-  background-color: var(--input-group-chip-bg);
-}
-.dark .input-group > .user-label {
-  color: var(--gc-input-placeholder-dark, oklch(0.65 0 0));
+@layer components {
+  /* =========================================================================
+     Floating-label input (platform-wide atom)
+     Semantic tokens only (border/input/ring/background/foreground/primary).
+     Works in light + dark. Consumed by <FloatingInput/> and <FloatingTextarea/>
+     in src/components/ui/floating-input.tsx.
+
+     `@layer components` - to warstwa dla KLAS KOMPONENTOWYCH: definiują
+     domyślny wygląd atomu, a utility Tailwinda przekazane przez `className`
+     mają je nadpisywać. Bez warstwy było odwrotnie (reguła bezwarstwowa bije
+     każdą warstwową, niezależnie od specyficzności), więc `h-8`, `px-1`,
+     `text-xs` czy `pr-6` podane w miejscu użycia nie robiły nic.
+     ------------------------------------------------------------------------- */
+  .input-group {
+    position: relative;
+    width: 100%;
+    height: fit-content;
+    align-self: start;
+  }
+  .input-group > .input {
+    display: block;
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: 6px !important;
+    background: transparent;
+    padding: 1rem 0.9rem;
+    font-size: 0.95rem;
+    line-height: 1.25rem;
+    color: var(--foreground);
+    text-align: left !important;
+    transition:
+      border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+  }
+  .input-group > .input:hover:not(:disabled) {
+    border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 20%);
+  }
+  .input-group > textarea.input {
+    min-height: 6.5rem;
+    resize: vertical;
+  }
+  .input-group > .input::placeholder {
+    color: transparent;
+  }
+  .input-group > .user-label {
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    /* Rest state: lighter gray so the placeholder feels subtle; float state
+       switches to the branded ring color for clarity. */
+    color: var(--gc-input-placeholder, var(--muted-foreground));
+    pointer-events: none;
+    /* The label itself has no vertical padding: its line box is centered on the
+       control axis, avoiding optical drift in scaled article/widget layouts. */
+    transform: translateY(-50%);
+    transform-origin: left center;
+    transition:
+      transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      top 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    /* Smaller rest-state font so long placeholders fit narrow fields and the
+       label feels lighter before the user interacts with the field. */
+    font-size: 0.8125rem;
+    line-height: 1;
+    padding: 0;
+    max-width: calc(100% - 1.7rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left !important;
+  }
+  /* The wrapper is prevented from stretching beside taller controls. Its center
+     therefore always follows the actual rendered input height, including widget
+     and compact-admin overrides. */
+  .input-group > input.input ~ .user-label {
+    top: 50%;
+    height: auto;
+    transform: translateY(-50%);
+  }
+  /* Selects have no reliable :placeholder-shown state. Keep their labels on the
+     border while preserving the same floating-label geometry and 6px control. */
+  .input-group > select.input {
+    padding-top: 0.8rem;
+    padding-bottom: 0.2rem;
+  }
+  .input-group > select.input ~ .user-label {
+    top: 0;
+    height: auto;
+    transform: translateY(-50%) scale(0.8);
+    transform-origin: left center;
+    background-color: var(--background);
+    padding: 0 0.35em;
+    color: var(--ring);
+  }
+  .input-group--on-dark > select.input ~ .user-label {
+    background-color: var(--input-group-chip-bg);
+  }
+  .dark .input-group > .user-label {
+    color: var(--gc-input-placeholder-dark, oklch(0.65 0 0));
+  }
+
+  .input-group > .input:focus,
+  .input-group > .input:not(:placeholder-shown) {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 20%, transparent);
+  }
+  .input-group > .input:focus ~ .user-label,
+  .input-group > .input:not(:placeholder-shown) ~ .user-label {
+    top: 0;
+    display: block;
+    height: auto;
+    transform: translateY(-50%) scale(0.8);
+    transform-origin: left center;
+    background-color: var(--background);
+    /* Float state: keep horizontal chip padding tight, drop the vertical
+       padding so the shrunk label sits flush on the border line. */
+    padding: 0 0.35em;
+    color: var(--ring);
+  }
+  .input-group[data-invalid="true"] > .input {
+    border-color: var(--destructive);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent);
+  }
+  .input-group[data-invalid="true"] > .input:focus ~ .user-label,
+  .input-group[data-invalid="true"] > .input:not(:placeholder-shown) ~ .user-label {
+    color: var(--destructive);
+  }
+  .input-group > .input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Beat high-specificity builder widget styles ([data-w-id] repeated) that
+     force text-align: center on all descendants. The floating input atom must
+     always keep its text left-aligned regardless of parent widget alignment. */
+  .input-group.input-group > .input.input,
+  .input-group.input-group > textarea.input.input {
+    text-align: left !important;
+  }
+
+  /* On-dark modifier: for use inside dark popup/marketing surfaces
+     (LoginPopup dark hero, NewsletterPopupForm split). The label chip needs a
+     solid backdrop matching the dark surface (bg-white/5 over a near-black
+     panel), not `var(--background)` - otherwise the floating label sits on a
+     translucent slice and looks fuzzy. Consumers set the chip background via
+     `--input-group-chip-bg` (defaults to #0b0b0f). Borders/text switch to
+     white/alpha; ring still uses `--ring` so the focus glow stays branded. */
+  .input-group--on-dark {
+    --input-group-chip-bg: #0b0b0f;
+  }
+  .input-group--on-dark > .input {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+    text-align: left !important;
+  }
+  .input-group--on-dark > .input:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.24);
+  }
+  .input-group--on-dark > .user-label {
+    color: rgba(255, 255, 255, 0.6);
+    text-align: left !important;
+  }
+  .input-group--on-dark > .input:focus,
+  .input-group--on-dark > .input:not(:placeholder-shown) {
+    border-color: var(--ring);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .input-group--on-dark > .input:focus ~ .user-label,
+  .input-group--on-dark > .input:not(:placeholder-shown) ~ .user-label {
+    background-color: var(--input-group-chip-bg);
+    color: var(--ring);
+  }
+  .input-group--on-dark > .input::placeholder {
+    color: transparent;
+  }
 }
 
-.input-group > .input:focus,
-.input-group > .input:not(:placeholder-shown) {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 20%, transparent);
-}
-.input-group > .input:focus ~ .user-label,
-.input-group > .input:not(:placeholder-shown) ~ .user-label {
-  top: 0;
-  display: block;
-  height: auto;
-  transform: translateY(-50%) scale(0.8);
-  transform-origin: left center;
-  background-color: var(--background);
-  /* Float state: keep horizontal chip padding tight, drop the vertical
-     padding so the shrunk label sits flush on the border line. */
-  padding: 0 0.35em;
-  color: var(--ring);
-}
-.input-group[data-invalid="true"] > .input {
-  border-color: var(--destructive);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent);
-}
-.input-group[data-invalid="true"] > .input:focus ~ .user-label,
-.input-group[data-invalid="true"] > .input:not(:placeholder-shown) ~ .user-label {
-  color: var(--destructive);
-}
-.input-group > .input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+@layer components {
+  /* Standalone variant of the platform input, for admin/settings surfaces where
+     the label sits OUTSIDE the field (two-column layout) and floating labels
+     don't fit. Uses the same tokens as `.input-group > .input` so admin forms
+     match the public forms visually. Tighter padding/font because admin
+     layouts are denser. Inside `.input-group` the floating rules take
+     precedence via the more-specific `.input-group > .input` selector.
 
-/* Beat high-specificity builder widget styles ([data-w-id] repeated) that
-   force text-align: center on all descendants. The floating input atom must
-   always keep its text left-aligned regardless of parent widget alignment. */
-.input-group.input-group > .input.input,
-.input-group.input-group > textarea.input.input {
-  text-align: left !important;
-}
-
-/* On-dark modifier: for use inside dark popup/marketing surfaces
-   (LoginPopup dark hero, NewsletterPopupForm split). The label chip needs a
-   solid backdrop matching the dark surface (bg-white/5 over a near-black
-   panel), not `var(--background)` - otherwise the floating label sits on a
-   translucent slice and looks fuzzy. Consumers set the chip background via
-   `--input-group-chip-bg` (defaults to #0b0b0f). Borders/text switch to
-   white/alpha; ring still uses `--ring` so the focus glow stays branded. */
-.input-group--on-dark {
-  --input-group-chip-bg: #0b0b0f;
-}
-.input-group--on-dark > .input {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-  text-align: left !important;
-}
-.input-group--on-dark > .input:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.24);
-}
-.input-group--on-dark > .user-label {
-  color: rgba(255, 255, 255, 0.6);
-  text-align: left !important;
-}
-.input-group--on-dark > .input:focus,
-.input-group--on-dark > .input:not(:placeholder-shown) {
-  border-color: var(--ring);
-  background: rgba(255, 255, 255, 0.06);
-}
-.input-group--on-dark > .input:focus ~ .user-label,
-.input-group--on-dark > .input:not(:placeholder-shown) ~ .user-label {
-  background-color: var(--input-group-chip-bg);
-  color: var(--ring);
-}
-.input-group--on-dark > .input::placeholder {
-  color: transparent;
-}
-
-/* Standalone variant of the platform input, for admin/settings surfaces where
-   the label sits OUTSIDE the field (two-column layout) and floating labels
-   don't fit. Uses the same tokens as `.input-group > .input` so admin forms
-   match the public forms visually. Tighter padding/font because admin
-   layouts are denser. Inside `.input-group` the floating rules take
-   precedence via the more-specific `.input-group > .input` selector. */
-.input {
-  width: 100%;
-  border: 1.5px solid var(--border);
-  border-radius: 6px !important;
-  background: transparent;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  color: var(--foreground);
-  text-align: left;
-  transition:
-    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  outline: none;
-}
-.input:hover:not(:disabled) {
-  border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 20%);
-}
-.input:focus {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent);
-}
-.input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.input::placeholder {
-  color: var(--gc-input-placeholder, var(--muted-foreground));
-  font-size: 0.8125rem;
-}
-textarea.input {
-  min-height: 3.75rem;
-  padding: 0.55rem 0.75rem;
-  line-height: 1.35rem;
-  resize: vertical;
-}
-.input[aria-invalid="true"],
-.input[data-invalid="true"] {
-  border-color: var(--destructive);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent);
-}
-.input[type="file"] {
-  padding-top: 0.4rem;
-  padding-bottom: 0.4rem;
-}
-.input[type="file"]::file-selector-button {
-  border: 0;
-  background: transparent;
-  color: var(--foreground);
-  font-weight: 500;
-  font-size: 0.875rem;
-  margin-right: 0.5rem;
-  cursor: pointer;
+     Ten blok MUSI zostać poniżej shell-owego baseline'u pól i w tej samej
+     warstwie co on - obie reguły mają specyficzność (0,1,0), więc o wyniku
+     decyduje kolejność w pliku. Przeniesienie samego `.input` do warstwy,
+     bez tamtego, podniosłoby font pól w shellach widgetów z 0.875rem na
+     14px (zmierzone: 12 kontrolek). Pilnuje tego test cssLayers. */
+  .input {
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: 6px !important;
+    background: transparent;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--foreground);
+    text-align: left;
+    transition:
+      border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+  }
+  .input:hover:not(:disabled) {
+    border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 20%);
+  }
+  .input:focus {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent);
+  }
+  .input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .input::placeholder {
+    color: var(--gc-input-placeholder, var(--muted-foreground));
+    font-size: 0.8125rem;
+  }
+  textarea.input {
+    min-height: 3.75rem;
+    padding: 0.55rem 0.75rem;
+    line-height: 1.35rem;
+    resize: vertical;
+  }
+  .input[aria-invalid="true"],
+  .input[data-invalid="true"] {
+    border-color: var(--destructive);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent);
+  }
+  .input[type="file"] {
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+  .input[type="file"]::file-selector-button {
+    border: 0;
+    background: transparent;
+    color: var(--foreground);
+    font-weight: 500;
+    font-size: 0.875rem;
+    margin-right: 0.5rem;
+    cursor: pointer;
+  }
 }
 
 /* Language switcher toggle (chrome header widget).
