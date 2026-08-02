@@ -505,6 +505,13 @@ export function JoinUsForm({
       setState("err");
       return;
     }
+    if (!consentAccepted) {
+      setErrMsg(t("joinUs.consentRequired"));
+      setState("err");
+      return;
+    }
+
+
 
     try {
       const nlText =
