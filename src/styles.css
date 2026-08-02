@@ -6115,23 +6115,26 @@ textarea::placeholder {
   content: none;
 }
 
-/* Site header shrink-on-scroll: po przewinięciu header zmniejsza się
-   płynnie, a jego zawartość skaluje się proporcjonalnie (zoom).
-   Dłuższe easing (520 ms) i will-change eliminują „skok" layoutu. */
+/* Site header shrink-on-scroll: po przewinięciu header zmniejsza się płynnie,
+   a jego zawartość skaluje się proporcjonalnie (zoom).
+
+   Płynność: `zoom` przelicza layout w każdej klatce, więc kluczowe jest
+   ograniczenie zasięgu tego przeliczenia (`contain: layout style` na headerze
+   i na skalowanym kontenerze) oraz brak animowania właściwości, które i tak
+   nie mają wartości docelowej (`height` na auto była no-opem i tylko dokładała
+   pracy). Krzywa `cubic-bezier(0.33, 1, 0.68, 1)` (ease-out-cubic) startuje
+   szybko i wygasza spokojnie - subiektywnie płynniej niż długie 520 ms. */
 header[data-site-header].site-header-shrink {
-  transition:
-    box-shadow 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    height 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
-  will-change: height, box-shadow;
+  transition: box-shadow 380ms cubic-bezier(0.33, 1, 0.68, 1);
+  contain: layout style;
 }
 header[data-site-header].site-header-shrink > * {
   transition:
-    zoom 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    opacity 520ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    grid-template-rows 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    zoom 380ms cubic-bezier(0.33, 1, 0.68, 1),
+    opacity 380ms cubic-bezier(0.33, 1, 0.68, 1),
+    grid-template-rows 380ms cubic-bezier(0.33, 1, 0.68, 1);
   transform-origin: top left;
-  will-change: zoom, transform, opacity, grid-template-rows;
+  contain: layout style;
 }
 header[data-site-header][data-scrolled="true"].site-header-shrink {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
@@ -6139,6 +6142,7 @@ header[data-site-header][data-scrolled="true"].site-header-shrink {
 header[data-site-header][data-scrolled="true"].site-header-shrink > * {
   zoom: 0.8;
 }
+
 
 /* Trending ticker ("na czasie") zwija się płynnie zamiast znikać natychmiast.
    Grid-template-rows minmax(0,1fr) -> minmax(0,0fr) animuje rzeczywistą
