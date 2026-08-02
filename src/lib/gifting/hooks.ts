@@ -5,7 +5,7 @@
 // body inaczej niz przez wazny kod, a generowanie linku wymaga aktywnej
 // platnej subskrypcji. Ten modul dostarcza:
 //   * odczyt ustawien (gift_article_settings, publiczne; brak wiersza =
-//     funkcja wlaczona bez limitow),
+//     funkcja wlaczona z bezpiecznymi domyslnymi - patrz DEFAULT_GIFT_SETTINGS),
 //   * stan gifting dla popovera (gift_article_state - czysty odczyt),
 //   * mutacje utworzenia linku (idempotentna per wpis/darczynca),
 //   * realizacje kodu przez odbiorce (redeem - konsumpcja PO hydracji,
