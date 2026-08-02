@@ -1242,18 +1242,6 @@ export function JoinUsForm({
         </div>
       )}
 
-      <SubscribeButton
-        loading={state === "loading"}
-        loadingLabel={btnLoading}
-        className="w-full sm:w-auto"
-        style={{ fontSize: buttonSize ? `${buttonSize}px` : undefined }}
-        data-edit-target="buttonSize"
-      >
-        <UserPlus className="shrink-0" style={iconStyle} {...iconTargetProps} aria-hidden />
-        {btnLabel}
-      </SubscribeButton>
-
-      {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
       <label
         className="flex cursor-pointer items-start gap-2 font-sans leading-relaxed text-muted-foreground"
         style={{ fontSize: consentSize ? `${consentSize}px` : "11px" }}
@@ -1270,6 +1258,20 @@ export function JoinUsForm({
           <span className="ml-1 text-destructive">*</span>
         </span>
       </label>
+
+      <SubscribeButton
+        loading={state === "loading"}
+        loadingLabel={btnLoading}
+        className="w-full sm:w-auto"
+        style={{ fontSize: buttonSize ? `${buttonSize}px` : undefined }}
+        data-edit-target="buttonSize"
+      >
+        <UserPlus className="shrink-0" style={iconStyle} {...iconTargetProps} aria-hidden />
+        {btnLabel}
+      </SubscribeButton>
+
+      {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
+
 
     </form>
   );
