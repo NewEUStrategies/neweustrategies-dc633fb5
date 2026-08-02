@@ -201,3 +201,23 @@ describe("PostsSliderWidget - okładka i zajawka", () => {
     await waitFor(() => expect(container.textContent).toContain("Zajawka pierwszego"));
   });
 });
+
+describe("PostsSliderWidget - granica leniwego chunka", () => {
+  it("reads the slider option catalogs from the data-only module", async () => {
+    // Renderer slidera (~53 KB) jedzie leniwie przez lazyWidgets. Import stałych
+    // wprost z `sliderVariants` wciągnąłby go z powrotem do głównego bundla,
+    // więc zawężanie wariantów korzysta z lekkiego `sliderOptions`.
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/components/admin/builder/ui/organisms/widget-view/mediaWidgets.tsx",
+      ),
+      "utf8",
+    );
+    expect(src).toContain('from "@/lib/builder/sliderOptions"');
+    const runtimeSliderImport = /import\s+(?!type)[^;]*from\s+"@\/lib\/builder\/sliderVariants"/s;
+    expect(runtimeSliderImport.test(src)).toBe(false);
+  });
+});
