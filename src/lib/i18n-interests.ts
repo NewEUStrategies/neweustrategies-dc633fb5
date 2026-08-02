@@ -85,6 +85,7 @@ const en: typeof pl = {
     errorGeneric: "Something went wrong. Please try again.",
     duplicate: "This email is already subscribed.",
     consent: "By subscribing you accept the privacy policy. You can unsubscribe at any time.",
+    consentRequired: "Please accept the consent to continue.",
     perksTitle: "What you get",
     perk1: "Weekly editorial briefing",
     perk2: "Early access to reports",
