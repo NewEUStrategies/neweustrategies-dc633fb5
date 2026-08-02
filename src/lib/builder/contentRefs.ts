@@ -10,6 +10,7 @@
 import { useQueries } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { WIDGET_QUERY_ROOTS } from "./queryKeys";
 
 export type Lang = "pl" | "en";
 
@@ -156,7 +157,7 @@ function toPostRef(row: RawPostRow | null, author: AuthorInfo, lang: Lang): Post
 
 export function postRefQueryOptions(id: string | null | undefined, lang: Lang) {
   return {
-    queryKey: ["post-ref", id ?? "", lang] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.postRef, id ?? "", lang] as const,
     queryFn: async (): Promise<PostRefData | null> => {
       if (!id) return null;
       const bundle = await fetchPostRefBundle(id);

@@ -11,6 +11,7 @@ import type { BuilderDocument, Device } from "./types";
 import { emptyDocument, toJson } from "./types";
 import { safeParseBuilderDoc } from "./schema";
 import { emitWidgetCacheInvalidate } from "./widgetCacheInvalidation";
+import { WIDGET_QUERY_ROOTS } from "./queryKeys";
 
 export type PopupTrigger = "immediate" | "delay" | "scroll" | "exit-intent";
 export type PopupWidth = "sm" | "md" | "lg" | "xl";
@@ -199,7 +200,7 @@ const POPUP_COLUMNS = "id, name, status, builder_data, settings, created_at, upd
 /** Active popups for the public host (anon-readable thanks to RLS). */
 export function useActivePopups(enabled: boolean) {
   return useQuery({
-    queryKey: ["builder-popups-active"],
+    queryKey: [WIDGET_QUERY_ROOTS.popupsActive],
     enabled,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<BuilderPopup[]> => {
@@ -237,7 +238,7 @@ export function usePopupsAdmin() {
 
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["builder-popups-admin"] });
-    void queryClient.invalidateQueries({ queryKey: ["builder-popups-active"] });
+    void queryClient.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.popupsActive] });
     void queryClient.invalidateQueries({ queryKey: ["builder-popup"] });
     emitWidgetCacheInvalidate();
   }, [queryClient]);
@@ -363,7 +364,7 @@ export function usePopupEditor(id: string | null) {
       if (!error) {
         void queryClient.invalidateQueries({ queryKey: ["builder-popup"] });
         void queryClient.invalidateQueries({ queryKey: ["builder-popups-admin"] });
-        void queryClient.invalidateQueries({ queryKey: ["builder-popups-active"] });
+        void queryClient.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.popupsActive] });
         emitWidgetCacheInvalidate();
       }
       return !error;

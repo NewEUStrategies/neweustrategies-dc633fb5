@@ -85,6 +85,9 @@ export const LIVE_INVALIDATED_ROOTS: ReadonlyArray<WidgetQueryRoot> = [
   WIDGET_QUERY_ROOTS.categories,
   WIDGET_QUERY_ROOTS.tags,
   WIDGET_QUERY_ROOTS.sliderPosts,
+  // Czyta okladki opublikowanych wpisow, wiec publikacja lub zmiana okladki
+  // musi je odswiezyc - inaczej slider bez wlasnych zdjec trzyma stary zestaw.
+  WIDGET_QUERY_ROOTS.sliderFallbackImages,
   WIDGET_QUERY_ROOTS.recommendedPosts,
   WIDGET_QUERY_ROOTS.globalWidget,
   WIDGET_QUERY_ROOTS.globalWidgets,

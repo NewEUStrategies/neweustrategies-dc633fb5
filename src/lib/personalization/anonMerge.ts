@@ -27,6 +27,7 @@ import {
 } from "@/hooks/usePersonalizedSettings";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { slugFromUrl } from "./slug";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 
 const ANON_INTERESTS_KEY = "nes.interests.anon.v1";
 const GUEST_SAVED_KEY = "lovable:saved-articles";
@@ -218,7 +219,7 @@ export async function mergeAnonPersonalization(
           ["follows"],
           ["bookmarks"],
           ["profile-counts"],
-          ["recommended-posts"],
+          [WIDGET_QUERY_ROOTS.recommendedPosts],
           ["followed-feed"],
         ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
       );

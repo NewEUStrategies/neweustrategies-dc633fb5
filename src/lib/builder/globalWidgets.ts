@@ -18,6 +18,7 @@ import type { WidgetNode } from "./types";
 import { newId, toJson } from "./types";
 import { isKnownWidgetType } from "./schema";
 import { emitWidgetCacheInvalidate } from "./widgetCacheInvalidation";
+import { WIDGET_QUERY_ROOTS } from "./queryKeys";
 
 /** The synchronized part of a widget: everything except the instance id. */
 export type GlobalWidgetData = Pick<WidgetNode, "type" | "content" | "style" | "advanced">;
@@ -109,9 +110,9 @@ export function resolveGlobalWidgetInstance(
 
 // ---------- query keys (registered in WIDGET_LIVE_QUERY_PREFIXES) ----------
 
-export const globalWidgetKey = (id: string) => ["global-widget", id] as const;
+export const globalWidgetKey = (id: string) => [WIDGET_QUERY_ROOTS.globalWidget, id] as const;
 const globalWidgetsListKey = (tenantId: string | null) =>
-  ["global-widgets", tenantId ?? ""] as const;
+  [WIDGET_QUERY_ROOTS.globalWidgets, tenantId ?? ""] as const;
 
 // ---------- render-side resolution ----------
 
@@ -146,7 +147,7 @@ export function useGlobalWidgetNode(globalId: string | undefined): GlobalWidgetD
 /** Name + meta of a global widget (properties-panel banner). */
 export function useGlobalWidgetMeta(globalId: string | undefined): { name: string } | null {
   const q = useQuery({
-    queryKey: ["global-widget-meta", globalId ?? ""],
+    queryKey: [WIDGET_QUERY_ROOTS.globalWidgetMeta, globalId ?? ""],
     enabled: Boolean(globalId),
     staleTime: GLOBAL_WIDGET_STALE,
     queryFn: async (): Promise<{ name: string } | null> => {
@@ -188,9 +189,9 @@ export function useGlobalWidgets() {
   });
 
   const invalidate = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["global-widgets"] });
-    void queryClient.invalidateQueries({ queryKey: ["global-widget"] });
-    void queryClient.invalidateQueries({ queryKey: ["global-widget-meta"] });
+    void queryClient.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.globalWidgets] });
+    void queryClient.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.globalWidget] });
+    void queryClient.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.globalWidgetMeta] });
     emitWidgetCacheInvalidate();
   }, [queryClient]);
 

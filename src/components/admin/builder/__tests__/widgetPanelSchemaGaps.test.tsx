@@ -112,7 +112,9 @@ describe("copyright ma edytowalne pola", () => {
     cleanup();
 
     const off = render(
-      <>{renderSimpleWidget(node("copyright", { brand: "NES", showYear: false }), "pl", "light")}</>,
+      <>
+        {renderSimpleWidget(node("copyright", { brand: "NES", showYear: false }), "pl", "light")}
+      </>,
     );
     expect(off.container.textContent).not.toContain(year);
     expect(off.container.textContent).toContain("NES");

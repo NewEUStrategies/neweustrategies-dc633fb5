@@ -77,7 +77,9 @@ export function asStr(value: unknown): string {
 
 /** Tablica stringów z odfiltrowaniem elementów innego typu. */
 export function asStrArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 /**
