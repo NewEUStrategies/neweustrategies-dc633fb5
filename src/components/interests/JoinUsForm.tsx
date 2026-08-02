@@ -686,6 +686,7 @@ export function JoinUsForm({
       country: "",
     });
     setCustomValues({});
+    setConsentAccepted(false);
   };
 
   // Resolved copy (props override → newsletter settings → i18n default)
