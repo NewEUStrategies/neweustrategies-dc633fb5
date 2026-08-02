@@ -7,10 +7,12 @@ const read = (p: string) => readFileSync(join(root, p), "utf8");
 
 const MIGRATION = "supabase/migrations/20260712140000_crm_secrets_vault_and_cv_bucket.sql";
 const CRM_FNS = "src/lib/crm.functions.ts";
+const DISPATCH = "src/lib/integrations/dispatch.functions.ts";
 const PROFILE = "src/components/profile/sections/ProfileExtraSections.tsx";
-// Po restrukturyzacji CRM (layout admin.crm.tsx = tylko <Outlet/>) UI zarządzania
-// sekretami integracji Merydian przeniesiono na trasę-indeks listy kontaktów.
-const ADMIN = "src/routes/admin.crm.index.tsx";
+// Po generalizacji integracji CRM (crm_webhook_endpoints, 20260802131000)
+// sekretami partnerów zarządza panel partnerów; wysyłka czyta je z Vault
+// przez RPC w dispatcherze outboxu.
+const ADMIN = "src/components/admin/crm/CrmPartnerEndpointsPanel.tsx";
 
 describe("T1 migration — Vault + private cv bucket", () => {
   const sql = read(MIGRATION);
@@ -64,22 +66,16 @@ describe("T1 migration — Vault + private cv bucket", () => {
 });
 
 describe("T1 server — secrets never stored/returned in plaintext columns", () => {
-  const src = read(CRM_FNS);
-
-  it("dispatch reads decrypted secrets via the RPC, not cfg columns", () => {
-    expect(src).toContain('rpc("crm_get_merydian_secrets"');
-    expect(src).not.toContain("cfg.merydian_webhook_secret");
-    expect(src).not.toContain("cfg.merydian_api_key");
+  it("CRM server functions carry no Merydian secret material at all", () => {
+    const src = read(CRM_FNS);
+    expect(src).not.toContain("merydian_webhook_secret");
+    expect(src).not.toContain("merydian_api_key");
   });
 
-  it("upsert strips secrets from the row and routes them to the RPC", () => {
-    expect(src).toContain("const { merydian_webhook_secret, merydian_api_key, ...config } = data;");
-    expect(src).toContain('rpc("crm_set_merydian_secret"');
-  });
-
-  it("getIntegrations exposes only presence booleans", () => {
-    expect(src).toContain("has_webhook_secret: row.merydian_webhook_secret_id != null");
-    expect(src).toContain("has_api_key: row.merydian_api_key_id != null");
+  it("outbox dispatcher reads decrypted secrets only via the Vault RPC", () => {
+    const src = read(DISPATCH);
+    expect(src).toContain('"integration_endpoint_get_secret"');
+    expect(src).not.toContain("endpoint.secret");
   });
 });
 
@@ -95,11 +91,13 @@ describe("T1 client — cv uses the private bucket + signed URLs", () => {
     expect(src).toContain("file_url: path,");
   });
 
-  it("admin secret inputs are write-only with a presence placeholder", () => {
+  it("partner secret input is write-only with a presence placeholder", () => {
     const src = read(ADMIN);
-    expect(src).toContain("s.has_webhook_secret ? L.integ.secretSet");
-    expect(src).toContain("s.has_api_key ? L.integ.secretSet");
-    expect(src).toContain('secretSet: "•••• (ustawiony)"');
-    expect(src).toContain('secretSet: "•••• (set)"');
+    expect(src).toContain('type="password"');
+    expect(src).toContain("draft.has_secret");
+    expect(src).toContain("•••• (ustawiony)");
+    expect(src).toContain("•••• (set)");
+    // Zapis wyłącznie przez RPC Vault - nigdy kolumną w tabeli endpointów.
+    expect(src).toContain('rpc("integration_endpoint_set_secret"');
   });
 });

@@ -131,6 +131,8 @@ function kindLabel(kind: IntegrationKind, L: Localize): string {
       return L("Google Calendar (generyczny JSON)", "Google Calendar (generic JSON)");
     case "confluence":
       return L("Confluence (generyczny JSON)", "Confluence (generic JSON)");
+    case "crm_partner":
+      return L("Partner CRM (leady + zgody)", "CRM partner (leads + consents)");
   }
 }
 
@@ -145,6 +147,11 @@ function kindHint(raw: string, L: Localize): string {
       return L(
         "URL to baza API (zwykle https://api.hubapi.com). Zdarzenia leadów i newslettera trafiają jako upsert kontaktu po e-mailu; pozostałe zdarzenia są pomijane. W polu sekretu ustaw token prywatnej aplikacji HubSpot (Bearer).",
         "URL is the API base (usually https://api.hubapi.com). Lead and newsletter events are upserted as contacts by e-mail; other events are skipped. Set the HubSpot private app token (Bearer) in the secret field.",
+      );
+    case "crm_partner":
+      return L(
+        "Endpoint partnera CRM: zdarzenia leadów są wysyłane jako snapshot leada ze zmapowanymi zgodami. Etapy, mapowanie zgód i tryb uwierzytelnienia konfigurujesz w CRM → Integracje.",
+        "CRM partner endpoint: lead events are delivered as a lead snapshot with mapped consents. Stages, consent mapping and auth mode are configured in CRM → Integrations.",
       );
     default:
       return L(

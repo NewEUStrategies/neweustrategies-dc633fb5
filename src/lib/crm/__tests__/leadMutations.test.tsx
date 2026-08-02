@@ -1,7 +1,7 @@
 // Kontrakt wspólnej warstwy mutacji leada (used-by-both: drawer listy + karta
 // /admin/crm/$id). Test blokuje: idempotencję dodania notatki, inwalidację
 // wspólnego klucza ["crm-lead", id], wywołanie callbacków side-effekt i push
-// Merydian. Dzięki temu dedup nie zmienia zachowania żadnej z powierzchni.
+// do partnerów CRM (outbox). Dedup nie zmienia zachowania żadnej powierzchni.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
@@ -10,25 +10,32 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const h = vi.hoisted(() => ({
   addCrmNote: vi.fn(async (_a?: unknown) => ({ ok: true }) as unknown),
   deleteCrmNote: vi.fn(async (_a?: unknown) => ({ ok: true }) as unknown),
-  pushLeadToMerydian: vi.fn(async (_a?: unknown) => ({ ok: true, via: "api" }) as unknown),
+  pushLeadToPartners: vi.fn(
+    async (_a?: unknown) => ({ ok: true, enqueued: 1, delivered: 1, failed: 0 }) as unknown,
+  ),
   idemKey: vi.fn((action: string) => `idem:${action}`),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  toastInfo: vi.fn(),
 }));
 
 vi.mock("@/lib/crm.functions", () => ({
   addCrmNote: (a: unknown) => h.addCrmNote(a),
   deleteCrmNote: (a: unknown) => h.deleteCrmNote(a),
-  pushLeadToMerydian: (a: unknown) => h.pushLeadToMerydian(a),
+  pushLeadToPartners: (a: unknown) => h.pushLeadToPartners(a),
 }));
 vi.mock("@/lib/http/idempotency", () => ({
   newIdempotencyKey: (action: string) => h.idemKey(action),
 }));
 vi.mock("sonner", () => ({
-  toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
+  toast: {
+    success: (m: string) => h.toastSuccess(m),
+    error: (m: string) => h.toastError(m),
+    info: (m: string) => h.toastInfo(m),
+  },
 }));
 
-import { useLeadNoteMutations, useMerydianPush } from "../leadMutations";
+import { useLeadNoteMutations, usePartnerPush } from "../leadMutations";
 
 function wrapper(qc: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
@@ -39,10 +46,11 @@ function wrapper(qc: QueryClient) {
 beforeEach(() => {
   h.addCrmNote.mockClear();
   h.deleteCrmNote.mockClear();
-  h.pushLeadToMerydian.mockClear();
+  h.pushLeadToPartners.mockClear();
   h.idemKey.mockClear();
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
+  h.toastInfo.mockClear();
 });
 
 describe("useLeadNoteMutations", () => {
@@ -97,27 +105,46 @@ describe("useLeadNoteMutations", () => {
   });
 });
 
-describe("useMerydianPush", () => {
-  it("sukces toastuje kanał (via)", async () => {
-    h.pushLeadToMerydian.mockResolvedValueOnce({ ok: true, via: "hubspot" });
+describe("usePartnerPush", () => {
+  it("dostarczenie od ręki toastuje sukces z licznikiem (PL)", async () => {
+    h.pushLeadToPartners.mockResolvedValueOnce({ ok: true, enqueued: 2, delivered: 2, failed: 0 });
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const { result } = renderHook(() => useMerydianPush("lead-4"), { wrapper: wrapper(qc) });
+    const { result } = renderHook(() => usePartnerPush("lead-4", "pl"), { wrapper: wrapper(qc) });
 
     result.current.mutate();
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(h.pushLeadToMerydian).toHaveBeenCalledWith({ data: { lead_id: "lead-4" } });
-    expect(h.toastSuccess).toHaveBeenCalledWith("Merydian: hubspot");
+    expect(h.pushLeadToPartners).toHaveBeenCalledWith({ data: { lead_id: "lead-4" } });
+    expect(h.toastSuccess).toHaveBeenCalledWith("Wysłano do partnerów CRM (2/2)");
   });
 
-  it("odmowa (ok=false) toastuje błąd z payloadu", async () => {
-    h.pushLeadToMerydian.mockResolvedValueOnce({ ok: false, error: "no endpoint" });
+  it("enqueue bez natychmiastowej dostawy toastuje info o kolejce (EN)", async () => {
+    h.pushLeadToPartners.mockResolvedValueOnce({ ok: true, enqueued: 1, delivered: 0, failed: 1 });
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const { result } = renderHook(() => useMerydianPush("lead-5"), { wrapper: wrapper(qc) });
+    const { result } = renderHook(() => usePartnerPush("lead-5", "en"), { wrapper: wrapper(qc) });
 
     result.current.mutate();
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(h.toastError).toHaveBeenCalledWith("Merydian: no endpoint");
+    expect(h.toastInfo).toHaveBeenCalledWith("Queued for delivery (1) - automatic retry");
+  });
+
+  it("brak aktywnych partnerów (ok=false) toastuje błąd", async () => {
+    h.pushLeadToPartners.mockResolvedValueOnce({
+      ok: false,
+      enqueued: 0,
+      delivered: 0,
+      failed: 0,
+      error: "no_active_endpoints",
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => usePartnerPush("lead-6", "pl"), { wrapper: wrapper(qc) });
+
+    result.current.mutate();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(h.toastError).toHaveBeenCalledWith(
+      "Brak aktywnych partnerów CRM - dodaj endpoint w zakładce Integracje",
+    );
   });
 });

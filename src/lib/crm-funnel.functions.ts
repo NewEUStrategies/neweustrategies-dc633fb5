@@ -124,29 +124,38 @@ export const getFunnelSubscriber = createServerFn({ method: "POST" })
     return { json: j(row) };
   });
 
+export type FunnelStats = {
+  total: number;
+  subscribed: number;
+  pending: number;
+  unsubscribed: number;
+  registered: number;
+  contacts: number;
+};
+
+// Agregacja liczona w bazie (crm_funnel_stats, migracja 20260802130000):
+// jeden skan z COUNT(*) FILTER zamiast ściągania całej tabeli i pętli w JS.
+// RPC jest SECURITY INVOKER, więc RLS subskrybentów obowiązuje bez zmian.
 export const funnelStats = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
-  .handler(async ({ context }) => {
-    const { data: rows, error } = await tbl(context, "crm_funnel_view").select(
-      "status,is_registered,is_contact",
-    );
+  .handler(async ({ context }): Promise<FunnelStats> => {
+    const supabase = context.supabase as unknown as {
+      rpc: (n: string) => Promise<{ data: unknown; error: { message: string } | null }>;
+    };
+    const { data, error } = await supabase.rpc("crm_funnel_stats");
     if (error) throw new Error(error.message);
-    type Row = { status: string; is_registered: boolean; is_contact: boolean };
-    const list = (rows as Row[] | null) ?? [];
-    const total = list.length;
-    let subscribed = 0;
-    let pending = 0;
-    let unsubscribed = 0;
-    let registered = 0;
-    let contacts = 0;
-    for (const r of list) {
-      if (r.status === "subscribed") subscribed += 1;
-      else if (r.status === "pending") pending += 1;
-      else if (r.status === "unsubscribed") unsubscribed += 1;
-      if (r.is_registered) registered += 1;
-      if (r.is_contact) contacts += 1;
-    }
-    return { total, subscribed, pending, unsubscribed, registered, contacts };
+    const row = (Array.isArray(data) ? data[0] : data) as Partial<
+      Record<keyof FunnelStats, number | string | null>
+    > | null;
+    const n = (v: number | string | null | undefined): number => Number(v ?? 0);
+    return {
+      total: n(row?.total),
+      subscribed: n(row?.subscribed),
+      pending: n(row?.pending),
+      unsubscribed: n(row?.unsubscribed),
+      registered: n(row?.registered),
+      contacts: n(row?.contacts),
+    };
   });
 
 const BulkInput = z.object({
@@ -170,7 +179,7 @@ const ConvertInput = z.object({
 
 /**
  * Konwersja zaznaczonych subskrybentów do Kontaktów CRM. Idempotentne dzięki
- * unique (tenant_id, email_norm) — nie duplikuje istniejących kontaktów.
+ * unique (tenant_id, email_norm) - nie duplikuje istniejących kontaktów.
  */
 export const convertFunnelToContacts = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])

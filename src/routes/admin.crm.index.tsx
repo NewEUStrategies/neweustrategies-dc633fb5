@@ -1,9 +1,12 @@
 // Admin CRM: unified lead inbox aggregating contact-form submissions and
 // newsletter subscriptions. Shows consent history (form name, version, text),
-// pipeline stages, notes, and Merydian push controls. Super Admins can switch
-// to a cross-tenant view via the scope toggle.
+// pipeline stages, notes, and multi-partner push controls (crm_webhook_endpoints
+// over the integration_deliveries outbox). Saved views (saved_views, entity
+// "lead") drive columns/filters/sort; the list is server-paginated with an
+// exact total. Super Admins can switch to a cross-tenant view via the scope
+// toggle.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -12,14 +15,13 @@ import {
   getCrmLead,
   updateCrmLead,
   exportCrmLeadsCsv,
-  getCrmIntegrations,
-  upsertCrmIntegrations,
   getCrmLeadTimeline,
   exportCrmLeadTimelineCsv,
   bulkUpdateCrmLeads,
   bulkDeleteCrmLeads,
 } from "@/lib/crm.functions";
 import { dispatchIntegrationDeliveries } from "@/lib/integrations/dispatch.functions";
+import { listSavedViews, upsertSavedView, deleteSavedView } from "@/lib/crm-saved-views.functions";
 import { BulkActionBar } from "@/components/molecules/BulkActionBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -34,23 +36,27 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useLeadNoteMutations, useMerydianPush } from "@/lib/crm/leadMutations";
+import { useLeadNoteMutations, usePartnerPush } from "@/lib/crm/leadMutations";
 import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
 import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";
 import { PresenceIndicator } from "@/components/molecules/PresenceIndicator";
+import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { ScoringSettingsDialog } from "@/components/admin/crm/ScoringSettingsDialog";
 import { FollowUpsPanel } from "@/components/admin/crm/FollowUpsPanel";
 import { ImportLeadsCsvDialog } from "@/components/admin/crm/ImportLeadsCsvDialog";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
-import { SCORE_BANDS, SCORE_BAND_LABELS, type ScoreBand } from "@/lib/crm/scoring";
+import { LeadViewTabs, type LeadSavedViewRow } from "@/components/admin/crm/LeadViewTabs";
+import { LeadColumnManager } from "@/components/admin/crm/LeadColumnManager";
+import { LeadFilterChips } from "@/components/admin/crm/LeadFilterChips";
+import { CrmPartnerEndpointsPanel } from "@/components/admin/crm/CrmPartnerEndpointsPanel";
+import { SCORE_BAND_LABELS, type ScoreBand } from "@/lib/crm/scoring";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -87,28 +93,42 @@ import {
   Printer,
   Upload,
   AlarmClock,
+  ArrowUpDown,
   ExternalLink,
-  Flame,
-  Sparkles,
-  UserCog,
   Users as UsersIcon,
 } from "lucide-react";
-import { BUILTIN_LEAD_VIEWS } from "@/lib/crm/leadViews";
+import {
+  BUILTIN_LEAD_VIEWS,
+  DEFAULT_LEAD_VIEW_CONFIG,
+  LEAD_COLUMNS,
+  leadViewToServerParams,
+  parseLeadViewConfig,
+  type LeadColumnKey,
+  type LeadFilter,
+  type LeadSort,
+  type LeadViewConfig,
+} from "@/lib/crm/leadViews";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
 
 interface CrmSearch {
   /** Deep-link z notyfikacji/powiązań: /admin/crm?lead=<id>&task=<id>. */
   lead?: string;
   task?: string;
+  /** Deep-link zapisanego widoku listy: /admin/crm?view=<builtin:...|uuid>. */
+  view?: string;
 }
 
 export const Route = createFileRoute("/admin/crm/")({
   validateSearch: (search: Record<string, unknown>): CrmSearch => ({
     lead: typeof search.lead === "string" && search.lead.length > 0 ? search.lead : undefined,
     task: typeof search.task === "string" && search.task.length > 0 ? search.task : undefined,
+    view:
+      typeof search.view === "string" && search.view.length > 0 && search.view.length < 80
+        ? search.view
+        : undefined,
   }),
   head: () => ({ meta: [{ title: "CRM | Admin" }, { name: "robots", content: "noindex" }] }),
   component: AdminCrmPage,
@@ -124,7 +144,9 @@ type Lead = {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  position?: string | null;
   company: string | null;
+  country?: string | null;
   stage: Stage;
   tags: string[] | null;
   marketing_consent: boolean;
@@ -189,25 +211,12 @@ const PL = {
   search: "Szukaj po e-mailu, imieniu, firmie…",
   scopeTenant: "Mój tenant",
   scopeAll: "Wszystkie tenanty (super admin)",
-  stageAll: "Wszystkie etapy",
   refresh: "Odśwież",
   export: "Eksport CSV",
   importCsv: "Import CSV",
   integrations: "Integracje",
   pipeline: "Pipeline",
   list: "Lista",
-  cols: {
-    who: "Osoba",
-    contact: "Kontakt",
-    company: "Firma",
-    stage: "Etap",
-    score: "Score",
-    consent: "Newsletter",
-    activity: "Aktywność",
-  },
-  sortActivity: "Sortuj: aktywność",
-  sortScore: "Sortuj: lead score",
-  bandAll: "Wszystkie pasma",
   empty: "Brak kontaktów dla wybranych filtrów.",
   stage: {
     new: "Nowy",
@@ -248,7 +257,7 @@ const PL = {
     noteSave: "Dodaj",
     noteEmpty: "Brak notatek.",
     noteDelete: "Usuń",
-    push: "Wyślij do Merydian",
+    push: "Wyślij do partnerów CRM",
     tlEmpty: "Brak zdarzeń na osi czasu.",
     tlExportCsv: "Eksport CSV",
     tlExportPdf: "Eksport PDF",
@@ -262,33 +271,7 @@ const PL = {
     } as Record<string, string>,
   },
   integ: {
-    title: "Integracja Merydian",
-    enabled: "Włącz integrację",
-    mode: "Tryb",
-    modeWebhook: "Tylko webhook",
-    modeApi: "Tylko API",
-    modeBoth: "Webhook + API",
-    webhookUrl: "Webhook URL",
-    webhookSecret: "Sekret webhooka (HMAC SHA-256)",
-    apiBase: "Bazowy URL API",
-    apiKey: "Klucz API",
-    workspaceId: "ID przestrzeni roboczej",
-    forwardStages: "Etapy do automatycznej wysyłki",
-    lastSync: "Ostatnia synchronizacja",
-    save: "Zapisz konfigurację",
-    docs: "Webhook odbiera POST JSON z nagłówkiem X-Signature (HMAC). API używa Bearer.",
-    mapping: "Mapowanie zgód → Merydian",
-    mappingHint:
-      "Przypisz klucze zgód z formularzy do pól/kategorii w Merydian. Każdy wysłany lead zawiera tablicę `consents` z polami granted/required/merydian_field/merydian_category.",
-    mappingAdd: "Dodaj mapowanie",
-    mappingEmpty: "Brak mapowań. Dodaj pierwsze, aby zgody trafiały do konkretnych pól w Merydian.",
-    mappingSourceKey: "Klucz zgody (np. newsletter_opt_in, gdpr_processing)",
-    mappingSourceLabel: "Etykieta (PL/EN)",
-    mappingField: "Pole w Merydian",
-    mappingCategory: "Kategoria w Merydian",
-    mappingRequired: "Wymagana",
-    mappingRemove: "Usuń",
-    secretSet: "•••• (ustawiony)",
+    docs: "Lead trafia do każdego aktywnego partnera CRM przez kolejkę z automatycznym retry. Webhook odbiera POST JSON z podpisem HMAC (X-Signature), API używa Bearer. Sekrety żyją w Vault.",
   },
 };
 
@@ -298,25 +281,12 @@ const EN = {
   search: "Search by email, name, company…",
   scopeTenant: "My tenant",
   scopeAll: "All tenants (super admin)",
-  stageAll: "All stages",
   refresh: "Refresh",
   export: "Export CSV",
   importCsv: "Import CSV",
   integrations: "Integrations",
   pipeline: "Pipeline",
   list: "List",
-  cols: {
-    who: "Person",
-    contact: "Contact",
-    company: "Company",
-    stage: "Stage",
-    score: "Score",
-    consent: "Newsletter",
-    activity: "Activity",
-  },
-  sortActivity: "Sort: activity",
-  sortScore: "Sort: lead score",
-  bandAll: "All bands",
   empty: "No contacts for the selected filters.",
   stage: {
     new: "New",
@@ -357,7 +327,7 @@ const EN = {
     noteSave: "Add",
     noteEmpty: "No notes.",
     noteDelete: "Delete",
-    push: "Push to Merydian",
+    push: "Send to CRM partners",
     tlEmpty: "No timeline events yet.",
     tlExportCsv: "Export CSV",
     tlExportPdf: "Export PDF",
@@ -371,33 +341,7 @@ const EN = {
     } as Record<string, string>,
   },
   integ: {
-    title: "Merydian integration",
-    enabled: "Enable integration",
-    mode: "Mode",
-    modeWebhook: "Webhook only",
-    modeApi: "API only",
-    modeBoth: "Webhook + API",
-    webhookUrl: "Webhook URL",
-    webhookSecret: "Webhook secret (HMAC SHA-256)",
-    apiBase: "API base URL",
-    apiKey: "API key",
-    workspaceId: "Workspace ID",
-    forwardStages: "Auto-forward stages",
-    lastSync: "Last sync",
-    save: "Save configuration",
-    docs: "Webhook receives POST JSON with X-Signature (HMAC) header. API uses Bearer auth.",
-    mapping: "Consent mapping → Merydian",
-    mappingHint:
-      "Map form consent keys to Merydian fields/categories. Every forwarded lead includes a `consents` array with granted/required/merydian_field/merydian_category.",
-    mappingAdd: "Add mapping",
-    mappingEmpty: "No mappings yet. Add one so consents land in specific Merydian fields.",
-    mappingSourceKey: "Consent key (e.g. newsletter_opt_in, gdpr_processing)",
-    mappingSourceLabel: "Label (PL/EN)",
-    mappingField: "Merydian field",
-    mappingCategory: "Merydian category",
-    mappingRequired: "Required",
-    mappingRemove: "Remove",
-    secretSet: "•••• (set)",
+    docs: "Leads reach every active CRM partner through a queue with automatic retries. Webhooks receive POST JSON signed with HMAC (X-Signature), APIs use Bearer auth. Secrets live in Vault.",
   },
 };
 
@@ -452,7 +396,7 @@ function AdminCrmPage() {
           <LeadsTab L={L} canSeeAll={isSuperAdmin} />
         </TabsContent>
         <TabsContent value="integrations" className="mt-3">
-          <IntegrationsTab L={L} />
+          <CrmPartnerEndpointsPanel lang={lang} stageLabels={L.stage} />
         </TabsContent>
       </Tabs>
     </div>
@@ -463,29 +407,21 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const urlSearch = Route.useSearch();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [stage, setStage] = useState<Stage | "all">("all");
   const [scope, setScope] = useState<"tenant" | "all">("tenant");
-  const [sort, setSort] = useState<"activity" | "score">("activity");
-  const [band, setBand] = useState<ScoreBand | "all">("all");
+  // Konfiguracja widoku (kolumny + filtry + sort) - ten sam kontrakt co
+  // saved_views (entity "lead"), więc bieżący stan można zapisać jako widok.
+  const [config, setConfig] = useState<LeadViewConfig>(DEFAULT_LEAD_VIEW_CONFIG);
+  const [activeViewId, setActiveViewId] = useState<string>(urlSearch.view ?? "builtin:all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [openId, setOpenId] = useState<string | null>(urlSearch.lead ?? null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(urlSearch.task ?? null);
   const [importOpen, setImportOpen] = useState(false);
   const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
-  const [activeViewId, setActiveViewId] = useState<string>("all");
   // Zbiorcze zaznaczenie leadów (bulk edit / delete). Zestaw ID trzymamy w
   // stanie, żeby przetrwał refetch po mutacji (dopóki użytkownik nie wyczyści).
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const qc = useQueryClient();
-  const applyView = (id: string) => {
-    setActiveViewId(id);
-    const view = BUILTIN_LEAD_VIEWS.find((v) => v.id === id);
-    if (!view) return;
-    const cfg = view.config;
-    setStage(cfg.filter.stage && cfg.filter.stage !== "any" ? (cfg.filter.stage as Stage) : "all");
-    setBand(cfg.filter.band && cfg.filter.band !== "any" ? (cfg.filter.band as ScoreBand) : "all");
-    if (cfg.sort.key === "score") setSort("score");
-    else setSort("activity");
-  };
   const { isAdmin } = useAuth();
   const lang: "pl" | "en" = L === PL ? "pl" : "en";
 
@@ -502,26 +438,132 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
     setOpenId(null);
     setOpenTaskId(null);
     if (urlSearch.lead || urlSearch.task) {
-      void navigate({ to: "/admin/crm", search: {}, replace: true });
+      void navigate({
+        to: "/admin/crm",
+        search: (prev: CrmSearch) => ({ ...prev, lead: undefined, task: undefined }),
+        replace: true,
+      });
     }
   };
 
+  // ---- Zapisane widoki (saved_views, entity "lead") ----------------------
+  const savedQuery = useQuery({
+    queryKey: ["admin", "saved-views", "lead"],
+    queryFn: async () => {
+      const res = await listSavedViews({ data: { entity: "lead" } });
+      return JSON.parse((res as { json: string }).json) as LeadSavedViewRow[];
+    },
+    staleTime: 60_000,
+  });
+  const saved = useMemo(() => savedQuery.data ?? [], [savedQuery.data]);
+
+  const setActive = (id: string, cfg: LeadViewConfig) => {
+    setActiveViewId(id);
+    setConfig(cfg);
+    setPage(1);
+    void navigate({
+      to: "/admin/crm",
+      search: (prev: CrmSearch) => ({ ...prev, view: id }),
+      replace: true,
+    });
+  };
+
+  // Podnieś aktywny widok z URL, jeśli udostępniony link zawiera zapisany id.
+  useEffect(() => {
+    if (!urlSearch.view) return;
+    const builtin = BUILTIN_LEAD_VIEWS.find((v) => v.id === urlSearch.view);
+    if (builtin) {
+      setActiveViewId(builtin.id);
+      setConfig(builtin.config);
+      return;
+    }
+    const s = saved.find((v) => v.id === urlSearch.view);
+    if (s) {
+      setActiveViewId(s.id);
+      setConfig(parseLeadViewConfig(s.config));
+    }
+  }, [urlSearch.view, saved]);
+
+  const createView = useMutation({
+    mutationFn: async ({ name, isShared }: { name: string; isShared: boolean }) =>
+      upsertSavedView({ data: { entity: "lead", name, config, is_shared: isShared } }),
+    onSuccess: async (res) => {
+      toast.success(lang === "pl" ? "Widok zapisany" : "View saved");
+      await qc.invalidateQueries({ queryKey: ["admin", "saved-views", "lead"] });
+      const id = (res as { id: string | null }).id;
+      if (id) setActiveViewId(id);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const renameView = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const v = saved.find((s) => s.id === id);
+      if (!v) throw new Error("not_found");
+      return upsertSavedView({
+        data: { id, entity: "lead", name, config: v.config, is_shared: v.is_shared },
+      });
+    },
+    onSuccess: async () => {
+      toast.success(lang === "pl" ? "Nazwa zmieniona" : "Renamed");
+      await qc.invalidateQueries({ queryKey: ["admin", "saved-views", "lead"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleSharedView = useMutation({
+    mutationFn: async ({ id, next }: { id: string; next: boolean }) => {
+      const v = saved.find((s) => s.id === id);
+      if (!v) throw new Error("not_found");
+      return upsertSavedView({
+        data: { id, entity: "lead", name: v.name, config: v.config, is_shared: next },
+      });
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["admin", "saved-views", "lead"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeView = useMutation({
+    mutationFn: async (id: string) => deleteSavedView({ data: { id } }),
+    onSuccess: async () => {
+      toast.success(lang === "pl" ? "Widok usunięty" : "View deleted");
+      await qc.invalidateQueries({ queryKey: ["admin", "saved-views", "lead"] });
+      setActive("builtin:all", DEFAULT_LEAD_VIEW_CONFIG);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // ---- Lista: filtry/sort liczone w SQL + paginacja z totalem -------------
+  const serverParams = useMemo(() => leadViewToServerParams(config), [config]);
+
+  // Zmiana filtrów/wyszukiwania/zakresu wraca na stronę 1 (okno paginacji
+  // liczone od nowego zbioru).
+  useEffect(() => {
+    setPage(1);
+  }, [search, scope, serverParams]);
+
   const q = useQuery({
-    queryKey: ["crm-leads", { search, stage, scope, sort, band }],
+    queryKey: ["crm-leads", { search, scope, serverParams, page, pageSize }],
     queryFn: async () => {
       const r = await listCrmLeads({
         data: {
           search: search || undefined,
-          stage: stage === "all" ? undefined : stage,
           scope,
-          sort,
-          band: band === "all" ? undefined : band,
-          limit: 200,
+          page,
+          limit: pageSize,
+          ...serverParams,
         },
       });
-      return JSON.parse((r as { json: string }).json) as Lead[];
+      return {
+        rows: JSON.parse((r as { json: string }).json) as Lead[],
+        total: (r as { total: number }).total,
+      };
     },
+    placeholderData: (prev) => prev,
   });
+  const total = q.data?.total ?? 0;
 
   // Realtime przez szynę zdarzeń domenowych: zamiast osobnego kanału na każdą
   // z 4 tabel źródłowych (leady, notatki, subskrybenci, formularz kontaktowy),
@@ -532,12 +574,13 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   useModuleRealtime("crm", { onEvent: () => setLastLiveAt(Date.now()) });
 
   const onExport = async () => {
+    // Eksport dziedziczy KOMPLET aktywnych filtrów i sortowanie widoku -
+    // plik odpowiada dokładnie temu, co admin widzi na liście (bez paginacji).
     const r = await exportCrmLeadsCsv({
       data: {
         search: search || undefined,
-        stage: stage === "all" ? undefined : stage,
         scope,
-        limit: 500,
+        ...serverParams,
       },
     });
     const blob = new Blob([(r as { csv: string }).csv], { type: "text/csv;charset=utf-8" });
@@ -548,7 +591,29 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
     URL.revokeObjectURL(a.href);
   };
 
-  const leads = q.data ?? [];
+  const leads = useMemo(() => q.data?.rows ?? [], [q.data?.rows]);
+
+  const setFilter = (f: LeadFilter) => setConfig((c) => ({ ...c, filter: f }));
+  const setColumns = (cols: LeadColumnKey[]) => setConfig((c) => ({ ...c, columns: cols }));
+  const toggleSort = (key: LeadSort["key"]) => {
+    setConfig((c) => {
+      if (c.sort.key === key) {
+        return { ...c, sort: { key, dir: c.sort.dir === "asc" ? "desc" : "asc" } };
+      }
+      const dir: "asc" | "desc" =
+        key === "name" || key === "company" || key === "country" ? "asc" : "desc";
+      return { ...c, sort: { key, dir } };
+    });
+  };
+
+  // Kraje do chipa filtra - z bieżącej strony wyników (jak na liście firm).
+  const countries = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of leads) if (l.country) set.add(l.country);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [leads]);
+
+  const visibleCols = LEAD_COLUMNS.filter((c) => config.columns.includes(c.key));
 
   // ---- Zbiorcze operacje na leadach --------------------------------------
   const bulkUpdate = useMutation({
@@ -639,35 +704,25 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-1 border-b overflow-x-auto scrollbar-thin">
-        {BUILTIN_LEAD_VIEWS.map((v) => {
-          const active = activeViewId === v.id;
-          const Icon =
-            v.id === "hot"
-              ? Flame
-              : v.id === "new_7d"
-                ? Sparkles
-                : v.id === "my_owned"
-                  ? UserCog
-                  : UsersIcon;
-          return (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => applyView(v.id)}
-              className={`relative flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium whitespace-nowrap transition-colors ${
-                active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" aria-hidden />
-              {lang === "pl" ? v.labelPl : v.labelEn}
-              {active && (
-                <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <LeadViewTabs
+        lang={lang}
+        activeId={activeViewId}
+        onSelect={setActive}
+        saved={saved}
+        currentConfig={config}
+        onCreate={async (name, isShared) => {
+          await createView.mutateAsync({ name, isShared });
+        }}
+        onRename={async (id, name) => {
+          await renameView.mutateAsync({ id, name });
+        }}
+        onDelete={async (id) => {
+          await removeView.mutateAsync(id);
+        }}
+        onToggleShared={async (id, next) => {
+          await toggleSharedView.mutateAsync({ id, next });
+        }}
+      />
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -678,41 +733,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             className="pl-8 h-8 text-[13px]"
           />
         </div>
-        <Select value={stage} onValueChange={(v) => setStage(v as Stage | "all")}>
-          <SelectTrigger className="h-8 w-[170px] text-[13px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{L.stageAll}</SelectItem>
-            {STAGES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {L.stage[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={band} onValueChange={(v) => setBand(v as ScoreBand | "all")}>
-          <SelectTrigger className="h-8 w-[150px] text-[13px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{L.bandAll}</SelectItem>
-            {SCORE_BANDS.map((b) => (
-              <SelectItem key={b} value={b}>
-                {SCORE_BAND_LABELS[lang][b]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={sort} onValueChange={(v) => setSort(v as "activity" | "score")}>
-          <SelectTrigger className="h-8 w-[180px] text-[13px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="activity">{L.sortActivity}</SelectItem>
-            <SelectItem value="score">{L.sortScore}</SelectItem>
-          </SelectContent>
-        </Select>
+        <LeadColumnManager lang={lang} active={config.columns} onChange={setColumns} />
         {canSeeAll && (
           <Select value={scope} onValueChange={(v) => setScope(v as "tenant" | "all")}>
             <SelectTrigger className="h-8 w-[210px] text-[13px]">
@@ -775,6 +796,14 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         </div>
       </div>
 
+      <LeadFilterChips
+        lang={lang}
+        value={config.filter}
+        onChange={setFilter}
+        stageLabels={L.stage}
+        countries={countries}
+      />
+
       <FollowUpsPanel
         lang={lang}
         onOpenLead={(leadId, taskId) => {
@@ -784,102 +813,110 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
       />
 
       <div className="rounded-md border overflow-hidden">
-        <table className="w-full text-[13px]">
-          <thead className="bg-muted/50 text-muted-foreground">
-            <tr>
-              <th className="p-2 w-8">
-                <Checkbox
-                  checked={allChecked}
-                  onCheckedChange={toggleAll}
-                  aria-label={lang === "pl" ? "Zaznacz wszystkie" : "Select all"}
-                />
-              </th>
-              <th className="text-left p-2">{L.cols.who}</th>
-              <th className="text-left p-2">{L.cols.score}</th>
-              <th className="text-left p-2 hidden md:table-cell">{L.cols.contact}</th>
-              <th className="text-left p-2 hidden lg:table-cell">{L.cols.company}</th>
-              <th className="text-left p-2">{L.cols.stage}</th>
-              <th className="text-left p-2 hidden sm:table-cell">{L.cols.consent}</th>
-              <th className="text-left p-2 hidden md:table-cell">{L.cols.activity}</th>
-              <th className="p-2 w-8" aria-label="" />
-            </tr>
-          </thead>
-          <tbody>
-            {leads.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead className="bg-muted/50 text-muted-foreground">
               <tr>
-                <td colSpan={9} className="p-4 text-center text-muted-foreground">
-                  {L.empty}
-                </td>
-              </tr>
-            )}
-            {leads.map((l) => (
-              <tr
-                key={l.id}
-                data-selected={selected.has(l.id) || undefined}
-                className="border-t hover:bg-muted/40 cursor-pointer data-[selected=true]:bg-primary/5"
-                onClick={() => void navigate({ to: "/admin/crm/$id", params: { id: l.id } })}
-              >
-                <td className="p-2 w-8" onClick={(e) => e.stopPropagation()}>
+                <th className="p-2 w-8">
                   <Checkbox
-                    checked={selected.has(l.id)}
-                    onCheckedChange={(v) => toggleOne(l.id, v === true)}
-                    aria-label={l.email ?? l.id}
+                    checked={allChecked}
+                    onCheckedChange={toggleAll}
+                    aria-label={lang === "pl" ? "Zaznacz wszystkie" : "Select all"}
                   />
-                </td>
-                <td className="p-2">
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const key = l.email?.toLowerCase().trim() ?? "";
-                      const url = key ? avatarByEmail.get(key) : undefined;
-                      const name = [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email;
-                      const initials =
-                        (l.first_name?.[0] ?? "") + (l.last_name?.[0] ?? "") ||
-                        (l.email?.[0] ?? "?").toUpperCase();
-                      return <FaceAwareAvatar url={url} name={name} initials={initials} />;
-                    })()}
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">
-                        {[l.first_name, l.last_name].filter(Boolean).join(" ") || l.email}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground truncate">{l.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-2">
-                  <LeadScoreBadge score={l.score ?? 0} band={l.score_band ?? "cold"} lang={lang} />
-                </td>
-                <td className="p-2 hidden md:table-cell text-[12px]">{l.phone ?? "-"}</td>
-                <td className="p-2 hidden lg:table-cell text-[12px]">{l.company ?? "-"}</td>
-                <td className="p-2">
-                  <StageBadge stage={l.stage} L={L} />
-                </td>
-                <td className="p-2 hidden sm:table-cell">
-                  {l.newsletter_status ? (
-                    <Badge variant="outline" className="text-[10px]">
-                      {l.newsletter_status}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground text-[11px]">-</span>
-                  )}
-                </td>
-                <td className="p-2 hidden md:table-cell text-[11px] text-muted-foreground">
-                  {new Date(l.last_activity_at).toLocaleString()}
-                </td>
-                <td className="p-2 text-right" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(l.id)}
-                    className="inline-grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-                    aria-label={lang === "pl" ? "Szybki podgląd" : "Quick preview"}
-                    title={lang === "pl" ? "Szybki podgląd" : "Quick preview"}
+                </th>
+                {visibleCols.map((c) => (
+                  <th
+                    key={c.key}
+                    className={`p-2 ${c.align === "right" ? "text-right" : "text-left"}`}
+                    style={c.minWidth ? { minWidth: c.minWidth } : undefined}
                   >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </button>
-                </td>
+                    {c.sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(c.key as LeadSort["key"])}
+                        className={`inline-flex items-center gap-1 hover:text-foreground ${
+                          config.sort.key === c.key ? "text-foreground" : ""
+                        }`}
+                      >
+                        {lang === "pl" ? c.labelPl : c.labelEn}
+                        <ArrowUpDown className="h-3 w-3 opacity-60" aria-hidden />
+                      </button>
+                    ) : lang === "pl" ? (
+                      c.labelPl
+                    ) : (
+                      c.labelEn
+                    )}
+                  </th>
+                ))}
+                <th className="p-2 w-8" aria-label="" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {leads.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={visibleCols.length + 2}
+                    className="p-4 text-center text-muted-foreground"
+                  >
+                    {L.empty}
+                  </td>
+                </tr>
+              )}
+              {leads.map((l) => (
+                <tr
+                  key={l.id}
+                  data-selected={selected.has(l.id) || undefined}
+                  className="border-t hover:bg-muted/40 cursor-pointer data-[selected=true]:bg-primary/5"
+                  onClick={() => void navigate({ to: "/admin/crm/$id", params: { id: l.id } })}
+                >
+                  <td className="p-2 w-8" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selected.has(l.id)}
+                      onCheckedChange={(v) => toggleOne(l.id, v === true)}
+                      aria-label={l.email ?? l.id}
+                    />
+                  </td>
+                  {visibleCols.map((c) => (
+                    <LeadCell
+                      key={c.key}
+                      col={c.key}
+                      lead={l}
+                      lang={lang}
+                      L={L}
+                      avatarUrl={
+                        c.key === "name"
+                          ? avatarByEmail.get(l.email?.toLowerCase().trim() ?? "")
+                          : undefined
+                      }
+                    />
+                  ))}
+                  <td className="p-2 text-right" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(l.id)}
+                      className="inline-grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label={lang === "pl" ? "Szybki podgląd" : "Quick preview"}
+                      title={lang === "pl" ? "Szybki podgląd" : "Quick preview"}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <AdminPagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+          pageSizeOptions={[25, 50, 100, 200]}
+        />
       </div>
 
       <BulkActionBar
@@ -1019,6 +1056,133 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   );
 }
 
+/** Komórka tabeli leadów per klucz kolumny (LEAD_COLUMNS / saved views). */
+function LeadCell({
+  col,
+  lead,
+  lang,
+  L,
+  avatarUrl,
+}: {
+  col: LeadColumnKey;
+  lead: Lead;
+  lang: "pl" | "en";
+  L: typeof PL;
+  avatarUrl?: string;
+}) {
+  switch (col) {
+    case "name": {
+      const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email;
+      const initials =
+        (lead.first_name?.[0] ?? "") + (lead.last_name?.[0] ?? "") ||
+        (lead.email?.[0] ?? "?").toUpperCase();
+      return (
+        <td className="p-2">
+          <div className="flex items-center gap-2">
+            <FaceAwareAvatar url={avatarUrl} name={name} initials={initials} />
+            <div className="min-w-0">
+              <div className="font-medium truncate">{name}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{lead.email}</div>
+            </div>
+          </div>
+        </td>
+      );
+    }
+    case "email":
+      return <td className="p-2 text-[12px] truncate">{lead.email}</td>;
+    case "phone":
+      return <td className="p-2 text-[12px]">{lead.phone ?? "-"}</td>;
+    case "position":
+      return <td className="p-2 text-[12px]">{lead.position ?? "-"}</td>;
+    case "company":
+      return <td className="p-2 text-[12px]">{lead.company ?? "-"}</td>;
+    case "country":
+      return <td className="p-2 text-[12px]">{lead.country ?? "-"}</td>;
+    case "stage":
+      return (
+        <td className="p-2">
+          <StageBadge stage={lead.stage} L={L} />
+        </td>
+      );
+    case "score":
+      return (
+        <td className="p-2 text-right">
+          <LeadScoreBadge score={lead.score ?? 0} band={lead.score_band ?? "cold"} lang={lang} />
+        </td>
+      );
+    case "band":
+      return (
+        <td className="p-2 text-[12px]">{SCORE_BAND_LABELS[lang][lead.score_band ?? "cold"]}</td>
+      );
+    case "source": {
+      const source = lead.newsletter_status
+        ? "newsletter"
+        : (lead.source_count ?? 0) > 0
+          ? lang === "pl"
+            ? "formularz"
+            : "form"
+          : "import";
+      return <td className="p-2 text-[12px] text-muted-foreground">{source}</td>;
+    }
+    case "tags":
+      return (
+        <td className="p-2">
+          <div className="flex max-w-[220px] flex-wrap gap-1">
+            {(lead.tags ?? []).slice(0, 4).map((tag) => (
+              <Badge key={tag} variant="outline" className="text-[10px]">
+                {tag}
+              </Badge>
+            ))}
+            {(lead.tags?.length ?? 0) > 4 && (
+              <span className="text-[10px] text-muted-foreground">
+                +{(lead.tags?.length ?? 0) - 4}
+              </span>
+            )}
+            {(lead.tags?.length ?? 0) === 0 && (
+              <span className="text-[11px] text-muted-foreground">-</span>
+            )}
+          </div>
+        </td>
+      );
+    case "consent":
+      return (
+        <td className="p-2">
+          {lead.newsletter_status ? (
+            <Badge variant="outline" className="text-[10px]">
+              {lead.newsletter_status}
+            </Badge>
+          ) : lead.marketing_consent ? (
+            <span className="text-[11px]">✓</span>
+          ) : (
+            <span className="text-muted-foreground text-[11px]">-</span>
+          )}
+        </td>
+      );
+    case "lastActivity":
+      return (
+        <td className="p-2 text-right text-[11px] text-muted-foreground">
+          {new Date(lead.last_activity_at).toLocaleString()}
+        </td>
+      );
+    case "created":
+      return (
+        <td className="p-2 text-right text-[11px] text-muted-foreground">
+          {new Date(lead.created_at).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")}
+        </td>
+      );
+    case "followUp":
+      return (
+        <td className="p-2 text-right text-[11px] text-muted-foreground">
+          {lead.follow_up_at
+            ? new Date(lead.follow_up_at).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")
+            : "-"}
+        </td>
+      );
+    default:
+      return <td className="p-2" />;
+  }
+}
+
 function StageBadge({ stage, L }: { stage: Stage; L: typeof PL }) {
   const map: Record<Stage, string> = {
     new: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
@@ -1077,7 +1241,7 @@ function LeadDrawer({
   const { addNote: noteMut, deleteNote: noteDelMut } = useLeadNoteMutations(leadId ?? "", {
     onAdded: () => setNote(""),
   });
-  const pushMut = useMerydianPush(leadId ?? "");
+  const pushMut = usePartnerPush(leadId ?? "", L === PL ? "pl" : "en");
 
   const lead = detail.data?.lead;
 
@@ -1601,329 +1765,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="space-y-0.5">
       <Label className="text-[11px] text-muted-foreground">{label}</Label>
       {children}
-    </div>
-  );
-}
-
-type ConsentMapItem = {
-  source_key: string;
-  source_label: string;
-  merydian_field: string;
-  merydian_category: string;
-  required: boolean;
-};
-
-type IntegrationSettings = {
-  merydian_enabled: boolean;
-  merydian_mode: "webhook" | "api" | "both";
-  merydian_webhook_url: string | null;
-  // Write-only input buffers for secrets (never populated from the server).
-  merydian_webhook_secret: string;
-  merydian_api_base: string | null;
-  merydian_api_key: string;
-  merydian_workspace_id: string | null;
-  // Whether a secret is already stored in Vault (drives the placeholder).
-  has_webhook_secret: boolean;
-  has_api_key: boolean;
-  forward_stages: Stage[];
-  consent_mapping: ConsentMapItem[];
-  last_sync_at: string | null;
-  last_sync_status: string | null;
-  last_sync_error: string | null;
-};
-
-function IntegrationsTab({ L }: { L: typeof PL }) {
-  const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ["crm-integrations"],
-    queryFn: async () => {
-      const r = await getCrmIntegrations();
-      const parsed = JSON.parse((r as { json: string }).json);
-      return parsed as IntegrationSettings | null;
-    },
-  });
-
-  const [s, setS] = useState<IntegrationSettings | null>(null);
-  useMemo(() => {
-    if (q.data && !s) {
-      setS({
-        merydian_enabled: q.data.merydian_enabled ?? false,
-        merydian_mode: q.data.merydian_mode ?? "webhook",
-        merydian_webhook_url: q.data.merydian_webhook_url ?? "",
-        merydian_webhook_secret: "",
-        merydian_api_base: q.data.merydian_api_base ?? "",
-        merydian_api_key: "",
-        merydian_workspace_id: q.data.merydian_workspace_id ?? "",
-        has_webhook_secret:
-          (q.data as { has_webhook_secret?: boolean }).has_webhook_secret ?? false,
-        has_api_key: (q.data as { has_api_key?: boolean }).has_api_key ?? false,
-        forward_stages: q.data.forward_stages ?? ["new"],
-        consent_mapping: (q.data as { consent_mapping?: ConsentMapItem[] }).consent_mapping ?? [],
-        last_sync_at: q.data.last_sync_at,
-        last_sync_status: q.data.last_sync_status,
-        last_sync_error: q.data.last_sync_error,
-      });
-    } else if (!q.data && !s && !q.isLoading) {
-      setS({
-        merydian_enabled: false,
-        merydian_mode: "webhook",
-        merydian_webhook_url: "",
-        merydian_webhook_secret: "",
-        merydian_api_base: "",
-        merydian_api_key: "",
-        merydian_workspace_id: "",
-        has_webhook_secret: false,
-        has_api_key: false,
-        forward_stages: ["new"],
-        consent_mapping: [],
-        last_sync_at: null,
-        last_sync_status: null,
-        last_sync_error: null,
-      });
-    }
-  }, [q.data, q.isLoading, s]);
-
-  const save = useMutation({
-    mutationFn: async () =>
-      upsertCrmIntegrations({
-        data: {
-          merydian_enabled: s!.merydian_enabled,
-          merydian_mode: s!.merydian_mode,
-          merydian_webhook_url: s!.merydian_webhook_url || null,
-          merydian_webhook_secret: s!.merydian_webhook_secret
-            ? s!.merydian_webhook_secret
-            : undefined,
-          merydian_api_base: s!.merydian_api_base || null,
-          merydian_api_key: s!.merydian_api_key ? s!.merydian_api_key : undefined,
-          merydian_workspace_id: s!.merydian_workspace_id || null,
-          forward_stages: s!.forward_stages,
-          consent_mapping: s!.consent_mapping,
-        },
-      }),
-
-    onSuccess: () => {
-      toast.success("✓");
-      qc.invalidateQueries({ queryKey: ["crm-integrations"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  if (!s) return <div className="py-10 text-center text-muted-foreground text-sm">…</div>;
-
-  const upd = <K extends keyof IntegrationSettings>(k: K, v: IntegrationSettings[K]) =>
-    setS({ ...s, [k]: v });
-  const toggleStage = (st: Stage) => {
-    upd(
-      "forward_stages",
-      s.forward_stages.includes(st)
-        ? s.forward_stages.filter((x) => x !== st)
-        : [...s.forward_stages, st],
-    );
-  };
-
-  return (
-    <div className="space-y-4 max-w-2xl">
-      <div className="flex items-center gap-2 p-3 rounded-md border bg-card">
-        <Switch checked={s.merydian_enabled} onCheckedChange={(v) => upd("merydian_enabled", v)} />
-        <div className="flex-1">
-          <h3 className="text-sm font-medium">{L.integ.title}</h3>
-          <p className="text-[11px] text-muted-foreground">{L.integ.enabled}</p>
-        </div>
-        {s.last_sync_at && (
-          <Badge
-            variant={s.last_sync_status === "ok" ? "default" : "destructive"}
-            className="text-[10px]"
-          >
-            {L.integ.lastSync}: {new Date(s.last_sync_at).toLocaleString()}
-          </Badge>
-        )}
-      </div>
-
-      <Field label={L.integ.mode}>
-        <Select
-          value={s.merydian_mode}
-          onValueChange={(v) => upd("merydian_mode", v as "webhook" | "api" | "both")}
-        >
-          <SelectTrigger className="h-8 text-[13px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="webhook">{L.integ.modeWebhook}</SelectItem>
-            <SelectItem value="api">{L.integ.modeApi}</SelectItem>
-            <SelectItem value="both">{L.integ.modeBoth}</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
-
-      {(s.merydian_mode === "webhook" || s.merydian_mode === "both") && (
-        <div className="grid sm:grid-cols-2 gap-2">
-          <Field label={L.integ.webhookUrl}>
-            <Input
-              value={s.merydian_webhook_url ?? ""}
-              onChange={(e) => upd("merydian_webhook_url", e.target.value)}
-              className="h-8 text-[13px]"
-              placeholder="https://merydian.app/api/webhooks/…"
-            />
-          </Field>
-          <Field label={L.integ.webhookSecret}>
-            <Input
-              type="password"
-              value={s.merydian_webhook_secret}
-              onChange={(e) => upd("merydian_webhook_secret", e.target.value)}
-              className="h-8 text-[13px]"
-              placeholder={s.has_webhook_secret ? L.integ.secretSet : undefined}
-              autoComplete="new-password"
-            />
-          </Field>
-        </div>
-      )}
-
-      {(s.merydian_mode === "api" || s.merydian_mode === "both") && (
-        <div className="grid sm:grid-cols-2 gap-2">
-          <Field label={L.integ.apiBase}>
-            <Input
-              value={s.merydian_api_base ?? ""}
-              onChange={(e) => upd("merydian_api_base", e.target.value)}
-              className="h-8 text-[13px]"
-              placeholder="https://merydian.app/api/v1"
-            />
-          </Field>
-          <Field label={L.integ.apiKey}>
-            <Input
-              type="password"
-              value={s.merydian_api_key}
-              onChange={(e) => upd("merydian_api_key", e.target.value)}
-              className="h-8 text-[13px]"
-              placeholder={s.has_api_key ? L.integ.secretSet : undefined}
-              autoComplete="new-password"
-            />
-          </Field>
-          <Field label={L.integ.workspaceId}>
-            <Input
-              value={s.merydian_workspace_id ?? ""}
-              onChange={(e) => upd("merydian_workspace_id", e.target.value)}
-              className="h-8 text-[13px]"
-            />
-          </Field>
-        </div>
-      )}
-
-      <Field label={L.integ.forwardStages}>
-        <div className="flex flex-wrap gap-1.5">
-          {STAGES.map((st) => (
-            <button
-              key={st}
-              type="button"
-              onClick={() => toggleStage(st)}
-              className={`px-2 py-1 rounded-md text-[11px] border ${s.forward_stages.includes(st) ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}
-            >
-              {L.stage[st]}
-            </button>
-          ))}
-        </div>
-      </Field>
-
-      <div className="rounded-md border bg-card p-3 space-y-3">
-        <div className="flex items-start gap-2">
-          <ShieldCheck className="w-4 h-4 text-brand mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <h4 className="text-sm font-medium">{L.integ.mapping}</h4>
-            <p className="text-[11px] text-muted-foreground">{L.integ.mappingHint}</p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            type="button"
-            onClick={() =>
-              upd("consent_mapping", [
-                ...s.consent_mapping,
-                {
-                  source_key: "",
-                  source_label: "",
-                  merydian_field: "",
-                  merydian_category: "",
-                  required: false,
-                },
-              ])
-            }
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            {L.integ.mappingAdd}
-          </Button>
-        </div>
-        {s.consent_mapping.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground italic">{L.integ.mappingEmpty}</p>
-        ) : (
-          <div className="space-y-2">
-            {s.consent_mapping.map((m, idx) => {
-              const patch = (p: Partial<ConsentMapItem>) =>
-                upd(
-                  "consent_mapping",
-                  s.consent_mapping.map((x, i) => (i === idx ? { ...x, ...p } : x)),
-                );
-              return (
-                <div
-                  key={idx}
-                  className="grid grid-cols-1 sm:grid-cols-12 gap-1.5 items-center rounded-md border bg-background p-2"
-                >
-                  <Input
-                    className="h-8 text-[12px] sm:col-span-3"
-                    placeholder={L.integ.mappingSourceKey}
-                    value={m.source_key}
-                    onChange={(e) => patch({ source_key: e.target.value })}
-                  />
-                  <Input
-                    className="h-8 text-[12px] sm:col-span-3"
-                    placeholder={L.integ.mappingSourceLabel}
-                    value={m.source_label}
-                    onChange={(e) => patch({ source_label: e.target.value })}
-                  />
-                  <Input
-                    className="h-8 text-[12px] sm:col-span-2"
-                    placeholder={L.integ.mappingField}
-                    value={m.merydian_field}
-                    onChange={(e) => patch({ merydian_field: e.target.value })}
-                  />
-                  <Input
-                    className="h-8 text-[12px] sm:col-span-2"
-                    placeholder={L.integ.mappingCategory}
-                    value={m.merydian_category}
-                    onChange={(e) => patch({ merydian_category: e.target.value })}
-                  />
-                  <label className="flex items-center gap-1 text-[11px] sm:col-span-1">
-                    <Switch checked={m.required} onCheckedChange={(v) => patch({ required: v })} />
-                    <span className="truncate">{L.integ.mappingRequired}</span>
-                  </label>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    type="button"
-                    className="sm:col-span-1 h-8 px-2"
-                    aria-label={L.integ.mappingRemove}
-                    onClick={() =>
-                      upd(
-                        "consent_mapping",
-                        s.consent_mapping.filter((_, i) => i !== idx),
-                      )
-                    }
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <p className="text-[11px] text-muted-foreground">{L.integ.docs}</p>
-
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
-          <Send className="w-3.5 h-3.5 mr-1" />
-          {L.integ.save}
-        </Button>
-      </div>
     </div>
   );
 }

@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  crmPartnerBody,
   formatDelivery,
   hubspotContactBody,
   hubspotRequestUrl,
   normalizeIntegrationKind,
+  parseCrmConsentMapping,
   parseDeliveryEnvelope,
   slackMessageForEvent,
+  CRM_PARTNER_EVENT_TYPES,
   HUBSPOT_CONTACT_EVENT_TYPES,
+  type CrmLeadSnapshot,
+  type CrmPartnerProfile,
   type DeliveryEnvelope,
 } from "../formats";
 
@@ -202,5 +207,163 @@ describe("formatDelivery", () => {
       });
       expect(result.kind).toBe("send");
     }
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Partner CRM (crm_webhook_endpoints nad integration_endpoints)
+// ----------------------------------------------------------------------------
+
+const LEAD: CrmLeadSnapshot = {
+  id: "22222222-2222-2222-2222-222222222222",
+  email: "anna.kowalska@example.com",
+  first_name: "Anna",
+  last_name: "Kowalska",
+  phone: "+48 600 000 000",
+  company: "Example Sp. z o.o.",
+  stage: "qualified",
+  tags: ["eu", "vip"],
+  marketing_consent: true,
+  newsletter_status: "subscribed",
+  created_at: "2026-07-01T08:00:00Z",
+  last_activity_at: "2026-07-21T09:00:00Z",
+};
+
+const PROFILE: CrmPartnerProfile = {
+  auth_kind: "hmac",
+  workspace_id: "ws-42",
+  consent_mapping: parseCrmConsentMapping([
+    // Klucze legacy (merydian_*) z danych przeniesionych migracją…
+    { source_key: "newsletter_opt_in", merydian_field: "nl", merydian_category: "email" },
+    // …i neutralne z nowego edytora - oba muszą działać.
+    { source_key: "marketing_consent", partner_field: "mkt", required: true },
+    { source_key: "unknown_key", partner_field: "x" },
+  ]),
+};
+
+describe("parseCrmConsentMapping", () => {
+  it("accepts legacy merydian_* and neutral partner_* keys, drops empty source_key", () => {
+    expect(PROFILE.consent_mapping).toHaveLength(3);
+    expect(PROFILE.consent_mapping[0]).toMatchObject({
+      source_key: "newsletter_opt_in",
+      partner_field: "nl",
+      partner_category: "email",
+      required: false,
+    });
+    expect(PROFILE.consent_mapping[1]).toMatchObject({
+      source_key: "marketing_consent",
+      partner_field: "mkt",
+      required: true,
+    });
+    expect(parseCrmConsentMapping([{ source_key: " " }, "junk", null])).toEqual([]);
+    expect(parseCrmConsentMapping(null)).toEqual([]);
+  });
+});
+
+describe("crmPartnerBody", () => {
+  it("builds the lead snapshot payload with granted flags resolved per consent key", () => {
+    const body = crmPartnerBody(envelope(), PROFILE, LEAD);
+    expect(body.id).toBe(LEAD.id);
+    expect(body.workspace_id).toBe("ws-42");
+    expect(body.event_type).toBe("crm_lead.created.v1");
+    const consents = body.consents as Array<Record<string, unknown>>;
+    expect(consents[0]).toMatchObject({
+      source_key: "newsletter_opt_in",
+      granted: true,
+      field: "nl",
+      merydian_field: "nl",
+      merydian_category: "email",
+    });
+    expect(consents[1]).toMatchObject({ source_key: "marketing_consent", granted: true });
+    expect(consents[2]).toMatchObject({ source_key: "unknown_key", granted: false });
+  });
+});
+
+describe("formatDelivery crm_partner", () => {
+  it("hmac: signs the body into X-Signature and x-nes-signature", () => {
+    const result = formatDelivery({
+      kind: "crm_partner",
+      endpointUrl: "https://partner.example.com/webhooks/nes",
+      envelope: envelope(),
+      raw: RAW_ENVELOPE as never,
+      secret: "sekret",
+      crm: { profile: PROFILE, lead: LEAD },
+    });
+    expect(result.kind).toBe("send");
+    if (result.kind !== "send") return;
+    expect(result.request.sign).toBe(true);
+    expect(result.request.signHeaders).toEqual(["X-Signature", "x-nes-signature"]);
+    expect(result.request.headers["x-nes-event"]).toBe("crm_lead.created.v1");
+    expect(JSON.parse(result.request.body).email).toBe(LEAD.email);
+  });
+
+  it("bearer: uses Authorization header and fails without a secret", () => {
+    const bearerProfile: CrmPartnerProfile = { ...PROFILE, auth_kind: "bearer" };
+    const ok = formatDelivery({
+      kind: "crm_partner",
+      endpointUrl: "https://partner.example.com/api/leads",
+      envelope: envelope(),
+      raw: RAW_ENVELOPE as never,
+      secret: "token",
+      crm: { profile: bearerProfile, lead: LEAD },
+    });
+    expect(ok.kind).toBe("send");
+    if (ok.kind === "send") {
+      expect(ok.request.headers.authorization).toBe("Bearer token");
+      expect(ok.request.sign).toBe(false);
+    }
+    const missing = formatDelivery({
+      kind: "crm_partner",
+      endpointUrl: "https://partner.example.com/api/leads",
+      envelope: envelope(),
+      raw: RAW_ENVELOPE as never,
+      secret: null,
+      crm: { profile: bearerProfile, lead: LEAD },
+    });
+    expect(missing.kind).toBe("fail");
+  });
+
+  it("skips unmapped events and deleted leads; fails on a missing profile", () => {
+    const unmapped = formatDelivery({
+      kind: "crm_partner",
+      endpointUrl: "https://partner.example.com",
+      envelope: envelope({ event_type: "post.published.v1" }),
+      raw: RAW_ENVELOPE as never,
+      secret: null,
+      crm: { profile: PROFILE, lead: LEAD },
+    });
+    expect(unmapped.kind).toBe("skip");
+
+    const gone = formatDelivery({
+      kind: "crm_partner",
+      endpointUrl: "https://partner.example.com",
+      envelope: envelope(),
+      raw: RAW_ENVELOPE as never,
+      secret: null,
+      crm: { profile: PROFILE, lead: null },
+    });
+    expect(gone.kind).toBe("skip");
+
+    const noProfile = formatDelivery({
+      kind: "crm_partner",
+      endpointUrl: "https://partner.example.com",
+      envelope: envelope(),
+      raw: RAW_ENVELOPE as never,
+      secret: null,
+    });
+    expect(noProfile.kind).toBe("fail");
+  });
+
+  it("manual push event crm_lead.pushed.v1 is mapped", () => {
+    expect(CRM_PARTNER_EVENT_TYPES).toContain("crm_lead.pushed.v1");
+    const result = formatDelivery({
+      kind: "crm_partner",
+      endpointUrl: "https://partner.example.com",
+      envelope: envelope({ event_type: "crm_lead.pushed.v1" }),
+      raw: RAW_ENVELOPE as never,
+      secret: "s",
+      crm: { profile: PROFILE, lead: LEAD },
+    });
+    expect(result.kind).toBe("send");
   });
 });

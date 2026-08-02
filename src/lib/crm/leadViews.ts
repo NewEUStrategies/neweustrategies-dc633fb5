@@ -250,6 +250,66 @@ export const BUILTIN_LEAD_VIEWS: readonly BuiltinLeadView[] = [
   },
 ] as const;
 
+/* ---------- Mapowanie widoku na parametry serwera ---------- */
+
+const RANGE_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
+
+/** Parametry listy leadów rozumiane przez listCrmLeads (crm.functions.ts). */
+export interface LeadListServerParams {
+  stage?: Exclude<LeadFilter["stage"], "any">;
+  band?: Exclude<LeadFilter["band"], "any">;
+  source?: Exclude<LeadFilter["source"], "any">;
+  country?: string;
+  company?: string;
+  consent_only?: boolean;
+  created_from?: string;
+  activity_from?: string;
+  sort: "activity" | "score" | "created" | "followUp" | "company" | "country" | "stage" | "name";
+  sort_dir: "asc" | "desc";
+}
+
+const SORT_KEY_TO_SERVER: Record<LeadSort["key"], LeadListServerParams["sort"]> = {
+  name: "name",
+  company: "company",
+  country: "country",
+  stage: "stage",
+  score: "score",
+  lastActivity: "activity",
+  created: "created",
+  followUp: "followUp",
+};
+
+/**
+ * Tłumaczy konfigurację widoku (filtr + sort) na parametry listCrmLeads.
+ * Przy paginacji serwerowej filtrowanie/sortowanie MUSI liczyć się w SQL -
+ * inaczej strona i total kłamałyby o globalnym zbiorze.
+ */
+export function leadViewToServerParams(
+  config: LeadViewConfig,
+  now = Date.now(),
+): LeadListServerParams {
+  const f = config.filter;
+  const params: LeadListServerParams = {
+    sort: SORT_KEY_TO_SERVER[config.sort.key],
+    sort_dir: config.sort.dir,
+  };
+  if (f.stage !== "any") params.stage = f.stage;
+  if (f.band !== "any") params.band = f.band;
+  if (f.source !== "any") params.source = f.source;
+  if (f.country) params.country = f.country;
+  if (f.company) params.company = f.company;
+  if (f.consentOnly) params.consent_only = true;
+  if (f.createdRange !== "any") {
+    const days = RANGE_DAYS[f.createdRange];
+    if (days) params.created_from = new Date(now - days * 86_400_000).toISOString();
+  }
+  if (f.activityRange !== "any") {
+    const days = RANGE_DAYS[f.activityRange];
+    if (days) params.activity_from = new Date(now - days * 86_400_000).toISOString();
+  }
+  return params;
+}
+
 /* ---------- Klientowa aplikacja filtrów ---------- */
 
 export interface LeadRowShape {
@@ -272,8 +332,6 @@ export interface LeadRowShape {
   created_at: string;
   follow_up_at: string | null;
 }
-
-const RANGE_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
 
 function inferSource(r: LeadRowShape): "form" | "newsletter" | "import" {
   if (r.newsletter_status) return "newsletter";

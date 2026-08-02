@@ -17,7 +17,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   formatDelivery,
   normalizeIntegrationKind,
+  parseCrmConsentMapping,
   parseDeliveryEnvelope,
+  type CrmLeadSnapshot,
+  type CrmPartnerContext,
 } from "@/lib/integrations/formats";
 
 const DispatchInput = z.object({
@@ -46,6 +49,45 @@ export interface DispatchSummary {
   claimed: number;
   delivered: number;
   failed: number;
+}
+
+const CRM_LEAD_SNAPSHOT_COLUMNS =
+  "id, email, first_name, last_name, phone, company, stage, tags, marketing_consent, newsletter_status, created_at, last_activity_at";
+
+/**
+ * Kontekst dostawy dla endpointu-partnera CRM: profil (auth_kind, mapowanie
+ * zgód, workspace) + ŚWIEŻY snapshot leada czytany w chwili dostawy, żeby
+ * retry po backoffie wysyłał aktualny stan, nie stan sprzed awarii.
+ */
+async function loadCrmPartnerContext(
+  endpointId: string,
+  aggregateId: string | null,
+): Promise<CrmPartnerContext | null> {
+  const { data: profile } = await supabaseAdmin
+    .from("crm_webhook_endpoints")
+    .select("auth_kind, consent_mapping, workspace_id")
+    .eq("endpoint_id", endpointId)
+    .maybeSingle();
+  if (!profile) return null;
+
+  let lead: CrmLeadSnapshot | null = null;
+  if (aggregateId) {
+    const { data: row } = await supabaseAdmin
+      .from("crm_leads")
+      .select(CRM_LEAD_SNAPSHOT_COLUMNS)
+      .eq("id", aggregateId)
+      .maybeSingle();
+    lead = (row as CrmLeadSnapshot | null) ?? null;
+  }
+
+  return {
+    profile: {
+      auth_kind: profile.auth_kind === "bearer" ? "bearer" : "hmac",
+      consent_mapping: parseCrmConsentMapping(profile.consent_mapping),
+      workspace_id: profile.workspace_id ?? null,
+    },
+    lead,
+  };
 }
 
 /**
@@ -89,12 +131,19 @@ export async function runIntegrationDispatch(limit: number): Promise<DispatchSum
         const secretText: unknown = secretVal;
         const secret = typeof secretText === "string" && secretText.length > 0 ? secretText : null;
         const kind = normalizeIntegrationKind(endpoint.integration);
+        const envelope = parseDeliveryEnvelope(delivery.payload, delivery.event_type);
+        const crm =
+          kind === "crm_partner"
+            ? ((await loadCrmPartnerContext(delivery.endpoint_id, envelope.aggregate_id)) ??
+              undefined)
+            : undefined;
         const formatted = formatDelivery({
           kind,
           endpointUrl: endpoint.url,
-          envelope: parseDeliveryEnvelope(delivery.payload, delivery.event_type),
+          envelope,
           raw: delivery.payload,
           secret,
+          crm,
         });
 
         if (formatted.kind === "skip") {
@@ -104,9 +153,12 @@ export async function runIntegrationDispatch(limit: number): Promise<DispatchSum
         } else if (formatted.kind === "fail") {
           lastError = formatted.reason;
         } else {
-          const { url, body, headers, sign } = formatted.request;
+          const { url, body, headers, sign, signHeaders } = formatted.request;
           if (sign && secret) {
-            headers[SIGNATURE_HEADER] = await hmacSha256Hex(secret, body);
+            const signature = await hmacSha256Hex(secret, body);
+            for (const header of signHeaders ?? [SIGNATURE_HEADER]) {
+              headers[header] = signature;
+            }
           }
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
