@@ -9,7 +9,10 @@ const pl = {
     subtitle: "Centrum zarządzania",
     privacy: {
       title: "Prywatność i zgody",
-      hint: "Twoje wybory są zapisywane i synchronizowane z profilem.",
+      hint: "Jedno miejsce na wszystkie zgody: pliki cookie, komunikację i personalizację. Wybory są zapisywane, synchronizowane z profilem i audytowane.",
+      registryNote:
+        "Każdą decyzję zapisujemy w niezmiennym rejestrze RODO (data, wersja treści, źródło, adres IP i przeglądarka). Zgody cookie działają też na tym urządzeniu bez logowania.",
+      openBanner: "Otwórz ustawienia banera cookie",
     },
     author: {
       title: "Profil eksperta",
@@ -586,7 +589,10 @@ const en: typeof pl = {
     subtitle: "Management centre",
     privacy: {
       title: "Privacy & consent",
-      hint: "Your choices persist across visits and sync to your profile.",
+      hint: "One place for all your consents: cookies, communications and personalization. Choices persist, sync to your profile and are audited.",
+      registryNote:
+        "Every decision is stored in an immutable GDPR audit log (date, content version, source, IP address and browser). Cookie consents also apply on this device without signing in.",
+      openBanner: "Open cookie banner settings",
     },
     author: {
       title: "Expert profile",

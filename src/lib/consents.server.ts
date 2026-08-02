@@ -14,6 +14,12 @@ export const SetConsentSchema = z.object({
   source: z.string().trim().max(64).optional(),
 });
 
+// Batch: jedna podróż sieciowa dla decyzji CMP obejmującej kilka kategorii
+// cookie naraz (registryBridge). Limit 10 = rozmiar katalogu z zapasem.
+export const SetConsentsBulkSchema = z.object({
+  entries: z.array(SetConsentSchema).min(1).max(10),
+});
+
 export const ListEventsSchema = z.object({
   limit: z.number().int().min(1).max(200).optional(),
 });

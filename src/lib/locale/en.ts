@@ -2025,9 +2025,9 @@ export const en = {
     },
     consents: {
       tab: "Consents",
-      title: "Communication consents",
+      title: "Consents & privacy",
       subtitle:
-        "Decide which messages we may send you. Every change is stored in an immutable GDPR audit log (date, version, IP address, browser).",
+        "Decide about cookies and which messages we may send you. Every change is stored in an immutable GDPR audit log (date, version, source, IP address, browser).",
       version: "Version {{version}}",
       versionOutdated: "New version of this consent - please re-confirm",
       requiredBadge: "Required",
@@ -2046,8 +2046,24 @@ export const en = {
         communications: "Marketing communications",
         product: "Product and personalization",
         analytics: "Analytics",
+        cookies: "Cookies & tracking",
       },
       items: {
+        cookies_functional: {
+          title: "Functional cookies",
+          description:
+            "Interface preferences: theme, list layout, reading mode. The same consent you set in the cookie banner - changing it here applies immediately.",
+        },
+        cookies_analytics: {
+          title: "Analytics cookies",
+          description:
+            "Traffic and site performance measurement (first-party stats, web vitals). Linked to the cookie banner's analytics category.",
+        },
+        cookies_marketing: {
+          title: "Marketing cookies",
+          description:
+            "Newsletter and own-ads effectiveness measurement. Linked to the cookie banner's marketing category.",
+        },
         transactional: {
           title: "Transactional and service messages",
           description:

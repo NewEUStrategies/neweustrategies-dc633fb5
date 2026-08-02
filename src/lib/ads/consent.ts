@@ -2,13 +2,17 @@
 // - Kategorie: necessary / functional / analytics / marketing.
 // - Trwały zapis w localStorage + mirror w cookie (nes_cookie_consent), więc
 //   decyzja przetrwa wyczyszczenie localStorage / przejście do subdomen SSR.
-// - Zalogowany użytkownik = synchronizacja z profiles.prefs.consent.
+// - Zalogowany użytkownik = synchronizacja z profiles.prefs.consent ORAZ
+//   audytowany ślad każdej decyzji w rejestrze RODO user_consents/
+//   user_consent_events (IP/UA/wersja/źródło) przez registryBridge -
+//   unifikacja CMP z rejestrem zgód (audyt M15/M19).
 // - Tryb podglądu (session-scoped) pozwala testować różne zgody bez czyszczenia
 //   trwałych danych - override żyje w sessionStorage i nadpisuje state tylko
 //   dla useEffectiveConsent()/useCategoryGranted().
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { ConsentDecisionSource } from "@/lib/consent/registryBridge";
 
 const CONSENT_VERSION = 2;
 const STORAGE_KEY = "consent:v2";
@@ -128,7 +132,11 @@ function writeLocal(state: ConsentState) {
   window.dispatchEvent(new Event(EVENT));
 }
 
-function setConsent(categories: Partial<Record<ConsentCategory, boolean>>) {
+function setConsent(
+  categories: Partial<Record<ConsentCategory, boolean>>,
+  decisionSource: ConsentDecisionSource = "cmp_banner",
+) {
+  const prev = readLocal();
   const next: ConsentState = {
     version: CONSENT_VERSION,
     ts: Date.now(),
@@ -142,6 +150,14 @@ function setConsent(categories: Partial<Record<ConsentCategory, boolean>>) {
   };
   writeLocal(next);
   void syncConsentToProfile(next);
+  // Audytowany ślad decyzji (tylko zalogowani, tylko zmienione kategorie).
+  // Dynamiczny import: most nie obciąża chunka wejściowego, a błąd sieci
+  // nigdy nie blokuje samej decyzji cookie.
+  void import("@/lib/consent/registryBridge")
+    .then((m) => m.syncCmpDecisionToRegistry(prev, next, decisionSource))
+    .catch(() => {
+      /* offline / chunk load error */
+    });
   return next;
 }
 
@@ -190,6 +206,14 @@ async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
     }
     if (!remote && local) {
       await syncConsentToProfile(local);
+      // Decyzja podjęta anonimowo zyskuje właśnie podmiot - dopisz ją do
+      // rejestru RODO. Jednorazowe: po syncu profil ma już prefs.consent,
+      // więc ta gałąź nie odpala się przy kolejnych sesjach.
+      void import("@/lib/consent/registryBridge")
+        .then((m) => m.syncCmpDecisionToRegistry(null, local, "login_sync"))
+        .catch(() => {
+          /* best-effort */
+        });
     }
     return local ?? remote;
   } catch {
@@ -275,17 +299,25 @@ export function useConsent() {
     };
   }, []);
 
-  const save = useCallback((cats: Partial<Record<ConsentCategory, boolean>>) => {
-    const next = setConsent(cats);
-    setState(next);
-  }, []);
+  const save = useCallback(
+    (
+      cats: Partial<Record<ConsentCategory, boolean>>,
+      decisionSource: ConsentDecisionSource = "cmp_banner",
+    ) => {
+      const next = setConsent(cats, decisionSource);
+      setState(next);
+    },
+    [],
+  );
 
   const acceptAll = useCallback(
-    () => save({ functional: true, analytics: true, marketing: true }),
+    (decisionSource: ConsentDecisionSource = "cmp_banner") =>
+      save({ functional: true, analytics: true, marketing: true }, decisionSource),
     [save],
   );
   const rejectAll = useCallback(
-    () => save({ functional: false, analytics: false, marketing: false }),
+    (decisionSource: ConsentDecisionSource = "cmp_banner") =>
+      save({ functional: false, analytics: false, marketing: false }, decisionSource),
     [save],
   );
 

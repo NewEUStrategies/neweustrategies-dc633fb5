@@ -2053,9 +2053,9 @@ export const pl = {
     },
     consents: {
       tab: "Zgody",
-      title: "Zgody komunikacji",
+      title: "Zgody i prywatność",
       subtitle:
-        "Zdecyduj, jakie wiadomości mogą do Ciebie trafiać. Każdą zmianę zapisujemy w niezmiennym rejestrze RODO (data, wersja, adres IP, przeglądarka).",
+        "Zdecyduj o plikach cookie i o tym, jakie wiadomości mogą do Ciebie trafiać. Każdą zmianę zapisujemy w niezmiennym rejestrze RODO (data, wersja, źródło, adres IP, przeglądarka).",
       version: "Wersja {{version}}",
       versionOutdated: "Nowa wersja tej zgody - potwierdź ponownie",
       requiredBadge: "Wymagana",
@@ -2074,8 +2074,24 @@ export const pl = {
         communications: "Komunikacja marketingowa",
         product: "Produkt i personalizacja",
         analytics: "Analityka",
+        cookies: "Pliki cookie i śledzenie",
       },
       items: {
+        cookies_functional: {
+          title: "Cookies funkcjonalne",
+          description:
+            "Preferencje interfejsu: motyw, układ list, tryb czytania. Ta sama zgoda, którą ustawiasz w banerze cookie - zmiana tutaj działa natychmiast.",
+        },
+        cookies_analytics: {
+          title: "Cookies analityczne",
+          description:
+            "Pomiar ruchu i wydajności strony (statystyki first-party, web vitals). Spięte z kategorią analityczną banera cookie.",
+        },
+        cookies_marketing: {
+          title: "Cookies marketingowe",
+          description:
+            "Pomiar skuteczności newslettera i reklam własnych. Spięte z kategorią marketingową banera cookie.",
+        },
         transactional: {
           title: "Wiadomości transakcyjne i serwisowe",
           description:

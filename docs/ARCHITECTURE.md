@@ -896,3 +896,58 @@ NIEODRÓŻNIALNA od pustej kolejki. Migracja `20260731110000` (plus pojednanie
   wykrywanie awarii w wyniku ticku) oraz render panelu (żaden surowy klucz
   i18n, alerty przy zastoju, powód pominięcia). Operacyjnie:
   `docs/RUNBOOK_COMMUNITY.md` par. 2.
+
+---
+
+## 13. Zgody: jeden rejestr RODO dla CMP i komunikacji (unifikacja)
+
+Do 2026-08 platforma miała **dwa niekomunikujące się systemy zgód** (audyt
+M15/M19, "rozjazd z CMP"):
+
+- **CMP** (`src/lib/ads/consent.ts` + `ConsentBanner`): kategorie
+  `necessary/functional/analytics/marketing`, trwałość w localStorage + cookie
+  `nes_cookie_consent` + `profiles.prefs.consent`. Bramkuje realny runtime
+  (analityka, marketing), ale nie zostawiał żadnego śladu audytowego.
+- **Rejestr RODO** (`user_consents` / `user_consent_events` + RPC SECURITY
+  DEFINER `set_user_consent`): zgody komunikacji z katalogu
+  (`src/lib/notifications/consentCatalog.ts`), audytowane z IP/UA/wersją/
+  źródłem - ale bez wiedzy o decyzjach cookie.
+
+Unifikacja (zasada **jednego pisarza**):
+
+- Katalog zgód dostał kategorię `cookies` z kluczami `cookies_functional` /
+  `cookies_analytics` / `cookies_marketing` (wersja `2.0` w lockstepie z
+  `CONSENT_VERSION=2` CMP - pilnuje tego
+  `src/lib/consent/__tests__/registryBridge.test.ts`).
+- **Most** `src/lib/consent/registryBridge.ts`: każda decyzja CMP zalogowanego
+  użytkownika (baner, `/profile/privacy`, centrum powiadomień, sync przy
+  logowaniu) jest diffowana względem poprzedniego stanu i dopisywana do
+  rejestru batchowym server-fn `setMyConsentsBulk` (IP/UA czytane po stronie
+  serwera; brak zmian = zero szumu w audycie). Fire-and-forget: błąd rejestru
+  nigdy nie blokuje samej decyzji cookie. Źródło decyzji
+  (`cmp_banner`/`profile_privacy`/`notifications_center`/`login_sync`) ląduje w
+  `user_consent_events.source`.
+- **Stan runtime zgód cookie ZAWSZE zapisuje ścieżka CMP** (`setConsent`);
+  rejestr jest śladem audytowym, nigdy źródłem prawdy dla bramkowania
+  skryptów. `ConsentsPanel` spina kategorię `cookies` dwukierunkowo: wartość
+  przełącznika z CMP, daty/wersje z rejestru, zapis przez `useConsent().save`.
+- **Jedna powierzchnia**: `/profile/privacy` renderuje `ConsentsPanel`
+  (cookies + podstawa prawna + komunikacja + produkt + analityka + niezmienna
+  historia decyzji) oraz przycisk otwierający preferencje banera
+  (`OPEN_PREFS_EVENT`). i18n PL/EN: `notifications.consents.*` w
+  `src/lib/locale/{pl,en}.ts` i `profile.privacy.*` w `src/lib/i18n-profile.ts`.
+
+Inwariant bezpieczeństwa bez zmian: `crm_consent_log` (zgody formularzowe,
+e-mail-keyed) i pozostałe tabele intake przyjmują zapis wyłącznie przez
+service_role / SECURITY DEFINER - bramka `check:sql-anon-insert` (inwarianty
+A + B) pozostaje zielona, bo unifikacja nie dodaje żadnej polityki INSERT.
+
+### 13.1 Ochrona gałęzi `main` (rekomendacja operacyjna)
+
+Bramki CI (w tym `check:sql-anon-insert`) blokują PR-y, ale commit pchnięty
+**prosto na main** weryfikują dopiero post-hoc - czerwony main zamiast
+odrzuconego pusha. Domknięcie wymaga ustawienia po stronie GitHuba (nie da się
+tego zwersjonować w repo): Settings -> Branches -> Branch protection rule dla
+`main` z "Require a pull request before merging" oraz "Require status checks
+to pass" (checki `verify` i `pgtap` z workflow CI). Do czasu włączenia reguły
+gwarancją pozostaje dyscyplina PR-owa + post-hoc run CI na push do main.

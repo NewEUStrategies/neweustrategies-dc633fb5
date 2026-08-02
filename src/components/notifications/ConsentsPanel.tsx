@@ -6,10 +6,17 @@
 // Kluczowa własność: klient nigdy nie pisze do tabel bezpośrednio - server-fn
 // wywołuje `set_user_consent`, które atomowo aktualizuje stan i dopisuje wpis
 // audit-logu wraz z IP i User-Agent czytanymi po stronie serwera.
-import { useMemo } from "react";
+//
+// Unifikacja z CMP: kategoria "cookies" jest dwukierunkowo spięta z banerem
+// zgód. Przełącznik cookie zapisuje przez ścieżkę CMP (useConsent().save),
+// która sama dopisuje wpis do rejestru (registryBridge) - jeden pisarz,
+// zero rozjazdu między stanem runtime a audytem. Stan tych wierszy pochodzi
+// z CMP (źródło prawdy dla bramkowania skryptów), metadane dat z rejestru.
+import { useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Cookie, ShieldCheck } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,11 +27,19 @@ import {
   type ConsentView,
 } from "@/lib/notifications/useConsents";
 import type { ConsentCategory } from "@/lib/notifications/consentCatalog";
+import { useConsent } from "@/lib/ads/consent";
+import {
+  REGISTRY_SYNC_EVENT,
+  REGISTRY_TO_CMP,
+  type ConsentDecisionSource,
+} from "@/lib/consent/registryBridge";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 type Lang = "pl" | "en";
 
 const CATEGORY_ORDER: readonly ConsentCategory[] = [
+  "cookies",
   "legal",
   "communications",
   "product",
@@ -39,12 +54,31 @@ function fmt(iso: string | null | undefined, lang: Lang): string {
   });
 }
 
-export function ConsentsPanel() {
+export function ConsentsPanel({
+  source = "notifications_center",
+}: {
+  /** Skąd pochodzi decyzja - trafia do audit-logu (user_consent_events.source). */
+  source?: ConsentDecisionSource;
+}) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
+  const { user } = useAuth();
+  const qc = useQueryClient();
   const consentsQ = useMyConsents();
   const eventsQ = useMyConsentEvents(50);
   const setConsent = useSetMyConsent();
+  const cmp = useConsent();
+
+  // Most CMP->rejestr pisze poza React Query - po jego zapisie odśwież
+  // stan i historię, żeby wiersze cookie pokazywały świeże daty/wersje.
+  useEffect(() => {
+    const refresh = () => {
+      void qc.invalidateQueries({ queryKey: ["user-consents", user?.id ?? "anon"] });
+      void qc.invalidateQueries({ queryKey: ["user-consent-events", user?.id ?? "anon"] });
+    };
+    window.addEventListener(REGISTRY_SYNC_EVENT, refresh);
+    return () => window.removeEventListener(REGISTRY_SYNC_EVENT, refresh);
+  }, [qc, user?.id]);
 
   const views = useMemo(() => buildConsentViews(consentsQ.data), [consentsQ.data]);
   const grouped = useMemo(() => {
@@ -63,13 +97,31 @@ export function ConsentsPanel() {
 
   const onToggle = (view: ConsentView, next: boolean) => {
     if (view.definition.required) return;
+
+    // Kategorie cookie: jedyny pisarz to ścieżka CMP - aktualizuje localStorage/
+    // cookie/profil i (przez registryBridge) dopisuje wpis audytowy. Pisanie tu
+    // wprost do rejestru odtworzyłoby rozjazd w drugą stronę (audyt bez wpływu
+    // na realne bramkowanie skryptów).
+    const cmpCat = REGISTRY_TO_CMP[view.definition.key];
+    if (cmpCat) {
+      const cats = cmp.state?.categories ?? {
+        necessary: true as const,
+        functional: false,
+        analytics: false,
+        marketing: false,
+      };
+      cmp.save({ ...cats, [cmpCat]: next }, source);
+      toast.success(t("notifications.consents.saved", { defaultValue: "Zapisano zgodę" }));
+      return;
+    }
+
     setConsent.mutate(
       {
         key: view.definition.key,
         given: next,
         version: view.definition.version,
         lang,
-        source: "notifications_center",
+        source,
       },
       {
         onSuccess: () =>
@@ -96,7 +148,7 @@ export function ConsentsPanel() {
           </span>
           <div className="min-w-0">
             <h2 className="text-sm font-semibold">
-              {t("notifications.consents.title", { defaultValue: "Zgody komunikacji" })}
+              {t("notifications.consents.title", { defaultValue: "Zgody i prywatność" })}
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {t("notifications.consents.subtitle", {
@@ -112,17 +164,29 @@ export function ConsentsPanel() {
         <section key={category} aria-labelledby={`consent-cat-${category}`}>
           <h3
             id={`consent-cat-${category}`}
-            className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
           >
+            {category === "cookies" && <Cookie className="h-3 w-3" aria-hidden />}
             {t(`notifications.consents.categories.${category}`, { defaultValue: category })}
           </h3>
           <ul className="mt-2 flex flex-col gap-2">
             {items.map((view) => {
               const { definition, state } = view;
               const inputId = `consent-${definition.key}`;
-              const dateIso = view.effectiveGiven
-                ? (state?.given_at ?? state?.updated_at ?? null)
-                : (state?.withdrawn_at ?? state?.updated_at ?? null);
+              // Wiersze cookie: wartość przełącznika bierzemy z CMP (źródło
+              // prawdy dla bramkowania), daty z rejestru; gdy rejestr nie ma
+              // jeszcze wpisu (decyzja sprzed unifikacji), pokazujemy datę
+              // decyzji CMP zamiast mylącego "nie podjęto decyzji".
+              const cmpCat = REGISTRY_TO_CMP[definition.key];
+              const cmpDecided = !!cmpCat && !!cmp.state;
+              const effectiveGiven =
+                cmpCat != null && cmp.state ? !!cmp.state.categories[cmpCat] : view.effectiveGiven;
+              const cmpTsIso =
+                cmpDecided && cmp.state ? new Date(cmp.state.ts).toISOString() : null;
+              const dateIso = effectiveGiven
+                ? (state?.given_at ?? state?.updated_at ?? cmpTsIso)
+                : (state?.withdrawn_at ?? state?.updated_at ?? cmpTsIso);
+              const hasDecision = !!state || cmpDecided;
               const showOutdated = !!state && !view.isCurrent && !definition.required;
               return (
                 <li
@@ -160,11 +224,11 @@ export function ConsentsPanel() {
                         })}
                       </p>
                       <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground/80">
-                        {!state
+                        {!hasDecision
                           ? t("notifications.consents.notDecided", {
                               defaultValue: "Nie podjęto decyzji",
                             })
-                          : view.effectiveGiven
+                          : effectiveGiven
                             ? t("notifications.consents.given", {
                                 date: fmt(dateIso, lang),
                                 defaultValue: `Udzielono ${fmt(dateIso, lang)}`,
@@ -185,8 +249,8 @@ export function ConsentsPanel() {
                     </div>
                     <Switch
                       id={inputId}
-                      checked={view.effectiveGiven}
-                      disabled={definition.required || setConsent.isPending}
+                      checked={effectiveGiven}
+                      disabled={definition.required || (!cmpCat && setConsent.isPending)}
                       onCheckedChange={(v) => onToggle(view, v)}
                     />
                   </div>

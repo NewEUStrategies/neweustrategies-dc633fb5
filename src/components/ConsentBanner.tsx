@@ -399,7 +399,7 @@ export function ConsentBanner() {
             </button>
             <button
               type="button"
-              onClick={rejectAll}
+              onClick={() => rejectAll()}
               aria-label={t.rejectAll}
               className={cn(
                 "text-[11px] font-bold uppercase tracking-[0.15em] px-5 py-3 whitespace-nowrap transition-colors",
@@ -411,7 +411,7 @@ export function ConsentBanner() {
             </button>
             <button
               type="button"
-              onClick={acceptAll}
+              onClick={() => acceptAll()}
               aria-label={t.acceptAll}
               className={cn(
                 "text-[11px] font-bold uppercase tracking-[0.15em] px-6 py-3 whitespace-nowrap transition-all shadow-sm",

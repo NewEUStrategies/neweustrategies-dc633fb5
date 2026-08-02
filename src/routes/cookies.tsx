@@ -210,10 +210,10 @@ function CookiesPage() {
             <h2 className="font-display text-lg">{c.statusHeading}</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={rejectAll}>
+            <Button size="sm" variant="outline" onClick={() => rejectAll()}>
               {c.rejectAll}
             </Button>
-            <Button size="sm" variant="outline" onClick={acceptAll}>
+            <Button size="sm" variant="outline" onClick={() => acceptAll()}>
               {c.acceptAll}
             </Button>
             <Button size="sm" onClick={openPrefs}>
