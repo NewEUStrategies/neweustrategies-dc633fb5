@@ -56,6 +56,8 @@ interface MegaMenuColumn {
   kind?: MegaMenuColumnKind;
   title_pl?: string;
   title_en?: string;
+  /** Optional target for the column heading (set via the editor's page picker). */
+  href?: string;
   links?: MegaMenuLink[];
   featured?: MegaMenuFeatured | null;
   /** When kind === "category": slug of the category to show recent posts from. */
@@ -241,11 +243,7 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
   const featured = col.featured;
   return (
     <div className="min-w-0 space-y-3">
-      {title && (
-        <h4 className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground">
-          {title}
-        </h4>
-      )}
+      <ColumnHeading title={title} href={col.href} lang={lang} />
       {links.length > 0 && (
         <ul className="space-y-1.5">
           {links.map((l, i) => {
@@ -297,9 +295,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
     <div className="min-w-0 space-y-3">
       {heading && (
         <div className="flex items-center justify-between">
-          <h4 className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground">
-            {heading}
-          </h4>
+          <ColumnHeading title={heading} href={col.href} lang={lang} />
           {slug && (
             <AppLink
               href={viewAll}
@@ -444,33 +440,83 @@ function clamp01(n: number): number {
   return n;
 }
 
+/**
+ * Naglowek kolumny. Gdy kolumna ma `href`, naglowek jest linkiem - edytor od
+ * dawna pozwalal wskazac strone przez PagePicker, ale zaden renderer tego nie
+ * uzywal, wiec ustawienie bylo martwe. Jeden komponent dla desktopu, kolumny
+ * kategorii i mobile, zeby warianty nie rozjezdzaly sie ponownie.
+ */
+function ColumnHeading({
+  title,
+  href,
+  lang,
+}: {
+  title: string;
+  href?: string;
+  lang: MegaMenuLang;
+}) {
+  if (!title) return null;
+  const cls = "text-[11px] font-bold tracking-widest uppercase text-muted-foreground";
+  const target = safeUrl(href ?? "", "");
+  if (!target) return <h4 className={cls}>{title}</h4>;
+  return (
+    <h4 className={cls}>
+      <AppLink
+        href={target}
+        className="rounded-sm transition hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={lang === "pl" ? `Przejdź do sekcji ${title}` : `Go to the ${title} section`}
+      >
+        {title}
+      </AppLink>
+    </h4>
+  );
+}
+
+/**
+ * Mobile: ten sam ZESTAW tresci co desktop, w ukladzie jednokolumnowym.
+ * Wczesniej akordeon mobilny ignorowal `kind` (kolumna kategorii pokazywala
+ * sam tytul, bez wpisow i bez "zobacz wszystkie"), gubil karty featured i
+ * opisy linkow - ustawienia znikaly bez sladu na telefonie i w podgladzie
+ * urzadzenia mobilnego.
+ */
 function MobileColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }) {
   const title = pickLocalized(col, "title", lang);
   const links = Array.isArray(col.links) ? col.links : [];
+  const featured = col.featured;
+
+  if ((col.kind ?? "links") === "category") {
+    return <CategoryColumn col={col} lang={lang} />;
+  }
+
   return (
-    <div className="space-y-1.5">
-      {title && (
-        <h4 className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground">
-          {title}
-        </h4>
+    <div className="space-y-2">
+      <ColumnHeading title={title} href={col.href} lang={lang} />
+      {links.length > 0 && (
+        <ul className="space-y-0.5">
+          {links.map((l, i) => {
+            const label = pickLocalized(l, "label", lang);
+            const desc = pickLocalized(l, "desc", lang);
+            const href = safeUrl(l.href ?? "#");
+            if (!label) return null;
+            return (
+              <li key={i}>
+                <AppLink
+                  href={href}
+                  className="block py-2 text-foreground transition hover:text-brand-ink"
+                >
+                  <span className="block text-sm leading-tight">{label}</span>
+                  {desc && (
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{desc}</span>
+                  )}
+                </AppLink>
+              </li>
+            );
+          })}
+        </ul>
       )}
-      <ul className="space-y-0.5">
-        {links.map((l, i) => {
-          const label = pickLocalized(l, "label", lang);
-          const href = safeUrl(l.href ?? "#");
-          if (!label) return null;
-          return (
-            <li key={i}>
-              <AppLink
-                href={href}
-                className="block py-2 text-sm text-foreground hover:text-brand-ink transition"
-              >
-                {label}
-              </AppLink>
-            </li>
-          );
-        })}
-      </ul>
+      {featured && (featured.image || featured.title_pl || featured.title_en) && (
+        <FeaturedCard featured={featured} lang={lang} />
+      )}
     </div>
   );
 }

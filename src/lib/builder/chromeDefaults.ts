@@ -119,9 +119,7 @@ const defaultHeaderDoc = (): BuilderDocument =>
         // Row 2 - nav bar: search | menu (center) | account + theme toggle
         section(
           [
-            col(3, [
-              widget("search-button", { label_pl: "Szukaj", label_en: "Search", variant: "input" }),
-            ]),
+            col(3, [widget("search-button", { label_pl: "Szukaj", label_en: "Search" })]),
             col(6, [
               widget("nav-link", {
                 label_pl: "Analizy",

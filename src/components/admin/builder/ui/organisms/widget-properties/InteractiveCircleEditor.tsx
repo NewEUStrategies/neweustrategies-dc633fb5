@@ -119,9 +119,14 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">{t("builder.interactiveCircleEditor.animNone")}</SelectItem>
-              <SelectItem value="rotate">
-                {t("builder.interactiveCircleEditor.animRotate")}
-              </SelectItem>
+              {/* Obrot ma sens tylko dla pelnego kola - polokrag wykrecilby sie
+                  poza swoje polozenie, wiec renderer go tam nie stosuje. Nie
+                  pokazujemy opcji, ktora bylaby cichym no-opem. */}
+              {s(c.layout, "full") !== "semi" && (
+                <SelectItem value="rotate">
+                  {t("builder.interactiveCircleEditor.animRotate")}
+                </SelectItem>
+              )}
               <SelectItem value="pulse">
                 {t("builder.interactiveCircleEditor.animPulse")}
               </SelectItem>
@@ -199,7 +204,10 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
         </PropField>
       </div>
 
-      {/* Central text (fallback when an item has no description of its own) */}
+      {/* Naglowek + wstep renderowane NAD kolem. Nie mylic ze srodkiem kola:
+          tam trafia tresc aktywnej pozycji (a tresc widgetu tylko przy pustej
+          liscie). Etykieta dlugo obiecywala "fallback opisu pozycji", czego
+          renderer nigdy nie robil - i nie powinien, bo tekst dublowalby sie. */}
       <div className="rounded border border-border p-2 space-y-2">
         <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {t("builder.interactiveCircleEditor.defaultText", { lang: lang.toUpperCase() })}

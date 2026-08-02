@@ -117,6 +117,11 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
 
   const containerHeight = layout === "semi" ? size * 0.62 : size;
 
+  // UWAGA na pozorna "poprawke": `title` / `desc` renderuja sie juz wyzej jako
+  // naglowek i wstep NAD kolem (bezwarunkowo). Uzycie ich dodatkowo jako
+  // fallbacku srodka pokazywaloby ten sam tekst dwa razy na jednym ekranie.
+  // Srodek pokazuje wiec tresc aktywnej pozycji, a tresc widgetu tylko wtedy,
+  // gdy nie ma zadnej pozycji (stan pusty).
   const activeItem = items[active] ?? items[0];
   const activeTitle = activeItem
     ? loc(activeItem as Record<string, unknown>, "title", lang)

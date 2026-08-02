@@ -63,7 +63,6 @@ export interface AccountMenuConfig {
   panelAccent?: string;
   panelRadius?: number;
   panelWidth?: number;
-  triggerVariant?: "split" | "ghost";
 }
 
 // Presety profilowe / shop / system - wystawiane jako wybierane URL-e w edytorze.
@@ -276,6 +275,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     (lang === "pl" ? "Wyloguj" : "Sign out");
   const signinHref = config.signinHref || "/login";
   const signupHref = config.signupHref || "/login?mode=signup";
+  // Naglowek panelu konta. Klucz istnial w defaultach, w seedzie chrome i w
+  // typie, ale zaden renderer go nie czytal - ustawienie bylo martwe. Puste =
+  // brak widocznego naglowka (zachowanie sprzed zmiany), a nazwa dostepnosciowa
+  // panelu i tak ma sensowny fallback.
+  const panelLabel = (lang === "pl" ? config.panel_pl : config.panel_en) || "";
 
   const panelStyle: CSSProperties = {
     background: config.panelBg || undefined,
@@ -511,7 +515,13 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             "origin-(--radix-popover-content-transform-origin)",
           ].join(" ")}
           style={panelStyle}
+          aria-label={panelLabel || (lang === "pl" ? "Menu konta" : "Account menu")}
         >
+          {panelLabel && (
+            <div className="px-2.5 pb-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+              {panelLabel}
+            </div>
+          )}
           {session ? (
             <>
               {user?.email && (

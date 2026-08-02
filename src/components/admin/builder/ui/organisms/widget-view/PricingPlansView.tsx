@@ -20,9 +20,13 @@ export interface PricingPlansViewProps {
   ctaLabel?: string;
 }
 
+// Klucze MUSZA pokrywac caly enum `plan_interval` z src/lib/billing/types.ts.
+// Brak wpisu nie wywala renderu - po cichu gubi sufiks okresu, wiec plan
+// dwutygodniowy pokazywal sama cene, bez informacji "za jaki czas".
 const INTERVAL_LABEL: Record<string, { pl: string; en: string }> = {
   day: { pl: "/dzień", en: "/day" },
   week: { pl: "/tydz.", en: "/week" },
+  two_weeks: { pl: "/2 tyg.", en: "/2 wks" },
   month: { pl: "/mies.", en: "/mo" },
   quarter: { pl: "/kwartał", en: "/quarter" },
   year: { pl: "/rok", en: "/yr" },
