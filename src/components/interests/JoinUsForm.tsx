@@ -43,6 +43,13 @@ import { buildJoinUsSizeCss } from "@/lib/interests/joinUsSizeCss";
 
 import "@/lib/i18n-interests";
 
+/** Klucz zgody marketingowej w katalogu RODO - jedno źródło prawdy. */
+export const MARKETING_CONSENT_KEY = "marketing_email";
+export const MARKETING_CONSENT_VERSION =
+  getConsentDefinition(MARKETING_CONSENT_KEY)?.version ?? "1.0";
+
+
+
 export interface JoinUsFormProps {
   variant?: "card" | "split" | "inline" | "split-image";
   showInterests?: boolean;
