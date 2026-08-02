@@ -1254,13 +1254,23 @@ export function JoinUsForm({
       </SubscribeButton>
 
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
-      <p
-        className="font-sans leading-relaxed text-muted-foreground"
+      <label
+        className="flex cursor-pointer items-start gap-2 font-sans leading-relaxed text-muted-foreground"
         style={{ fontSize: consentSize ? `${consentSize}px` : "11px" }}
         data-edit-target="consentSize"
       >
-        {consent}
-      </p>
+        <Checkbox
+          checked={consentAccepted}
+          onCheckedChange={(v) => setConsentAccepted(v === true)}
+          aria-required="true"
+          className="mt-0.5 h-[16px] w-[16px] shrink-0"
+        />
+        <span>
+          {consent}
+          <span className="ml-1 text-destructive">*</span>
+        </span>
+      </label>
+
     </form>
   );
 
