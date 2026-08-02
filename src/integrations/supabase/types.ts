@@ -13674,6 +13674,7 @@ export type Database = {
         }[]
       }
       post_canonical_href: { Args: { _post_id: string }; Returns: string }
+      post_view_count: { Args: { _post_id: string }; Returns: number }
       posts_needing_embeddings: {
         Args: { _limit?: number }
         Returns: {
