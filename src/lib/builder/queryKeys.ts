@@ -40,6 +40,7 @@ export const WIDGET_QUERY_ROOTS = {
   categories: "builder-cats",
   tags: "builder-tags",
   sliderPosts: "builder-slider-posts",
+  sliderFallbackImages: "builder-slider-fallback-images",
   recommendedPosts: "recommended-posts",
 
   // --- widgety globalne / popupy ---
@@ -71,9 +72,12 @@ export type WidgetQueryRoot = (typeof WIDGET_QUERY_ROOTS)[keyof typeof WIDGET_QU
  */
 export const LIVE_INVALIDATED_ROOTS: ReadonlyArray<WidgetQueryRoot> = [
   WIDGET_QUERY_ROOTS.postRef,
-  WIDGET_QUERY_ROOTS.pageRef,
-  WIDGET_QUERY_ROOTS.categoryRef,
-  WIDGET_QUERY_ROOTS.tagRef,
+  // UWAGA: pageRef / categoryRef / tagRef sa CELOWO nieobecne - zaden resolver
+  // nie wystawia jeszcze zapytania o tych korzeniach (tylko postRef istnieje w
+  // contentRefs.ts), wiec ich rejestracja byla martwa: `invalidateQueries` nie
+  // trafial w nic, a lista sugerowala pokrycie, ktorego nie bylo. Dopisz je
+  // TUTAJ w tym samym commicie, w ktorym powstanie realne zapytanie.
+  // Pilnuje tego test `__tests__/queryKeys.test.ts`.
   WIDGET_QUERY_ROOTS.postList,
   WIDGET_QUERY_ROOTS.newsTicker,
   WIDGET_QUERY_ROOTS.ratedList,

@@ -2774,63 +2774,72 @@ pushLabelsFor("contact-form", [
 );
 
 // --- Auth form widgets: login / register / lost-password / reset-password ---
+//
+// Wszystkie przełączniki tych czterech widgetów są typu `bool` (prawdziwe
+// `true`/`false`). Historycznie były to selecty "0"/"1", a renderery czytały je
+// idiomem `data.showX !== false`; string "0" jest prawdziwy, więc wyłączenie
+// pola NIE DZIAŁAŁO. Czytelnicy przechodzą przez `asBool`, więc dokumenty
+// zapisane starym panelem nadal znaczą to samo.
+
+/** Wariant powłoki formularza auth - komponent rysuje realnie każdą z opcji. */
+const authVariantField = (): SchemaField => ({
+  key: "variant",
+  type: "select",
+  label: "Wariant",
+  options: [
+    { value: "card", label: "Karta" },
+    { value: "flat", label: "Płaski" },
+    { value: "inline", label: "Inline" },
+  ],
+  default: "card",
+});
+
+/** Pojedynczy przełącznik on/off widgetu auth. */
+const authToggle = (key: string, label: string, defaultOn: boolean): SchemaField => ({
+  key,
+  type: "bool",
+  label,
+  default: defaultOn,
+});
+
+/**
+ * Blok edytora jednego pola formularza auth: widoczność + wymagalność jako
+ * `bool`, plus dwujęzyczna etykieta i placeholder. Odpowiednik `fieldBlock`,
+ * ale bez selectów "0"/"1".
+ */
+const authFieldBlock = (
+  key: string,
+  labelBase: string,
+  opts: { show: boolean; require: boolean },
+): SchemaField[] => [
+  authToggle(
+    `show${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+    `Pole: ${labelBase} - widoczne?`,
+    opts.show,
+  ),
+  authToggle(
+    `require${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+    `${labelBase} - wymagane?`,
+    opts.require,
+  ),
+  ...labelPh(key, labelBase),
+];
+
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["login-form"] = [
-  {
-    key: "variant",
-    type: "select",
-    label: "Wariant",
-    options: [
-      { value: "card", label: "Karta" },
-      { value: "flat", label: "Płaski" },
-      { value: "inline", label: "Inline" },
-    ],
-  },
+  authVariantField(),
   { key: "title", type: "i18nText", label: "Tytuł" },
   { key: "subtitle", type: "i18nText", label: "Podtytuł" },
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
   ...labelPh("email", "E-mail"),
   ...labelPh("password", "Hasło"),
-  ...fieldBlock("remember", "Zapamiętaj mnie", { defaultShow: "1", defaultRequire: "0" }),
-  {
-    key: "showShowPassword",
-    type: "select",
-    label: "Pokaż przycisk pokaż hasło?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
-  {
-    key: "showForgot",
-    type: "select",
-    label: "Pokaż link zapomniałem hasła?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
-  {
-    key: "showRegister",
-    type: "select",
-    label: "Pokaż link załóż konto?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
-  {
-    key: "showOAuthGoogle",
-    type: "select",
-    label: "Pokaż logowanie Google?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
+  // "Zapamiętaj mnie" to checkbox - ma widoczność i etykietę, ale nie ma
+  // sensownego "wymagane?" ani placeholdera (oba były martwe).
+  authToggle("showRemember", "Pole: Zapamiętaj mnie - widoczne?", true),
+  { key: "rememberLabel", type: "i18nText", label: "Etykieta: Zapamiętaj mnie" },
+  authToggle("showShowPassword", "Pokaż przycisk pokaż hasło?", true),
+  authToggle("showForgot", "Pokaż link zapomniałem hasła?", true),
+  authToggle("showRegister", "Pokaż link załóż konto?", true),
+  authToggle("showOAuthGoogle", "Pokaż logowanie Google?", true),
   { key: "redirectTo", type: "text", label: "Po zalogowaniu przekieruj do", placeholder: "/" },
   { key: "registerHref", type: "text", label: "URL do rejestracji", placeholder: "/register" },
   {
@@ -2839,76 +2848,37 @@ pushLabelsFor("contact-form", [
     label: "URL do odzyskiwania hasła",
     placeholder: "/lost-password",
   },
-  customFieldsField,
+  // Bez `customFields`: logowanie tylko uwierzytelnia, więc dodatkowe pola nie
+  // miałyby dokąd trafić - były cichym śmieciem w panelu.
 ];
 
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["register-form"] = [
-  {
-    key: "variant",
-    type: "select",
-    label: "Wariant",
-    options: [
-      { value: "card", label: "Karta" },
-      { value: "flat", label: "Płaski" },
-    ],
-  },
+  authVariantField(),
   { key: "title", type: "i18nText", label: "Tytuł" },
   { key: "subtitle", type: "i18nText", label: "Podtytuł" },
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
-  ...fieldBlock("firstName", "Imię", { defaultShow: "1", defaultRequire: "1" }),
-  ...fieldBlock("lastName", "Nazwisko", { defaultShow: "1", defaultRequire: "1" }),
-  ...fieldBlock("email", "E-mail", { defaultShow: "1", defaultRequire: "1" }),
-  ...fieldBlock("password", "Hasło", { defaultShow: "1", defaultRequire: "1" }),
-  ...fieldBlock("passwordConfirm", "Powtórz hasło", { defaultShow: "0", defaultRequire: "0" }),
-  ...fieldBlock("phone", "Telefon", { defaultShow: "0", defaultRequire: "0" }),
-  ...fieldBlock("company", "Firma", { defaultShow: "0", defaultRequire: "0" }),
-  {
-    key: "requireConsent",
-    type: "select",
-    label: "Wymagaj zgody RODO?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
+  ...authFieldBlock("firstName", "Imię", { show: true, require: true }),
+  ...authFieldBlock("lastName", "Nazwisko", { show: true, require: true }),
+  // E-mail i hasło są strukturalne (Supabase signUp ich wymaga), więc mają
+  // tylko etykietę i placeholder - przełączniki byłyby kłamstwem.
+  ...labelPh("email", "E-mail"),
+  ...authFieldBlock("phone", "Telefon", { show: false, require: false }),
+  ...authFieldBlock("company", "Firma", { show: false, require: false }),
+  ...labelPh("password", "Hasło"),
+  ...authFieldBlock("passwordConfirm", "Powtórz hasło", { show: false, require: false }),
+  authToggle("showShowPassword", "Pokaż przycisk pokaż hasło?", true),
+  authToggle("requireConsent", "Wymagaj zgody RODO?", true),
   { key: "consentText", type: "i18nText", label: "Treść zgody (RODO)" },
-  {
-    key: "newsletterOptIn",
-    type: "select",
-    label: "Pokaż zapis do newslettera?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
+  authToggle("newsletterOptIn", "Pokaż zapis do newslettera?", true),
   { key: "newsletterLabel", type: "i18nText", label: "Etykieta zapisu do newslettera" },
-  {
-    key: "showOAuthGoogle",
-    type: "select",
-    label: "Pokaż rejestrację Google?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
+  authToggle("showOAuthGoogle", "Pokaż rejestrację Google?", true),
   { key: "redirectTo", type: "text", label: "Po rejestracji przekieruj do", placeholder: "/" },
   { key: "loginHref", type: "text", label: "URL logowania", placeholder: "/login" },
   customFieldsField,
 ];
 
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["lost-password-form"] = [
-  {
-    key: "variant",
-    type: "select",
-    label: "Wariant",
-    options: [
-      { value: "card", label: "Karta" },
-      { value: "flat", label: "Płaski" },
-    ],
-  },
+  authVariantField(),
   { key: "title", type: "i18nText", label: "Tytuł" },
   { key: "subtitle", type: "i18nText", label: "Podtytuł" },
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
@@ -2918,23 +2888,22 @@ pushLabelsFor("contact-form", [
 ];
 
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["reset-password-form"] = [
-  {
-    key: "variant",
-    type: "select",
-    label: "Wariant",
-    options: [
-      { value: "card", label: "Karta" },
-      { value: "flat", label: "Płaski" },
-    ],
-  },
+  authVariantField(),
   { key: "title", type: "i18nText", label: "Tytuł" },
   { key: "subtitle", type: "i18nText", label: "Podtytuł" },
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
   ...labelPh("password", "Nowe hasło"),
-  ...fieldBlock("passwordConfirm", "Powtórz nowe hasło", {
-    defaultShow: "1",
-    defaultRequire: "1",
-  }),
+  ...authFieldBlock("passwordConfirm", "Powtórz nowe hasło", { show: true, require: true }),
+  authToggle("showShowPassword", "Pokaż przycisk pokaż hasło?", true),
+  {
+    key: "minLength",
+    type: "number",
+    label: "Minimalna długość hasła",
+    min: 6,
+    max: 128,
+    step: 1,
+    default: 8,
+  },
   { key: "redirectTo", type: "text", label: "Po zapisaniu przekieruj do", placeholder: "/login" },
   { key: "successText", type: "i18nText", label: "Komunikat po zapisaniu" },
 ];

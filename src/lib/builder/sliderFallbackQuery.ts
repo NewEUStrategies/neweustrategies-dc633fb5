@@ -4,6 +4,7 @@
 // bundla na stronach, które żadnego slidera nie mają.
 import { supabase } from "@/integrations/supabase/client";
 import { safeImageUrl } from "@/lib/sanitize";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 interface FallbackPostImage {
@@ -13,7 +14,7 @@ interface FallbackPostImage {
 export function sliderFallbackImagesQueryOptions(fallbackCount: number) {
   const count = Math.max(3, fallbackCount || 3);
   return {
-    queryKey: ["builder-slider-fallback-images", count] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.sliderFallbackImages, count] as const,
     queryFn: async (): Promise<string[]> =>
       // Per-isolate TTL: prefetch sliderów biegnie z loaderów tras publicznych;
       // okładki-fallbacki zmieniają się z publikacjami, minuta wystarcza.

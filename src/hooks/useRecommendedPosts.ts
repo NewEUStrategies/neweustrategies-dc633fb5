@@ -11,6 +11,7 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { readAnonInterestIds } from "@/lib/personalization/anonMerge";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import type { Database } from "@/integrations/supabase/types";
 
 export type RecommendedPost =
@@ -24,7 +25,10 @@ export function useRecommendedPosts(
 ): UseQueryResult<RecommendedPost[]> {
   const { user, loading } = useAuth();
   return useQuery({
-    queryKey: ["recommended-posts", user?.id ?? "anon", limit],
+    // Korzen z WIDGET_QUERY_ROOTS - inwalidacje po zmianie zainteresowan /
+    // obserwowanych (useInterests, useFollows, anonMerge) celuja w ten sam
+    // literal.
+    queryKey: [WIDGET_QUERY_ROOTS.recommendedPosts, user?.id ?? "anon", limit],
     enabled: (options.enabled ?? true) && !loading,
     staleTime: 60_000,
     queryFn: async (): Promise<RecommendedPost[]> => {

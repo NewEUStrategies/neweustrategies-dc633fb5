@@ -70,7 +70,22 @@ export function collectBuilderWidgets(doc: BuilderDocument): WidgetNode[] {
   return widgets;
 }
 
-/** Id wydarzenia dla event-countdown w trybie "event" (inaczej pusty string). */
+/**
+ * Widgety odliczania czytajace wydarzenie po id (eventByIdQueryOptions).
+ * "event-countdown-card" dlugo brakowalo na tej liscie, wiec premium karta w
+ * trybie "event" nie miala prefetchu SSR: serwer renderowal placeholdery, a
+ * tytul/okladka/data wskakiwaly dopiero po hydratacji i osobnym fetchu.
+ */
+const COUNTDOWN_WIDGET_TYPES: ReadonlySet<string> = new Set([
+  "event-countdown",
+  "event-countdown-card",
+]);
+
+function isCountdownWidget(widget: WidgetNode): boolean {
+  return COUNTDOWN_WIDGET_TYPES.has(widget.type);
+}
+
+/** Id wydarzenia dla widgetu odliczania w trybie "event" (inaczej pusty string). */
 function countdownEventId(c: WidgetContent): string {
   const mode = typeof c.mode === "string" ? c.mode : "custom";
   const eventId = typeof c.eventId === "string" ? c.eventId : "";
@@ -150,7 +165,7 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   if (widget.type === "event-list") {
     out.push(eventsListQueryOptions(widget.content, lang));
   }
-  if (widget.type === "event-countdown") {
+  if (isCountdownWidget(widget)) {
     const eventId = countdownEventId(widget.content);
     if (eventId) out.push(eventByIdQueryOptions(eventId));
   }
@@ -237,7 +252,7 @@ async function prefetchWidgets(
           Promise.resolve(prefetchBuilderSectionQuery(queryClient, options)).catch(() => undefined),
         );
       } catch {
-        /* swallow — a broken single widget must never fail the whole prefetch */
+        /* swallow - a broken single widget must never fail the whole prefetch */
       }
     }
   }
@@ -281,7 +296,7 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
     const opts = eventsListQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
-  if (widget.type === "event-countdown") {
+  if (isCountdownWidget(widget)) {
     const eventId = countdownEventId(widget.content);
     if (eventId) {
       const opts = eventByIdQueryOptions(eventId);
