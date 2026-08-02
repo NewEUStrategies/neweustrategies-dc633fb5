@@ -4133,7 +4133,7 @@ export type Database = {
           integration?: string
           name: string
           secret_id?: string | null
-          tenant_id: string
+          tenant_id?: string
           updated_at?: string
           url: string
         }
