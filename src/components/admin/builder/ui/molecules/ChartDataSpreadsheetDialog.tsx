@@ -3,7 +3,7 @@
 // side-by-side, keeping edits in local state and serialising back to the
 // widget's CSV textarea format ("; Series A; Series B\nRow; 12; 8") only on save.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Sheet as SheetIcon, Undo2, Check, Loader2 } from "lucide-react";
+import { Plus, Trash2, Sheet as SheetIcon, Undo2, Check, Loader2, AlertTriangle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,15 @@ import { Input } from "@/components/ui/input";
 import { Chart } from "@/components/charts/Chart";
 import type { ChartConfig, ChartKind } from "@/lib/charts/types";
 import { MAX_SERIES } from "@/lib/charts/types";
-import { CHART_HEIGHT_DEFAULT, MAX_CATEGORIES, parseChartKind } from "@/lib/charts/parse";
+import {
+  CHART_HEIGHT_DEFAULT,
+  CHART_HEIGHT_MAX,
+  CHART_HEIGHT_MIN,
+  MAX_CATEGORIES,
+  parseChartKind,
+} from "@/lib/charts/parse";
 import { parseChartData } from "@/lib/charts/csv";
+import { asBool, asNumInRange } from "@/lib/builder/contentValue";
 
 interface Props {
   value: string;
@@ -26,6 +33,12 @@ interface Props {
   kind?: string;
   unit?: string;
   title?: string;
+  /**
+   * Pełna treść widgetu - podgląd MUSI renderować się tymi samymi
+   * ustawieniami co kanwa (legenda, siatka, etykiety wartości, skumulowanie,
+   * wysokość). Bez tego arkusz pokazywał inny wykres niż strona.
+   */
+  content?: Record<string, unknown>;
   lang: "pl" | "en";
 }
 
@@ -103,7 +116,15 @@ function gridToCsv(g: Grid): string {
   return [header, ...rows].join("\n");
 }
 
-export function ChartDataSpreadsheetDialog({ value, onChange, kind, unit, title, lang }: Props) {
+export function ChartDataSpreadsheetDialog({
+  value,
+  onChange,
+  kind,
+  unit,
+  title,
+  content,
+  lang,
+}: Props) {
   const t = L[lang];
   const [open, setOpen] = useState(false);
   const [grid, setGrid] = useState<Grid>(() => csvToGrid(value));
@@ -122,26 +143,38 @@ export function ChartDataSpreadsheetDialog({ value, onChange, kind, unit, title,
   }, [open, value]);
 
   const chartKind: ChartKind = parseChartKind(kind);
+  const isPie = chartKind === "pie" || chartKind === "donut";
 
   const previewConfig: ChartConfig = useMemo(() => {
     const csv = gridToCsv(grid);
     const parsed = parseChartData(csv);
+    // Ustawienia wyglądu czytamy z treści widgetu (te same klucze co
+    // ChartWidgetView) - podgląd ma pokazywać wykres, który autor faktycznie
+    // publikuje, a nie sztywny wariant demonstracyjny.
+    const c = content ?? {};
     return {
       kind: chartKind,
       title: title ?? "",
       description: "",
       categories: parsed.categories,
       series: parsed.series,
-      stacked: false,
+      stacked: asBool(c.stacked, false),
       unit: unit ?? "",
-      height: CHART_HEIGHT_DEFAULT,
-      showLegend: true,
-      showGrid: true,
-      showValues: false,
+      height: asNumInRange(c.height, CHART_HEIGHT_DEFAULT, CHART_HEIGHT_MIN, CHART_HEIGHT_MAX),
+      showLegend: asBool(c.showLegend, true),
+      showGrid: asBool(c.showGrid, true),
+      showValues: asBool(c.showValues, false),
+      // Animacja wejścia jest wyłączona TYLKO w podglądzie arkusza: wykres
+      // przeskakuje tu przy każdym naciśnięciu klawisza, a odpalanie animacji
+      // na każdą zmianę komórki byłoby migotaniem, nie podglądem.
       animate: false,
       source: "",
     };
-  }, [grid, chartKind, title, unit]);
+  }, [grid, chartKind, title, unit, content]);
+
+  // Wykres kołowy rysuje WYŁĄCZNIE pierwszą serię (jedna tarcza = jeden
+  // podział całości). Bez tego ostrzeżenia kolejne kolumny znikały po cichu.
+  const droppedSeries = isPie ? Math.max(0, grid.seriesNames.length - 1) : 0;
 
   // Live sync: propaguj CSV do parenta natychmiast po edycji, żeby wpisy
   // trafiały do widget-config bez czekania na przycisk "Zapisz". Krótki

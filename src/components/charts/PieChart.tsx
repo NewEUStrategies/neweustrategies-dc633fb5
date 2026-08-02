@@ -3,7 +3,9 @@
 // Zasady (dataviz): wycinki oddziela 2px obrys w kolorze powierzchni (nigdy
 // dodatkowa ramka), etykiety procentowe TYLKO w dużych wycinkach (>=8%),
 // w kolorze dobranym kontrastem do wypełnienia (--chart-ink-N); nazwy niesie
-// legenda, pełne wartości tooltip + tabela. Donut pokazuje sumę w środku.
+// legenda, pełne wartości tooltip + tabela. Przełącznik "Etykiety wartości"
+// (config.showValues) dokłada w tych samych wycinkach drugą linię z wartością.
+// Donut pokazuje sumę w środku.
 // Interakcja: hover/focus wycinka -> tooltip; wycinki są fokusowalne.
 import { useMemo, useState } from "react";
 import type { ChartConfig } from "@/lib/charts/types";
@@ -62,7 +64,11 @@ export function PieChart({ config, lang }: PieChartProps) {
   const t = L[lang];
 
   const donut = config.kind === "donut";
-  const height = Math.min(config.height, 420);
+  // Wysokość jest USTAWIENIEM autora (schemat: 160..640 px), nie sugestią -
+  // wcześniejsze ciche przycięcie do 420 px sprawiało, że suwak wysokości
+  // powyżej tej wartości nic nie robił. Średnicę i tak ogranicza szerokość
+  // kontenera (rOuter poniżej), więc wyższa karta = więcej powietrza wokół.
+  const height = config.height;
 
   const { slices, total } = useMemo(() => {
     const first = config.series[0];
@@ -134,26 +140,43 @@ export function PieChart({ config, lang }: PieChartProps) {
                 />
               );
             })}
-            {/* Etykiety %: tylko wycinki >=8% - wewnątrz wypełnienia. */}
+            {/* Etykiety %: tylko wycinki >=8% - wewnątrz wypełnienia. Gdy autor
+                włączy "Etykiety wartości", pod udziałem ląduje sama wartość
+                (druga linia), więc przełącznik działa tak samo jak w wykresach
+                kartezjańskich - wcześniej był dla koła cichym no-opem. */}
             {slices.map((s, i) => {
               if (s.share < 0.08) return null;
               const mid = (s.startAngle + s.endAngle) / 2;
               const rLabel = donut ? (rOuter + rInner) / 2 : rOuter * 0.66;
               const [lx, ly] = polar(cx, cy, rLabel, mid);
+              const dy = config.showValues ? -2 : 4;
               return (
-                <text
-                  key={`t${i}`}
-                  x={lx}
-                  y={ly + 4}
-                  textAnchor="middle"
-                  fontSize={12}
-                  fontWeight={600}
-                  fill={`var(--chart-ink-${s.colorSlot})`}
-                  pointerEvents="none"
-                  className="tabular-nums"
-                >
-                  {formatPercent(s.share, lang)}
-                </text>
+                <g key={`t${i}`} pointerEvents="none">
+                  <text
+                    x={lx}
+                    y={ly + dy}
+                    textAnchor="middle"
+                    fontSize={12}
+                    fontWeight={600}
+                    fill={`var(--chart-ink-${s.colorSlot})`}
+                    className="tabular-nums"
+                  >
+                    {formatPercent(s.share, lang)}
+                  </text>
+                  {config.showValues && (
+                    <text
+                      x={lx}
+                      y={ly + 11}
+                      textAnchor="middle"
+                      fontSize={11}
+                      fontWeight={500}
+                      fill={`var(--chart-ink-${s.colorSlot})`}
+                      className="neh-pie-value tabular-nums"
+                    >
+                      {formatChartValue(s.value, lang, config.unit)}
+                    </text>
+                  )}
+                </g>
               );
             })}
           </g>

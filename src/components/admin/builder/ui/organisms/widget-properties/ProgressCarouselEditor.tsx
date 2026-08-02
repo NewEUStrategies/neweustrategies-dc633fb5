@@ -1,11 +1,20 @@
 // Organism: edytor widgetu "progress-carousel" (progresywna karuzela).
 // Lista slajdów (obraz, tytuł PL/EN, opis PL/EN, link) + ustawienia globalne.
+//
+// Wygląd karuzeli (`ratio`, `accentColor`) czyta renderer (ProgressCarouselView),
+// ale panel nie miał dla nich ŻADNEJ kontrolki. Pola mieszkają w
+// `WIDGET_SCHEMAS["progress-carousel"]` i są rysowane molekułą
+// `SchemaFieldControl`, żeby lista wariantów proporcji nie rozjechała się
+// z mapą `RATIO_CLASS` renderera przy kolejnej zmianie.
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
+import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PropField, ItemFrame } from "../../atoms";
+import { SchemaFieldControl } from "../../molecules/SchemaFieldControl";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
 import { useTranslation } from "react-i18next";
@@ -19,8 +28,25 @@ interface Props {
 
 const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
 
+/** Pola wyglądu rysowane ze schematu (jedyne źródło etykiet i opcji). */
+const APPEARANCE_FIELDS = WIDGET_SCHEMAS["progress-carousel"] ?? [];
+
+/**
+ * Klucze treści obsługiwane przez ten edytor. Panel dorenderowuje pola
+ * schematu spoza tego zbioru - patrz `CUSTOM_EDITOR_HANDLED_KEYS`.
+ */
+export const PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS: ReadonlySet<string> = new Set<string>([
+  "heading",
+  "duration",
+  "vertical",
+  "showDesc",
+  "items",
+  ...APPEARANCE_FIELDS.map((f) => f.key),
+]);
+
 export function ProgressCarouselEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const items = itemsOf(c, "items");
   const commit = (next: Item[]) => setContent("items", toJson(next));
   const patch = (i: number, p: Partial<Item>) =>
@@ -94,6 +120,21 @@ export function ProgressCarouselEditor({ c, lang, setContent }: Props) {
           </div>
         </PropField>
       </div>
+
+      <section className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-2">
+        <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          {bl("Wygląd")}
+        </h4>
+        {APPEARANCE_FIELDS.map((field) => (
+          <SchemaFieldControl
+            key={field.key}
+            field={field}
+            lang={lang}
+            content={c}
+            setContent={setContent}
+          />
+        ))}
+      </section>
 
       <ListShell title={t("builder.progressCarouselEditor.slides")} items={items} onAdd={add}>
         <div className="space-y-2">

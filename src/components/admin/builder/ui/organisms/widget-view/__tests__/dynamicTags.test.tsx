@@ -3,6 +3,7 @@
 // returns), across each widget's content options.
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { DynamicTagWidget } from "../DynamicTagWidgets";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
@@ -49,8 +50,16 @@ function node(type: WidgetType, content: Record<string, unknown> = {}): WidgetNo
   return { id: `${type}-1`, kind: "widget", type, content: content as WidgetNode["content"] };
 }
 
+// post-meta dociąga realny licznik odsłon przez react-query (tylko gdy
+// `showViews` jest włączone i kontekst nie niesie już wartości), więc każdy
+// render potrzebuje klienta zapytań.
 function renderTag(ui: ReactElement, ctx: CurrentPostCtx | null = FULL) {
-  return render(<CurrentPostProvider value={ctx}>{ui}</CurrentPostProvider>);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <CurrentPostProvider value={ctx}>{ui}</CurrentPostProvider>
+    </QueryClientProvider>,
+  );
 }
 
 afterEach(cleanup);
@@ -180,11 +189,15 @@ describe("dynamic-tag widgets with full context", () => {
     expect(container.textContent).toContain("9");
   });
 
-  it("archive-title falls back to a sample archive when context has none", () => {
+  // Zaszyta próbka "Przykładowe archiwum / 12 wpisów" była widoczna także
+  // publicznie (żaden kod produkcyjny nie tworzył ctx.archive). Bez danych
+  // archiwum widget musi zniknąć, nie zmyślać.
+  it("archive-title renders nothing when the context carries no archive", () => {
     const { container } = renderTag(<DynamicTagWidget node={node("archive-title")} lang="en" />, {
       kind: "archive",
     });
-    expect(container.textContent).toContain("Sample archive");
+    expect(container.firstChild).toBeNull();
+    expect(container.textContent).not.toContain("Sample archive");
   });
 
   it("search-form renders a GET search form", () => {
@@ -213,6 +226,75 @@ describe("dynamic-tag widgets extra branches", () => {
       ).not.toThrow();
       cleanup();
     }
+  });
+
+  // --- klucze, które do tej pory były martwe w rejestrze -------------------
+  it("post-tags-dyn honours the `variant` key (pill / outline / text)", () => {
+    const pill = renderTag(
+      <DynamicTagWidget node={node("post-tags-dyn", { variant: "pill" })} lang="pl" />,
+    );
+    expect(pill.container.querySelector("a")?.className ?? "").toContain("bg-muted");
+    cleanup();
+    const outline = renderTag(
+      <DynamicTagWidget node={node("post-tags-dyn", { variant: "outline" })} lang="pl" />,
+    );
+    expect(outline.container.querySelector("a")?.className ?? "").toContain("border-border");
+    cleanup();
+    const text = renderTag(
+      <DynamicTagWidget node={node("post-tags-dyn", { variant: "text" })} lang="pl" />,
+    );
+    expect(text.container.querySelector("a")?.className ?? "").not.toContain("rounded-full");
+    expect(text.container.textContent).toContain("#NATO");
+  });
+
+  it("post-categories-dyn honours the `variant` key", () => {
+    const { container } = renderTag(
+      <DynamicTagWidget node={node("post-categories-dyn", { variant: "outline" })} lang="pl" />,
+    );
+    expect(container.querySelector("a")?.className ?? "").toContain("border-border");
+  });
+
+  it("post-author-card renders social links only when showSocial is on", () => {
+    const withSocial = renderTag(
+      <DynamicTagWidget node={node("post-author-card", { showSocial: true })} lang="pl" />,
+      { ...FULL, author: { ...FULL.author, linkedinUrl: "https://linkedin.com/in/anna" } },
+    );
+    expect(
+      withSocial.container.querySelector('a[href="https://linkedin.com/in/anna"]'),
+    ).toBeTruthy();
+    cleanup();
+    const withoutSocial = renderTag(
+      <DynamicTagWidget node={node("post-author-card", { showSocial: false })} lang="pl" />,
+      { ...FULL, author: { ...FULL.author, linkedinUrl: "https://linkedin.com/in/anna" } },
+    );
+    expect(
+      withoutSocial.container.querySelector('a[href="https://linkedin.com/in/anna"]'),
+    ).toBeNull();
+  });
+
+  it("post-author-card honours the `variant` key", () => {
+    const { container } = renderTag(
+      <DynamicTagWidget node={node("post-author-card", { variant: "centered" })} lang="pl" />,
+    );
+    expect(container.querySelector("aside")?.className ?? "").toContain("text-center");
+  });
+
+  it("post-cover renders a caption only when showCaption is on", () => {
+    const on = renderTag(
+      <DynamicTagWidget
+        node={node("post-cover", { showCaption: true, caption_pl: "Fot. Autor" })}
+        lang="pl"
+      />,
+    );
+    expect(on.container.querySelector("figcaption")?.textContent).toBe("Fot. Autor");
+    cleanup();
+    const off = renderTag(
+      <DynamicTagWidget
+        node={node("post-cover", { showCaption: false, caption_pl: "Fot. Autor" })}
+        lang="pl"
+      />,
+    );
+    expect(off.container.querySelector("figcaption")).toBeNull();
   });
 
   it("archive-title falls back to the category label for an unknown archive type", () => {

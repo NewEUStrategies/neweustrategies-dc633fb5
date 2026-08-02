@@ -1,27 +1,64 @@
-// Dynamic-tag widget renderers. Surface the current post/archive context
-// in a structural, non-HTML way. Falls back to placeholder data in the
-// admin canvas so authors see realistic previews.
-import { createElement, type ReactElement } from "react";
+// Dynamic-tag widget renderers. Surface the current post/archive context in a
+// structural, non-HTML way.
+//
+// ZASADA BEZPIECZEŃSTWA DANYCH (regresja naprawiona tutaj): dane przykładowe
+// wolno pokazać WYŁĄCZNIE w kanwie buildera. Wcześniej `useCtx()` robiło
+// `useCurrentPostCtx() ?? PLACEHOLDER_POST_CTX`, a nagłówek, stopka, popup,
+// szuflada mobilna i archiwa renderują `BuilderRenderer` BEZ providera - więc
+// widget `post-*` wstawiony w takie miejsce pokazywał realnym odwiedzającym
+// fikcyjnego "Jana Kowalskiego", zmyślony tytuł i tagi "Lovable/CMS".
+// Teraz brak kontekstu poza edytorem = `null` (widget po prostu znika).
+import { createElement, type ComponentType, type ReactElement, type SVGProps } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AppLink } from "@/components/atoms/AppLink";
 import type { WidgetNode } from "@/lib/builder/types";
 import {
-  useCurrentPostCtx,
-  PLACEHOLDER_POST_CTX,
+  useCurrentPostCtxOrPreview,
+  type CurrentPostAuthor,
   type CurrentPostCtx,
 } from "@/lib/builder/currentPostContext";
-import { safeUrl } from "@/lib/sanitize";
+import { asBool, asNum, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
+import { postViewCountQueryOptions } from "@/lib/builder/postViewCountQuery";
+import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import {
   User as UserIcon,
   Clock,
   Eye,
   ChevronRight,
   Search as SearchIcon,
+  Globe,
+  Mail,
+  Facebook,
+  Instagram,
+  Linkedin,
+  Twitter,
+  Headphones,
+  Link as LinkIcon,
 } from "@/lib/lucide-shim";
 
 type Lang = "pl" | "en";
 
-function useCtx(): CurrentPostCtx {
-  return useCurrentPostCtx() ?? PLACEHOLDER_POST_CTX;
+/** Zamknięte zbiory wariantów - renderer rysuje realnie każdą pozycję. */
+const TITLE_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6", "p"] as const;
+const DATE_FORMATS = ["long", "short", "relative"] as const;
+const TERM_VARIANTS = ["pill", "outline", "text"] as const;
+const AUTHOR_VARIANTS = ["card", "inline", "centered"] as const;
+const COVER_ASPECTS = ["16/9", "4/3", "3/2", "1/1", "21/9"] as const;
+const CRUMB_SEPARATORS = ["/", ">"] as const;
+
+type TermVariant = (typeof TERM_VARIANTS)[number];
+
+/**
+ * Kontekst wpisu dla renderera. `null` = brak realnych danych POZA edytorem;
+ * w kanwie buildera zwracana jest bezpieczna próbka (patrz currentPostContext).
+ */
+function useCtx(): CurrentPostCtx | null {
+  return useCurrentPostCtxOrPreview();
+}
+
+/** Odczyt stringa z treści widgetu z domyślną wartością (kanon: `asStr`). */
+function strOr(value: unknown, fallback: string): string {
+  return asStr(value) || fallback;
 }
 
 function pickLocalized(ctx: CurrentPostCtx, lang: Lang, key: "title" | "excerpt"): string {
@@ -58,29 +95,14 @@ function fmtDate(iso: string | undefined, lang: Lang, fmt: string): string {
   }
 }
 
-function getStr(c: WidgetNode["content"], k: string, fb = ""): string {
-  const v = c?.[k];
-  return typeof v === "string" ? v : fb;
-}
-function getBool(c: WidgetNode["content"], k: string, fb = false): boolean {
-  const v = c?.[k];
-  return typeof v === "boolean" ? v : fb;
-}
-function getNum(c: WidgetNode["content"], k: string, fb = 0): number {
-  const v = c?.[k];
-  return typeof v === "number" ? v : fb;
-}
-
 function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
-  const tag = getStr(c, "tag", "h1");
-  const title =
-    pickLocalized(ctx, lang, "title") ||
-    (lang === "en"
-      ? getStr(c, "fallback_en", "Post title")
-      : getStr(c, "fallback_pl", "Tytuł wpisu"));
-  const linkToPost = getBool(c, "linkToPost", false);
+  if (!ctx) return null;
+  const tag = asOneOf(c.tag, TITLE_TAGS, "h1");
+  const title = pickLocalized(ctx, lang, "title") || pickI18n(c, "fallback", lang);
+  if (!title) return null;
+  const linkToPost = asBool(c.linkToPost, false);
   const inner =
     linkToPost && ctx.slug ? (
       <AppLink href={`/${ctx.slug}`} className="hover:text-brand transition">
@@ -95,10 +117,21 @@ function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
 function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
-  const sep = getStr(c, "separator", " · ");
-  const dateFmt = getStr(c, "dateFormat", "long");
+  const wantsViews = asBool(c.showViews, false);
+  // Kontekst może już nieść licznik (kanwa buildera / trasa, która go policzyła).
+  // Jeśli nie - dociągamy realną wartość tenant-scoped RPC, ale WYŁĄCZNIE gdy
+  // redaktor faktycznie włączył licznik. Hooki zawsze przed wczesnym returnem.
+  const ctxViews = typeof ctx?.viewCount === "number" ? ctx.viewCount : null;
+  const { data: fetchedViews } = useQuery({
+    ...postViewCountQueryOptions(ctx?.id ?? ""),
+    enabled: wantsViews && ctxViews === null && !!ctx?.id,
+  });
+  if (!ctx) return null;
+  const sep = strOr(c.separator, " · ");
+  const dateFmt = asOneOf(c.dateFormat, DATE_FORMATS, "long");
+  const views = ctxViews ?? (typeof fetchedViews === "number" ? fetchedViews : null);
   const parts: ReactElement[] = [];
-  if (getBool(c, "showAuthor", true) && ctx.author?.name) {
+  if (asBool(c.showAuthor, true) && ctx.author?.name) {
     parts.push(
       <span key="a" className="inline-flex items-center gap-1.5">
         <UserIcon className="w-3.5 h-3.5" />
@@ -112,7 +145,7 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
       </span>,
     );
   }
-  if (getBool(c, "showCategory", true) && ctx.categories?.[0]) {
+  if (asBool(c.showCategory, true) && ctx.categories?.[0]) {
     const cat = ctx.categories[0];
     parts.push(
       <AppLink
@@ -124,14 +157,14 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
       </AppLink>,
     );
   }
-  if (getBool(c, "showDate", true) && ctx.publishedAt) {
+  if (asBool(c.showDate, true) && ctx.publishedAt) {
     parts.push(
       <time key="d" dateTime={ctx.publishedAt}>
         {fmtDate(ctx.publishedAt, lang, dateFmt)}
       </time>,
     );
   }
-  if (getBool(c, "showReadingTime", true) && ctx.readingTimeMin) {
+  if (asBool(c.showReadingTime, true) && ctx.readingTimeMin) {
     parts.push(
       <span key="r" className="inline-flex items-center gap-1">
         <Clock className="w-3.5 h-3.5" />
@@ -139,11 +172,11 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
       </span>,
     );
   }
-  if (getBool(c, "showViews", false) && typeof ctx.viewCount === "number") {
+  if (wantsViews && views !== null) {
     parts.push(
       <span key="v" className="inline-flex items-center gap-1">
         <Eye className="w-3.5 h-3.5" />
-        {new Intl.NumberFormat(lang === "en" ? "en-GB" : "pl-PL").format(ctx.viewCount)}
+        {new Intl.NumberFormat(lang === "en" ? "en-GB" : "pl-PL").format(views)}
       </span>,
     );
   }
@@ -163,23 +196,33 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   );
 }
 
+/** Klasy pojedynczej pozycji taksonomii dla każdego wariantu z katalogu. */
+function termClass(variant: TermVariant): string {
+  if (variant === "text") return "text-sm hover:text-brand underline-offset-4 hover:underline";
+  if (variant === "outline")
+    return "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border border-border hover:border-brand hover:text-brand transition";
+  return "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-muted hover:bg-brand hover:text-brand-foreground transition";
+}
+
 function PillList({
   items,
   base,
+  variant,
 }: {
   items: Array<{ slug: string; name: string }>;
   base: "tag" | "category";
+  variant: TermVariant;
 }) {
   if (items.length === 0) return null;
+  const cls = termClass(variant);
   return (
-    <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
+    <ul
+      className={`flex flex-wrap list-none p-0 m-0 ${variant === "text" ? "gap-x-3 gap-y-1" : "gap-2"}`}
+    >
       {items.map((t) => (
         <li key={t.slug}>
-          <AppLink
-            href={`/${base}/${t.slug}`}
-            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-muted hover:bg-brand hover:text-brand-foreground transition"
-          >
-            {t.name}
+          <AppLink href={`/${base}/${t.slug}`} className={cls}>
+            {variant === "text" && base === "tag" ? `#${t.name}` : t.name}
           </AppLink>
         </li>
       ))}
@@ -190,43 +233,132 @@ function PillList({
 function PostTagsDynWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
-  const items = ctx.tags ?? [];
+  const items = ctx?.tags ?? [];
   if (items.length === 0) return null;
-  const label = getBool(c, "showLabel", true)
-    ? lang === "en"
-      ? getStr(c, "label_en", "Tags:")
-      : getStr(c, "label_pl", "Tagi:")
+  const label = asBool(c.showLabel, true)
+    ? pickI18n(c, "label", lang) || (lang === "en" ? "Tags:" : "Tagi:")
     : null;
   return (
     <div className="flex flex-wrap items-center gap-3">
       {label && <span className="cms-meta">{label}</span>}
-      <PillList items={items} base="tag" />
+      <PillList items={items} base="tag" variant={asOneOf(c.variant, TERM_VARIANTS, "pill")} />
     </div>
   );
 }
 
 function PostCategoriesDynWidget({ node }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
-  const limit = getNum(node.content, "limit", 0);
-  const items = (ctx.categories ?? []).slice(0, limit > 0 ? limit : undefined);
+  const c = node.content;
+  const limit = asNum(c.limit, 0);
+  const items = (ctx?.categories ?? []).slice(0, limit > 0 ? limit : undefined);
   if (items.length === 0) return null;
-  return <PillList items={items} base="category" />;
+  return (
+    <PillList items={items} base="category" variant={asOneOf(c.variant, TERM_VARIANTS, "pill")} />
+  );
+}
+
+type IconCmp = ComponentType<SVGProps<SVGSVGElement>>;
+
+interface AuthorSocial {
+  key: string;
+  href: string;
+  label: string;
+  Icon?: IconCmp;
+  iconUrl?: string;
+}
+
+/**
+ * Linki społecznościowe autora niesione już przez `CurrentPostAuthor`
+ * (wypełniane w `$.tsx` z `author_profiles_public`). Wcześniej ustawienie
+ * `showSocial` widgetu było martwym kluczem - dane były, renderer ich nie czytał.
+ */
+function authorSocials(a: CurrentPostAuthor): AuthorSocial[] {
+  const out: AuthorSocial[] = [];
+  const push = (key: string, url: string | undefined, label: string, Icon: IconCmp) => {
+    if (!url) return;
+    const href = safeUrl(url, "");
+    if (!href) return;
+    out.push({ key, href, label, Icon });
+  };
+  if (a.contactEmail) {
+    out.push({ key: "email", href: `mailto:${a.contactEmail}`, label: a.contactEmail, Icon: Mail });
+  }
+  push("x", a.xUrl ?? a.twitterUrl, "X", Twitter);
+  push("linkedin", a.linkedinUrl, "LinkedIn", Linkedin);
+  push("facebook", a.facebookUrl, "Facebook", Facebook);
+  push("instagram", a.instagramUrl, "Instagram", Instagram);
+  push("spotify", a.spotifyUrl, "Spotify", Headphones);
+  push("website", a.websiteUrl, "WWW", Globe);
+  (a.customSocials ?? []).forEach((s, i) => {
+    const href = safeUrl(s.url, "");
+    if (!href) return;
+    const iconUrl = s.iconUrl ? safeImageUrl(s.iconUrl) : "";
+    out.push({
+      key: `custom-${i}`,
+      href,
+      label: s.label || href,
+      Icon: iconUrl ? undefined : LinkIcon,
+      iconUrl: iconUrl || undefined,
+    });
+  });
+  return out;
+}
+
+function AuthorSocialRow({ socials, lang }: { socials: AuthorSocial[]; lang: Lang }) {
+  if (socials.length === 0) return null;
+  return (
+    <ul
+      className="flex flex-wrap items-center gap-2 list-none p-0 m-0 mt-2"
+      aria-label={lang === "en" ? "Author links" : "Linki autora"}
+    >
+      {socials.map((s) => (
+        <li key={s.key}>
+          <a
+            href={s.href}
+            target={s.href.startsWith("mailto:") ? undefined : "_blank"}
+            rel="noopener noreferrer"
+            title={s.label}
+            aria-label={s.label}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-background border border-border text-muted-foreground hover:text-brand hover:border-brand transition"
+          >
+            {s.iconUrl ? (
+              <img src={s.iconUrl} alt="" className="w-4 h-4 object-contain" />
+            ) : s.Icon ? (
+              <s.Icon className="w-4 h-4" />
+            ) : null}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
-  const a = ctx.author;
-  if (!a) return null;
   const c = node.content;
+  const a = ctx?.author;
+  if (!a?.name) return null;
+  const variant = asOneOf(c.variant, AUTHOR_VARIANTS, "card");
   const bio = lang === "en" ? a.bio_en : a.bio_pl;
+  const socials = asBool(c.showSocial, true) ? authorSocials(a) : [];
+  const centered = variant === "centered";
+  const shellClass =
+    variant === "card"
+      ? "flex items-start gap-4 p-5 rounded-xl bg-muted/40 border border-border"
+      : centered
+        ? "flex flex-col items-center text-center gap-3 py-4"
+        : "flex items-start gap-3";
+  const avatarClass = centered ? "w-20 h-20" : variant === "inline" ? "w-12 h-12" : "w-16 h-16";
   return (
-    <aside className="flex items-start gap-4 p-5 rounded-xl bg-muted/40 border border-border">
-      {getBool(c, "showAvatar", true) && (
-        <div className="shrink-0 w-16 h-16 rounded-full overflow-hidden bg-muted ring-2 ring-background">
+    <aside className={shellClass}>
+      {asBool(c.showAvatar, true) && (
+        <div
+          className={`shrink-0 ${avatarClass} rounded-full overflow-hidden bg-muted ring-2 ring-background`}
+        >
           {a.avatarUrl ? (
             <img
-              src={safeUrl(a.avatarUrl)}
-              alt={a.name ?? ""}
+              src={safeImageUrl(a.avatarUrl)}
+              alt={a.name}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -234,7 +366,7 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
           )}
         </div>
       )}
-      <div className="flex-1 min-w-0">
+      <div className={centered ? "min-w-0" : "flex-1 min-w-0"}>
         <div className="cms-meta uppercase tracking-wider mb-1">
           {lang === "en" ? "Author" : "Autor"}
         </div>
@@ -247,7 +379,12 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
             a.name
           )}
         </div>
-        {getBool(c, "showBio", true) && bio && <p className="cms-post-excerpt mt-1.5">{bio}</p>}
+        {asBool(c.showBio, true) && bio && <p className="cms-post-excerpt mt-1.5">{bio}</p>}
+        {socials.length > 0 && (
+          <div className={centered ? "flex justify-center" : ""}>
+            <AuthorSocialRow socials={socials} lang={lang} />
+          </div>
+        )}
       </div>
     </aside>
   );
@@ -256,13 +393,13 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
 function PostBreadcrumbsWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
-  const sep = getStr(c, "separator", "/");
-  const items = ctx.breadcrumbs ?? [];
+  const sep = asOneOf(c.separator, CRUMB_SEPARATORS, "/");
+  const items = ctx?.breadcrumbs ?? [];
   if (items.length === 0) return null;
-  const list = getBool(c, "showHome", true)
+  const list = asBool(c.showHome, true)
     ? [
         {
-          label: lang === "en" ? getStr(c, "home_en", "Home") : getStr(c, "home_pl", "Start"),
+          label: pickI18n(c, "home", lang) || (lang === "en" ? "Home" : "Start"),
           href: "/",
         },
         ...items.filter((b) => b.href !== "/"),
@@ -306,27 +443,36 @@ function PostBreadcrumbsWidget({ node, lang }: { node: WidgetNode; lang: Lang })
 function PostCoverWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
-  if (!ctx.coverUrl) return null;
-  const aspect = getStr(c, "aspect", "16/9");
-  const rounded = getBool(c, "rounded", true);
+  const src = safeImageUrl(ctx?.coverUrl);
+  if (!src) return null;
+  const aspect = asOneOf(c.aspect, COVER_ASPECTS, "16/9");
+  const rounded = asBool(c.rounded, true);
+  // `showCaption` było martwym kluczem: rejestr go zapisywał, renderer nie
+  // czytał. Podpis pochodzi z treści widgetu (i18n), więc redaktor realnie
+  // steruje tym, co widać pod okładką.
+  const caption = asBool(c.showCaption, false) ? pickI18n(c, "caption", lang) : "";
   return (
-    <figure
-      className={`relative overflow-hidden ${rounded ? "rounded-xl" : ""} bg-muted`}
-      style={{ aspectRatio: aspect.replace("/", " / ") }}
-    >
-      <img
-        src={safeUrl(ctx.coverUrl)}
-        alt={pickLocalized(ctx, lang, "title")}
-        className="absolute inset-0 w-full h-full object-cover"
-      />
+    <figure className="m-0">
+      <div
+        className={`relative overflow-hidden ${rounded ? "rounded-xl" : ""} bg-muted`}
+        style={{ aspectRatio: aspect.replace("/", " / ") }}
+      >
+        <img
+          src={src}
+          alt={ctx ? pickLocalized(ctx, lang, "title") : ""}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      </div>
+      {caption && <figcaption className="cms-meta mt-2">{caption}</figcaption>}
     </figure>
   );
 }
 
 function PostExcerptWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
-  const max = getNum(node.content, "maxChars", 240);
-  const raw = pickLocalized(ctx, lang, "excerpt");
+  const c = node.content;
+  const max = asNum(c.maxChars, 240);
+  const raw = ctx ? pickLocalized(ctx, lang, "excerpt") : "";
   if (!raw) return null;
   const text = max > 0 && raw.length > max ? raw.slice(0, max).trimEnd() + "…" : raw;
   return <p className="cms-post-excerpt">{text}</p>;
@@ -334,13 +480,13 @@ function PostExcerptWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
 
 function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
-  const a = ctx.archive ?? {
-    type: "category",
-    label: lang === "en" ? "Sample archive" : "Przykładowe archiwum",
-    description: lang === "en" ? "All posts in this section." : "Wszystkie wpisy w tej sekcji.",
-    count: 12,
-  };
   const c = node.content;
+  // Bez zaszytej próbki "Przykładowe archiwum / 12 wpisów": ta stała pokazywała
+  // się także publicznie, bo żaden kod produkcyjny nie tworzył ctx.archive.
+  // Realny kontekst dostarcza teraz TaxonomyPage; kanwa buildera bierze próbkę
+  // z PLACEHOLDER_POST_CTX (tylko edytor).
+  const a = ctx?.archive;
+  if (!a?.label) return null;
   const kindLabel: Record<string, { pl: string; en: string }> = {
     author: { pl: "Autor", en: "Author" },
     tag: { pl: "Tag", en: "Tag" },
@@ -354,10 +500,10 @@ function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
         {lang === "en" ? kind.en : kind.pl}
       </div>
       <h1 className="cms-post-title">{a.label}</h1>
-      {getBool(c, "showDescription", true) && a.description && (
+      {asBool(c.showDescription, true) && a.description && (
         <p className="text-muted-foreground max-w-2xl">{a.description}</p>
       )}
-      {getBool(c, "showCount", true) && typeof a.count === "number" && (
+      {asBool(c.showCount, true) && typeof a.count === "number" && (
         <div className="cms-meta">
           {a.count} {lang === "en" ? "posts" : "wpisów"}
         </div>
@@ -368,13 +514,10 @@ function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
 
 function SearchFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const c = node.content;
-  const action = safeUrl(getStr(c, "action", "/search")) || "/search";
+  const action = safeUrl(asStr(c.action) || "/search") || "/search";
   const placeholder =
-    lang === "en"
-      ? getStr(c, "placeholder_en", "Search...")
-      : getStr(c, "placeholder_pl", "Szukaj...");
-  const button =
-    lang === "en" ? getStr(c, "button_en", "Search") : getStr(c, "button_pl", "Szukaj");
+    pickI18n(c, "placeholder", lang) || (lang === "en" ? "Search..." : "Szukaj...");
+  const button = pickI18n(c, "button", lang) || (lang === "en" ? "Search" : "Szukaj");
   return (
     <form
       action={action}

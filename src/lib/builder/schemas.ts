@@ -2,6 +2,15 @@
 // Single source of truth for the simple widget content editors.
 // Complex list-style widgets (accordion, tabs, pricing) keep custom editors.
 import type { WidgetType } from "./types";
+import { asBool } from "./contentValue";
+
+/**
+ * Wspólna podpowiedź widgetów `post-*`. Od naprawy wycieku danych
+ * przykładowych widget bez kontekstu wpisu renderuje `null` poza kanwą
+ * buildera - redaktor musi to wiedzieć, zanim wstawi go do nagłówka.
+ */
+const POST_CTX_HINT =
+  "Widget czyta dane bieżącego wpisu. Poza stroną wpisu (np. w nagłówku lub stopce) pozostaje ukryty - nigdy nie pokazuje danych przykładowych.";
 
 type FieldType =
   | "text" // single-line, language-agnostic
@@ -726,6 +735,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "on", label: "tak" },
         { value: "off", label: "nie" },
       ],
+      // Wykres kołowy nie ma osi, więc nie ma czego kreskować - przełącznik
+      // był tam cichym no-opem i tylko mylił autora.
+      visibleWhen: (c) => c.kind !== "pie" && c.kind !== "donut",
     },
     {
       key: "showValues",
@@ -735,6 +747,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "off", label: "nie" },
         { value: "on", label: "tak" },
       ],
+      hint: "Na wykresie kołowym wartość pojawia się pod udziałem procentowym, w wycinkach od 8% wzwyż.",
     },
     {
       key: "animate",
@@ -1486,7 +1499,31 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
   ],
-  "progress-carousel": [],
+  // Lista slajdów ma własny edytor (ProgressCarouselEditor); te dwa ustawienia
+  // renderer czytał od zawsze (ProgressCarouselView: `ratio`, `accentColor`),
+  // więc mieszkają w schemacie i są renderowane przez ten sam edytor
+  // (SchemaFieldControl), zamiast być duplikowane ręcznym JSX.
+  "progress-carousel": [
+    {
+      key: "ratio",
+      type: "select",
+      label: "Proporcje",
+      options: [
+        { value: "16/9", label: "16:9 - baner poziomy" },
+        { value: "21/9", label: "21:9 - ultrawide cinematic" },
+        { value: "3/2", label: "3:2 - fotografia" },
+        { value: "4/3", label: "4:3 - klasyczny" },
+        { value: "1/1", label: "1:1 - kwadrat" },
+      ],
+      hint: "Proporcje kadru slajdu na mobile i tablecie.",
+    },
+    {
+      key: "accentColor",
+      type: "color",
+      label: "Kolor akcentu (opcjonalny)",
+      hint: "Kolor paska postępu. Puste = kolor marki.",
+    },
+  ],
   "meeting-booking": [],
   "event-sponsors": [],
   "event-list": [
@@ -1576,6 +1613,47 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       placeholder: "Brak zaplanowanych wydarzeń.",
       group: "Opcje",
     },
+  ],
+  // Chrome (nagłówek / stopka). Te trzy widgety miały konsumowane ustawienia
+  // bez ŻADNEJ kontrolki w panelu: redakcja widziała "brak edytowalnych pól",
+  // a renderer i tak czytał `text`/`brand`/`showYear`, `label`, `action`.
+  copyright: [
+    { key: "brand", type: "text", label: "Nazwa marki", placeholder: "New European Strategies" },
+    { key: "text", type: "i18nText", label: "Tekst", placeholder: "Wszelkie prawa zastrzeżone" },
+    {
+      key: "showYear",
+      type: "bool",
+      label: "Pokaż rok",
+      default: true,
+      hint: "Dopisuje znak © i bieżący rok przed nazwą marki.",
+    },
+  ],
+  "lang-switcher": [
+    {
+      key: "label",
+      type: "i18nText",
+      label: "Etykieta",
+      placeholder: "Zmień język",
+      hint: "Czyta ją czytnik ekranu. Widoczna na stronie tylko przy włączonym przełączniku poniżej.",
+    },
+    {
+      key: "showLabel",
+      type: "bool",
+      label: "Pokaż etykietę tekstową",
+      default: false,
+      hint: "Wyświetla etykietę obok przełącznika PL/EN.",
+    },
+  ],
+  "search-form": [
+    {
+      key: "action",
+      type: "text",
+      label: "Adres wyników wyszukiwania",
+      placeholder: "/search",
+      hint: "Formularz wysyła metodą GET parametr q pod ten adres.",
+    },
+    { key: "placeholder", type: "i18nText", label: "Placeholder", placeholder: "Szukaj..." },
+    { key: "button", type: "i18nText", label: "Etykieta przycisku", placeholder: "Szukaj" },
   ],
   "search-button": [
     { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
@@ -2562,6 +2640,171 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       min: 8,
       max: 20,
     },
+  ],
+
+  // ---------------------------------------------------------------------------
+  // Widgety dynamiczne (kontekst wpisu / archiwum).
+  //
+  // Do tej pory ŻADEN z nich nie miał schematu, więc panel właściwości pokazywał
+  // "Brak edytowalnych pól dla tego widgetu", a defaulty z rejestru (tag, wariant,
+  // separator, limit...) były nieosiągalne z UI. Wszystkie przełączniki są typu
+  // `bool` (prawdziwe true/false); czytelnicy i tak przechodzą przez `asBool`,
+  // więc treść zapisana wcześniej jako "0"/"1" znaczy dalej to samo.
+  // ---------------------------------------------------------------------------
+  "post-title": [
+    {
+      key: "tag",
+      type: "select",
+      label: "Tag (SEO)",
+      hint: POST_CTX_HINT,
+      options: ["h1", "h2", "h3", "h4", "h5", "h6", "p"].map((v) => ({ value: v })),
+      default: "h1",
+    },
+    { key: "linkToPost", type: "bool", label: "Linkuj do wpisu", default: false },
+    { key: "fallback", type: "i18nText", label: "Tekst zastępczy (gdy brak tytułu)" },
+  ],
+  "post-meta": [
+    { key: "showAuthor", type: "bool", label: "Pokaż autora", default: true, hint: POST_CTX_HINT },
+    { key: "showCategory", type: "bool", label: "Pokaż kategorię", default: true },
+    { key: "showDate", type: "bool", label: "Pokaż datę", default: true },
+    {
+      key: "dateFormat",
+      type: "select",
+      label: "Format daty",
+      options: [
+        { value: "long", label: "pełny" },
+        { value: "short", label: "skrócony" },
+        { value: "relative", label: "względny" },
+      ],
+      default: "long",
+      visibleWhen: (c) => asBool(c.showDate, true),
+    },
+    { key: "showReadingTime", type: "bool", label: "Pokaż czas czytania", default: true },
+    {
+      key: "showViews",
+      type: "bool",
+      label: "Pokaż liczbę odsłon",
+      default: false,
+      hint: "Realna liczba odsłon wpisu, liczona po stronie serwera w obrębie tenanta. Kanwa buildera pokazuje wartość przykładową.",
+    },
+    { key: "separator", type: "text", label: "Separator", placeholder: " · " },
+  ],
+  "post-tags-dyn": [
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      hint: POST_CTX_HINT,
+      options: [
+        { value: "pill", label: "pigułki" },
+        { value: "outline", label: "obrys" },
+        { value: "text", label: "tekst" },
+      ],
+      default: "pill",
+    },
+    { key: "showLabel", type: "bool", label: "Pokaż etykietę", default: true },
+    {
+      key: "label",
+      type: "i18nText",
+      label: "Etykieta",
+      visibleWhen: (c) => asBool(c.showLabel, true),
+    },
+  ],
+  "post-categories-dyn": [
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      hint: POST_CTX_HINT,
+      options: [
+        { value: "pill", label: "pigułki" },
+        { value: "outline", label: "obrys" },
+        { value: "text", label: "tekst" },
+      ],
+      default: "pill",
+    },
+    { key: "limit", type: "number", label: "Limit (0 = bez limitu)", min: 0, max: 20, default: 0 },
+  ],
+  "post-author-card": [
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      hint: POST_CTX_HINT,
+      options: [
+        { value: "card", label: "karta" },
+        { value: "inline", label: "w linii" },
+        { value: "centered", label: "wyśrodkowany" },
+      ],
+      default: "card",
+    },
+    { key: "showAvatar", type: "bool", label: "Pokaż awatar", default: true },
+    { key: "showBio", type: "bool", label: "Pokaż biogram", default: true },
+    { key: "showSocial", type: "bool", label: "Pokaż linki społecznościowe", default: true },
+  ],
+  "post-breadcrumbs": [
+    {
+      key: "showHome",
+      type: "bool",
+      label: "Pokaż stronę główną",
+      default: true,
+      hint: POST_CTX_HINT,
+    },
+    {
+      key: "home",
+      type: "i18nText",
+      label: "Etykieta strony głównej",
+      visibleWhen: (c) => asBool(c.showHome, true),
+    },
+    {
+      key: "separator",
+      type: "select",
+      label: "Separator",
+      options: [
+        { value: "/", label: "ukośnik" },
+        { value: ">", label: "strzałka" },
+      ],
+      default: "/",
+    },
+  ],
+  "post-cover": [
+    {
+      key: "aspect",
+      type: "select",
+      label: "Proporcje",
+      hint: POST_CTX_HINT,
+      options: ["16/9", "4/3", "3/2", "1/1", "21/9"].map((v) => ({ value: v })),
+      default: "16/9",
+    },
+    { key: "rounded", type: "bool", label: "Zaokrąglone rogi", default: true },
+    { key: "showCaption", type: "bool", label: "Pokaż podpis", default: false },
+    {
+      key: "caption",
+      type: "i18nText",
+      label: "Podpis pod okładką",
+      visibleWhen: (c) => asBool(c.showCaption, false),
+    },
+  ],
+  "post-excerpt": [
+    {
+      key: "maxChars",
+      type: "number",
+      label: "Maksymalna liczba znaków (0 = bez limitu)",
+      min: 0,
+      max: 2000,
+      default: 240,
+      hint: POST_CTX_HINT,
+    },
+  ],
+  "archive-title": [
+    {
+      key: "showDescription",
+      type: "bool",
+      label: "Pokaż opis",
+      default: true,
+      hint: "Widget czyta dane archiwum (kategoria / tag). Poza stroną archiwum pozostaje ukryty.",
+    },
+    { key: "showCount", type: "bool", label: "Pokaż liczbę wpisów", default: true },
   ],
 };
 

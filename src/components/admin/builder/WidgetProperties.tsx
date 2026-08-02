@@ -5,11 +5,12 @@
 //   - MotionControl      -> enter animation preset + duration/delay
 //   - VisibilityControl  -> per-device hide
 //   - ColorField         -> bg / text colors with native picker
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 import type {
   WidgetNode,
+  WidgetType,
   CommonStyle,
   AdvancedSettings,
   Device,
@@ -65,8 +66,8 @@ import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
 import { WidgetLivePreview } from "./ui/organisms/WidgetLivePreview";
 import { LinkPicker } from "./ui/molecules/LinkPicker";
 
-import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
-import { useBuilderLabel } from "@/lib/builder/labelsEn";
+import { WIDGET_SCHEMAS, type SchemaField } from "@/lib/builder/schemas";
+import { useAdminLang, useBuilderLabel } from "@/lib/builder/labelsEn";
 import {
   EDIT_TARGET_META,
   FOCUS_SIZE_FIELD_EVENT,
@@ -100,6 +101,8 @@ import {
   EventCountdownCardEditor,
   MeetingBookingEditor,
   SponsorsEditor,
+  IMAGE_EDITOR_HANDLED_KEYS,
+  PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
@@ -1328,7 +1331,7 @@ function FormElementSizeField({
   value: number | "";
   min: number;
   max: number;
-  /** Computed size measured from the canvas — the visible "auto" value. */
+  /** Computed size measured from the canvas - the visible "auto" value. */
   effectivePx: number;
   onChange: (next: number | null) => void;
   onPreview: () => void;
@@ -1346,7 +1349,7 @@ function FormElementSizeField({
     if (Number.isNaN(next)) return;
     onChange(clamp(next));
   };
-  // Stepping from "auto" starts at the CURRENT rendered size, not at `min` —
+  // Stepping from "auto" starts at the CURRENT rendered size, not at `min` -
   // otherwise the first click visibly snapped tiny text sizes onto the form.
   const bump = (delta: number) => onChange(clamp((numericValue ?? effectivePx) + delta));
 
@@ -1468,61 +1471,37 @@ function ContentFields({
 }) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
+  const adminLang = useAdminLang();
   const c = widget.content;
 
-  // Custom (list-style) editors for complex widgets.
-  switch (widget.type) {
-    case "accordion":
-      return <AccordionEditor c={c} lang={lang} setContent={setContent} />;
-    case "tabs":
-      return <TabsEditor c={c} lang={lang} setContent={setContent} />;
-    case "timeline":
-      return <TimelineEditor c={c} lang={lang} setContent={setContent} />;
-    case "logo-cloud":
-      return <LogoCloudEditor c={c} lang={lang} setContent={setContent} />;
-    case "progress-carousel":
-      return <ProgressCarouselEditor c={c} lang={lang} setContent={setContent} />;
-    case "pricing":
-      return <PricingEditor c={c} lang={lang} setContent={setContent} />;
-    case "image":
-      return <ImageEditor c={c} lang={lang} setContent={setContent} />;
-    case "rated-list":
-      return <RatedListEditor c={c} lang={lang} setContent={setContent} />;
-    case "section-label":
-      return <SectionLabelEditor c={c} lang={lang} setContent={setContent} />;
-    case "slider":
-      return <SliderEditor c={c} lang={lang} setContent={setContent} />;
-    case "animated-heading":
-      return <AnimatedHeadingEditor c={c} lang={lang} setContent={setContent} />;
-    case "text-rotate":
-      return <TextRotateEditor c={c} lang={lang} setContent={setContent} />;
-    case "post-list":
-    case "carousel":
-      return <PostListEditor c={c} lang={lang} setContent={setContent} />;
-    case "mega-menu":
-      return <MegaMenuEditor c={c} lang={lang} setContent={setContent} />;
-    case "rich-text":
-      return <RichTextEditor c={c} lang={lang} setContent={setContent} />;
-    case "account-link":
-      return <AccountLinkEditor c={c} lang={lang} setContent={setContent} />;
-    case "ad-slot":
-      return <AdSlotEditor c={c} setContent={setContent} />;
-    case "team-member":
-      return <TeamMemberEditor c={c} lang={lang} setContent={setContent} />;
-    case "interactive-circle":
-      return <InteractiveCircleEditor c={c} lang={lang} setContent={setContent} />;
-    case "speakers":
-      return <SpeakersEditor c={c} lang={lang} setContent={setContent} />;
-    case "event-schedule":
-      return <EventScheduleEditor c={c} lang={lang} setContent={setContent} />;
-    case "event-countdown":
-      return <EventCountdownEditor c={c} lang={lang} setContent={setContent} />;
-    case "event-countdown-card":
-      return <EventCountdownCardEditor c={c} lang={lang} setContent={setContent} />;
-    case "meeting-booking":
-      return <MeetingBookingEditor c={c} lang={lang} setContent={setContent} />;
-    case "event-sponsors":
-      return <SponsorsEditor c={c} lang={lang} setContent={setContent} />;
+  // Custom (list-style) editors for complex widgets. Fields of the widget's
+  // schema that the custom editor does NOT claim are rendered below it, so a
+  // schema entry can never be silently swallowed by the custom branch.
+  const custom = customContentEditor(widget, lang, setContent);
+  if (custom) {
+    const leftover = unhandledSchemaFields(widget.type);
+    if (leftover.length === 0) return custom;
+    return (
+      <>
+        {custom}
+        <section className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-2">
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            {adminLang === "en" ? "Other settings" : "Pozostałe ustawienia"}
+          </h4>
+          <div className="space-y-2">
+            {leftover.map((f) => (
+              <SchemaFieldControl
+                key={f.key}
+                field={f}
+                lang={lang}
+                content={c}
+                setContent={setContent}
+              />
+            ))}
+          </div>
+        </section>
+      </>
+    );
   }
 
   // Schema-driven render for simple widgets.
@@ -1593,6 +1572,106 @@ function ContentFields({
       ) : null}
     </>
   );
+}
+
+/**
+ * OPT-IN: custom editors that agreed to CO-OPERATE with the declarative schema.
+ *
+ * A custom editor short-circuits the schema branch, so every schema field the
+ * editor does not draw itself used to disappear from the panel without a trace
+ * (the image widget lost `caption` / `variant` / `objectFit` / `ratio` that way,
+ * although the renderer honoured all four). Editors listed here publish the set
+ * of content keys they own; `unhandledSchemaFields` returns the rest and the
+ * panel renders it under the editor with the generic `SchemaFieldControl`.
+ *
+ * Deliberately opt-in: an editor that is NOT listed keeps today's behaviour, so
+ * adding the mechanism cannot spring surprise controls on editors whose custom
+ * UI intentionally supersedes the schema (for example the slider or the auth
+ * forms, whose schemas carry fields their editors reshape).
+ *
+ * How to opt in: export a `<EDITOR>_HANDLED_KEYS` set next to the editor
+ * (base keys, without the `_pl` / `_en` suffix) and register it below.
+ */
+const CUSTOM_EDITOR_HANDLED_KEYS: Partial<Record<WidgetType, ReadonlySet<string>>> = {
+  image: IMAGE_EDITOR_HANDLED_KEYS,
+  "progress-carousel": PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,
+};
+
+/**
+ * Schema fields of an opted-in custom editor that the editor itself does not
+ * render. Empty for every widget outside `CUSTOM_EDITOR_HANDLED_KEYS`.
+ * `schema` is injectable so the guarantee stays testable without a live schema.
+ */
+export function unhandledSchemaFields(
+  type: WidgetType,
+  schema: ReadonlyArray<SchemaField> = WIDGET_SCHEMAS[type] ?? [],
+): ReadonlyArray<SchemaField> {
+  const handled = CUSTOM_EDITOR_HANDLED_KEYS[type];
+  if (!handled) return [];
+  return schema.filter((f) => !handled.has(f.key));
+}
+
+/** The custom (non-schema) editor for a widget type, or `null` when there is none. */
+function customContentEditor(
+  widget: WidgetNode,
+  lang: "pl" | "en",
+  setContent: (k: string, v: Json) => void,
+): ReactElement | null {
+  const c = widget.content;
+  switch (widget.type) {
+    case "accordion":
+      return <AccordionEditor c={c} lang={lang} setContent={setContent} />;
+    case "tabs":
+      return <TabsEditor c={c} lang={lang} setContent={setContent} />;
+    case "timeline":
+      return <TimelineEditor c={c} lang={lang} setContent={setContent} />;
+    case "logo-cloud":
+      return <LogoCloudEditor c={c} lang={lang} setContent={setContent} />;
+    case "progress-carousel":
+      return <ProgressCarouselEditor c={c} lang={lang} setContent={setContent} />;
+    case "pricing":
+      return <PricingEditor c={c} lang={lang} setContent={setContent} />;
+    case "image":
+      return <ImageEditor c={c} lang={lang} setContent={setContent} />;
+    case "rated-list":
+      return <RatedListEditor c={c} lang={lang} setContent={setContent} />;
+    case "section-label":
+      return <SectionLabelEditor c={c} lang={lang} setContent={setContent} />;
+    case "slider":
+      return <SliderEditor c={c} lang={lang} setContent={setContent} />;
+    case "animated-heading":
+      return <AnimatedHeadingEditor c={c} lang={lang} setContent={setContent} />;
+    case "text-rotate":
+      return <TextRotateEditor c={c} lang={lang} setContent={setContent} />;
+    case "post-list":
+    case "carousel":
+      return <PostListEditor c={c} lang={lang} setContent={setContent} />;
+    case "mega-menu":
+      return <MegaMenuEditor c={c} lang={lang} setContent={setContent} />;
+    case "rich-text":
+      return <RichTextEditor c={c} lang={lang} setContent={setContent} />;
+    case "account-link":
+      return <AccountLinkEditor c={c} lang={lang} setContent={setContent} />;
+    case "ad-slot":
+      return <AdSlotEditor c={c} setContent={setContent} />;
+    case "team-member":
+      return <TeamMemberEditor c={c} lang={lang} setContent={setContent} />;
+    case "interactive-circle":
+      return <InteractiveCircleEditor c={c} lang={lang} setContent={setContent} />;
+    case "speakers":
+      return <SpeakersEditor c={c} lang={lang} setContent={setContent} />;
+    case "event-schedule":
+      return <EventScheduleEditor c={c} lang={lang} setContent={setContent} />;
+    case "event-countdown":
+      return <EventCountdownEditor c={c} lang={lang} setContent={setContent} />;
+    case "event-countdown-card":
+      return <EventCountdownCardEditor c={c} lang={lang} setContent={setContent} />;
+    case "meeting-booking":
+      return <MeetingBookingEditor c={c} lang={lang} setContent={setContent} />;
+    case "event-sponsors":
+      return <SponsorsEditor c={c} lang={lang} setContent={setContent} />;
+  }
+  return null;
 }
 
 function AdSlotEditor({

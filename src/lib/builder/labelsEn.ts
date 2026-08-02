@@ -885,6 +885,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     'For the “spacing only” variant the value sets the height of the empty space.',
 
   // ------------------------------------------------------ data-format hints
+  "Na wykresie kołowym wartość pojawia się pod udziałem procentowym, w wycinkach od 8% wzwyż.":
+    "On a pie chart the value is placed under the percentage share, in slices of 8% and above.",
   'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony).':
     'The spreadsheet opens in a popup with a live chart preview. Text format: first row "; Series name; Series name", then "Category; value; value" (";" separator, decimal comma allowed).',
   'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).':
@@ -1037,6 +1039,60 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Tekst pustej listy": "Empty-state text",
   "Brak zaplanowanych wydarzeń.": "No scheduled events.",
   "Lista wydarzeń": "Event list",
+  // ---------------------------------------- widgety dynamiczne (post-* / archiwum)
+  "Widget czyta dane bieżącego wpisu. Poza stroną wpisu (np. w nagłówku lub stopce) pozostaje ukryty - nigdy nie pokazuje danych przykładowych.":
+    "The widget reads the current post. Outside a post page (for example in the header or the footer) it stays hidden - it never shows sample data.",
+  "Widget czyta dane archiwum (kategoria / tag). Poza stroną archiwum pozostaje ukryty.":
+    "The widget reads archive data (category / tag). Outside an archive page it stays hidden.",
+  "Linkuj do wpisu": "Link to the post",
+  "Tekst zastępczy (gdy brak tytułu)": "Fallback text (when there is no title)",
+  "Pokaż autora": "Show author",
+  "Pokaż kategorię": "Show category",
+  "Pokaż datę": "Show date",
+  "Format daty": "Date format",
+  skrócony: "short",
+  względny: "relative",
+  "Pokaż czas czytania": "Show reading time",
+  "Pokaż liczbę odsłon": "Show view count",
+  "Realna liczba odsłon wpisu, liczona po stronie serwera w obrębie tenanta. Kanwa buildera pokazuje wartość przykładową.":
+    "The real number of post views, counted server-side within the tenant. The builder canvas shows a sample value.",
+  pigułki: "pills",
+  obrys: "outline",
+  "Pokaż etykietę": "Show label",
+  "Limit (0 = bez limitu)": "Limit (0 = no limit)",
+  "w linii": "inline",
+  wyśrodkowany: "centred",
+  "Pokaż awatar": "Show avatar",
+  "Pokaż biogram": "Show bio",
+  "Pokaż linki społecznościowe": "Show social links",
+  "Pokaż stronę główną": "Show the home crumb",
+  "Etykieta strony głównej": "Home crumb label",
+  ukośnik: "slash",
+  strzałka: "arrow",
+  "Zaokrąglone rogi": "Rounded corners",
+  "Pokaż podpis": "Show caption",
+  "Podpis pod okładką": "Caption under the cover",
+  "Maksymalna liczba znaków (0 = bez limitu)": "Maximum characters (0 = no limit)",
+  "Pokaż opis": "Show description",
+  "Pokaż liczbę wpisów": "Show post count",
+  // ------------------------------- chrome: copyright / lang-switcher / search
+  "Nazwa marki": "Brand name",
+  "Wszelkie prawa zastrzeżone": "All rights reserved",
+  "Pokaż rok": "Show the year",
+  "Dopisuje znak © i bieżący rok przed nazwą marki.":
+    "Prefixes the line with © and the current year, before the brand name.",
+  "Zmień język": "Change language",
+  "Czyta ją czytnik ekranu. Widoczna na stronie tylko przy włączonym przełączniku poniżej.":
+    "Read out by screen readers. Visible on the page only when the switch below is on.",
+  "Pokaż etykietę tekstową": "Show the text label",
+  "Wyświetla etykietę obok przełącznika PL/EN.": "Shows the label next to the PL/EN switch.",
+  "Adres wyników wyszukiwania": "Search results URL",
+  "Formularz wysyła metodą GET parametr q pod ten adres.":
+    "The form submits the q parameter to this URL with GET.",
+  "Szukaj...": "Search...",
+  // --------------------------------------------------------- progress carousel
+  "Proporcje kadru slajdu na mobile i tablecie.": "Slide frame aspect ratio on mobile and tablet.",
+  "Kolor paska postępu. Puste = kolor marki.": "Progress bar colour. Empty = the brand colour.",
 };
 /* eslint-enable prettier/prettier */
 

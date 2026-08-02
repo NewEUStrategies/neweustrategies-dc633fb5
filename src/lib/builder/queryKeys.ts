@@ -42,6 +42,7 @@ export const WIDGET_QUERY_ROOTS = {
   sliderPosts: "builder-slider-posts",
   sliderFallbackImages: "builder-slider-fallback-images",
   recommendedPosts: "recommended-posts",
+  postViewCount: "post-view-count",
 
   // --- widgety globalne / popupy ---
   globalWidget: "global-widget",

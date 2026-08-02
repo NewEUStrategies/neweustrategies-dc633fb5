@@ -26,13 +26,24 @@ export function useRevealOnScroll<T extends Element>(
   const [state, setState] = useState<RevealState>("static");
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      // Wyłączenie animacji w trakcie życia komponentu (autor przestawia pole
+      // "Animacja wejścia" na kanwie buildera) MUSI rozbroić stan. Bez tego
+      // element uzbrojony wcześniej (poza foldem, więc CSS ustawił mu stan
+      // początkowy: opacity 0 / scale) zostawał niewidoczny aż do remontu -
+      // czyli wyłączenie animacji kasowało treść zamiast ją pokazać.
+      setState("static");
+      return;
+    }
     const node = ref.current;
     if (!node || typeof IntersectionObserver === "undefined") return;
     if (
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
+      // Ten sam pas bezpieczeństwa: gdy użytkownik włączy "ogranicz ruch" po
+      // uzbrojeniu, wracamy do stanu końcowego zamiast zostawić pustkę.
+      setState("static");
       return;
     }
     let armed = false;
