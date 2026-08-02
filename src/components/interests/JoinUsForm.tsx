@@ -323,6 +323,12 @@ export function JoinUsForm({
   const cfList = customFields ?? [];
   const setCustom = (id: string, v: string) => setCustomValues((prev) => ({ ...prev, [id]: v }));
 
+  // Zgoda marketingowa (RODO) - checkbox wymagany do wysyłki. Stan trzymamy
+  // lokalnie, a po udanym zapisie propagujemy do rejestru `user_consents`
+  // (jedno źródło prawdy widoczne w profilu użytkownika).
+  const [consentAccepted, setConsentAccepted] = useState(false);
+
+
   const useSplitName = showFirstName || showLastName;
 
   useEffect(() => {
