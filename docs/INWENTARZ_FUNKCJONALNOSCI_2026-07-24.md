@@ -42,6 +42,9 @@ ECharts, TailwindCSS 4. Skala: 444 migracje, ~180 tabel, ~90 tras admina, ~80 pu
 
 - **RLS jako druga warstwa:** 915 polityk RLS w 142 migracjach, 31 widoków `security_invoker`, **granty
   kolumnowe na PII** (anon/authenticated nie czytają e-maili/telefonów/tax_id — bramka pgTAP).
+  [Korekta 02.08: "915" liczyło instrukcje `CREATE POLICY` w churnie migracji; obowiązująca metryka to
+  **stan końcowy polityk** liczony parserem gate'u CI (CREATE/DROP odtwarzane po kolei) - na 01.08 = **517
+  realnych polityk**, 0 tabel bez RLS.]
 - **Enforcement serwerowy:** logika dostępu (paywall, metering, gift, hasło, TTS, kupony) w RPC `SECURITY
   DEFINER`; klient to warstwa UX. 927 z 939 funkcji DB to `SECURITY DEFINER` z przypiętym `search_path`.
 - **Sanityzacja XSS dwusilnikowa:** `safeJsonLd` (neutralizuje `</script>`+U+2028/9), centralny
@@ -576,8 +579,8 @@ Format: **Funkcja** — co potrafi; *jak działa*.
 - **Obserwowalność** — RUM/error bootstrap idempotentny SSR-safe, GDPR consent-aware teardown, PII redaction.
 - **HTTP layer** — SSRF egress guard, rate-limit (in-memory + DB), command idempotency, doc/SSR caching.
 - **Zaplecze danych** — ~180 tabel (grupy: CMS, multi-tenant, authz, community, monetyzacja, CRM, newsletter,
-  analityka, infra, EU-domain), 915 RLS policies, 7 rozszerzeń (pg_cron, pg_net, pg_trgm, unaccent, vector,
-  supabase_vault, pgtap).
+  analityka, infra, EU-domain), 915 RLS policies [korekta 02.08: metryka stanu końcowego = 517 polityk],
+  7 rozszerzeń (pg_cron, pg_net, pg_trgm, unaccent, vector, supabase_vault, pgtap).
 - **Jakość/CI** — bramki blokujące: typecheck → test+coverage → build → bundle-budget → chunk-graph acyclicity →
   lint → SQL tenant-scope → pgTAP; Playwright e2e (smoke + seeded).
 

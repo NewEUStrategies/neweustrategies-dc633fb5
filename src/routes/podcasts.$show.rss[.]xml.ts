@@ -5,7 +5,7 @@
 // FAIL-CLOSED like the site feeds.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { requestPublicHost } from "@/lib/http/requestHost";
+import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_OG_IMAGE, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
 import {
@@ -27,10 +27,10 @@ function episodeType(raw: string | null | undefined): PodcastEpisodeType {
   return raw === "trailer" || raw === "bonus" ? raw : "full";
 }
 
-function requestContext(): { origin: string; host: string; lang: AppLang } {
+async function requestContext(): Promise<{ origin: string; host: string; lang: AppLang }> {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  const host = requestPublicHost(req) ?? "";
+  const host = (await trustedPublicHost(req)) ?? "";
   const origin = host ? `${proto}://${host}` : "";
   let lang: AppLang = DEFAULT_LANG;
   try {
@@ -45,7 +45,7 @@ export const Route = createFileRoute("/podcasts/$show/rss.xml")({
   server: {
     handlers: {
       GET: async ({ params }) => {
-        const { origin, host, lang } = requestContext();
+        const { origin, host, lang } = await requestContext();
         const tenantId = await resolveCrawlerTenantIdForHost(host);
         if (!tenantId) {
           return new Response("Unknown host", { status: 404 });

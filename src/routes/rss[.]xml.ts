@@ -6,7 +6,7 @@
 // Items carry excerpts only (paywall-safe) with canonical post URLs.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { requestPublicHost } from "@/lib/http/requestHost";
+import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
 import { buildRssXml, type RssItem } from "@/lib/seo/rss";
@@ -14,10 +14,10 @@ import { parseSeoSettings } from "@/lib/seo/settings";
 import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
 import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
-function requestContext(): { origin: string; host: string; lang: AppLang } {
+async function requestContext(): Promise<{ origin: string; host: string; lang: AppLang }> {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  const host = requestPublicHost(req) ?? "";
+  const host = (await trustedPublicHost(req)) ?? "";
   const origin = host ? `${proto}://${host}` : "";
   let lang: AppLang = DEFAULT_LANG;
   try {
@@ -32,7 +32,7 @@ export const Route = createFileRoute("/rss.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const { origin, host, lang } = requestContext();
+        const { origin, host, lang } = await requestContext();
         // Feeds are served with the service role (bypasses RLS), so the reads
         // MUST be scoped to the tenant owning this request host. FAIL-CLOSED:
         // a host no tenant has claimed (and that is not a preview host) gets

@@ -5,7 +5,7 @@
 // (zero-click brand visibility).
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { requestPublicHost } from "@/lib/http/requestHost";
+import { trustedPublicHost } from "@/lib/http/requestHost";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/seo/meta";
 import { buildLlmsTxt, type LlmsTxtArticle } from "@/lib/seo/llms";
@@ -17,10 +17,10 @@ import {
 } from "@/lib/server/publishedContent.server";
 import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
-function requestContext(): { origin: string; host: string } {
+async function requestContext(): Promise<{ origin: string; host: string }> {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  const host = requestPublicHost(req) ?? "";
+  const host = (await trustedPublicHost(req)) ?? "";
   return { origin: host ? `${proto}://${host}` : "", host };
 }
 
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/llms.txt")({
   server: {
     handlers: {
       GET: async () => {
-        const { origin, host } = requestContext();
+        const { origin, host } = await requestContext();
         // Service-role reads below bypass RLS - scope them to the host's
         // tenant. FAIL-CLOSED: a host no tenant has claimed (and that is not
         // a preview host) gets a 404 instead of the default tenant's guide on

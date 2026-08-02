@@ -8,7 +8,10 @@
 //
 //   * browser: window.location.host - each tenant domain reads its own site;
 //   * SSR / server functions: the active request's host via TanStack Start's
-//     request context - server-rendered HTML matches what the client fetches.
+//     request context, VALIDATED against tenants.domain at the edge
+//     (pickTrustedHost) - a spoofed X-Forwarded-Host never becomes the
+//     x-tenant-host of a server-side render; server-rendered HTML matches
+//     what the client fetches.
 //
 // Requests with no resolvable host (background jobs, previews without a
 // claimed domain) carry no header and the database falls back to the DEFAULT

@@ -5,7 +5,7 @@
 // Service role => odczyt jawnie zawężony do tenanta hosta, FAIL-CLOSED.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { requestPublicHost } from "@/lib/http/requestHost";
+import { trustedPublicHost } from "@/lib/http/requestHost";
 import { SITE_NAME } from "@/lib/seo/meta";
 import { buildAmpStoryHtml, canBuildAmpStory, type AmpStoryInput } from "@/lib/seo/ampStory";
 import { parseSeoSettings } from "@/lib/seo/settings";
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/web-stories/$slug/amp")({
       GET: async ({ params }) => {
         const req = getRequest();
         const proto = req.headers.get("x-forwarded-proto") ?? "https";
-        const host = requestPublicHost(req) ?? "";
+        const host = (await trustedPublicHost(req)) ?? "";
         const origin = host ? `${proto}://${host}` : "";
         const tenantId = await resolveCrawlerTenantIdForHost(host);
         if (!tenantId || !origin) {

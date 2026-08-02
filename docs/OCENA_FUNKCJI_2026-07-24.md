@@ -60,7 +60,7 @@ admina, oraz architektoniczny footgun `x-tenant-host`.
 | 17 | Analityka i BI | **8,7** | Prawdziwe GA4/GSC/RUM z silnikiem insightów; prawie nic mockowane. |
 | 18 | CRM | **8,1** | Lead scoring z parytetem DB, funnel, follow-upy z cronem; i18n inline. |
 | 19 | Ustawienia, integracje, użytkownicy, multi-tenant, RODO | **8,5** | Sekrety w Vault, impersonacja audytowana, consent RODO-grade. |
-| 20 | Platforma / backend / infrastruktura | **8,7** | 180+ tabel, 915 RLS, bespoke gate'y CI (acyclicity, tenant-scope); footgun `x-tenant-host`. |
+| 20 | Platforma / backend / infrastruktura | **8,7** | 180+ tabel, 915 RLS [korekta 02.08: stan końcowy = 517 polityk], bespoke gate'y CI (acyclicity, tenant-scope); footgun `x-tenant-host` [02.08: domknięty walidacją hosta vs `tenants.domain` na krawędzi]. |
 
 > Uwaga metodyczna: ocena modułu to średnia jego funkcji. To **kompozyt jakości per-funkcja** (kompletność +
 > inżynieria + dopracowanie), nie to samo co „funkcjonalność" z `OCENA_MODULOW_2026-07-20` (tam Wpisy = 9,0 za
@@ -609,13 +609,14 @@ Backbone: `requireStaff` + step-up MFA, HMAC idempotency, wyniki jako JSON strin
 
 # 20. Platforma / backend / infrastruktura · średnia 8,7
 
-444 migracje, ~180 tabel, 939 funkcji (927 SECURITY DEFINER), 327 triggerów, 915 RLS policies / 142 pliki,
+444 migracje, ~180 tabel, 939 funkcji (927 SECURITY DEFINER), 327 triggerów, 915 RLS policies / 142 pliki
+[korekta 02.08: "915" = instrukcje w churnie migracji; stan końcowy = 517 polityk],
 7 rozszerzeń, 51 pgTAP. Kod czyta się jak zespół prowadzący postmortemy i kodujący każdą lekcję jako test/gate.
 
 | Funkcja / zdolność | Ocena | Opis i uzasadnienie |
 | ------------------ | ----- | ------------------- |
 | Schemat Postgres (breadth) | **9** | ~180 tabel w spójnych grupach (CMS/multi-tenant/authz/community/monetyzacja/CRM/newsletter/analityka/infra/EU-domain); rozszerzenia `pg_cron`+`pg_net`, `pg_trgm`+`unaccent`, `vector`, `supabase_vault`, `pgtap`; 153 pary `_pl`/`_en`. Minus: duża velocity; brak partycjonowania tabel high-volume append. |
-| RLS | **9** | 283 ENABLE RLS, 915 policies, 31 `security_invoker` views, **column-level PII grants** (pgTAP `pii_column_grants`), `has_role` REVOKE z anon. Minus: 0 `FORCE RLS` (owner bypass — normalne dla Supabase); duża powierzchnia DEFINER. |
+| RLS | **9** | 283 ENABLE RLS, 915 policies [korekta 02.08: stan końcowy = 517], 31 `security_invoker` views, **column-level PII grants** (pgTAP `pii_column_grants`), `has_role` REVOKE z anon. Minus: 0 `FORCE RLS` (owner bypass — normalne dla Supabase); duża powierzchnia DEFINER. |
 | SQL tenant-scope lint (bespoke) | **9** | Static analyzer parsujący najnowszą def każdej funkcji, **fail gdy DEFINER łączy `public_tenant_id` z `has_role`**, `PUBLIC_PATH_ALLOWLIST` (każdy wpis musi mieć `current_tenant_id`), **blocking CI**. Minus: regex-based (laundering przez helper mógłby ominąć). |
 | pgTAP suite | **9** | 51 plików: RLS isolation, PII grants, chat privacy, events waitlist, Q&A, push, security_hardening (findings 07-18); dedykowany CI job. |
 | Self-hosted MCP server | **9** | 3 read-only tools (search/get/list), OAuth-protected (Supabase JWT), **fail-closed auth** (unreachable issuer gdy unconfigured — nie 500), anon + `x-tenant-host`, dynamic import. |
@@ -723,7 +724,7 @@ lead scoring, impersonacja, consent RODO, integrations (Vault), redirects + link
 | Tabele (żywe) | ~180 |
 | Funkcje DB / SECURITY DEFINER | 939 / 927 |
 | Triggery DB | 327 |
-| Polityki RLS / plików z RLS | 915 / 142 |
+| Polityki RLS / plików z RLS | 915 instrukcji / 142 [korekta 02.08: stan końcowy = 517 polityk] |
 | Rozszerzenia Postgres | 7 (`pg_cron`, `pg_net`, `pg_trgm`, `unaccent`, `vector`, `supabase_vault`, `pgtap`) |
 | Pary kolumn `_pl`/`_en` | 153 |
 | Trasy admina / publiczne | ~90 / ~80 |
