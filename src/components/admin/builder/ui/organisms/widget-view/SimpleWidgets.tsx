@@ -26,6 +26,7 @@ import {
   getStrArr,
   type Lang,
 } from "./frame";
+import { asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";

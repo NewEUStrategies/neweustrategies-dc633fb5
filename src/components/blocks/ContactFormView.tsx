@@ -26,6 +26,7 @@ import {
   type CustomField,
 } from "@/lib/builder/formFields";
 import { safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
+import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type Lang = "pl" | "en";
@@ -714,14 +715,22 @@ function Field({
   className?: string;
   children: ReactNode;
 }) {
-  // Floating-label: injects `.input` + neutralny placeholder do dziecka
-  // (<input>/<textarea>/<select>), więc label unosi się na obramowaniu.
-  // Semantyczne tokeny → działa w light+dark, i18n przez callsite.
+  // Floating-label: wstrzykuje klasę `.input` do dziecka
+  // (<input>/<textarea>/<select>), dzięki czemu label unosi się na obramowaniu.
+  // Placeholder USTAWIONY przez edytora leci dalej bez zmian - CSS
+  // `.input-group > .input:not(:focus)::placeholder` ukrywa go, dopóki pole nie
+  // ma focusu, więc nie koliduje z etykietą, a po focusie staje się podpowiedzią.
+  // Pole bez placeholdera dostaje spacer, bo `:placeholder-shown` (warunek
+  // unoszenia etykiety) wymaga niepustego atrybutu.
+  // Semantyczne tokeny -> działa w light+dark, i18n przez callsite.
   let injected: ReactNode = children;
   if (isValidElement(children)) {
     const el = children as ReactElement<{ className?: string; placeholder?: string }>;
     const merged = ["input", el.props.className].filter(Boolean).join(" ");
-    injected = cloneElement(el, { className: merged, placeholder: " " });
+    injected = cloneElement(el, {
+      className: merged,
+      placeholder: floatingPlaceholder(el.props.placeholder),
+    });
   }
   return (
     <div className={`input-group ${className ?? ""}`} data-invalid={error ? "true" : undefined}>

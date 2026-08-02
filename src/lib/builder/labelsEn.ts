@@ -245,7 +245,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Rozmiar (px)": "Size (px)",
   "Rozmiar tytułu (px)": "Title size (px)",
   "Rozmiar podtytułu (px)": "Subtitle size (px)",
-  "Rozmiar czcionki autora (px)": "Author font size (px)",
   "Rozmiar opisu (px)": "Description size (px)",
   "Rozmiar opisu / podtytułu (px)": "Description / subtitle size (px)",
   "Rozmiar tekstu (px)": "Text size (px)",
@@ -477,10 +476,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "No background, hairline dashed border, text-only active state with a left rule.",
   "Domyślnie /support (strona darowizn).": "Defaults to /support (the donations page).",
   "Domyślnie 40 px.": "Defaults to 40 px.",
-  "Domyślnie 12 px.": "Default 12 px.",
-  "Rozmiar zdjęcia autora (px)": "Author photo size (px)",
-  "Domyślnie 20 px. Niezależne od rozmiaru czcionki.":
-    "Default 20 px. Independent of the font size.",
 
   "Domyślnie widget wyświetla się wyłącznie zalogowanym użytkownikom - rekomendacje bazują na ich zainteresowaniach, obserwacjach i historii czytania.":
     "By default the widget is shown only to signed-in users - recommendations are based on their interests, follows and reading history.",
@@ -495,6 +490,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "How the icons should behave in dark / light mode.",
   "Klucz menu zdefiniowanego w Wygląd → Menu (domyślnie: main).":
     "Key of a menu defined under Appearance → Menu (default: main).",
+  "Kliknięcie zdjęcia otwiera je na pełnym ekranie (Esc zamyka, strzałki przewijają).":
+    "Clicking a photo opens it full screen (Esc closes, arrow keys navigate).",
   "Kody ISO-2 rozdzielone przecinkiem lub średnikiem.":
     "ISO-2 codes separated by a comma or a semicolon.",
   "Lista renderuje każdą platformę jako osobny wiersz z etykietą i CTA (Like / Follow / Subscribe).":
@@ -582,7 +579,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "nie": "no",
   "tak (min. 1)": "yes (min. 1)",
   "tak - do 5 ostatnich": "yes - up to the last 5",
-  "Tak (trzyma się przy scrollu)": "Yes (sticks while scrolling)",
   "włączony": "on",
   "włączona": "on",
   "włączone": "on",

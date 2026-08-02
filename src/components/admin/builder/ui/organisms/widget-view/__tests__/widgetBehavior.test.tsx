@@ -3,7 +3,7 @@
 // asserts the actual DOM each widget produces: tags, sanitisation, link
 // safety, i18n fallback and the major per-widget variant branches.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
 import type {
@@ -454,13 +454,16 @@ describe("newsletter (static variants)", () => {
       const { container } = renderNode("newsletter", { title_pl: "Zapisz się", variant });
       expect(container.textContent.length).toBeGreaterThanOrEqual(0);
     }
-    // inline/card editable previews render a form with an email input.
+    // Kanwa nie rysuje już atrapy formularza - hostuje realny (leniwy)
+    // <NewsletterForm/> w trybie podglądu, więc synchronicznie widać tu tylko
+    // hosta. Parytet pól kanwa <-> strona publiczna pilnuje
+    // src/components/admin/builder/__tests__/newsletterCanvasParity.test.tsx.
     const { container } = renderNode(
       "newsletter",
       { title_pl: "Newsletter", variant: "card" },
       { editable: true },
     );
-    expect(within(container).getByPlaceholderText(/email/i)).toBeTruthy();
+    expect(container.querySelector("[data-newsletter-preview]")).toBeTruthy();
   });
 });
 

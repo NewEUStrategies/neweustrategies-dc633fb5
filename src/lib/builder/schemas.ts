@@ -149,22 +149,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       max: 120,
       hint: "Działa identycznie na desktopie, tablecie i mobile.",
     },
-    {
-      key: "authorSizePx",
-      type: "number",
-      label: "Rozmiar czcionki autora (px)",
-      min: 8,
-      max: 24,
-      hint: "Domyślnie 12 px.",
-    },
-    {
-      key: "authorAvatarSizePx",
-      type: "number",
-      label: "Rozmiar zdjęcia autora (px)",
-      min: 8,
-      max: 64,
-      hint: "Domyślnie 20 px. Niezależne od rozmiaru czcionki.",
-    },
+    // Uwaga: `authorSizePx` / `authorAvatarSizePx` NIE należą do nagłówka.
+    // Były skopiowane ze schematu slidera (jedyny czytelnik: sliderVariants),
+    // więc panel nagłówka pokazywał dwa pola bez żadnego efektu w renderze.
     {
       key: "subtitleWeight",
       type: "select",
@@ -641,12 +628,10 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     {
       key: "lightbox",
-      type: "select",
+      type: "bool",
       label: "Lightbox",
-      options: [
-        { value: "off", label: "wyłączony" },
-        { value: "on", label: "włączony" },
-      ],
+      default: false,
+      hint: "Kliknięcie zdjęcia otwiera je na pełnym ekranie (Esc zamyka, strzałki przewijają).",
     },
   ],
   icon: [
@@ -1720,37 +1705,22 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł", placeholder: "Spis treści" },
-    {
-      key: "showNumbers",
-      type: "select",
-      label: "Numeracja",
-      options: [
-        { value: "1", label: "Pokaż" },
-        { value: "0", label: "Ukryj" },
-      ],
-    },
-    {
-      key: "showProgress",
-      type: "select",
-      label: "Pasek postępu czytania",
-      options: [
-        { value: "0", label: "Ukryj" },
-        { value: "1", label: "Pokaż" },
-      ],
-    },
+    { key: "showNumbers", type: "bool", label: "Numeracja", default: true },
+    { key: "showProgress", type: "bool", label: "Pasek postępu czytania", default: false },
     {
       key: "sticky",
-      type: "select",
+      type: "bool",
       label: "Sticky (desktop)",
-      options: [
-        { value: "0", label: "Nie" },
-        { value: "1", label: "Tak (trzyma się przy scrollu)" },
-      ],
+      default: false,
       hint: "Zalecane przy układzie sidebarowym / w wąskiej kolumnie bocznej.",
     },
     {
+      // i18nStringArray, NIE stringArray: renderer czyta `items_pl` / `items_en`
+      // (z fallbackiem na bezjęzykowe `items` dla treści sprzed migracji).
+      // Zapis do gołego `items` przez kontrolkę oznaczał, że ręczne pozycje
+      // nigdy nie trafiały do widgetu.
       key: "items",
-      type: "stringArray",
+      type: "i18nStringArray",
       label: "Pozycje (opcjonalne)",
       hint: "Zostaw puste, aby TOC zaczytał się automatycznie z nagłówków H2/H3 strony. Ręcznie: jedna pozycja per linia. Format: `Tekst` (H2) lub `-- Tekst` (H3). Opcjonalny id: `#moj-id | Tekst`.",
     },

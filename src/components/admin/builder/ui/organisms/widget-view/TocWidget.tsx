@@ -8,14 +8,20 @@
 // `slugifyAnchor` (jedno źródło + test parytetu międzysilnikowego), więc
 // `href="#…"` widgetu zawsze trafia w `id` wyemitowane przez silniki treści,
 // również dla liter atomowych (`ł`), które dawna kopia NFKD-only gubiła.
+//
+// Odczyt treści: wyłącznie przez lib/builder/contentValue (asBool / asOneOf /
+// pickI18n) oraz lib/toc/manualItems. Ręczne `getStr(...) !== "0"` cicho
+// odwracało nowe, prawdziwie booleanowe zapisy przełączników, a lista pozycji
+// czytana wprost z `items_pl` gubiła treść zapisaną pod bezjęzykowym `items`.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { List, LayoutGrid, PanelLeft, ChevronDown, Menu as MenuIcon } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import type { WidgetContent } from "@/lib/builder/types";
+import { asBool, asOneOf, pickI18n } from "@/lib/builder/contentValue";
 import { scanHeadings, type ScannedHeading } from "@/lib/content/anchorScan";
-import { parseManualTocItems, type ManualTocItem } from "@/lib/toc/manualItems";
-import { getStr, getStrArr, type Lang } from "./frame";
+import { parseManualTocItems, readManualTocLines, type ManualTocItem } from "@/lib/toc/manualItems";
+import { type Lang } from "./frame";
 
 type Variant = "list" | "grid" | "sidebar";
 
@@ -25,6 +31,8 @@ interface Props {
   content: WidgetContent;
   lang: Lang;
 }
+
+const VARIANTS = ["list", "grid", "sidebar"] as const;
 
 const isTocLevel = (h: ScannedHeading): h is ScannedHeading & { level: 2 | 3 } =>
   h.level === 2 || h.level === 3;
@@ -139,23 +147,17 @@ function scrollToId(id: string) {
 }
 
 export function TocWidget({ content, lang }: Props) {
-  const variantRaw = getStr(content, "variant");
-  const variant: Variant = variantRaw === "grid" || variantRaw === "sidebar" ? variantRaw : "list";
+  const variant: Variant = asOneOf<Variant>(content.variant, VARIANTS, "list");
   const title =
-    getStr(content, `title_${lang}`) ||
-    getStr(content, "title_pl") ||
-    (lang === "en" ? "Table of contents" : "Spis treści");
-  const showNumbers = getStr(content, "showNumbers") !== "0";
-  const showProgress = getStr(content, "showProgress") === "1";
-  const sticky = getStr(content, "sticky") === "1";
-  const manualRaw = getStrArr(content, `items_${lang}`).length
-    ? getStrArr(content, `items_${lang}`)
-    : getStrArr(content, "items_pl");
-  // Klucz tekstowy zamiast referencji tablicy: `getStrArr` tworzy nową tablicę
-  // przy każdym renderze, więc memo po referencji przeliczałby się zawsze,
+    pickI18n(content, "title", lang) || (lang === "en" ? "Table of contents" : "Spis treści");
+  const showNumbers = asBool(content.showNumbers, true);
+  const showProgress = asBool(content.showProgress, false);
+  const sticky = asBool(content.sticky, false);
+  // Klucz tekstowy zamiast referencji tablicy: odczyt tworzy nową tablicę przy
+  // każdym renderze, więc memo po referencji przeliczałby się zawsze,
   // a niestabilne `items` przepinałyby scrollspy'owy IntersectionObserver.
-  const manualKey = manualRaw.join("\n");
-  const manual = useMemo(() => parseManualTocItems(manualKey.split("\n")), [manualKey]);
+  const manualKey = readManualTocLines(content, lang).join("\n");
+  const manual = useMemo(() => parseManualTocItems([manualKey]), [manualKey]);
   const items = useTocItems(manual, title);
   const active = useActiveHeading(items);
   const progress = useReadingProgress();

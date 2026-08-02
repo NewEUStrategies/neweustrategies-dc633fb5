@@ -2,7 +2,7 @@
 // Kluczowa regresja: kotwice muszą wychodzić z kanonicznego slugifyAnchor,
 // nie z dawnej NFKD-only kopii widgetu, która gubiła litery atomowe (`ł`).
 import { describe, expect, it } from "vitest";
-import { parseManualTocItems } from "./manualItems";
+import { MANUAL_TOC_ITEMS_KEY, parseManualTocItems, readManualTocLines } from "./manualItems";
 
 describe("parseManualTocItems", () => {
   it("parses a plain line as an H2 with the canonical anchor", () => {
@@ -62,5 +62,50 @@ describe("parseManualTocItems", () => {
       "dup",
       "dup-2",
     ]);
+  });
+
+  it("splits a multi-line entry into separate items", () => {
+    // Wklejony blok tekstu (albo starszy zapis jednopolowy) to nadal lista.
+    expect(parseManualTocItems(["Alfa\n-- Beta\n\nGamma"]).map((i) => i.text)).toEqual([
+      "Alfa",
+      "Beta",
+      "Gamma",
+    ]);
+  });
+});
+
+// Regresja key-mismatch: schemat zapisywał `items` (stringArray), a widget
+// czytał wyłącznie `items_pl` / `items_${lang}`, więc ręcznie wpisany spis
+// treści nigdy się nie renderował. Odczyt mieszka teraz w jednym miejscu i
+// obsługuje OBA zapisy - nowy dwujęzyczny i stary bezjęzykowy.
+describe("readManualTocLines", () => {
+  it("uses the requested language when present", () => {
+    expect(readManualTocLines({ items_pl: ["Sekcja PL"], items_en: ["Section EN"] }, "en")).toEqual(
+      ["Section EN"],
+    );
+  });
+
+  it("falls back to Polish when the requested language is empty", () => {
+    expect(readManualTocLines({ items_pl: ["Sekcja PL"], items_en: [] }, "en")).toEqual([
+      "Sekcja PL",
+    ]);
+  });
+
+  it("falls back to English when only the English list exists", () => {
+    expect(readManualTocLines({ items_en: ["Section EN"] }, "pl")).toEqual(["Section EN"]);
+  });
+
+  it("reads content saved by the broken language-less control", () => {
+    expect(readManualTocLines({ items: ["Legacy"] }, "pl")).toEqual(["Legacy"]);
+    expect(readManualTocLines({ items: ["Legacy"] }, "en")).toEqual(["Legacy"]);
+  });
+
+  it("returns an empty list for missing or malformed content", () => {
+    expect(readManualTocLines({}, "pl")).toEqual([]);
+    expect(readManualTocLines({ items: "nie tablica" }, "pl")).toEqual([]);
+  });
+
+  it("exposes the storage key the schema field must declare", () => {
+    expect(MANUAL_TOC_ITEMS_KEY).toBe("items");
   });
 });

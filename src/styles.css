@@ -5113,8 +5113,28 @@ textarea::placeholder {
   min-height: 6.5rem;
   resize: vertical;
 }
-.input-group > .input::placeholder {
-  color: transparent;
+/* Material floating label + a REAL placeholder.
+   Idle state: the author's placeholder is painted transparent so it never
+   collides with the label parked inside the field. Focus state: the label has
+   already lifted onto the border, so the placeholder is revealed as a hint.
+   `!important` + the extra `:not(:focus)` / `:focus` weight are required to
+   beat the global `input::placeholder { color: ... !important }` baseline
+   further up this file - between two `!important` declarations specificity
+   decides. Fields without an author placeholder carry the single-space spacer
+   from `floatingPlaceholder()`, so they render exactly as before. */
+.input-group > .input:not(:focus)::placeholder {
+  color: transparent !important;
+  opacity: 1;
+}
+/* WCAG AA for the revealed hint: oklch(0.45) sits at ~7:1 on the light canvas
+   (--background oklch(0.99)), oklch(0.72) at ~7.4:1 on the dark one (#141414).
+   Both beat the 4.5:1 body-text floor, unlike the 2.3:1 default gray. */
+.input-group > .input:focus::placeholder {
+  color: var(--gc-input-placeholder-focus, oklch(0.45 0 0)) !important;
+  opacity: 1;
+}
+.dark .input-group > .input:focus::placeholder {
+  color: var(--gc-input-placeholder-focus-dark, oklch(0.72 0 0)) !important;
 }
 .input-group > .user-label {
   position: absolute;
@@ -5204,6 +5224,14 @@ textarea::placeholder {
   opacity: 0.6;
   cursor: not-allowed;
 }
+/* The label still snaps between its two positions, it just does not animate
+   there. Colors/borders keep their final values, only the tween is dropped. */
+@media (prefers-reduced-motion: reduce) {
+  .input-group > .input,
+  .input-group > .user-label {
+    transition: none;
+  }
+}
 
 /* Beat high-specificity builder widget styles ([data-w-id] repeated) that
    force text-align: center on all descendants. The floating input atom must
@@ -5246,8 +5274,14 @@ textarea::placeholder {
   background-color: var(--input-group-chip-bg);
   color: var(--ring);
 }
-.input-group--on-dark > .input::placeholder {
-  color: transparent;
+.input-group--on-dark > .input:not(:focus)::placeholder {
+  color: transparent !important;
+  opacity: 1;
+}
+/* Near-black chip surface: the light hint gray keeps > 7:1 here as well. */
+.input-group--on-dark > .input:focus::placeholder {
+  color: var(--gc-input-placeholder-focus-dark, oklch(0.72 0 0)) !important;
+  opacity: 1;
 }
 
 /* Standalone variant of the platform input, for admin/settings surfaces where

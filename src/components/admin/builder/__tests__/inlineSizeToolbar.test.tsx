@@ -85,7 +85,7 @@ describe("editTargets metadata", () => {
     expect(joinKeys).not.toContain("buttonFontSize");
     expect(cfKeys).toContain("buttonFontSize");
     expect(cfKeys).not.toContain("buttonSize");
-    // Every panel key has toolbar metadata — the two surfaces cannot drift.
+    // Every panel key has toolbar metadata - the two surfaces cannot drift.
     [...joinKeys, ...cfKeys].forEach((k) => expect(EDIT_TARGET_META[k]).toBeTruthy());
   });
 

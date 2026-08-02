@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
-import { asBool, asNum, asStr } from "@/lib/builder/contentValue";
+import { asBool, asNum, asOneOf, asStr } from "@/lib/builder/contentValue";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
@@ -143,10 +143,8 @@ function csv(c: WidgetContent, key: string): string[] {
 }
 
 /** Zawezenie do sortowan, ktore zapytanie faktycznie realizuje. */
-function safeOrderBy(raw: string): PostListOrderBy {
-  return (POST_LIST_ORDER_BY as readonly string[]).includes(raw)
-    ? (raw as PostListOrderBy)
-    : "published_at";
+function safeOrderBy(raw: unknown): PostListOrderBy {
+  return asOneOf(raw, POST_LIST_ORDER_BY, "published_at");
 }
 
 /**
@@ -185,7 +183,7 @@ export function postListInput(c: WidgetContent, lang: Lang): PostListInput {
     limit: fetchLimit,
     offset: Math.max(0, getNum(c, "offset", 0)),
     cols: Math.max(1, Math.min(6, getNum(c, "columns", 3))),
-    orderByRaw: safeOrderBy(getStr(c, "orderBy") || "published_at"),
+    orderByRaw: safeOrderBy(c["orderBy"]),
     orderDir: (getStr(c, "orderDir") || "desc") === "asc" ? "asc" : "desc",
     withAuthors: postListVariantHasByline(variant) && postListAuthorDisplay(c) !== "none",
     postFormat: getStr(c, "postFormat"),
@@ -422,13 +420,17 @@ async function attachAuthorNames(rows: PostRow[], withAuthors: boolean): Promise
       }>
     ).map((p) => [p.id, p]),
   );
+  // Wzbogacamy, nigdy nie kasujemy: gdy profil autora jest niedostepny (usuniety,
+  // odciety przez RLS), zostawiamy to, co wiersz juz niesie, zamiast nadpisywac
+  // nazwisko null-em i chowac byline, ktory mial czym sie wyrenderowac.
   return rows.map((r) => {
     const p = r.author_id ? map.get(r.author_id) : undefined;
+    if (!p) return r;
     return {
       ...r,
-      author_display_name: p?.display_name ?? null,
-      author_avatar_url: p?.avatar_url ?? null,
-      author_slug: p?.slug ?? null,
+      author_display_name: p.display_name ?? r.author_display_name ?? null,
+      author_avatar_url: p.avatar_url ?? r.author_avatar_url ?? null,
+      author_slug: p.slug ?? r.author_slug ?? null,
     };
   });
 }
