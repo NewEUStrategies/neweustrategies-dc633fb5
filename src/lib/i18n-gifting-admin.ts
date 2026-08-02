@@ -19,6 +19,17 @@ const pl = {
       monthlyLimitHint: "0 = bez limitu (jak NYT All Access).",
       ttl: "Ważność linku (dni)",
       ttlHint: "0 = link bezterminowy. Wygasłe linki są automatycznie rotowane.",
+      cap: "Limit odsłon na link",
+      capHint:
+        "Ilu odbiorców może otworzyć artykuł z jednego linku, zanim kod przestanie odblokowywać treść. Domyślnie 50.",
+      capZeroWarning:
+        "0 = bez limitu odsłon - jeden upubliczniony link odblokuje artykuł nieograniczonej liczbie osób.",
+      defaultsNotice:
+        "Ten tenant nie ma jeszcze zapisanych ustawień - poniżej efektywne wartości domyślne. Zapis utrwali je w bazie.",
+      errors: {
+        required: "Podaj wartość.",
+        range: "Wartość musi być z zakresu {{min}}-{{max}}.",
+      },
       save: "Zapisz ustawienia",
       saved: "Ustawienia zapisane.",
       updatedAt: "Ostatnia zmiana: {{when}}",
@@ -57,6 +68,7 @@ const pl = {
       confirmRevoke: "Cofnąć ten link podarunkowy? Odbiorcy stracą dostęp.",
       revoked: "Link został cofnięty.",
       copyCode: "Skopiuj kod",
+      capReached: "Limit odsłon wyczerpany - kod nie odblokuje treści kolejnym odbiorcom.",
       empty: "Brak linków spełniających kryteria.",
     },
     audit: {
@@ -106,6 +118,17 @@ const en: typeof pl = {
       monthlyLimitHint: "0 = unlimited (like NYT All Access).",
       ttl: "Link validity (days)",
       ttlHint: "0 = never expires. Expired links are rotated automatically.",
+      cap: "Per-link open cap",
+      capHint:
+        "How many recipients can open the article from a single link before the code stops unlocking content. Default 50.",
+      capZeroWarning:
+        "0 = no open cap - one publicly shared link unlocks the article for an unlimited audience.",
+      defaultsNotice:
+        "This tenant has no saved settings yet - the values below are the effective defaults. Saving will persist them.",
+      errors: {
+        required: "Enter a value.",
+        range: "Value must be between {{min}} and {{max}}.",
+      },
       save: "Save settings",
       saved: "Settings saved.",
       updatedAt: "Last change: {{when}}",
@@ -144,6 +167,7 @@ const en: typeof pl = {
       confirmRevoke: "Revoke this gift link? Recipients will lose access.",
       revoked: "Link revoked.",
       copyCode: "Copy code",
+      capReached: "Open cap reached - the code no longer unlocks content for new recipients.",
       empty: "No links match the filters.",
     },
     audit: {

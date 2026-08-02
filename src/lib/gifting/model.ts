@@ -96,10 +96,16 @@ export interface GiftSettings {
   link_ttl_days: number;
 }
 
+/**
+ * Lustro bezpiecznych fallbackow create_gift_link przy braku wiersza ustawien
+ * (migracja 20260724090600: monthly_limit 10, link_ttl_days 30). UI czyta stad
+ * tylko `enabled`, ale liczby musza mowic prawde o serwerowym egzekwowaniu -
+ * stare 0/0 ("bez limitow") klamalo po utwardzeniu domyslnych.
+ */
 export const DEFAULT_GIFT_SETTINGS: GiftSettings = {
   enabled: true,
-  monthly_limit: 0,
-  link_ttl_days: 0,
+  monthly_limit: 10,
+  link_ttl_days: 30,
 };
 
 /** Stan gifting zwracany przez RPC gift_article_state (znormalizowany). */

@@ -1,6 +1,10 @@
 // Panel admina - Gift Articles. Trzy zakladki: Ustawienia (per tenant),
 // Linki (przeglad + cofanie), Audyt (log zdarzen created/redeemed/revoked).
-// Wszystkie dane pochodza z SECURITY DEFINER RPC re-walidujacych rolę i tenant.
+// Modul jest domena admin/editor: server functions przechodza przez
+// requireAdminEditor, a baza re-waliduje role i tenant w RLS/SECURITY DEFINER
+// RPC. Formularz ustawien pracuje na drafcie z lib/gifting/admin-model -
+// jedno zrodlo prawdy dla zakresow (lustro CHECK-ow SQL), walidacji i
+// semantyki "0 = bez limitu" (puste pole nigdy nie staje sie cichym zerem).
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
@@ -15,7 +19,21 @@ import {
   listGiftLinksAdmin,
   listGiftEventsAdmin,
   revokeGiftLinkAdmin,
+  type GiftEventType,
 } from "@/lib/gifting-admin.functions";
+import {
+  GIFT_ADMIN_BOUNDS,
+  draftToGiftAdminSettings,
+  giftAdminSettingsEqual,
+  giftCapExhausted,
+  parseGiftAdminLimitInput,
+  toGiftAdminDraft,
+  validateGiftAdminDraft,
+  type GiftAdminDraftIssue,
+  type GiftAdminLimitField,
+  type GiftAdminSettings,
+  type GiftAdminSettingsDraft,
+} from "@/lib/gifting/admin-model";
 import "@/lib/i18n-gifting-admin";
 
 export const Route = createFileRoute("/admin/gifting")({
@@ -46,7 +64,7 @@ function GiftingAdmin() {
         <p className="text-muted-foreground mt-1">{t("giftingAdmin.subtitle")}</p>
       </div>
 
-      <StatsPanel dateLocale={dateLocale} />
+      <StatsPanel />
 
       <div className="border-b border-border">
         <nav className="flex gap-1" role="tablist">
@@ -76,9 +94,24 @@ function GiftingAdmin() {
   );
 }
 
+// ---------------- Shared queries ----------------
+
+/**
+ * Ustawienia tenanta - jeden klucz cache dla zakladki Ustawienia i tabeli
+ * linkow (kolumna "otwarcia / cap"), wiec zapis natychmiast odswieza oba.
+ */
+function useGiftAdminSettingsQuery() {
+  const getSettings = useServerFn(getGiftAdminSettings);
+  return useQuery({
+    queryKey: ["gift-admin", "settings"],
+    queryFn: () => getSettings(),
+    staleTime: 30_000,
+  });
+}
+
 // ---------------- Stats ----------------
 
-function StatsPanel({ dateLocale: _l }: { dateLocale: string }) {
+function StatsPanel() {
   const { t } = useTranslation();
   const getStats = useServerFn(getGiftAdminStats);
   const { data, isLoading } = useQuery({
@@ -123,35 +156,94 @@ function StatsPanel({ dateLocale: _l }: { dateLocale: string }) {
 
 // ---------------- Settings ----------------
 
+/**
+ * Pole limitu (molecule): label + input + walidacja inline + hint. Zakres i
+ * atrybuty min/max pochodza z GIFT_ADMIN_BOUNDS, wiec przegladarka, walidacja
+ * draftu i CHECK w bazie egzekwuja dokladnie ten sam przedzial. Puste pole
+ * trzymamy jako null (issue "required") - nigdy nie koercjujemy go do 0,
+ * bo 0 znaczy tu "bez limitu".
+ */
+function LimitField({
+  field,
+  label,
+  hint,
+  value,
+  issue,
+  zeroWarning,
+  onChange,
+}: {
+  field: GiftAdminLimitField;
+  label: string;
+  hint: string;
+  value: number | null;
+  issue: GiftAdminDraftIssue | undefined;
+  /** Ostrzezenie pokazywane, gdy wartosc = 0 (limit wylaczony). */
+  zeroWarning?: string;
+  onChange: (value: number | null) => void;
+}) {
+  const { t } = useTranslation();
+  const bounds = GIFT_ADMIN_BOUNDS[field];
+  const inputId = `gift-admin-${field}`;
+  const messageId = `${inputId}-message`;
+
+  return (
+    <div>
+      <label htmlFor={inputId} className="block text-sm font-semibold text-foreground mb-1">
+        {label}
+      </label>
+      <input
+        id={inputId}
+        type="number"
+        inputMode="numeric"
+        min={bounds.min}
+        max={bounds.max}
+        step={1}
+        value={value ?? ""}
+        onChange={(e) => onChange(parseGiftAdminLimitInput(e.target.value))}
+        aria-invalid={issue ? true : undefined}
+        aria-describedby={messageId}
+        className={`h-10 w-40 rounded-[6px] border bg-background px-3 text-sm ${
+          issue ? "border-destructive focus-visible:outline-destructive" : "border-border"
+        }`}
+      />
+      <p
+        id={messageId}
+        className={`text-xs mt-1 ${issue ? "text-destructive" : "text-muted-foreground"}`}
+      >
+        {issue
+          ? t(`giftingAdmin.settings.errors.${issue}`, { min: bounds.min, max: bounds.max })
+          : hint}
+      </p>
+      {!issue && zeroWarning && value === 0 && (
+        <p className="text-xs mt-1 font-medium text-amber-600 dark:text-amber-500" role="alert">
+          {zeroWarning}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SettingsPanel() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const getSettings = useServerFn(getGiftAdminSettings);
   const updateSettings = useServerFn(updateGiftAdminSettings);
+  const { data, isLoading } = useGiftAdminSettingsQuery();
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["gift-admin", "settings"],
-    queryFn: () => getSettings(),
-  });
+  const [draft, setDraft] = useState<GiftAdminSettingsDraft | null>(null);
 
-  const [draft, setDraft] = useState<{
-    enabled: boolean;
-    monthly_limit: number;
-    link_ttl_days: number;
-  } | null>(null);
+  const persistedSettings: GiftAdminSettings | null = data
+    ? {
+        enabled: data.enabled,
+        monthly_limit: data.monthly_limit,
+        link_ttl_days: data.link_ttl_days,
+        max_redemptions_per_link: data.max_redemptions_per_link,
+      }
+    : null;
 
-  const effective =
-    draft ??
-    (data
-      ? {
-          enabled: data.enabled,
-          monthly_limit: data.monthly_limit,
-          link_ttl_days: data.link_ttl_days,
-        }
-      : null);
+  const effective = draft ?? (persistedSettings ? toGiftAdminDraft(persistedSettings) : null);
 
   const save = useMutation({
-    mutationFn: (payload: NonNullable<typeof draft>) => updateSettings({ data: payload }),
+    mutationFn: (payload: GiftAdminSettings) => updateSettings({ data: payload }),
     onSuccess: () => {
       toast.success(t("giftingAdmin.settings.saved"));
       setDraft(null);
@@ -160,28 +252,43 @@ function SettingsPanel() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  if (isLoading || !effective) {
+  if (isLoading || !effective || !persistedSettings || !data) {
     return <p className="text-sm text-muted-foreground">{t("giftingAdmin.common.loading")}</p>;
   }
 
-  const set = <K extends keyof NonNullable<typeof draft>>(k: K, v: NonNullable<typeof draft>[K]) =>
-    setDraft({ ...effective, [k]: v });
+  const issues = validateGiftAdminDraft(effective);
+  const payload = draftToGiftAdminSettings(effective);
+  // Brak wiersza w bazie = zapis zawsze dozwolony (utrwala efektywne domyslne);
+  // przy istniejacym wierszu wymagamy realnej zmiany.
+  const isDirty =
+    !data.persisted || (payload !== null && !giftAdminSettingsEqual(payload, persistedSettings));
+  const canSave = payload !== null && isDirty && !save.isPending;
 
-  const updatedAt = data?.updated_at
-    ? new Intl.DateTimeFormat(i18n.language === "en" ? "en-GB" : "pl-PL", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date(data.updated_at))
-    : null;
+  const setField = (field: GiftAdminLimitField) => (value: number | null) =>
+    setDraft({ ...effective, [field]: value });
+
+  const updatedAt =
+    data.persisted && data.updated_at
+      ? new Intl.DateTimeFormat(i18n.language === "en" ? "en-GB" : "pl-PL", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(data.updated_at))
+      : null;
 
   return (
     <div className="max-w-2xl space-y-5">
+      {!data.persisted && (
+        <p className="rounded-[6px] border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+          {t("giftingAdmin.settings.defaultsNotice")}
+        </p>
+      )}
+
       <label className="flex items-start gap-3 p-4 rounded-[6px] border border-border bg-card cursor-pointer">
         <input
           type="checkbox"
           className="mt-1 h-4 w-4 rounded-[3px] border-border accent-brand"
           checked={effective.enabled}
-          onChange={(e) => set("enabled", e.target.checked)}
+          onChange={(e) => setDraft({ ...effective, enabled: e.target.checked })}
         />
         <div>
           <div className="text-sm font-semibold text-foreground">
@@ -193,45 +300,39 @@ function SettingsPanel() {
         </div>
       </label>
 
-      <div>
-        <label className="block text-sm font-semibold text-foreground mb-1">
-          {t("giftingAdmin.settings.monthlyLimit")}
-        </label>
-        <input
-          type="number"
-          min={0}
-          max={1000}
+      <div className="grid gap-5 sm:grid-cols-2">
+        <LimitField
+          field="monthly_limit"
+          label={t("giftingAdmin.settings.monthlyLimit")}
+          hint={t("giftingAdmin.settings.monthlyLimitHint")}
           value={effective.monthly_limit}
-          onChange={(e) =>
-            set("monthly_limit", Math.max(0, Math.min(1000, Number(e.target.value))))
-          }
-          className="h-10 w-40 rounded-[6px] border border-border bg-background px-3 text-sm"
+          issue={issues.monthly_limit}
+          onChange={setField("monthly_limit")}
         />
-        <p className="text-xs text-muted-foreground mt-1">
-          {t("giftingAdmin.settings.monthlyLimitHint")}
-        </p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-foreground mb-1">
-          {t("giftingAdmin.settings.ttl")}
-        </label>
-        <input
-          type="number"
-          min={0}
-          max={365}
+        <LimitField
+          field="link_ttl_days"
+          label={t("giftingAdmin.settings.ttl")}
+          hint={t("giftingAdmin.settings.ttlHint")}
           value={effective.link_ttl_days}
-          onChange={(e) => set("link_ttl_days", Math.max(0, Math.min(365, Number(e.target.value))))}
-          className="h-10 w-40 rounded-[6px] border border-border bg-background px-3 text-sm"
+          issue={issues.link_ttl_days}
+          onChange={setField("link_ttl_days")}
         />
-        <p className="text-xs text-muted-foreground mt-1">{t("giftingAdmin.settings.ttlHint")}</p>
+        <LimitField
+          field="max_redemptions_per_link"
+          label={t("giftingAdmin.settings.cap")}
+          hint={t("giftingAdmin.settings.capHint")}
+          value={effective.max_redemptions_per_link}
+          issue={issues.max_redemptions_per_link}
+          zeroWarning={t("giftingAdmin.settings.capZeroWarning")}
+          onChange={setField("max_redemptions_per_link")}
+        />
       </div>
 
       <div className="flex items-center gap-3 pt-2">
         <button
           type="button"
-          disabled={save.isPending || !draft}
-          onClick={() => draft && save.mutate(draft)}
+          disabled={!canSave}
+          onClick={() => payload && save.mutate(payload)}
           className="inline-flex items-center gap-2 h-10 px-4 rounded-[6px] bg-brand text-brand-foreground text-sm font-semibold hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {save.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -257,6 +358,7 @@ function LinksPanel({ dateLocale }: { dateLocale: string }) {
   const [status, setStatus] = useState<LinkStatus>("all");
   const listLinks = useServerFn(listGiftLinksAdmin);
   const revokeLink = useServerFn(revokeGiftLinkAdmin);
+  const { data: settings } = useGiftAdminSettingsQuery();
 
   const { data, isLoading } = useQuery({
     queryKey: ["gift-admin", "links", status],
@@ -288,19 +390,9 @@ function LinksPanel({ dateLocale }: { dateLocale: string }) {
     { id: "expired", label: t("giftingAdmin.links.filterExpired") },
   ];
 
-  const rows = (data?.rows ?? []) as unknown as Array<{
-    id: string;
-    post_title: string;
-    post_slug: string | null;
-    creator_name: string | null;
-    creator_email: string | null;
-    code: string;
-    created_at: string;
-    expires_at: string | null;
-    revoked_at: string | null;
-    redemption_count: number;
-    last_redeemed_at: string | null;
-  }>;
+  const rows = data?.rows ?? [];
+  // Cap per tenant do kolumny "otwarcia / cap"; 0 lub brak danych = bez capu.
+  const cap = settings?.max_redemptions_per_link ?? 0;
 
   const statusOf = (r: (typeof rows)[number]): "active" | "revoked" | "expired" => {
     if (r.revoked_at) return "revoked";
@@ -358,6 +450,7 @@ function LinksPanel({ dateLocale }: { dateLocale: string }) {
               )}
               {rows.map((r) => {
                 const s = statusOf(r);
+                const exhausted = giftCapExhausted(r.redemption_count, cap);
                 return (
                   <tr key={r.id} className="hover:bg-muted/20">
                     <td className="px-3 py-2">
@@ -382,7 +475,18 @@ function LinksPanel({ dateLocale }: { dateLocale: string }) {
                     <td className="px-3 py-2 text-muted-foreground">
                       {r.expires_at ? fmtDate(r.expires_at) : t("giftingAdmin.links.neverExpires")}
                     </td>
-                    <td className="px-3 py-2 tabular-nums">{r.redemption_count}</td>
+                    <td className="px-3 py-2 tabular-nums">
+                      {cap > 0 ? (
+                        <span
+                          className={exhausted ? "font-semibold text-destructive" : undefined}
+                          title={exhausted ? t("giftingAdmin.links.capReached") : undefined}
+                        >
+                          {r.redemption_count} / {cap}
+                        </span>
+                      ) : (
+                        r.redemption_count
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <StatusPill status={s} label={t(`giftingAdmin.links.status.${s}`)} />
                     </td>
@@ -463,16 +567,7 @@ function AuditPanel({ dateLocale }: { dateLocale: string }) {
     queryFn: () => listEvents({ data: { limit: 200, offset: 0, event_type: filter } }),
   });
 
-  const rows = (data?.rows ?? []) as unknown as Array<{
-    id: string;
-    event_type: "created" | "redeemed" | "revoked" | "expired";
-    post_title: string;
-    actor_id: string | null;
-    actor_name: string | null;
-    actor_email: string | null;
-    code: string;
-    created_at: string;
-  }>;
+  const rows = data?.rows ?? [];
 
   const fmt = (iso: string) =>
     new Intl.DateTimeFormat(dateLocale, { dateStyle: "short", timeStyle: "medium" }).format(
@@ -540,7 +635,9 @@ function AuditPanel({ dateLocale }: { dateLocale: string }) {
                   <td className="px-3 py-2">
                     <EventPill
                       type={e.event_type}
-                      label={t(`giftingAdmin.audit.type.${e.event_type}`)}
+                      label={t(`giftingAdmin.audit.type.${e.event_type}`, {
+                        defaultValue: e.event_type,
+                      })}
                     />
                   </td>
                   <td className="px-3 py-2 text-foreground">
@@ -570,21 +667,20 @@ function AuditPanel({ dateLocale }: { dateLocale: string }) {
   );
 }
 
-function EventPill({
-  type,
-  label,
-}: {
-  type: "created" | "redeemed" | "revoked" | "expired";
-  label: string;
-}) {
-  const cls =
-    type === "created"
-      ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
-      : type === "redeemed"
-        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-        : type === "revoked"
-          ? "bg-destructive/10 text-destructive border-destructive/20"
-          : "bg-muted text-muted-foreground border-border";
+const EVENT_PILL_CLS: Record<GiftEventType, string> = {
+  created: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  redeemed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  revoked: "bg-destructive/10 text-destructive border-destructive/20",
+  expired: "bg-muted text-muted-foreground border-border",
+};
+
+function isKnownEventType(type: string): type is GiftEventType {
+  return type in EVENT_PILL_CLS;
+}
+
+/** Nieznane typy zdarzen dostaja neutralna tonacje zamiast wysypywac render. */
+function EventPill({ type, label }: { type: string; label: string }) {
+  const cls = isKnownEventType(type) ? EVENT_PILL_CLS[type] : EVENT_PILL_CLS.expired;
   return (
     <span
       className={`inline-flex items-center h-6 px-2 rounded-[6px] border text-[11px] font-semibold uppercase tracking-wide ${cls}`}
