@@ -1112,7 +1112,7 @@ const pl = {
       typography: "Typografia",
       formSizes: "Rozmiary elementów formularza (px)",
       formSizesHint:
-        "Zmiany działają od razu w preview. Puste = automatyczny (pokazany obok). Możesz też kliknąć element bezpośrednio w preview.",
+        "Zmiany działają od razu w preview i na stronie. Puste = automatyczny (pokazany obok). Ustawiony rozmiar ma pierwszeństwo przed sekcją „Typografia” powyżej. Możesz też kliknąć element bezpośrednio w preview.",
       colors: "Kolory",
       bg: "Tło",
       inheritGlobal: "dziedziczy z global colors",
@@ -2483,7 +2483,7 @@ const en: typeof pl = {
       typography: "Typography",
       formSizes: "Form element sizes (px)",
       formSizesHint:
-        "Changes apply instantly in the preview. Empty = automatic (shown next to it). You can also click an element directly in the preview.",
+        "Changes apply instantly in the preview and on the live page. Empty = automatic (shown next to it). An explicit size takes precedence over the “Typography” section above. You can also click an element directly in the preview.",
       colors: "Colors",
       bg: "Background",
       inheritGlobal: "inherits from global colors",
