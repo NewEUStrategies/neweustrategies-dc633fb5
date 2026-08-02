@@ -33,7 +33,10 @@ describe("extractExpectedContract", () => {
 
   it("uwzględnia DROP i RENAME z późniejszych migracji", () => {
     const contract = extractExpectedContract([
-      { file: "0001.sql", sql: "CREATE TABLE public.old_table (id uuid); CREATE TABLE public.gone (id uuid);" },
+      {
+        file: "0001.sql",
+        sql: "CREATE TABLE public.old_table (id uuid); CREATE TABLE public.gone (id uuid);",
+      },
       { file: "0002.sql", sql: "DROP TABLE IF EXISTS public.gone;" },
       { file: "0003.sql", sql: "ALTER TABLE public.old_table RENAME TO new_table;" },
     ]);
@@ -42,7 +45,10 @@ describe("extractExpectedContract", () => {
 
   it("ignoruje schematy zarządzane (auth/storage)", () => {
     const contract = extractExpectedContract([
-      { file: "0001.sql", sql: "CREATE TABLE auth.sessions (id uuid); CREATE TABLE storage.objects (id uuid);" },
+      {
+        file: "0001.sql",
+        sql: "CREATE TABLE auth.sessions (id uuid); CREATE TABLE storage.objects (id uuid);",
+      },
     ]);
     expect(contract.tables).toHaveLength(0);
   });
@@ -55,7 +61,11 @@ describe("classifyProbe", () => {
 
   it("PGRST202 z podpowiedzią innej funkcji = brak RPC", () => {
     expect(
-      classifyProbe(404, "PGRST202", "Perhaps you meant to call the function public.delete_my_meeting_slot"),
+      classifyProbe(
+        404,
+        "PGRST202",
+        "Perhaps you meant to call the function public.delete_my_meeting_slot",
+      ),
     ).toBe("missing");
   });
 
@@ -65,7 +75,6 @@ describe("classifyProbe", () => {
     expect(classifyProbe(404, "PGRST202", null)).toBe("present");
     expect(classifyProbe(404, "PGRST202", "")).toBe("present");
   });
-
 
   it("brak uprawnień oznacza, że obiekt istnieje", () => {
     expect(classifyProbe(401, "42501")).toBe("present");

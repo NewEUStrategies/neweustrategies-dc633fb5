@@ -20,7 +20,6 @@ vi.mock("@/lib/http/ssrTiming.server", () => ({
   recordDbRoundTrip: vi.fn(),
 }));
 
-
 interface CapturedCall {
   input: RequestInfo | URL;
   init: RequestInit | undefined;

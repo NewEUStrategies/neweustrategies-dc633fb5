@@ -200,22 +200,29 @@ async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
     const prefs = (ownRows?.[0]?.prefs ?? {}) as Record<string, unknown>;
     const remote = safeParse(JSON.stringify(prefs.consent ?? null));
     const local = readLocal();
+    let resolved: ConsentState | null;
     if (remote && (!local || remote.ts > local.ts)) {
       writeLocal({ ...remote, source: "profile" });
-      return remote;
+      resolved = remote;
+    } else {
+      if (!remote && local) await syncConsentToProfile(local);
+      resolved = local ?? remote;
     }
-    if (!remote && local) {
-      await syncConsentToProfile(local);
-      // Decyzja podjęta anonimowo zyskuje właśnie podmiot - dopisz ją do
-      // rejestru RODO. Jednorazowe: po syncu profil ma już prefs.consent,
-      // więc ta gałąź nie odpala się przy kolejnych sesjach.
+    if (resolved) {
+      // Backfill rejestru RODO sterowany BRAKIEM wpisów cookies_* w rejestrze
+      // (nie brakiem prefs.consent w profilu): obejmuje zarówno decyzję podjętą
+      // anonimowo, która właśnie zyskuje podmiot, jak i konta sprzed unifikacji,
+      // które mają prefs.consent, ale zero śladu w audycie. Deduplikacja
+      // (wiele instancji useConsent na ten sam event auth) i kolejkowanie są
+      // wewnątrz mostu.
+      const state = resolved;
       void import("@/lib/consent/registryBridge")
-        .then((m) => m.syncCmpDecisionToRegistry(null, local, "login_sync"))
+        .then((m) => m.backfillRegistryOnLogin(state, uid))
         .catch(() => {
           /* best-effort */
         });
     }
-    return local ?? remote;
+    return resolved;
   } catch {
     return null;
   }

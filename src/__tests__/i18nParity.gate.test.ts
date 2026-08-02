@@ -60,7 +60,6 @@ function bundle(lang: "pl" | "en", core: ResourceTree): ResourceTree {
   return deepMerge(core, registered ?? {});
 }
 
-
 describe("parytet tłumaczeń PL/EN (bramka CI)", () => {
   it("każdy bramkowany klucz ma wersję PL i EN", () => {
     loadOverlays();

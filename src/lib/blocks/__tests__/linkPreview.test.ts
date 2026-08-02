@@ -49,11 +49,7 @@ describe("linkPreview", () => {
   it("normalizuje dane bloku i pomija błędne linki", () => {
     const model = normalizeLinkPreviewData({
       introPl: "Zobacz",
-      items: [
-        { labelPl: "A", url: "a.pl" },
-        { labelPl: "Zły", url: "javascript:1" },
-        "nope",
-      ],
+      items: [{ labelPl: "A", url: "a.pl" }, { labelPl: "Zły", url: "javascript:1" }, "nope"],
       preview: false,
       layout: "list",
     });

@@ -49,7 +49,10 @@ export function LinkPreviewBlock({ block, onChange }: Props) {
   };
 
   const addItem = () =>
-    patch("items", [...items, { labelPl: "", labelEn: "", url: "", imageSrc: "" }] as unknown as Json);
+    patch("items", [
+      ...items,
+      { labelPl: "", labelEn: "", url: "", imageSrc: "" },
+    ] as unknown as Json);
 
   const removeItem = (index: number) =>
     patch("items", items.filter((_, i) => i !== index) as unknown as Json);
@@ -98,7 +101,10 @@ export function LinkPreviewBlock({ block, onChange }: Props) {
 
       <div className="space-y-2">
         {items.map((item, index) => (
-          <div key={index} className="space-y-2 rounded-[var(--radius)] border border-border/70 p-2">
+          <div
+            key={index}
+            className="space-y-2 rounded-[var(--radius)] border border-border/70 p-2"
+          >
             <div className="grid gap-2 sm:grid-cols-2">
               <Input
                 placeholder={lp("labelPl")}

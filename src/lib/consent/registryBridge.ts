@@ -113,40 +113,133 @@ function detectLang(): "pl" | "en" | undefined {
   return undefined;
 }
 
+/** Kategorie CMP bez żadnego wpisu cookies_* w rejestrze (do backfillu). */
+export function missingRegistryCategories(
+  presentKeys: ReadonlySet<string>,
+): AuditableCmpCategory[] {
+  return AUDITABLE_CMP_CATEGORIES.filter((cat) => !presentKeys.has(CMP_TO_REGISTRY[cat]));
+}
+
+// Kolejka FIFO zapisów do rejestru (per karta). Dwie szybkie decyzje to dwa
+// niezależne requesty bez gwarancji kolejności dostarczenia - wolniejszy,
+// STARSZY zapis mógłby nadpisać nowszą decyzję w user_consents i pomieszać
+// chronologię audytu. Łańcuch promise gwarantuje, że zapisy wychodzą w
+// kolejności podejmowania decyzji; zadania łykają własne błędy, więc łańcuch
+// nigdy nie pęka.
+let writeChain: Promise<void> = Promise.resolve();
+function enqueueRegistryWrite(task: () => Promise<void>): Promise<void> {
+  const run = writeChain.then(task);
+  writeChain = run.catch(() => undefined);
+  return run;
+}
+
+async function pushEntriesToRegistry(entries: RegistryEntry[]): Promise<void> {
+  const { setMyConsentsBulk } = await import("@/lib/consents.functions");
+  await setMyConsentsBulk({ data: { entries } });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(REGISTRY_SYNC_EVENT));
+  }
+}
+
 /**
  * Dopisz decyzję CMP do rejestru RODO zalogowanego użytkownika.
  * Fire-and-forget: brak sesji / offline / błąd serwera nie może zablokować
  * samej decyzji cookie (ta jest już trwała lokalnie i w profilu) - rejestr
  * jest najlepszym możliwym śladem, nie warunkiem działania CMP.
  */
-export async function syncCmpDecisionToRegistry(
+export function syncCmpDecisionToRegistry(
   prev: ConsentState | null,
   next: ConsentState,
   source: ConsentDecisionSource,
 ): Promise<void> {
-  try {
-    const { supabase } = await import("@/integrations/supabase/client");
-    const { data: sess } = await supabase.auth.getSession();
-    if (!sess?.session?.user?.id) return;
+  // Diff liczony synchronicznie w momencie decyzji; kolejka serializuje tylko
+  // sam transport, więc chronologia audytu = chronologia decyzji.
+  const changed = diffCmpCategories(prev, next);
+  if (changed.length === 0) return Promise.resolve();
+  const entries = buildRegistryEntries(
+    changed,
+    next,
+    normalizeDecisionSource(source),
+    detectLang(),
+  );
+  if (entries.length === 0) return Promise.resolve();
 
-    const changed = diffCmpCategories(prev, next);
-    if (changed.length === 0) return;
-
-    const entries = buildRegistryEntries(
-      changed,
-      next,
-      normalizeDecisionSource(source),
-      detectLang(),
-    );
-    if (entries.length === 0) return;
-
-    const { setMyConsentsBulk } = await import("@/lib/consents.functions");
-    await setMyConsentsBulk({ data: { entries } });
-
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event(REGISTRY_SYNC_EVENT));
+  return enqueueRegistryWrite(async () => {
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess?.session?.user?.id) return;
+      await pushEntriesToRegistry(entries);
+    } catch {
+      // Świadomie cicho: audyt rejestru jest best-effort z perspektywy klienta.
     }
+  });
+}
+
+// -------------------- Backfill przy logowaniu --------------------
+
+const BACKFILL_FLAG_PREFIX = "consent:registry-backfill:v1:";
+const backfillInFlight = new Map<string, Promise<void>>();
+
+function backfillFlagDone(userId: string): boolean {
+  try {
+    return window.localStorage.getItem(`${BACKFILL_FLAG_PREFIX}${userId}`) === "1";
   } catch {
-    // Świadomie cicho: audyt rejestru jest best-effort z perspektywy klienta.
+    return false;
   }
+}
+
+function markBackfillDone(userId: string): void {
+  try {
+    window.localStorage.setItem(`${BACKFILL_FLAG_PREFIX}${userId}`, "1");
+  } catch {
+    /* private mode - trudno, sprawdzimy rejestr ponownie następnym razem */
+  }
+}
+
+/**
+ * Backfill rejestru RODO przy logowaniu, sterowany BRAKIEM wpisów cookies_*
+ * w rejestrze (nie brakiem prefs.consent w profilu). Pokrywa dwa przypadki:
+ * decyzję podjętą anonimowo, która właśnie zyskała podmiot, oraz konta sprzed
+ * unifikacji, które mają zsynchronizowany profil, ale zero śladu w audycie
+ * (późniejsze zapisy diffują tylko ZMIENIONE kategorie, więc bez backfillu
+ * nietknięte kategorie nigdy nie dostałyby wpisu).
+ *
+ * Deduplikacja: flaga per użytkownik w localStorage (kolejne sesje) + mapa
+ * in-flight na poziomie modułu (wiele instancji useConsent reagujących na ten
+ * sam event auth - __root, ConsentBanner, injector skryptów). Zapis idzie tą
+ * samą kolejką FIFO co zwykłe decyzje, więc backfill nie wyprzedzi świeższej
+ * decyzji użytkownika podjętej tuż po zalogowaniu.
+ *
+ * Świadomy zakres: uzupełniamy tylko BRAKUJĄCE klucze - istniejących wpisów
+ * nie nadpisujemy stanem z tego urządzenia; rozjazd wartości domyka pierwsza
+ * jawna decyzja (diff w syncCmpDecisionToRegistry).
+ */
+export function backfillRegistryOnLogin(state: ConsentState, userId: string): Promise<void> {
+  if (typeof window === "undefined" || !userId) return Promise.resolve();
+  if (backfillFlagDone(userId)) return Promise.resolve();
+  const inFlight = backfillInFlight.get(userId);
+  if (inFlight) return inFlight;
+
+  const run = enqueueRegistryWrite(async () => {
+    try {
+      const { listMyConsents } = await import("@/lib/consents.functions");
+      const rows = (await listMyConsents()) as Array<{ consent_key: string }>;
+      const present = new Set(rows.map((r) => r.consent_key));
+      const missing = missingRegistryCategories(present);
+      if (missing.length > 0) {
+        const entries = buildRegistryEntries(missing, state, "login_sync", detectLang());
+        await pushEntriesToRegistry(entries);
+      }
+      markBackfillDone(userId);
+    } catch {
+      // Best-effort: bez flagi "done" spróbujemy ponownie przy następnym
+      // evencie auth.
+    }
+  }).finally(() => {
+    backfillInFlight.delete(userId);
+  });
+
+  backfillInFlight.set(userId, run);
+  return run;
 }

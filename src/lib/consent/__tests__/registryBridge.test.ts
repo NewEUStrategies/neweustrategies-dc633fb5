@@ -10,6 +10,7 @@ import {
   REGISTRY_TO_CMP,
   buildRegistryEntries,
   diffCmpCategories,
+  missingRegistryCategories,
   normalizeDecisionSource,
 } from "@/lib/consent/registryBridge";
 import { CONSENT_CATALOG, getConsentDefinition } from "@/lib/notifications/consentCatalog";
@@ -103,6 +104,22 @@ describe("buildRegistryEntries", () => {
         source: "profile_privacy",
       },
     ]);
+  });
+});
+
+describe("missingRegistryCategories (backfill przy logowaniu)", () => {
+  it("returns all categories for an empty registry (pre-unification account)", () => {
+    expect(missingRegistryCategories(new Set())).toEqual([...AUDITABLE_CMP_CATEGORIES]);
+  });
+
+  it("returns only categories without a cookies_* row", () => {
+    const present = new Set(["cookies_analytics", "marketing_email", "transactional"]);
+    expect(missingRegistryCategories(present)).toEqual(["functional", "marketing"]);
+  });
+
+  it("returns nothing when every cookie key already has a row", () => {
+    const present = new Set(Object.values(CMP_TO_REGISTRY));
+    expect(missingRegistryCategories(present)).toEqual([]);
   });
 });
 

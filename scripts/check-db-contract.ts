@@ -55,7 +55,10 @@ function loadMigrations() {
   return readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith(".sql"))
     .sort()
-    .map((file) => ({ file, sql: stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8")) }));
+    .map((file) => ({
+      file,
+      sql: stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8")),
+    }));
 }
 
 async function probe(object: DbObject): Promise<"present" | "missing" | "inconclusive"> {
@@ -91,7 +94,6 @@ async function probe(object: DbObject): Promise<"present" | "missing" | "inconcl
       }
     }
     return classifyProbe(res.status, code, hint);
-
   } catch {
     return "inconclusive";
   }
