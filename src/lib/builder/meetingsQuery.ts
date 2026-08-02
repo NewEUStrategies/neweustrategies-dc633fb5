@@ -12,6 +12,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 
 export type Lang = "pl" | "en";
 
@@ -109,7 +110,7 @@ async function fetchMeetingSlots(input: MeetingSlotsInput): Promise<MeetingSlotR
 export const meetingSlotsQueryOptions = (c: WidgetContent, viewerId: string | null) => {
   const input = meetingSlotsInput(c);
   return queryOptions({
-    queryKey: ["builder-meeting-slots", input, viewerId ?? "anon"] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.meetingSlots, input, viewerId ?? "anon"] as const,
     queryFn: () =>
       meetingSlotsConfigured(input)
         ? fetchMeetingSlots(input)

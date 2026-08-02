@@ -6,6 +6,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 export type Lang = "pl" | "en";
@@ -93,7 +94,7 @@ async function fetchEventsListRows(input: EventsListInput): Promise<EventListRow
 export const eventsListQueryOptions = (c: WidgetContent, _lang: Lang) => {
   const input = eventsListInput(c);
   return queryOptions({
-    queryKey: ["builder-event-list", input] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.eventList, input] as const,
     queryFn: () =>
       edgeTtlCache(`builder:event-list:${JSON.stringify(input)}`, 60_000, () =>
         fetchEventsListRows(input),
@@ -117,7 +118,7 @@ async function fetchEventById(eventId: string): Promise<EventListRow | null> {
 
 export const eventByIdQueryOptions = (eventId: string) =>
   queryOptions({
-    queryKey: ["builder-event-by-id", eventId] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.eventById, eventId] as const,
     queryFn: () =>
       eventId
         ? edgeTtlCache(`builder:event-by-id:${eventId}`, 60_000, () => fetchEventById(eventId))
@@ -156,7 +157,7 @@ async function fetchRsvpCounts(eventIds: string[]): Promise<Map<string, EventRsv
 export const eventRsvpCountsQueryOptions = (eventIds: string[]) => {
   const ids = Array.from(new Set(eventIds)).sort();
   return queryOptions({
-    queryKey: ["builder-event-rsvp-counts", ids] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.eventRsvpCounts, ids] as const,
     queryFn: () => fetchRsvpCounts(ids),
     staleTime: 60_000,
     gcTime: 5 * 60_000,

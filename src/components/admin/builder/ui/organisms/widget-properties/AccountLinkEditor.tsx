@@ -193,6 +193,26 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
               onChange={(e) => setContent("signupHref", e.target.value)}
             />
           </PropField>
+          {/* Oba klucze byly konsumowane przez renderer, ale nie mialy tu
+              kontrolki - dalo sie je ustawic wylacznie recznie w JSON. */}
+          <PropField
+            label={t("builder.accountLinkEditor.panelLabel", { lang: lang.toUpperCase() })}
+          >
+            <Input
+              className="h-8 text-xs"
+              value={readStr(c[`panel_${lang}`])}
+              onChange={(e) => setContent(`panel_${lang}`, e.target.value)}
+            />
+          </PropField>
+          <PropField
+            label={t("builder.accountLinkEditor.logoutLabel", { lang: lang.toUpperCase() })}
+          >
+            <Input
+              className="h-8 text-xs"
+              value={readStr(c[`logout_${lang}`])}
+              onChange={(e) => setContent(`logout_${lang}`, e.target.value)}
+            />
+          </PropField>
         </div>
       </div>
 

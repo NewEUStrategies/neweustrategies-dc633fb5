@@ -90,6 +90,16 @@ export const pl = {
       reset: "Wróć do rzeczywistej zgody",
     },
   },
+  // Karuzela wpisów: wyłącznie etykiety dostępności (aria), nie tekst widoczny.
+  postCarousel: {
+    roleDescription: "karuzela",
+    label: "Karuzela wpisów",
+    controls: "Sterowanie karuzelą",
+    prev: "Poprzedni wpis",
+    next: "Następny wpis",
+    pause: "Zatrzymaj automatyczne przewijanie",
+    play: "Wznów automatyczne przewijanie",
+  },
   newsletter: {
     title: "STRATEGICZNE MYŚLENIE, NOWE PERSPEKTYWY",
     sub: "Śledź globalną i europejską grę mocarstw z pierwszego rzędu",

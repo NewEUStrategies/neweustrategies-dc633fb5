@@ -64,6 +64,7 @@ import {
 } from "./ui/organisms/widget-view/lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
+import { asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
 
 type Lang = "pl" | "en";
 
@@ -102,6 +103,40 @@ const EASING_MAP: Record<string, string> = {
   spring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
   bounce: "cubic-bezier(0.68, -0.55, 0.27, 1.55)",
 };
+
+/**
+ * Props formularza newslettera rozszerzone o `previewMode`.
+ *
+ * HANDOFF (src/components/NewsletterForm.tsx): `previewMode?: boolean` ma
+ * zablokować wysyłkę (`onSubmit` kończy się na `preventDefault()`), zostawiając
+ * pełny render pól. Do czasu scalenia tamtej zmiany kanwa blokuje wysyłkę
+ * lokalnie - przechwyceniem zdarzenia `submit` w fazie capture na hoście
+ * `[data-newsletter-preview]`. Prop przekazujemy już teraz, bo jest opcjonalny,
+ * więc typuje się i przed, i po scaleniu.
+ */
+type NewsletterLiveProps = React.ComponentProps<typeof NewsletterFormLive> & {
+  previewMode?: boolean;
+};
+const NewsletterFormPreviewable: React.ComponentType<NewsletterLiveProps> = NewsletterFormLive;
+
+/**
+ * Konfiguracja przekazywana do `NewsletterForm`.
+ *
+ * Panel newslettera ma DWA pola opisujące tę samą rzecz: `placeholder`
+ * ("Placeholder pola email", stare) oraz `emailPlaceholder` ("Placeholder:
+ * E-mail", z bloku pól). Formularz czyta wyłącznie to drugie, więc pierwsze
+ * działało tylko w atrapie buildera. Mapujemy je jako fallback, dzięki czemu
+ * ustawienie działa po obu stronach bez migracji dokumentów.
+ */
+function newsletterFormConfig(content: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const cfg: Record<string, unknown> = { ...content };
+  for (const lg of ["pl", "en"] as const) {
+    const explicit = asStr(cfg[`emailPlaceholder_${lg}`]).trim();
+    const legacy = asStr(cfg[`placeholder_${lg}`]).trim();
+    if (!explicit && legacy) cfg[`emailPlaceholder_${lg}`] = legacy;
+  }
+  return cfg;
+}
 
 interface ViewProps {
   node: WidgetNode;
@@ -262,7 +297,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   // are already scoped to `[data-w-id="<id>"]`, so concatenation is order-safe
   // and shrinks the per-widget DOM/style-node count on widget-heavy pages.
   const widgetCss = [hover, typographyCss, overrideCss, scopedCss].filter(Boolean).join("\n");
-  // Inner content shell — pozwala wycentrować treść i zmniejszyć jej szerokość
+  // Inner content shell - pozwala wycentrować treść i zmniejszyć jej szerokość
   // wewnątrz widgetu (bez zmieniania szerokości samego widgetu), oraz sterować
   // odstępem między dziećmi. Brak wartości = zachowanie legacy (pełna szerokość).
   const advContentMaxWidth = node.advanced?.contentMaxWidth;
@@ -405,8 +440,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   switch (node.type) {
     case "heading": {
       const key = `text_${lang}`;
-      const text = getStr(c, key) || getStr(c, "text_pl");
-      const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl");
+      const text = pickI18n(c, "text", lang);
+      const subtitle = pickI18n(c, "subtitle", lang);
       const tag = (getStr(c, "tag") || "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
       const variant = getStr(c, "variant") || "default";
       // Rozróżniamy "user nic nie ustawił" od "user wybrał md" - fallback do
@@ -551,10 +586,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "text": {
       const key = `html_${lang}`;
-      const html = getStr(c, key) || getStr(c, "html_pl");
+      const html = pickI18n(c, "html", lang);
       const cols = getNum(c, "columns", 1);
       const dropCap = getStr(c, "dropCap") === "on";
-      // Explicit list/blockquote/heading rules — Tailwind Preflight strips
+      // Explicit list/blockquote/heading rules - Tailwind Preflight strips
       // ul/ol markers and the project does not ship @tailwindcss/typography,
       // so `.prose` alone would leave bullets/numbers invisible. Mirror the
       // authoring toolbar (RichHtmlField) 1:1 so canvas == public output.
@@ -589,14 +624,19 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "button": {
       const key = `label_${lang}`;
-      const label = getStr(c, key) || getStr(c, "label_pl");
+      const label = pickI18n(c, "label", lang);
       const href = safeUrl(getStr(c, "href"));
       const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
       const variant = getStr(c, "variant") || "primary";
       const size = getStr(c, "size") || "md";
       const iconName = getStr(c, "iconName");
       const iconPos = getStr(c, "iconPosition") || "left";
-      const fullWidth = getStr(c, "fullWidth") === "full";
+      // "Szerokość": automatyczna = do treści, 100% = pełna szerokość kolumny.
+      // Wcześniej klasa miała bezwarunkowe `w-full`, więc ustawienie było
+      // martwe, a do tego kanwa (ResizableBox = inline-flex o szerokości auto)
+      // i strona publiczna (brak wrappera, `w-full` w kolumnie flex) dawały dwa
+      // różne wyniki dla tej samej konfiguracji.
+      const fullWidth = asOneOf(getStr(c, "fullWidth"), ["auto", "full"], "auto") === "full";
       const widthPx = getNum(c, "widthPx", 0);
       const heightPx = getNum(c, "heightPx", 0);
       const variantCls =
@@ -618,7 +658,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           : size === "lg"
             ? "px-7 py-3 text-base"
             : "px-3.5 py-2 text-xs";
-      const cls = `inline-flex items-center justify-center gap-2 rounded-md font-medium leading-none transition w-full h-full ${sizeCls} ${variantCls} ${fullWidth ? "justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
+      const cls = `inline-flex items-center justify-center gap-2 rounded-md font-medium leading-none transition ${fullWidth ? "w-full" : "w-auto"} h-full ${sizeCls} ${variantCls} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
       const btnGradFrom = getStr(c, "gradientFrom");
       const btnGradTo = getStr(c, "gradientTo");
       const btnGradAngle = getNum(c, "gradientAngle", 90);
@@ -664,7 +704,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           {label}
         </AppLink>
       );
-      return wrap(
+      const resizable = (
         <ResizableBox
           enabled={canEdit}
           widthPx={widthPx > 0 ? widthPx : undefined}
@@ -675,12 +715,34 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           }}
         >
           {inner}
-        </ResizableBox>,
+        </ResizableBox>
+      );
+      // Dla "100%" opakowujemy w jednokolumnowy grid: element o `width:auto`
+      // (a takim jest ResizableBox w kanwie) rozciąga się na całą ścieżkę
+      // gridu, a publicznie ResizableBox znika i pełną szerokość wymusza samo
+      // `w-full`. Efekt jest ten sam po obu stronach. Jawna szerokość w px
+      // nadal wygrywa, bo `justify-items: stretch` nie dotyka elementów z
+      // definitywną szerokością. Wariant "automatyczna" zostaje bez wrappera,
+      // żeby nie zmieniać działania "Wyrównania" z panelu stylów.
+      if (!fullWidth) return wrap(resizable);
+      return wrap(
+        <div
+          data-button-full-width="1"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr)",
+            justifyItems: "stretch",
+            width: "100%",
+            minWidth: 0,
+          }}
+        >
+          {resizable}
+        </div>,
       );
     }
     case "nav-link": {
       const key = `label_${lang}`;
-      const label = getStr(c, key) || getStr(c, "label_pl");
+      const label = pickI18n(c, "label", lang);
       const href = safeUrl(getStr(c, "href"));
       const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
       const variant = getStr(c, "variant") || "text";
@@ -737,11 +799,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "tts": {
       const source = getStr(c, "source") || "post";
-      const customText = getStr(c, `text_${lang}`) || getStr(c, "text_pl");
+      // Pełny łańcuch fallbacków (żądany język -> PL -> EN). Bez ostatniego
+      // ogniwa tekst wpisany wyłącznie po angielsku znikał w widoku PL, a
+      // odtwarzacz dostawał pusty string i czytał treść posta zamiast własnej.
+      const customText = pickI18n(c, "text", lang);
       const label =
-        getStr(c, `label_${lang}`) ||
-        getStr(c, "label_pl") ||
-        (lang === "pl" ? "Odsłuchaj artykuł" : "Listen to article");
+        pickI18n(c, "label", lang) || (lang === "pl" ? "Odsłuchaj artykuł" : "Listen to article");
       const voiceId = getStr(c, "voiceId") || "JBFqnCBsd6RMkjVDRZzb";
       const model = getStr(c, "model") || "eleven_multilingual_v2";
       return wrap(
@@ -813,128 +876,27 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "tags":
       return wrap(<TagsView />);
     case "newsletter": {
+      // Kanwa i strona publiczna renderują TEN SAM komponent.
+      //
+      // Wcześniej tryb edycji rysował statyczną atrapę honorującą 5 z 21
+      // ustawień widgetu - showFirstName/showLastName/showCompany, wszystkie
+      // require*, komplet *Label / *Placeholder oraz customFields były widoczne
+      // dopiero po publikacji. Atrapa zniknęła: kanwa dostaje realny
+      // <NewsletterForm/> z tą samą konfiguracją, tylko w trybie podglądu
+      // (bez wysyłki do bazy).
       const tKey = `title_${lang}`;
-      const cKey = `cta_${lang}`;
-      const title = getStr(c, tKey) || getStr(c, "title_pl") || "Newsletter";
+      const title = pickI18n(c, "title", lang) || "Newsletter";
       const variant = normalizeNewsletterVariant(getStr(c, "variant") || "icon");
-      const placeholder =
-        getStr(c, `placeholder_${lang}`) ||
-        getStr(c, "placeholder_pl") ||
-        (lang === "pl" ? "Twój email" : "Your email");
-      const ctaLabel =
-        getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || (lang === "pl" ? "Zapisz" : "Subscribe");
       const iconName = getStr(c, "iconName") || "Mail";
       const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
       const IconCmp = Icons[iconName] || Icons.Mail;
 
-      // Builder canvas → statyczny podgląd (bez submitu do bazy).
-      // Public render → realny <NewsletterForm/> z RLS-insert.
-      if (!editable) {
-        if (variant === "minimal") {
-          return wrap(
-            <span
-              style={compactRowStyle}
-              className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer"
-            >
-              {title}
-            </span>,
-          );
-        }
-        if (variant === "icon-only") {
-          return wrap(
-            <a
-              href="#newsletter"
-              className="inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors"
-              style={compactRowStyle}
-              title={title}
-              aria-label={title}
-            >
-              {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
-            </a>,
-          );
-        }
-        if (variant === "icon") {
-          return wrap(
-            <a
-              href="#newsletter"
-              style={compactRowStyle}
-              className="inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors"
-              title={title}
-            >
-              {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
-              <span className="text-sm font-medium">{title}</span>
-            </a>,
-          );
-        }
-        return wrap(
-          <NewsletterFormLive
-            lang={lang}
-            variant={variant === "inline" ? "inline" : "card"}
-            source={`widget:${node.id}`}
-            widgetConfig={c as Record<string, unknown>}
-          />,
-        );
-      }
-
-      // editable=true → builder preview (oryginalna statyczna grafika).
-      // Tytuł i etykieta CTA edytowalne inline (klik na kanwie, bez
-      // otwierania inspektora) - ten sam kontrakt commit() co heading/button.
-      const ctaEditable = canEdit ? (
-        <Editable as="span" value={ctaLabel} onCommit={(v) => commit(cKey, v)} placeholder="CTA…" />
-      ) : (
-        ctaLabel
-      );
-      if (variant === "inline") {
-        return wrap(
-          <form className="flex gap-2 w-full max-w-md" onSubmit={(e) => e.preventDefault()}>
-            <input
-              type="email"
-              placeholder={placeholder}
-              className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm"
-            />
-            <button
-              type="button"
-              className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90"
-            >
-              {ctaEditable}
-            </button>
-          </form>,
-        );
-      }
-      if (variant === "card") {
-        return wrap(
-          <div className="rounded-xl border border-border bg-card p-6 space-y-3 max-w-md">
-            <div className="flex items-center gap-2">
-              {IconCmp && <IconCmp className="w-5 h-5 text-brand" />}
-              {canEdit ? (
-                <Editable
-                  as="h4"
-                  value={title}
-                  onCommit={(v) => commit(tKey, v)}
-                  className="font-display text-lg"
-                  placeholder="Newsletter…"
-                />
-              ) : (
-                <h4 className="font-display text-lg">{title}</h4>
-              )}
-            </div>
-            <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
-              <input
-                type="email"
-                placeholder={placeholder}
-                className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90"
-              >
-                {ctaEditable}
-              </button>
-            </form>
-          </div>,
-        );
-      }
+      // Warianty kompaktowe nie mają formularza - to sam trigger. Tu inline
+      // edycja tytułu jest możliwa i zostaje. Publicznie trigger jest kotwicą,
+      // w kanwie zwykłym elementem (klik nie może nawigować po edytorze).
       if (variant === "minimal") {
+        const minimalCls =
+          "inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30";
         return wrap(
           canEdit ? (
             <Editable
@@ -942,46 +904,99 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
               value={title}
               onCommit={(v) => commit(tKey, v)}
               style={compactRowStyle}
-              className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30"
+              className={minimalCls}
               placeholder="Newsletter…"
             />
           ) : (
             <span
               style={compactRowStyle}
-              className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer"
+              className={`${minimalCls} hover:border-brand transition cursor-pointer`}
             >
               {title}
             </span>
           ),
         );
       }
-      if (variant === "icon-only") {
+      if (variant === "icon-only" || variant === "icon") {
+        const withLabel = variant === "icon";
+        const triggerCls = withLabel
+          ? "inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors"
+          : "inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors";
+        const triggerInner = (
+          <>
+            {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
+            {withLabel &&
+              (canEdit ? (
+                <Editable
+                  as="span"
+                  value={title}
+                  onCommit={(v) => commit(tKey, v)}
+                  className="text-sm font-medium"
+                  placeholder="Newsletter…"
+                />
+              ) : (
+                <span className="text-sm font-medium">{title}</span>
+              ))}
+          </>
+        );
+        if (editable) {
+          return wrap(
+            <div
+              className={`${triggerCls} cursor-pointer`}
+              style={compactRowStyle}
+              title={title}
+              aria-label={withLabel ? undefined : title}
+            >
+              {triggerInner}
+            </div>,
+          );
+        }
         return wrap(
-          <div
-            className="inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors cursor-pointer"
+          <a
+            href="#newsletter"
+            className={triggerCls}
             style={compactRowStyle}
             title={title}
-            aria-label={title}
+            aria-label={withLabel ? undefined : title}
           >
-            {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
-          </div>,
+            {triggerInner}
+          </a>,
         );
       }
+
+      // Warianty z formularzem (inline / card): jeden komponent, jeden config.
+      const liveForm = (
+        <NewsletterFormPreviewable
+          lang={lang}
+          variant={variant === "inline" ? "inline" : "card"}
+          source={`widget:${node.id}`}
+          widgetConfig={newsletterFormConfig(c)}
+          previewMode={editable}
+        />
+      );
+      if (!editable) return wrap(liveForm);
+      // Tryb podglądu: pola są w pełni widoczne i klikalne, ale zdarzenie
+      // `submit` ginie w fazie capture, zanim dobiegnie do handlera formularza
+      // (React woła natywne stopPropagation, więc listener bąbelkowy roota nie
+      // wystartuje). Guard zostaje także po wdrożeniu `previewMode` - kanwa nie
+      // może zapisywać do bazy nawet gdy ktoś doda tam kolejny formularz.
       return wrap(
         <div
-          style={compactRowStyle}
-          className="inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors cursor-pointer"
-          title={title}
+          className="w-full"
+          data-newsletter-preview="1"
+          onSubmitCapture={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
         >
-          {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
-          <span className="text-sm font-medium">{title}</span>
+          {liveForm}
         </div>,
       );
     }
 
     case "join-us": {
-      // Live preview mirrors JoinUsForm's full variant set — including
-      // "split-image" — so switching the variant in the property panel
+      // Live preview mirrors JoinUsForm's full variant set - including
+      // "split-image" - so switching the variant in the property panel
       // updates the canvas immediately, no page refresh.
       const rawVariant = getStr(c, "variant") || "split";
       const variant = (
@@ -1001,10 +1016,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const interestSlugs = Array.isArray(interestSlugsRaw)
         ? interestSlugsRaw.filter((x): x is string => typeof x === "string")
         : undefined;
-      const pick = (base: string) =>
-        getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || undefined;
+      const pick = (base: string) => pickI18n(c, base, lang) || undefined;
 
-      // Image config for variant="split-image" — forwarded so the canvas
+      // Image config for variant="split-image" - forwarded so the canvas
       // reflects URL/alt/gradient/overlay/focal-point edits instantly.
       const imageUrl = getStr(c, "imageUrl") || undefined;
       const imageAlt = getStr(c, "imageAlt") || undefined;
@@ -1100,9 +1114,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "cta": {
       const tKey = `title_${lang}`;
       const cKey = `cta_${lang}`;
-      const title = getStr(c, tKey) || getStr(c, "title_pl");
-      const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl");
-      const cta = getStr(c, cKey) || getStr(c, "cta_pl");
+      const title = pickI18n(c, "title", lang);
+      const subtitle = pickI18n(c, "subtitle", lang);
+      const cta = pickI18n(c, "cta", lang);
       const href = safeUrl(getStr(c, "href"));
       const variant = getStr(c, "variant") || "default";
       const align = getStr(c, "align") || "between";
@@ -1217,9 +1231,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
 
     case "dark-featured-card": {
       const badgeKey = `badge_${lang}`;
-      const badge = getStr(c, badgeKey) || getStr(c, "badge_pl");
-      const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
-      const excerpt = getStr(c, `excerpt_${lang}`) || getStr(c, "excerpt_pl");
+      const badge = pickI18n(c, "badge", lang);
+      const title = pickI18n(c, "title", lang);
+      const excerpt = pickI18n(c, "excerpt", lang);
       const img = safeImageUrl(getStr(c, "image"));
       const href = safeUrl(getStr(c, "href"));
       const cardBg =

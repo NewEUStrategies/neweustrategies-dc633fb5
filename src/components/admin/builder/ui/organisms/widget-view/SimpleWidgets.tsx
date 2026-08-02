@@ -1,7 +1,7 @@
 // Read-only widget renderers (no inline editing). Returns null when the
 // widget type isn't handled here - caller falls through to the main switch.
 import { type CSSProperties, type ReactElement, type ReactNode } from "react";
-import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
+import type { Json, WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
@@ -26,6 +26,8 @@ import {
   getStrArr,
   type Lang,
 } from "./frame";
+import { asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
+import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
@@ -83,6 +85,34 @@ const compactIconBoxStyle = (size = COMPACT_ICON_BOX_SIZE): CSSProperties => ({
   boxSizing: "border-box",
 });
 
+/** Warianty accordionu, które renderer umie narysować (patrz AccordionEditor). */
+const ACCORDION_VARIANTS = ["bordered", "separated", "minimal"] as const;
+
+/** Tryby koloru ikon social, które renderer umie rozwiązać. */
+const SOCIAL_COLOR_MODES = ["inherit", "brand", "official", "custom", "dark", "light"] as const;
+/** Tryby tła kafelka ikony social. */
+const SOCIAL_BG_MODES = ["none", "subtle", "brand", "official", "contrast", "custom"] as const;
+
+/** Warianty rozdzielacza, które renderer naprawdę umie narysować. */
+const DIVIDER_VARIANTS = [
+  "line",
+  "dashed",
+  "dotted",
+  "double",
+  "gradient",
+  "icon",
+  "wave",
+  "space",
+] as const;
+
+/**
+ * Jedna grubość domyślna dla panelu (`WIDGET_SCHEMAS.divider.thickness.default`),
+ * palety (`WIDGETS.divider.defaults`) i renderera. Rozjazd tych trzech miejsc
+ * sprawiał, że świeży rozdzielacz miał 2px w kanwie i 1px na stronie publicznej.
+ * Zgodności trzech miejsc pilnuje test `dividerPreviewParity.test.tsx`.
+ */
+const DIVIDER_DEFAULT_THICKNESS = 2;
+
 export function renderSimpleWidget(
   node: WidgetNode,
   lang: Lang,
@@ -95,26 +125,20 @@ export function renderSimpleWidget(
 
   switch (node.type) {
     case "divider": {
-      const variant = getStr(c, "variant") || "line";
-      const thickness = getNum(c, "thickness", 1);
-      const colorRaw = getStr(c, "color");
-      const color = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(colorRaw) ? colorRaw : "";
-      const widthPct = Math.max(10, Math.min(100, getNum(c, "widthPct", 100)));
-      const alignRaw = getStr(c, "align") || "center";
-      const align: "left" | "center" | "right" =
-        alignRaw === "left" ? "left" : alignRaw === "right" ? "right" : "center";
-      const marginX =
-        align === "center" ? "auto" : align === "right" ? "auto 0 auto auto" : undefined;
+      const variant = asOneOf(c.variant, DIVIDER_VARIANTS, "line");
+      const thickness = asNumInRange(c.thickness, DIVIDER_DEFAULT_THICKNESS, 1, 400);
+      const color = safeWidgetColor(c.color);
+      const widthPct = asNumInRange(c.widthPct, 100, 10, 100);
+      const align = asOneOf(c.align, ["left", "center", "right"] as const, "center");
       const alignStyle: CSSProperties =
         align === "center"
           ? { marginLeft: "auto", marginRight: "auto" }
           : align === "right"
             ? { marginLeft: "auto", marginRight: 0 }
             : { marginLeft: 0, marginRight: "auto" };
-      void marginX;
-      // In builder/editable mode, force a visible minimum so freshly added
-      // dividers (thickness 1, default subtle colors) aren't invisible.
-      const effThickness = editable && variant !== "space" ? Math.max(thickness, 2) : thickness;
+      // Kanwa rysuje DOKŁADNIE to, co strona publiczna: żadnego pogrubiania ani
+      // rozjaśniania linii "żeby było widać". Klikalność cienkiej linii załatwia
+      // przezroczysta warstwa trafienia (niżej), która nie zmienia wyglądu.
       const wrapCls = editable
         ? "w-full py-2 px-1 rounded-[6px] border border-dashed border-foreground/15 bg-foreground/[0.02] relative flex items-center"
         : "w-full";
@@ -131,11 +155,22 @@ export function renderSimpleWidget(
           {spacerLabel}
         </span>
       ) : null;
+      // Przezroczysty pas trafienia: 1px linia bywa nieklikalna w kanwie, więc
+      // powiększamy OBSZAR kliknięcia, a nie samą linię (klik bąbelkuje do
+      // handlera zaznaczenia widgetu na przodku).
+      const hitArea = (
+        <span
+          aria-hidden="true"
+          data-divider-hit-area=""
+          className="absolute inset-x-0 top-1/2 h-5 -translate-y-1/2"
+        />
+      );
       const wrap = (inner: ReactNode) =>
         editable ? (
           <div className={wrapCls} aria-label={spacerLabel}>
             {label}
             {inner}
+            {hitArea}
           </div>
         ) : (
           <>{inner}</>
@@ -161,8 +196,8 @@ export function renderSimpleWidget(
       const widthStyle: CSSProperties = { width: `${widthPct}%`, ...alignStyle };
 
       if (variant === "gradient") {
-        const gradFrom = getStr(c, "gradientFrom");
-        const gradTo = getStr(c, "gradientTo");
+        const gradFrom = safeWidgetColor(c.gradientFrom);
+        const gradTo = safeWidgetColor(c.gradientTo);
         const customGrad =
           gradFrom && gradTo
             ? `linear-gradient(to right, transparent, ${gradFrom}, ${gradTo}, transparent)`
@@ -172,16 +207,12 @@ export function renderSimpleWidget(
         return wrap(
           <div
             style={{
-              height: `${effThickness}px`,
+              height: `${thickness}px`,
               ...widthStyle,
               ...(customGrad ? { backgroundImage: customGrad } : {}),
             }}
             className={
-              customGrad
-                ? ""
-                : editable
-                  ? "bg-gradient-to-r from-transparent via-foreground/60 to-transparent"
-                  : "bg-gradient-to-r from-transparent via-border to-transparent"
+              customGrad ? "" : "bg-gradient-to-r from-transparent via-border to-transparent"
             }
           />,
         );
@@ -194,16 +225,12 @@ export function renderSimpleWidget(
         >;
         const Icon = reg[iconName] ?? LucideIcons.Star;
         const lineStyle: CSSProperties = {
-          borderTopWidth: effThickness,
+          borderTopWidth: thickness,
           borderTopStyle: "solid",
           ...(color ? { borderTopColor: color } : {}),
         };
-        const lineCls = color
-          ? "flex-1 border-t"
-          : editable
-            ? "flex-1 border-t border-foreground/60"
-            : "flex-1 border-t border-border";
-        const iconColor = getStr(c, "iconColor");
+        const lineCls = color ? "flex-1 border-t" : "flex-1 border-t border-border";
+        const iconColor = safeWidgetColor(c.iconColor);
         return wrap(
           <div
             className="flex items-center gap-3 text-muted-foreground"
@@ -220,7 +247,7 @@ export function renderSimpleWidget(
           <svg
             viewBox="0 0 200 8"
             preserveAspectRatio="none"
-            className={color ? "h-3" : `h-3 ${editable ? "text-foreground/60" : "text-border"}`}
+            className={color ? "h-3" : "h-3 text-border"}
             style={{ ...widthStyle, ...(color ? { color } : {}) }}
           >
             <path
@@ -242,10 +269,10 @@ export function renderSimpleWidget(
               : "solid";
       // Render as <div> with border-top so width + alignment work reliably
       // (hr has UA quirks with margin/width interplay in some browsers).
-      const lineColor = color || (editable ? "rgba(127,127,127,0.6)" : "var(--border)");
+      const lineColor = color || "var(--border)";
       const dividerStyle: CSSProperties = {
         borderTopStyle: styleType,
-        borderTopWidth: effThickness,
+        borderTopWidth: thickness,
         borderTopColor: lineColor,
         height: 0,
         ...widthStyle,
@@ -315,16 +342,16 @@ export function renderSimpleWidget(
       );
     }
     case "social-icons": {
-      const size = getNum(c, "size", 14);
-      const gap = getNum(c, "gap", 4);
+      const size = asNumInRange(c.size, 14, 10, 64);
+      const gap = asNumInRange(c.gap, 4, 0, 32);
       const box = size + 6;
-      const showEmpty = getStr(c, "showEmpty") === "show";
-      const colorMode = getStr(c, "colorMode") || "inherit";
-      const customColor = getStr(c, "customColor");
-      const bgMode = getStr(c, "bgMode") || "none";
-      const customBgColor = getStr(c, "customBgColor");
-      const shape = getStr(c, "shape") || "md";
-      const themeAdapt = getStr(c, "themeAdapt") || "auto";
+      const showEmpty = asStr(c.showEmpty) === "show";
+      const colorMode = asOneOf(c.colorMode, SOCIAL_COLOR_MODES, "inherit");
+      const customColor = safeWidgetColor(c.customColor);
+      const bgMode = asOneOf(c.bgMode, SOCIAL_BG_MODES, "none");
+      const customBgColor = safeWidgetColor(c.customBgColor);
+      const shape = asStr(c.shape) || "md";
+      const themeAdapt = asStr(c.themeAdapt) || "auto";
 
       const OFFICIAL: Record<string, string> = {
         facebook: "#1877F2",
@@ -405,12 +432,16 @@ export function renderSimpleWidget(
             ? "[color-scheme:dark]"
             : "";
 
+      // Jawny wybór koloru wygrywa z adaptacją motywu. `themeAdapt` opisuje, co
+      // robić z kolorem DZIEDZICZONYM (tryb "inherit"), a nie unieważniać wybór
+      // redakcji - przy domyślnym `auto` opcje "ciemne"/"jasne" były no-opem
+      // (zawsze currentColor), więc kontrolka wyglądała na zepsutą.
       const resolveColor = (k: string): string | undefined => {
         if (colorMode === "official") return OFFICIAL[k];
         if (colorMode === "custom") return customColor || undefined;
         if (colorMode === "brand") return "var(--brand, currentColor)";
-        if (colorMode === "dark") return themeAdapt === "auto" ? "currentColor" : "#0a0a0a";
-        if (colorMode === "light") return themeAdapt === "auto" ? "currentColor" : "#ffffff";
+        if (colorMode === "dark") return "#0a0a0a";
+        if (colorMode === "light") return "#ffffff";
         return undefined;
       };
 
@@ -426,7 +457,20 @@ export function renderSimpleWidget(
       };
 
       const linkStyle = compactIconBoxStyle(box);
-      const layout = getStr(c, "layout") || "row";
+      const layout = asOneOf(c.layout, ["row", "list"] as const, "row");
+
+      // Wygląd kafelka ikony jest wspólny dla obu układów. Wcześniej „list"
+      // rysował sam kolor ikony i ignorował tło (bgMode / customBgColor), więc
+      // te same ustawienia działały tylko w jednym układzie.
+      const chipStyle = (k: string, active: boolean): CSSProperties => {
+        const bg = resolveBg(k, active);
+        const onContrast = bgMode === "official" && active;
+        return {
+          ...linkStyle,
+          color: onContrast ? "#fff" : active ? resolveColor(k) : undefined,
+          backgroundColor: bg,
+        };
+      };
 
       if (layout === "list") {
         const defaultCta: Record<string, string> = {
@@ -443,7 +487,6 @@ export function renderSimpleWidget(
             if (!href && !showEmpty) return null;
             const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
             const cta = getStr(c, ctaKey) || defaultCta[k] || "";
-            const color = href ? resolveColor(k) : undefined;
             return (
               <AppLink
                 key={k}
@@ -453,7 +496,7 @@ export function renderSimpleWidget(
               >
                 <span
                   className={`inline-flex items-center justify-center ${radiusCls} shrink-0`}
-                  style={{ ...linkStyle, color }}
+                  style={chipStyle(k, Boolean(href))}
                 >
                   <Cmp size={size} />
                 </span>
@@ -471,7 +514,7 @@ export function renderSimpleWidget(
         return (
           <div
             className={`flex flex-col w-full text-foreground ${themeCls}`}
-            style={compactRowStyle}
+            style={{ ...compactRowStyle, gap: `${gap}px` }}
           >
             {rows}
           </div>
@@ -487,13 +530,9 @@ export function renderSimpleWidget(
             const href = getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
             const active = !!href;
             if (!active && !showEmpty) return null;
-            const color = active ? resolveColor(k) : undefined;
             const bg = resolveBg(k, active);
-            const onContrast = bgMode === "official" && active;
             const style: CSSProperties = {
-              ...linkStyle,
-              color: onContrast ? "#fff" : color,
-              backgroundColor: bg,
+              ...chipStyle(k, active),
               opacity: active ? 1 : 0.35,
             };
             const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
@@ -1006,8 +1045,13 @@ export function renderSimpleWidget(
       return <ContactFormView data={(node.content ?? {}) as Record<string, unknown>} lang={lang} />;
 
     case "accordion": {
-      const items = Array.isArray(c.items) ? (c.items as Array<Record<string, string>>) : [];
-      const variant = getStr(c, "variant") || "bordered";
+      const items = Array.isArray(c.items)
+        ? c.items.filter(
+            (it): it is { [key: string]: Json } =>
+              typeof it === "object" && it !== null && !Array.isArray(it),
+          )
+        : [];
+      const variant = asOneOf(c.variant, ACCORDION_VARIANTS, "bordered");
       const containerCls =
         variant === "separated"
           ? "space-y-2"
@@ -1021,12 +1065,12 @@ export function renderSimpleWidget(
           {items.map((it, i) => (
             <details key={i} className={itemCls}>
               <summary className="cursor-pointer list-none px-4 py-3 flex justify-between items-center hover:bg-muted/30 font-medium text-sm">
-                <span>{it[`q_${lang}`] || it.q_pl}</span>
+                <span>{pickI18n(it, "q", lang)}</span>
                 <span className="text-muted-foreground group-open:rotate-180 transition">▾</span>
               </summary>
               <div
                 className="px-4 pb-4 text-sm text-muted-foreground"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(it[`a_${lang}`] || it.a_pl || "") }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(pickI18n(it, "a", lang)) }}
               />
             </details>
           ))}
@@ -1263,7 +1307,9 @@ export function renderSimpleWidget(
       );
     }
     case "team-member": {
-      return <TeamMemberWidget node={node} lang={lang} />;
+      // `editable` musi dojechać do komponentu - bez tego guard w
+      // TeamMemberWidget (modal bio nie otwiera się w kanwie) był martwy.
+      return <TeamMemberWidget node={node} lang={lang} editable={editable} />;
     }
     case "speakers": {
       return <SpeakersWidget node={node} lang={lang} />;

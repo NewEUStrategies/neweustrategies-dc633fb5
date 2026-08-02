@@ -5,7 +5,7 @@ export { TimelineEditor } from "./TimelineEditor";
 export { LogoCloudEditor } from "./LogoCloudEditor";
 export { PricingEditor } from "./PricingEditor";
 export { RatedListEditor } from "./RatedListEditor";
-export { ImageEditor } from "./ImageEditor";
+export { ImageEditor, IMAGE_EDITOR_HANDLED_KEYS } from "./ImageEditor";
 export { SectionLabelEditor } from "./SectionLabelEditor";
 export { SliderEditor } from "./SliderEditor";
 export { AnimatedHeadingEditor } from "./AnimatedHeadingEditor";
@@ -25,4 +25,7 @@ export { EventPicker } from "./EventPicker";
 export { ProfilePicker } from "./ProfilePicker";
 export { MeetingBookingEditor } from "./MeetingBookingEditor";
 export { SponsorsEditor } from "./SponsorsEditor";
-export { ProgressCarouselEditor } from "./ProgressCarouselEditor";
+export {
+  ProgressCarouselEditor,
+  PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,
+} from "./ProgressCarouselEditor";

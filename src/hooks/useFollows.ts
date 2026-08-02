@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 
 export type FollowTargetType = "author" | "category" | "tag" | "program";
 
@@ -67,7 +68,7 @@ export function useToggleFollow() {
       void qc.invalidateQueries({ queryKey: ["follows", user?.id] });
       void qc.invalidateQueries({ queryKey: ["my-interests"] });
       void qc.invalidateQueries({ queryKey: ["profile-counts"] });
-      void qc.invalidateQueries({ queryKey: ["recommended-posts"] });
+      void qc.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.recommendedPosts] });
       void qc.invalidateQueries({ queryKey: ["followed-feed"] });
     },
   });

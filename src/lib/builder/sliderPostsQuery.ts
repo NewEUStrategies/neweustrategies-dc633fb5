@@ -9,6 +9,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
+import { asNum, asStr } from "@/lib/builder/contentValue";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 export interface SliderPostRow {
@@ -24,18 +26,11 @@ export interface SliderPostRow {
 }
 
 function getStr(c: WidgetContent, key: string): string {
-  const value = c[key];
-  return typeof value === "string" ? value : "";
+  return asStr(c[key]);
 }
 
 function getNum(c: WidgetContent, key: string, fallback: number): number {
-  const value = c[key];
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return fallback;
+  return asNum(c[key], fallback);
 }
 
 function csv(c: WidgetContent, key: string): string[] {
@@ -52,6 +47,11 @@ export interface SliderPostsInput {
   tagSlugs: string[];
   excludeIds: string[];
   orderBy: string;
+  /** Jezyk WCHODZI do inputu (a wiec i do klucza zapytania), bo przy
+   *  orderBy="title" decyduje o kolumnie sortowania (title_pl vs title_en).
+   *  Bez niego PL i EN dzielily jeden wpis cache: przelaczenie jezyka
+   *  zwracalo liste posortowana po drugim jezyku. */
+  lang: Lang;
 }
 
 /** The display limit a posts-mode slider renders. */
@@ -59,7 +59,8 @@ export function sliderPostsLimit(c: WidgetContent): number {
   return Math.max(1, Math.min(20, getNum(c, "limit", 5)));
 }
 
-function sliderPostsInput(c: WidgetContent): SliderPostsInput {
+/** Znormalizowany input - pochodna wylacznie tresci widgetu i jezyka. */
+export function sliderPostsInput(c: WidgetContent, lang: Lang): SliderPostsInput {
   return {
     limit: sliderPostsLimit(c),
     categoryId: getStr(c, "categoryId"),
@@ -67,7 +68,14 @@ function sliderPostsInput(c: WidgetContent): SliderPostsInput {
     tagSlugs: csv(c, "tagSlugs"),
     excludeIds: csv(c, "excludeIds"),
     orderBy: getStr(c, "orderBy") || "newest",
+    lang,
   };
+}
+
+/** Kolumna sortowania slidera - czysta, wiec kontrakt jest testowalny bez bazy. */
+export function sliderPostsOrderColumn(orderBy: string, lang: Lang): string {
+  if (orderBy !== "title") return "published_at";
+  return lang === "en" ? "title_en" : "title_pl";
 }
 
 /**
@@ -95,8 +103,8 @@ export function sliderUsesPostsSource(c: WidgetContent): boolean {
   return !hasBoundItems;
 }
 
-async function fetchSliderPosts(input: SliderPostsInput, lang: Lang): Promise<SliderPostRow[]> {
-  const { limit, categoryId, categorySlugs, tagSlugs, excludeIds, orderBy } = input;
+async function fetchSliderPosts(input: SliderPostsInput): Promise<SliderPostRow[]> {
+  const { limit, categoryId, categorySlugs, tagSlugs, excludeIds, orderBy, lang } = input;
   let allowedIds: string[] | null = null;
   if (categoryId) {
     const { data } = await supabase
@@ -137,25 +145,26 @@ async function fetchSliderPosts(input: SliderPostsInput, lang: Lang): Promise<Sl
   if (allowedIds) q = q.in("id", allowedIds);
   if (excludeIds.length) q = q.not("id", "in", `(${excludeIds.join(",")})`);
   const ascending = orderBy === "oldest";
-  const orderCol = orderBy === "title" ? (lang === "en" ? "title_en" : "title_pl") : "published_at";
-  q = q.order(orderCol, { ascending });
+  q = q.order(sliderPostsOrderColumn(orderBy, lang), { ascending });
   q = q.limit(limit);
   const { data } = await q;
   return (data ?? []) as SliderPostRow[];
 }
 
 export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
-  const input = sliderPostsInput(c);
+  const input = sliderPostsInput(c, lang);
   return queryOptions({
-    // Key shape kept identical to the widget's historical inline query so
-    // deploys don't orphan warm cache entries.
-    queryKey: ["builder-slider-posts", input] as const,
+    // Korzeń klucza z WIDGET_QUERY_ROOTS - ten sam literał, z którego wyprowadzony
+    // jest zbiór inwalidacji live, więc rozjazd nazw jest niewyrażalny.
+    // `lang` jest CZĘŚCIĄ inputu: przy orderBy="title" queryFn sortuje po
+    // title_pl vs title_en, więc klucz bez języka serwował PL-owi wynik
+    // posortowany po EN (i odwrotnie) do końca okna świeżości.
+    queryKey: [WIDGET_QUERY_ROOTS.sliderPosts, input] as const,
     queryFn: () =>
       // Per-isolate TTL: hero-slider strony głównej to do ~4 round-tripów na
-      // render. `lang` w kluczu, bo wpływa na kolumnę sortowania przy
-      // orderBy="title" (na kliencie przezroczyste).
-      edgeTtlCache(`builder:slider-posts:${lang}:${JSON.stringify(input)}`, 60_000, () =>
-        fetchSliderPosts(input, lang),
+      // render. Klucz cache pochodzi z całego inputu (zawiera już `lang`).
+      edgeTtlCache(`builder:slider-posts:${JSON.stringify(input)}`, 60_000, () =>
+        fetchSliderPosts(input),
       ),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,

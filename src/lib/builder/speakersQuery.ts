@@ -9,6 +9,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 export type Lang = "pl" | "en";
@@ -128,7 +129,7 @@ async function fetchPublicSpeakers(input: {
 export const speakersQueryOptions = (c: WidgetContent, _lang: Lang) => {
   const input = speakersInput(c);
   return queryOptions({
-    queryKey: ["builder-speakers", input] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.speakers, input] as const,
     queryFn: () =>
       // Tryb "event" bez wybranego wydarzenia = stan nieskonfigurowany:
       // pusta lista (widget pokazuje empty state), a NIE pelny katalog
@@ -154,7 +155,7 @@ export const speakersQueryOptions = (c: WidgetContent, _lang: Lang) => {
 export const speakersByIdsQueryOptions = (userIds: string[]) => {
   const ids = Array.from(new Set(userIds)).sort();
   return queryOptions({
-    queryKey: ["builder-speakers-by-ids", ids] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.speakersByIds, ids] as const,
     queryFn: () =>
       ids.length === 0
         ? Promise.resolve([] as PublicSpeakerRow[])
@@ -169,7 +170,7 @@ export const speakersByIdsQueryOptions = (userIds: string[]) => {
 /** Pojedynczy profil prelegenta (dialog profilu). */
 export const speakerProfileQueryOptions = (userId: string) =>
   queryOptions({
-    queryKey: ["public-speaker-profile", userId] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.publicSpeakerProfile, userId] as const,
     queryFn: async (): Promise<PublicSpeakerRow | null> => {
       if (!userId) return null;
       const rows = await fetchPublicSpeakers({ eventId: null, userIds: [userId], limit: 1 });
@@ -219,7 +220,7 @@ async function fetchSpeakerEngagements(
 
 export const speakerEngagementsQueryOptions = (userId: string, limit = 8) =>
   queryOptions({
-    queryKey: ["public-speaker-engagements", userId, limit] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.publicSpeakerEngagements, userId, limit] as const,
     queryFn: () => (userId ? fetchSpeakerEngagements(userId, limit) : Promise.resolve([])),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,

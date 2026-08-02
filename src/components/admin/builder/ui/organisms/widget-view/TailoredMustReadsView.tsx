@@ -12,9 +12,36 @@ import { supabase } from "@/integrations/supabase/client";
 import { toPlVocative } from "@/lib/i18n/plVocative";
 import { localizedPath } from "@/lib/i18n/localePath";
 import type { WidgetContent } from "@/lib/builder/types";
-import { getNum, getStr } from "./frame";
+import { asBool, asNumInRange, asOneOf, pickI18n } from "@/lib/builder/contentValue";
 
 type Lang = "pl" | "en";
+
+/**
+ * Klasy siatki dla 1-4 kolumn. Zawsze jedna kolumna na telefonie, dwie od
+ * `sm`, docelowa liczba od `lg` - dzieki temu wariant 4-kolumnowy nie sciska
+ * kart do nieczytelnej szerokosci na tablecie.
+ *
+ * Klucze sa liczbami, bo `columns` czytamy przez `asNum`: schemat zapisuje
+ * wybor selecta jako string ("1".."4"), a stary odczyt przez `getNum`
+ * odrzucal stringi i siatka ZAWSZE miala 3 kolumny, niezaleznie od wyboru.
+ */
+const GRID_COLS: Readonly<Record<1 | 2 | 3 | 4, string>> = {
+  1: "grid-cols-1",
+  2: "grid-cols-1 sm:grid-cols-2",
+  3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+  4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
+};
+
+/** Liczba kolumn zawezona do zakresu obslugiwanego przez `GRID_COLS`. */
+export function tailoredColumns(c: WidgetContent): 1 | 2 | 3 | 4 {
+  const n = Math.round(asNumInRange(c["columns"], 3, 1, 4));
+  return (n === 1 || n === 2 || n === 4 ? n : 3) as 1 | 2 | 3 | 4;
+}
+
+/** Klasy siatki dla aktualnego ustawienia kolumn (eksport dla testow). */
+export function tailoredGridClass(c: WidgetContent): string {
+  return GRID_COLS[tailoredColumns(c)];
+}
 
 const DEFAULT_LABEL_PL = "Twoje wybrane must-reads, {name}";
 const DEFAULT_LABEL_EN = "Your tailored must-reads, {name}";
@@ -96,21 +123,21 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
   const firstName = useCurrentUserFirstName();
   const { user, loading: authLoading } = useAuth();
 
-  const limit = Math.min(Math.max(getNum(c, "limit", 3), 1), 9);
-  const columns = Math.min(Math.max(getNum(c, "columns", 3), 1), 4);
-  const showKicker = getStr(c, "showKicker") !== "0";
-  const showExcerpt = getStr(c, "showExcerpt") !== "0";
-  const showAuthor = getStr(c, "showAuthor") !== "0";
-  const audienceRaw = getStr(c, "audience") || "auth";
-  const audience: "auth" | "all" | "guest" =
-    audienceRaw === "all" || audienceRaw === "guest" ? audienceRaw : "auth";
+  // Kazde ustawienie idzie przez kanoniczna koercje z `contentValue`: panel
+  // zapisuje stringi ("3", "0"), defaulty palety - natywne typy. Odczyt
+  // `typeof v === "number"` cicho gubil wybor uzytkownika.
+  const limit = Math.round(asNumInRange(c["limit"], 3, 1, 9));
+  const showKicker = asBool(c["showKicker"], true);
+  const showExcerpt = asBool(c["showExcerpt"], true);
+  const showAuthor = asBool(c["showAuthor"], true);
+  const audience = asOneOf(c["audience"], ["auth", "all", "guest"] as const, "auth");
   const kicker =
-    getStr(c, `kicker_${lang}`) || (lang === "pl" ? "Polecane dla ciebie" : "Recommended for you");
+    pickI18n(c, "kicker", lang) || (lang === "pl" ? "Polecane dla ciebie" : "Recommended for you");
 
   const template =
-    getStr(c, `label_${lang}`) || (lang === "pl" ? DEFAULT_LABEL_PL : DEFAULT_LABEL_EN);
+    pickI18n(c, "label", lang) || (lang === "pl" ? DEFAULT_LABEL_PL : DEFAULT_LABEL_EN);
   const fallbackNoUser =
-    getStr(c, `fallback_${lang}`) || (lang === "pl" ? FALLBACK_LABEL_PL : FALLBACK_LABEL_EN);
+    pickI18n(c, "fallback", lang) || (lang === "pl" ? FALLBACK_LABEL_PL : FALLBACK_LABEL_EN);
 
   const heading = useMemo(() => {
     const rendered = renderLabel(template, firstName, lang);
@@ -131,14 +158,7 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
   if (audience === "auth" && !user) return null;
   if (audience === "guest" && user) return null;
 
-  const gridCols =
-    columns === 1
-      ? "grid-cols-1"
-      : columns === 2
-        ? "grid-cols-1 sm:grid-cols-2"
-        : columns === 4
-          ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-          : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+  const gridCols = tailoredGridClass(c);
 
   return (
     <section className="w-full" data-widget="tailored-must-reads">

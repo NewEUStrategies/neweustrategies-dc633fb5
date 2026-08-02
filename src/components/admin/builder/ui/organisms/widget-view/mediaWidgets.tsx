@@ -3,9 +3,21 @@ import { type CSSProperties, type SyntheticEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import { safeImageUrl } from "@/lib/sanitize";
-import { getStr, getNum, type Lang } from "./frame";
+import { getStr, type Lang } from "./frame";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
-import type { SliderVariant } from "@/lib/builder/sliderVariants";
+// UWAGA: importujemy z `sliderOptions` (czyste dane), NIE z `sliderVariants` -
+// renderer slidera ma zostać w leniwym chunku (lazyWidgets), a nie wpaść tu
+// przez import stałych.
+import {
+  NAV_ARROW_VARIANT_VALUES,
+  NAV_BG_STYLES,
+  NAV_POSITIONS,
+  SLIDER_AUTHOR_DISPLAYS,
+  SLIDER_RATIOS,
+  SLIDER_ROUNDED_VALUES,
+  SLIDER_VARIANT_VALUES,
+} from "@/lib/builder/sliderOptions";
+import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/builder/contentValue";
 import { SliderRender } from "./lazyWidgets";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +37,12 @@ type SiteLogoCfg = {
   };
 };
 type WidgetMediaFrameStyle = CSSProperties & { "--widget-media-fit"?: CSSProperties["objectFit"] };
+
+/** Czy redakcja w ogóle ustawiła to pole. Puste/`null` traktujemy jak brak,
+ *  żeby "nie ustawiono" (globalny default) nie zlało się z "ustawiono na 0". */
+function isSet(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== "";
+}
 function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: string } {
   const { data } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<SiteLogoCfg>(data, "theme_options", {});
@@ -243,17 +261,27 @@ export function PostsSliderWidget({
   lang: Lang;
   typography?: WidgetTypography;
 }) {
-  const variant = (getStr(c, "variant") || "hero-overlay") as SliderVariant;
-  const ratio = (getStr(c, "ratio") || "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
+  const variant = asOneOf(c.variant, SLIDER_VARIANT_VALUES, "editorial-hero");
+  const ratio = asOneOf(c.ratio, SLIDER_RATIOS, "16/9");
   // Jawna wartość z inspektora wygrywa; brak = globalny default karuzeli
-  // (Motyw -> Karuzele), rozstrzygany w SliderRender.
-  const autoplay = typeof c.autoplay === "boolean" ? c.autoplay : undefined;
-  const intervalMs = typeof c.intervalMs === "number" ? c.intervalMs : undefined;
-  const rounded = (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full";
-  const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
-  const showExcerpt = c.showExcerpt !== false;
-  const showAuthor = c.showAuthor !== false;
-  const showCover = c.showCover !== false;
+  // (Motyw -> Karuzele), rozstrzygany w SliderRender. `isSet` odróżnia "nie
+  // ustawiono" od "ustawiono na fałsz/zero" - inaczej wyłączony autoplay
+  // wracałby do globalnego domyślnego włączenia.
+  const autoplay = isSet(c.autoplay) ? asBool(c.autoplay, true) : undefined;
+  const intervalMs = isSet(c.intervalMs) ? asNum(c.intervalMs, 4500) : undefined;
+  const rounded = asOneOf(c.rounded, SLIDER_ROUNDED_VALUES, "md");
+  const overlayOpacity = asNumInRange(c.overlayOpacity, 0.45, 0, 1);
+  // Sekcja "Wyświetlanie" panelu: te ustawienia muszą dojechać do SliderRender,
+  // inaczej przełączniki w edytorze są martwe (renderer domyślnie pokazuje wszystko).
+  const showExcerpt = asBool(c.showExcerpt, true);
+  const showCover = asBool(c.showCover, true);
+  const showTitle = asBool(c.showTitle, true);
+  const authorDisplay = asOneOf(
+    c.authorDisplay,
+    SLIDER_AUTHOR_DISPLAYS,
+    asBool(c.showAuthor, true) ? "avatar" : "none",
+  );
+  const showAuthor = authorDisplay !== "none";
   const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "";
 
   // Shared with the SSR prefetch registry (lib/builder/prefetch), so the
@@ -298,8 +326,7 @@ export function PostsSliderWidget({
       },
     });
 
-  const columnsRaw = getNum(c, "columns", 3);
-  const columns = Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4;
+  const columns = Math.round(asNumInRange(c.columns, 3, 1, 4)) as 1 | 2 | 3 | 4;
 
   // While the initial fetch is in flight, hold layout with a quiet shimmer
   // instead of flashing the "Dodaj obrazki do slidera" empty state - that
@@ -332,43 +359,34 @@ export function PostsSliderWidget({
     rounded,
     overlayOpacity,
     columns,
-    titleSizePx: typeof c.titleSizePx === "number" ? c.titleSizePx : undefined,
-    titleWeight: typeof c.titleWeight === "number" ? c.titleWeight : undefined,
-    subtitleSizePx: typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : undefined,
-    subtitleWeight: typeof c.subtitleWeight === "number" ? c.subtitleWeight : undefined,
-    navSizePx: typeof c.navSizePx === "number" ? c.navSizePx : undefined,
-    navRoundedPx: typeof c.navRoundedPx === "number" ? c.navRoundedPx : undefined,
-    navBgColor: typeof c.navBgColor === "string" ? c.navBgColor : undefined,
-    navArrowColor: typeof c.navArrowColor === "string" ? c.navArrowColor : undefined,
-    navBgStyle: (typeof c.navBgStyle === "string" ? c.navBgStyle : undefined) as
-      | "glass"
-      | "solid"
-      | "outline"
-      | "soft"
-      | "gradient"
-      | "shadow"
-      | undefined,
-    navPosition: (typeof c.navPosition === "string" ? c.navPosition : undefined) as
-      | "mid"
-      | "mid-outside"
-      | "bottom"
-      | "top"
-      | undefined,
-    navArrowVariant: (typeof c.navArrowVariant === "string" ? c.navArrowVariant : undefined) as
-      | "chevron"
-      | "chevron-bold"
-      | "arrow"
-      | "arrow-long"
-      | "caret"
-      | "angle"
-      | "double-chevron"
-      | "arrow-tail"
-      | undefined,
-    navArrowStroke: typeof c.navArrowStroke === "number" ? c.navArrowStroke : undefined,
+    titleSizePx: isSet(c.titleSizePx) ? asNum(c.titleSizePx, 0) : undefined,
+    titleWeight: isSet(c.titleWeight) ? asNum(c.titleWeight, 0) : undefined,
+    subtitleSizePx: isSet(c.subtitleSizePx) ? asNum(c.subtitleSizePx, 0) : undefined,
+    subtitleWeight: isSet(c.subtitleWeight) ? asNum(c.subtitleWeight, 0) : undefined,
+    navSizePx: isSet(c.navSizePx) ? asNumInRange(c.navSizePx, 52, 28, 96) : undefined,
+    navRoundedPx: isSet(c.navRoundedPx) ? asNum(c.navRoundedPx, 999) : undefined,
+    navBgColor: asStr(c.navBgColor) || undefined,
+    navArrowColor: asStr(c.navArrowColor) || undefined,
+    navBgStyle: asOneOf(c.navBgStyle, NAV_BG_STYLES, "glass"),
+    navPosition: asOneOf(c.navPosition, NAV_POSITIONS, "mid"),
+    navArrowVariant: asOneOf(c.navArrowVariant, NAV_ARROW_VARIANT_VALUES, "chevron"),
+    navArrowStroke: isSet(c.navArrowStroke)
+      ? asNumInRange(c.navArrowStroke, 2.25, 0.5, 4)
+      : undefined,
     typography,
     showExcerpt,
     showAuthor,
+    showTitle,
     showCover,
+    // Pełny tryb autora (avatar / etykieta / brak) plus etykiety PL+EN -
+    // sam boolean `showAuthor` gubił wariant "label" i renderował avatar.
+    authorDisplay,
+    authorLabel_pl: asStr(c.authorLabel_pl),
+    authorLabel_en: asStr(c.authorLabel_en),
+    // Rozmiary metadanych autora działały wyłącznie w podglądzie edytora;
+    // bez nich kanwa i strona publiczna trzymały sztywne 12/20 px.
+    authorSizePx: asNumInRange(c.authorSizePx, 12, 8, 24),
+    authorAvatarSizePx: asNumInRange(c.authorAvatarSizePx, 20, 8, 64),
     // Nie odfiltrowujemy slajdów po braku cover_image_url - inaczej wyłączenie
     // "Pokaż cover" (lub post bez okładki) trwale usuwałoby slajd z karuzeli
     // i nie dałoby się go przywrócić bez ponownego dodania okładki do wpisu.

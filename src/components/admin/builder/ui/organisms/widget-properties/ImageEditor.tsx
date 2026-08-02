@@ -1,10 +1,20 @@
 // Organism: image widget editor (light/dark variants + preview + alt + link).
+//
+// Prezentacja obrazka (podpis, wariant, dopasowanie, proporcje) NIE jest tu
+// przepisywana ręcznie: pola mieszkają w `WIDGET_SCHEMAS.image` (jedyne źródło
+// prawdy dla etykiet, opcji i tłumaczeń EN) i są rysowane tą samą molekułą
+// `SchemaFieldControl`, co reszta panelu. Wcześniej ten edytor przesłaniał cały
+// blok schematu, więc cztery ustawienia obsługiwane przez renderer
+// (mediaWidgets.tsx) były w panelu nieosiągalne.
 import { useState } from "react";
 import { Sun, Moon, Image as ImageIcon } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
+import { WIDGET_SCHEMAS, type SchemaField } from "@/lib/builder/schemas";
+import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { PropField } from "../../atoms";
+import { SchemaFieldControl } from "../../molecules/SchemaFieldControl";
 import { ImageSlot } from "./ImageSlot";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
@@ -15,8 +25,32 @@ interface Props {
   setContent: (k: string, v: Json) => void;
 }
 
+/** Pola schematu obrazka rysowane przez ten edytor (kolejność = kolejność w UI). */
+const PRESENTATION_KEYS = ["caption", "variant", "objectFit", "ratio"] as const;
+
+const PRESENTATION_FIELDS: ReadonlyArray<SchemaField> = PRESENTATION_KEYS.map((key) =>
+  (WIDGET_SCHEMAS.image ?? []).find((f) => f.key === key),
+).filter((f): f is SchemaField => f !== undefined);
+
+/**
+ * Klucze treści, które ImageEditor obsługuje SAM. Panel (`WidgetProperties`)
+ * używa tego zbioru, żeby dorenderować pola schematu spoza listy zamiast je
+ * po cichu zjeść - patrz `CUSTOM_EDITOR_HANDLED_KEYS`.
+ */
+export const IMAGE_EDITOR_HANDLED_KEYS: ReadonlySet<string> = new Set<string>([
+  "src",
+  "srcDark",
+  "alt",
+  "widthPx",
+  "maxWidthPx",
+  "align",
+  "href",
+  ...PRESENTATION_KEYS,
+]);
+
 export function ImageEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
+  const bl = useBuilderLabel();
   const src = typeof c.src === "string" ? c.src : "";
   const srcDark = typeof c.srcDark === "string" ? c.srcDark : "";
   const altPl = typeof c.alt_pl === "string" ? c.alt_pl : "";
@@ -185,6 +219,21 @@ export function ImageEditor({ c, lang, setContent }: Props) {
           />
         </PropField>
       </div>
+
+      <section className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-2">
+        <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          {bl("Wygląd")}
+        </h4>
+        {PRESENTATION_FIELDS.map((field) => (
+          <SchemaFieldControl
+            key={field.key}
+            field={field}
+            lang={lang}
+            content={c}
+            setContent={setContent}
+          />
+        ))}
+      </section>
       <div className="text-[10px] text-muted-foreground">
         {t("builder.imageEditor.activeLang", { lang: lang.toUpperCase() })}
       </div>

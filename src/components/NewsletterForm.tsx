@@ -4,7 +4,7 @@
 //
 // Opcjonalny `widgetConfig` pozwala nadpisywać etykiety / placeholdery per-pole,
 // wymuszać pokazanie dodatkowych pól (imię/nazwisko/firma) oraz renderować
-// custom fields zdefiniowane w builderze — całość leci do CRM przez server.
+// custom fields zdefiniowane w builderze - całość leci do CRM przez server.
 import * as React from "react";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,6 +16,7 @@ import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
+import { floatingPlaceholder } from "@/components/ui/floating-input";
 import {
   collectCustomValues,
   parseCustomFields,
@@ -79,12 +80,12 @@ export function NewsletterForm({
   const { t } = useTranslation();
   const { data: s } = useNewsletterSettings();
   // Inside the CMS builder canvas the widget must stay visible even when the
-  // newsletter is disabled — otherwise it silently vanishes mid-edit.
+  // newsletter is disabled - otherwise it silently vanishes mid-edit.
   const inBuilder = useBuilderMode() !== null;
   const cfg = widgetConfig ?? {};
 
   // ALL hooks must run before any conditional return: settings load async, so
-  // the inline_doc branch below can flip between renders — an early return
+  // the inline_doc branch below can flip between renders - an early return
   // above these hooks made React throw "Rendered fewer hooks than expected"
   // and the whole widget vanished into the error boundary.
   const [email, setEmail] = useState("");
@@ -126,7 +127,7 @@ export function NewsletterForm({
       >
         {!s
           ? "Newsletter: wczytywanie ustawień…"
-          : "Newsletter jest wyłączony w ustawieniach — ten widget nie wyświetla się na stronie."}
+          : "Newsletter jest wyłączony w ustawieniach - ten widget nie wyświetla się na stronie."}
       </div>
     );
   }
@@ -376,6 +377,7 @@ export function NewsletterForm({
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder={P.email}
                   maxLength={254}
                 />
               </FieldWrap>
@@ -414,13 +416,17 @@ function FieldWrap({
   error?: string;
   children: React.ReactElement<{ className?: string; placeholder?: string }>;
 }) {
-  // Floating-label wrapper: injects `.input` + neutralny placeholder do dziecka,
-  // dzięki czemu label unosi się na obramowanie po focus / gdy pole ma wartość.
+  // Floating-label wrapper: wstrzykuje klasę `.input` do dziecka, dzięki czemu
+  // label unosi się na obramowanie po focus / gdy pole ma wartość.
+  // Placeholder z ustawień widgetu przechodzi dalej bez zmian - CSS ukrywa go,
+  // dopóki pole nie ma focusu (`:not(:focus)::placeholder`), więc etykieta i
+  // podpowiedź nigdy nie nachodzą na siebie. Pole bez własnego placeholdera
+  // dostaje spacer, bo `:placeholder-shown` wymaga niepustego atrybutu.
   // Semantyczne tokeny (border/ring/destructive/background) => light+dark OK.
   const injectedClass = ["input", children.props.className].filter(Boolean).join(" ");
   const cloned = React.cloneElement(children, {
     className: injectedClass,
-    placeholder: " ",
+    placeholder: floatingPlaceholder(children.props.placeholder),
   });
   return (
     <div className="input-group" data-invalid={error ? "true" : undefined}>

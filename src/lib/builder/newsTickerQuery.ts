@@ -8,6 +8,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
+import { asBool, asNum, asStr } from "@/lib/builder/contentValue";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 export interface TickerPost {
@@ -28,20 +30,13 @@ interface NewsTickerInput {
 const UNIQUE_FETCH_HEADROOM = 18;
 
 function readBool(c: WidgetContent, key: string, dflt: boolean): boolean {
-  const v = c[key];
-  if (typeof v === "boolean") return v;
-  if (typeof v === "string") return v === "true" || v === "1";
-  return dflt;
+  return asBool(c[key], dflt);
 }
 function readNum(c: WidgetContent, key: string, dflt: number): number {
-  const v = c[key];
-  if (typeof v === "number") return v;
-  if (typeof v === "string" && v.trim() && !Number.isNaN(Number(v))) return Number(v);
-  return dflt;
+  return asNum(c[key], dflt);
 }
 function readStr(c: WidgetContent, key: string, dflt = ""): string {
-  const v = c[key];
-  return typeof v === "string" ? v : dflt;
+  return asStr(c[key]) || dflt;
 }
 
 /** Number of items the ticker displays (before over-fetch). */
@@ -96,7 +91,7 @@ async function fetchTickerPosts(input: NewsTickerInput): Promise<TickerPost[]> {
 export const newsTickerQueryOptions = (c: WidgetContent, _lang: Lang) => {
   const input = newsTickerInput(c);
   return queryOptions({
-    queryKey: ["builder-news-ticker", input] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.newsTicker, input] as const,
     queryFn: () =>
       // Per-isolate TTL: ticker w chrome jest prefetchowany na każdej trasie z
       // builderowym headerem/footerem - bez cache płacił do 3 round-tripów na

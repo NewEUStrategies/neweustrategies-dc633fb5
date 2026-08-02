@@ -9,6 +9,7 @@ import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/glob
 import { parsePopupSettings, type PopupSettings } from "@/lib/builder/popups";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import type { BuilderDocument } from "@/lib/builder/types";
+import { WIDGET_QUERY_ROOTS } from "./queryKeys";
 
 export type BuilderEntityType = "global_widget" | "popup";
 
@@ -94,8 +95,10 @@ export function useRestoreBuilderRevision(entityType: BuilderEntityType) {
     },
     onSuccess: (_r, revision) => {
       void qc.invalidateQueries({ queryKey: builderRevisionsKey(entityType, revision.entity_id) });
-      void qc.invalidateQueries({ queryKey: ["global-widgets"] });
-      void qc.invalidateQueries({ queryKey: ["global-widget", revision.entity_id] });
+      void qc.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.globalWidgets] });
+      void qc.invalidateQueries({
+        queryKey: [WIDGET_QUERY_ROOTS.globalWidget, revision.entity_id],
+      });
       void qc.invalidateQueries({ queryKey: ["builder-popups-admin"] });
       emitWidgetCacheInvalidate();
     },

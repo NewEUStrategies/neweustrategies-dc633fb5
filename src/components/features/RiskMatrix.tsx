@@ -6,6 +6,7 @@
 import { useMemo } from "react";
 import type { RiskMatrixConfig, FeatureLang } from "@/lib/features/types";
 import { pickBi } from "@/lib/features/types";
+import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { FeatureFrame, FeatureDataTable, FEATURE_TABLE_CLS } from "./FeatureFrame";
 
 const L = {
@@ -57,6 +58,9 @@ function cellColor(score: number): string {
 
 export function RiskMatrix({ config, lang, className }: Props) {
   const t = L[lang];
+  // Animacja wejścia - ten sam hook i te same klasy co Timeline / Sankey /
+  // Network / CorridorMap (pole "animate" jest w schemacie tego widgetu).
+  const { ref: revealRef, state: revealState } = useRevealOnScroll<HTMLDivElement>(config.animate);
 
   // Rozmieszczenie w komórkach: klucz "L-I" -> lista indeksów elementów.
   const byCell = useMemo(() => {
@@ -141,16 +145,18 @@ export function RiskMatrix({ config, lang, className }: Props) {
           </span>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="grid grid-cols-5 gap-1">
-            {rows.map((likelihood) =>
-              cols.map((impact) => {
+          <div ref={revealRef} className={`grid grid-cols-5 gap-1 ${revealClassName(revealState)}`}>
+            {rows.map((likelihood, rowIdx) =>
+              cols.map((impact, colIdx) => {
                 const score = likelihood * impact;
                 const idxs = byCell.get(`${likelihood}-${impact}`) ?? [];
                 return (
                   <div
                     key={`${likelihood}-${impact}`}
-                    className="relative flex aspect-[4/3] items-center justify-center gap-1 rounded-md p-1 text-center"
-                    style={{ background: cellColor(score) }}
+                    className="nes-feature-reveal relative flex aspect-[4/3] items-center justify-center gap-1 rounded-md p-1 text-center"
+                    // Fala po przekątnej (lewy górny -> prawy dolny): 9 kroków
+                    // zamiast 25, więc macierz wchodzi w ok. 0,4 s.
+                    style={{ background: cellColor(score), ["--nes-i" as string]: rowIdx + colIdx }}
                   >
                     {idxs.map((idx) => (
                       <span

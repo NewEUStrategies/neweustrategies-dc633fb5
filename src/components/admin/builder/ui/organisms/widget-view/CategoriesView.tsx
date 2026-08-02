@@ -1,12 +1,15 @@
 // Organism: categories chip list (live data).
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 
 type Lang = "pl" | "en";
 
 export function CategoriesView({ lang }: { lang: Lang }) {
   const { data } = useQuery({
-    queryKey: ["builder-cats"],
+    // Korzen z WIDGET_QUERY_ROOTS - ten sam literal zasila zbior inwalidacji
+    // live, wiec zmiana kategorii faktycznie odswieza ten widget.
+    queryKey: [WIDGET_QUERY_ROOTS.categories],
     queryFn: async () =>
       (await supabase.from("categories").select("id, slug, name_pl, name_en")).data ?? [],
   });

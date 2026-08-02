@@ -146,7 +146,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Etykieta (badge)": "Label (badge)",
   "Etykieta CTA": "CTA label",
   "Etykieta archiwum": "Archive label",
-  "Etykieta autora (i18n)": "Author label (i18n)",
   "Etykieta osi X (wpływ)": "X axis label (impact)",
   "Etykieta osi Y (prawdopodobieństwo)": "Y axis label (likelihood)",
   "Etykieta podczas wysyłki": "Label while submitting",
@@ -208,7 +207,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Ikona nagłówka": "Heading icon",
   "Ikonka": "Icon",
   "Głos": "Voice",
-  "Limit": "Limit",
   "Limit wyników": "Result limit",
   "Sortowanie": "Sorting",
   "Wariant": "Variant",
@@ -245,7 +243,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Rozmiar (px)": "Size (px)",
   "Rozmiar tytułu (px)": "Title size (px)",
   "Rozmiar podtytułu (px)": "Subtitle size (px)",
-  "Rozmiar czcionki autora (px)": "Author font size (px)",
   "Rozmiar opisu (px)": "Description size (px)",
   "Rozmiar opisu / podtytułu (px)": "Description / subtitle size (px)",
   "Rozmiar tekstu (px)": "Text size (px)",
@@ -408,6 +405,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Pokaż nagłówek": "Show the heading",
   "Pokaż kicker": "Show the kicker",
   "Pokaż autora (zdjęcie + imię i nazwisko)": "Show the author (photo + full name)",
+  "Na telefonie zawsze jedna kolumna, od tabletu dwie, wybrana liczba od dużego ekranu.":
+    "Always one column on phones, two from tablet up, the selected number on large screens.",
   "Pokaż opis (zajawkę)": "Show the description (excerpt)",
   "Pokaż odtwarzacz": "Show the player",
   "Pokaż wybór zainteresowań": "Show the interest picker",
@@ -477,10 +476,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "No background, hairline dashed border, text-only active state with a left rule.",
   "Domyślnie /support (strona darowizn).": "Defaults to /support (the donations page).",
   "Domyślnie 40 px.": "Defaults to 40 px.",
-  "Domyślnie 12 px.": "Default 12 px.",
-  "Rozmiar zdjęcia autora (px)": "Author photo size (px)",
-  "Domyślnie 20 px. Niezależne od rozmiaru czcionki.":
-    "Default 20 px. Independent of the font size.",
 
   "Domyślnie widget wyświetla się wyłącznie zalogowanym użytkownikom - rekomendacje bazują na ich zainteresowaniach, obserwacjach i historii czytania.":
     "By default the widget is shown only to signed-in users - recommendations are based on their interests, follows and reading history.",
@@ -491,10 +486,14 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "The higher the value, the slower the scroll.",
   "Indeks kolumny do podświetlenia akcentem marki. Puste = brak.":
     "Index of the column highlighted with the brand accent. Empty = none.",
-  "Jak ikony mają się zachowywać w dark / light mode.":
-    "How the icons should behave in dark / light mode.",
+  "Jawny kolor ma pierwszeństwo przed adaptacją dark / light.":
+    "An explicit color takes precedence over the dark / light adaptation.",
+  "Dotyczy kolorów dziedziczonych - nie nadpisuje jawnego wyboru w polu „Kolory ikon”.":
+    "Applies to inherited colors - it does not override an explicit choice in the Icon colors field.",
   "Klucz menu zdefiniowanego w Wygląd → Menu (domyślnie: main).":
     "Key of a menu defined under Appearance → Menu (default: main).",
+  "Kliknięcie zdjęcia otwiera je na pełnym ekranie (Esc zamyka, strzałki przewijają).":
+    "Clicking a photo opens it full screen (Esc closes, arrow keys navigate).",
   "Kody ISO-2 rozdzielone przecinkiem lub średnikiem.":
     "ISO-2 codes separated by a comma or a semicolon.",
   "Lista renderuje każdą platformę jako osobny wiersz z etykietą i CTA (Like / Follow / Subscribe).":
@@ -582,7 +581,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "nie": "no",
   "tak (min. 1)": "yes (min. 1)",
   "tak - do 5 ostatnich": "yes - up to the last 5",
-  "Tak (trzyma się przy scrollu)": "Yes (sticks while scrolling)",
   "włączony": "on",
   "włączona": "on",
   "włączone": "on",
@@ -662,13 +660,11 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "minimalny": "minimal",
   "rozsunięte": "spaced out",
   "karta": "card",
-  "karty": "cards",
   "karta z cieniem": "card with a shadow",
   "karta z formularzem": "card with a form",
   "karta boczna (kompakt)": "side card (compact)",
   "kolumny": "columns",
   "siatka": "grid",
-  "lista": "list",
   "karuzela": "carousel",
   "kołowy": "pie",
   "pierścień (donut)": "ring (donut)",
@@ -686,7 +682,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "split (left: benefits, right: form)",
   "split z grafiką (lewo: obraz + korzyści, prawo: formularz)":
     "split with an image (left: image + benefits, right: form)",
-  "overlay na okładce": "overlay on the cover",
   "z cieniem": "with a shadow",
   "z ikoną na środku": "with a centred icon",
   "z dużym cudzysłowem": "with a large quotation mark",
@@ -854,17 +849,14 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Pole: Nazwisko - widoczne?": "Field: Last name - visible?",
   "Pole: Firma - widoczne?": "Field: Company - visible?",
   "Pole: Telefon - widoczne?": "Field: Phone - visible?",
-  "Pole: E-mail - widoczne?": "Field: Email - visible?",
-  "Pole: Hasło - widoczne?": "Field: Password - visible?",
   "Pole: Powtórz hasło - widoczne?": "Field: Repeat password - visible?",
   "Pole: Powtórz nowe hasło - widoczne?": "Field: Repeat new password - visible?",
   "Pole: Zapamiętaj mnie - widoczne?": "Field: Remember me - visible?",
   "Imię - wymagane?": "First name - required?",
   "Firma - wymagane?": "Company - required?",
-  "Hasło - wymagane?": "Password - required?",
   "Powtórz hasło - wymagane?": "Repeat password - required?",
   "Powtórz nowe hasło - wymagane?": "Repeat new password - required?",
-  "Zapamiętaj mnie - wymagane?": "Remember me - required?",
+  "Minimalna długość hasła": "Minimum password length",
   "Etykieta: Imię": "Label: First name",
   "Etykieta: Nazwisko": "Label: Last name",
   "Etykieta: Firma": "Label: Company",
@@ -885,9 +877,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Placeholder: Nowe hasło": "Placeholder: New password",
   "Placeholder: Powtórz hasło": "Placeholder: Repeat password",
   "Placeholder: Powtórz nowe hasło": "Placeholder: Repeat new password",
-  "Placeholder: Zapamiętaj mnie": "Placeholder: Remember me",
-  'Puste = domyślnie „Autor" (PL) / „By" (EN). Wpisz własne słowo, np. „Pisze", „Rozmawia", „Words by".':
-    'Empty = defaults to “Autor” (PL) / “By” (EN). Enter your own wording, e.g. “Written by”, “In conversation with”, “Words by”.',
   'Ikona Lucide „Check" - zmienia się tylko kolor, kształt pozostaje bez zmian. Puste = brand (lub biały w wariancie split-image).':
     'The Lucide “Check” icon - only the colour changes, the shape stays the same. Empty = brand (or white in the split-image variant).',
   'Przykład: {"id":"branza","type":"select","labelPl":"Branża","labelEn":"Industry","required":true,"options":[{"value":"fintech","labelPl":"Fintech","labelEn":"Fintech"}]}':
@@ -896,6 +885,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     'For the “spacing only” variant the value sets the height of the empty space.',
 
   // ------------------------------------------------------ data-format hints
+  "Na wykresie kołowym wartość pojawia się pod udziałem procentowym, w wycinkach od 8% wzwyż.":
+    "On a pie chart the value is placed under the percentage share, in slices of 8% and above.",
   'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony).':
     'The spreadsheet opens in a popup with a live chart preview. Text format: first row "; Series name; Series name", then "Category; value; value" (";" separator, decimal comma allowed).',
   'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).':
@@ -1021,16 +1012,9 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Kolor i typografia tekstu w tooltipie przypisu.":
     "Colour and typography of the text inside the footnote tooltip.",
   // ------------------------------------------- post-list / donations / events
-  "Pokaż okładkę (cover)": "Show the cover",
-  "Wyświetlanie": "Display",
-  "Pokaż tytuł": "Show the title",
-  "Pokaż opis (excerpt)": "Show the excerpt",
-  "Autor (wariant ranked)": "Author (ranked variant)",
-  "Wybierz sposób prezentacji autora pod tytułem.":
-    "Choose how the author is presented under the title.",
-  "Zdjęcie + imię i nazwisko": "Photo + full name",
-  'Etykieta „Autor: Imię Nazwisko"': 'Label “Author: Full Name”',
-  "Bez autora": "No author",
+  // Etykiety wyswietlania i autora dla post-listy zyja w `i18n-builder.ts`
+  // (klucze `builder.postListEditor.*`), bo obsluguje je dedykowany
+  // `PostListEditor`, a nie schemat sterowany danymi.
   "Tryb akcji": "Action mode",
   "bezpośredni link do zbiórki (zrzutka.pl)": "direct link to the fundraiser (zrzutka.pl)",
   "Wpłaty obsługuje zewnętrzna zbiórka (zrzutka.pl) - CTA nigdy nie otwiera checkoutu operatora płatności.":
@@ -1055,6 +1039,60 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Tekst pustej listy": "Empty-state text",
   "Brak zaplanowanych wydarzeń.": "No scheduled events.",
   "Lista wydarzeń": "Event list",
+  // ---------------------------------------- widgety dynamiczne (post-* / archiwum)
+  "Widget czyta dane bieżącego wpisu. Poza stroną wpisu (np. w nagłówku lub stopce) pozostaje ukryty - nigdy nie pokazuje danych przykładowych.":
+    "The widget reads the current post. Outside a post page (for example in the header or the footer) it stays hidden - it never shows sample data.",
+  "Widget czyta dane archiwum (kategoria / tag). Poza stroną archiwum pozostaje ukryty.":
+    "The widget reads archive data (category / tag). Outside an archive page it stays hidden.",
+  "Linkuj do wpisu": "Link to the post",
+  "Tekst zastępczy (gdy brak tytułu)": "Fallback text (when there is no title)",
+  "Pokaż autora": "Show author",
+  "Pokaż kategorię": "Show category",
+  "Pokaż datę": "Show date",
+  "Format daty": "Date format",
+  skrócony: "short",
+  względny: "relative",
+  "Pokaż czas czytania": "Show reading time",
+  "Pokaż liczbę odsłon": "Show view count",
+  "Realna liczba odsłon wpisu, liczona po stronie serwera w obrębie tenanta. Kanwa buildera pokazuje wartość przykładową.":
+    "The real number of post views, counted server-side within the tenant. The builder canvas shows a sample value.",
+  pigułki: "pills",
+  obrys: "outline",
+  "Pokaż etykietę": "Show label",
+  "Limit (0 = bez limitu)": "Limit (0 = no limit)",
+  "w linii": "inline",
+  wyśrodkowany: "centred",
+  "Pokaż awatar": "Show avatar",
+  "Pokaż biogram": "Show bio",
+  "Pokaż linki społecznościowe": "Show social links",
+  "Pokaż stronę główną": "Show the home crumb",
+  "Etykieta strony głównej": "Home crumb label",
+  ukośnik: "slash",
+  strzałka: "arrow",
+  "Zaokrąglone rogi": "Rounded corners",
+  "Pokaż podpis": "Show caption",
+  "Podpis pod okładką": "Caption under the cover",
+  "Maksymalna liczba znaków (0 = bez limitu)": "Maximum characters (0 = no limit)",
+  "Pokaż opis": "Show description",
+  "Pokaż liczbę wpisów": "Show post count",
+  // ------------------------------- chrome: copyright / lang-switcher / search
+  "Nazwa marki": "Brand name",
+  "Wszelkie prawa zastrzeżone": "All rights reserved",
+  "Pokaż rok": "Show the year",
+  "Dopisuje znak © i bieżący rok przed nazwą marki.":
+    "Prefixes the line with © and the current year, before the brand name.",
+  "Zmień język": "Change language",
+  "Czyta ją czytnik ekranu. Widoczna na stronie tylko przy włączonym przełączniku poniżej.":
+    "Read out by screen readers. Visible on the page only when the switch below is on.",
+  "Pokaż etykietę tekstową": "Show the text label",
+  "Wyświetla etykietę obok przełącznika PL/EN.": "Shows the label next to the PL/EN switch.",
+  "Adres wyników wyszukiwania": "Search results URL",
+  "Formularz wysyła metodą GET parametr q pod ten adres.":
+    "The form submits the q parameter to this URL with GET.",
+  "Szukaj...": "Search...",
+  // --------------------------------------------------------- progress carousel
+  "Proporcje kadru slajdu na mobile i tablecie.": "Slide frame aspect ratio on mobile and tablet.",
+  "Kolor paska postępu. Puste = kolor marki.": "Progress bar colour. Empty = the brand colour.",
 };
 /* eslint-enable prettier/prettier */
 

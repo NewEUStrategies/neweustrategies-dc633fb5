@@ -11,16 +11,52 @@ import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQu
 import { CAROUSEL_DEFAULTS, useCarouselDefaults } from "@/lib/theme/carouselDefaults";
 import { AppLink, toClientHref } from "@/components/atoms/AppLink";
 import { useRouter } from "@tanstack/react-router";
+import { asBool, asNum, asNumInRange, asOneOf, asStr, pickI18n } from "./contentValue";
+import {
+  NAV_ARROW_VARIANT_VALUES,
+  NAV_BG_STYLES,
+  NAV_POSITIONS,
+  SLIDER_AUTHOR_DISPLAYS,
+  SLIDER_RATIOS,
+  SLIDER_ROUNDED_VALUES,
+  SLIDER_VARIANT_VALUES,
+  type NavArrowVariant,
+  type NavBgStyle,
+  type NavPosition,
+  type SliderAuthorDisplay,
+  type SliderRatio,
+  type SliderRounded,
+  type SliderVariant,
+} from "./sliderOptions";
 import type { WidgetTypography } from "./types";
 
-export type SliderVariant =
-  | "editorial-hero"
-  | "multi-card"
-  | "cinematic-overlay"
-  | "split-feature"
-  | "minimal-strip";
+// Katalogi i zbiory wartości mieszkają w `sliderOptions` (moduł bez runtime'u
+// Reacta), żeby miejsca wywołania mogły zawężać treść widgetu bez wciągania
+// tego renderera do głównego bundla. Re-eksport utrzymuje stare importy.
+export {
+  NAV_ARROW_VARIANTS,
+  NAV_ARROW_VARIANT_VALUES,
+  NAV_BG_STYLES,
+  NAV_POSITIONS,
+  SLIDER_AUTHOR_DISPLAYS,
+  SLIDER_RATIOS,
+  SLIDER_ROUNDED_VALUES,
+  SLIDER_VARIANTS,
+  SLIDER_VARIANT_VALUES,
+} from "./sliderOptions";
+export type {
+  NavArrowVariant,
+  NavBgStyle,
+  NavPosition,
+  SliderAuthorDisplay,
+  SliderRatio,
+  SliderRounded,
+  SliderVariant,
+} from "./sliderOptions";
 
-export interface SliderItem {
+/** Typ (nie interface) świadomie: dzięki temu slajd ma niejawną sygnaturę
+ *  indeksu i można go czytać helperami z `contentValue` (pickI18n). */
+export type SliderItem = {
   image: string;
   /** Optional bound post - cover/title/href become live unless overridden. */
   postId?: string;
@@ -38,32 +74,12 @@ export interface SliderItem {
   authorAvatar?: string;
   authorSlug?: string;
   readTime?: string;
-}
-
-export const SLIDER_VARIANTS: { value: SliderVariant; label: string }[] = [
-  { value: "editorial-hero", label: "Editorial Hero" },
-  { value: "multi-card", label: "Karuzela kart (3-up)" },
-  { value: "cinematic-overlay", label: "Cinematic Overlay" },
-  { value: "split-feature", label: "Split Feature" },
-  { value: "minimal-strip", label: "Minimal + miniatury" },
-];
-
-export type NavBgStyle = "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow";
-export type NavPosition = "mid" | "mid-outside" | "bottom" | "top";
-export type NavArrowVariant =
-  | "chevron" // sharp V (default)
-  | "chevron-bold" // heavier V
-  | "arrow" // arrow with shaft
-  | "arrow-long" // long shaft, sharp head
-  | "caret" // filled triangle
-  | "angle" // thin single line
-  | "double-chevron" // >>
-  | "arrow-tail"; // arrow with feather tail
+};
 
 export interface SliderConfig {
   variant?: SliderVariant;
   items: SliderItem[];
-  ratio?: "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
+  ratio?: SliderRatio;
   /** Brak wartości = globalny default karuzeli (Motyw -> Karuzele). */
   autoplay?: boolean;
   /** Brak wartości = globalny default karuzeli (Motyw -> Karuzele). */
@@ -74,7 +90,7 @@ export interface SliderConfig {
   loop?: boolean;
   /** Czas przejścia ślizgu (ms); brak wartości = globalny default. */
   speedMs?: number;
-  rounded?: "none" | "sm" | "md" | "lg" | "xl" | "full";
+  rounded?: SliderRounded;
   overlayOpacity?: number;
   titleSizePx?: number;
   titleWeight?: number;
@@ -90,7 +106,7 @@ export interface SliderConfig {
   showTitle?: boolean;
   /** Author presentation mode. avatar = avatar+name, label = "Autor: Name",
    *  none = hide. When set, supersedes legacy showAuthor. */
-  authorDisplay?: "avatar" | "label" | "none";
+  authorDisplay?: SliderAuthorDisplay;
   /** Optional i18n override for the label prefix in authorDisplay='label'. */
   authorLabel_pl?: string;
   authorLabel_en?: string;
@@ -126,18 +142,18 @@ export interface NavStyleResolved {
 }
 
 function resolveNavStyle(cfg: SliderConfig): NavStyleResolved {
-  const sizePx = Math.max(28, Math.min(96, cfg.navSizePx ?? 52));
-  const radiusRaw = typeof cfg.navRoundedPx === "number" ? cfg.navRoundedPx : 999;
+  const sizePx = asNumInRange(cfg.navSizePx, 52, 28, 96);
+  const radiusRaw = asNum(cfg.navRoundedPx, 999);
   const radiusCss = radiusRaw >= 999 ? "9999px" : `${Math.max(0, radiusRaw)}px`;
-  const arrowStroke = Math.max(0.5, Math.min(4, cfg.navArrowStroke ?? 2.25));
+  const arrowStroke = asNumInRange(cfg.navArrowStroke, 2.25, 0.5, 4);
   return {
     sizePx,
     radiusCss,
-    bgColor: cfg.navBgColor ?? "#ffffff",
-    arrowColor: cfg.navArrowColor ?? "#ffffff",
-    bgStyle: cfg.navBgStyle ?? "glass",
-    position: cfg.navPosition ?? "mid",
-    arrowVariant: cfg.navArrowVariant ?? "chevron",
+    bgColor: asStr(cfg.navBgColor) || "#ffffff",
+    arrowColor: asStr(cfg.navArrowColor) || "#ffffff",
+    bgStyle: asOneOf(cfg.navBgStyle, NAV_BG_STYLES, "glass"),
+    position: asOneOf(cfg.navPosition, NAV_POSITIONS, "mid"),
+    arrowVariant: asOneOf(cfg.navArrowVariant, NAV_ARROW_VARIANT_VALUES, "chevron"),
     arrowStroke,
   };
 }
@@ -243,17 +259,6 @@ function NavArrowGlyph({
       );
   }
 }
-
-export const NAV_ARROW_VARIANTS: { value: NavArrowVariant; label: string }[] = [
-  { value: "chevron", label: "Chevron (klasyczny V)" },
-  { value: "chevron-bold", label: "Chevron pogrubiony" },
-  { value: "arrow", label: "Strzałka (z trzonem)" },
-  { value: "arrow-long", label: "Strzałka długa" },
-  { value: "caret", label: "Caret (trójkąt wypełniony)" },
-  { value: "angle", label: "Angle (cienki kąt)" },
-  { value: "double-chevron", label: "Podwójny chevron »" },
-  { value: "arrow-tail", label: "Strzałka z ogonem" },
-];
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
   none: "0px",
@@ -684,15 +689,18 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   // identyczne z dawnymi stałymi, a autoplay i tak startuje dopiero w efekcie.
   const { data: globalCarousel } = useCarouselDefaults();
   const carouselG = globalCarousel ?? CAROUSEL_DEFAULTS;
-  const variant: SliderVariant = config.variant ?? "editorial-hero";
-  const ratio = config.ratio ?? "4/3";
-  const autoplay = config.autoplay ?? carouselG.autoplay;
-  const intervalMs = Math.max(1500, config.intervalMs ?? carouselG.intervalMs);
-  const pauseOnHover = config.pauseOnHover ?? carouselG.pauseOnHover;
-  const loopSlides = config.loop ?? carouselG.loop;
-  const speedMs = Math.min(3000, Math.max(100, config.speedMs ?? carouselG.speedMs));
-  const rounded = radiusMap[config.rounded ?? "md"];
-  const overlayOpacity = typeof config.overlayOpacity === "number" ? config.overlayOpacity : 0.45;
+  // Każde ustawienie przechodzi przez contentValue: konfiguracja slidera
+  // przychodzi z trzech niezależnych źródeł (panel, defaulty palety, starsze
+  // rewizje dokumentów), więc "3" musi znaczyć 3, a "0" musi znaczyć fałsz.
+  const variant = asOneOf(config.variant, SLIDER_VARIANT_VALUES, "editorial-hero");
+  const ratio = asOneOf(config.ratio, SLIDER_RATIOS, "4/3");
+  const autoplay = asBool(config.autoplay, carouselG.autoplay);
+  const intervalMs = Math.max(1500, asNum(config.intervalMs, carouselG.intervalMs));
+  const pauseOnHover = asBool(config.pauseOnHover, carouselG.pauseOnHover);
+  const loopSlides = asBool(config.loop, carouselG.loop);
+  const speedMs = asNumInRange(config.speedMs, carouselG.speedMs, 100, 3000);
+  const rounded = radiusMap[asOneOf(config.rounded, SLIDER_ROUNDED_VALUES, "md")];
+  const overlayOpacity = asNumInRange(config.overlayOpacity, 0.45, 0, 1);
   const titleSize = config.typography?.fontSize?.desktop;
   const descSize = config.typography?.descriptionFontSize?.desktop;
   const sharedTypography: CSSProperties = {
@@ -711,37 +719,36 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       ? { textDecoration: config.typography.textDecoration }
       : {}),
   };
+  const titleSizePx = asNum(config.titleSizePx, 0);
+  const titleWeight = asNum(config.titleWeight, 0);
+  const subtitleSizePx = asNum(config.subtitleSizePx, 0);
+  const subtitleWeight = asNum(config.subtitleWeight, 0);
+  const titleDescriptionGapPx = asNum(config.typography?.titleDescriptionGapPx, -1);
   const titleStyle: CSSProperties = {
     ...sharedTypography,
     ...(titleSize
       ? { fontSize: titleSize }
-      : typeof config.titleSizePx === "number" && config.titleSizePx > 0
-        ? { fontSize: `${config.titleSizePx}px`, lineHeight: 1.15 }
+      : titleSizePx > 0
+        ? { fontSize: `${titleSizePx}px`, lineHeight: 1.15 }
         : {}),
-    ...(!config.typography?.fontWeight && typeof config.titleWeight === "number"
-      ? { fontWeight: config.titleWeight }
-      : {}),
+    ...(!config.typography?.fontWeight && titleWeight > 0 ? { fontWeight: titleWeight } : {}),
   };
   const subtitleStyle: CSSProperties = {
     ...sharedTypography,
     ...(descSize
       ? { fontSize: descSize }
-      : typeof config.subtitleSizePx === "number" && config.subtitleSizePx > 0
-        ? { fontSize: `${config.subtitleSizePx}px`, lineHeight: 1.5 }
+      : subtitleSizePx > 0
+        ? { fontSize: `${subtitleSizePx}px`, lineHeight: 1.5 }
         : {}),
-    ...(!config.typography?.fontWeight && typeof config.subtitleWeight === "number"
-      ? { fontWeight: config.subtitleWeight }
-      : {}),
-    ...(typeof config.typography?.titleDescriptionGapPx === "number"
-      ? { marginTop: `${config.typography.titleDescriptionGapPx}px` }
-      : {}),
+    ...(!config.typography?.fontWeight && subtitleWeight > 0 ? { fontWeight: subtitleWeight } : {}),
+    ...(titleDescriptionGapPx >= 0 ? { marginTop: `${titleDescriptionGapPx}px` } : {}),
   };
 
   const [idx, setIdx] = useState(0);
   useEffect(() => {
     setIdx(0);
   }, [items.length]);
-  const columns = Math.max(1, Math.min(4, config.columns ?? 3)) as 1 | 2 | 3 | 4;
+  const columns = Math.round(asNumInRange(config.columns, 3, 1, 4)) as 1 | 2 | 3 | 4;
   const visibleCount = variant === "multi-card" ? columns : 1;
   const stepCount = Math.max(1, items.length - (variant === "multi-card" ? visibleCount - 1 : 0));
   // Pauza autoplay pod kursorem (globalny default z możliwością nadpisania);
@@ -804,7 +811,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     dragRef.current = { startX: e.clientX, lastX: e.clientX, pointerId: e.pointerId, active: true };
     force((n) => n + 1);
-    // NOTE: nie wolno tutaj setPointerCapture — gdyby drag-surface przechwyciła
+    // NOTE: nie wolno tutaj setPointerCapture - gdyby drag-surface przechwyciła
     // pointer od razu, click trafiałby w kontener zamiast w <a> pod spodem
     // (multi-card / split / cinematic mają linki wewnątrz drag-surface).
     // Przechwycenie robimy dopiero po realnym ruchu w onPointerMove.
@@ -864,29 +871,31 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   };
 
   const nav = resolveNavStyle(config);
-  const showExcerpt = config.showExcerpt !== false;
-  const showCover = config.showCover !== false;
-  const showTitle = config.showTitle !== false;
-  const authorDisplay: "avatar" | "label" | "none" =
-    config.authorDisplay ?? (config.showAuthor === false ? "none" : "avatar");
+  const showExcerpt = asBool(config.showExcerpt, true);
+  const showCover = asBool(config.showCover, true);
+  const showTitle = asBool(config.showTitle, true);
+  // `authorDisplay` jest kanoniczne; starsze dokumenty mają wyłącznie boolean
+  // `showAuthor`, więc służy on tylko za wartość domyślną dla zawężenia.
+  const authorDisplay = asOneOf(
+    config.authorDisplay,
+    SLIDER_AUTHOR_DISPLAYS,
+    asBool(config.showAuthor, true) ? "avatar" : "none",
+  );
   const showAuthor = authorDisplay !== "none";
+  // Etykieta jest domykana dwukropkiem tutaj, więc redakcja może wpisać zarówno
+  // "Autor", jak i "Autor:" - nigdy nie powstanie "Autor: : Jan Kowalski".
+  const authorLabelRaw = (
+    lang === "en" ? asStr(config.authorLabel_en) : asStr(config.authorLabel_pl)
+  ).trim();
   const authorLabelPrefix =
     authorDisplay === "label"
-      ? (lang === "en"
-          ? config.authorLabel_en?.trim() || "By"
-          : config.authorLabel_pl?.trim() || "Autor") + ": "
+      ? `${(authorLabelRaw || (lang === "en" ? "By" : "Autor")).replace(/\s*:\s*$/, "")}: `
       : "";
   // Metadane autora: domyślna czcionka 12 px (parytet ze stroną główną).
-  const authorFontPx = Math.max(
-    8,
-    Math.min(24, typeof config.authorSizePx === "number" ? config.authorSizePx : 12),
-  );
+  const authorFontPx = asNumInRange(config.authorSizePx, 12, 8, 24);
   const authorStyle: CSSProperties = { fontSize: `${authorFontPx}px`, lineHeight: 1.35 };
   // Awatar jest niezależny od czcionki: domyślnie 20 px (parytet ze stroną główną).
-  const authorAvatarPx = Math.max(
-    8,
-    Math.min(64, typeof config.authorAvatarSizePx === "number" ? config.authorAvatarSizePx : 20),
-  );
+  const authorAvatarPx = asNumInRange(config.authorAvatarSizePx, 20, 8, 64);
 
   const sharedProps = {
     items,
@@ -914,6 +923,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     showExcerpt,
     showAuthor,
     showTitle,
+    authorDisplay,
     authorLabelPrefix,
     authorStyle,
     authorAvatarPx,
@@ -925,6 +935,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       ref={rootRef}
       className="w-full h-full min-h-0 eh-slider"
       data-hide-cover={showCover ? undefined : "true"}
+      data-show-title={showTitle ? "true" : "false"}
+      data-author-display={authorDisplay}
       style={{ "--eh-speed": `${speedMs}ms` } as CSSProperties}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -934,10 +946,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       {variant === "cinematic-overlay" && <CinematicOverlayVariant {...sharedProps} />}
       {variant === "split-feature" && <SplitFeatureVariant {...sharedProps} />}
       {variant === "minimal-strip" && <MinimalStripVariant {...sharedProps} />}
-      {(variant === "editorial-hero" ||
-        !["multi-card", "cinematic-overlay", "split-feature", "minimal-strip"].includes(
-          variant,
-        )) && <EditorialHeroVariant {...sharedProps} />}
+      {variant === "editorial-hero" && <EditorialHeroVariant {...sharedProps} />}
     </div>
   );
 }
@@ -977,6 +986,7 @@ type VariantProps = {
   showExcerpt: boolean;
   showAuthor: boolean;
   showTitle: boolean;
+  authorDisplay: SliderAuthorDisplay;
   authorLabelPrefix: string;
   authorStyle: CSSProperties;
   authorAvatarPx: number;
@@ -985,7 +995,10 @@ type VariantProps = {
 
 /** Compact author badge: 6px-rounded avatar + display name; links to the
  *  author profile when a slug is present. Used across all slider variants so
- *  editing a post's author propagates live via useResolvedPostRefs. */
+ *  editing a post's author propagates live via useResolvedPostRefs.
+ *
+ *  `showAvatar={false}` realizuje tryb `authorDisplay="label"`: zostaje sam
+ *  tekst "Autor: Imię Nazwisko", bez zdjęcia i bez kafelka z inicjałem. */
 function AuthorBadge({
   name,
   avatar,
@@ -994,6 +1007,7 @@ function AuthorBadge({
   size = 22,
   fontPx,
   labelPrefix = "",
+  showAvatar = true,
 }: {
   name?: string;
   avatar?: string;
@@ -1004,36 +1018,48 @@ function AuthorBadge({
    *  autora dziedziczy globalny rozmiar bazowy (16px) w części wariantów. */
   fontPx?: number;
   labelPrefix?: string;
+  showAvatar?: boolean;
 }) {
-  if (!name && !avatar) return null;
-  const safeAvatar = avatar ? safeImageUrl(avatar) : "";
+  if (!name && !(showAvatar && avatar)) return null;
+  const safeAvatar = avatar && showAvatar ? safeImageUrl(avatar) : "";
   const initial = (name || "?").trim().charAt(0).toUpperCase();
   const textCls = tone === "dark" ? "text-white" : "text-foreground/80";
   const fontStyle: CSSProperties = fontPx
     ? { fontSize: `${fontPx}px`, lineHeight: 1.35 }
     : { fontSize: "inherit" };
   const inner = (
-    <span className="inline-flex items-center gap-1.5" style={fontStyle} data-typography-exempt>
-      {safeAvatar ? (
-        <img
-          src={safeAvatar}
-          alt={name || ""}
-          width={size}
-          height={size}
-          loading="lazy"
-          decoding="async"
-          className="object-cover shrink-0"
-          style={{ width: size, height: size, borderRadius: 6 }}
-        />
-      ) : (
-        <span
-          aria-hidden
-          className="inline-flex items-center justify-center bg-muted text-foreground/70 font-semibold shrink-0"
-          style={{ width: size, height: size, borderRadius: 6, fontSize: Math.round(size * 0.55) }}
-        >
-          {initial}
-        </span>
-      )}
+    <span
+      className="inline-flex items-center gap-1.5"
+      style={fontStyle}
+      data-typography-exempt
+      data-author-badge={showAvatar ? "avatar" : "label"}
+    >
+      {showAvatar &&
+        (safeAvatar ? (
+          <img
+            src={safeAvatar}
+            alt={name || ""}
+            width={size}
+            height={size}
+            loading="lazy"
+            decoding="async"
+            className="object-cover shrink-0"
+            style={{ width: size, height: size, borderRadius: 6 }}
+          />
+        ) : (
+          <span
+            aria-hidden
+            className="inline-flex items-center justify-center bg-muted text-foreground/70 font-semibold shrink-0"
+            style={{
+              width: size,
+              height: size,
+              borderRadius: 6,
+              fontSize: Math.round(size * 0.55),
+            }}
+          >
+            {initial}
+          </span>
+        ))}
       {name && (
         <span className={`font-medium ${textCls}`} style={fontStyle} data-typography-exempt>
           {labelPrefix}
@@ -1059,15 +1085,17 @@ function AuthorBadge({
 }
 
 function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
-  const rawTitle = (lang === "en" ? it.title_en : it.title_pl) || it.title_pl || it.title_en || "";
-  const rawSub = (lang === "en" ? it.subtitle_en : it.subtitle_pl) || it.subtitle_pl || "";
-  const cat = (lang === "en" ? it.category_en : it.category_pl) || it.category_pl || "";
+  // pickI18n = żądany język -> PL -> EN. Ten sam łańcuch dla tytułu, zajawki
+  // i kategorii, więc slajd wypełniony tylko po angielsku nie znika w PL.
+  const rawTitle = pickI18n(it, "title", lang);
+  const rawSub = pickI18n(it, "subtitle", lang);
+  const cat = pickI18n(it, "category", lang);
   return {
     title: truncate(rawTitle, TITLE_MAX),
     sub: truncate(rawSub, EXCERPT_MAX),
     cat,
-    href: safeUrl(it.href ?? "") || undefined,
-    catColor: it.categoryColor || "#ef6c2e",
+    href: safeUrl(asStr(it.href)) || undefined,
+    catColor: asStr(it.categoryColor) || "#ef6c2e",
   };
 }
 
@@ -1199,6 +1227,7 @@ function EditorialHeroVariant(p: VariantProps) {
                 size={p.authorAvatarPx}
                 fontPx={p.authorFontPx}
                 labelPrefix={p.authorLabelPrefix}
+                showAvatar={p.authorDisplay === "avatar"}
               />
             )}
             {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">|</span>}
@@ -1345,6 +1374,7 @@ function MultiCardVariant(p: VariantProps) {
                           size={p.authorAvatarPx}
                           fontPx={p.authorFontPx}
                           labelPrefix={p.authorLabelPrefix}
+                          showAvatar={p.authorDisplay === "avatar"}
                         />
                       )}
                       {p.showAuthor && it.author && it.readTime && (
@@ -1462,6 +1492,7 @@ function CinematicOverlayVariant(p: VariantProps) {
                     size={p.authorAvatarPx}
                     fontPx={p.authorFontPx}
                     labelPrefix={p.authorLabelPrefix}
+                    showAvatar={p.authorDisplay === "avatar"}
                   />
                 )}
                 {p.showAuthor && cur.author && cur.readTime && (
@@ -1619,6 +1650,7 @@ function SplitFeatureVariant(p: VariantProps) {
                 size={p.authorAvatarPx}
                 fontPx={p.authorFontPx}
                 labelPrefix={p.authorLabelPrefix}
+                showAvatar={p.authorDisplay === "avatar"}
               />
             )}
             {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">·</span>}

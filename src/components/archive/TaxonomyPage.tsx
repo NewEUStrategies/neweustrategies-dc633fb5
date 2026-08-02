@@ -11,6 +11,8 @@ import { useTransition, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
+import { CurrentPostProvider } from "@/lib/builder/currentPostContext";
+import { buildArchiveCtx } from "@/lib/builder/archiveContext";
 import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/archives";
 import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcasts";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
@@ -103,10 +105,12 @@ export function TaxonomyPage({
     <>
       {taxonomy.featured_section && (
         <section className="border-b border-border">
-          <BuilderRenderer
-            doc={{ version: 1, sections: [taxonomy.featured_section] }}
-            lang={lang}
-          />
+          <CurrentPostProvider value={buildArchiveCtx(kind, taxonomy, total, lang)}>
+            <BuilderRenderer
+              doc={{ version: 1, sections: [taxonomy.featured_section] }}
+              lang={lang}
+            />
+          </CurrentPostProvider>
         </section>
       )}
       <LayoutComponent

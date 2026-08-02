@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { toJson } from "@/lib/builder/types";
 import type { Json } from "@/lib/builder/types";
+import { asBool } from "@/lib/builder/contentValue";
 import type { SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
 import { Input } from "@/components/ui/input";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectTrigger,
@@ -36,6 +38,13 @@ const asString = (v: unknown): string => (typeof v === "string" ? v : "");
 
 const asStringArray = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+
+/** One entry per line, trimmed, empties dropped - shared by both array fields. */
+const splitLines = (raw: string): string[] =>
+  raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
 export function SchemaFieldControl({ field, lang, content, setContent }: Props) {
   const { t } = useTranslation();
@@ -261,22 +270,45 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       );
     }
 
+    case "bool": {
+      // Real booleans, never "0"/"1" strings: a string "0" is truthy, which is
+      // exactly how several auth-form toggles ended up being impossible to
+      // switch off. Readers still coerce via `asBool` for legacy content.
+      const checked = asBool(content[field.key], field.default === true);
+      return (
+        <PropField label={label} hint={hint}>
+          <div className="flex h-8 items-center">
+            <Switch
+              checked={checked}
+              onCheckedChange={(next) => setContent(field.key, next)}
+              aria-label={label}
+            />
+          </div>
+        </PropField>
+      );
+    }
+
     case "stringArray":
       return (
         <PropField label={label} hint={hint}>
           <Textarea
             rows={field.rows ?? 4}
             value={asStringArray(content[field.key]).join("\n")}
-            onChange={(e) =>
-              setContent(
-                field.key,
-                e.target.value
-                  .split("\n")
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              )
-            }
+            onChange={(e) => setContent(field.key, splitLines(e.target.value))}
             className="text-xs font-mono"
+          />
+        </PropField>
+      );
+
+    case "i18nStringArray":
+      return (
+        <PropField label={`${label} (${langSuffix})`} hint={hint}>
+          <Textarea
+            rows={field.rows ?? 4}
+            value={asStringArray(content[i18nKey]).join("\n")}
+            onChange={(e) => setContent(i18nKey, splitLines(e.target.value))}
+            className="text-xs font-mono"
+            aria-label={`${label} (${langSuffix})`}
           />
         </PropField>
       );

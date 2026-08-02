@@ -2,6 +2,15 @@
 // Single source of truth for the simple widget content editors.
 // Complex list-style widgets (accordion, tabs, pricing) keep custom editors.
 import type { WidgetType } from "./types";
+import { asBool } from "./contentValue";
+
+/**
+ * Wspólna podpowiedź widgetów `post-*`. Od naprawy wycieku danych
+ * przykładowych widget bez kontekstu wpisu renderuje `null` poza kanwą
+ * buildera - redaktor musi to wiedzieć, zanim wstawi go do nagłówka.
+ */
+const POST_CTX_HINT =
+  "Widget czyta dane bieżącego wpisu. Poza stroną wpisu (np. w nagłówku lub stopce) pozostaje ukryty - nigdy nie pokazuje danych przykładowych.";
 
 type FieldType =
   | "text" // single-line, language-agnostic
@@ -12,10 +21,12 @@ type FieldType =
   | "icon" // Lucide icon picker (searchable library)
   | "number"
   | "select"
+  | "bool" // real boolean switch - NEVER model an on/off setting as a "0"/"1" select
   | "color" // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
   | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
-  | "stringArray"; // textarea with one item per line
+  | "stringArray" // textarea with one item per line
+  | "i18nStringArray"; // textarea with one item per line, stored as `${key}_pl|_en`
 
 export interface SchemaField {
   /** Storage key for non-i18n fields, OR base key (without `_pl|_en`) for i18n fields. */
@@ -28,7 +39,7 @@ export interface SchemaField {
   max?: number;
   step?: number;
   /** Optional default value used when content has no value yet. */
-  default?: number | string;
+  default?: number | string | boolean;
   /** For select fields. */
   options?: ReadonlyArray<{ value: string; label?: string }>;
   /** For textarea fields. */
@@ -147,22 +158,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       max: 120,
       hint: "Działa identycznie na desktopie, tablecie i mobile.",
     },
-    {
-      key: "authorSizePx",
-      type: "number",
-      label: "Rozmiar czcionki autora (px)",
-      min: 8,
-      max: 24,
-      hint: "Domyślnie 12 px.",
-    },
-    {
-      key: "authorAvatarSizePx",
-      type: "number",
-      label: "Rozmiar zdjęcia autora (px)",
-      min: 8,
-      max: 64,
-      hint: "Domyślnie 20 px. Niezależne od rozmiaru czcionki.",
-    },
+    // Uwaga: `authorSizePx` / `authorAvatarSizePx` NIE należą do nagłówka.
+    // Były skopiowane ze schematu slidera (jedyny czytelnik: sliderVariants),
+    // więc panel nagłówka pokazywał dwa pola bez żadnego efektu w renderze.
     {
       key: "subtitleWeight",
       type: "select",
@@ -639,12 +637,10 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     {
       key: "lightbox",
-      type: "select",
+      type: "bool",
       label: "Lightbox",
-      options: [
-        { value: "off", label: "wyłączony" },
-        { value: "on", label: "włączony" },
-      ],
+      default: false,
+      hint: "Kliknięcie zdjęcia otwiera je na pełnym ekranie (Esc zamyka, strzałki przewijają).",
     },
   ],
   icon: [
@@ -739,6 +735,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "on", label: "tak" },
         { value: "off", label: "nie" },
       ],
+      // Wykres kołowy nie ma osi, więc nie ma czego kreskować - przełącznik
+      // był tam cichym no-opem i tylko mylił autora.
+      visibleWhen: (c) => c.kind !== "pie" && c.kind !== "donut",
     },
     {
       key: "showValues",
@@ -748,6 +747,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "off", label: "nie" },
         { value: "on", label: "tak" },
       ],
+      hint: "Na wykresie kołowym wartość pojawia się pod udziałem procentowym, w wycinkach od 8% wzwyż.",
     },
     {
       key: "animate",
@@ -1093,89 +1093,13 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
   ],
-  "post-list": [
-    { key: "limit", type: "number", label: "Limit", min: 1, max: 50 },
-    { key: "columns", type: "number", label: "Kolumny", min: 1, max: 6 },
-    {
-      key: "variant",
-      type: "select",
-      label: "Wariant",
-      options: [
-        { value: "card", label: "karty" },
-        { value: "minimal", label: "minimalny" },
-        { value: "overlay", label: "overlay na okładce" },
-        { value: "list", label: "lista" },
-      ],
-    },
-    {
-      key: "showCover",
-      type: "select",
-      label: "Pokaż okładkę (cover)",
-      options: [
-        { value: "1", label: "Tak" },
-        { value: "0", label: "Nie" },
-      ],
-      default: "1",
-      group: "Wyświetlanie",
-    },
-    {
-      key: "showTitle",
-      type: "select",
-      label: "Pokaż tytuł",
-      options: [
-        { value: "1", label: "Tak" },
-        { value: "0", label: "Nie" },
-      ],
-      default: "1",
-      group: "Wyświetlanie",
-    },
-    {
-      key: "showExcerpt",
-      type: "select",
-      label: "Pokaż opis (excerpt)",
-      options: [
-        { value: "1", label: "Tak" },
-        { value: "0", label: "Nie" },
-      ],
-      default: "1",
-      group: "Wyświetlanie",
-    },
-    {
-      key: "authorDisplay",
-      type: "select",
-      label: "Autor (wariant ranked)",
-      hint: "Wybierz sposób prezentacji autora pod tytułem.",
-      options: [
-        { value: "avatar", label: "Zdjęcie + imię i nazwisko" },
-        { value: "label", label: 'Etykieta „Autor: Imię Nazwisko"' },
-        { value: "none", label: "Bez autora" },
-      ],
-      default: "avatar",
-      visibleWhen: (c) => c.variant === "ranked",
-      group: "Autor",
-    },
-    {
-      key: "authorLabel",
-      type: "i18nText",
-      label: "Etykieta autora (i18n)",
-      hint: 'Puste = domyślnie „Autor" (PL) / „By" (EN). Wpisz własne słowo, np. „Pisze", „Rozmawia", „Words by".',
-      visibleWhen: (c) => c.variant === "ranked" && c.authorDisplay === "label",
-      group: "Autor",
-    },
-  ],
-
-  carousel: [
-    { key: "limit", type: "number", label: "Limit", min: 1, max: 50 },
-    {
-      key: "autoplay",
-      type: "select",
-      label: "Autoodtwarzanie",
-      options: [
-        { value: "off", label: "wyłączone" },
-        { value: "on", label: "włączone" },
-      ],
-    },
-  ],
+  // "post-list" i "carousel" NIE MAJA tu schematu i to jest celowe:
+  // `WidgetProperties.ContentFields` obsluguje oba typy dedykowanym edytorem
+  // (`PostListEditor`) i wraca z niego zanim dojdzie do renderu schematu.
+  // Deklaracje, ktore tu wczesniej stały, byly martwe - nikt ich nie renderowal
+  // (a pole `carousel.autoplay` bylo martwe podwojnie: takze niekonsumowane
+  // przez widok). Ustawienia obu widgetow, z autoodtwarzaniem karuzeli wlacznie,
+  // zyja w `PostListEditor` + `postListCarousel.ts`.
   newsletter: [
     { key: "title", type: "i18nText", label: "Tytuł" },
     {
@@ -1575,7 +1499,31 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
   ],
-  "progress-carousel": [],
+  // Lista slajdów ma własny edytor (ProgressCarouselEditor); te dwa ustawienia
+  // renderer czytał od zawsze (ProgressCarouselView: `ratio`, `accentColor`),
+  // więc mieszkają w schemacie i są renderowane przez ten sam edytor
+  // (SchemaFieldControl), zamiast być duplikowane ręcznym JSX.
+  "progress-carousel": [
+    {
+      key: "ratio",
+      type: "select",
+      label: "Proporcje",
+      options: [
+        { value: "16/9", label: "16:9 - baner poziomy" },
+        { value: "21/9", label: "21:9 - ultrawide cinematic" },
+        { value: "3/2", label: "3:2 - fotografia" },
+        { value: "4/3", label: "4:3 - klasyczny" },
+        { value: "1/1", label: "1:1 - kwadrat" },
+      ],
+      hint: "Proporcje kadru slajdu na mobile i tablecie.",
+    },
+    {
+      key: "accentColor",
+      type: "color",
+      label: "Kolor akcentu (opcjonalny)",
+      hint: "Kolor paska postępu. Puste = kolor marki.",
+    },
+  ],
   "meeting-booking": [],
   "event-sponsors": [],
   "event-list": [
@@ -1666,6 +1614,47 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       group: "Opcje",
     },
   ],
+  // Chrome (nagłówek / stopka). Te trzy widgety miały konsumowane ustawienia
+  // bez ŻADNEJ kontrolki w panelu: redakcja widziała "brak edytowalnych pól",
+  // a renderer i tak czytał `text`/`brand`/`showYear`, `label`, `action`.
+  copyright: [
+    { key: "brand", type: "text", label: "Nazwa marki", placeholder: "New European Strategies" },
+    { key: "text", type: "i18nText", label: "Tekst", placeholder: "Wszelkie prawa zastrzeżone" },
+    {
+      key: "showYear",
+      type: "bool",
+      label: "Pokaż rok",
+      default: true,
+      hint: "Dopisuje znak © i bieżący rok przed nazwą marki.",
+    },
+  ],
+  "lang-switcher": [
+    {
+      key: "label",
+      type: "i18nText",
+      label: "Etykieta",
+      placeholder: "Zmień język",
+      hint: "Czyta ją czytnik ekranu. Widoczna na stronie tylko przy włączonym przełączniku poniżej.",
+    },
+    {
+      key: "showLabel",
+      type: "bool",
+      label: "Pokaż etykietę tekstową",
+      default: false,
+      hint: "Wyświetla etykietę obok przełącznika PL/EN.",
+    },
+  ],
+  "search-form": [
+    {
+      key: "action",
+      type: "text",
+      label: "Adres wyników wyszukiwania",
+      placeholder: "/search",
+      hint: "Formularz wysyła metodą GET parametr q pod ten adres.",
+    },
+    { key: "placeholder", type: "i18nText", label: "Placeholder", placeholder: "Szukaj..." },
+    { key: "button", type: "i18nText", label: "Etykieta przycisku", placeholder: "Szukaj" },
+  ],
   "search-button": [
     { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
     {
@@ -1718,37 +1707,22 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł", placeholder: "Spis treści" },
-    {
-      key: "showNumbers",
-      type: "select",
-      label: "Numeracja",
-      options: [
-        { value: "1", label: "Pokaż" },
-        { value: "0", label: "Ukryj" },
-      ],
-    },
-    {
-      key: "showProgress",
-      type: "select",
-      label: "Pasek postępu czytania",
-      options: [
-        { value: "0", label: "Ukryj" },
-        { value: "1", label: "Pokaż" },
-      ],
-    },
+    { key: "showNumbers", type: "bool", label: "Numeracja", default: true },
+    { key: "showProgress", type: "bool", label: "Pasek postępu czytania", default: false },
     {
       key: "sticky",
-      type: "select",
+      type: "bool",
       label: "Sticky (desktop)",
-      options: [
-        { value: "0", label: "Nie" },
-        { value: "1", label: "Tak (trzyma się przy scrollu)" },
-      ],
+      default: false,
       hint: "Zalecane przy układzie sidebarowym / w wąskiej kolumnie bocznej.",
     },
     {
+      // i18nStringArray, NIE stringArray: renderer czyta `items_pl` / `items_en`
+      // (z fallbackiem na bezjęzykowe `items` dla treści sprzed migracji).
+      // Zapis do gołego `items` przez kontrolkę oznaczał, że ręczne pozycje
+      // nigdy nie trafiały do widgetu.
       key: "items",
-      type: "stringArray",
+      type: "i18nStringArray",
       label: "Pozycje (opcjonalne)",
       hint: "Zostaw puste, aby TOC zaczytał się automatycznie z nagłówków H2/H3 strony. Ręcznie: jedna pozycja per linia. Format: `Tekst` (H2) lub `-- Tekst` (H3). Opcjonalny id: `#moj-id | Tekst`.",
     },
@@ -1849,6 +1823,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "dark", label: "ciemne (czarne)" },
         { value: "light", label: "jasne (białe)" },
       ],
+      hint: "Jawny kolor ma pierwszeństwo przed adaptacją dark / light.",
     },
     {
       key: "customColor",
@@ -1900,7 +1875,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "force-dark", label: "wymuś ciemny styl" },
         { value: "off", label: "wyłączona" },
       ],
-      hint: "Jak ikony mają się zachowywać w dark / light mode.",
+      hint: "Dotyczy kolorów dziedziczonych - nie nadpisuje jawnego wyboru w polu „Kolory ikon”.",
     },
     {
       key: "layout",
@@ -1944,6 +1919,13 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       key: "ctaLinkedin",
       type: "text",
       label: "CTA LinkedIn",
+      placeholder: "Follow",
+      visibleWhen: (c) => c.layout === "list",
+    },
+    {
+      key: "ctaSpotify",
+      type: "text",
+      label: "CTA Spotify",
       placeholder: "Follow",
       visibleWhen: (c) => c.layout === "list",
     },
@@ -2659,6 +2641,171 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       max: 20,
     },
   ],
+
+  // ---------------------------------------------------------------------------
+  // Widgety dynamiczne (kontekst wpisu / archiwum).
+  //
+  // Do tej pory ŻADEN z nich nie miał schematu, więc panel właściwości pokazywał
+  // "Brak edytowalnych pól dla tego widgetu", a defaulty z rejestru (tag, wariant,
+  // separator, limit...) były nieosiągalne z UI. Wszystkie przełączniki są typu
+  // `bool` (prawdziwe true/false); czytelnicy i tak przechodzą przez `asBool`,
+  // więc treść zapisana wcześniej jako "0"/"1" znaczy dalej to samo.
+  // ---------------------------------------------------------------------------
+  "post-title": [
+    {
+      key: "tag",
+      type: "select",
+      label: "Tag (SEO)",
+      hint: POST_CTX_HINT,
+      options: ["h1", "h2", "h3", "h4", "h5", "h6", "p"].map((v) => ({ value: v })),
+      default: "h1",
+    },
+    { key: "linkToPost", type: "bool", label: "Linkuj do wpisu", default: false },
+    { key: "fallback", type: "i18nText", label: "Tekst zastępczy (gdy brak tytułu)" },
+  ],
+  "post-meta": [
+    { key: "showAuthor", type: "bool", label: "Pokaż autora", default: true, hint: POST_CTX_HINT },
+    { key: "showCategory", type: "bool", label: "Pokaż kategorię", default: true },
+    { key: "showDate", type: "bool", label: "Pokaż datę", default: true },
+    {
+      key: "dateFormat",
+      type: "select",
+      label: "Format daty",
+      options: [
+        { value: "long", label: "pełny" },
+        { value: "short", label: "skrócony" },
+        { value: "relative", label: "względny" },
+      ],
+      default: "long",
+      visibleWhen: (c) => asBool(c.showDate, true),
+    },
+    { key: "showReadingTime", type: "bool", label: "Pokaż czas czytania", default: true },
+    {
+      key: "showViews",
+      type: "bool",
+      label: "Pokaż liczbę odsłon",
+      default: false,
+      hint: "Realna liczba odsłon wpisu, liczona po stronie serwera w obrębie tenanta. Kanwa buildera pokazuje wartość przykładową.",
+    },
+    { key: "separator", type: "text", label: "Separator", placeholder: " · " },
+  ],
+  "post-tags-dyn": [
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      hint: POST_CTX_HINT,
+      options: [
+        { value: "pill", label: "pigułki" },
+        { value: "outline", label: "obrys" },
+        { value: "text", label: "tekst" },
+      ],
+      default: "pill",
+    },
+    { key: "showLabel", type: "bool", label: "Pokaż etykietę", default: true },
+    {
+      key: "label",
+      type: "i18nText",
+      label: "Etykieta",
+      visibleWhen: (c) => asBool(c.showLabel, true),
+    },
+  ],
+  "post-categories-dyn": [
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      hint: POST_CTX_HINT,
+      options: [
+        { value: "pill", label: "pigułki" },
+        { value: "outline", label: "obrys" },
+        { value: "text", label: "tekst" },
+      ],
+      default: "pill",
+    },
+    { key: "limit", type: "number", label: "Limit (0 = bez limitu)", min: 0, max: 20, default: 0 },
+  ],
+  "post-author-card": [
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      hint: POST_CTX_HINT,
+      options: [
+        { value: "card", label: "karta" },
+        { value: "inline", label: "w linii" },
+        { value: "centered", label: "wyśrodkowany" },
+      ],
+      default: "card",
+    },
+    { key: "showAvatar", type: "bool", label: "Pokaż awatar", default: true },
+    { key: "showBio", type: "bool", label: "Pokaż biogram", default: true },
+    { key: "showSocial", type: "bool", label: "Pokaż linki społecznościowe", default: true },
+  ],
+  "post-breadcrumbs": [
+    {
+      key: "showHome",
+      type: "bool",
+      label: "Pokaż stronę główną",
+      default: true,
+      hint: POST_CTX_HINT,
+    },
+    {
+      key: "home",
+      type: "i18nText",
+      label: "Etykieta strony głównej",
+      visibleWhen: (c) => asBool(c.showHome, true),
+    },
+    {
+      key: "separator",
+      type: "select",
+      label: "Separator",
+      options: [
+        { value: "/", label: "ukośnik" },
+        { value: ">", label: "strzałka" },
+      ],
+      default: "/",
+    },
+  ],
+  "post-cover": [
+    {
+      key: "aspect",
+      type: "select",
+      label: "Proporcje",
+      hint: POST_CTX_HINT,
+      options: ["16/9", "4/3", "3/2", "1/1", "21/9"].map((v) => ({ value: v })),
+      default: "16/9",
+    },
+    { key: "rounded", type: "bool", label: "Zaokrąglone rogi", default: true },
+    { key: "showCaption", type: "bool", label: "Pokaż podpis", default: false },
+    {
+      key: "caption",
+      type: "i18nText",
+      label: "Podpis pod okładką",
+      visibleWhen: (c) => asBool(c.showCaption, false),
+    },
+  ],
+  "post-excerpt": [
+    {
+      key: "maxChars",
+      type: "number",
+      label: "Maksymalna liczba znaków (0 = bez limitu)",
+      min: 0,
+      max: 2000,
+      default: 240,
+      hint: POST_CTX_HINT,
+    },
+  ],
+  "archive-title": [
+    {
+      key: "showDescription",
+      type: "bool",
+      label: "Pokaż opis",
+      default: true,
+      hint: "Widget czyta dane archiwum (kategoria / tag). Poza stroną archiwum pozostaje ukryty.",
+    },
+    { key: "showCount", type: "bool", label: "Pokaż liczbę wpisów", default: true },
+  ],
 };
 
 // -----------------------------------------------------------------------------
@@ -2772,63 +2919,72 @@ pushLabelsFor("contact-form", [
 );
 
 // --- Auth form widgets: login / register / lost-password / reset-password ---
+//
+// Wszystkie przełączniki tych czterech widgetów są typu `bool` (prawdziwe
+// `true`/`false`). Historycznie były to selecty "0"/"1", a renderery czytały je
+// idiomem `data.showX !== false`; string "0" jest prawdziwy, więc wyłączenie
+// pola NIE DZIAŁAŁO. Czytelnicy przechodzą przez `asBool`, więc dokumenty
+// zapisane starym panelem nadal znaczą to samo.
+
+/** Wariant powłoki formularza auth - komponent rysuje realnie każdą z opcji. */
+const authVariantField = (): SchemaField => ({
+  key: "variant",
+  type: "select",
+  label: "Wariant",
+  options: [
+    { value: "card", label: "Karta" },
+    { value: "flat", label: "Płaski" },
+    { value: "inline", label: "Inline" },
+  ],
+  default: "card",
+});
+
+/** Pojedynczy przełącznik on/off widgetu auth. */
+const authToggle = (key: string, label: string, defaultOn: boolean): SchemaField => ({
+  key,
+  type: "bool",
+  label,
+  default: defaultOn,
+});
+
+/**
+ * Blok edytora jednego pola formularza auth: widoczność + wymagalność jako
+ * `bool`, plus dwujęzyczna etykieta i placeholder. Odpowiednik `fieldBlock`,
+ * ale bez selectów "0"/"1".
+ */
+const authFieldBlock = (
+  key: string,
+  labelBase: string,
+  opts: { show: boolean; require: boolean },
+): SchemaField[] => [
+  authToggle(
+    `show${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+    `Pole: ${labelBase} - widoczne?`,
+    opts.show,
+  ),
+  authToggle(
+    `require${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+    `${labelBase} - wymagane?`,
+    opts.require,
+  ),
+  ...labelPh(key, labelBase),
+];
+
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["login-form"] = [
-  {
-    key: "variant",
-    type: "select",
-    label: "Wariant",
-    options: [
-      { value: "card", label: "Karta" },
-      { value: "flat", label: "Płaski" },
-      { value: "inline", label: "Inline" },
-    ],
-  },
+  authVariantField(),
   { key: "title", type: "i18nText", label: "Tytuł" },
   { key: "subtitle", type: "i18nText", label: "Podtytuł" },
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
   ...labelPh("email", "E-mail"),
   ...labelPh("password", "Hasło"),
-  ...fieldBlock("remember", "Zapamiętaj mnie", { defaultShow: "1", defaultRequire: "0" }),
-  {
-    key: "showShowPassword",
-    type: "select",
-    label: "Pokaż przycisk pokaż hasło?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
-  {
-    key: "showForgot",
-    type: "select",
-    label: "Pokaż link zapomniałem hasła?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
-  {
-    key: "showRegister",
-    type: "select",
-    label: "Pokaż link załóż konto?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
-  {
-    key: "showOAuthGoogle",
-    type: "select",
-    label: "Pokaż logowanie Google?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
+  // "Zapamiętaj mnie" to checkbox - ma widoczność i etykietę, ale nie ma
+  // sensownego "wymagane?" ani placeholdera (oba były martwe).
+  authToggle("showRemember", "Pole: Zapamiętaj mnie - widoczne?", true),
+  { key: "rememberLabel", type: "i18nText", label: "Etykieta: Zapamiętaj mnie" },
+  authToggle("showShowPassword", "Pokaż przycisk pokaż hasło?", true),
+  authToggle("showForgot", "Pokaż link zapomniałem hasła?", true),
+  authToggle("showRegister", "Pokaż link załóż konto?", true),
+  authToggle("showOAuthGoogle", "Pokaż logowanie Google?", true),
   { key: "redirectTo", type: "text", label: "Po zalogowaniu przekieruj do", placeholder: "/" },
   { key: "registerHref", type: "text", label: "URL do rejestracji", placeholder: "/register" },
   {
@@ -2837,76 +2993,37 @@ pushLabelsFor("contact-form", [
     label: "URL do odzyskiwania hasła",
     placeholder: "/lost-password",
   },
-  customFieldsField,
+  // Bez `customFields`: logowanie tylko uwierzytelnia, więc dodatkowe pola nie
+  // miałyby dokąd trafić - były cichym śmieciem w panelu.
 ];
 
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["register-form"] = [
-  {
-    key: "variant",
-    type: "select",
-    label: "Wariant",
-    options: [
-      { value: "card", label: "Karta" },
-      { value: "flat", label: "Płaski" },
-    ],
-  },
+  authVariantField(),
   { key: "title", type: "i18nText", label: "Tytuł" },
   { key: "subtitle", type: "i18nText", label: "Podtytuł" },
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
-  ...fieldBlock("firstName", "Imię", { defaultShow: "1", defaultRequire: "1" }),
-  ...fieldBlock("lastName", "Nazwisko", { defaultShow: "1", defaultRequire: "1" }),
-  ...fieldBlock("email", "E-mail", { defaultShow: "1", defaultRequire: "1" }),
-  ...fieldBlock("password", "Hasło", { defaultShow: "1", defaultRequire: "1" }),
-  ...fieldBlock("passwordConfirm", "Powtórz hasło", { defaultShow: "0", defaultRequire: "0" }),
-  ...fieldBlock("phone", "Telefon", { defaultShow: "0", defaultRequire: "0" }),
-  ...fieldBlock("company", "Firma", { defaultShow: "0", defaultRequire: "0" }),
-  {
-    key: "requireConsent",
-    type: "select",
-    label: "Wymagaj zgody RODO?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
+  ...authFieldBlock("firstName", "Imię", { show: true, require: true }),
+  ...authFieldBlock("lastName", "Nazwisko", { show: true, require: true }),
+  // E-mail i hasło są strukturalne (Supabase signUp ich wymaga), więc mają
+  // tylko etykietę i placeholder - przełączniki byłyby kłamstwem.
+  ...labelPh("email", "E-mail"),
+  ...authFieldBlock("phone", "Telefon", { show: false, require: false }),
+  ...authFieldBlock("company", "Firma", { show: false, require: false }),
+  ...labelPh("password", "Hasło"),
+  ...authFieldBlock("passwordConfirm", "Powtórz hasło", { show: false, require: false }),
+  authToggle("showShowPassword", "Pokaż przycisk pokaż hasło?", true),
+  authToggle("requireConsent", "Wymagaj zgody RODO?", true),
   { key: "consentText", type: "i18nText", label: "Treść zgody (RODO)" },
-  {
-    key: "newsletterOptIn",
-    type: "select",
-    label: "Pokaż zapis do newslettera?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
+  authToggle("newsletterOptIn", "Pokaż zapis do newslettera?", true),
   { key: "newsletterLabel", type: "i18nText", label: "Etykieta zapisu do newslettera" },
-  {
-    key: "showOAuthGoogle",
-    type: "select",
-    label: "Pokaż rejestrację Google?",
-    options: [
-      { value: "1", label: "tak" },
-      { value: "0", label: "nie" },
-    ],
-    default: "1",
-  },
+  authToggle("showOAuthGoogle", "Pokaż rejestrację Google?", true),
   { key: "redirectTo", type: "text", label: "Po rejestracji przekieruj do", placeholder: "/" },
   { key: "loginHref", type: "text", label: "URL logowania", placeholder: "/login" },
   customFieldsField,
 ];
 
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["lost-password-form"] = [
-  {
-    key: "variant",
-    type: "select",
-    label: "Wariant",
-    options: [
-      { value: "card", label: "Karta" },
-      { value: "flat", label: "Płaski" },
-    ],
-  },
+  authVariantField(),
   { key: "title", type: "i18nText", label: "Tytuł" },
   { key: "subtitle", type: "i18nText", label: "Podtytuł" },
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
@@ -2916,23 +3033,22 @@ pushLabelsFor("contact-form", [
 ];
 
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["reset-password-form"] = [
-  {
-    key: "variant",
-    type: "select",
-    label: "Wariant",
-    options: [
-      { value: "card", label: "Karta" },
-      { value: "flat", label: "Płaski" },
-    ],
-  },
+  authVariantField(),
   { key: "title", type: "i18nText", label: "Tytuł" },
   { key: "subtitle", type: "i18nText", label: "Podtytuł" },
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
   ...labelPh("password", "Nowe hasło"),
-  ...fieldBlock("passwordConfirm", "Powtórz nowe hasło", {
-    defaultShow: "1",
-    defaultRequire: "1",
-  }),
+  ...authFieldBlock("passwordConfirm", "Powtórz nowe hasło", { show: true, require: true }),
+  authToggle("showShowPassword", "Pokaż przycisk pokaż hasło?", true),
+  {
+    key: "minLength",
+    type: "number",
+    label: "Minimalna długość hasła",
+    min: 6,
+    max: 128,
+    step: 1,
+    default: 8,
+  },
   { key: "redirectTo", type: "text", label: "Po zapisaniu przekieruj do", placeholder: "/login" },
   { key: "successText", type: "i18nText", label: "Komunikat po zapisaniu" },
 ];
@@ -2956,41 +3072,23 @@ pushLabelsFor("contact-form", [
     hint: "Widoczny gdy odbiorca nie jest zalogowany.",
   },
   { key: "kicker", type: "i18nText", label: "Kicker (mały nadtytuł)" },
-  {
-    key: "showKicker",
-    type: "select",
-    label: "Pokaż kicker",
-    options: [
-      { value: "1", label: "Tak" },
-      { value: "0", label: "Nie" },
-    ],
-    default: "1",
-  },
-  {
-    key: "showExcerpt",
-    type: "select",
-    label: "Pokaż opis (zajawkę)",
-    options: [
-      { value: "1", label: "Tak" },
-      { value: "0", label: "Nie" },
-    ],
-    default: "1",
-  },
+  // Przełączniki jako prawdziwe booleany: string "0" jest w JS prawdziwy, więc
+  // select "1"/"0" gubił wyłączone ustawienia. Czytelnicy używają `asBool`,
+  // więc treść zapisana wcześniej jako "0"/"1" działa dalej.
+  { key: "showKicker", type: "bool", label: "Pokaż kicker", default: true },
+  { key: "showExcerpt", type: "bool", label: "Pokaż opis (zajawkę)", default: true },
   {
     key: "showAuthor",
-    type: "select",
+    type: "bool",
     label: "Pokaż autora (zdjęcie + imię i nazwisko)",
-    options: [
-      { value: "1", label: "Tak" },
-      { value: "0", label: "Nie" },
-    ],
-    default: "1",
+    default: true,
   },
   { key: "limit", type: "number", label: "Liczba wpisów", min: 1, max: 9, default: 3 },
   {
     key: "columns",
     type: "select",
     label: "Kolumny",
+    hint: "Na telefonie zawsze jedna kolumna, od tabletu dwie, wybrana liczba od dużego ekranu.",
     options: [
       { value: "1", label: "1" },
       { value: "2", label: "2" },

@@ -14,23 +14,45 @@ import { eventByIdQueryOptions, eventRsvpCountsQueryOptions } from "@/lib/builde
 import { countdownParts, isStartingSoon, pad2, parseCountdownTarget } from "@/lib/events/countdown";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { getBool, getNum, getStr, type Lang } from "./frame";
+import { asOneOf } from "@/lib/builder/contentValue";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
   return getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || getStr(c, `${base}_en`);
 }
 
-function UnitTile({ value, label, animate }: { value: string; label: string; animate: boolean }) {
+/** Rozmiary kafelka odliczania. `size` jest wspolne z widgetem event-countdown. */
+export const COUNTDOWN_CARD_SIZES = ["md", "lg"] as const;
+export type CountdownCardSize = (typeof COUNTDOWN_CARD_SIZES)[number];
+
+/** Skala kafelka. Rosnie wysokosc, cyfra i etykieta - proporcje zostaja. */
+const TILE_SCALE: Readonly<Record<CountdownCardSize, { box: string; label: string }>> = {
+  md: { box: "h-14 min-w-[3.25rem] text-2xl", label: "text-[11px]" },
+  lg: { box: "h-20 min-w-[4rem] text-4xl", label: "text-xs" },
+};
+
+function UnitTile({
+  value,
+  label,
+  animate,
+  size,
+}: {
+  value: string;
+  label: string;
+  animate: boolean;
+  size: CountdownCardSize;
+}) {
+  const scale = TILE_SCALE[size];
   return (
     <div className="flex min-w-0 flex-col items-center gap-1">
       <span
         className={
-          "flex h-14 w-full min-w-[3.25rem] items-center justify-center rounded-[6px] border border-border/60 bg-background/80 font-display text-2xl font-bold tabular-nums text-foreground shadow-sm " +
+          `flex w-full items-center justify-center rounded-[6px] border border-border/60 bg-background/80 font-display font-bold tabular-nums text-foreground shadow-sm ${scale.box} ` +
           (animate ? "transition-transform duration-300 motion-safe:group-hover:scale-[1.04]" : "")
         }
       >
         {value}
       </span>
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className={`${scale.label} font-medium uppercase tracking-wider text-muted-foreground`}>
         {label}
       </span>
     </div>
@@ -46,6 +68,9 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
   const showCountdown = getBool(c, "showCountdown", true);
   const showLocation = getBool(c, "showLocation", true);
   const enableAnimations = getBool(c, "enableAnimations", true);
+  // Edytor odliczania oferuje rozmiar md/lg takze dla wariantu kartowego -
+  // wczesniej kafelki mialy sztywna wysokosc, wiec wybor nic nie zmienial.
+  const tileSize = asOneOf<CountdownCardSize>(c.size, COUNTDOWN_CARD_SIZES, "md");
   const accent = getStr(c, "accentColor");
   const manualImage = safeUrl(getStr(c, "image"), "");
   const manualAttendees = Math.max(0, Math.round(getNum(c, "attendees", 0)));
@@ -219,6 +244,7 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
                   value={unit.value}
                   label={unit.label}
                   animate={enableAnimations}
+                  size={tileSize}
                 />
               ))}
             </div>

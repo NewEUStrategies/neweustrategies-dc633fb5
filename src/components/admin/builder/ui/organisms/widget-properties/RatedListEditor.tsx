@@ -13,6 +13,7 @@ import {
 import { PropField, ColorField, ItemFrame, CollapsibleSection as Collapsible } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
+import { asBool, asNum, asOneOf, asStr } from "@/lib/builder/contentValue";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
@@ -30,23 +31,23 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
   const upd = (i: number, patch: Partial<Item>) =>
     update(items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
-  const source = typeof c.source === "string" ? c.source : "manual";
-  const showRating = c.showRating !== false;
+  // Odczyty ida przez kanoniczna koercje (`contentValue`), zeby panel widzial
+  // dokladnie te same wartosci co renderer - takze dla starszych dokumentow,
+  // w ktorych liczby i przelaczniki bywaja zapisane jako stringi.
+  const txt = (k: string, d = "") => asStr(c[k]) || d;
+  const num = (k: string, d: number) => asNum(c[k], d);
+  const bool = (k: string, d: boolean) => asBool(c[k], d);
 
-  const numFont = typeof c.numberFont === "string" ? c.numberFont : "display";
-  const numWeight = typeof c.numberWeight === "string" ? c.numberWeight : "700";
-  const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 52;
-  const numColor = typeof c.numberColor === "string" ? c.numberColor : "#000000";
-  const numColorDark = typeof c.numberColorDark === "string" ? c.numberColorDark : "#ffffff";
-  const numOpacity = typeof c.numberOpacity === "number" ? c.numberOpacity : 0.05;
-  const numPos = typeof c.numberPosition === "string" ? c.numberPosition : "behind";
+  const source = asOneOf(c.source, ["manual", "dynamic"] as const, "manual");
 
-  const txt = (k: string, d = "") => (typeof c[k] === "string" ? (c[k] as string) : d);
-  const num = (k: string, d: number) => (typeof c[k] === "number" ? (c[k] as number) : d);
-  const bool = (k: string, d: boolean) => (typeof c[k] === "boolean" ? (c[k] as boolean) : d);
-
-  // Reference to keep showRating visible (was used implicitly by the old layout)
-  void showRating;
+  const numFont = txt("numberFont", "display");
+  const numWeight = txt("numberWeight", "700");
+  const numSize = num("numberSizePx", 52);
+  const numColor = txt("numberColor", "#000000");
+  const numColorDark = txt("numberColorDark", "#ffffff");
+  // Domyslna wartosc lustrzana wobec renderera (`var(--td-li-opacity, 0.18)`).
+  const numOpacity = num("numberOpacity", 0.18);
+  const numPos = txt("numberPosition", "behind");
 
   return (
     <div className="space-y-3">
@@ -66,14 +67,24 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
             </SelectContent>
           </Select>
         </PropField>
-        <label className="flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            checked={c.showRating !== false}
-            onChange={(e) => setContent("showRating", e.target.checked as Json)}
-          />
-          {t("builder.ratedListEditor.showRating")}
-        </label>
+        {/* visibleWhen(source === "manual"): tabela `posts` nie ma kolumny z
+            ocena, wiec w trybie dynamicznym ten przelacznik niczego nie wlacza.
+            Zamiast obiecywac funkcje, ktorej nie ma, chowamy go i mowimy
+            dlaczego. */}
+        {source === "manual" ? (
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={bool("showRating", true)}
+              onChange={(e) => setContent("showRating", e.target.checked as Json)}
+            />
+            {t("builder.ratedListEditor.showRating")}
+          </label>
+        ) : (
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            {t("builder.ratedListEditor.ratingDynamicHint")}
+          </p>
+        )}
       </div>
 
       {source === "dynamic" && (
@@ -600,7 +611,9 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               type="number"
               min={1}
               max={6}
-              value={num("columnsTablet", 1)}
+              // Ten sam default co w rendererze: min(desktop, 2). Inaczej panel
+              // pokazywalby 1 kolumne, a kanwa rysowala 2.
+              value={num("columnsTablet", Math.min(num("columnsDesktop", 1), 2))}
               onChange={(e) => setContent("columnsTablet", (Number(e.target.value) || 1) as Json)}
               className="h-8 text-xs"
             />
@@ -768,6 +781,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                 excerpt_en: "",
                 author: "",
                 rating: 0,
+                href: "",
               },
             ])
           }
@@ -781,9 +795,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               >
                 <PropField label={t("builder.ratedListEditor.title", { lang: lang.toUpperCase() })}>
                   <Input
-                    value={
-                      typeof it[`title_${lang}`] === "string" ? (it[`title_${lang}`] as string) : ""
-                    }
+                    value={asStr(it[`title_${lang}`])}
                     onChange={(e) => upd(i, { [`title_${lang}`]: e.target.value })}
                     className="h-8 text-xs"
                   />
@@ -793,11 +805,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                 >
                   <Textarea
                     rows={2}
-                    value={
-                      typeof it[`excerpt_${lang}`] === "string"
-                        ? (it[`excerpt_${lang}`] as string)
-                        : ""
-                    }
+                    value={asStr(it[`excerpt_${lang}`])}
                     onChange={(e) => upd(i, { [`excerpt_${lang}`]: e.target.value })}
                     className="text-xs"
                   />
@@ -806,20 +814,27 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                   label={t("builder.ratedListEditor.category", { lang: lang.toUpperCase() })}
                 >
                   <Input
-                    value={
-                      typeof it[`category_${lang}`] === "string"
-                        ? (it[`category_${lang}`] as string)
-                        : ""
-                    }
+                    value={asStr(it[`category_${lang}`])}
                     onChange={(e) => upd(i, { [`category_${lang}`]: e.target.value })}
                     className="h-8 text-xs"
                     placeholder={t("builder.ratedListEditor.categoryPh")}
                   />
                 </PropField>
+                {/* Link pozycji. Bez niego tytul nie byl klikalny, a przycisk
+                    "Czytaj wiecej" nigdy sie nie renderowal (jest bramkowany na
+                    href), mimo ze cala sekcja Read More byla w panelu. */}
+                <PropField label={t("builder.ratedListEditor.itemLink")}>
+                  <Input
+                    value={asStr(it.href)}
+                    onChange={(e) => upd(i, { href: e.target.value })}
+                    className="h-8 text-xs"
+                    placeholder={t("builder.ratedListEditor.itemLinkPh")}
+                  />
+                </PropField>
                 <div className="grid grid-cols-2 gap-2">
                   <PropField label={t("builder.ratedListEditor.author")}>
                     <Input
-                      value={typeof it.author === "string" ? it.author : ""}
+                      value={asStr(it.author)}
                       onChange={(e) => upd(i, { author: e.target.value })}
                       className="h-8 text-xs"
                     />
@@ -830,14 +845,14 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                       min={0}
                       max={10}
                       step={0.1}
-                      value={typeof it.rating === "number" ? it.rating : 0}
+                      value={asNum(it.rating, 0)}
                       onChange={(e) => upd(i, { rating: Number(e.target.value) || 0 })}
                       className="h-8 text-xs"
                     />
                   </PropField>
                   <PropField label={t("builder.ratedListEditor.date")}>
                     <Input
-                      value={typeof it.date === "string" ? it.date : ""}
+                      value={asStr(it.date)}
                       onChange={(e) => upd(i, { date: e.target.value })}
                       className="h-8 text-xs"
                       placeholder="2025-01-15"
@@ -845,7 +860,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                   </PropField>
                   <PropField label="Format">
                     <Select
-                      value={typeof it.format === "string" ? it.format : "standard"}
+                      value={asStr(it.format) || "standard"}
                       onValueChange={(v) => upd(i, { format: v })}
                     >
                       <SelectTrigger className="h-8 text-xs">

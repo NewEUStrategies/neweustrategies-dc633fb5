@@ -142,12 +142,13 @@ describe("divider - wszystkie warianty i wyrównania", () => {
     expect(bar2.style.marginLeft).toBe("auto");
     single.unmount();
 
-    // Bez kolorów -> klasa gradientowa zamiast inline stylu (publiczna i edytor).
+    // Bez kolorów -> klasa gradientowa zamiast inline stylu. Kanwa rysuje tę
+    // samą paletę co strona publiczna (podgląd = publikacja).
     const plain = renderNode("divider", { variant: "gradient" });
     expect(plain.container.querySelector(".via-border")).not.toBeNull();
     plain.unmount();
     const editorPlain = renderNode("divider", { variant: "gradient" }, { editable: true });
-    expect(editorPlain.container.querySelector(".via-foreground\\/60")).not.toBeNull();
+    expect(editorPlain.container.querySelector(".via-border")).not.toBeNull();
   });
 
   it("renders the icon variant with a custom icon, color and icon color", () => {
@@ -165,14 +166,15 @@ describe("divider - wszystkie warianty i wyrównania", () => {
     expect(line.style.borderTopWidth).toBe("3px");
   });
 
-  it("falls back to the Star icon for unknown names and editable line classes", () => {
+  it("falls back to the Star icon for unknown names and keeps the theme line color", () => {
     const { container } = renderNode(
       "divider",
       { variant: "icon", iconName: "NoSuchIcon" },
       { editable: true },
     );
     expect(container.querySelector("svg")).not.toBeNull();
-    expect(container.querySelector(".border-foreground\\/60")).not.toBeNull();
+    expect(container.querySelector(".border-border")).not.toBeNull();
+    expect(container.querySelector(".border-foreground\\/60")).toBeNull();
   });
 
   it("renders the wave variant with and without color", () => {
@@ -183,9 +185,7 @@ describe("divider - wszystkie warianty i wyrównania", () => {
     colored.unmount();
 
     const plain = renderNode("divider", { variant: "wave" }, { editable: true });
-    expect(plain.container.querySelector("svg")?.getAttribute("class")).toContain(
-      "text-foreground/60",
-    );
+    expect(plain.container.querySelector("svg")?.getAttribute("class")).toContain("text-border");
   });
 
   it("renders dashed/dotted/double lines, rejecting invalid colors", () => {
@@ -204,9 +204,14 @@ describe("divider - wszystkie warianty i wyrównania", () => {
       expect(sep.style.borderTopColor).toBe("var(--border)");
       unmount();
     }
-    // Edytor: widoczna linia mimo thickness 1 + etykieta "Rozdzielacz".
-    renderNode("divider", { variant: "solid", thickness: 1 }, { editable: true });
+    // Edytor: etykieta "Rozdzielacz" + obszar trafienia, ale linia zostaje
+    // dokładnie tak cienka, jak zostanie opublikowana.
+    const editor = renderNode("divider", { variant: "solid", thickness: 1 }, { editable: true });
     expect(screen.getByText("Rozdzielacz")).toBeInTheDocument();
+    expect(
+      (editor.container.querySelector('[role="separator"]') as HTMLElement).style.borderTopWidth,
+    ).toBe("1px");
+    expect(editor.container.querySelector("[data-divider-hit-area]")).not.toBeNull();
     cleanup();
     renderNode("divider", {}, { editable: true, lang: "en" });
     expect(screen.getByText("Divider")).toBeInTheDocument();
@@ -284,8 +289,7 @@ describe("social-icons - układ listy i tryby kolorów", () => {
     expect(container.querySelectorAll("a").length).toBe(1);
   });
 
-  it("resolves dark/light color modes according to themeAdapt", () => {
-    // themeAdapt != auto -> stałe kolory hex.
+  it("resolves dark/light color modes regardless of themeAdapt", () => {
     const dark = renderNode("social-icons", {
       facebook: "https://fb.com/a",
       colorMode: "dark",
@@ -304,12 +308,12 @@ describe("social-icons - układ listy i tryby kolorów", () => {
     expect(a2.style.color).toBe("#ffffff");
     light.unmount();
 
-    // auto -> currentColor.
+    // themeAdapt "auto" (domyślne) NIE unieważnia jawnego wyboru redakcji.
     const auto = renderNode("social-icons", {
       facebook: "https://fb.com/a",
       colorMode: "light",
     });
-    expect((auto.container.querySelector("a") as HTMLElement).style.color).toBe("currentcolor");
+    expect((auto.container.querySelector("a") as HTMLElement).style.color).toBe("#ffffff");
   });
 
   it("applies the custom background color when provided", () => {

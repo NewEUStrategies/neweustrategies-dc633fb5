@@ -18,9 +18,33 @@ import { cn } from "@/lib/utils";
  * supplied. `aria-invalid` and `aria-describedby` are wired for the error.
  */
 
-type BaseInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "placeholder">;
+/**
+ * Spacer used when the caller supplies no placeholder.
+ *
+ * The floating label lifts on `:focus` OR `:not(:placeholder-shown)`. A control
+ * WITHOUT a placeholder attribute never matches `:placeholder-shown`, so the
+ * label would be stuck on the border forever. A single space keeps
+ * `:placeholder-shown` true for an empty field while rendering nothing - which
+ * is exactly the behaviour this atom had before real placeholders landed.
+ */
+export const FLOATING_LABEL_SPACER = " ";
 
-export interface FloatingInputProps extends BaseInputProps {
+/**
+ * Normalise a caller-supplied placeholder for the floating-label pattern.
+ *
+ * A real placeholder is passed through verbatim, so the value the editor typed
+ * in the widget panel actually reaches the DOM. It stays invisible while the
+ * field is idle (`.input-group > .input:not(:focus)::placeholder` paints it
+ * transparent) so it never collides with the resting label, and it appears as
+ * a hint once the field takes focus and the label has lifted away.
+ *
+ * Empty / whitespace-only input falls back to {@link FLOATING_LABEL_SPACER}.
+ */
+export function floatingPlaceholder(value?: string | null): string {
+  return typeof value === "string" && value.trim() !== "" ? value : FLOATING_LABEL_SPACER;
+}
+
+export interface FloatingInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   error?: string | null;
   containerClassName?: string;
@@ -35,7 +59,17 @@ function useFallbackId(prefix: string, provided?: string) {
 
 export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(
   (
-    { label, error, id, className, containerClassName, required, labelEditTarget, ...rest },
+    {
+      label,
+      error,
+      id,
+      className,
+      containerClassName,
+      required,
+      labelEditTarget,
+      placeholder,
+      ...rest
+    },
     ref,
   ) => {
     const inputId = useFallbackId("fi", id);
@@ -50,7 +84,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
           ref={ref}
           id={inputId}
           required={required}
-          placeholder=" "
+          placeholder={floatingPlaceholder(placeholder)}
           aria-invalid={error ? true : undefined}
           aria-describedby={errorId}
           className={cn("input", className)}
@@ -69,16 +103,17 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
 );
 FloatingInput.displayName = "FloatingInput";
 
-type BaseTextareaProps = Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "placeholder">;
-
-export interface FloatingTextareaProps extends BaseTextareaProps {
+export interface FloatingTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
   error?: string | null;
   containerClassName?: string;
 }
 
 export const FloatingTextarea = React.forwardRef<HTMLTextAreaElement, FloatingTextareaProps>(
-  ({ label, error, id, className, containerClassName, required, rows = 4, ...rest }, ref) => {
+  (
+    { label, error, id, className, containerClassName, required, rows = 4, placeholder, ...rest },
+    ref,
+  ) => {
     const inputId = useFallbackId("fta", id);
     const errorId = error ? `${inputId}-err` : undefined;
     return (
@@ -92,7 +127,7 @@ export const FloatingTextarea = React.forwardRef<HTMLTextAreaElement, FloatingTe
           id={inputId}
           required={required}
           rows={rows}
-          placeholder=" "
+          placeholder={floatingPlaceholder(placeholder)}
           aria-invalid={error ? true : undefined}
           aria-describedby={errorId}
           className={cn("input", className)}

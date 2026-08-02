@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 
 const ANON_KEY = "nes.interests.anon.v1";
 
@@ -184,7 +185,7 @@ export function useMyInterests() {
         qc.setQueryData(["my-interests", "anon"], next);
         // Rekomendacje gościa czytają anon zainteresowania z localStorage -
         // bez inwalidacji stary wynik wisiałby do końca staleTime.
-        void qc.invalidateQueries({ queryKey: ["recommended-posts"] });
+        void qc.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.recommendedPosts] });
         return { ok: true as const, anon: true as const };
       }
       // Compute diff vs current to avoid wiping unrelated follows (author).
@@ -235,7 +236,7 @@ export function useMyInterests() {
         qc.invalidateQueries({ queryKey: ["my-interests"] }),
         qc.invalidateQueries({ queryKey: ["follows"] }),
         qc.invalidateQueries({ queryKey: ["profile-counts"] }),
-        qc.invalidateQueries({ queryKey: ["recommended-posts"] }),
+        qc.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.recommendedPosts] }),
         qc.invalidateQueries({ queryKey: ["followed-feed"] }),
       ]);
       return { ok: true as const, anon: false as const };

@@ -1,6 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
+import { asBool, asNum, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 export type Lang = "pl" | "en";
@@ -16,14 +18,81 @@ export interface PostRow {
   published_at: string | null;
   post_format: string | null;
   author_id: string | null;
-  /** Resolved inside the query for variants that render a byline (ranked /
-   *  numbered), so author names ship with the SSR prefetch instead of popping
-   *  in via a separate client-side query after hydration. */
+  /** Resolved inside the query for variants that render a byline (see
+   *  {@link POST_LIST_BYLINE_VARIANTS}), so author names ship with the SSR
+   *  prefetch instead of popping in via a separate client-side query after
+   *  hydration. */
   author_display_name?: string | null;
   /** Author avatar (5px rounded thumb) rendered by the ranked byline. */
   author_avatar_url?: string | null;
   /** Slug for linking the byline to the author profile page. */
   author_slug?: string | null;
+}
+
+/**
+ * Sortowania oferowane przez edytor (PostListEditor.ORDER_BY) - lista MUSI byc
+ * ich nadzbiorem. "created_at" bylo wczesniej cicho koercowane do
+ * "published_at": ustawienie dawalo sie wybrac, a nie robilo nic (typowe
+ * "wybralem, nic sie nie zmienilo").
+ */
+export const POST_LIST_ORDER_BY = [
+  "published_at",
+  "created_at",
+  "title",
+  "popular",
+  "random",
+] as const;
+export type PostListOrderBy = (typeof POST_LIST_ORDER_BY)[number];
+
+/**
+ * Warianty post-listy, ktore RENDERUJA byline autora (PostListView: karta,
+ * lista, klasyczny, flex-grid, boxed-*, overlay, minimal, ranked). Tylko dla
+ * nich zapytanie doklada round-trip do `profiles_public`.
+ *
+ * "numbered" celowo POZA lista - ten wariant rysuje wylacznie indeks, tytul i
+ * miniature, wiec pobieranie profili autorow bylo czystym marnotrawstwem.
+ *
+ * Eksportowane, zeby widok korzystal z TEJ SAMEJ listy zamiast utrzymywac
+ * wlasna kopie - inaczej "wariant renderuje byline" i "zapytanie dociaga
+ * autorow" rozjezdzaja sie bez zadnego sygnalu (byline renderowany z pustym
+ * nazwiskiem = autor po prostu znika).
+ */
+export const POST_LIST_BYLINE_VARIANTS = [
+  "card",
+  "boxed-grid",
+  "minimal",
+  "overlay",
+  "list",
+  "boxed-list",
+  "classic",
+  "flex-grid",
+  "ranked",
+] as const;
+export type PostListBylineVariant = (typeof POST_LIST_BYLINE_VARIANTS)[number];
+
+const BYLINE_VARIANTS: ReadonlySet<string> = new Set<string>(POST_LIST_BYLINE_VARIANTS);
+
+/** Czy dany wariant rysuje byline autora (patrz {@link POST_LIST_BYLINE_VARIANTS}). */
+export function postListVariantHasByline(variant: string): boolean {
+  return BYLINE_VARIANTS.has(variant);
+}
+
+/** Sposob prezentacji autora w post-liscie. */
+export type PostListAuthorDisplay = "avatar" | "label" | "none";
+
+/**
+ * Rozstrzyga ustawienie "Autor" tak samo jak PostListView: nowe pole
+ * `authorDisplay` wygrywa, a dla starszej tresci wynik wyprowadzamy z pary
+ * `showAuthorAvatar` / `showAuthorLabel`. Eksportowane, zeby widok mogl czytac
+ * TE SAMA regule (jedna definicja "czy autor jest w ogole pokazywany").
+ */
+export function postListAuthorDisplay(c: WidgetContent): PostListAuthorDisplay {
+  const raw = asStr(c["authorDisplay"]).trim();
+  if (raw === "avatar" || raw === "label" || raw === "none") return raw;
+  const legacyAvatar = asBool(c["showAuthorAvatar"], true);
+  const legacyLabel = asBool(c["showAuthorLabel"], true);
+  if (!legacyAvatar && !legacyLabel) return "none";
+  return legacyAvatar ? "avatar" : "label";
 }
 
 interface PostListInput {
@@ -33,8 +102,11 @@ interface PostListInput {
   limit: number;
   offset: number;
   cols: number;
-  orderByRaw: "published_at" | "title" | "random" | "popular";
+  orderByRaw: PostListOrderBy;
   orderDir: "asc" | "desc";
+  /** Czy dociagac autorow (wariant z bylinem + wlaczona prezentacja autora).
+   *  W kluczu, bo decyduje o ksztalcie zwracanych wierszy. */
+  withAuthors: boolean;
   postFormat: string;
   authorId: string;
   dateFrom: string;
@@ -56,18 +128,11 @@ interface PostListInput {
 const UNIQUE_FETCH_HEADROOM = 18;
 
 function getStr(c: WidgetContent, key: string): string {
-  const value = c[key];
-  return typeof value === "string" ? value : "";
+  return asStr(c[key]);
 }
 
 function getNum(c: WidgetContent, key: string, fallback: number): number {
-  const value = c[key];
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return fallback;
+  return asNum(c[key], fallback);
 }
 
 function csv(c: WidgetContent, key: string): string[] {
@@ -77,8 +142,21 @@ function csv(c: WidgetContent, key: string): string[] {
     .filter(Boolean);
 }
 
-function safeOrderBy(raw: string): PostListInput["orderByRaw"] {
-  return raw === "title" || raw === "random" || raw === "popular" ? raw : "published_at";
+/** Zawezenie do sortowan, ktore zapytanie faktycznie realizuje. */
+function safeOrderBy(raw: unknown): PostListOrderBy {
+  return asOneOf(raw, POST_LIST_ORDER_BY, "published_at");
+}
+
+/**
+ * Kolumna `ORDER BY` dla danego sortowania. "random" i "popular" nie sortuja w
+ * bazie (kolejnosc ustala sie po stronie klienta / rankingu RPC), wiec dostaja
+ * stabilna kolumne bazowa. Czyste i eksportowane, zeby kontrakt sortowania byl
+ * testowalny bez Supabase.
+ */
+export function postListOrderColumn(orderBy: PostListOrderBy, lang: Lang): string {
+  if (orderBy === "title") return `title_${lang}`;
+  if (orderBy === "random" || orderBy === "popular") return "published_at";
+  return orderBy;
 }
 
 /** The display limit a post-list widget renders (before any over-fetch). */
@@ -87,7 +165,7 @@ export function postListDisplayLimit(c: WidgetContent): number {
 }
 
 function wantsUniqueOnPage(c: WidgetContent): boolean {
-  return c["uniqueOnPage"] === true || c["uniqueOnPage"] === "true";
+  return asBool(c["uniqueOnPage"], false);
 }
 
 export function postListInput(c: WidgetContent, lang: Lang): PostListInput {
@@ -99,13 +177,15 @@ export function postListInput(c: WidgetContent, lang: Lang): PostListInput {
   const fetchLimit = wantsUniqueOnPage(c)
     ? Math.min(100, displayLimit + UNIQUE_FETCH_HEADROOM)
     : displayLimit;
+  const variant = getStr(c, "variant") || "card";
   return {
-    variant: getStr(c, "variant") || "card",
+    variant,
     limit: fetchLimit,
     offset: Math.max(0, getNum(c, "offset", 0)),
     cols: Math.max(1, Math.min(6, getNum(c, "columns", 3))),
-    orderByRaw: safeOrderBy(getStr(c, "orderBy") || "published_at"),
+    orderByRaw: safeOrderBy(c["orderBy"]),
     orderDir: (getStr(c, "orderDir") || "desc") === "asc" ? "asc" : "desc",
+    withAuthors: postListVariantHasByline(variant) && postListAuthorDisplay(c) !== "none",
     postFormat: getStr(c, "postFormat"),
     authorId: getStr(c, "authorId"),
     dateFrom: getStr(c, "dateFrom"),
@@ -290,12 +370,7 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   if (includeSet) q = q.in("id", Array.from(includeSet));
   if (excludeSet.size) q = q.not("id", "in", `(${Array.from(excludeSet).join(",")})`);
 
-  const orderCol =
-    effectiveOrderBy === "title"
-      ? `title_${input.lang}`
-      : effectiveOrderBy === "random" || effectiveOrderBy === "popular"
-        ? "published_at"
-        : effectiveOrderBy;
+  const orderCol = postListOrderColumn(effectiveOrderBy, input.lang);
   if (effectiveOrderBy !== "random" && effectiveOrderBy !== "popular") {
     q = q.order(orderCol, { ascending: input.orderDir === "asc" });
   }
@@ -310,11 +385,8 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   if (effectiveOrderBy === "popular" && popularIds) {
     rows = rankAndSlicePopular(rows, popularIds, input.offset, input.limit);
   }
-  return attachAuthorNames(rows, input.variant);
+  return attachAuthorNames(rows, input.withAuthors);
 }
-
-/** Variants that render a "By <author>" byline and therefore need names. */
-const BYLINE_VARIANTS = new Set(["ranked", "numbered"]);
 
 /**
  * Resolve author display names as part of the SAME query that fetches the
@@ -322,10 +394,14 @@ const BYLINE_VARIANTS = new Set(["ranked", "numbered"]);
  * cannot embed the profile in one select - but doing the lookup here means the
  * server-side widget prefetch covers bylines too: they render in the SSR HTML
  * instead of appearing after hydration (which read as "the page keeps
- * loading"). Only byline variants pay the extra round-trip.
+ * loading").
+ *
+ * Round-trip placi WYLACZNIE widget, ktory autora naprawde rysuje: wariant z
+ * bylinem (POST_LIST_BYLINE_VARIANTS) i wlaczona prezentacja autora
+ * (authorDisplay != "none"). Patrz `withAuthors` w PostListInput.
  */
-async function attachAuthorNames(rows: PostRow[], variant: string): Promise<PostRow[]> {
-  if (!BYLINE_VARIANTS.has(variant) || rows.length === 0) return rows;
+async function attachAuthorNames(rows: PostRow[], withAuthors: boolean): Promise<PostRow[]> {
+  if (!withAuthors || rows.length === 0) return rows;
   const authorIds = Array.from(
     new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
   );
@@ -344,13 +420,17 @@ async function attachAuthorNames(rows: PostRow[], variant: string): Promise<Post
       }>
     ).map((p) => [p.id, p]),
   );
+  // Wzbogacamy, nigdy nie kasujemy: gdy profil autora jest niedostepny (usuniety,
+  // odciety przez RLS), zostawiamy to, co wiersz juz niesie, zamiast nadpisywac
+  // nazwisko null-em i chowac byline, ktory mial czym sie wyrenderowac.
   return rows.map((r) => {
     const p = r.author_id ? map.get(r.author_id) : undefined;
+    if (!p) return r;
     return {
       ...r,
-      author_display_name: p?.display_name ?? null,
-      author_avatar_url: p?.avatar_url ?? null,
-      author_slug: p?.slug ?? null,
+      author_display_name: p.display_name ?? r.author_display_name ?? null,
+      author_avatar_url: p.avatar_url ?? r.author_avatar_url ?? null,
+      author_slug: p.slug ?? r.author_slug ?? null,
     };
   });
 }
@@ -362,7 +442,7 @@ export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
     // and the client render, so a streamed uniqueOnPage widget reuses the
     // dehydrated rows instead of refetching under a divergent key. uniqueOnPage
     // de-dup happens client-side via dedupeAndSlice, not in this key.
-    queryKey: ["builder-post-list", input] as const,
+    queryKey: [WIDGET_QUERY_ROOTS.postList, input] as const,
     queryFn: () =>
       // Per-isolate TTL: pojedynczy widget post-list to wewnętrznie do ~7
       // round-tripów; chrome i strony builderowe prefetchują go na każdym

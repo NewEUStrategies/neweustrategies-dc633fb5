@@ -173,7 +173,15 @@ export const WIDGETS: WidgetDef[] = [
     icon: MousePointerClick,
     defaults: () => ({ label_pl: "Przycisk", label_en: "Button", href: "#", variant: "primary" }),
   },
-  { type: "divider", label: "Rozdzielacz", category: "basic", icon: Minus, defaults: () => ({}) },
+  {
+    type: "divider",
+    label: "Rozdzielacz",
+    category: "basic",
+    icon: Minus,
+    // `thickness: 2` musi być zgodne ze schematem (WIDGET_SCHEMAS.divider) i z
+    // rendererem - rozjazd dawał 2px w panelu/kanwie i 1px publicznie.
+    defaults: () => ({ variant: "line", thickness: 2, widthPct: 100, align: "center" }),
+  },
   {
     type: "spacer",
     label: "Odstępnik",
@@ -762,7 +770,12 @@ export const WIDGETS: WidgetDef[] = [
     label: "Język (PL/EN)",
     category: "navigation",
     icon: Globe,
-    defaults: () => ({ showLabel: true, label_pl: "Zmień język", label_en: "Switch language" }),
+    // `showLabel` startuje WYŁĄCZONE: etykieta jest przede wszystkim opisem dla
+    // czytnika ekranu (aria-label), a widoczny napis obok flag to świadomy
+    // wybór redakcji. Domyślne `true` przy martwym ustawieniu było obietnicą
+    // bez pokrycia - po zaimplementowaniu przełącznika włączałoby napis
+    // wszystkim istniejącym nagłówkom naraz.
+    defaults: () => ({ showLabel: false, label_pl: "Zmień język", label_en: "Switch language" }),
   },
   {
     type: "theme-toggle",
@@ -912,6 +925,9 @@ export const WIDGETS: WidgetDef[] = [
     category: "blocks",
     icon: List,
     defaults: () => ({
+      // Wariant musi mieć default, inaczej kontrolka w AccordionEditor startuje
+      // "pusta", a renderer i tak rysuje obramowany układ.
+      variant: "bordered",
       items: [
         { q_pl: "Pytanie 1", q_en: "Question 1", a_pl: "Odpowiedź…", a_en: "Answer…" },
         { q_pl: "Pytanie 2", q_en: "Question 2", a_pl: "Odpowiedź…", a_en: "Answer…" },
@@ -1032,6 +1048,10 @@ export const WIDGETS: WidgetDef[] = [
       vertical: false,
       showDesc: true,
       ratio: "16/9",
+      // Puste = pasek postępu dziedziczy kolor marki (var(--brand)).
+      // Klucz jest czytany przez ProgressCarouselView, więc musi istnieć
+      // w defaultach, inaczej kontrolka panelu startuje "znikąd".
+      accentColor: "",
       items: [
         {
           value: "slide-1",
@@ -1714,7 +1734,6 @@ export const WIDGETS: WidgetDef[] = [
       redirectTo: "/",
       registerHref: "/register",
       forgotHref: "/lost-password",
-      customFields: [] as unknown as Json,
     }),
   },
   {
@@ -1733,12 +1752,19 @@ export const WIDGETS: WidgetDef[] = [
       requireConsent: true,
       newsletterOptIn: true,
       showOAuthGoogle: true,
-      showPasswordConfirm: "0",
-      requirePasswordConfirm: "0",
-      showPhone: "0",
-      requirePhone: "0",
-      showCompany: "0",
-      requireCompany: "0",
+      showShowPassword: true,
+      showFirstName: true,
+      requireFirstName: true,
+      showLastName: true,
+      requireLastName: true,
+      // Prawdziwe booleany, nie stringi "0": string "0" jest prawdziwy, przez co
+      // te przełączniki były niewyłączalne.
+      showPasswordConfirm: false,
+      requirePasswordConfirm: false,
+      showPhone: false,
+      requirePhone: false,
+      showCompany: false,
+      requireCompany: false,
       consentText_pl:
         "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
       consentText_en:
@@ -1777,6 +1803,10 @@ export const WIDGETS: WidgetDef[] = [
       subtitle_en: "",
       submitLabel_pl: "Zapisz",
       submitLabel_en: "Save",
+      showPasswordConfirm: true,
+      requirePasswordConfirm: true,
+      showShowPassword: true,
+      minLength: 8,
       redirectTo: "/login",
     }),
   },
@@ -1869,7 +1899,9 @@ export const WIDGETS: WidgetDef[] = [
       placeholder_en: "Search...",
       button_pl: "Szukaj",
       button_en: "Search",
-      variant: "default",
+      // USUNIĘTO `variant: "default"`: SearchFormWidget (DynamicTagWidgets)
+      // rysuje jeden układ i nigdy nie czytał tego klucza, więc default
+      // zapisywał do treści martwe ustawienie sugerujące nieistniejący wybór.
     }),
   },
   {
@@ -1899,7 +1931,7 @@ export const WIDGETS: WidgetDef[] = [
       showCompany: false,
       showSubject: true,
       showMessage: true,
-      // per-field "wymagane" — spójne z polityką w bazie
+      // per-field "wymagane" - spójne z polityką w bazie
       requireFirstName: true,
       requireLastName: false,
       requireEmail: true,

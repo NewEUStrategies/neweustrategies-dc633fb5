@@ -14,6 +14,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { PropField, CollapsibleSection as Collapsible, ColorField } from "../../atoms";
 import { AdminDatePicker } from "@/components/admin/blocks/AdminDatePicker";
 import { IndexColorPreview } from "./IndexColorPreview";
@@ -23,12 +24,29 @@ import { ImageSlot } from "./ImageSlot";
 import { readThumbnailOverrides, setThumbnailOverride } from "@/lib/builder/thumbnailOverrides";
 import { Image as ImageIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { asBool, asNum, asOneOf, asStr } from "@/lib/builder/contentValue";
+import {
+  POST_LIST_ORDER_BY,
+  postListOrderColumn,
+  postListVariantHasByline,
+} from "@/lib/builder/postListQuery";
+import {
+  CAROUSEL_AUTOPLAY_DEFAULT_MS,
+  CAROUSEL_AUTOPLAY_MAX_MS,
+  CAROUSEL_AUTOPLAY_MIN_MS,
+  carouselAutoplayEnabled,
+  carouselAutoplayIntervalMs,
+} from "@/lib/builder/postListCarousel";
 import "@/lib/i18n-builder";
 
 interface Props {
   c: WidgetNode["content"];
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
+  /** Typ widgetu obslugiwanego przez ten edytor. Panel uzywa go dla obu
+   *  wariantow ("post-list" i "carousel"), a ustawienia karuzeli maja sens
+   *  wylacznie dla tego drugiego - inaczej byloby to kolejne martwe pole. */
+  widgetType?: "post-list" | "carousel";
 }
 
 const VARIANTS = [
@@ -56,7 +74,9 @@ const VARIANT_KEY: Record<(typeof VARIANTS)[number], string> = {
   ranked: "varRanked",
 };
 
-const ORDER_BY = ["published_at", "created_at", "title", "popular", "random"] as const;
+// Lista sortowan pochodzi z warstwy zapytania - edytor NIE moze oferowac
+// sortowania, ktorego zapytanie nie realizuje (tak powstal martwy "created_at").
+const ORDER_BY = POST_LIST_ORDER_BY;
 const ORDER_KEY: Record<(typeof ORDER_BY)[number], string> = {
   published_at: "obPublished",
   created_at: "obCreated",
@@ -75,18 +95,80 @@ const FORMAT_KEY: Record<string, string> = {
   quote: "fmtQuote",
 };
 
+// Odczyt tresci przechodzi przez kanoniczna koercje (`contentValue`), zeby
+// edytor widzial DOKLADNIE te same wartosci co renderer.
 function str(c: WidgetNode["content"], k: string, dflt = ""): string {
-  const v = c[k];
-  return typeof v === "string" ? v : dflt;
+  const v = asStr(c[k]);
+  return v === "" ? dflt : v;
 }
 function num(c: WidgetNode["content"], k: string, dflt: number): number {
-  const v = c[k];
-  if (typeof v === "number") return v;
-  if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v);
-  return dflt;
+  return asNum(c[k], dflt);
 }
 
-export function PostListEditor({ c, lang, setContent }: Props) {
+/** Zestaw filtrow zapytania wspolny dla licznika i podgladu miniatur. */
+interface PostFilterInput {
+  postFormat: string;
+  authorId: string;
+  dateFrom: string;
+  dateTo: string;
+  includeCats: string[];
+  excludeCats: string[];
+  includeTags: string[];
+  excludeTags: string[];
+  includeIds: string[];
+  excludeIds: string[];
+}
+
+const splitCsv = (value: string): string[] =>
+  value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+function readFilters(c: WidgetNode["content"]): PostFilterInput {
+  return {
+    postFormat: str(c, "postFormat"),
+    authorId: str(c, "authorId"),
+    dateFrom: str(c, "dateFrom"),
+    dateTo: str(c, "dateTo"),
+    includeCats: splitCsv(str(c, "categoriesCsv")),
+    excludeCats: splitCsv(str(c, "excludeCategoriesCsv")),
+    includeTags: splitCsv(str(c, "tagsCsv")),
+    excludeTags: splitCsv(str(c, "excludeTagsCsv")),
+    includeIds: splitCsv(str(c, "includeIdsCsv")),
+    excludeIds: splitCsv(str(c, "excludeIdsCsv")),
+  };
+}
+
+/**
+ * Rozwiazuje kategorie / tagi / konkretne ID do zbiorow post_id, dokladnie tak
+ * jak `postListQuery.fetchPostListRows`. `impossible` oznacza przeciecie puste
+ * (np. kategoria bez wpisow) - zapytanie nie ma sensu i zwraca zero wynikow.
+ */
+async function resolvePostFilterSets(f: PostFilterInput): Promise<{
+  includeSet: Set<string> | null;
+  excludeSet: Set<string>;
+  impossible: boolean;
+}> {
+  const [incCatIds, incTagIds, excCatIds, excTagIds] = await Promise.all([
+    resolveTaxonomyIds("post_categories", f.includeCats),
+    resolveTaxonomyIds("post_tags", f.includeTags),
+    resolveTaxonomyIds("post_categories", f.excludeCats),
+    resolveTaxonomyIds("post_tags", f.excludeTags),
+  ]);
+  let includeSet: Set<string> | null = null;
+  const intersect = (s: Set<string>) => {
+    includeSet = includeSet ? new Set([...includeSet].filter((x) => s.has(x))) : new Set(s);
+  };
+  if (f.includeCats.length) intersect(incCatIds);
+  if (f.includeTags.length) intersect(incTagIds);
+  if (f.includeIds.length) intersect(new Set(f.includeIds));
+  const excludeSet = new Set<string>([...excCatIds, ...excTagIds, ...f.excludeIds]);
+  const resolved = includeSet as Set<string> | null;
+  return { includeSet: resolved, excludeSet, impossible: resolved !== null && resolved.size === 0 };
+}
+
+export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }: Props) {
   const { t } = useTranslation();
   const variant = str(c, "variant", "card");
   const columns = num(c, "columns", 3);
@@ -99,9 +181,15 @@ export function PostListEditor({ c, lang, setContent }: Props) {
   const dateFrom = str(c, "dateFrom", "");
   const dateTo = str(c, "dateTo", "");
   const popularDays = num(c, "popularDays", 30);
-  const uniqueOnPage = c["uniqueOnPage"] === true || c["uniqueOnPage"] === "true";
-  const mobileHScroll =
-    c["mobileHorizontalScroll"] === true || c["mobileHorizontalScroll"] === "true";
+  const uniqueOnPage = asBool(c["uniqueOnPage"], false);
+  const mobileHScroll = asBool(c["mobileHorizontalScroll"], false);
+  const autoplay = carouselAutoplayEnabled(c);
+  const autoplayIntervalMs = carouselAutoplayIntervalMs(c);
+  // Ustawienia autora pokazujemy WYLACZNIE dla wariantow, ktore rysuja byline
+  // i dla ktorych zapytanie dociaga profil autora (jedna lista, wspoldzielona
+  // z warstwa zapytania). Wczesniej pole wisialo w kazdym wariancie, a w
+  // czesci z nich nie robilo nic.
+  const supportsByline = postListVariantHasByline(variant);
 
   const categoriesCsv = str(c, "categoriesCsv", "");
   const excludeCategoriesCsv = str(c, "excludeCategoriesCsv", "");
@@ -127,7 +215,10 @@ export function PostListEditor({ c, lang, setContent }: Props) {
   const authorLabel = (a: { display_name: string | null; slug: string | null }) =>
     (a.display_name && a.display_name.trim()) || a.slug || "-";
 
-  // Live count preview for current query (best-effort, lightweight).
+  // Licznik "pasujacych wpisow". MUSI stosowac dokladnie te filtry, ktore ma w
+  // kluczu zapytania - wczesniej kategorie, tagi i daty siedzialy w kluczu, ale
+  // queryFn ich nie stosowal, wiec panel pokazywal liczbe WSZYSTKICH wpisow i
+  // po prostu klamal (np. "142" przy kategorii z 3 wpisami).
   const countKey = useMemo(
     () =>
       [
@@ -140,6 +231,8 @@ export function PostListEditor({ c, lang, setContent }: Props) {
         excludeIdsCsv,
         postFormat,
         authorId,
+        dateFrom,
+        dateTo,
       ].join("|"),
     [
       categoriesCsv,
@@ -150,28 +243,28 @@ export function PostListEditor({ c, lang, setContent }: Props) {
       excludeIdsCsv,
       postFormat,
       authorId,
+      dateFrom,
+      dateTo,
     ],
   );
   const { data: matchCount } = useQuery({
     queryKey: ["post-list-editor-count", countKey],
     staleTime: 30_000,
     queryFn: async () => {
+      const filters = readFilters(c);
+      const { includeSet, excludeSet, impossible } = await resolvePostFilterSets(filters);
+      if (impossible) return 0;
       let q = supabase
         .from("posts")
         .select("id", { count: "exact", head: true })
-        .eq("status", "published");
-      if (postFormat) q = q.eq("post_format", postFormat);
-      if (authorId) q = q.eq("author_id", authorId);
-      const inc = includeIdsCsv
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (inc.length) q = q.in("id", inc);
-      const exc = excludeIdsCsv
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (exc.length) q = q.not("id", "in", `(${exc.join(",")})`);
+        .eq("status", "published")
+        .is("deleted_at", null);
+      if (filters.postFormat) q = q.eq("post_format", filters.postFormat);
+      if (filters.authorId) q = q.eq("author_id", filters.authorId);
+      if (filters.dateFrom) q = q.gte("published_at", `${filters.dateFrom}T00:00:00Z`);
+      if (filters.dateTo) q = q.lte("published_at", `${filters.dateTo}T23:59:59Z`);
+      if (includeSet) q = q.in("id", Array.from(includeSet));
+      if (excludeSet.size) q = q.not("id", "in", `(${Array.from(excludeSet).join(",")})`);
       const { count } = await q;
       return count ?? 0;
     },
@@ -291,66 +384,124 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             </Select>
           </PropField>
         </div>
-        <div className="mt-2">
-          <PropField
-            label={t("builder.postListEditor.authorDisplay", { defaultValue: "Autor" })}
-            hint={t("builder.postListEditor.authorDisplayHint", {
-              defaultValue: "Sposób prezentacji autora pod tytułem.",
-            })}
-          >
-            <Select
-              value={str(c, "authorDisplay", "avatar")}
-              onValueChange={(v) => {
-                setContent("authorDisplay", v);
-                // Keep legacy toggles in sync so older variants that read them still update.
-                setContent("showAuthor", v !== "none" ? "1" : "0");
-                setContent("showAuthorAvatar", v === "avatar" ? "1" : "0");
-                setContent("showAuthorLabel", v === "label" ? "1" : "0");
-              }}
+        {supportsByline && (
+          <div className="mt-2">
+            <PropField
+              label={t("builder.postListEditor.authorDisplay", { defaultValue: "Autor" })}
+              hint={t("builder.postListEditor.authorDisplayHint", {
+                defaultValue: "Sposób prezentacji autora pod tytułem.",
+              })}
             >
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="avatar" className="text-xs">
-                  {t("builder.postListEditor.authorAvatar", {
-                    defaultValue: "Zdjęcie + imię i nazwisko",
-                  })}
-                </SelectItem>
-                <SelectItem value="label" className="text-xs">
-                  {t("builder.postListEditor.authorLabelMode", {
-                    defaultValue: 'Etykieta: „Autor: Imię Nazwisko"',
-                  })}
-                </SelectItem>
-                <SelectItem value="none" className="text-xs">
-                  {t("builder.postListEditor.authorNone", { defaultValue: "Bez autora" })}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </PropField>
-          {str(c, "authorDisplay", "avatar") === "label" && (
-            <div className="mt-2">
-              <PropField
-                label={t("builder.postListEditor.authorLabelText", {
-                  defaultValue: "Etykieta autora (i18n)",
-                })}
-                hint={t("builder.postListEditor.authorLabelHint", {
-                  defaultValue: 'Puste = „Autor" (PL) / „By" (EN).',
-                })}
+              <Select
+                value={str(c, "authorDisplay", "avatar")}
+                onValueChange={(v) => {
+                  setContent("authorDisplay", v);
+                  // Keep legacy toggles in sync so older variants that read them still update.
+                  setContent("showAuthor", v !== "none" ? "1" : "0");
+                  setContent("showAuthorAvatar", v === "avatar" ? "1" : "0");
+                  setContent("showAuthorLabel", v === "label" ? "1" : "0");
+                }}
               >
-                <Input
-                  value={str(c, `authorLabel_${lang}`, "")}
-                  placeholder={lang === "pl" ? "Autor" : "By"}
-                  onChange={(e) => setContent(`authorLabel_${lang}`, e.target.value)}
-                  className="h-8 text-xs"
-                />
-              </PropField>
-            </div>
-          )}
-        </div>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="avatar" className="text-xs">
+                    {t("builder.postListEditor.authorAvatar", {
+                      defaultValue: "Zdjęcie + imię i nazwisko",
+                    })}
+                  </SelectItem>
+                  <SelectItem value="label" className="text-xs">
+                    {t("builder.postListEditor.authorLabelMode", {
+                      defaultValue: 'Etykieta: „Autor: Imię Nazwisko"',
+                    })}
+                  </SelectItem>
+                  <SelectItem value="none" className="text-xs">
+                    {t("builder.postListEditor.authorNone", { defaultValue: "Bez autora" })}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </PropField>
+            {str(c, "authorDisplay", "avatar") === "label" && (
+              <div className="mt-2">
+                <PropField
+                  label={t("builder.postListEditor.authorLabelText", {
+                    defaultValue: "Etykieta autora (i18n)",
+                  })}
+                  hint={t("builder.postListEditor.authorLabelHint", {
+                    defaultValue: 'Puste = „Autor" (PL) / „By" (EN).',
+                  })}
+                >
+                  <Input
+                    value={str(c, `authorLabel_${lang}`, "")}
+                    placeholder={lang === "pl" ? "Autor" : "By"}
+                    onChange={(e) => setContent(`authorLabel_${lang}`, e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </PropField>
+              </div>
+            )}
+          </div>
+        )}
         <DisplayLivePreview c={c} lang={lang} />
       </Collapsible>
       {/* anchor */}
+
+      {/* ── Carousel ───────────────────────────────────────── */}
+      {widgetType === "carousel" && (
+        <Collapsible
+          title={t("builder.postListEditor.carouselTitle", { defaultValue: "Karuzela" })}
+          defaultOpen
+        >
+          <div className="space-y-2">
+            <PropField
+              label={t("builder.postListEditor.autoplay", { defaultValue: "Autoodtwarzanie" })}
+              hint={t("builder.postListEditor.autoplayHint", {
+                defaultValue:
+                  "Karuzela przewija się sama i zatrzymuje na najechaniu, fokusie klawiatury oraz przyciskiem pauzy. Czytelnicy z ustawieniem „ogranicz ruch” widzą ją statycznie.",
+              })}
+            >
+              <div className="flex h-8 items-center">
+                <Switch
+                  checked={autoplay}
+                  onCheckedChange={(next) => setContent("autoplay", next)}
+                  aria-label={t("builder.postListEditor.autoplay", {
+                    defaultValue: "Autoodtwarzanie",
+                  })}
+                />
+              </div>
+            </PropField>
+            {autoplay && (
+              <PropField
+                label={t("builder.postListEditor.autoplayInterval", {
+                  defaultValue: "Czas slajdu (ms)",
+                })}
+              >
+                <Input
+                  type="number"
+                  min={CAROUSEL_AUTOPLAY_MIN_MS}
+                  max={CAROUSEL_AUTOPLAY_MAX_MS}
+                  step={500}
+                  value={autoplayIntervalMs}
+                  onChange={(e) =>
+                    setContent(
+                      "autoplayIntervalMs",
+                      Math.min(
+                        CAROUSEL_AUTOPLAY_MAX_MS,
+                        Math.max(
+                          CAROUSEL_AUTOPLAY_MIN_MS,
+                          Number(e.target.value) || CAROUSEL_AUTOPLAY_DEFAULT_MS,
+                        ),
+                      ),
+                    )
+                  }
+                  className="h-8 text-xs"
+                />
+              </PropField>
+            )}
+          </div>
+        </Collapsible>
+      )}
 
       {/* ── Query ──────────────────────────────────────────── */}
       <Collapsible title={t("builder.postListEditor.queryFilters")} defaultOpen>
@@ -714,62 +865,60 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
   const limit = Math.max(1, Math.min(100, num(c, "limit", 6)));
   const offset = Math.max(0, num(c, "offset", 0));
-  const orderByRaw = str(c, "orderBy", "published_at");
-  const orderDir = (str(c, "orderDir", "desc") === "asc" ? "asc" : "desc") as "asc" | "desc";
-  const postFormat = str(c, "postFormat", "");
-  const authorId = str(c, "authorId", "");
-  const dateFrom = str(c, "dateFrom", "");
-  const dateTo = str(c, "dateTo", "");
-  const csv = (k: string) =>
-    str(c, k, "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  const includeCats = csv("categoriesCsv");
-  const excludeCats = csv("excludeCategoriesCsv");
-  const includeTags = csv("tagsCsv");
-  const excludeTags = csv("excludeTagsCsv");
-  const includeIds = csv("includeIdsCsv");
-  const excludeIds = csv("excludeIdsCsv");
+  // Sortowanie zawezone do wartosci, ktore zapytanie widgetu realizuje.
+  const safeOrderBy = asOneOf(c["orderBy"], POST_LIST_ORDER_BY, "published_at");
+  const orderDir: "asc" | "desc" = str(c, "orderDir", "desc") === "asc" ? "asc" : "desc";
+  const postFormat = str(c, "postFormat");
+  const authorId = str(c, "authorId");
+  const dateFrom = str(c, "dateFrom");
+  const dateTo = str(c, "dateTo");
+  const categoriesCsv = str(c, "categoriesCsv");
+  const excludeCategoriesCsv = str(c, "excludeCategoriesCsv");
+  const tagsCsv = str(c, "tagsCsv");
+  const excludeTagsCsv = str(c, "excludeTagsCsv");
+  const includeIdsCsv = str(c, "includeIdsCsv");
+  const excludeIdsCsv = str(c, "excludeIdsCsv");
 
   const overrides = readThumbnailOverrides(c);
 
+  // Klucz z samych prymitywow (surowe CSV zamiast swiezych tablic), wiec nie
+  // zmienia tozsamosci przy kazdym renderze panelu.
   const queryKey = useMemo(
     () => [
       "post-list-editor-preview",
       {
         limit,
         offset,
-        orderByRaw,
+        orderBy: safeOrderBy,
         orderDir,
         postFormat,
         authorId,
         dateFrom,
         dateTo,
-        includeCats,
-        excludeCats,
-        includeTags,
-        excludeTags,
-        includeIds,
-        excludeIds,
+        categoriesCsv,
+        excludeCategoriesCsv,
+        tagsCsv,
+        excludeTagsCsv,
+        includeIdsCsv,
+        excludeIdsCsv,
         lang,
       },
     ],
     [
       limit,
       offset,
-      orderByRaw,
+      safeOrderBy,
       orderDir,
       postFormat,
       authorId,
       dateFrom,
       dateTo,
-      includeCats,
-      excludeCats,
-      includeTags,
-      excludeTags,
-      includeIds,
-      excludeIds,
+      categoriesCsv,
+      excludeCategoriesCsv,
+      tagsCsv,
+      excludeTagsCsv,
+      includeIdsCsv,
+      excludeIdsCsv,
       lang,
     ],
   );
@@ -778,40 +927,27 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
     queryKey,
     staleTime: 30_000,
     queryFn: async () => {
-      const [incCatIds, incTagIds, excCatIds, excTagIds] = await Promise.all([
-        resolveTaxonomyIds("post_categories", includeCats),
-        resolveTaxonomyIds("post_tags", includeTags),
-        resolveTaxonomyIds("post_categories", excludeCats),
-        resolveTaxonomyIds("post_tags", excludeTags),
-      ]);
-      let includeSet: Set<string> | null = null;
-      const seed = (s: Set<string>) => {
-        includeSet = includeSet ? new Set([...includeSet].filter((x) => s.has(x))) : new Set(s);
-      };
-      if (includeCats.length) seed(incCatIds);
-      if (includeTags.length) seed(incTagIds);
-      if (includeIds.length) seed(new Set(includeIds));
-      if (includeSet !== null && (includeSet as Set<string>).size === 0) return [];
-      const excludeSet = new Set<string>([...excCatIds, ...excTagIds, ...excludeIds]);
+      const filters = readFilters(c);
+      const { includeSet, excludeSet, impossible } = await resolvePostFilterSets(filters);
+      if (impossible) return [];
 
       let q = supabase
         .from("posts")
         .select("id, slug, title_pl, title_en, cover_image_url, author_id")
-        .eq("status", "published");
-      if (postFormat) q = q.eq("post_format", postFormat);
-      if (authorId) q = q.eq("author_id", authorId);
-      if (dateFrom) q = q.gte("published_at", `${dateFrom}T00:00:00Z`);
-      if (dateTo) q = q.lte("published_at", `${dateTo}T23:59:59Z`);
+        .eq("status", "published")
+        .is("deleted_at", null);
+      if (filters.postFormat) q = q.eq("post_format", filters.postFormat);
+      if (filters.authorId) q = q.eq("author_id", filters.authorId);
+      if (filters.dateFrom) q = q.gte("published_at", `${filters.dateFrom}T00:00:00Z`);
+      if (filters.dateTo) q = q.lte("published_at", `${filters.dateTo}T23:59:59Z`);
       if (includeSet) q = q.in("id", Array.from(includeSet));
       if (excludeSet.size) q = q.not("id", "in", `(${Array.from(excludeSet).join(",")})`);
 
-      const orderCol =
-        orderByRaw === "title"
-          ? `title_${lang}`
-          : orderByRaw === "random" || orderByRaw === "popular"
-            ? "published_at"
-            : orderByRaw;
-      q = q.order(orderCol, { ascending: orderDir === "asc" });
+      // Kolumna sortowania pochodzi z warstwy zapytania widgetu - podglad i
+      // realny widget MUSZA sortowac tak samo. Wczesniej podglad mial wlasna
+      // kopie mapowania i sortowal po "created_at", ktorego widget nie
+      // obslugiwal (cicho degradowal do "published_at").
+      q = q.order(postListOrderColumn(safeOrderBy, lang), { ascending: orderDir === "asc" });
       q = q.range(offset, offset + limit - 1);
       const { data } = await q;
       return (data ?? []) as PreviewRow[];
