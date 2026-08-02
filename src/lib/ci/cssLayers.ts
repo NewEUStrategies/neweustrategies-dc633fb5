@@ -25,8 +25,33 @@ export interface UnlayeredZeroSpecificityRule {
   selector: string;
 }
 
-/** Czy selektor ma zerową specyficzność, tzn. każdy jego człon siedzi
- *  w `:where()` i nie ma poza tym typów, klas, atrybutów ani pseudoklas. */
+/**
+ * Rozbija listę selektorów po przecinkach NAJWYŻSZEGO poziomu - przecinki
+ * wewnątrz `:where(…)` / `:not(…)` / `:is(…)` należą do argumentów tych
+ * pseudoklas, nie do listy.
+ */
+export function splitSelectorList(selector: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of selector) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (ch === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  parts.push(current);
+  return parts.map((p) => p.trim()).filter(Boolean);
+}
+
+/** Czy POJEDYNCZY selektor ma zerową specyficzność, tzn. każdy jego człon
+ *  siedzi w `:where()` i nie ma poza tym typów, klas, atrybutów ani pseudoklas.
+ *  Listy rozbijaj wcześniej przez `splitSelectorList()` - w liście
+ *  `:where(input), .custom` groźny jest już sam pierwszy człon. */
 export function hasZeroSpecificity(selector: string): boolean {
   // Usuwamy pełne grupy `:where(...)` (razem z zagnieżdżonymi nawiasami) -
   // one z definicji nic nie wnoszą do specyficzności.
@@ -53,7 +78,7 @@ export function hasZeroSpecificity(selector: string): boolean {
   // Co zostało poza `:where()`? Kombinatory i białe znaki są nieszkodliwe;
   // cokolwiek innego (typ, klasa, #id, [attr], :pseudo, ::pseudo-element)
   // podnosi specyficzność powyżej zera.
-  return rest.replace(/[\s>+~,*]/g, "") === "";
+  return rest.replace(/[\s>+~*]/g, "") === "";
 }
 
 type BlockKind = "layer" | "at" | "rule";
@@ -96,8 +121,18 @@ export function findUnlayeredZeroSpecificityRules(css: string): UnlayeredZeroSpe
       if (head.startsWith("@layer")) stack.push("layer");
       else if (head.startsWith("@")) stack.push("at");
       else {
-        if (!inLayer() && !inDeclarations() && head && hasZeroSpecificity(head)) {
-          found.push({ line: preludeLine, selector: head.replace(/\s+/g, " ").slice(0, 160) });
+        // Każdy człon listy sprawdzamy OSOBNO: w `:where(input), .custom-input`
+        // pierwszy człon ma zerową specyficzność i sam w sobie odtwarza
+        // regresję kaskady, choć cała lista jako całość już nie.
+        const offender =
+          !inLayer() && !inDeclarations() && head
+            ? splitSelectorList(head).find(hasZeroSpecificity)
+            : undefined;
+        if (offender !== undefined) {
+          found.push({
+            line: preludeLine,
+            selector: offender.replace(/\s+/g, " ").slice(0, 160),
+          });
         }
         stack.push("rule");
       }

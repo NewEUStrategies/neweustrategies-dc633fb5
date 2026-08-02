@@ -145,8 +145,12 @@ describe("widget join-us - rozmiary czcionek i ikon", () => {
       expect((icon as SVGElement).style.width.endsWith("em")).toBe(true);
       expect((icon as SVGElement).style.height.endsWith("em")).toBe(true);
     });
-    // Ikona ✓ jest klikalnym celem tooltipa "Ikony".
-    expect(container.querySelector('[data-edit-target="iconSize"]')).not.toBeNull();
+    // KONTRAKT: każda ikona sterowana polem "Ikony" jest też klikalnym celem
+    // tego pola. Bez tego operator klika ikonę, otwiera mu się edytor rodzica
+    // (rozmiar przycisku / pola) i zmiana "nie działa".
+    const targets = container.querySelectorAll('[data-edit-target="iconSize"]');
+    expect(targets.length).toBe(icons.length);
+    icons.forEach((icon) => expect(icon.getAttribute("data-edit-target")).toBe("iconSize"));
 
     cleanup();
     const pinned = await renderJoinUs({ iconSize: 28 });

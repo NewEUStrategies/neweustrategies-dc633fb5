@@ -715,7 +715,16 @@ export function JoinUsForm({
 
   // Ikony: bok w `em` (skaluje się z tekstem obok) + `data-jus-icon`, po którym
   // celuje sztywny override `iconSize` z buildera.
+  //
+  // KONTRAKT: `data-jus-icon` i `data-edit-target="iconSize"` chodzą PARAMI.
+  // Ikona sterowana polem „Ikony" musi być też klikalnym celem tego pola na
+  // canvasie - inaczej operator klika ikonę, a otwiera mu się edytor rodzica
+  // (rozmiar przycisku / pola) i zmiana „nie działa". Wyjątkiem jest ✕ w
+  // pigułce wybranego tematu: to mikro-chrome tagu, które ma trzymać się
+  // rozmiaru samej pigułki, nie rozmiaru ikon treści - dlatego nie ma żadnego
+  // z tych dwóch atrybutów i skaluje się wyłącznie przez `em`.
   const iconStyle: CSSProperties = { width: `${ICON_EM}em`, height: `${ICON_EM}em` };
+  const iconTargetProps = { "data-jus-icon": true, "data-edit-target": "iconSize" } as const;
 
   /** Jeden bulletpoint korzyści - wspólny atom wariantów split / split-image.
    *  `data-keep-color` chroni własny kolor ikony przed globalnym override'em
@@ -725,8 +734,7 @@ export function JoinUsForm({
       <Check
         className={cn("mt-[0.15em] shrink-0", tone === "on-image" ? "text-white" : "text-brand")}
         style={{ ...iconStyle, ...(perkIconColor ? { color: perkIconColor } : null) }}
-        data-jus-icon
-        data-edit-target="iconSize"
+        {...iconTargetProps}
         data-keep-color={perkIconColor ? "" : undefined}
         aria-hidden
       />
@@ -742,7 +750,7 @@ export function JoinUsForm({
           <Check
             className="text-emerald-500 shrink-0"
             style={iconStyle}
-            data-jus-icon
+            {...iconTargetProps}
             aria-hidden
           />
           <p className="text-sm font-medium">{okText}</p>
@@ -1037,6 +1045,7 @@ export function JoinUsForm({
                       dropOpen && "rotate-180",
                     )}
                     style={iconStyle}
+                    {...iconTargetProps}
                     aria-hidden
                   />
                 </button>
@@ -1199,7 +1208,7 @@ export function JoinUsForm({
         style={{ fontSize: buttonSize ? `${buttonSize}px` : undefined }}
         data-edit-target="buttonSize"
       >
-        <UserPlus className="shrink-0" style={iconStyle} data-jus-icon aria-hidden />
+        <UserPlus className="shrink-0" style={iconStyle} {...iconTargetProps} aria-hidden />
         {btnLabel}
       </SubscribeButton>
 

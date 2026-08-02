@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { findUnlayeredZeroSpecificityRules, hasZeroSpecificity } from "@/lib/ci/cssLayers";
+import {
+  findUnlayeredZeroSpecificityRules,
+  hasZeroSpecificity,
+  splitSelectorList,
+} from "@/lib/ci/cssLayers";
 
 const CSS = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
@@ -26,7 +30,42 @@ describe("hasZeroSpecificity", () => {
   });
 });
 
+describe("splitSelectorList", () => {
+  it("dzieli tylko po przecinkach najwyższego poziomu", () => {
+    expect(splitSelectorList(":where(input, textarea), .custom")).toEqual([
+      ":where(input, textarea)",
+      ".custom",
+    ]);
+    expect(splitSelectorList(':where(input:not([type="a"]):not([type="b"]))')).toEqual([
+      ':where(input:not([type="a"]):not([type="b"]))',
+    ]);
+  });
+});
+
 describe("kaskada src/styles.css", () => {
+  // Regresja: mieszana lista `:where(input), .custom-input` jako CAŁOŚĆ nie ma
+  // zerowej specyficzności, ale jej pierwszy człon owszem - i to on odtwarza
+  // problem z kaskadą. Każdy człon musi być sprawdzany osobno.
+  it("wykrywa zerowy człon w mieszanej liście selektorów", () => {
+    const offenders = findUnlayeredZeroSpecificityRules(
+      ":where(input), .custom-input { padding-inline: 1rem; }",
+    );
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0].selector).toBe(":where(input)");
+  });
+
+  it("nie zgłasza listy złożonej wyłącznie z selektorów z wagą", () => {
+    expect(
+      findUnlayeredZeroSpecificityRules(".a input, .b select { padding-inline: 1rem; }"),
+    ).toEqual([]);
+  });
+
+  it("nie zgłasza reguł o zerowej specyficzności zamkniętych w @layer", () => {
+    expect(
+      findUnlayeredZeroSpecificityRules("@layer components { :where(input) { height: 2rem; } }"),
+    ).toEqual([]);
+  });
+
   // Reguła o zerowej specyficzności zapisana poza `@layer` kłamie: deklaruje
   // „jestem najsłabszy", a bije KAŻDĄ regułę z `@layer utilities`, bo warstwy
   // mają pierwszeństwo przed specyficznością. Tak umarło `pl-9` na polu kraju
