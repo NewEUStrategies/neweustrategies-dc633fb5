@@ -38,9 +38,11 @@ export async function trustedPublicHost(request: Request): Promise<string | null
   if (!import.meta.env.SSR) return requestPublicHost(request);
   try {
     // The *.server.ts suffix keeps the supabase admin graph out of the
-    // client bundle (Vite's import protection denies that subtree).
-    const mod = await import("@/lib/server/tenant.server");
-    return await mod.resolveTrustedRequestHost(request);
+    // client bundle (Vite's import protection denies src/lib/server/** even
+    // behind an `import.meta.env.SSR` dynamic import, so we hop through the
+    // co-located server module instead).
+    const mod = await import("./requestHost.server");
+    return await mod.trustedHostFromRequest(request);
   } catch {
     // Directory layer unavailable (tests, warmup) - degrade to the raw
     // reader; the DB side still matches the header against tenants.domain.

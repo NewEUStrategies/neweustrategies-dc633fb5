@@ -17,3 +17,12 @@ export async function currentServerHost(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Trusted host of an explicit Request. Lives here (a *.server.ts module) so
+ * the client graph never reaches src/lib/server/** - Vite's import protection
+ * denies that directory even behind an `import.meta.env.SSR` dynamic import.
+ */
+export async function trustedHostFromRequest(request: Request): Promise<string | null> {
+  return await resolveTrustedRequestHost(request);
+}
