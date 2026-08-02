@@ -26,6 +26,8 @@ import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
+import { setMyConsent } from "@/lib/consents.functions";
+import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { cn } from "@/lib/utils";
