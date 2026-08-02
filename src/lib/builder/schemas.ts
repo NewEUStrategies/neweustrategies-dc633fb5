@@ -1080,89 +1080,13 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
   ],
-  "post-list": [
-    { key: "limit", type: "number", label: "Limit", min: 1, max: 50 },
-    { key: "columns", type: "number", label: "Kolumny", min: 1, max: 6 },
-    {
-      key: "variant",
-      type: "select",
-      label: "Wariant",
-      options: [
-        { value: "card", label: "karty" },
-        { value: "minimal", label: "minimalny" },
-        { value: "overlay", label: "overlay na okładce" },
-        { value: "list", label: "lista" },
-      ],
-    },
-    {
-      key: "showCover",
-      type: "select",
-      label: "Pokaż okładkę (cover)",
-      options: [
-        { value: "1", label: "Tak" },
-        { value: "0", label: "Nie" },
-      ],
-      default: "1",
-      group: "Wyświetlanie",
-    },
-    {
-      key: "showTitle",
-      type: "select",
-      label: "Pokaż tytuł",
-      options: [
-        { value: "1", label: "Tak" },
-        { value: "0", label: "Nie" },
-      ],
-      default: "1",
-      group: "Wyświetlanie",
-    },
-    {
-      key: "showExcerpt",
-      type: "select",
-      label: "Pokaż opis (excerpt)",
-      options: [
-        { value: "1", label: "Tak" },
-        { value: "0", label: "Nie" },
-      ],
-      default: "1",
-      group: "Wyświetlanie",
-    },
-    {
-      key: "authorDisplay",
-      type: "select",
-      label: "Autor (wariant ranked)",
-      hint: "Wybierz sposób prezentacji autora pod tytułem.",
-      options: [
-        { value: "avatar", label: "Zdjęcie + imię i nazwisko" },
-        { value: "label", label: 'Etykieta „Autor: Imię Nazwisko"' },
-        { value: "none", label: "Bez autora" },
-      ],
-      default: "avatar",
-      visibleWhen: (c) => c.variant === "ranked",
-      group: "Autor",
-    },
-    {
-      key: "authorLabel",
-      type: "i18nText",
-      label: "Etykieta autora (i18n)",
-      hint: 'Puste = domyślnie „Autor" (PL) / „By" (EN). Wpisz własne słowo, np. „Pisze", „Rozmawia", „Words by".',
-      visibleWhen: (c) => c.variant === "ranked" && c.authorDisplay === "label",
-      group: "Autor",
-    },
-  ],
-
-  carousel: [
-    { key: "limit", type: "number", label: "Limit", min: 1, max: 50 },
-    {
-      key: "autoplay",
-      type: "select",
-      label: "Autoodtwarzanie",
-      options: [
-        { value: "off", label: "wyłączone" },
-        { value: "on", label: "włączone" },
-      ],
-    },
-  ],
+  // "post-list" i "carousel" NIE MAJA tu schematu i to jest celowe:
+  // `WidgetProperties.ContentFields` obsluguje oba typy dedykowanym edytorem
+  // (`PostListEditor`) i wraca z niego zanim dojdzie do renderu schematu.
+  // Deklaracje, ktore tu wczesniej stały, byly martwe - nikt ich nie renderowal
+  // (a pole `carousel.autoplay` bylo martwe podwojnie: takze niekonsumowane
+  // przez widok). Ustawienia obu widgetow, z autoodtwarzaniem karuzeli wlacznie,
+  // zyja w `PostListEditor` + `postListCarousel.ts`.
   newsletter: [
     { key: "title", type: "i18nText", label: "Tytuł" },
     {
@@ -2905,41 +2829,23 @@ const authFieldBlock = (
     hint: "Widoczny gdy odbiorca nie jest zalogowany.",
   },
   { key: "kicker", type: "i18nText", label: "Kicker (mały nadtytuł)" },
-  {
-    key: "showKicker",
-    type: "select",
-    label: "Pokaż kicker",
-    options: [
-      { value: "1", label: "Tak" },
-      { value: "0", label: "Nie" },
-    ],
-    default: "1",
-  },
-  {
-    key: "showExcerpt",
-    type: "select",
-    label: "Pokaż opis (zajawkę)",
-    options: [
-      { value: "1", label: "Tak" },
-      { value: "0", label: "Nie" },
-    ],
-    default: "1",
-  },
+  // Przełączniki jako prawdziwe booleany: string "0" jest w JS prawdziwy, więc
+  // select "1"/"0" gubił wyłączone ustawienia. Czytelnicy używają `asBool`,
+  // więc treść zapisana wcześniej jako "0"/"1" działa dalej.
+  { key: "showKicker", type: "bool", label: "Pokaż kicker", default: true },
+  { key: "showExcerpt", type: "bool", label: "Pokaż opis (zajawkę)", default: true },
   {
     key: "showAuthor",
-    type: "select",
+    type: "bool",
     label: "Pokaż autora (zdjęcie + imię i nazwisko)",
-    options: [
-      { value: "1", label: "Tak" },
-      { value: "0", label: "Nie" },
-    ],
-    default: "1",
+    default: true,
   },
   { key: "limit", type: "number", label: "Liczba wpisów", min: 1, max: 9, default: 3 },
   {
     key: "columns",
     type: "select",
     label: "Kolumny",
+    hint: "Na telefonie zawsze jedna kolumna, od tabletu dwie, wybrana liczba od dużego ekranu.",
     options: [
       { value: "1", label: "1" },
       { value: "2", label: "2" },

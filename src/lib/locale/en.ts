@@ -90,6 +90,16 @@ export const en = {
       reset: "Back to real consent",
     },
   },
+  // Post carousel: accessibility (aria) labels only, never visible copy.
+  postCarousel: {
+    roleDescription: "carousel",
+    label: "Post carousel",
+    controls: "Carousel controls",
+    prev: "Previous post",
+    next: "Next post",
+    pause: "Pause autoplay",
+    play: "Resume autoplay",
+  },
   newsletter: {
     title: "STRATEGIC THINKING, NEW PERSPECTIVES",
     sub: "Follow the global and European great-power game from the front row",

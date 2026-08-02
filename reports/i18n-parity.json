@@ -107,6 +107,7 @@
     "builder.postListEditor.fmtStandard",
     "builder.pricingEditor.cta",
     "builder.pricingEditor.item",
+    "builder.ratedListEditor.itemLink",
     "builder.ratedListEditor.readMoreSection",
     "builder.sliderEditor.cta",
     "builder.sliderEditor.link",
@@ -120,6 +121,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 381
+    "untranslated": 382
   }
 }

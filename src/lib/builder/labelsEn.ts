@@ -146,7 +146,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Etykieta (badge)": "Label (badge)",
   "Etykieta CTA": "CTA label",
   "Etykieta archiwum": "Archive label",
-  "Etykieta autora (i18n)": "Author label (i18n)",
   "Etykieta osi X (wpływ)": "X axis label (impact)",
   "Etykieta osi Y (prawdopodobieństwo)": "Y axis label (likelihood)",
   "Etykieta podczas wysyłki": "Label while submitting",
@@ -208,7 +207,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Ikona nagłówka": "Heading icon",
   "Ikonka": "Icon",
   "Głos": "Voice",
-  "Limit": "Limit",
   "Limit wyników": "Result limit",
   "Sortowanie": "Sorting",
   "Wariant": "Variant",
@@ -407,6 +405,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Pokaż nagłówek": "Show the heading",
   "Pokaż kicker": "Show the kicker",
   "Pokaż autora (zdjęcie + imię i nazwisko)": "Show the author (photo + full name)",
+  "Na telefonie zawsze jedna kolumna, od tabletu dwie, wybrana liczba od dużego ekranu.":
+    "Always one column on phones, two from tablet up, the selected number on large screens.",
   "Pokaż opis (zajawkę)": "Show the description (excerpt)",
   "Pokaż odtwarzacz": "Show the player",
   "Pokaż wybór zainteresowań": "Show the interest picker",
@@ -660,13 +660,11 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "minimalny": "minimal",
   "rozsunięte": "spaced out",
   "karta": "card",
-  "karty": "cards",
   "karta z cieniem": "card with a shadow",
   "karta z formularzem": "card with a form",
   "karta boczna (kompakt)": "side card (compact)",
   "kolumny": "columns",
   "siatka": "grid",
-  "lista": "list",
   "karuzela": "carousel",
   "kołowy": "pie",
   "pierścień (donut)": "ring (donut)",
@@ -684,7 +682,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "split (left: benefits, right: form)",
   "split z grafiką (lewo: obraz + korzyści, prawo: formularz)":
     "split with an image (left: image + benefits, right: form)",
-  "overlay na okładce": "overlay on the cover",
   "z cieniem": "with a shadow",
   "z ikoną na środku": "with a centred icon",
   "z dużym cudzysłowem": "with a large quotation mark",
@@ -880,8 +877,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Placeholder: Nowe hasło": "Placeholder: New password",
   "Placeholder: Powtórz hasło": "Placeholder: Repeat password",
   "Placeholder: Powtórz nowe hasło": "Placeholder: Repeat new password",
-  'Puste = domyślnie „Autor" (PL) / „By" (EN). Wpisz własne słowo, np. „Pisze", „Rozmawia", „Words by".':
-    'Empty = defaults to “Autor” (PL) / “By” (EN). Enter your own wording, e.g. “Written by”, “In conversation with”, “Words by”.',
   'Ikona Lucide „Check" - zmienia się tylko kolor, kształt pozostaje bez zmian. Puste = brand (lub biały w wariancie split-image).':
     'The Lucide “Check” icon - only the colour changes, the shape stays the same. Empty = brand (or white in the split-image variant).',
   'Przykład: {"id":"branza","type":"select","labelPl":"Branża","labelEn":"Industry","required":true,"options":[{"value":"fintech","labelPl":"Fintech","labelEn":"Fintech"}]}':
@@ -1015,16 +1010,9 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Kolor i typografia tekstu w tooltipie przypisu.":
     "Colour and typography of the text inside the footnote tooltip.",
   // ------------------------------------------- post-list / donations / events
-  "Pokaż okładkę (cover)": "Show the cover",
-  "Wyświetlanie": "Display",
-  "Pokaż tytuł": "Show the title",
-  "Pokaż opis (excerpt)": "Show the excerpt",
-  "Autor (wariant ranked)": "Author (ranked variant)",
-  "Wybierz sposób prezentacji autora pod tytułem.":
-    "Choose how the author is presented under the title.",
-  "Zdjęcie + imię i nazwisko": "Photo + full name",
-  'Etykieta „Autor: Imię Nazwisko"': 'Label “Author: Full Name”',
-  "Bez autora": "No author",
+  // Etykiety wyswietlania i autora dla post-listy zyja w `i18n-builder.ts`
+  // (klucze `builder.postListEditor.*`), bo obsluguje je dedykowany
+  // `PostListEditor`, a nie schemat sterowany danymi.
   "Tryb akcji": "Action mode",
   "bezpośredni link do zbiórki (zrzutka.pl)": "direct link to the fundraiser (zrzutka.pl)",
   "Wpłaty obsługuje zewnętrzna zbiórka (zrzutka.pl) - CTA nigdy nie otwiera checkoutu operatora płatności.":

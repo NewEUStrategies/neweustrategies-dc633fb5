@@ -2,21 +2,28 @@
 // All query knobs (categories, tags, exclusions, author, format, order,
 // limit, offset, date range, popularity) are driven by widget content and
 // edited via PostListEditor.
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getBool, getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
 import {
   dedupeAndSlice,
+  postListAuthorDisplay,
   postListQueryOptions,
   type Lang,
   type PostRow,
 } from "@/lib/builder/postListQuery";
+import {
+  carouselAutoplayEnabled,
+  carouselAutoplayIntervalMs,
+} from "@/lib/builder/postListCarousel";
 import { normalizeTypographyGapPx } from "@/lib/builder/typographyCss";
 
 // Cover renders across a 1-4 column responsive grid. Images are always painted
@@ -67,23 +74,16 @@ export function PostListView({
 }) {
   const { t } = useTranslation();
   const authorLabelOverride = getStr(c, `authorLabel_${lang}`).trim();
-  // Unified author display dropdown (new). Backward compat: derive from the
-  // legacy showAuthorAvatar/showAuthorLabel booleans when authorDisplay is unset.
-  const rawAuthorDisplay = getStr(c, "authorDisplay");
-  const legacyAvatar = getStr(c, "showAuthorAvatar");
-  const legacyLabel = getStr(c, "showAuthorLabel");
-  const authorDisplay: "avatar" | "label" | "none" =
-    rawAuthorDisplay === "avatar" || rawAuthorDisplay === "label" || rawAuthorDisplay === "none"
-      ? rawAuthorDisplay
-      : legacyAvatar === "0" && legacyLabel === "0"
-        ? "none"
-        : legacyAvatar === "0"
-          ? "label"
-          : "avatar";
+  // Sposob prezentacji autora rozstrzyga JEDNA funkcja wspoldzielona z
+  // zapytaniem (postListAuthorDisplay). Wczesniej widok mial wlasna kopie tej
+  // reguly opartą na porownaniach do stringa "0" - rozjezdzala sie z warstwa
+  // zapytania (asBool), wiec zapytanie potrafilo dociagnac autorow, ktorych
+  // widok chowal, albo odwrotnie: widok rysowal byline bez danych.
+  const authorDisplay = postListAuthorDisplay(c);
   const showAuthorAny = authorDisplay !== "none";
   const byLabel =
     authorLabelOverride || t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
-  // Global display toggles — apply to every variant.
+  // Global display toggles - apply to every variant.
   const showCover = getStr(c, "showCover") !== "0";
   const showTitleGlobal = getStr(c, "showTitle") !== "0";
   const showExcerptGlobal = getStr(c, "showExcerpt") !== "0";
@@ -251,7 +251,11 @@ export function PostListView({
 
   if (carousel) {
     return (
-      <div className="w-full min-w-0 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+      <PostListCarousel
+        autoplay={carouselAutoplayEnabled(c)}
+        intervalMs={carouselAutoplayIntervalMs(c)}
+        lang={lang}
+      >
         {rows.map((p) => (
           <PostCard
             key={p.id}
@@ -267,7 +271,7 @@ export function PostListView({
             authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
           />
         ))}
-      </div>
+      </PostListCarousel>
     );
   }
 
@@ -466,6 +470,10 @@ export function PostListView({
                     {excerpt(p)}
                   </p>
                 )}
+                {/* Byline: wariant numbered oferuje ustawienie "Autor" w
+                    edytorze, wiec MUSI je tez rysowac. Wczesniej pole bylo
+                    widoczne, zapisywalo sie i nie robilo nic. */}
+                <AuthorMeta p={p} />
               </div>
             </div>
             {p.cover_image_url && (
@@ -652,6 +660,157 @@ export function PostListView({
           authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
         />
       ))}
+    </div>
+  );
+}
+
+/**
+ * Sciezka karuzeli: scroll-snap + OPCJONALNE autoodtwarzanie.
+ *
+ * Autoplay jest wylaczony domyslnie i nie rusza, gdy czytelnik prosi o
+ * ograniczenie ruchu (`prefers-reduced-motion`). Zatrzymuje sie na hover, na
+ * fokusie klawiatury wewnatrz toru oraz na zadanie uzytkownika (przycisk
+ * pauzy) - WCAG 2.2.2 wymaga mozliwosci zatrzymania ruchomej tresci trwajacej
+ * dluzej niz 5 s. Gdy autoplay jest wylaczony, renderujemy dokladnie ten sam
+ * tor co wczesniej, bez dodatkowych kontrolek.
+ */
+function PostListCarousel({
+  autoplay,
+  intervalMs,
+  lang,
+  children,
+}: {
+  autoplay: boolean;
+  intervalMs: number;
+  lang: Lang;
+  children: React.ReactNode;
+}) {
+  const { t } = useTranslation();
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
+  const [userPaused, setUserPaused] = useState(false);
+  const [interacting, setInteracting] = useState(false);
+  const slides = Array.isArray(children) ? children.length : children ? 1 : 0;
+  const controllable = autoplay && slides > 1;
+  const running = controllable && !reducedMotion && !userPaused && !interacting;
+
+  // Przewijamy do KRAWEDZI kolejnego slajdu (a nie o stala liczbe pikseli),
+  // dzieki czemu snap nie zostawia karty przycietej w polowie. Na koncu toru
+  // zawijamy na poczatek, zeby autoplay nie zatrzymywal sie po cichu.
+  const step = useCallback(
+    (direction: 1 | -1) => {
+      const el = trackRef.current;
+      if (!el) return;
+      const items = Array.from(el.children).filter(
+        (node): node is HTMLElement => node instanceof HTMLElement,
+      );
+      if (!items.length) return;
+      const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+      const current = el.scrollLeft;
+      const target =
+        direction === 1
+          ? (items.find((item) => item.offsetLeft > current + 1)?.offsetLeft ?? 0)
+          : ([...items].reverse().find((item) => item.offsetLeft < current - 1)?.offsetLeft ??
+            maxLeft);
+      const left = Math.min(Math.max(0, target), maxLeft);
+      if (typeof el.scrollTo === "function") {
+        el.scrollTo({ left, behavior: reducedMotion ? "auto" : "smooth" });
+      } else {
+        el.scrollLeft = left;
+      }
+    },
+    [reducedMotion],
+  );
+
+  useEffect(() => {
+    if (!running) return;
+    const id = window.setInterval(() => step(1), intervalMs);
+    return () => window.clearInterval(id);
+  }, [running, intervalMs, step]);
+
+  const track = (
+    <div
+      ref={trackRef}
+      className="w-full min-w-0 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"
+      {...(controllable
+        ? {
+            role: "group",
+            "aria-roledescription": t("postCarousel.roleDescription", {
+              defaultValue: lang === "pl" ? "karuzela" : "carousel",
+            }),
+            "aria-label": t("postCarousel.label", {
+              defaultValue: lang === "pl" ? "Karuzela wpisów" : "Post carousel",
+            }),
+            tabIndex: 0,
+            "data-autoplay": running ? "running" : "paused",
+          }
+        : {})}
+    >
+      {children}
+    </div>
+  );
+
+  if (!controllable) return track;
+
+  const btn =
+    "inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-foreground transition-colors hover:border-brand/60 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const pauseLabel = t("postCarousel.pause", {
+    defaultValue: lang === "pl" ? "Zatrzymaj automatyczne przewijanie" : "Pause autoplay",
+  });
+  const playLabel = t("postCarousel.play", {
+    defaultValue: lang === "pl" ? "Wznów automatyczne przewijanie" : "Resume autoplay",
+  });
+
+  return (
+    <div
+      className="w-full min-w-0"
+      onMouseEnter={() => setInteracting(true)}
+      onMouseLeave={() => setInteracting(false)}
+      onFocus={() => setInteracting(true)}
+      onBlur={() => setInteracting(false)}
+    >
+      {track}
+      <div
+        className="mt-2 flex items-center justify-end gap-1.5"
+        role="group"
+        aria-label={t("postCarousel.controls", {
+          defaultValue: lang === "pl" ? "Sterowanie karuzelą" : "Carousel controls",
+        })}
+      >
+        <button
+          type="button"
+          className={btn}
+          onClick={() => step(-1)}
+          aria-label={t("postCarousel.prev", {
+            defaultValue: lang === "pl" ? "Poprzedni wpis" : "Previous post",
+          })}
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={btn}
+          aria-pressed={userPaused}
+          aria-label={userPaused ? playLabel : pauseLabel}
+          onClick={() => setUserPaused((v) => !v)}
+        >
+          {userPaused ? (
+            <Play className="h-4 w-4" aria-hidden />
+          ) : (
+            <Pause className="h-4 w-4" aria-hidden />
+          )}
+        </button>
+        <button
+          type="button"
+          className={btn}
+          onClick={() => step(1)}
+          aria-label={t("postCarousel.next", {
+            defaultValue: lang === "pl" ? "Następny wpis" : "Next post",
+          })}
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
     </div>
   );
 }
