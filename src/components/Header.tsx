@@ -126,80 +126,87 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
 
   return (
     <>
-      <AlertBar />
-      {trending.enabled !== false && (
-        <TrendingTicker
-          source={trending.source ?? "trending"}
-          mode={trending.mode ?? "scroll"}
-          layoutStyle={trending.layoutStyle ?? "classic"}
-          days={trending.days ?? 7}
-          limit={trending.limit ?? 8}
-          visibleCount={trending.visibleCount ?? 1}
-          intervalSec={trending.intervalSec ?? 6}
-          pinnedPostId={trending.pinnedPostId}
-          pinnedUntil={trending.pinnedUntil ?? null}
-          selectedPostIds={trending.selectedPostIds}
-          mixedFill={trending.mixedFill}
-          labelPl={trending.labelPl}
-          labelEn={trending.labelEn}
-          iconAnimation={trending.iconAnimation}
-          colors={trending.colors}
-          fullWidth={trending.fullWidth ?? true}
-        />
-      )}
-      <AdZone position="header_banner" pageType={adPageType} className="py-2 text-center" />
+      {/* Jeden kontener na całe chrome headera - to on jest skalowany przy
+          zwijaniu (patrz styles.css). Wcześniej `zoom` siedział na każdym
+          dziecku <header> z osobna, co mnożyło przeliczenia layoutu w każdej
+          klatce animacji i przy okazji skalowało też fullscreenowy
+          SearchOverlay, który jest renderowany poniżej - poza tym kontenerem. */}
+      <div className="site-header-chrome">
+        <AlertBar />
+        {trending.enabled !== false && (
+          <TrendingTicker
+            source={trending.source ?? "trending"}
+            mode={trending.mode ?? "scroll"}
+            layoutStyle={trending.layoutStyle ?? "classic"}
+            days={trending.days ?? 7}
+            limit={trending.limit ?? 8}
+            visibleCount={trending.visibleCount ?? 1}
+            intervalSec={trending.intervalSec ?? 6}
+            pinnedPostId={trending.pinnedPostId}
+            pinnedUntil={trending.pinnedUntil ?? null}
+            selectedPostIds={trending.selectedPostIds}
+            mixedFill={trending.mixedFill}
+            labelPl={trending.labelPl}
+            labelEn={trending.labelEn}
+            iconAnimation={trending.iconAnimation}
+            colors={trending.colors}
+            fullWidth={trending.fullWidth ?? true}
+          />
+        )}
+        <AdZone position="header_banner" pageType={adPageType} className="py-2 text-center" />
 
-      {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger.
-          Logo jest wyśrodkowane względem pełnej szerokości paska; lewy/prawy cluster
-          pozostaje przy krawędziach dzięki kolumnom 1fr-auto-1fr. */}
-      <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3 border-b border-border bg-background">
-        <div className="flex items-center gap-2 justify-self-start">
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            aria-label={t("common.openSearch")}
-            className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+        {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger.
+            Logo jest wyśrodkowane względem pełnej szerokości paska; lewy/prawy cluster
+            pozostaje przy krawędziach dzięki kolumnom 1fr-auto-1fr. */}
+        <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3 border-b border-border bg-background">
+          <div className="flex items-center gap-2 justify-self-start">
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              aria-label={t("common.openSearch")}
+              className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+            >
+              <Search className="w-5 h-5" aria-hidden />
+            </button>
+          </div>
+          <AppLink
+            href="/"
+            aria-label={siteName}
+            className="flex items-center justify-center min-w-0 text-foreground justify-self-center"
           >
-            <Search className="w-5 h-5" aria-hidden />
-          </button>
+            {mobileLogo ? (
+              <img
+                src={mobileLogo}
+                alt={siteName}
+                className="h-8 w-auto max-w-[180px] object-contain"
+                loading="eager"
+                decoding="async"
+              />
+            ) : (
+              <span className="text-base font-bold tracking-tight truncate min-w-0 max-w-[180px]">
+                {siteName}
+              </span>
+            )}
+          </AppLink>
+          <div className="flex items-center gap-2 justify-self-end">
+            <LangReelSwitcher label={isPl ? "Język" : "Language"} />
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-label={openA11y}
+              aria-expanded={open}
+              aria-controls="mobile-header-drawer"
+              className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+            >
+              <Menu className="w-5 h-5" aria-hidden />
+            </button>
+          </div>
         </div>
-        <AppLink
-          href="/"
-          aria-label={siteName}
-          className="flex items-center justify-center min-w-0 text-foreground justify-self-center"
-        >
-          {mobileLogo ? (
-            <img
-              src={mobileLogo}
-              alt={siteName}
-              className="h-8 w-auto max-w-[180px] object-contain"
-              loading="eager"
-              decoding="async"
-            />
-          ) : (
-            <span className="text-base font-bold tracking-tight truncate min-w-0 max-w-[180px]">
-              {siteName}
-            </span>
-          )}
-        </AppLink>
-        <div className="flex items-center gap-2 justify-self-end">
-          <LangReelSwitcher label={isPl ? "Język" : "Language"} />
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label={openA11y}
-            aria-expanded={open}
-            aria-controls="mobile-header-drawer"
-            className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
-          >
-            <Menu className="w-5 h-5" aria-hidden />
-          </button>
-        </div>
-      </div>
 
-      {/* Full builder-authored header - visible from lg up. */}
-      <div className={cn("hidden lg:block", isHome && "home-header-grow")}>
-        <BuilderRenderer doc={cfg.builder_data} lang={isPl ? "pl" : "en"} />
+        {/* Full builder-authored header - visible from lg up. */}
+        <div className={cn("hidden lg:block", isHome && "home-header-grow")}>
+          <BuilderRenderer doc={cfg.builder_data} lang={isPl ? "pl" : "en"} />
+        </div>
       </div>
 
       {/* Mobile/Tablet drawer: portalowany do <body>, żeby uciec ze stacking
@@ -301,8 +308,123 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
     };
   }, [stickyShrink]);
 
+  // Wymiary spoczynkowe headera potrzebne CSS-owi do zwijania (patrz styles.css):
+  //   --hdr-nat   wysokość chrome'u w układzie (skala 1, ticker rozwinięty)
+  //   --hdr-tt    wysokość paska "na czasie" (zwija się do zera)
+  //   --hdr-extra to, co header ma ponad chrome (obramowanie)
+  //
+  // Zawartość skalujemy `transform`em, a ten nie zmienia wysokości w układzie -
+  // header musi więc znać swoją docelową wysokość sam. Przy okazji daje to
+  // rzecz najważniejszą dla wrażenia spokoju: `height` maleje o dokładnie tyle,
+  // o ile rośnie `margin-bottom`, więc ślad headera w układzie strony jest
+  // stały i treść pod nim ani drgnie (wcześniej podskakiwała o ~77 px, a każda
+  // klatka animacji przeliczała pozycje całego dokumentu).
+  //
+  // Pomiar jest rzadki: montaż, resize okna, załadowanie fontów i realna zmiana
+  // zawartości headera. ResizeObserver tylko odracza go do ustabilizowania się
+  // rozmiaru, więc nigdy nie wypada w trakcie animacji. Gdy się nie uda (header
+  // ukryty na landingach, chrome jeszcze nie zamontowany), data-metrics znika
+  // i header po prostu się nie zmniejsza - lepiej brak efektu niż rozjechany
+  // układ.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!stickyShrink || !el) return;
+    const SETTLE_MS = 160;
+    let raf = 0;
+    let timer = 0;
+
+    const measure = () => {
+      raf = 0;
+      const chrome = el.querySelector<HTMLElement>(".site-header-chrome");
+      if (!chrome) {
+        delete el.dataset.metrics;
+        return;
+      }
+      // Zdejmujemy data-metrics na czas odczytu: bez niego nie działa ani
+      // skalowanie, ani zwijanie tickera, ani narzucona wysokość, więc mierzymy
+      // wartości naturalne niezależnie od tego, czy header jest właśnie
+      // zwinięty. Wszystko dzieje się synchronicznie, bez malowania pomiędzy,
+      // a żadna z tych właściwości nie ma tranzycji - nic nie zdąży drgnąć.
+      const previous = el.dataset.metrics;
+      delete el.dataset.metrics;
+      // offsetHeight to wysokość w układzie - `transform` jej nie zmienia,
+      // więc odczyt jest odporny na trwającą animację.
+      const natural = chrome.offsetHeight;
+      const ticker = chrome.querySelector<HTMLElement>(".cms-trending");
+      const tickerHeight = ticker ? ticker.offsetHeight : 0;
+      const extra = el.offsetHeight - natural;
+
+      if (natural > 0 && tickerHeight >= 0 && tickerHeight < natural && extra >= 0) {
+        el.style.setProperty("--hdr-nat", `${natural}px`);
+        el.style.setProperty("--hdr-tt", `${tickerHeight}px`);
+        el.style.setProperty("--hdr-extra", `${extra}px`);
+        el.dataset.metrics = "ready";
+      } else if (previous) {
+        el.dataset.metrics = previous;
+      }
+    };
+
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (raf) return;
+        raf = window.requestAnimationFrame(measure);
+      }, SETTLE_MS);
+    };
+
+    measure();
+
+    // Obserwujemy chrome, nie header: wysokość headera jest teraz narzucona
+    // przez zmienne, więc obserwowanie jej wprost byłoby zapętleniem.
+    const ro = new ResizeObserver(schedule);
+    let chrome: Element | null = null;
+    const attachChrome = () => {
+      const next = el.querySelector(".site-header-chrome");
+      if (next === chrome) return;
+      if (chrome) ro.unobserve(chrome);
+      chrome = next;
+      if (chrome) {
+        ro.observe(chrome);
+        schedule();
+      }
+    };
+    attachChrome();
+    // Chrome montuje się dopiero gdy rozwiąże się <Suspense> nad HeaderInner.
+    const mo = new MutationObserver(attachChrome);
+    mo.observe(el, { childList: true });
+    window.addEventListener("resize", schedule);
+    if (document.fonts?.ready) void document.fonts.ready.then(schedule).catch(() => undefined);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (raf) window.cancelAnimationFrame(raf);
+      ro.disconnect();
+      mo.disconnect();
+      window.removeEventListener("resize", schedule);
+      delete el.dataset.metrics;
+      el.style.removeProperty("--hdr-nat");
+      el.style.removeProperty("--hdr-tt");
+      el.style.removeProperty("--hdr-extra");
+    };
+  }, [stickyShrink]);
+
   // Kotwice (#newsletter itd.) nie mogą chować się pod sticky headerem -
   // mierzymy realną wysokość i publikujemy ją jako --sticky-header-h.
+  //
+  // KLUCZOWE DLA PŁYNNOŚCI ANIMACJI ZWIJANIA. Ta zmienna żyje na :root i czyta
+  // ją reguła `[id] { scroll-margin-top: calc(var(--sticky-header-h) + 15px) }`,
+  // czyli potencjalnie każdy element strony. Każdy zapis unieważnia więc style
+  // CAŁEGO dokumentu. Poprzednia wersja robiła to w każdej klatce zwijania
+  // (ResizeObserver widzi zmieniającą się wysokość headera), bo próg 1px nic nie
+  // blokował - w szybkiej fazie animacji header zmienia się o kilka px na
+  // klatkę. Pomiar nagrania pokazał dokładnie tam spadek do 30 fps ("poklatkowy"
+  // ruch), podczas gdy w wygasającym ogonie animacji było równe 60 fps.
+  //
+  // Dlatego nie publikujemy nic w trakcie ruchu: ResizeObserver tylko odracza
+  // pomiar, a wartość trafia na :root dopiero gdy wysokość ustabilizuje się na
+  // SETTLE_MS. Dla kotwic to bez znaczenia (liczy się stan spoczynkowy), a
+  // animacja dostaje wolne klatki. Pierwszy pomiar leci od razu, żeby wartość
+  // była gotowa zanim ktokolwiek kliknie link do kotwicy.
   useEffect(() => {
     const root = document.documentElement;
     if (!stickyShrink) {
@@ -311,14 +433,14 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
     }
     const el = headerRef.current;
     if (!el) return;
-    // Podczas tranzycji ResizeObserver strzela co klatkę - koalescencja w rAF
-    // i próg 1px eliminują wymuszone przeliczenia stylów w trakcie animacji.
+    const SETTLE_MS = 140;
     let frame = 0;
+    let settle = 0;
     let last = -1;
     const apply = () => {
       frame = 0;
       const height = Math.round(el.getBoundingClientRect().height);
-      if (Math.abs(height - last) < 1) return;
+      if (height <= 0 || Math.abs(height - last) < 2) return;
       last = height;
       root.style.setProperty("--sticky-header-h", `${height}px`);
     };
@@ -326,16 +448,20 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
       if (frame) return;
       frame = window.requestAnimationFrame(apply);
     };
+    const scheduleAfterSettle = () => {
+      window.clearTimeout(settle);
+      settle = window.setTimeout(schedule, SETTLE_MS);
+    };
     apply();
-    const ro = new ResizeObserver(schedule);
+    const ro = new ResizeObserver(scheduleAfterSettle);
     ro.observe(el);
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
+      window.clearTimeout(settle);
       ro.disconnect();
       root.style.removeProperty("--sticky-header-h");
     };
   }, [stickyShrink]);
-
 
   return (
     <header

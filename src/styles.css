@@ -1634,13 +1634,11 @@ a:has(.cms-post-title):focus {
   padding-bottom: 2px !important;
 }
 
-
 /* Edytor bloków: nic w podglądzie widgetu nie może być ucinane w poziomie. */
 .block-canvas :is(input, textarea, [contenteditable="true"]) {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-
 
 /* Native <select> styling - unified across the whole platform.
    Removes the OS-native look and matches our themed inputs (border, bg,
@@ -6150,84 +6148,129 @@ textarea::placeholder {
   content: none;
 }
 
-/* Site header shrink-on-scroll: po przewinięciu header zmniejsza się płynnie,
-   a jego zawartość skaluje się proporcjonalnie (zoom).
+/* ─────────────────────────────────────────────────────────────────────────────
+   Site header shrink-on-scroll: po przewinięciu header zmniejsza się płynnie,
+   a jego zawartość skaluje się proporcjonalnie.
 
-   Płynność: `zoom` przelicza layout w każdej klatce, więc kluczowe jest
-   ograniczenie zasięgu tego przeliczenia (`contain: layout style` na headerze
-   i na skalowanym kontenerze) oraz brak animowania właściwości, które i tak
-   nie mają wartości docelowej (`height` na auto była no-opem i tylko dokładała
-   pracy). Krzywa `cubic-bezier(0.33, 1, 0.68, 1)` (ease-out-cubic) startuje
-   szybko i wygasza spokojnie - subiektywnie płynniej niż długie 520 ms. */
-header[data-site-header].site-header-shrink {
-  transition: box-shadow 380ms cubic-bezier(0.33, 1, 0.68, 1);
-  contain: layout style;
+   Skąd brał się ruch "poklatkowy" - trzy niezależne przyczyny, wszystkie
+   zmierzone (nagranie użytkownika + profilowanie w Chromium):
+
+   1. `zoom` NIE JEST animowalny. W Chromie tranzycja `zoom` w ogóle nie
+      interpoluje - zawartość przeskakiwała do 80% w jednej klatce. W Safari
+      interpoluje, ale rysowała się w 30 fps (co druga klatka gubiona - widać
+      to klatka po klatce na nagraniu: logo 334 -> 265 px zmienia rozmiar tylko
+      w co drugiej klatce). Dlatego skalujemy teraz `transform`em, sterowanym
+      zarejestrowaną (@property) zmienną liczbową - a te animują się zawsze.
+      `width: 100% / scale` odtwarza dokładnie geometrię `zoom`: zmierzone
+      pozycje i rozmiary elementów są identyczne co do 0,1 px, więc header
+      nadal jest pełnowymiarowy "od krawędzi do krawędzi".
+   2. `--sticky-header-h` był zapisywany na :root w KAŻDEJ klatce animacji.
+      Zmienna siedzi na :root i czyta ją reguła `[id] { scroll-margin-top: ... }`,
+      więc każdy zapis unieważniał style całego dokumentu (zmierzone: +6 ms na
+      klatkę przy 2400 elementach z id). Header.tsx publikuje ją teraz dopiero
+      gdy header stanie w miejscu.
+   3. Kurcząc się, header przesuwał w górę CAŁĄ stronę pod sobą (jest w
+      normalnym flow), więc każda klatka przeliczała pozycje całego dokumentu.
+      Teraz `height` maleje dokładnie o tyle, o ile rośnie `margin-bottom`,
+      więc ślad headera w układzie jest stały: treść pod nim nie drgnie
+      (zmierzone: 0 px zamiast 77 px), a animacja trzyma 60 fps zamiast 39.
+
+   Wszystko poniżej jest czystą funkcją dwóch animowanych liczb - `--hdr-p`
+   (postęp 0->1) i `--hdr-scale`. Nic innego nie ma tranzycji, więc stany nie
+   mogą się rozjechać ani nawzajem przerywać.
+
+   Krzywa: ease-in-out-sine ma najniższą prędkość szczytową spośród typowych
+   krzywych (~1,57x liniowej) i zeruje ją na obu końcach. Ruch startuje i gaśnie
+   miękko - inaczej niż ease-out, które całą drogę pokonuje w pierwszych
+   klatkach (i właśnie tam gubiło klatki). */
+@property --hdr-p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
 }
-header[data-site-header].site-header-shrink > * {
+@property --hdr-scale {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+header[data-site-header].site-header-shrink {
+  --hdr-ease: cubic-bezier(0.37, 0, 0.63, 1);
+  --hdr-duration: 460ms;
+  --hdr-p: 0;
+  --hdr-scale: 1;
+  /* Jedyne animowane właściwości w całym headerze. Obie z tym samym czasem
+     i krzywą, więc idą krok w krok. */
   transition:
-    zoom 380ms cubic-bezier(0.33, 1, 0.68, 1),
-    opacity 380ms cubic-bezier(0.33, 1, 0.68, 1),
-    grid-template-rows 380ms cubic-bezier(0.33, 1, 0.68, 1);
-  transform-origin: top left;
+    --hdr-p var(--hdr-duration) var(--hdr-ease),
+    --hdr-scale var(--hdr-duration) var(--hdr-ease),
+    box-shadow var(--hdr-duration) var(--hdr-ease);
   contain: layout style;
 }
 header[data-site-header][data-scrolled="true"].site-header-shrink {
+  --hdr-p: 1;
+  --hdr-scale: 0.8;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
 }
-header[data-site-header][data-scrolled="true"].site-header-shrink > * {
-  zoom: 0.8;
+
+/* Jeden kontener na całe chrome headera (alert, ticker, baner, pasek mobilny,
+   header builderowy). SearchOverlay celowo zostaje POZA nim - jest
+   `position: fixed` i nie wolno go skalować razem z paskiem. */
+header[data-site-header].site-header-shrink .site-header-chrome {
+  contain: layout style;
 }
 
+/* Reguły zależne od pomiaru (Header.tsx ustawia --hdr-nat/--hdr-tt/--hdr-extra
+   i dopiero wtedy data-metrics="ready"). Bez pomiaru header po prostu nie
+   zmniejsza się wcale - lepiej brak efektu niż rozjechany układ. Efekt i tak
+   wymaga JS-u, bo to on ustawia data-scrolled. */
+header[data-site-header][data-metrics="ready"].site-header-shrink {
+  /* Widoczna wysokość = przeskalowana wysokość chrome'u w danej chwili.
+     `transform` nie zmienia wysokości w układzie, więc header musi ją znać. */
+  --hdr-visible-h: calc(
+    var(--hdr-scale) * (var(--hdr-nat) - var(--hdr-tt) * var(--hdr-p)) + var(--hdr-extra)
+  );
+  height: var(--hdr-visible-h);
+  /* height + margin-bottom = const = wysokość rozwinięta. Stąd zerowy ruch
+     treści pod headerem. */
+  margin-bottom: calc(var(--hdr-nat) + var(--hdr-extra) - var(--hdr-visible-h));
+}
+header[data-site-header][data-metrics="ready"].site-header-shrink .site-header-chrome {
+  width: calc(100% / var(--hdr-scale));
+  transform: scale(var(--hdr-scale));
+  transform-origin: top left;
+}
 
-/* Trending ticker ("na czasie") zwija się płynnie zamiast znikać natychmiast.
-   Grid-template-rows minmax(0,1fr) -> minmax(0,0fr) animuje rzeczywistą
-   wysokość elementu, ponieważ minmax(0, ...) usuwa domyślne ograniczenie
-   min-content, które blokuje zwijanie do zera. */
-header[data-site-header].site-header-shrink .cms-trending {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  opacity: 1;
-  transition:
-    grid-template-rows 380ms cubic-bezier(0.33, 1, 0.68, 1),
-    opacity 280ms cubic-bezier(0.33, 1, 0.68, 1);
+/* Trending ticker ("na czasie") zwija się razem z resztą, po tej samej krzywej
+   (ten sam --hdr-p), więc całkowita wysokość headera zmienia się po jednej
+   gładkiej krzywej zamiast po sumie dwóch. Napis gaśnie szybciej niż zwija się
+   pasek, żeby nie było widać ściskanego tekstu. */
+header[data-site-header][data-metrics="ready"].site-header-shrink .cms-trending {
+  height: calc(var(--hdr-tt) * (1 - var(--hdr-p)));
+  opacity: clamp(0, calc(1.6 - 2.6 * var(--hdr-p)), 1);
   overflow: hidden;
-}
-header[data-site-header].site-header-shrink .cms-trending > div {
-  min-height: 0;
-}
-header[data-site-header][data-scrolled="true"].site-header-shrink .cms-trending {
-  grid-template-rows: minmax(0, 0fr);
-  opacity: 0;
 }
 
 /* Na stronie głównej pierwsza sekcja builderowego headera lekko "rośnie"
    po przewinięciu, żeby wybrany element był nieco bardziej widoczny
-   pomimo ogólnego zmniejszenia headera. */
+   pomimo ogólnego zmniejszenia headera. Też sterowane --hdr-p, więc bez
+   własnej tranzycji i zawsze zsynchronizowane z resztą. Bramkowane tym samym
+   data-metrics co reszta - efekt jest albo cały, albo wcale. */
 .home-header-grow > div > section[data-sec-id]:first-of-type {
   overflow: visible;
 }
-.home-header-grow > div > section[data-sec-id]:first-of-type > div:nth-of-type(2) {
-  transition: transform 380ms cubic-bezier(0.33, 1, 0.68, 1);
-  transform-origin: top center;
-}
-header[data-scrolled="true"]
+header[data-site-header][data-metrics="ready"]
   .home-header-grow
   > div
   > section[data-sec-id]:first-of-type
   > div:nth-of-type(2) {
-  transform: scale(1.12);
+  transform: scale(calc(1 + 0.12 * var(--hdr-p)));
+  transform-origin: top center;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  header[data-site-header].site-header-shrink,
-  header[data-site-header].site-header-shrink > *,
-  header[data-site-header].site-header-shrink .cms-trending,
-  .home-header-grow > div > section[data-sec-id]:first-of-type > div:nth-of-type(2) {
+  header[data-site-header].site-header-shrink {
     transition: none !important;
-  }
-  header[data-site-header][data-scrolled="true"].site-header-shrink .cms-trending {
-    grid-template-rows: minmax(0, 0fr);
-    opacity: 0;
   }
 }
 
