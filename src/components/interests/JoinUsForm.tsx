@@ -643,7 +643,25 @@ export function JoinUsForm({
       } catch {
         /* non-fatal */
       }
+
+      // Jedno źródło prawdy dla zgód: rejestr `user_consents` (widoczny w
+      // profilu, z audit-logiem IP/UA/wersja). Niekrytyczne dla subskrypcji.
+      try {
+        await saveConsent({
+          data: {
+            key: MARKETING_CONSENT_KEY,
+            given: true,
+            version: MARKETING_CONSENT_VERSION,
+            lang,
+            source: "join_us_form",
+          },
+        });
+      } catch {
+        /* non-fatal */
+      }
     }
+
+
 
     setState("ok");
     setEmail("");
