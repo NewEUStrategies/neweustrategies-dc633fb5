@@ -190,29 +190,13 @@ export function useResolvedPostRefs(ids: ReadonlyArray<string | null | undefined
   return map;
 }
 
-/** Invalidate every widget cache that consumes live entity refs. */
-export const WIDGET_LIVE_QUERY_PREFIXES: ReadonlySet<string> = new Set([
-  "post-ref",
-  "page-ref",
-  "category-ref",
-  "tag-ref",
-  "builder-slider-posts",
-  "post-list",
-  "news-ticker",
-  "trending",
-  "rated-list",
-  "categories-widget",
-  "tags-widget",
-  "global-widget",
-  "global-widgets",
-  "global-widget-meta",
-  "builder-popups-active",
-  // Events ecosystem (event-list / event-countdown / speakers / event-schedule)
-  "builder-event-list",
-  "builder-event-by-id",
-  "builder-event-rsvp-counts",
-  "builder-speakers",
-  "builder-speakers-by-ids",
-  "public-speaker-profile",
-  "public-speaker-engagements",
-]);
+/**
+ * Invalidate every widget cache that consumes live entity refs.
+ *
+ * Re-exported from `queryKeys.ts`, which derives the set from the SAME string
+ * constants the query modules use in their `queryKey`. Maintaining the list by
+ * hand here previously let it drift: five roots ("post-list", "news-ticker",
+ * "rated-list", "categories-widget", "tags-widget") matched no live query, so
+ * realtime invalidation silently skipped those widgets.
+ */
+export { WIDGET_LIVE_QUERY_PREFIXES } from "./queryKeys";

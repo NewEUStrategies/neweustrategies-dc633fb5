@@ -12,10 +12,12 @@ type FieldType =
   | "icon" // Lucide icon picker (searchable library)
   | "number"
   | "select"
+  | "bool" // real boolean switch - NEVER model an on/off setting as a "0"/"1" select
   | "color" // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
   | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
-  | "stringArray"; // textarea with one item per line
+  | "stringArray" // textarea with one item per line
+  | "i18nStringArray"; // textarea with one item per line, stored as `${key}_pl|_en`
 
 export interface SchemaField {
   /** Storage key for non-i18n fields, OR base key (without `_pl|_en`) for i18n fields. */
@@ -28,7 +30,7 @@ export interface SchemaField {
   max?: number;
   step?: number;
   /** Optional default value used when content has no value yet. */
-  default?: number | string;
+  default?: number | string | boolean;
   /** For select fields. */
   options?: ReadonlyArray<{ value: string; label?: string }>;
   /** For textarea fields. */
