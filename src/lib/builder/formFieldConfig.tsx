@@ -12,6 +12,7 @@
 // the same primitives to guarantee identical UX + validation.
 
 import { useMemo, type CSSProperties } from "react";
+import { FormSelect } from "@/components/atoms/FormSelect";
 import { cn } from "@/lib/utils";
 
 export type CustomFieldType = "text" | "email" | "tel" | "url" | "textarea" | "select" | "checkbox";
