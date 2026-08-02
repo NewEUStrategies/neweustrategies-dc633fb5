@@ -274,10 +274,31 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
   const headerRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!stickyShrink) return;
-    const onScroll = () => setScrolled(window.scrollY > 80);
-    onScroll();
+    // Histereza + koalescencja w rAF: bez tego stan przełącza się wielokrotnie
+    // na granicy progu (i przy każdym zdarzeniu scroll), co przerywa trwającą
+    // tranzycję i daje efekt "poklatkowy".
+    const SHRINK_AT = 96;
+    const EXPAND_AT = 56;
+    let frame = 0;
+    let current = false;
+    const evaluate = () => {
+      frame = 0;
+      const y = window.scrollY;
+      const next = current ? y > EXPAND_AT : y > SHRINK_AT;
+      if (next === current) return;
+      current = next;
+      setScrolled(next);
+    };
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(evaluate);
+    };
+    evaluate();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, [stickyShrink]);
 
   // Kotwice (#newsletter itd.) nie mogą chować się pod sticky headerem -
@@ -290,20 +311,31 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
     }
     const el = headerRef.current;
     if (!el) return;
+    // Podczas tranzycji ResizeObserver strzela co klatkę - koalescencja w rAF
+    // i próg 1px eliminują wymuszone przeliczenia stylów w trakcie animacji.
+    let frame = 0;
+    let last = -1;
     const apply = () => {
-      root.style.setProperty(
-        "--sticky-header-h",
-        `${Math.round(el.getBoundingClientRect().height)}px`,
-      );
+      frame = 0;
+      const height = Math.round(el.getBoundingClientRect().height);
+      if (Math.abs(height - last) < 1) return;
+      last = height;
+      root.style.setProperty("--sticky-header-h", `${height}px`);
+    };
+    const schedule = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(apply);
     };
     apply();
-    const ro = new ResizeObserver(apply);
+    const ro = new ResizeObserver(schedule);
     ro.observe(el);
     return () => {
+      if (frame) window.cancelAnimationFrame(frame);
       ro.disconnect();
       root.style.removeProperty("--sticky-header-h");
     };
-  }, [stickyShrink, scrolled]);
+  }, [stickyShrink]);
+
 
   return (
     <header
