@@ -40,6 +40,7 @@ const pl = {
     errorGeneric: "Coś poszło nie tak. Spróbuj ponownie.",
     duplicate: "Ten adres jest już zapisany.",
     consent: "Zapisując się akceptujesz politykę prywatności. W każdej chwili możesz się wypisać.",
+    consentRequired: "Zaznacz zgodę, aby kontynuować.",
     perksTitle: "Co zyskujesz",
     perk1: "Cotygodniowy briefing redakcyjny",
     perk2: "Wcześniejszy dostęp do raportów",
