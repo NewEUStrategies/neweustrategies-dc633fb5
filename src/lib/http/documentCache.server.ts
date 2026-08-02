@@ -47,7 +47,7 @@ import {
   planDocumentCache,
   type NesCacheStatus,
 } from "@/lib/http/documentCache";
-import { currentTenantHost, requestPublicHost } from "@/lib/http/requestHost";
+import { currentTenantHost, trustedPublicHost } from "@/lib/http/requestHost";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 import {
   bumpL2Version,
@@ -417,7 +417,11 @@ export async function handleDocumentRequest<T>(
 ): Promise<T | Response> {
   if (!cacheEnabled()) return next();
 
-  const host = requestPublicHost(request);
+  // Zaufany (zwalidowany vs tenants.domain) host - klucz cache prefiksowany
+  // hostem nie może przyjmować kardynalności wybieranej przez atakującego
+  // spreparowanym X-Forwarded-Host, a wpisy tenanta nie mogą być zasiewane
+  // renderem wykonanym pod cudzym hostem (poisoning między tenantami).
+  const host = await trustedPublicHost(request);
   const path = safePathname(request.url);
   const plan = planDocumentCache(request, host);
   if (plan.kind === "bypass") {

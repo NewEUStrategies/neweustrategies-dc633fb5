@@ -10,10 +10,17 @@
  * public.public_tenant_id() maps it to the owning tenant - which makes every
  * anon RLS policy host-aware without touching individual queries.
  *
- * The value is client-controlled by design: it only ever selects WHICH
- * tenant's PUBLISHED content the caller reads (data that is public on that
- * tenant's own domain anyway). Staff/private reads are scoped by
- * current_tenant_id() (profile-based) and never by this header.
+ * Trust model, per plane:
+ *   * browser -> PostgREST: the value is client-controlled by design - it
+ *     only ever selects WHICH tenant's PUBLISHED content the caller reads
+ *     (data that is public on that tenant's own domain anyway), and the SQL
+ *     side matches it against tenants.domain with a default-tenant fallback;
+ *   * SSR/edge -> PostgREST: the value is VALIDATED against tenants.domain
+ *     before injection (pickTrustedHost in src/lib/server/tenant.server.ts) -
+ *     a spoofed X-Forwarded-Host never reaches the database, the SSR caches
+ *     or tenant_id attribution.
+ * Staff/private reads are scoped by current_tenant_id() (profile-based) and
+ * never by this header.
  */
 export const TENANT_HOST_HEADER = "x-tenant-host";
 

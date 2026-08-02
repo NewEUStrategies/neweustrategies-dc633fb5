@@ -5,7 +5,7 @@
 // respektowanie rss_enabled, język z prefiksu URL, cache headers) jest jedna,
 // identyczna z /rss.xml.
 import { getRequest } from "@tanstack/react-start/server";
-import { requestPublicHost } from "@/lib/http/requestHost";
+import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
 import { SITE_NAME } from "@/lib/seo/meta";
 import { buildRssXml, type RssItem } from "@/lib/seo/rss";
@@ -25,10 +25,10 @@ const HUB_PATH: Record<FeedTaxonomyKind, (slug: string) => string> = {
   program: (slug) => `/programs/${slug}`,
 };
 
-function requestContext(): { origin: string; host: string; lang: AppLang } {
+async function requestContext(): Promise<{ origin: string; host: string; lang: AppLang }> {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  const host = requestPublicHost(req) ?? "";
+  const host = (await trustedPublicHost(req)) ?? "";
   const origin = host ? `${proto}://${host}` : "";
   let lang: AppLang = DEFAULT_LANG;
   try {
@@ -43,7 +43,7 @@ export async function taxonomyFeedResponse(
   kind: FeedTaxonomyKind,
   slug: string,
 ): Promise<Response> {
-  const { origin, host, lang } = requestContext();
+  const { origin, host, lang } = await requestContext();
   // Jak /rss.xml: service role omija RLS, więc odczyt MUSI być zescope'owany
   // do tenanta właściciela hosta; nieznany host = 404 (fail-closed).
   const tenantId = await resolveCrawlerTenantIdForHost(host);

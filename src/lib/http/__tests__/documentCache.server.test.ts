@@ -20,8 +20,9 @@ function htmlResponse(body: string): Response {
 
 function docRequest(path: string, host = "tenant-a.eu"): Request {
   // undici wycina zakazany nagłówek `host` w konstruktorze Request, więc testy
-  // podają hosta tak jak proxy produkcyjne: przez `x-forwarded-host`
-  // (pierwszeństwo w requestPublicHost).
+  // podają hosta tak jak proxy produkcyjne: przez `x-forwarded-host`. Katalog
+  // tenantów jest tu pusty (brak env Supabase), więc trustedPublicHost działa
+  // w gałęzi bootstrap i honoruje XFH - dokładnie jak instalacja bez domen.
   return new Request(`https://${host}${path}`, {
     method: "GET",
     headers: { "x-forwarded-host": host },

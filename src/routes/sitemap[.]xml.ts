@@ -7,7 +7,7 @@
 // dostaje osobne wpisy PL i EN z pełnym, wzajemnym klastrem hreflang.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { requestPublicHost } from "@/lib/http/requestHost";
+import { trustedPublicHost } from "@/lib/http/requestHost";
 import {
   DEFAULT_LANG,
   SUPPORTED_LANGS,
@@ -71,10 +71,10 @@ function isLegacyPublicHost(host: string): boolean {
   );
 }
 
-function requestContext(): { origin: string; host: string; legacy: boolean } {
+async function requestContext(): Promise<{ origin: string; host: string; legacy: boolean }> {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  const host = requestPublicHost(req) ?? "";
+  const host = (await trustedPublicHost(req)) ?? "";
   const legacy = isLegacyPublicHost(host);
   // Legacy / canonical brand hosts always emit URLs on the canonical origin
   // so search engines converge on neweuropeanstrategies.com regardless of
@@ -114,7 +114,7 @@ export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const { origin, host } = requestContext();
+        const { origin, host } = await requestContext();
 
         // FAIL-CLOSED: a host no tenant has claimed (and that is not a
         // preview host) must not advertise anyone's URLs - answer 404 rather

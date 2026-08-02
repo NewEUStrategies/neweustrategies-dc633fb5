@@ -280,7 +280,8 @@ own failure contract:
   per-call server clients all route through `tenant-host-fetch.ts`
   (`fetchWithTenantHost`), which resolves the host via
   `src/lib/http/requestHost.ts` (browser: `location.host`; SSR: the active
-  request). The header is client-controlled BY DESIGN - it only selects which
+  request, validated - see the trusted-host contract below). The header is
+  client-controlled BY DESIGN on the browser plane - it only selects which
   tenant's PUBLISHED content is read and where anon public INSERTs (newsletter,
   contact) are attributed; staff/private access is pinned by
   `current_tenant_id()` (profile-based) and ignores it. Unknown host ->
@@ -296,6 +297,36 @@ own failure contract:
   scopes every entry by the request host, so a cache warmed for tenant A's
   domain can never be served on tenant B's - callers cannot forget the scope
   because they never write it.
+
+### Trusted-host contract (the edge trust boundary)
+
+Every SERVER-side read of "the host the visitor is browsing" goes through
+`pickTrustedHost()` / `resolveTrustedRequestHost()`
+(`src/lib/server/tenant.server.ts`), which validates the header pair against
+`tenants.domain` instead of trusting `X-Forwarded-Host` blindly (audit
+2026-08-01: "`x-tenant-host` still spoofable - no trusted proxy"). Trust
+order:
+
+1. `Host` registered in the directory (exact or `www.`/apex alias) - the
+   authoritative winner: the hosting layer routes the request BY this header,
+   so a client cannot point it at another tenant's domain without physically
+   reaching that site;
+2. `X-Forwarded-Host` registered in the directory - real proxy chains where
+   the origin sees an internal `Host`; a spoofed value pointing at ANOTHER
+   registered domain loses to rule 1, garbage values never validate;
+3. preview hosts (`isPreviewHost`) - default-tenant surfaces, as before;
+4. no claimed domain at all (bootstrap / directory unavailable) - legacy
+   `X-Forwarded-Host ?? Host` order, nothing to cross-leak;
+5. otherwise null - "no tenant hint": no `x-tenant-host` is injected (the DB
+   falls back to the default tenant anyway) and SSR cache scopes collapse to
+   one bucket instead of accepting attacker-chosen key cardinality.
+
+Consumers behind this single choke point: `currentTenantHost()` (thus
+`fetchWithTenantHost`, `edgeTtlCache` scoping, tenant_id attribution of every
+anon intake server function), `trustedPublicHost()` (NES Edge Cache document
+keys, sitemap/rss/news-sitemap/llms.txt/robots.txt/AMP/taxonomy feeds URL
+building), and the crawler resolvers. TS coverage:
+`src/lib/server/__tests__/trustedHost.test.ts`.
 
 Provisioning follows the same doctrine (`handle_new_user`,
 `20260703120200`): client signups are always readers in the default tenant;

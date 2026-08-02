@@ -16,7 +16,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequestIP } from "@tanstack/react-start/server";
 import { rateLimit } from "@/lib/server/rate-limit.server";
-import { requestPublicHost } from "@/lib/http/requestHost";
+import { trustedPublicHost } from "@/lib/http/requestHost";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import type { BlocksDoc, Block, Json, LocalizedBlocks } from "@/lib/blocks/types";
 import type { Database } from "@/integrations/supabase/types";
@@ -187,7 +187,7 @@ export const Route = createFileRoute("/api/public/post-tts")({
         // Tenant hosta żądania: service role omija RLS, więc zakres nakładamy
         // jawnie (plan treści - nieznany host degraduje do tenanta domyślnego,
         // tak samo jak public_tenant_id() dla anonimowych zapytań).
-        const tenantId = await resolveTenantIdForHost(requestPublicHost(request));
+        const tenantId = await resolveTenantIdForHost(await trustedPublicHost(request));
         if (!tenantId) {
           return jsonError(503, "Tenant directory unavailable");
         }

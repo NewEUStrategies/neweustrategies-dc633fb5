@@ -74,11 +74,9 @@ export const Route = createFileRoute("/api/public/experiment-event")({
           return new Response("Experiment not found", { status: 404 });
         }
 
-        const [{ resolveTenantIdForHost }, { requestPublicHost }] = await Promise.all([
-          import("@/lib/server/tenant.server"),
-          import("@/lib/http/requestHost"),
-        ]);
-        const hostTenantId = await resolveTenantIdForHost(requestPublicHost(request));
+        const { resolveTenantIdForHost, resolveTrustedRequestHost } =
+          await import("@/lib/server/tenant.server");
+        const hostTenantId = await resolveTenantIdForHost(await resolveTrustedRequestHost(request));
         if (!hostTenantId || exp.tenant_id !== hostTenantId) {
           return new Response("Cross-tenant blocked", { status: 400 });
         }

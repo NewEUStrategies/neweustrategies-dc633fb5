@@ -113,6 +113,91 @@ function matchDomain(directory: TenantDirectory, host: string | null): TenantDir
 }
 
 /**
+ * `X-Forwarded-Host` bywa listą (kolejne proxy dopisują wartości po
+ * przecinku). Normalizujemy każdą pozycję i twardo ograniczamy ich liczbę -
+ * nagłówek jest wejściem atakującego, a walidacja niżej i tak przepuszcza
+ * wyłącznie zarejestrowane domeny, więc limit chroni tylko koszt pętli.
+ */
+const MAX_FORWARDED_HOSTS = 8;
+
+function forwardedHostCandidates(rawForwarded: string | null | undefined): string[] {
+  if (!rawForwarded) return [];
+  const out: string[] = [];
+  for (const part of rawForwarded.split(",")) {
+    const host = normalizeHost(part);
+    if (host) out.push(host);
+    if (out.length >= MAX_FORWARDED_HOSTS) break;
+  }
+  return out;
+}
+
+/**
+ * ZAUFANY host żądania - walidacja hosta vs `tenants.domain` na krawędzi
+ * (domknięcie audytu "x-tenant-host wciąż spoofowalny - brak trusted-proxy").
+ *
+ * Zamiast sekretu współdzielonego z proxy mechanizmem zaufania jest sam
+ * katalog tenantów: nagłówek wart zaufania to taki, który wskazuje domenę
+ * faktycznie zarejestrowaną w `tenants.domain` (dokładnie albo przez alias
+ * www./apex) - a przy konflikcie wygrywa nagłówek, którego klient NIE może
+ * sfałszować bez przejęcia routingu:
+ *
+ *   1. `Host` zarejestrowany w katalogu - autorytatywny: to nim warstwa
+ *      hostingu (Cloudflare) routuje żądanie do zony, więc klient nie wskaże
+ *      nim cudzej domeny nie trafiając fizycznie na jej site;
+ *   2. `X-Forwarded-Host` zarejestrowany w katalogu - realne łańcuchy proxy
+ *      (front z publiczną domeną przed originem o wewnętrznym `Host`);
+ *      spreparowana wartość spoza katalogu nigdy tu nie przejdzie, a
+ *      wartość wskazująca CUDZĄ domenę przegrywa z regułą 1;
+ *   3. hosty podglądu (localhost / *.pages.dev / *.lovable.app itd.) -
+ *      powierzchnie tenanta domyślnego, jak dotychczas;
+ *   4. katalog bez żadnej zajętej domeny (bootstrap przed multi-domain albo
+ *      katalog nieosiągalny) - nie ma czego cross-tenantowo pomylić, więc
+ *      zachowujemy historyczny porządek `X-Forwarded-Host ?? Host`;
+ *   5. inaczej null - "brak wskazówki tenanta": fetch do PostgREST nie
+ *      wysyła `x-tenant-host` (baza i tak spadłaby na tenanta domyślnego),
+ *      a scope'y cache SSR zlewają się do jednego kubełka zamiast przyjąć
+ *      nieograniczoną, wybieraną przez atakującego kardynalność kluczy.
+ *
+ * Czysta funkcja decyzyjna - eksportowana do testów jednostkowych.
+ */
+export function pickTrustedHost(
+  directory: TenantDirectory,
+  rawHost: string | null | undefined,
+  rawForwarded: string | null | undefined,
+): string | null {
+  const host = normalizeHost(rawHost);
+  const forwarded = forwardedHostCandidates(rawForwarded);
+
+  if (matchDomain(directory, host)) return host;
+  for (const candidate of forwarded) {
+    if (matchDomain(directory, candidate)) return candidate;
+  }
+  if (isPreviewHost(host)) return host;
+  for (const candidate of forwarded) {
+    if (isPreviewHost(candidate)) return candidate;
+  }
+  if (directory.byDomain.size === 0) return forwarded[0] ?? host;
+  return null;
+}
+
+/**
+ * Zaufany host żądania z walidacją vs `tenants.domain` (katalog per-izolat,
+ * TTL 60 s - w stanie ustalonym zero dodatkowych round-tripów). Jedyny
+ * poprawny punkt wejścia dla WSZYSTKICH serwerowych konsumentów hosta:
+ * nagłówka `x-tenant-host` (fetchWithTenantHost), scope'ów NES Edge Cache /
+ * ssrCache, atrybucji tenant_id anonimowych INSERT-ów i budowy URL-i absolutnych
+ * na powierzchniach crawlera. Nigdy nie rzuca.
+ */
+export async function resolveTrustedRequestHost(request: Request): Promise<string | null> {
+  const directory = await getTenantDirectory();
+  return pickTrustedHost(
+    directory,
+    request.headers.get("host"),
+    request.headers.get("x-forwarded-host"),
+  );
+}
+
+/**
  * CONTENT plane: resolve the tenant owning a request host. Unknown hosts fall
  * back to the default tenant (previews / unclaimed domains still render a
  * site); null only when the directory is empty/unavailable (callers then skip

@@ -5,7 +5,7 @@
 // - On unknown hosts: safe default of full disallow.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { requestPublicHost } from "@/lib/http/requestHost";
+import { trustedPublicHost } from "@/lib/http/requestHost";
 
 const CANONICAL_ORIGIN = "https://neweuropeanstrategies.com";
 const CANONICAL_HOSTS = new Set(["neweuropeanstrategies.com", "www.neweuropeanstrategies.com"]);
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/robots.txt")({
     handlers: {
       GET: async () => {
         const req = getRequest();
-        const host = requestPublicHost(req) ?? "";
+        const host = (await trustedPublicHost(req)) ?? "";
 
         const body = CANONICAL_HOSTS.has(host)
           ? [
