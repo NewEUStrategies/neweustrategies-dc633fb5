@@ -62,7 +62,6 @@ function isPlOnlyPluralVariant(key: string): boolean {
   return PL_ONLY_PLURAL.test(key);
 }
 
-
 /** Porównuje drzewa PL i EN i zwraca różnice ograniczone do bramkowanych prefiksów. */
 export function diffParity(
   pl: ResourceTree,
@@ -82,7 +81,6 @@ export function diffParity(
     if (!enKeys.has(key)) {
       if (!isPlOnlyPluralVariant(key)) missingEn.push(key);
       continue;
-
     }
     const plValue = readKey(pl, key);
     const enValue = readKey(en, key);

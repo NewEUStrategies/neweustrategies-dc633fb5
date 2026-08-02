@@ -28,7 +28,11 @@ export interface DeploymentReportInput {
   readonly previousRef: string | null;
   readonly pullRequests: readonly PullRequestRef[];
   readonly unitTests: TestTotals | null;
-  readonly smoke: { readonly status: CheckStatus; readonly tests: number; readonly failed: number } | null;
+  readonly smoke: {
+    readonly status: CheckStatus;
+    readonly tests: number;
+    readonly failed: number;
+  } | null;
   readonly ciStatus: CheckStatus;
   readonly dbContract: { readonly status: CheckStatus; readonly missing: number } | null;
   readonly i18nParity: { readonly status: CheckStatus; readonly missing: number } | null;
@@ -52,7 +56,10 @@ export function parsePullRequests(
     const number = merge ? Number(merge[1]) : squash ? Number(squash[1]) : null;
     if (number === null || seen.has(number)) continue;
     const title = merge
-      ? (c.body ?? "").split("\n").find((l) => l.trim() !== "")?.trim() || c.subject
+      ? (c.body ?? "")
+          .split("\n")
+          .find((l) => l.trim() !== "")
+          ?.trim() || c.subject
       : c.subject.replace(/\s*\(#\d+\)\s*$/, "");
     seen.set(number, { number, title, sha: c.sha });
   }

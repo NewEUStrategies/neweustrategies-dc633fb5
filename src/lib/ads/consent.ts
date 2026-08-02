@@ -2,13 +2,17 @@
 // - Kategorie: necessary / functional / analytics / marketing.
 // - Trwały zapis w localStorage + mirror w cookie (nes_cookie_consent), więc
 //   decyzja przetrwa wyczyszczenie localStorage / przejście do subdomen SSR.
-// - Zalogowany użytkownik = synchronizacja z profiles.prefs.consent.
+// - Zalogowany użytkownik = synchronizacja z profiles.prefs.consent ORAZ
+//   audytowany ślad każdej decyzji w rejestrze RODO user_consents/
+//   user_consent_events (IP/UA/wersja/źródło) przez registryBridge -
+//   unifikacja CMP z rejestrem zgód (audyt M15/M19).
 // - Tryb podglądu (session-scoped) pozwala testować różne zgody bez czyszczenia
 //   trwałych danych - override żyje w sessionStorage i nadpisuje state tylko
 //   dla useEffectiveConsent()/useCategoryGranted().
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { ConsentDecisionSource } from "@/lib/consent/registryBridge";
 
 const CONSENT_VERSION = 2;
 const STORAGE_KEY = "consent:v2";
@@ -128,7 +132,11 @@ function writeLocal(state: ConsentState) {
   window.dispatchEvent(new Event(EVENT));
 }
 
-function setConsent(categories: Partial<Record<ConsentCategory, boolean>>) {
+function setConsent(
+  categories: Partial<Record<ConsentCategory, boolean>>,
+  decisionSource: ConsentDecisionSource = "cmp_banner",
+) {
+  const prev = readLocal();
   const next: ConsentState = {
     version: CONSENT_VERSION,
     ts: Date.now(),
@@ -142,6 +150,14 @@ function setConsent(categories: Partial<Record<ConsentCategory, boolean>>) {
   };
   writeLocal(next);
   void syncConsentToProfile(next);
+  // Audytowany ślad decyzji (tylko zalogowani, tylko zmienione kategorie).
+  // Dynamiczny import: most nie obciąża chunka wejściowego, a błąd sieci
+  // nigdy nie blokuje samej decyzji cookie.
+  void import("@/lib/consent/registryBridge")
+    .then((m) => m.syncCmpDecisionToRegistry(prev, next, decisionSource))
+    .catch(() => {
+      /* offline / chunk load error */
+    });
   return next;
 }
 
@@ -184,14 +200,29 @@ async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
     const prefs = (ownRows?.[0]?.prefs ?? {}) as Record<string, unknown>;
     const remote = safeParse(JSON.stringify(prefs.consent ?? null));
     const local = readLocal();
+    let resolved: ConsentState | null;
     if (remote && (!local || remote.ts > local.ts)) {
       writeLocal({ ...remote, source: "profile" });
-      return remote;
+      resolved = remote;
+    } else {
+      if (!remote && local) await syncConsentToProfile(local);
+      resolved = local ?? remote;
     }
-    if (!remote && local) {
-      await syncConsentToProfile(local);
+    if (resolved) {
+      // Backfill rejestru RODO sterowany BRAKIEM wpisów cookies_* w rejestrze
+      // (nie brakiem prefs.consent w profilu): obejmuje zarówno decyzję podjętą
+      // anonimowo, która właśnie zyskuje podmiot, jak i konta sprzed unifikacji,
+      // które mają prefs.consent, ale zero śladu w audycie. Deduplikacja
+      // (wiele instancji useConsent na ten sam event auth) i kolejkowanie są
+      // wewnątrz mostu.
+      const state = resolved;
+      void import("@/lib/consent/registryBridge")
+        .then((m) => m.backfillRegistryOnLogin(state, uid))
+        .catch(() => {
+          /* best-effort */
+        });
     }
-    return local ?? remote;
+    return resolved;
   } catch {
     return null;
   }
@@ -275,17 +306,25 @@ export function useConsent() {
     };
   }, []);
 
-  const save = useCallback((cats: Partial<Record<ConsentCategory, boolean>>) => {
-    const next = setConsent(cats);
-    setState(next);
-  }, []);
+  const save = useCallback(
+    (
+      cats: Partial<Record<ConsentCategory, boolean>>,
+      decisionSource: ConsentDecisionSource = "cmp_banner",
+    ) => {
+      const next = setConsent(cats, decisionSource);
+      setState(next);
+    },
+    [],
+  );
 
   const acceptAll = useCallback(
-    () => save({ functional: true, analytics: true, marketing: true }),
+    (decisionSource: ConsentDecisionSource = "cmp_banner") =>
+      save({ functional: true, analytics: true, marketing: true }, decisionSource),
     [save],
   );
   const rejectAll = useCallback(
-    () => save({ functional: false, analytics: false, marketing: false }),
+    (decisionSource: ConsentDecisionSource = "cmp_banner") =>
+      save({ functional: false, analytics: false, marketing: false }, decisionSource),
     [save],
   );
 

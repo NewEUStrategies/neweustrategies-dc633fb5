@@ -10,7 +10,7 @@
 // Treści PL/EN są renderowane przez i18n (klucz `notifications.consents.items.<key>.*`).
 // Wersja jest bumpowana ręcznie, kiedy zmienia się treść prawna zgody.
 
-export type ConsentCategory = "communications" | "product" | "analytics" | "legal";
+export type ConsentCategory = "communications" | "product" | "analytics" | "legal" | "cookies";
 
 export interface ConsentDefinition {
   /** Klucz zapisu w bazie - stabilny, snake_case. */
@@ -40,6 +40,15 @@ export const CONSENT_CATALOG: readonly ConsentDefinition[] = [
   { key: "product_updates", category: "product", version: "1.0" },
   { key: "personalization", category: "product", version: "1.0" },
   { key: "analytics", category: "analytics", version: "1.0" },
+  // Kategorie cookie CMP (baner zgód). Wersja "2.0" odpowiada CONSENT_VERSION=2
+  // z `src/lib/ads/consent.ts` - bump tam wymaga bumpa tutaj (pilnuje tego test
+  // `registryBridge.test.ts`). Stan runtime tych zgód ŻYJE w CMP (localStorage/
+  // cookie/profiles.prefs.consent); rejestr `user_consents` jest dla nich
+  // audytowanym śladem RODO (IP/UA/wersja/źródło), zapisywanym przez
+  // registryBridge przy każdej decyzji zalogowanego użytkownika.
+  { key: "cookies_functional", category: "cookies", version: "2.0" },
+  { key: "cookies_analytics", category: "cookies", version: "2.0" },
+  { key: "cookies_marketing", category: "cookies", version: "2.0" },
 ] as const;
 
 export const CONSENT_KEYS = CONSENT_CATALOG.map((c) => c.key);

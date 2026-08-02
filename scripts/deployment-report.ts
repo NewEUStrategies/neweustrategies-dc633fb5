@@ -39,7 +39,9 @@ function readJson(path: string): Record<string, unknown> | null {
   if (!existsSync(path)) return null;
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
-    return parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+    return parsed !== null && typeof parsed === "object"
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
@@ -71,7 +73,10 @@ function smokeTotals(): { status: CheckStatus; tests: number; failed: number } |
   return { status: failed > 0 ? "failed" : "passed", tests, failed };
 }
 
-function gateStatus(path: string, missingKey: string): { status: CheckStatus; missing: number } | null {
+function gateStatus(
+  path: string,
+  missingKey: string,
+): { status: CheckStatus; missing: number } | null {
   const json = readJson(path);
   if (json === null) return null;
   const raw = json[missingKey];
@@ -90,7 +95,8 @@ function parseCiStatus(): CheckStatus {
 function main(): void {
   const versionArg = process.argv.find((a) => a.startsWith("--version="))?.split("=")[1];
   const commit = git(["rev-parse", "HEAD"]) || "unknown";
-  const branch = process.env["GITHUB_REF_NAME"] || git(["rev-parse", "--abbrev-ref", "HEAD"]) || "unknown";
+  const branch =
+    process.env["GITHUB_REF_NAME"] || git(["rev-parse", "--abbrev-ref", "HEAD"]) || "unknown";
   const previousRef = git(["describe", "--tags", "--abbrev=0", "HEAD^"]) || null;
   const range = previousRef ? `${previousRef}..HEAD` : "HEAD~50..HEAD";
 

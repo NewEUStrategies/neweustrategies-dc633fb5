@@ -57,12 +57,14 @@ export function extractExpectedContract(files: readonly MigrationFile[]): Expect
   const functions = new Map<string, DbObject>();
 
   const createTable = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z0-9_."]+)/gi;
-  const createView = /CREATE\s+(?:OR\s+REPLACE\s+)?(?:MATERIALIZED\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z0-9_."]+)/gi;
+  const createView =
+    /CREATE\s+(?:OR\s+REPLACE\s+)?(?:MATERIALIZED\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z0-9_."]+)/gi;
   const createFn = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([A-Za-z0-9_."]+)\s*\(/gi;
   const dropTable = /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([A-Za-z0-9_."]+)/gi;
   const dropView = /DROP\s+(?:MATERIALIZED\s+)?VIEW\s+(?:IF\s+EXISTS\s+)?([A-Za-z0-9_."]+)/gi;
   const dropFn = /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?([A-Za-z0-9_."]+)/gi;
-  const renameTable = /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?([A-Za-z0-9_."]+)\s+RENAME\s+TO\s+([A-Za-z0-9_."]+)/gi;
+  const renameTable =
+    /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?([A-Za-z0-9_."]+)\s+RENAME\s+TO\s+([A-Za-z0-9_."]+)/gi;
 
   const runCreate = (
     re: RegExp,
@@ -127,7 +129,11 @@ export function extractExpectedContract(files: readonly MigrationFile[]): Expect
  * - 401/403/42501 to brak uprawnień - obiekt ISTNIEJE (RLS/GRANT to inne bramki).
  * - 400 (np. zły typ argumentu RPC) też oznacza, że funkcja istnieje.
  */
-export function classifyProbe(status: number, code: string | null, hint?: string | null): ProbeVerdict {
+export function classifyProbe(
+  status: number,
+  code: string | null,
+  hint?: string | null,
+): ProbeVerdict {
   if (code === "PGRST205") return "missing";
   if (code === "PGRST202") {
     return typeof hint === "string" && hint.trim() !== "" ? "missing" : "present";
@@ -140,7 +146,6 @@ export function classifyProbe(status: number, code: string | null, hint?: string
   if (status === 409 || status === 422 || status === 500) return "present";
   return "inconclusive";
 }
-
 
 export interface ContractReport {
   readonly checked: number;
