@@ -17,6 +17,7 @@ import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { AppLink } from "@/components/atoms/AppLink";
 import { hardenStyleCss } from "@/lib/sanitize";
+import { AuthorInline } from "./AuthorInline";
 
 // Auto-derive a dark-mode color from the light value when the user hasn't
 // explicitly set one. Empty string === inherit/default.
