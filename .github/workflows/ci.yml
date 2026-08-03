@@ -153,15 +153,19 @@ jobs:
       - name: SQL anon-insert invariant
         run: bun run check:sql-anon-insert
 
-      # Blocking reproducibility gate: fails if two migration files share a
-      # version prefix. `supabase_migrations.schema_migrations.version` is the
-      # PRIMARY KEY, so a collision makes `supabase db start` die on
-      # schema_migrations_pkey - which takes down pgtap AND both e2e jobs, and
-      # silently stops validating every migration after the collision. The audit
-      # recommended this gate for three releases as a risk; on 2026-08-03 it
-      # materialised three times over on one timestamp (20260803090000).
-      - name: SQL migration version uniqueness
-        run: bun run check:sql-migration-versions
+      # Blocking reproducibility gate: can the database still be recreated from
+      # migrations? Two classes, both invisible to an incremental `db push` and
+      # both fatal to `supabase db start` - which takes down pgtap AND both e2e
+      # jobs, and silently stops validating every migration after the failure:
+      #   1. duplicate version prefixes (schema_migrations.version is the PRIMARY
+      #      KEY) - the audit recommended this gate for three releases as a risk;
+      #      on 2026-08-03 it materialised three times over on 20260803090000;
+      #   2. executed writes to storage.objects without the sanctioned
+      #      `storage.allow_delete_query` hatch - storage-api >= 0055 raises
+      #      42501. Two migrations regressed this on the same day, the second one
+      #      hidden behind the first.
+      - name: SQL migration replay safety
+        run: bun run check:sql-migration-replay
 
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +

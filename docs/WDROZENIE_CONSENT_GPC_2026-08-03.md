@@ -290,7 +290,7 @@ eslint        czysto (na plikach tej gałęzi)**
 check:sql-tenant-scope         ✓ 524 funkcje
 check:sql-anon-insert          ✓ 514 polityk, 6 tabel intake
 check:sql-app-role             ✓ 875 literałów
-check:sql-migration-versions   ✓ 590 plików, zero kolizji  (NOWA bramka)
+check:sql-migration-replay     ✓ 590 plików, zero kolizji + zero luk storage  (NOWA)
 check:bundle                   ✓ w budżecie
 check:chunks                   ✓ graf acykliczny
 vite build                     ✓
@@ -336,6 +336,14 @@ sankcjonowaną furtkę (transakcyjne `set_config` wokół `DELETE` + przywrócen
 żeby kolejna zmiana w storage-api nie zabiła znowu całego odtworzenia bazy. Czyszczenie cache'u
 jest porządkowe - ostrzeżenie jest tu właściwą reakcją, przerwanie migracji nie.
 
+**Ta sama klasa wystąpiła DWA razy**, druga ukryta za pierwszą: po naprawie `20260803085428`
+łańcuch doszedł do `20260803120000_post_tts_canonical_rendition` i padł identycznie. Dopiero wtedy
+przeszukałem **wszystkie** migracje pod tę klasę i znalazłem jeszcze dwa wystąpienia w
+`20260712190000` / `20260712192421` - te są jednak **wewnątrz ciała `CREATE FUNCTION`**, czyli
+przechowywanym tekstem, nie kodem wykonywanym przy migracji (wykonuje się później, z GUC-iem
+ustawionym przez wołającego - patrz `20260801122000`). Bramka, która by tego nie odróżniała, byłaby
+fałszywie czerwona; ta poniżej odróżnia.
+
 Awaria była **zastana na `main`**: run `30826604510` (`85b4c7b`) ma `pgtap` czerwony na tym samym
 kroku 4 („Start local database") i `verify` czerwony na tym samym kroku 7 („Test + coverage gate").
 
@@ -368,16 +376,24 @@ Wdrożenie rekomendacji, w dwóch częściach:
    dwóch przenumerowanych jest na produkcji bezskutkowy. Wersja zapisana w ledgerze wskazuje
    dalej na **identyczną treść**.
 
-2. **Brakująca bramka.** `check:sql-migration-versions` + `src/lib/ci/migrationVersions.ts`
-   (czysta logika) + test jednostkowy z self-testem na realnym katalogu. Wzorzec skopiowany
-   z `check-sql-anon-insert`, jak rekomendował audyt. Bramka łapie kolizje, nieparsowalne nazwy
-   ORAZ rozjazd „porządek nazw ≠ porządek wersji" (ten drugi jest groźniejszy po cichu:
-   `supabase db push` uzna wersję „z przeszłości" za już zastosowaną i **pominie** ją).
+2. **Brakująca bramka.** `check:sql-migration-replay` + `src/lib/ci/migrationReplay.ts` (czysta
+   logika) + 18 testów jednostkowych z self-testem na realnym katalogu. Wzorzec skopiowany
+   z `check-sql-anon-insert`, jak rekomendował audyt.
+
+   Bramka odpowiada na **jedno pytanie**: czy `supabase db start` dobiegnie do końca. Objęła więc
+   obie klasy, które ten incydent ujawnił - a nie tylko tę z rekomendacji:
+   - **kolizje wersji**, nieparsowalne nazwy oraz rozjazd „porządek nazw ≠ porządek wersji"
+     (ten trzeci jest groźniejszy po cichu: `supabase db push` uzna wersję „z przeszłości" za już
+     zastosowaną i **pominie** ją);
+   - **wykonywane zapisy do `storage.objects` bez furtki GUC** - z rozróżnieniem bloków
+     wykonywanych od ciał `CREATE FUNCTION` (`stripFunctionBodies`), bo inaczej bramka byłaby
+     fałszywie czerwona na `20260712190000` / `20260712192421`.
 
    Świadomie: bramka stoi w `verify` obok pozostałych trzech bramek SQL, ale jej **self-test na
-   realnym katalogu jedzie w suicie vitest** - dzięki temu inwariant jest pilnowany także wtedy,
-   gdy późniejsze kroki `verify` są czerwone. Cała lekcja z tego incydentu polega na tym, że jedna
-   awaria ukrywała drugą.
+   realnym katalogu jedzie w suicie vitest** (i dodatkowo w kroku `check:i18n-parity`, który
+   uruchamia całe `src/lib/ci/__tests__`) - dzięki temu inwariant jest pilnowany także wtedy, gdy
+   późniejsze kroki `verify` są czerwone. Cała lekcja z tego incydentu polega na tym, że **jedna
+   awaria ukrywała drugą** - dwa razy z rzędu.
 
 Odwołania do przenumerowanej migracji zaktualizowane w kodzie i komentarzach (7 plików +
 `WDROZENIE_RODO_RETENCJA_ZAMOWIEN`). Tabela audytu `OCENA_FUNKCJI_TABELE_2026-08-03` zostaje
