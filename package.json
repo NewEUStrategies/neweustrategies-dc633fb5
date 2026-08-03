@@ -28,6 +28,7 @@
     "check:sql-tenant-scope": "bun run scripts/check-sql-tenant-scope.ts",
     "check:sql-app-role": "bun run scripts/check-sql-app-role-literals.ts",
     "check:sql-anon-insert": "bun run scripts/check-sql-anon-insert.ts",
+    "check:sql-owner-tenant-scope": "bun run scripts/check-sql-owner-tenant-scope.ts",
     "check:db-contract": "bun run scripts/check-db-contract.ts",
     "check:i18n-parity": "vitest run src/__tests__/i18nParity.gate.test.ts src/lib/ci/__tests__",
     "check:widget-fidelity": "FIDELITY_REPORT=1 vitest run src/components/admin/builder/__tests__/settingsFidelity.gate.test.tsx src/components/admin/builder/__tests__/sampleDataLeak.gate.test.tsx src/lib/builder/__tests__/localizedQueryKeys.gate.test.ts",
