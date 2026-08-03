@@ -1017,6 +1017,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         ? interestSlugsRaw.filter((x): x is string => typeof x === "string")
         : undefined;
       const pick = (base: string) => pickI18n(c, base, lang) || undefined;
+      // Zgoda RODO NIE może przeciekać między językami (PL strona + tekst EN).
+      // Brak wpisu w bieżącym języku => komponent użyje domyślnego t() w tym języku.
+      const pickStrict = (base: string) => {
+        const v = c[`${base}_${lang}`];
+        return typeof v === "string" && v.trim() ? v : undefined;
+      };
 
       // Image config for variant="split-image" - forwarded so the canvas
       // reflects URL/alt/gradient/overlay/focal-point edits instantly.
