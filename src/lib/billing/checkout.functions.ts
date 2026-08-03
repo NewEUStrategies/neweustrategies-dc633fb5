@@ -32,8 +32,12 @@ const createOrderSchema = z.object({
   display_currency: z.enum(["PLN", "EUR"]).optional(),
   // Bilet na płatne wydarzenie - webhook po zapłacie potwierdza RSVP.
   event_id: z.string().uuid().nullable().optional(),
+  // Liczba miejsc dla planów rozliczanych za miejsce (Zespół). Ignorowana dla
+  // pozostałych planów - autorytetem jest wpis katalogu (`perSeat`).
+  seats: z.number().int().min(1).max(100).optional(),
   // Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu.
   environment: z.enum(["sandbox", "live"]).optional(),
+
 });
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
@@ -47,6 +51,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let currency = "PLN";
     let label = "";
     let trialDays = 0;
+    /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
+    let catalogPriceId: string | null = null;
+    let catalogQuantity = 1;
+
 
     // Zakup jednorazowy PLANU: kind=one_time z plan_id i bez encji. Cena
     // pochodzi z planu, płatność jest jednorazowa, a uprawnienie dożywotnie
@@ -60,7 +68,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       if (!data.plan_id) throw new Error("plan_id_required");
       const { data: plan, error } = await supabase
         .from("access_plans")
-        .select("price_cents, currency, name_pl, name_en, active, interval, trial_days")
+        .select("price_cents, currency, name_pl, name_en, active, interval, trial_days, tier_key")
         .eq("id", data.plan_id)
         .maybeSingle();
       if (error) throw error;
@@ -69,7 +77,23 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
       trialDays = data.kind === "subscription" ? Math.max(0, Number(plan.trial_days ?? 0)) : 0;
+      // Subskrypcja MUSI powstać z ceny katalogowej dostawcy - tylko wtedy
+      // operator zakłada cykl rozliczeniowy, trial i wysyła zdarzenia
+      // `subscription.*` (odnowienia, dunning, anulowanie). Cena ad-hoc dałaby
+      // pojedyncze obciążenie bez odnowienia.
+      if (data.kind === "subscription") {
+        const { paddlePriceForPlan } = await import("@/lib/billing/paddleCatalog");
+        const entry = paddlePriceForPlan({
+          tier_key: plan.tier_key as string | null,
+          interval: plan.interval as string | null,
+        });
+        if (!entry) throw new Error("plan_price_missing");
+        catalogPriceId = entry.priceId;
+        catalogQuantity = entry.perSeat ? Math.min(Math.max(data.seats ?? 1, 1), 100) : 1;
+        amountCents = amountCents * catalogQuantity;
+      }
     } else if (isEventTicket) {
+
       // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
       // klient przekazuje wyłącznie identyfikator wydarzenia.
       const { data: ev, error: evErr } = await supabase
@@ -175,7 +199,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // wyprowadzamy z ich RÓŻNICY, dzięki czemu niezmiennik
     // `original = final + discount` trzyma się dokładnie w walucie docelowej
     // (bez dryfu zaokrągleń między osobno konwertowanymi wartościami).
-    if (data.display_currency) {
+    // Subskrypcja idzie z ceny katalogowej, więc walutę rozstrzyga operator
+    // (`unit_price_overrides` EUR + lokalizacja) - lokalna konwersja tylko
+    // rozjechałaby zamówienie z faktyczną kwotą obciążenia.
+    if (data.display_currency && !catalogPriceId) {
+
       const [{ couponAuditInDisplayCurrency }, { ensureFxRateLoaded }] = await Promise.all([
         import("@/lib/billing/displayCurrency"),
         import("@/lib/billing/fxRate"),
@@ -277,11 +305,76 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     }
 
     if (paymentsReady) {
+      // Subskrypcja: transakcja z CENY KATALOGOWEJ (cykl rozliczeniowy, trial
+      // 7 dni, lokalizacja waluty przez `unit_price_overrides`). Tylko taka
+      // transakcja zakłada u operatora subskrypcję, a więc odnowienia,
+      // dunning i zdarzenia `subscription.*`. Rabat kuponu przekazujemy jako
+      // rabat operatora - kwota nadal nie pochodzi od klienta.
+      if (catalogPriceId) {
+        const { createSubscriptionTransaction } = await import(
+          "@/lib/billing/paddleTransaction.server"
+        );
+        let discountId: string | null = null;
+        if (couponCode && data.plan_id) {
+          const { resolveDiscountForCoupon } = await import("@/lib/billing/paddleDiscounts.server");
+          const resolution = await resolveDiscountForCoupon({
+            environment,
+            code: couponCode,
+            planId: data.plan_id,
+            amountCents: originalCents,
+            currency,
+          });
+          discountId = resolution.discountId;
+        }
+        const createdSub = await createSubscriptionTransaction({
+          environment,
+          priceExternalId: catalogPriceId,
+          quantity: catalogQuantity,
+          customerEmail: receiptEmail,
+          discountId,
+          customData: {
+            kind: "subscription",
+            order_id: order.id,
+            user_id: userId,
+            userId,
+          },
+        });
+        if (!createdSub.ok) {
+          await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);
+          if (couponId) {
+            const { error: releaseErr } = await supabase.rpc("release_b2b_coupon", {
+              _coupon_id: couponId,
+              _order_id: order.id,
+            });
+            if (releaseErr) {
+              console.error("[checkout] coupon release failed", order.id, releaseErr.message);
+            }
+          }
+          return {
+            ok: false as const,
+            mode: "paddle" as const,
+            error: createdSub.error,
+            orderId: order.id,
+          };
+        }
+        await supabase
+          .from("payment_orders")
+          .update({ provider_session_id: createdSub.transactionId, status: "processing" })
+          .eq("id", order.id);
+        return {
+          ok: true as const,
+          mode: "paddle" as const,
+          transactionId: createdSub.transactionId,
+          orderId: order.id,
+        };
+      }
+
       // Kwota jest wyliczona serwerowo (plan / reguła dostępu / kupon /
       // waluta prezentacji), więc zamiast ceny katalogowej tworzymy
       // transakcję z ceną osadzoną i zwracamy jej identyfikator do nakładki.
       const { createAdhocTransaction } = await import("@/lib/billing/paddleTransaction.server");
       const created = await createAdhocTransaction({
+
         environment,
         product: eventId ? "eventTicket" : "contentUnlock",
         name: label || "Zamówienie",

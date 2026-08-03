@@ -136,3 +136,79 @@ export function resolveEnvironment(requested?: PaddleEnv | null): PaddleEnv {
   if (requested === "sandbox" || requested === "live") return requested;
   return "sandbox";
 }
+
+const priceIdCache = new Map<string, string>();
+
+/** Czytelny identyfikator ceny z katalogu -> wewnętrzny identyfikator dostawcy. */
+async function resolvePriceId(env: PaddleEnv, externalId: string): Promise<string | null> {
+  const cacheKey = `${env}:${externalId}`;
+  const cached = priceIdCache.get(cacheKey);
+  if (cached) return cached;
+
+  const res = await gatewayFetch(
+    env,
+    `/prices?external_id=${encodeURIComponent(externalId)}&status=active`,
+  );
+  if (!res.ok) {
+    console.error("[payments] price lookup failed", externalId, res.status);
+    return null;
+  }
+  const json = (await res.json()) as { data?: Array<{ id?: string }> };
+  const id = json.data?.[0]?.id;
+  if (!id) return null;
+  priceIdCache.set(cacheKey, id);
+  return id;
+}
+
+export interface SubscriptionTransactionInput {
+  environment: PaddleEnv;
+  /** Czytelny identyfikator ceny z `PADDLE_CATALOG` (np. `pro_monthly`). */
+  priceExternalId: string;
+  quantity?: number;
+  customerEmail?: string | null;
+  /** Rabat operatora wyprowadzony z kuponu B2B (nigdy z danych klienta). */
+  discountId?: string | null;
+  customData: Record<string, unknown>;
+}
+
+/**
+ * Tworzy transakcję z CENY KATALOGOWEJ - to jedyny sposób, w jaki u operatora
+ * powstaje subskrypcja (cykl rozliczeniowy, okres próbny, odnowienia i
+ * zdarzenia `subscription.*`). Cena ad-hoc dałaby jednorazowe obciążenie.
+ *
+ * Nigdy nie rzuca - wywołujący dostaje `{ ok: false }`.
+ */
+export async function createSubscriptionTransaction(
+  input: SubscriptionTransactionInput,
+): Promise<AdhocTransactionResult> {
+  const priceId = await resolvePriceId(input.environment, input.priceExternalId);
+  if (!priceId) return { ok: false, error: "price_missing" };
+
+  const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), 100);
+  const body = {
+    items: [{ price_id: priceId, quantity }],
+    custom_data: input.customData,
+    ...(input.customerEmail ? { customer: { email: input.customerEmail } } : {}),
+    ...(input.discountId ? { discount_id: input.discountId } : {}),
+    collection_mode: "automatic",
+  };
+
+  try {
+    const res = await gatewayFetch(input.environment, "/transactions", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("[payments] subscription transaction failed", res.status, text.slice(0, 300));
+      return { ok: false, error: "transaction_failed" };
+    }
+    const json = (await res.json()) as { data?: { id?: string } };
+    const transactionId = json.data?.id;
+    if (!transactionId) return { ok: false, error: "transaction_failed" };
+    return { ok: true, transactionId };
+  } catch (e) {
+    console.error("[payments] subscription transaction threw", e);
+    return { ok: false, error: "transaction_failed" };
+  }
+}
