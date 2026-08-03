@@ -7,11 +7,12 @@
 //
 // i18n: `label` / `placeholder` przychodzą już przetłumaczone z call-site,
 // etykiety paska narzędzi pochodzą z kluczy `comments.toolbar.*` (PL/EN).
-import { useId, useRef, type CSSProperties } from "react";
+import { useId, useRef, type CSSProperties, type KeyboardEvent } from "react";
 import { ComposerShell } from "@/components/composer/ComposerShell";
 import { MentionSuggestionList } from "@/components/mentions/MentionSuggestionList";
 import { useMentionAutocomplete } from "@/lib/mentions/useMentionAutocomplete";
 import type { ComposerValidation } from "@/lib/composer/validation";
+import { matchMarkdownShortcut, type MarkdownActionId } from "@/lib/composer/shortcuts";
 import { cn } from "@/lib/utils";
 
 export interface MessageComposerFieldProps {
@@ -63,6 +64,7 @@ export function MessageComposerField({
   const fieldId = id ?? fallbackId;
   const statusId = `${fieldId}-status`;
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const formatterRef = useRef<((id: MarkdownActionId) => void) | null>(null);
   const mention = useMentionAutocomplete({
     value,
     onChange,
@@ -70,6 +72,17 @@ export function MessageComposerField({
     enabled: mentions,
     textareaRef: ref,
   });
+
+  // Skróty formatowania mają niższy priorytet niż nawigacja po podpowiedziach
+  // @wzmianek - listę obsługuje handler z hooka, dopiero potem sprawdzamy skrót.
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentions) mention.textareaProps.onKeyDown(e);
+    if (e.defaultPrevented) return;
+    const action = matchMarkdownShortcut(e);
+    if (!action) return;
+    e.preventDefault();
+    formatterRef.current?.(action);
+  };
 
   return (
     <div className={cn("w-full", className)}>
@@ -86,6 +99,7 @@ export function MessageComposerField({
         submitting={submitting}
         onValidationChange={onValidationChange}
         statusId={statusId}
+        formatterRef={formatterRef}
         bodyClassName="p-0"
       >
         <div className="relative">
@@ -102,6 +116,7 @@ export function MessageComposerField({
             data-edit-target={dataEditTarget}
             style={textareaStyle}
             {...(mentions ? mention.textareaProps : {})}
+            onKeyDown={handleKeyDown}
             onChange={(e) => {
               onChange(e.target.value);
               if (mentions) mention.handleValueChange(e.target);
