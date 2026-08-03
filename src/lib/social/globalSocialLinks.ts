@@ -7,7 +7,6 @@ import { useContext } from "react";
 import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
-
 export type GlobalSocialLinks = {
   facebook: string;
   twitter: string;
@@ -50,18 +49,13 @@ let fallbackClient: QueryClient | null = null;
 export function useGlobalSocialLinks(): GlobalSocialLinks {
   const ctxClient = useContext(QueryClientContext);
   const client = ctxClient ?? (fallbackClient ??= new QueryClient());
-  const { data } = useQuery(
-    { ...siteSettingsQueryOptions, enabled: ctxClient != null },
-    client,
-  );
+  const { data } = useQuery({ ...siteSettingsQueryOptions, enabled: ctxClient != null }, client);
   if (!ctxClient) return EMPTY_LINKS;
   const options = resolveSetting(data, "theme_options", {
     header: { socials: { ...DEFAULTS.header.socials } },
   });
   return options.header?.socials ?? EMPTY_LINKS;
 }
-
-
 
 function readGlobal(global: GlobalSocialLinks | undefined, key: string): string {
   if (!global) return "";
