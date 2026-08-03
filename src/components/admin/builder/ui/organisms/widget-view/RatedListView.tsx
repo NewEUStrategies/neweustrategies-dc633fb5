@@ -17,6 +17,7 @@ import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { AppLink } from "@/components/atoms/AppLink";
 import { hardenStyleCss } from "@/lib/sanitize";
+import { AuthorInline } from "./AuthorInline";
 
 // Auto-derive a dark-mode color from the light value when the user hasn't
 // explicitly set one. Empty string === inherit/default.
@@ -49,6 +50,8 @@ type RatedItem = {
   title: string;
   excerpt: string;
   author: string;
+  authorAvatar?: string;
+  authorHref?: string;
   rating: number;
   href?: string;
   category?: string;
@@ -68,7 +71,7 @@ type PostRow = {
   author_id: string | null;
 };
 
-type ProfileRow = { id: string; display_name: string | null };
+type ProfileRow = { id: string; display_name: string | null; avatar_url: string | null };
 
 const FONT_FAMILIES = ["display", "sans", "serif", "mono"] as const;
 const NUMBER_POSITIONS = ["behind", "left", "top"] as const;
@@ -208,6 +211,7 @@ export function RatedListView({
     title: pickI18n(it, "title", lang),
     excerpt: pickI18n(it, "excerpt", lang),
     author: asStr(it.author),
+    authorAvatar: asStr(it.authorAvatar) || undefined,
     rating: asNum(it.rating, 0),
     // Link pozycji: bez niego "Czytaj wiecej" i klikalny tytul byly martwe w
     // trybie recznym (przycisk jest bramkowany na `href`).
@@ -290,17 +294,18 @@ export function RatedListView({
       // stronie klienta dzialo sie PO `.range(offset, offset+limit-1)`, wiec
       // widget oddawal mniej wierszy niz `numberOfPosts` (a przy autorze spoza
       // pierwszej strony - zero). Rozwiazujemy nazwy na identyfikatory i
-      // wkladamy je do zapytania o wpisy.
-      const authorNameById = new Map<string, string>();
+      // wkladamy je do zapytania o wpisy. Trzymamy tez avatar_url, zeby
+      // renderowac spojny AuthorInline (12 px / 20 px) zamiast samego tekstu.
+      const authorById = new Map<string, ProfileRow>();
       let authorIdFilter: string[] | null = null;
       if (authors.length) {
         const { data: matched } = await supabase
           .from("profiles")
-          .select("id, display_name")
+          .select("id, display_name, avatar_url")
           .in("display_name", authors);
         const matchedRows = (matched ?? []) as ProfileRow[];
         for (const p of matchedRows) {
-          if (p.display_name) authorNameById.set(p.id, p.display_name);
+          if (p.display_name) authorById.set(p.id, p);
         }
         authorIdFilter = matchedRows.map((p) => p.id);
         // Zaden profil o takiej nazwie = pusty wynik. Bez tego `.in()` z pusta
@@ -358,28 +363,33 @@ export function RatedListView({
 
       const missingAuthorIds = Array.from(
         new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
-      ).filter((id) => !authorNameById.has(id));
+      ).filter((id) => !authorById.has(id));
       if (missingAuthorIds.length) {
         const { data: profs } = await supabase
           .from("profiles")
-          .select("id, display_name")
+          .select("id, display_name, avatar_url")
           .in("id", missingAuthorIds);
         for (const p of (profs ?? []) as ProfileRow[]) {
-          if (p.display_name) authorNameById.set(p.id, p.display_name);
+          if (p.display_name) authorById.set(p.id, p);
         }
       }
       if (orderBy === "random") rows = [...rows].sort(() => Math.random() - 0.5);
 
-      return rows.map((r) => ({
-        title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl,
-        excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "",
-        author: (r.author_id && authorNameById.get(r.author_id)) || "",
-        // Wpisy nie maja oceny w bazie - patrz `showRating` wyzej.
-        rating: 0,
-        href: `/post/${r.slug}`,
-        date: r.published_at || "",
-        format: r.post_format || "standard",
-      }));
+      return rows.map((r) => {
+        const profile = r.author_id ? authorById.get(r.author_id) : undefined;
+        return {
+          title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl,
+          excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "",
+          author: profile?.display_name || "",
+          authorAvatar: profile?.avatar_url || undefined,
+          authorHref: `/post/${r.slug}`,
+          // Wpisy nie maja oceny w bazie - patrz `showRating` wyzej.
+          rating: 0,
+          href: `/post/${r.slug}`,
+          date: r.published_at || "",
+          format: r.post_format || "standard",
+        };
+      });
     },
   });
 
@@ -614,13 +624,23 @@ export function RatedListView({
                   </div>
                 )}
                 {(showAuthor && it.author) || (showDate && it.date) ? (
-                  <p className="rl-meta cms-meta mt-2" style={{ fontSize: `${metaSize}px` }}>
+                  <p
+                    className="rl-meta cms-meta mt-2 inline-flex flex-wrap items-center gap-x-3 gap-y-1"
+                    style={{ fontSize: `${metaSize}px` }}
+                  >
                     {showAuthor && it.author && (
-                      <>
-                        - <span className="font-semibold text-foreground/80">{it.author}</span>
-                      </>
+                      <AuthorInline
+                        name={it.author}
+                        avatarUrl={it.authorAvatar}
+                        href={it.authorHref}
+                        lang={lang}
+                      />
                     )}
-                    {showAuthor && it.author && showDate && it.date && " · "}
+                    {showAuthor && it.author && showDate && it.date && (
+                      <span aria-hidden className="opacity-60">
+                        ·
+                      </span>
+                    )}
                     {showDate && it.date && (
                       <span>
                         {new Date(it.date).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")}

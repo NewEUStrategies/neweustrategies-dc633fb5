@@ -13,6 +13,7 @@ import { toPlVocative } from "@/lib/i18n/plVocative";
 import { localizedPath } from "@/lib/i18n/localePath";
 import type { WidgetContent } from "@/lib/builder/types";
 import { asBool, asNumInRange, asOneOf, pickI18n } from "@/lib/builder/contentValue";
+import { AuthorInline } from "./AuthorInline";
 
 type Lang = "pl" | "en";
 
@@ -213,58 +214,14 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
                   />
                 </AppLink>
                 <div className="flex min-w-0 flex-col gap-1.5">
-                  {showAuthor && authorName
-                    ? (() => {
-                        const AVATAR_PX = 20;
-                        const FONT_PX = 12;
-                        const badgeStyle = { fontSize: `${FONT_PX}px`, lineHeight: 1.35 };
-                        const avatarStyle = {
-                          width: AVATAR_PX,
-                          height: AVATAR_PX,
-                          borderRadius: 6,
-                        };
-                        const media = author?.avatar_url ? (
-                          <img
-                            src={author.avatar_url}
-                            alt=""
-                            width={AVATAR_PX}
-                            height={AVATAR_PX}
-                            loading="lazy"
-                            decoding="async"
-                            className="shrink-0 object-cover"
-                            style={avatarStyle}
-                          />
-                        ) : (
-                          <span aria-hidden className="shrink-0 bg-muted" style={avatarStyle} />
-                        );
-                        const inner = (
-                          <>
-                            {media}
-                            <span className="truncate" style={badgeStyle} data-typography-exempt>
-                              {authorName}
-                            </span>
-                          </>
-                        );
-                        return authorHref ? (
-                          <AppLink
-                            href={authorHref}
-                            className="inline-flex min-w-0 items-center gap-1.5 font-medium text-muted-foreground transition-colors hover:text-primary"
-                            style={badgeStyle}
-                            data-typography-exempt
-                          >
-                            {inner}
-                          </AppLink>
-                        ) : (
-                          <span
-                            className="inline-flex min-w-0 items-center gap-1.5 font-medium text-muted-foreground"
-                            style={badgeStyle}
-                            data-typography-exempt
-                          >
-                            {inner}
-                          </span>
-                        );
-                      })()
-                    : null}
+                  {showAuthor && authorName ? (
+                    <AuthorInline
+                      name={authorName}
+                      avatarUrl={author?.avatar_url}
+                      href={authorHref}
+                      lang={lang}
+                    />
+                  ) : null}
                   <AppLink href={href} className="min-w-0">
                     <h3 className="line-clamp-3 font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
                       {title}

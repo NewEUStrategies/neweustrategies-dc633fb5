@@ -54,6 +54,7 @@ import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
 import { CounterWidget } from "./CounterWidget";
 import { TocWidget } from "./TocWidget";
 import { PricingPlansView } from "./PricingPlansView";
+import { AuthorInline } from "./AuthorInline";
 export { ResizableBox } from "./resizeWrappers";
 
 // Render-prop most do globalnych linków social (site_settings → opcje motywu).
@@ -1382,13 +1383,10 @@ export function renderSimpleWidget(
           {stars}
           <blockquote className="cms-post-excerpt italic">"{quote}"</blockquote>
           <figcaption
-            className={`flex items-center gap-3 ${variant === "centered" ? "justify-center" : ""}`}
+            className={`flex flex-wrap items-center gap-3 ${variant === "centered" ? "justify-center" : ""}`}
           >
-            {avatar && <img src={avatar} alt="" className="w-10 h-10 rounded-full object-cover" />}
-            <div>
-              <div className="cms-meta font-medium">{author}</div>
-              {role && <div className="cms-meta text-muted-foreground">{role}</div>}
-            </div>
+            <AuthorInline name={author} avatarUrl={avatar} lang={lang} avatarRadiusPx={999} />
+            {role && <div className="cms-meta text-muted-foreground">{role}</div>}
           </figcaption>
         </figure>
       );

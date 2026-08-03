@@ -35,6 +35,7 @@ import {
   Headphones,
   Link as LinkIcon,
 } from "@/lib/lucide-shim";
+import { AuthorInline } from "./AuthorInline";
 
 type Lang = "pl" | "en";
 
@@ -132,17 +133,15 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const views = ctxViews ?? (typeof fetchedViews === "number" ? fetchedViews : null);
   const parts: ReactElement[] = [];
   if (asBool(c.showAuthor, true) && ctx.author?.name) {
+    const authorHref = ctx.author.slug ? `/author/${ctx.author.slug}` : null;
     parts.push(
-      <span key="a" className="inline-flex items-center gap-1.5">
-        <UserIcon className="w-3.5 h-3.5" />
-        {ctx.author.slug ? (
-          <AppLink href={`/author/${ctx.author.slug}`} className="hover:text-brand">
-            {ctx.author.name}
-          </AppLink>
-        ) : (
-          ctx.author.name
-        )}
-      </span>,
+      <AuthorInline
+        key="a"
+        name={ctx.author.name}
+        avatarUrl={ctx.author.avatarUrl}
+        href={authorHref}
+        lang={lang}
+      />,
     );
   }
   if (asBool(c.showCategory, true) && ctx.categories?.[0]) {
@@ -342,13 +341,29 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
   const bio = lang === "en" ? a.bio_en : a.bio_pl;
   const socials = asBool(c.showSocial, true) ? authorSocials(a) : [];
   const centered = variant === "centered";
-  const shellClass =
-    variant === "card"
-      ? "flex items-start gap-4 p-5 rounded-xl bg-muted/40 border border-border"
-      : centered
-        ? "flex flex-col items-center text-center gap-3 py-4"
-        : "flex items-start gap-3";
-  const avatarClass = centered ? "w-20 h-20" : variant === "inline" ? "w-12 h-12" : "w-16 h-16";
+  const authorHref = a.slug ? `/author/${a.slug}` : null;
+
+  // Wariant "inline" używa globalnego komponentu autora (12 px / 20 px),
+  // żeby był spójny z metadanymi i listami wpisów.
+  if (variant === "inline") {
+    return (
+      <aside className="flex items-start gap-3">
+        <AuthorInline
+          name={a.name}
+          avatarUrl={a.avatarUrl}
+          href={authorHref}
+          lang={lang}
+          avatarRadiusPx={999}
+        />
+        {asBool(c.showBio, true) && bio && <p className="cms-post-excerpt mt-1.5">{bio}</p>}
+      </aside>
+    );
+  }
+
+  const shellClass = centered
+    ? "flex flex-col items-center text-center gap-3 py-4"
+    : "flex items-start gap-4 p-5 rounded-xl bg-muted/40 border border-border";
+  const avatarClass = centered ? "w-20 h-20" : "w-16 h-16";
   return (
     <aside className={shellClass}>
       {asBool(c.showAvatar, true) && (
@@ -371,8 +386,8 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
           {lang === "en" ? "Author" : "Autor"}
         </div>
         <div className="cms-post-title">
-          {a.slug ? (
-            <AppLink href={`/author/${a.slug}`} className="hover:text-brand">
+          {authorHref ? (
+            <AppLink href={authorHref} className="hover:text-brand">
               {a.name}
             </AppLink>
           ) : (
