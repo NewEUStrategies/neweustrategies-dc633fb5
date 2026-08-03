@@ -468,7 +468,7 @@ export function WidgetProperties({
         <WidgetLivePreview widget={widget} lang={lang} device={device} mode={mode} />
 
         <TabsContent value="content" className="wp-panel-content mt-2 space-y-2">
-          <ContentFields widget={widget} lang={lang} setContent={setContent} />
+          <WidgetContentFields widget={widget} lang={lang} setContent={setContent} />
         </TabsContent>
 
         <TabsContent value="style" className="wp-panel-content mt-2 space-y-2">
@@ -1460,7 +1460,19 @@ function useInheritedColors(
   return v;
 }
 
-function ContentFields({
+/**
+ * Zakładka "Treść" panelu właściwości - JEDYNA powierzchnia, na której redakcja
+ * edytuje `widget.content` w sposób zależny od typu widgetu (schemat + edytory
+ * niestandardowe). Wyjątki, czyli kontrolki treści narysowane poza tą zakładką,
+ * są wymienione w `PANEL_EXTRA_CONTENT_KEYS`.
+ *
+ * Eksportowana, bo to właśnie ten komponent mierzy bramka wierności ustawień
+ * (`settingsFidelity.gate.test.tsx`): zbiór kluczy, o które ON odpytuje treść,
+ * jest definicją "co panel oferuje". Całego `WidgetProperties` mierzyć nie
+ * można - renderuje `WidgetLivePreview`, czyli renderer, więc oba końce
+ * inwariantu zlałyby się w jeden.
+ */
+export function WidgetContentFields({
   widget,
   lang,
   setContent,
@@ -1575,6 +1587,28 @@ function ContentFields({
 }
 
 /**
+ * Kontrolki TREŚCI narysowane POZA zakładką "Treść" (`WidgetContentFields`).
+ *
+ * Dziś jest jedna taka sekcja: plakietka `dark-featured-card` żyje w zakładce
+ * "Styl", bo to w praktyce zestaw kolorów. Bramka wierności ustawień mierzy
+ * tylko zakładkę treści, więc bez tej deklaracji te pięć kluczy wyglądałoby na
+ * "czytane przez renderer, nieedytowalne w panelu".
+ *
+ * Deklaracja NIE MOŻE się rozjechać z kodem: test bramki wyciąga z tego pliku
+ * wszystkie literały `setContent("…")` i wymaga, żeby każdy był albo polem
+ * schematu, albo wymieniony tutaj.
+ */
+export const PANEL_EXTRA_CONTENT_KEYS: Partial<Record<WidgetType, ReadonlySet<string>>> = {
+  "dark-featured-card": new Set([
+    "badgeVariant",
+    "badgeRadius",
+    "badgeSize",
+    "badgeBg",
+    "badgeText",
+  ]),
+};
+
+/**
  * OPT-IN: custom editors that agreed to CO-OPERATE with the declarative schema.
  *
  * A custom editor short-circuits the schema branch, so every schema field the
@@ -1645,7 +1679,11 @@ function customContentEditor(
       return <TextRotateEditor c={c} lang={lang} setContent={setContent} />;
     case "post-list":
     case "carousel":
-      return <PostListEditor c={c} lang={lang} setContent={setContent} />;
+      // `widgetType` MUSI tu trafić: edytor pokazuje sekcję karuzeli (autoplay,
+      // czas slajdu) tylko dla typu "carousel", a bez tego propsu domyślał się
+      // "post-list" - kontrolki autoodtwarzania nie dawały się pokazać w ogóle,
+      // choć renderer je honorował.
+      return <PostListEditor c={c} lang={lang} setContent={setContent} widgetType={widget.type} />;
     case "mega-menu":
       return <MegaMenuEditor c={c} lang={lang} setContent={setContent} />;
     case "rich-text":

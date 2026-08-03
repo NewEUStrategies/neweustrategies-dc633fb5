@@ -168,6 +168,93 @@ async function resolvePostFilterSets(f: PostFilterInput): Promise<{
   return { includeSet: resolved, excludeSet, impossible: resolved !== null && resolved.size === 0 };
 }
 
+/**
+ * Ustawienia karuzeli - WYDZIELONE do własnego komponentu, nie tylko dla
+ * porządku.
+ *
+ * Wcześniej `autoplay` / `autoplayIntervalMs` były czytane na górze
+ * `PostListEditor`, czyli także dla widgetu `post-list`, który karuzelą nie jest
+ * i tych kluczy nigdy nie renderuje. Odczyt bez kontrolki to dokładnie ten sam
+ * rodzaj kłamstwa, co kontrolka bez odczytu - panel "wiedział" o ustawieniu,
+ * którego nie oferował. Teraz oba klucze są czytane wyłącznie tam, gdzie
+ * istnieje ich kontrolka i ich konsument.
+ */
+function CarouselSection({
+  c,
+  setContent,
+}: {
+  c: WidgetNode["content"];
+  setContent: (k: string, v: Json) => void;
+}) {
+  const { t } = useTranslation();
+  const autoplay = carouselAutoplayEnabled(c);
+  const autoplayIntervalMs = carouselAutoplayIntervalMs(c);
+  return (
+    <Collapsible
+      title={t("builder.postListEditor.carouselTitle", { defaultValue: "Karuzela" })}
+      defaultOpen
+    >
+      <div className="space-y-2">
+        <PropField
+          label={t("builder.postListEditor.autoplay", { defaultValue: "Autoodtwarzanie" })}
+          hint={t("builder.postListEditor.autoplayHint", {
+            defaultValue:
+              "Karuzela przewija się sama i zatrzymuje na najechaniu, fokusie klawiatury oraz przyciskiem pauzy. Czytelnicy z ustawieniem „ogranicz ruch” widzą ją statycznie.",
+          })}
+        >
+          <div className="flex h-8 items-center">
+            <Switch
+              checked={autoplay}
+              onCheckedChange={(next) => setContent("autoplay", next)}
+              aria-label={t("builder.postListEditor.autoplay", {
+                defaultValue: "Autoodtwarzanie",
+              })}
+            />
+          </div>
+        </PropField>
+        {autoplay && (
+          <PropField
+            label={t("builder.postListEditor.autoplayInterval", {
+              defaultValue: "Czas slajdu (ms)",
+            })}
+          >
+            <Input
+              type="number"
+              min={CAROUSEL_AUTOPLAY_MIN_MS}
+              max={CAROUSEL_AUTOPLAY_MAX_MS}
+              step={500}
+              value={autoplayIntervalMs}
+              onChange={(e) =>
+                setContent(
+                  "autoplayIntervalMs",
+                  Math.min(
+                    CAROUSEL_AUTOPLAY_MAX_MS,
+                    Math.max(
+                      CAROUSEL_AUTOPLAY_MIN_MS,
+                      Number(e.target.value) || CAROUSEL_AUTOPLAY_DEFAULT_MS,
+                    ),
+                  ),
+                )
+              }
+              className="h-8 text-xs"
+            />
+          </PropField>
+        )}
+      </div>
+    </Collapsible>
+  );
+}
+
+/**
+ * Grubości czcionki oferowane dla tytułu i zajawki (spójne z rated-list).
+ *
+ * `INHERIT` jest wartownikiem kontrolki, nie wartością treści: Radix Select nie
+ * przyjmuje pustego stringa jako wartości pozycji (puste znaczy "brak wyboru"),
+ * a w treści widgetu "grubość domyślna" to właśnie pusty string.
+ */
+const WEIGHT_INHERIT = "inherit";
+const WEIGHT_OPTIONS: ReadonlyArray<string> = ["300", "400", "500", "600", "700", "800"];
+
 export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }: Props) {
   const { t } = useTranslation();
   const variant = str(c, "variant", "card");
@@ -183,8 +270,6 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
   const popularDays = num(c, "popularDays", 30);
   const uniqueOnPage = asBool(c["uniqueOnPage"], false);
   const mobileHScroll = asBool(c["mobileHorizontalScroll"], false);
-  const autoplay = carouselAutoplayEnabled(c);
-  const autoplayIntervalMs = carouselAutoplayIntervalMs(c);
   // Ustawienia autora pokazujemy WYLACZNIE dla wariantow, ktore rysuja byline
   // i dla ktorych zapytanie dociaga profil autora (jedna lista, wspoldzielona
   // z warstwa zapytania). Wczesniej pole wisialo w kazdym wariancie, a w
@@ -383,6 +468,36 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
               </SelectContent>
             </Select>
           </PropField>
+          {/* Grubości: renderer honorował `titleWeight` / `excerptWeight` (mają
+              pierwszeństwo nad typografią współdzieloną), ale panel nie dawał na
+              nie kontrolki - jedyną drogą było ręczne grzebanie w treści. */}
+          {(
+            [
+              ["titleWeight", "builder.postListEditor.titleWeight", "Grubość tytułu"],
+              ["excerptWeight", "builder.postListEditor.excerptWeight", "Grubość opisu"],
+            ] as const
+          ).map(([key, i18nKey, fallback]) => (
+            <PropField key={key} label={t(i18nKey, { defaultValue: fallback })}>
+              <Select
+                value={str(c, key, "") || WEIGHT_INHERIT}
+                onValueChange={(v) => setContent(key, v === WEIGHT_INHERIT ? "" : v)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={WEIGHT_INHERIT} className="text-xs">
+                    {t("builder.postListEditor.weightInherit", { defaultValue: "domyślna" })}
+                  </SelectItem>
+                  {WEIGHT_OPTIONS.map((weight) => (
+                    <SelectItem key={weight} value={weight} className="text-xs">
+                      {weight}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </PropField>
+          ))}
         </div>
         {supportsByline && (
           <div className="mt-2">
@@ -448,60 +563,7 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
       {/* anchor */}
 
       {/* ── Carousel ───────────────────────────────────────── */}
-      {widgetType === "carousel" && (
-        <Collapsible
-          title={t("builder.postListEditor.carouselTitle", { defaultValue: "Karuzela" })}
-          defaultOpen
-        >
-          <div className="space-y-2">
-            <PropField
-              label={t("builder.postListEditor.autoplay", { defaultValue: "Autoodtwarzanie" })}
-              hint={t("builder.postListEditor.autoplayHint", {
-                defaultValue:
-                  "Karuzela przewija się sama i zatrzymuje na najechaniu, fokusie klawiatury oraz przyciskiem pauzy. Czytelnicy z ustawieniem „ogranicz ruch” widzą ją statycznie.",
-              })}
-            >
-              <div className="flex h-8 items-center">
-                <Switch
-                  checked={autoplay}
-                  onCheckedChange={(next) => setContent("autoplay", next)}
-                  aria-label={t("builder.postListEditor.autoplay", {
-                    defaultValue: "Autoodtwarzanie",
-                  })}
-                />
-              </div>
-            </PropField>
-            {autoplay && (
-              <PropField
-                label={t("builder.postListEditor.autoplayInterval", {
-                  defaultValue: "Czas slajdu (ms)",
-                })}
-              >
-                <Input
-                  type="number"
-                  min={CAROUSEL_AUTOPLAY_MIN_MS}
-                  max={CAROUSEL_AUTOPLAY_MAX_MS}
-                  step={500}
-                  value={autoplayIntervalMs}
-                  onChange={(e) =>
-                    setContent(
-                      "autoplayIntervalMs",
-                      Math.min(
-                        CAROUSEL_AUTOPLAY_MAX_MS,
-                        Math.max(
-                          CAROUSEL_AUTOPLAY_MIN_MS,
-                          Number(e.target.value) || CAROUSEL_AUTOPLAY_DEFAULT_MS,
-                        ),
-                      ),
-                    )
-                  }
-                  className="h-8 text-xs"
-                />
-              </PropField>
-            )}
-          </div>
-        </Collapsible>
-      )}
+      {widgetType === "carousel" && <CarouselSection c={c} setContent={setContent} />}
 
       {/* ── Query ──────────────────────────────────────────── */}
       <Collapsible title={t("builder.postListEditor.queryFilters")} defaultOpen>

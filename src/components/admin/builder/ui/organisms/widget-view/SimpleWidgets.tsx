@@ -26,7 +26,8 @@ import {
   getStrArr,
   type Lang,
 } from "./frame";
-import { asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
+import { asBool, asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
+import { GalleryLightboxZone } from "./GalleryLightbox";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
@@ -422,6 +423,10 @@ export function renderSimpleWidget(
       type IconCmp = (props: { size?: number }) => ReactElement;
       const items: Array<{ k: string; altKeys?: string[]; Cmp: IconCmp; label: string }> = [
         { k: "facebook", Cmp: FacebookIcon, label: "Facebook" },
+        // `x` jest kluczem PLATFORMY: steruje też `ctaX` i mapowaniem na
+        // globalne Ikony social (`readGlobal`). Panel zapisuje ten sam klucz i
+        // czyta `twitter` jako alias historyczny (`legacyKeys`), więc dokumenty
+        // sprzed zmiany nazwy renderują się i pozostają edytowalne.
         { k: "x", altKeys: ["twitter"], Cmp: XIcon, label: "X" },
         { k: "youtube", Cmp: YoutubeIcon, label: "YouTube" },
         { k: "instagram", Cmp: InstagramIcon, label: "Instagram" },
@@ -609,7 +614,7 @@ export function renderSimpleWidget(
         (lang === "pl" ? "Zmień język" : "Change language");
       return (
         <div className="inline-flex items-center text-xs leading-none" style={compactRowStyle}>
-          <LangSwitcherDropdown label={label} />
+          <LangSwitcherDropdown label={label} showLabel={asBool(c["showLabel"], false)} />
         </div>
       );
     }
@@ -786,81 +791,101 @@ export function renderSimpleWidget(
             {lang === "pl" ? "brak zdjęć" : "no images"}
           </div>
         );
-      if (variant === "carousel") {
-        return (
-          <div className={`flex ${gapCls} overflow-x-auto snap-x pb-2`}>
-            {imgs.map((src, i) => (
-              <WidgetMediaImage
-                key={i}
-                src={src}
-                alt=""
-                frameClassName="relative block aspect-[4/3] flex-[0_0_80%] snap-start overflow-hidden rounded bg-muted sm:flex-[0_0_42%] lg:flex-[0_0_30%]"
-                sizes="(max-width: 640px) 80vw, (max-width: 1024px) 42vw, 30vw"
-              />
-            ))}
-          </div>
-        );
-      }
-      if (variant === "masonry") {
-        return (
-          <div
-            style={{
-              columnCount: cols,
-              columnGap: gap === "lg" ? "1.5rem" : gap === "md" ? "1rem" : "0.5rem",
-            }}
-          >
-            {imgs.map((src, i) => (
-              <OptimizedImage
-                key={i}
-                src={src}
-                alt=""
-                responsive
-                sizes="(max-width: 767px) 100vw, 33vw"
-                className="mb-2 block w-full break-inside-avoid rounded"
-              />
-            ))}
-          </div>
-        );
-      }
-      if (variant === "polaroid") {
-        return (
-          <div
-            data-widget-grid
-            className={`grid ${gapCls}`}
-            style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-          >
-            {imgs.map((src, i) => (
-              <div
-                key={i}
-                className="bg-white p-2 pb-5 shadow-lg rotate-[-1deg] hover:rotate-0 transition"
-              >
-                <WidgetMediaImage
-                  src={src}
-                  alt=""
-                  frameClassName="relative block aspect-[4/3] w-full overflow-hidden bg-muted"
-                  sizes="(max-width: 767px) 100vw, 33vw"
-                />
-              </div>
-            ))}
-          </div>
-        );
-      }
+      // Przełącznik "Lightbox" jest ustawieniem redakcji, a nie właściwością
+      // wariantu: pełny ekran działa w siatce, masonry, polaroidzie i karuzeli
+      // jednakowo. `GalleryLightboxZone` wnosi stan i overlay, a przez
+      // render-prop `trigger` opakowuje każdy kafel - dzięki temu gałąź switcha
+      // pozostaje bezstanowa (hooki nie mogą żyć w `case`).
+      const lightbox = asBool(c["lightbox"], false);
       return (
-        <div
-          data-widget-grid
-          className={`grid ${gapCls}`}
-          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-        >
-          {imgs.map((src, i) => (
-            <WidgetMediaImage
-              key={i}
-              src={src}
-              alt=""
-              frameClassName="relative block aspect-[4/3] w-full overflow-hidden rounded bg-muted"
-              sizes="(max-width: 767px) 100vw, 33vw"
-            />
-          ))}
-        </div>
+        <GalleryLightboxZone images={imgs} enabled={lightbox} lang={lang}>
+          {(trigger) => {
+            if (variant === "carousel") {
+              return (
+                <div className={`flex ${gapCls} overflow-x-auto snap-x pb-2`}>
+                  {imgs.map((src, i) =>
+                    trigger(
+                      i,
+                      <WidgetMediaImage
+                        src={src}
+                        alt=""
+                        frameClassName="relative block aspect-[4/3] w-full overflow-hidden rounded bg-muted"
+                        sizes="(max-width: 640px) 80vw, (max-width: 1024px) 42vw, 30vw"
+                      />,
+                      "flex-[0_0_80%] snap-start sm:flex-[0_0_42%] lg:flex-[0_0_30%]",
+                    ),
+                  )}
+                </div>
+              );
+            }
+            if (variant === "masonry") {
+              return (
+                <div
+                  style={{
+                    columnCount: cols,
+                    columnGap: gap === "lg" ? "1.5rem" : gap === "md" ? "1rem" : "0.5rem",
+                  }}
+                >
+                  {imgs.map((src, i) =>
+                    trigger(
+                      i,
+                      <OptimizedImage
+                        src={src}
+                        alt=""
+                        responsive
+                        sizes="(max-width: 767px) 100vw, 33vw"
+                        className="block w-full rounded"
+                      />,
+                      "mb-2 break-inside-avoid",
+                    ),
+                  )}
+                </div>
+              );
+            }
+            if (variant === "polaroid") {
+              return (
+                <div
+                  data-widget-grid
+                  className={`grid ${gapCls}`}
+                  style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+                >
+                  {imgs.map((src, i) =>
+                    trigger(
+                      i,
+                      <span className="block bg-white p-2 pb-5 shadow-lg rotate-[-1deg] transition hover:rotate-0">
+                        <WidgetMediaImage
+                          src={src}
+                          alt=""
+                          frameClassName="relative block aspect-[4/3] w-full overflow-hidden bg-muted"
+                          sizes="(max-width: 767px) 100vw, 33vw"
+                        />
+                      </span>,
+                    ),
+                  )}
+                </div>
+              );
+            }
+            return (
+              <div
+                data-widget-grid
+                className={`grid ${gapCls}`}
+                style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+              >
+                {imgs.map((src, i) =>
+                  trigger(
+                    i,
+                    <WidgetMediaImage
+                      src={src}
+                      alt=""
+                      frameClassName="relative block aspect-[4/3] w-full overflow-hidden rounded bg-muted"
+                      sizes="(max-width: 767px) 100vw, 33vw"
+                    />,
+                  ),
+                )}
+              </div>
+            );
+          }}
+        </GalleryLightboxZone>
       );
     }
     case "image": {

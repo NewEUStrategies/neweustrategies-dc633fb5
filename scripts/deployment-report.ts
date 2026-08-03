@@ -84,6 +84,23 @@ function gateStatus(
   return { status: missing > 0 ? "failed" : "passed", missing };
 }
 
+/**
+ * Bramka wierności ustawień widgetów. Raport pisze
+ * `settingsFidelity.gate.test.tsx`; `unwaived` niepuste = defekt bez
+ * uzasadnienia, czyli czerwona bramka.
+ */
+function widgetFidelityStatus(): {
+  status: CheckStatus;
+  unwaived: number;
+  waived: number;
+} | null {
+  const json = readJson(`${REPORTS}/widget-fidelity.json`);
+  if (json === null) return null;
+  const raw = json["unwaived"];
+  const unwaived = Array.isArray(raw) ? raw.length : num(raw);
+  return { status: unwaived > 0 ? "failed" : "passed", unwaived, waived: num(json["waived"]) };
+}
+
 function parseCiStatus(): CheckStatus {
   const raw = (process.env["CI_STATUS"] ?? "").toLowerCase();
   if (raw === "success" || raw === "passed") return "passed";
@@ -122,6 +139,7 @@ function main(): void {
     ciStatus: parseCiStatus(),
     dbContract: gateStatus(`${REPORTS}/db-contract.json`, "missing"),
     i18nParity: gateStatus(`${REPORTS}/i18n-parity.json`, "missing"),
+    widgetFidelity: widgetFidelityStatus(),
   };
 
   const markdown = renderDeploymentReport(input);
