@@ -63,7 +63,7 @@ export async function grantBadge(
   const { data, error } = await supabase.rpc("admin_grant_profile_badge", {
     p_user_id: requireUuid(userId, "userId"),
     p_badge: badge,
-    p_note: normalizeNote(note),
+    p_note: normalizeNote(note) ?? undefined,
   });
   if (error) throw error;
   if (!data) throw new Error("Badge grant was not persisted");
