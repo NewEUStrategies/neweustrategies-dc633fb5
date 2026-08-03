@@ -52,6 +52,9 @@ export function ContactForm({ lang }: Props) {
   const submit = useServerFn(submitContactMessage);
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [status, setStatus] = useState<"idle" | "sending" | "ok">("idle");
+  // Spójnie z komentarzami: przycisk "Wyślij" jest zablokowany, dopóki
+  // wiadomość jest pusta / za długa (walidacja z ComposerShell).
+  const [messageOk, setMessageOk] = useState(false);
   const formId = useId();
   const nameId = `${formId}-name`;
   const emailId = `${formId}-email`;
@@ -130,11 +133,15 @@ export function ContactForm({ lang }: Props) {
           rows={5}
           value={form.message}
           onChange={(next) => setForm({ ...form, message: next })}
+          lang={lang}
+          submitting={status === "sending"}
+          onValidationChange={(v) => setMessageOk(v.canSubmit)}
         />
         <SubscribeButton
           type="submit"
           loading={status === "sending"}
           loadingLabel={t.sending}
+          disabled={!messageOk || status === "sending"}
           className="justify-self-start"
         >
           {t.send}

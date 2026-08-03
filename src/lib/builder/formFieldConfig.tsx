@@ -184,6 +184,7 @@ export function CustomFieldsRenderer({
               required={f.required}
               maxLength={f.maxLength ?? 2000}
               rows={4}
+              lang={lang}
               textareaClassName="min-h-[80px]"
               textareaStyle={inputStyle}
               dataEditTarget={inputEditTarget}
