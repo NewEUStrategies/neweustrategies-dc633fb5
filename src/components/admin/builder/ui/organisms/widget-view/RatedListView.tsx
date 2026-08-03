@@ -363,28 +363,33 @@ export function RatedListView({
 
       const missingAuthorIds = Array.from(
         new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
-      ).filter((id) => !authorNameById.has(id));
+      ).filter((id) => !authorById.has(id));
       if (missingAuthorIds.length) {
         const { data: profs } = await supabase
           .from("profiles")
-          .select("id, display_name")
+          .select("id, display_name, avatar_url")
           .in("id", missingAuthorIds);
         for (const p of (profs ?? []) as ProfileRow[]) {
-          if (p.display_name) authorNameById.set(p.id, p.display_name);
+          if (p.display_name) authorById.set(p.id, p);
         }
       }
       if (orderBy === "random") rows = [...rows].sort(() => Math.random() - 0.5);
 
-      return rows.map((r) => ({
-        title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl,
-        excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "",
-        author: (r.author_id && authorNameById.get(r.author_id)) || "",
-        // Wpisy nie maja oceny w bazie - patrz `showRating` wyzej.
-        rating: 0,
-        href: `/post/${r.slug}`,
-        date: r.published_at || "",
-        format: r.post_format || "standard",
-      }));
+      return rows.map((r) => {
+        const profile = r.author_id ? authorById.get(r.author_id) : undefined;
+        return {
+          title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl,
+          excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "",
+          author: profile?.display_name || "",
+          authorAvatar: profile?.avatar_url || undefined,
+          authorHref: `/post/${r.slug}`,
+          // Wpisy nie maja oceny w bazie - patrz `showRating` wyzej.
+          rating: 0,
+          href: `/post/${r.slug}`,
+          date: r.published_at || "",
+          format: r.post_format || "standard",
+        };
+      });
     },
   });
 
