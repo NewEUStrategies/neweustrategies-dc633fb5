@@ -2140,6 +2140,12 @@ export const pl = {
       },
     },
   },
+  composer: {
+    status: {
+      tooLong: "Treść przekracza limit {{count}} znaków.",
+      tooShort: "Wpisz co najmniej {{count}} znaków.",
+    },
+  },
   comments: {
     title_zero: "Komentarze",
     title_one: "Komentarze ({{count}})",

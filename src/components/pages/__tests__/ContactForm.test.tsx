@@ -3,7 +3,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const submitContactMessage = vi.fn();
 
-vi.mock("@tanstack/react-start", () => ({
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) => fn,
 }));
 vi.mock("@/lib/contact.functions", () => ({
@@ -60,12 +61,15 @@ describe("ContactForm", () => {
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 
-  it("never calls the server fn when required fields are empty", () => {
+  it("blokuje przycisk wysyłki i nie woła serwera, gdy wiadomość jest pusta", () => {
     render(<ContactForm lang="pl" />);
-    fireEvent.click(screen.getByRole("button", { name: "Wyślij" }));
+    const submit = screen.getByRole("button", { name: "Wyślij" });
+
+    // Walidacja composera wyłącza przycisk, zanim dojdzie do wywołania serwera.
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
 
     expect(submitContactMessage).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalledTimes(1);
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 

@@ -12,7 +12,8 @@
 // Filtrujemy do osób (kind === "person"); slug jest wymagany (RPC zwraca tylko
 // profile ze slugiem, ale zawężamy defensywnie). Zapytanie jest debounce'owane
 // u wołającego; przy braku funkcji w bazie degradujemy do pustej listy.
-import { useQuery } from "@tanstack/react-query";
+import { useContext } from "react";
+import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface MentionSuggestion {
@@ -25,34 +26,43 @@ export interface MentionSuggestion {
 /** Ile podpowiedzi pokazujemy naraz (lista pozostaje zwięzła i nawigowalna). */
 export const MENTION_SUGGESTION_LIMIT = 6;
 
+// Poza drzewem QueryClientProvider (izolowany render pola w testach/podglądzie)
+// degradujemy do braku podpowiedzi zamiast rzucać - pole tekstowe ma działać.
+let fallbackClient: QueryClient | null = null;
+
 export function useMentionSuggestions(query: string | null, lang: "pl" | "en") {
+  const ctxClient = useContext(QueryClientContext);
+  const client = ctxClient ?? (fallbackClient ??= new QueryClient());
   // query === null oznacza „kursor nie stoi w obrębie wzmianki" - nie pytamy.
-  const enabled = query !== null;
+  const enabled = query !== null && ctxClient != null;
   const q = (query ?? "").trim();
-  return useQuery({
-    queryKey: ["mention-suggestions", q, lang] as const,
-    enabled,
-    staleTime: 60_000,
-    queryFn: async (): Promise<MentionSuggestion[]> => {
-      try {
-        const { data, error } = await supabase.rpc("search_people_orgs", {
-          _q: q.length > 0 ? q : undefined,
-          _limit: MENTION_SUGGESTION_LIMIT,
-        });
-        if (error) throw error;
-        return (data ?? [])
-          .filter((r) => r.kind === "person" && Boolean(r.slug))
-          .slice(0, MENTION_SUGGESTION_LIMIT)
-          .map((r) => ({
-            slug: r.slug,
-            name: (lang === "en" ? r.label_en : r.label_pl) || r.label_pl || r.label_en || r.slug,
-            avatarUrl: r.avatar_url || null,
-            subtitle: (lang === "en" ? r.sublabel_en : r.sublabel_pl) || null,
-          }));
-      } catch {
-        // Odporność przed wdrożeniem migracji / przy błędzie sieci: brak podpowiedzi.
-        return [];
-      }
+  return useQuery(
+    {
+      queryKey: ["mention-suggestions", q, lang] as const,
+      enabled,
+      staleTime: 60_000,
+      queryFn: async (): Promise<MentionSuggestion[]> => {
+        try {
+          const { data, error } = await supabase.rpc("search_people_orgs", {
+            _q: q.length > 0 ? q : undefined,
+            _limit: MENTION_SUGGESTION_LIMIT,
+          });
+          if (error) throw error;
+          return (data ?? [])
+            .filter((r) => r.kind === "person" && Boolean(r.slug))
+            .slice(0, MENTION_SUGGESTION_LIMIT)
+            .map((r) => ({
+              slug: r.slug,
+              name: (lang === "en" ? r.label_en : r.label_pl) || r.label_pl || r.label_en || r.slug,
+              avatarUrl: r.avatar_url || null,
+              subtitle: (lang === "en" ? r.sublabel_en : r.sublabel_pl) || null,
+            }));
+        } catch {
+          // Odporność przed wdrożeniem migracji / przy błędzie sieci: brak podpowiedzi.
+          return [];
+        }
+      },
     },
-  });
+    client,
+  );
 }

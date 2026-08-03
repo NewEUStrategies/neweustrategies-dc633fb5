@@ -16,7 +16,7 @@ function Harness() {
 describe("MessageComposerField", () => {
   it("renderuje pasek formatowania i licznik znaków", () => {
     render(<Harness />);
-    expect(screen.getByRole("textbox", { name: "Wiadomość" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Wiadomość")).toBeInTheDocument();
     expect(screen.getByText("5/100")).toBeInTheDocument();
   });
 
@@ -30,7 +30,9 @@ describe("MessageComposerField", () => {
     const onChange = (next: string) => {
       value = next;
     };
-    render(<MessageComposerField label="Wiadomość" value="abc" onChange={onChange} maxLength={50} />);
+    render(
+      <MessageComposerField label="Wiadomość" value="abc" onChange={onChange} maxLength={50} />,
+    );
     const buttons = screen.getAllByRole("button");
     fireEvent.click(buttons[buttons.length - 1]);
     expect(value).toBe("");

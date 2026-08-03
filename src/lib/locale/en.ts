@@ -2110,6 +2110,12 @@ export const en = {
       },
     },
   },
+  composer: {
+    status: {
+      tooLong: "Content exceeds the {{count}} character limit.",
+      tooShort: "Enter at least {{count}} characters.",
+    },
+  },
   comments: {
     title_zero: "Comments",
     title_one: "Comments ({{count}})",

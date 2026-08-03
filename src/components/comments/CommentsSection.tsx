@@ -17,6 +17,7 @@ import { FloatingInput } from "@/components/ui/floating-input";
 import { MentionText } from "@/components/mentions/MentionText";
 import { MentionTextarea } from "@/components/mentions/MentionTextarea";
 import { CommentComposerShell } from "@/components/comments/CommentComposerShell";
+import { validateComposerValue } from "@/lib/composer/validation";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/appDialogs";
 import { Trash2 } from "@/lib/lucide-shim";
@@ -341,12 +342,9 @@ function GuestCommentComposer({
   const [body, setBody] = useState("");
   const [website, setWebsite] = useState("");
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
-  const disabled =
-    name.trim().length < 2 ||
-    name.trim().length > 80 ||
-    body.trim().length < 1 ||
-    body.trim().length > 5000 ||
-    submitting;
+  const bodyValidation = validateComposerValue({ value: body, maxLength: 5000, submitting });
+  const nameOk = name.trim().length >= 2 && name.trim().length <= 80;
+  const disabled = !bodyValidation.canSubmit || !nameOk;
   return (
     <form
       onSubmit={async (e) => {
@@ -383,6 +381,7 @@ function GuestCommentComposer({
         onValueChange={setBody}
         textareaRef={bodyRef}
         maxLength={5000}
+        submitting={submitting}
         actions={
           <>
             {onCancel && (
@@ -405,6 +404,7 @@ function GuestCommentComposer({
           maxLength={5000}
           lang={lang}
           textareaRef={bodyRef}
+          invalid={bodyValidation.invalid}
         />
         {/* Honeypot - niewidoczne dla ludzi, kuszące dla botów. */}
         <input
@@ -443,11 +443,13 @@ function CommentComposer({
   const { t } = useTranslation();
   const [body, setBody] = useState(initialValue ?? "");
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
-  const disabled =
-    body.trim().length < 1 ||
-    body.trim().length > 5000 ||
-    submitting ||
-    body.trim() === (initialValue ?? "").trim();
+  const bodyValidation = validateComposerValue({
+    value: body,
+    maxLength: 5000,
+    submitting,
+    initialValue,
+  });
+  const disabled = !bodyValidation.canSubmit;
   return (
     <form
       onSubmit={async (e) => {
@@ -469,6 +471,7 @@ function CommentComposer({
         onValueChange={setBody}
         textareaRef={bodyRef}
         maxLength={5000}
+        submitting={submitting}
         actions={
           <>
             {onCancel && (
@@ -491,6 +494,7 @@ function CommentComposer({
           maxLength={5000}
           lang={lang}
           textareaRef={bodyRef}
+          invalid={bodyValidation.invalid}
         />
       </CommentComposerShell>
     </form>
