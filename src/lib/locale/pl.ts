@@ -2167,6 +2167,16 @@ export const pl = {
     guestBadge: "gość",
     guestName: "Twoje imię lub pseudonim",
     loadMore: "Załaduj więcej komentarzy",
+    toolbar: {
+      bold: "Pogrubienie",
+      italic: "Kursywa",
+      bulletList: "Lista punktowana",
+      numberedList: "Lista numerowana",
+      quote: "Cytat",
+      code: "Kod",
+      link: "Link",
+      clear: "Wyczyść treść",
+    },
     submittedPending: "Dziękujemy - komentarz pojawi się po zatwierdzeniu przez moderację.",
     errors: {
       authRequired: "Zaloguj się, aby komentować.",
