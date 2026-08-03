@@ -1016,13 +1016,24 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const interestSlugs = Array.isArray(interestSlugsRaw)
         ? interestSlugsRaw.filter((x): x is string => typeof x === "string")
         : undefined;
-      const pick = (base: string) => pickI18n(c, base, lang) || undefined;
-      // Zgoda RODO NIE może przeciekać między językami (PL strona + tekst EN).
-      // Brak wpisu w bieżącym języku => komponent użyje domyślnego t() w tym języku.
+      // Treści widgetu NIE mogą przeciekać między językami (PL strona + tekst
+      // EN wpisany tylko w polu _en). Bierzemy wyłącznie wpis w bieżącym
+      // języku; jeżeli go nie ma, komponent użyje domyślnego t() w tym języku.
+      // Legacy klucz bezjęzykowy honorujemy tylko, gdy nie ma ŻADNEJ wersji
+      // językowej - inaczej gubilibyśmy treść sprzed migracji na i18n.
       const pickStrict = (base: string) => {
-        const v = c[`${base}_${lang}`];
-        return typeof v === "string" && v.trim() ? v : undefined;
+        const own = c[`${base}_${lang}`];
+        if (typeof own === "string" && own.trim()) return own;
+        const pl = c[`${base}_pl`];
+        const en = c[`${base}_en`];
+        const hasLocalized =
+          (typeof pl === "string" && pl.trim()) || (typeof en === "string" && en.trim());
+        if (hasLocalized) return undefined;
+        const legacy = c[base];
+        return typeof legacy === "string" && legacy.trim() ? legacy : undefined;
       };
+      const pick = pickStrict;
+
 
       // Image config for variant="split-image" - forwarded so the canvas
       // reflects URL/alt/gradient/overlay/focal-point edits instantly.
