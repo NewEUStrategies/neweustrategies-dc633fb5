@@ -36,6 +36,12 @@ import { ContactFormView, AuthFormWidget } from "./lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
+import {
+  useGlobalSocialLinks,
+  resolveSocialHref,
+  type GlobalSocialLinks,
+} from "@/lib/social/globalSocialLinks";
+
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
 import { SearchButtonWidget } from "./SearchButtonWidget";
