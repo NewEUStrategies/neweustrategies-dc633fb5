@@ -91,7 +91,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
         bullets: [
           "Dostęp do danych i uzyskanie ich kopii.",
           "Sprostowanie nieprawidłowych lub niekompletnych danych.",
-          "Usunięcie danych (prawo do bycia zapomnianym).",
+          "Usunięcie danych (prawo do bycia zapomnianym). Usunięcie konta nie obejmuje ewidencji transakcji, którą musimy przechowywać z mocy prawa (art. 17 ust. 3 lit. b RODO): zapisy zostają, ale odcinamy je od Twojej tożsamości - identyfikator konta i adres e-mail znikają, w ich miejsce wchodzi nieodwracalny pseudonim, a po upływie okresu retencji zapis usuwamy automatycznie.",
           "Ograniczenie przetwarzania oraz sprzeciw wobec przetwarzania opartego na uzasadnionym interesie.",
           "Przenoszenie danych do innego administratora.",
           "Wycofanie zgody w dowolnym momencie, bez wpływu na zgodność z prawem wcześniejszego przetwarzania.",
@@ -215,7 +215,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
         bullets: [
           "Access to your data and a copy of it.",
           "Rectification of inaccurate or incomplete data.",
-          "Erasure (right to be forgotten).",
+          "Erasure (right to be forgotten). Deleting your account does not cover the transaction ledger we are legally required to keep (Article 17(3)(b) GDPR): those entries stay, but we sever them from your identity - the account id and e-mail address are dropped and replaced with an irreversible pseudonym, and the entry is purged automatically once the retention period lapses.",
           "Restriction of processing and objection to processing based on legitimate interests.",
           "Data portability to another controller.",
           "Withdrawal of consent at any time, without affecting the lawfulness of prior processing.",

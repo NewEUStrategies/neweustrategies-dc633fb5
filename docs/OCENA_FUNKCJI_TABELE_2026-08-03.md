@@ -292,7 +292,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 | Logowanie / rejestracja | **7** | Reset hasła działa, brute-force fail-closed, polityka 8 znaków spójna; **PR #141 naprawił formularze auth**: przełączniki commitowały `"0"/"1"` czytane idiomem `!== false` (wyłączenie nie robiło nic), trzy rozjazdy kluczy (`showPasswordConfirm`/`showConfirmPassword`, `newsletterOptIn`/`showNewsletterOptIn`, **`consentText`/`consentLabel` — własna treść RODO nigdy się nie pokazywała**), warianty card/flat/inline realnie różne; 02.08 checkbox zgody RODO + `FormSelect` w formularzu „Dołącz do nas" | **3 ścieżki logowania** — OAuth Google tylko w bloku buildera, tam **bez MFA** (user z TOTP wchodzi na aal1). Bez zmian od 01.08 | Ujednolicić: MFA we wszystkich, OAuth z przełącznikiem |
 | MFA (TOTP) | **8** | Realne (`enroll/challenge/verify`), step-up aal2 egzekwowany serwerowo | Brak listy sesji/urządzeń (`profile.security` umie tylko „ubij inne sesje") | Dodać listę aktywnych sesji |
 | Eksport danych (RODO) | **8** | 17 sekcji, user-scoped, jawna sekcja `errors`, obejmuje `personality_results` i `eu_policy_follows` | Brak testów integracyjnych | Dodać test |
-| Usunięcie konta (RODO) | **6** | Re-auth hasłem, uprzednie anulowanie subskrypcji u operatora | **`payment_orders.user_id` nadal `ON DELETE CASCADE`** (weryfikacja: definicja `20260624172041`, żadna późniejsza migracja tego nie zmienia — `20260731220000` i `20260801135636` dotykają tylko kolumny `environment`) → usunięcie konta niszczy dowody księgowe (art. 74 uor). **Jedyny niedomknięty punkt P1 audytu, trzecie wydanie z rzędu** | `SET NULL` + anonimizacja zamiast `CASCADE` (wzorzec `billing_documents.order_id` już to robi) |
+| Usunięcie konta (RODO) | **8** | Re-auth hasłem, uprzednie anulowanie subskrypcji u operatora; **03.08 zamknięty punkt P1**: `20260803090000` przestawia `payment_orders.user_id` na `ON DELETE SET NULL` + anonimizację (pseudonim SHA-256, redakcja `receipt_email`, metadane obcięte allowlistą), trigger `BEFORE DELETE ON auth.users` domyka ścieżki poza aplikacją, porzucone szkice checkoutu są usuwane, a `purge_expired_payment_orders()` sprząta po `retention_until` z respektem dla `retention_hold`; nota retencyjna PL/EN przed kliknięciem; statyczna bramka stanu końcowego migracji (`accountDeletionRetention.invariant.test.ts`) blokuje powrót `CASCADE` | Brak listy sesji/urządzeń przed usunięciem (wspólna słabość z „Bezpieczeństwo konta") | Dodać listę aktywnych sesji; patrz `WDROZENIE_RODO_RETENCJA_ZAMOWIEN_2026-08-03.md` |
 | Bezpieczeństwo konta | **8** | Zmiana hasła/e-maila z re-auth, „wyloguj inne sesje" | Brak listy sesji | j.w. |
 | Profil (edytor, CV, dorobek) | **8** | Bio skonsolidowane (`canonicalBio`), optymistyczne edycje z rollbackiem, CV w prywatnym buckecie; 01.08 „Ochroniono dane kontaktowe profili" + `20260801120000_restore_min_profile_grants` | — | Utrzymać |
 | Test osobowości (Big Five) | **7** | Furtka zamknięta (odczyt service-rolem, pole wycięte z CRM, `Big5Panel` usunięty z `ProfileSyncCard`), REVOKE w DB | **Wynik nadal nie zasila niczego** — poza eksportem RODO i własnym dashboardem nie ma konsumenta (grep po `src/lib`: tylko `personality.ts`, i18n, export) | Zasilić rekomendacje za jawną zgodą albo pozycjonować jako self-insight |
@@ -1005,9 +1005,11 @@ społecznościowo-sieciowo-wyszukiwarkowej nie mają wcale.
 
 # BACKLOG PO TYM AUDYCIE
 
-**P1 (jedyny otwarty punkt tej klasy — trzecie wydanie z rzędu):**
-- `payment_orders.user_id ON DELETE CASCADE` → `SET NULL` + anonimizacja (art. 74 uor). Wzorzec do skopiowania
-  jest w repo: `billing_documents.order_id ON DELETE SET NULL`.
+**P1 (zamknięte 03.08.2026 - migracja `20260803090000`):**
+- ~~`payment_orders.user_id ON DELETE CASCADE` → `SET NULL` + anonimizacja (art. 74 uor)~~ - wdrożone wraz z
+  terminem retencji (`retention_until`), blokadą `retention_hold`, sprzątaniem `purge_expired_payment_orders()`,
+  triggerem `BEFORE DELETE ON auth.users` i statyczną bramką CI pilnującą stanu końcowego FK. Szczegóły:
+  `WDROZENIE_RODO_RETENCJA_ZAMOWIEN_2026-08-03.md`. Klasa P1 nie ma już otwartych punktów.
 
 **P2 — regres, który trzeba zatrzymać teraz:**
 - **Bundle publiczny.** Zamrozić budżet (koniec re-floorów), rozliczyć wzrost 1472 → 1756 KB z PR #141/#132,

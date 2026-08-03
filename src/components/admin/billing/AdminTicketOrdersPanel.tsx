@@ -212,11 +212,21 @@ export function AdminTicketOrdersPanel() {
                           )}
                         </td>
                         <td className="px-3 py-2">
-                          <span>{row.buyerName ?? row.buyerEmail ?? row.buyerId}</span>
-                          {row.buyerName && row.buyerEmail && (
-                            <span className="block text-xs text-muted-foreground">
-                              {row.buyerEmail}
+                          {row.buyerAnonymized ? (
+                            // Konto usunięte (RODO): zamówienie zostało jako dowód
+                            // księgowy, danych kupującego już nie ma i nie wróci.
+                            <span className="italic text-muted-foreground">
+                              {L("Konto usunięte", "Account deleted")}
                             </span>
+                          ) : (
+                            <>
+                              <span>{row.buyerName ?? row.buyerEmail ?? row.buyerId}</span>
+                              {row.buyerName && row.buyerEmail && (
+                                <span className="block text-xs text-muted-foreground">
+                                  {row.buyerEmail}
+                                </span>
+                              )}
+                            </>
                           )}
                         </td>
                         <td className="px-3 py-2 tabular-nums">{row.tickets}</td>
