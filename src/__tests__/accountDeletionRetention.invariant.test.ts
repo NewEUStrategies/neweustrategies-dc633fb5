@@ -6,7 +6,7 @@
  * definicji tabeli (20260624172041). `auth.admin.deleteUser()` zabierał więc
  * całą ewidencję transakcji użytkownika, mimo że art. 74 ust. 2 ustawy o
  * rachunkowości każe ją trzymać 5 lat, a art. 17 ust. 3 lit. b RODO wprost
- * wyłącza prawo do usunięcia w takim zakresie. Naprawia to 20260803090000.
+ * wyłącza prawo do usunięcia w takim zakresie. Naprawia to 20260803090002.
  *
  * Test jest STATYCZNY (bez bazy), bo migracje są forward-only: o stanie
  * końcowym decyduje OSTATNIA instrukcja dotykająca danego klucza obcego. Sama
@@ -209,7 +209,7 @@ describe("RODO x art. 74 uor: zamówienia przeżywają usunięcie konta", () => 
       last.action,
       `${last.file}: FK payment_orders.user_id ma ON DELETE ${last.action}. ` +
         "CASCADE kasuje ewidencję transakcji razem z kontem (art. 74 ust. 2 uor). " +
-        "Wymagane: SET NULL + anonimizacja (patrz 20260803090000).",
+        "Wymagane: SET NULL + anonimizacja (patrz 20260803090002).",
     ).toBe("SET NULL");
   });
 

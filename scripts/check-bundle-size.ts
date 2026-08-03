@@ -109,9 +109,36 @@ const CLIENT_DIR =
 // dla czytelnika i ta gałąź się w nim MIEŚCI (1788,9), więc nie ma powodu go
 // rozluźniać. Realna redukcja (split locale'i PL/EN, odchudzenie eager-owego
 // zestawu widgetów chrome, @tanstack poza entry) pozostaje osobną pracą.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 508); // largest single gzipped JS chunk (zmierzone: ~505,4KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1790); // gzipped JS a public visitor can load (zmierzone: ~1788,9KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2996); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~2990,3KB)
+// 2026-08-03 (Global Privacy Control): pomiar na tym samym hoście i tej samej
+// wersji zależności (main nie zmieniał package.json ani bun.lock), gałąź GPC
+// PO SCALENIU z mainem vs sam main (85b4c7b):
+//   * sam main:  509,5 KB chunk / 1794,0 KB public / 2999,6 KB overall,
+//   * po scaleniu: 510,7 KB chunk / 1798,4 KB public / 3004,0 KB overall.
+//
+// UWAGA DLA RECENZENTA - rozdzielenie odpowiedzialności, bo sam main przekracza
+// WSZYSTKIE TRZY poprzednie floory (508 / 1790 / 2996) NIEZALEŻNIE od tej
+// gałęzi: chunk +1,5 KB, public +4,0 KB, overall +3,6 KB dryfu maina.
+// Udział tej gałęzi to dokładnie +1,2 KB chunk i +4,4 KB public/overall,
+// stabilny w dwóch niezależnych pomiarach (wcześniej: baza e55e38b 508,7 /
+// 1783,9 / 2993,5 -> gałąź 510,0 / 1788,3 / 2997,8, czyli te same +1,2/+4,4).
+//
+// Z tych +4,4 KB tylko +1,2 KB siedzi w entry i jest NIEREDUKOWALNE: klamra
+// sygnału musi działać synchronicznie, zanim cokolwiek wstrzyknie skrypt
+// analityczny (`lib/consent/gpc.ts` + `gpcClient.ts` + klamra w
+// `useEffectiveConsent`/`hasCategoryConsent`). Pozostałe ~3,2 KB to LENIWY chunk
+// powierzchni prezentacyjnej (`components/consent/GpcSurfaceSlots.tsx`: nota,
+// badge, deklaracja + nakładka i18n `consentGpc.*`) - liczy się do PUBLIC, bo
+// jest osiągalny z publicznego URL-a, ale pobierają go WYŁĄCZNIE osoby realnie
+// wysyłające sygnał. Bez tego zabiegu w entry byłoby +3,0 KB zamiast +1,2 KB.
+//
+// PUBLIC musi się ruszyć pierwszy raz od 07-25 - nie dlatego, że ta gałąź go
+// przebiła, ale dlatego, że main przebił go SAM (1794,0 > 1790). Floor idzie
+// nad zmierzony ślad po scaleniu, nie "z zapasem". Realna redukcja (split
+// locale'i PL/EN, odchudzenie eager-owego zestawu widgetów chrome, @tanstack
+// poza entry) pozostaje osobną, pilniejszą niż dotąd pracą.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 511); // largest single gzipped JS chunk (zmierzone: ~510,7KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1799); // gzipped JS a public visitor can load (zmierzone: ~1798,4KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3005); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~3004,0KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

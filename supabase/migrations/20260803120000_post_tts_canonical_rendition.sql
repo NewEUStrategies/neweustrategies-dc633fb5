@@ -221,11 +221,31 @@ COMMENT ON FUNCTION public.record_post_tts_rendition(
 -- ----------------------------------------------------------------------------
 -- Stare nazwy zawsze zawierają id modelu (`-eleven_...`), nowa ścieżka nigdy -
 -- filtr jest więc precyzyjny i nie może usunąć kanonicznego pliku.
+--
+-- POPRAWKA 2026-08-03: blok robił BEZPOŚREDNI `DELETE FROM storage.objects`, co
+-- od storage-api >= 0055 (w CI od pinu supabase/setup-cli 2.111.0) rzuca 42501
+-- „Direct deletion from storage tables is not allowed" - statementowy trigger
+-- `protect_objects_delete` wymaga GUC `storage.allow_delete_query`. Ponieważ to
+-- blok WYKONYWANY (a nie ciało funkcji, jak w 20260712190000/192421),
+-- `supabase db start` PRZERYWAŁ tu odtwarzanie migracji - identyczny defekt jak
+-- w 20260803085428 i naprawiony tą samą, sankcjonowaną furtką z 20260801122000:
+-- GUC transakcyjnie wokół DELETE + przywrócenie, plus EXCEPTION, żeby kolejna
+-- zmiana w storage-api nie zabiła całego odtworzenia bazy. Czyszczenie cache'u
+-- jest porządkowe - ostrzeżenie jest właściwą reakcją, przerwanie migracji nie.
 DO $$
+DECLARE
+  v_prev text;
 BEGIN
   IF EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'tts-cache') THEN
-    DELETE FROM storage.objects
-     WHERE bucket_id = 'tts-cache'
-       AND name LIKE '%-eleven!_%' ESCAPE '!';
+    BEGIN
+      v_prev := current_setting('storage.allow_delete_query', true);
+      PERFORM set_config('storage.allow_delete_query', 'true', true);
+      DELETE FROM storage.objects
+       WHERE bucket_id = 'tts-cache'
+         AND name LIKE '%-eleven!_%' ESCAPE '!';
+      PERFORM set_config('storage.allow_delete_query', coalesce(v_prev, 'false'), true);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'tts: czyszczenie cache po starym schemacie nie powiodlo sie: %', SQLERRM;
+    END;
   END IF;
 END $$;

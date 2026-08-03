@@ -8,7 +8,6 @@ const gatewayFetch = vi.fn();
 
 vi.mock("@/lib/paddle.server", () => ({ gatewayFetch }));
 
-
 const jsonResponse = (body: unknown): Response =>
   new Response(JSON.stringify(body), {
     status: 200,
@@ -26,7 +25,8 @@ describe("createSubscriptionTransaction", () => {
       .mockResolvedValueOnce(jsonResponse({ data: [{ id: "pri_123" }] }))
       .mockResolvedValueOnce(jsonResponse({ data: { id: "txn_123" } }));
 
-    const { createSubscriptionTransaction } = await import("@/lib/billing/paddleTransaction.server");
+    const { createSubscriptionTransaction } =
+      await import("@/lib/billing/paddleTransaction.server");
     const result = await createSubscriptionTransaction({
       environment: "sandbox",
       priceExternalId: "pro_monthly",
@@ -51,7 +51,8 @@ describe("createSubscriptionTransaction", () => {
 
   it("zwraca błąd zamiast rzucać, gdy cena katalogowa nie istnieje", async () => {
     gatewayFetch.mockResolvedValueOnce(jsonResponse({ data: [] }));
-    const { createSubscriptionTransaction } = await import("@/lib/billing/paddleTransaction.server");
+    const { createSubscriptionTransaction } =
+      await import("@/lib/billing/paddleTransaction.server");
     const result = await createSubscriptionTransaction({
       environment: "sandbox",
       priceExternalId: "nieistniejaca",

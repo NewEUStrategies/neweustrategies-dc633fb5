@@ -77,7 +77,8 @@ async function api<T>(
     },
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`${init.method ?? "GET"} ${path} -> ${res.status}: ${text.slice(0, 400)}`);
+  if (!res.ok)
+    throw new Error(`${init.method ?? "GET"} ${path} -> ${res.status}: ${text.slice(0, 400)}`);
   return JSON.parse(text) as T;
 }
 
@@ -89,7 +90,9 @@ async function arm(auth: { connection: string; lovable: string }): Promise<numbe
   // tworzy transakcji - do sondy nadaje się wyłącznie subskrypcja płacąca.
   const candidate = (listed.data ?? []).find((s) => s.status === "active" && !!s.next_billed_at);
   if (!candidate) {
-    summary("::warning title=Brak subskrypcji testowej::Sonda odnowienia pominięta - w środowisku testowym nie ma aktywnej subskrypcji. Wykonaj checkout kartą 4242 4242 4242 4242.");
+    summary(
+      "::warning title=Brak subskrypcji testowej::Sonda odnowienia pominięta - w środowisku testowym nie ma aktywnej subskrypcji. Wykonaj checkout kartą 4242 4242 4242 4242.",
+    );
     return 0;
   }
 
@@ -107,7 +110,9 @@ async function arm(auth: { connection: string; lovable: string }): Promise<numbe
     previousPeriodEnd: candidate.current_billing_period?.ends_at ?? null,
   };
   writeFileSync(STATE_FILE, JSON.stringify(state));
-  summary(`### Sonda odnowienia\nSubskrypcja \`${candidate.id}\` - obciążenie przesunięte na ${nextBilledAt}.`);
+  summary(
+    `### Sonda odnowienia\nSubskrypcja \`${candidate.id}\` - obciążenie przesunięte na ${nextBilledAt}.`,
+  );
   return 0;
 }
 
@@ -116,11 +121,15 @@ async function verify(auth: { connection: string; lovable: string }): Promise<nu
   try {
     state = JSON.parse(readFileSync(STATE_FILE, "utf8")) as ProbeState;
   } catch {
-    summary("::warning title=Brak stanu sondy::Krok `arm` nie zapisał stanu - weryfikacja pominięta.");
+    summary(
+      "::warning title=Brak stanu sondy::Krok `arm` nie zapisał stanu - weryfikacja pominięta.",
+    );
     return 0;
   }
 
-  const sub = await api<{ data?: Subscription }>(`/subscriptions/${state.subscriptionId}`, { auth });
+  const sub = await api<{ data?: Subscription }>(`/subscriptions/${state.subscriptionId}`, {
+    auth,
+  });
   const periodEnd = sub.data?.current_billing_period?.ends_at ?? null;
   const moved =
     !!periodEnd &&
@@ -134,9 +143,12 @@ async function verify(auth: { connection: string; lovable: string }): Promise<nu
     (t) => new Date(t.created_at).getTime() >= new Date(state.armedAt).getTime(),
   );
 
-  const pastDue = await api<{ data?: Subscription[] }>("/subscriptions?status=past_due&per_page=50", {
-    auth,
-  });
+  const pastDue = await api<{ data?: Subscription[] }>(
+    "/subscriptions?status=past_due&per_page=50",
+    {
+      auth,
+    },
+  );
 
   summary(
     [

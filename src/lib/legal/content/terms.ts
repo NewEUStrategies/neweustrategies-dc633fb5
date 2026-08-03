@@ -75,7 +75,6 @@ export const TERMS_CONTENT: LegalDocContent = {
           "Naruszenia zgłaszasz na kontakt@neweuropeanstrategies.com - rozpatrujemy je bez zbędnej zwłoki, nie później niż w 14 dni.",
           "Naruszenie tych zasad uprawnia nas do ograniczenia funkcji, zawieszenia albo rozwiązania umowy ze skutkiem natychmiastowym; opłata za niewykorzystany okres jest wtedy zwracana proporcjonalnie, chyba że naruszenie miało charakter oszustwa.",
         ],
-
       },
       {
         id: "wlasnosc",
@@ -206,7 +205,6 @@ export const TERMS_CONTENT: LegalDocContent = {
           "Report violations to kontakt@neweuropeanstrategies.com - we review reports without undue delay and within 14 days at the latest.",
           "Breaching these rules entitles us to limit features, suspend the account or terminate the agreement with immediate effect; any unused paid period is refunded pro rata unless the breach was fraudulent.",
         ],
-
       },
       {
         id: "wlasnosc",

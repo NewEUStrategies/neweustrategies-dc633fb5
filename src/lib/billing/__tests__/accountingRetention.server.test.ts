@@ -3,7 +3,7 @@
 // Moduł jest cienki (jedno RPC), ale jego kontrakt jest twardy: RZUCA przy
 // każdej awarii, bo `deleteMyAccount` woła go PRZED `deleteUser`. Cicha porażka
 // oznaczałaby konto usunięte razem z ewidencją transakcji - dokładnie regresja,
-// którą zamyka migracja 20260803090000.
+// którą zamyka migracja 20260803090002.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => {

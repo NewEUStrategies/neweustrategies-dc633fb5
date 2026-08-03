@@ -37,7 +37,6 @@ const createOrderSchema = z.object({
   seats: z.number().int().min(1).max(100).optional(),
   // Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu.
   environment: z.enum(["sandbox", "live"]).optional(),
-
 });
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
@@ -54,7 +53,6 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
     let catalogPriceId: string | null = null;
     let catalogQuantity = 1;
-
 
     // Zakup jednorazowy PLANU: kind=one_time z plan_id i bez encji. Cena
     // pochodzi z planu, płatność jest jednorazowa, a uprawnienie dożywotnie
@@ -93,7 +91,6 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         amountCents = amountCents * catalogQuantity;
       }
     } else if (isEventTicket) {
-
       // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
       // klient przekazuje wyłącznie identyfikator wydarzenia.
       const { data: ev, error: evErr } = await supabase
@@ -203,7 +200,6 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // (`unit_price_overrides` EUR + lokalizacja) - lokalna konwersja tylko
     // rozjechałaby zamówienie z faktyczną kwotą obciążenia.
     if (data.display_currency && !catalogPriceId) {
-
       const [{ couponAuditInDisplayCurrency }, { ensureFxRateLoaded }] = await Promise.all([
         import("@/lib/billing/displayCurrency"),
         import("@/lib/billing/fxRate"),
@@ -311,9 +307,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // dunning i zdarzenia `subscription.*`. Rabat kuponu przekazujemy jako
       // rabat operatora - kwota nadal nie pochodzi od klienta.
       if (catalogPriceId) {
-        const { createSubscriptionTransaction } = await import(
-          "@/lib/billing/paddleTransaction.server"
-        );
+        const { createSubscriptionTransaction } =
+          await import("@/lib/billing/paddleTransaction.server");
         let discountId: string | null = null;
         if (couponCode && data.plan_id) {
           const { resolveDiscountForCoupon } = await import("@/lib/billing/paddleDiscounts.server");
@@ -374,7 +369,6 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // transakcję z ceną osadzoną i zwracamy jej identyfikator do nakładki.
       const { createAdhocTransaction } = await import("@/lib/billing/paddleTransaction.server");
       const created = await createAdhocTransaction({
-
         environment,
         product: eventId ? "eventTicket" : "contentUnlock",
         name: label || "Zamówienie",

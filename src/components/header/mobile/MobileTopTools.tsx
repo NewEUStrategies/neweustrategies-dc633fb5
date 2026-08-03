@@ -73,4 +73,3 @@ export function MobileTopTools({ tools, isPl, onNavigate }: Props) {
     </div>
   );
 }
-

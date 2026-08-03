@@ -1034,7 +1034,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       };
       const pick = pickStrict;
 
-
       // Image config for variant="split-image" - forwarded so the canvas
       // reflects URL/alt/gradient/overlay/focal-point edits instantly.
       const imageUrl = getStr(c, "imageUrl") || undefined;

@@ -16,7 +16,14 @@ import {
   Languages,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { useConsent, OPEN_PREFS_EVENT, type ConsentCategory } from "@/lib/ads/consent";
+import { GpcCategoryBadgeSlot, GpcNoticeSlot } from "@/components/consent/GpcSurfaceSlots";
+import {
+  useConsent,
+  useGpcSignal,
+  OPEN_PREFS_EVENT,
+  type ConsentCategory,
+} from "@/lib/ads/consent";
+import { isGpcClampedCategory, isGpcOverrideValid } from "@/lib/consent/gpc";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { setConsentOverlayVisible, setMarketingConsent } from "@/lib/overlayCoordinator";
 import { useSiteSetting } from "@/lib/useSiteSetting";
@@ -200,6 +207,12 @@ export function ConsentBanner() {
   const dataProcessingHref = localizedPath("/privacy", isPl ? "pl" : "en");
 
   const { state, decided, mounted, save, acceptAll, rejectAll } = useConsent();
+  // Sygnał GPC: `gpcActive` steruje widocznością noty (użytkownik musi wiedzieć,
+  // że sygnał został zauważony - także gdy sam go nadpisał), `gpcHonored` steruje
+  // klamrą na przełącznikach.
+  const gpc = useGpcSignal();
+  const gpcOverridden = isGpcOverrideValid(state);
+  const gpcHonored = gpc.active && !gpcOverridden;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [expandedVendors, setExpandedVendors] = useState<Record<ConsentCategory, boolean>>({
     necessary: false,
@@ -210,6 +223,10 @@ export function ConsentBanner() {
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, detailsOpen);
 
+  // Szkic startuje od stanu EFEKTYWNEGO, nie zapisanego: przy honorowanym
+  // sygnale GPC przełączniki klamrowanych kategorii muszą pokazywać „nie", bo
+  // taki jest realny stan bramkowania. Przełącznik zostaje AKTYWNY - użytkownik
+  // ma prawo świadomie nadpisać sygnał, a zablokowana kontrolka odebrałaby mu je.
   const [draft, setDraft] = useState<Cats>(() => ({
     necessary: true,
     functional: state?.categories.functional ?? false,
@@ -221,10 +238,10 @@ export function ConsentBanner() {
     setDraft({
       necessary: true,
       functional: state?.categories.functional ?? false,
-      analytics: state?.categories.analytics ?? false,
-      marketing: state?.categories.marketing ?? false,
+      analytics: (state?.categories.analytics ?? false) && !gpcHonored,
+      marketing: (state?.categories.marketing ?? false) && !gpcHonored,
     });
-  }, [state]);
+  }, [state, gpcHonored]);
 
   useEffect(() => {
     const open = () => setDetailsOpen(true);
@@ -249,8 +266,15 @@ export function ConsentBanner() {
 
   useEffect(() => {
     if (!mounted) return;
-    setMarketingConsent(state ? state.categories.marketing : null);
-  }, [mounted, state]);
+    // Koordynator nakładek dostaje wartość EFEKTYWNĄ - inaczej popupy
+    // marketingowe wyświetlałyby się osobie, której sygnał GPC właśnie
+    // wyłączył kategorię marketingową.
+    setMarketingConsent(state ? state.categories.marketing && !gpcHonored : null);
+  }, [mounted, state, gpcHonored]);
+
+  /** Powrót do respektowania sygnału: zdejmij klamrowane kategorie i override. */
+  const restoreGpc = () =>
+    save({ functional: draft.functional, analytics: false, marketing: false });
 
   const bannerEnabled = privacy.cookie_banner && banner.enabled;
   const styleVars = useMemo(() => bannerStyleVars(banner.colors), [banner.colors]);
@@ -381,6 +405,16 @@ export function ConsentBanner() {
               )}
               .
             </p>
+            {/* Sygnał GPC: nota pojawia się PRZED przyciskami, bo zmienia
+                znaczenie „Akceptuj wszystkie" (świadomy override sygnału). */}
+            <GpcNoticeSlot
+              active={gpc.active}
+              source={gpc.source}
+              overridden={gpcOverridden}
+              onRestore={restoreGpc}
+              variant="compact"
+              className="max-w-2xl"
+            />
           </div>
 
           {/* Right: actions */}
@@ -506,10 +540,17 @@ export function ConsentBanner() {
 
         {/* Categories */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
+          <GpcNoticeSlot
+            active={gpc.active}
+            source={gpc.source}
+            overridden={gpcOverridden}
+            onRestore={restoreGpc}
+          />
           {CATEGORY_ORDER.map((cat) => {
             const locked = cat === "necessary";
             const vendors = VENDORS[cat];
             const vendorsOpen = expandedVendors[cat];
+            const gpcClamped = gpcHonored && isGpcClampedCategory(cat);
             return (
               <section
                 key={cat}
@@ -534,6 +575,7 @@ export function ConsentBanner() {
                             {tr("common.required")}
                           </span>
                         )}
+                        <GpcCategoryBadgeSlot clamped={gpcClamped} />
                         <span
                           className={cn(
                             TX.meta,

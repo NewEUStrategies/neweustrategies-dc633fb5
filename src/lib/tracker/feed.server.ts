@@ -14,7 +14,7 @@ import {
   fetchSeoSettingsValue,
   fetchTrackerFeedSources,
 } from "@/lib/server/publishedContent.server";
-import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
+import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 import {
   buildTrackerFeedItems,
   trackerFeedChannelText,
@@ -40,14 +40,32 @@ export async function trackerFeedResponse(): Promise<Response> {
   const { origin, host, lang } = await requestContext();
   // Jak /rss.xml: service role omija RLS, więc odczyt MUSI być zescope'owany
   // do tenanta właściciela hosta; nieznany host = 404 (fail-closed).
+  //
+  // POPRAWKA 2026-08-03: brakowało drugiego członu tego predykatu. `/rss.xml`
+  // od początku rozdziela DWA powody braku tenanta (patrz `crawlerDegradeIsSafe`,
+  // którego docstring wprost mówi „utrzymywane razem (...), żeby predykat
+  // bezpieczeństwa był jeden"):
+  //   * nieznany host przy ZASIEDLONYM katalogu domen -> 404, bo nie wolno
+  //     reklamować treści domyślnego tenanta na cudzej domenie,
+  //   * host podglądu/lokalny albo PUSTY katalog domen -> nie ma czego wyciekać,
+  //     więc kanał podaje poprawny, PUSTY feed.
+  // Ten feed (i `/live/rss.xml`) miał tylko pierwszy człon, więc na hoście
+  // podglądu i w CI bez zasianego katalogu zwracał 404 tam, gdzie `/rss.xml`
+  // zwracał 200 - `e2e/seo.spec.ts` słusznie to wyłapało („404 jest akceptowalny
+  // tylko gdy redakcja wyłączyła RSS"). Fail-closed dla realnych obcych domen
+  // zostaje nietknięty.
   const tenantId = await resolveCrawlerTenantIdForHost(host);
-  if (!tenantId) return new Response("Unknown host", { status: 404 });
+  if (!tenantId && !(await crawlerDegradeIsSafe(host))) {
+    return new Response("Unknown host", { status: 404 });
+  }
 
-  const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
+  const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
   if (!settings.rss_enabled) return new Response("Feed disabled", { status: 404 });
 
   const limit = settings.rss_item_count;
-  const { items, updates } = await fetchTrackerFeedSources(tenantId, limit);
+  const { items, updates } = tenantId
+    ? await fetchTrackerFeedSources(tenantId, limit)
+    : { items: [], updates: [] };
   const feedItems = buildTrackerFeedItems({ items, updates, origin, lang, limit });
   const channel = trackerFeedChannelText(lang);
 

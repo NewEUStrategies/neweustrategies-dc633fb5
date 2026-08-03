@@ -10,6 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Cookie, ShieldCheck } from "lucide-react";
 import { ConsentsPanel } from "@/components/notifications/ConsentsPanel";
+import { GpcDeclarationSlot } from "@/components/consent/GpcSurfaceSlots";
 import { OPEN_PREFS_EVENT } from "@/lib/ads/consent";
 
 export const Route = createFileRoute("/profile/privacy")({
@@ -38,9 +39,14 @@ function PrivacyPage() {
           >
             <ShieldCheck className="h-4 w-4" />
           </span>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {t("profile.privacy.registryNote")}
-          </p>
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {t("profile.privacy.registryNote")}
+            </p>
+            {/* Deklaracja honorowania GPC - link do dokumentu maszynowego, żeby
+                oświadczenie dało się sprawdzić, a nie tylko przeczytać. */}
+            <GpcDeclarationSlot />
+          </div>
         </div>
         <button
           type="button"

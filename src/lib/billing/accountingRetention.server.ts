@@ -3,7 +3,7 @@
 // Prawo do usunięcia danych (art. 17 RODO) nie sięga danych, które musimy
 // przechowywać na podstawie obowiązku prawnego - art. 17 ust. 3 lit. b RODO
 // wprost to wyłącza, a art. 74 ust. 2 ustawy o rachunkowości każe trzymać
-// dowody księgowe 5 lat od początku roku po roku obrotowym. Do 20260803090000
+// dowody księgowe 5 lat od początku roku po roku obrotowym. Do 20260803090002
 // `payment_orders.user_id` miało `ON DELETE CASCADE`, więc kasowanie konta
 // wynosiło ze sobą całą ewidencję transakcji.
 //

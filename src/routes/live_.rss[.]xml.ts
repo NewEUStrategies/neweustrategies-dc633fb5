@@ -23,7 +23,7 @@ import {
   fetchLiveCoverageEntries,
   fetchSeoSettingsValue,
 } from "@/lib/server/publishedContent.server";
-import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
+import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 async function requestContext(): Promise<{ origin: string; host: string; lang: AppLang }> {
   const req = getRequest();
@@ -44,14 +44,24 @@ export const Route = createFileRoute("/live_/rss.xml")({
     handlers: {
       GET: async () => {
         const { origin, host, lang } = await requestContext();
+        // POPRAWKA 2026-08-03: ten sam brak, co w /tracker/rss.xml - predykat
+        // miał tylko człon fail-closed, bez członu degradacji. `/rss.xml`
+        // rozdziela oba (patrz `crawlerDegradeIsSafe`: „utrzymywane razem (...),
+        // żeby predykat bezpieczeństwa był jeden"), więc na hoście podglądu i przy
+        // pustym katalogu domen zwracał 200 z pustym feedem, a ten kanał 404.
+        // Fail-closed dla realnych obcych domen zostaje nietknięty.
         const tenantId = await resolveCrawlerTenantIdForHost(host);
-        if (!tenantId) return new Response("Unknown host", { status: 404 });
+        if (!tenantId && !(await crawlerDegradeIsSafe(host))) {
+          return new Response("Unknown host", { status: 404 });
+        }
 
-        const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
+        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
         if (!settings.rss_enabled) return new Response("Feed disabled", { status: 404 });
 
         // Zapas nad limitem: część wpisów odpadnie na filtrze języka.
-        const entries = await fetchLiveCoverageEntries(tenantId, settings.rss_item_count * 2);
+        const entries = tenantId
+          ? await fetchLiveCoverageEntries(tenantId, settings.rss_item_count * 2)
+          : [];
         const items: RssItem[] = entries
           .filter((entry) => (entry.lang === "en" ? lang === "en" : lang !== "en"))
           .slice(0, settings.rss_item_count)

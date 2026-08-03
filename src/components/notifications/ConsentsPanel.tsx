@@ -27,7 +27,14 @@ import {
   type ConsentView,
 } from "@/lib/notifications/useConsents";
 import type { ConsentCategory } from "@/lib/notifications/consentCatalog";
-import { useConsent } from "@/lib/ads/consent";
+import { useConsent, useGpcSignal } from "@/lib/ads/consent";
+import {
+  GpcCategoryBadgeSlot,
+  GpcEventBadgeSlot,
+  GpcNoticeSlot,
+  GpcRegistryNoteSlot,
+} from "@/components/consent/GpcSurfaceSlots";
+import { isGpcClampedRegistryKey, isGpcOverrideValid } from "@/lib/consent/gpc";
 import {
   REGISTRY_SYNC_EVENT,
   REGISTRY_TO_CMP,
@@ -80,7 +87,17 @@ export function ConsentsPanel({
     return () => window.removeEventListener(REGISTRY_SYNC_EVENT, refresh);
   }, [qc, user?.id]);
 
-  const views = useMemo(() => buildConsentViews(consentsQ.data), [consentsQ.data]);
+  // Sygnał GPC: `active` decyduje o widoczności noty, `honored` o klamrze na
+  // wartościach. Override czytamy ze stanu CMP - tam żyje znacznik świadomej
+  // zgody udzielonej wbrew sygnałowi.
+  const gpc = useGpcSignal();
+  const gpcOverridden = isGpcOverrideValid(cmp.state);
+  const gpcHonored = gpc.active && !gpcOverridden;
+
+  const views = useMemo(
+    () => buildConsentViews(consentsQ.data, gpcHonored),
+    [consentsQ.data, gpcHonored],
+  );
   const grouped = useMemo(() => {
     const map = new Map<ConsentCategory, ConsentView[]>();
     for (const v of views) {
@@ -160,6 +177,22 @@ export function ConsentsPanel({
         </div>
       </header>
 
+      <GpcNoticeSlot
+        active={gpc.active}
+        source={gpc.source}
+        overridden={gpcOverridden}
+        onRestore={() =>
+          cmp.save(
+            {
+              functional: !!cmp.state?.categories.functional,
+              analytics: false,
+              marketing: false,
+            },
+            source,
+          )
+        }
+      />
+
       {grouped.map(({ category, items }) => (
         <section key={category} aria-labelledby={`consent-cat-${category}`}>
           <h3
@@ -179,8 +212,13 @@ export function ConsentsPanel({
               // decyzji CMP zamiast mylącego "nie podjęto decyzji".
               const cmpCat = REGISTRY_TO_CMP[definition.key];
               const cmpDecided = !!cmpCat && !!cmp.state;
-              const effectiveGiven =
+              // Klamra GPC nakładana TAKŻE na wiersze cookie: ich wartość
+              // pochodzi z CMP (surowy stan), a bez klamry przełącznik
+              // pokazywałby „tak" dla kategorii, którą sygnał realnie wyłączył.
+              const gpcClamped = gpcHonored && isGpcClampedRegistryKey(definition.key);
+              const declaredGiven =
                 cmpCat != null && cmp.state ? !!cmp.state.categories[cmpCat] : view.effectiveGiven;
+              const effectiveGiven = gpcClamped ? false : declaredGiven;
               const cmpTsIso =
                 cmpDecided && cmp.state ? new Date(cmp.state.ts).toISOString() : null;
               const dateIso = effectiveGiven
@@ -217,6 +255,7 @@ export function ConsentsPanel({
                             defaultValue: `Wersja ${definition.version}`,
                           })}
                         </span>
+                        <GpcCategoryBadgeSlot clamped={gpcClamped} />
                       </div>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                         {t(`notifications.consents.items.${definition.key}.description`, {
@@ -268,6 +307,10 @@ export function ConsentsPanel({
         >
           {t("notifications.consents.history", { defaultValue: "Historia zmian" })}
         </h3>
+        {/* Objaśnienie kolumny GPC pokazujemy TYLKO wtedy, gdy historia realnie
+            ją zawiera - inaczej byłby to wykład o skrócie, którego nigdzie nie
+            widać. */}
+        <GpcRegistryNoteSlot visible={(eventsQ.data ?? []).some((ev) => ev.gpc)} />
         {eventsQ.isLoading ? (
           <p className="mt-2 text-xs text-muted-foreground">…</p>
         ) : !eventsQ.data || eventsQ.data.length === 0 ? (
@@ -277,7 +320,7 @@ export function ConsentsPanel({
         ) : (
           <ol className="mt-2 flex flex-col gap-1 text-[11px] tabular-nums text-muted-foreground">
             {eventsQ.data.map((ev) => (
-              <li key={ev.id} className="flex items-center gap-2">
+              <li key={ev.id} className="flex flex-wrap items-center gap-2">
                 <span
                   className={cn(
                     "inline-block h-1.5 w-1.5 shrink-0 rounded-full",
@@ -298,6 +341,12 @@ export function ConsentsPanel({
                     : t("notifications.consents.stateWithdrawn", { defaultValue: "wycofano" })}{" "}
                   <span className="text-muted-foreground/70">(v{ev.version})</span>
                 </span>
+                {/* Znacznik sygnału z CHWILI zapisu - to jedyne miejsce, w którym
+                    użytkownik widzi, że decyzja padła wbrew (albo zgodnie z)
+                    sygnałem opt-outu jego przeglądarki. Wpis o źródle
+                    `gpc_signal` ma ten sam znacznik, więc dublowanie opisu
+                    źródła byłoby szumem. */}
+                <GpcEventBadgeSlot gpc={ev.gpc} />
               </li>
             ))}
           </ol>

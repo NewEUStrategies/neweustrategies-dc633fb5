@@ -500,7 +500,10 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           {megaLinks.map((lnk, i) =>
             lnk.label ? (
               <li key={`m-${i}`}>
-                <AppLink href={lnk.href} className="block min-h-10 px-3 py-2.5 text-sm text-foreground/80">
+                <AppLink
+                  href={lnk.href}
+                  className="block min-h-10 px-3 py-2.5 text-sm text-foreground/80"
+                >
                   {lnk.label}
                 </AppLink>
               </li>

@@ -101,6 +101,57 @@ export const FIDELITY_WAIVERS: Partial<Record<WidgetType, WidgetFidelityWaiver>>
       ctaHeightPx: "Uchwyt zmiany rozmiaru na kanwie (ResizableBox) - patrz WidgetView case 'cta'.",
     },
   },
+  // Widget "Dołącz do nas": panel przeszedł na treści zlokalizowane
+  // (`<klucz>_pl|_en`), a renderer czyta klucz BEZJĘZYKOWY wyłącznie jako
+  // fallback dla dokumentów sprzed tej migracji - i tylko wtedy, gdy nie ma
+  // ŻADNEJ wersji językowej (`pickStrict` w WidgetView, case "join-us").
+  //
+  // Ten sam kształt co `toc.items` niżej, tylko szerszy: migracja objęła cały
+  // zestaw treści widgetu naraz. Żadna z dwóch "normalnych" dróg nie jest tu
+  // poprawna:
+  //   * wystawienie kluczy bezjęzykowych w panelu COFNĘŁOBY naprawę - to
+  //     dokładnie one powodowały przeciek treści między PL i EN,
+  //   * usunięcie fallbacku z renderera skasowałoby redakcji treść wpisaną
+  //     przed migracją (cicha utrata danych na istniejących stronach).
+  //
+  // Reguła precedencji, na którą powołuje się to zwolnienie, JEST przykryta
+  // testem: `src/components/admin/builder/__tests__/joinUsLegacyContent.test.tsx`
+  // (zlokalizowane wygrywa, legacy tylko przy zerze wersji językowych, puste
+  // wartości nie liczą się jako wersja). Bez tego testu zwolnienie byłoby
+  // deklaracją bez pokrycia.
+  "join-us": {
+    hidden: Object.fromEntries(
+      [
+        "title",
+        "subtitle",
+        "perk1",
+        "perk2",
+        "perk3",
+        "interestsLabel",
+        "submitLabel",
+        "submittingLabel",
+        "consentText",
+        "successText",
+        "namePlaceholder",
+        "emailPlaceholder",
+        "firstNamePlaceholder",
+        "lastNamePlaceholder",
+        "positionPlaceholder",
+        "linkedinPlaceholder",
+        "phonePlaceholder",
+        "companyPlaceholder",
+        "countryPlaceholder",
+      ].map((key) => [
+        key,
+        `Klucz historyczny (bez języka): panel oferuje \`${key}_pl|_en\`, renderer czyta ` +
+          "`" +
+          key +
+          "` tylko wtedy, gdy dokument nie ma ŻADNEJ wersji językowej - żeby treść sprzed " +
+          "migracji na i18n nie zniknęła. Wystawienie go w panelu cofnęłoby naprawę przecieku " +
+          "PL/EN. Precedencję pilnuje joinUsLegacyContent.test.tsx.",
+      ]),
+    ),
+  },
   toc: {
     hidden: {
       items:

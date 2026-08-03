@@ -1579,6 +1579,7 @@ export interface FileRoutesByFullPath {
   '/unsubscribe': typeof UnsubscribeRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
@@ -1829,6 +1830,7 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
@@ -2074,6 +2076,7 @@ export interface FileRoutesById {
   '/unsubscribe': typeof UnsubscribeRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
@@ -2328,6 +2331,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
+    | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/analytics'
@@ -2578,6 +2582,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
+    | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/analytics'
@@ -2822,6 +2827,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
+    | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/analytics'
@@ -3075,6 +3081,7 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   ZwrotyIReklamacjeRoute: typeof ZwrotyIReklamacjeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
+  Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute: typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiSttRoute: typeof ApiSttRoute
   ApiTtsRoute: typeof ApiTtsRoute
@@ -5468,6 +5475,8 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   ZwrotyIReklamacjeRoute: ZwrotyIReklamacjeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
+  Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute:
+    Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiSttRoute: ApiSttRoute,

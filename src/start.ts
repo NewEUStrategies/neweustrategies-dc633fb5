@@ -1,6 +1,7 @@
 import { createStart, createMiddleware, createCsrfMiddleware } from "@tanstack/react-start";
 
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { gpcMiddleware } from "@/lib/consent/gpc.server";
 import { isLocalizablePath, localizedPath, normalizeLang } from "@/lib/i18n/localePath";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
 import { langCookieHeaderValue, resolveHomepageLang } from "@/lib/i18n/langNegotiation";
@@ -382,7 +383,11 @@ export const startInstance = createStart(() => ({
   //      language canonicalisation always run first, and a memory HIT replays
   //      only the router's own render while the outer middleware (security
   //      headers, 404 log) re-decorates every response, cached or not.
-  //   6. defaultCacheControlMiddleware is INNERMOST: dokłada domyślny
+  //   6. gpcMiddleware siedzi POWYŻEJ documentCacheMiddleware: odbija
+  //      `Sec-GPC` w cookie transportowym i dokłada `Vary: Sec-GPC` PO
+  //      odtworzeniu wpisu z cache'a, więc `Set-Cookie` nigdy nie wchodzi do
+  //      zapisanego dokumentu (patrz lib/consent/gpc.server.ts).
+  //   7. defaultCacheControlMiddleware is INNERMOST: dokłada domyślny
   //      Cache-Control publicznym dokumentom ZANIM odpowiedź wróci do
   //      documentCacheMiddleware - dzięki temu polityka zapisu NES Edge Cache
   //      (public + s-maxage) obejmuje także trasy bez własnego nagłówka.
@@ -406,6 +411,7 @@ export const startInstance = createStart(() => ({
     redirectMiddleware,
     legacyLangQueryMiddleware,
     homepageLangMiddleware,
+    gpcMiddleware,
     documentCacheMiddleware,
     defaultCacheControlMiddleware,
   ],
