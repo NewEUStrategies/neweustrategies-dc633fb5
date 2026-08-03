@@ -50,6 +50,8 @@ type RatedItem = {
   title: string;
   excerpt: string;
   author: string;
+  authorAvatar?: string;
+  authorHref?: string;
   rating: number;
   href?: string;
   category?: string;
@@ -69,7 +71,7 @@ type PostRow = {
   author_id: string | null;
 };
 
-type ProfileRow = { id: string; display_name: string | null };
+type ProfileRow = { id: string; display_name: string | null; avatar_url: string | null };
 
 const FONT_FAMILIES = ["display", "sans", "serif", "mono"] as const;
 const NUMBER_POSITIONS = ["behind", "left", "top"] as const;
