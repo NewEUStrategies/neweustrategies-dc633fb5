@@ -211,6 +211,7 @@ export function RatedListView({
     title: pickI18n(it, "title", lang),
     excerpt: pickI18n(it, "excerpt", lang),
     author: asStr(it.author),
+    authorAvatar: asStr(it.authorAvatar) || undefined,
     rating: asNum(it.rating, 0),
     // Link pozycji: bez niego "Czytaj wiecej" i klikalny tytul byly martwe w
     // trybie recznym (przycisk jest bramkowany na `href`).
