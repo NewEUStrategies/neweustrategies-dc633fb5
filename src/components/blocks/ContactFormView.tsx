@@ -675,27 +675,38 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           )}
         </div>
 
-        {(requireConsent || showNewsletter) && (
-          <div className="mt-3 space-y-1.5">
-            {requireConsent && (
-              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80 cursor-pointer">
-                <Checkbox name="consent" className="mt-0.5 shrink-0" />
-                <span>{renderConsentText(consentTextRaw)}</span>
-              </label>
-            )}
+        {(() => {
+          const consentBlock =
+            requireConsent || showNewsletter ? (
+              <div className="space-y-1.5">
+                {requireConsent && (
+                  <label className="cf-consent widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
+                    <Checkbox name="consent" className="shrink-0" />
+                    <span>{renderConsentText(consentTextRaw)}</span>
+                  </label>
+                )}
 
-            {showNewsletter && (
-              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80 cursor-pointer">
-                <Checkbox name="newsletter_optin" className="mt-0.5 shrink-0" />
-                <span>{newsletterLabel}</span>
-              </label>
-            )}
-          </div>
-        )}
+                {showNewsletter && (
+                  <label className="cf-consent widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
+                    <Checkbox name="newsletter_optin" className="shrink-0" />
+                    <span>{newsletterLabel}</span>
+                  </label>
+                )}
+              </div>
+            ) : null;
 
-        {buttonPosition === "bottom" && (
-          <div className={`mt-4 ${buttonWrapCls}`}>{submitButton}</div>
-        )}
+          // Zgody wyśrodkowane w pionie względem wysokości przycisku, gdy
+          // przycisk stoi pod formularzem; inaczej zostają samodzielnym blokiem.
+          if (buttonPosition === "bottom") {
+            return (
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                {consentBlock ?? <span />}
+                <div className={`${buttonWrapCls} sm:shrink-0`}>{submitButton}</div>
+              </div>
+            );
+          }
+          return consentBlock ? <div className="mt-3">{consentBlock}</div> : null;
+        })()}
 
         {status === "err" && <p className="mt-2 text-sm text-destructive">{t.error}</p>}
       </form>
