@@ -19,11 +19,27 @@ import { PasswordStrengthMeter } from "@/components/molecules/PasswordStrengthMe
 import { toast } from "sonner";
 import { Eye, Loader2, Lock } from "@/lib/lucide-shim";
 import { EyeOff, Info, KeyRound } from "lucide-react";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({
-    meta: [{ name: "robots", content: "noindex, nofollow" }, { title: "Reset hasła" }],
-  }),
+  head: () => {
+    const url = getRequestUrl() || "/reset-password";
+    const lang = activeLang(url);
+    const title = lang === "en" ? `Reset password - ${SITE_NAME}` : `Reset hasła - ${SITE_NAME}`;
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title,
+      description:
+        lang === "en"
+          ? "Set a new password for your New European Strategies account."
+          : "Ustaw nowe hasło do swojego konta New European Strategies.",
+      robots: "noindex, nofollow",
+    });
+  },
   component: ResetPasswordPage,
 });
 

@@ -6,11 +6,27 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, XCircle, Loader2, MailX } from "lucide-react";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/newsletter/unsubscribe")({
-  head: () => ({
-    meta: [{ title: "Unsubscribe" }, { name: "robots", content: "noindex, nofollow" }],
-  }),
+  head: () => {
+    const url = getRequestUrl() || "/newsletter/unsubscribe";
+    const lang = activeLang(url);
+    const title = lang === "en" ? `Unsubscribe - ${SITE_NAME}` : `Wypisz się - ${SITE_NAME}`;
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title,
+      description:
+        lang === "en"
+          ? "Manage your New European Strategies newsletter preferences."
+          : "Zarządzaj preferencjami newslettera New European Strategies.",
+      robots: "noindex, nofollow",
+    });
+  },
   component: Page,
 });
 
