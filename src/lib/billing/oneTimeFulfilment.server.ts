@@ -191,7 +191,7 @@ async function fulfilOrder(
   const eventId = str(metadata, "event_id");
 
   // Zamówienie zanonimizowane (konto usunięte, dowód księgowy został -
-  // migracja 20260803090000): punkty 1-3 wciąż mają sens, bo dotyczą ksiąg.
+  // migracja 20260803090002): punkty 1-3 wciąż mają sens, bo dotyczą ksiąg.
   // RSVP, dzwonek i mail nie mają już adresata - kończymy tutaj, zamiast
   // rzucać i skazywać webhook na wieczne ponowienia.
   if (!order.user_id) {

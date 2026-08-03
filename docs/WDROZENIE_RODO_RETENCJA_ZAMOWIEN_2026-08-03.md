@@ -39,7 +39,7 @@ na `user_id` („dokumenty księgowe muszą przetrwać usunięcie konta",
 Ten sam układ obronny, co przy izolacji sandbox/live płatności: struktura w
 bazie plus jawny krok w aplikacji. Żadna z warstw nie wystarcza sama.
 
-### Baza: `20260803090000_payment_orders_gdpr_retention.sql`
+### Baza: `20260803090002_payment_orders_gdpr_retention.sql`
 
 1. **FK `CASCADE` → `SET NULL`**, `user_id` przestaje być `NOT NULL`. To
    gwarancja strukturalna: usunięcie konta z dashboardu, CLI czy skryptu też

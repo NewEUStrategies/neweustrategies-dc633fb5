@@ -220,7 +220,7 @@ describe("grantEntitlement", () => {
   });
 
   // Zamówienie po anonimizacji (konto usunięte, dowód księgowy został -
-  // migracja 20260803090000). Nie ma komu nadać dostępu, a webhook operatora
+  // migracja 20260803090002). Nie ma komu nadać dostępu, a webhook operatora
   // MUSI dostać 200: rzucenie skazałoby go na wieczne ponowienia na wierszu,
   // który nigdy już nie odzyska właściciela.
   it("pomija grant dla zanonimizowanego zamówienia (user_id NULL) bez rzucania", async () => {

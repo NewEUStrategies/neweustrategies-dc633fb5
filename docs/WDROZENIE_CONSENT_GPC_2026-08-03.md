@@ -287,17 +287,27 @@ ręcznie) albo usunąć kolumnę. Dokładnie ta klasa regresji powtarzała się 
 vitest        5586 passed, 1 failed*, 50 skipped
 tsc --noEmit  czysto
 eslint        czysto (na plikach tej gałęzi)**
-check:sql-tenant-scope   ✓ 524 funkcje
-check:sql-anon-insert    ✓ 514 polityk, 6 tabel intake
-check:sql-app-role       ✓ 875 literałów
-check:bundle             ✓ w budżecie
-check:chunks             ✓ graf acykliczny
-vite build               ✓
+check:sql-tenant-scope         ✓ 524 funkcje
+check:sql-anon-insert          ✓ 514 polityk, 6 tabel intake
+check:sql-app-role             ✓ 875 literałów
+check:sql-migration-versions   ✓ 590 plików, zero kolizji  (NOWA bramka)
+check:bundle                   ✓ w budżecie
+check:chunks                   ✓ graf acykliczny
+vite build                     ✓
 ```
 
 \* `settingsFidelity.gate.test.tsx > join-us` - **awaria zastana na `main`**, niezwiązana z tym
 wdrożeniem (panel buildera widgetu „join-us" nie oferuje 19 ustawień, które czyta jego renderer).
 Zweryfikowane osobnym `git worktree` na `origin/main`: ten sam jeden failed, 216 passed.
+
+**To jedyna pozostała awaria i wymaga decyzji produktowej, nie technicznej.** Lokalny
+`bun run test:coverage` (dokładnie to, co robi krok 7 `verify`) pada na **tym jednym** teście
+i **nie narusza żadnego progu pokrycia** - pliki tego wdrożenia progów nie ruszyły. Doktryna
+zwolnień w `settingsFidelityGate.ts` wprost zabrania obejścia: _„NIE ZWALNIAJ, ŻEBY ODBLOKOWAĆ
+WDROŻENIE: martwe pole usuwa się ze schematu, ukryte - dodaje do schematu"_. Zostają więc dwie
+drogi i obie są cudzą decyzją: dodać 19 kluczy treści do `WIDGET_SCHEMAS["join-us"]` albo usunąć
+je z renderera (jeśli po przejściu widżetu na i18n są martwe - poprzedni commit na `main` to
+„Naprawiono tłumaczenia widgetu", więc praca nad tym widżetem trwa).
 
 \*\* `eslint .` na całym repo raportuje 384 problemy formatowania **na `main`** (132 pliki, głównie
 `prettier/prettier`). Żaden z nich nie dotyczy plików tej gałęzi - sprawdzone maszynowo przez
@@ -328,6 +338,50 @@ jest porządkowe - ostrzeżenie jest tu właściwą reakcją, przerwanie migracj
 
 Awaria była **zastana na `main`**: run `30826604510` (`85b4c7b`) ma `pgtap` czerwony na tym samym
 kroku 4 („Start local database") i `verify` czerwony na tym samym kroku 7 („Test + coverage gate").
+
+### Drugi bloker, odsłonięty przez pierwszy: kolizja wersji migracji (P1 z audytu)
+
+Po naprawie furtki storage łańcuch poszedł dalej i natychmiast padł na następnej, dotąd
+niewidocznej przeszkodzie:
+
+```
+ERROR: duplicate key value violates unique constraint "schema_migrations_pkey"
+Key (version)=(20260803090000) already exists.
+```
+
+**Trzy pliki** dzieliły prefiks wersji `20260803090000` (`harden_enqueue_notification_acl`,
+`link_monitor_archive_and_alerts`, `payment_orders_gdpr_retention`), a
+`supabase_migrations.schema_migrations.version` jest kluczem głównym.
+
+To nie było zaskoczenie - audyt opisał to jako **korektę 5** i podniósł do **P1**, cytując skutek
+dosłownie: _„różnica między »działa« a »nie da się odtworzyć bazy z migracji« jest tu kwestią
+kolejności alfabetycznej"_. Rekomendacja wracała przez trzy wydania. Właśnie się zmaterializowała.
+
+Wdrożenie rekomendacji, w dwóch częściach:
+
+1. **Renumeracja.** `harden_enqueue_notification_acl` **zostaje** na `20260803090000`, bo to on -
+   jako pierwszy alfabetycznie - zapisał się w ledgerze pod tą wersją; pozostałe dwa dostają
+   `...0001` i `...0002` z zachowaniem względnej kolejności. Konwencja jest już w repo
+   (`20260731210000` / `20260731210001`). Wszystkie trzy migracje są w pełni idempotentne
+   (`ADD COLUMN IF NOT EXISTS`, `CREATE TABLE IF NOT EXISTS`, `DROP POLICY IF EXISTS`, czyste
+   `REVOKE`/`GRANT`/`COMMENT`) - sprawdzone czytaniem, nie założeniem - więc ponowny przebieg
+   dwóch przenumerowanych jest na produkcji bezskutkowy. Wersja zapisana w ledgerze wskazuje
+   dalej na **identyczną treść**.
+
+2. **Brakująca bramka.** `check:sql-migration-versions` + `src/lib/ci/migrationVersions.ts`
+   (czysta logika) + test jednostkowy z self-testem na realnym katalogu. Wzorzec skopiowany
+   z `check-sql-anon-insert`, jak rekomendował audyt. Bramka łapie kolizje, nieparsowalne nazwy
+   ORAZ rozjazd „porządek nazw ≠ porządek wersji" (ten drugi jest groźniejszy po cichu:
+   `supabase db push` uzna wersję „z przeszłości" za już zastosowaną i **pominie** ją).
+
+   Świadomie: bramka stoi w `verify` obok pozostałych trzech bramek SQL, ale jej **self-test na
+   realnym katalogu jedzie w suicie vitest** - dzięki temu inwariant jest pilnowany także wtedy,
+   gdy późniejsze kroki `verify` są czerwone. Cała lekcja z tego incydentu polega na tym, że jedna
+   awaria ukrywała drugą.
+
+Odwołania do przenumerowanej migracji zaktualizowane w kodzie i komentarzach (7 plików +
+`WDROZENIE_RODO_RETENCJA_ZAMOWIEN`). Tabela audytu `OCENA_FUNKCJI_TABELE_2026-08-03` zostaje
+nietknięta - to migawka ustalenia, nie dokumentacja bieżącego stanu.
 
 ### Walidacja migracji na prawdziwym PostgreSQL 16
 

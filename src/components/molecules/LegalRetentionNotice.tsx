@@ -6,7 +6,7 @@
 // część danych zostaje, użytkownik musi się o tym dowiedzieć PRZED kliknięciem,
 // a nie z odpowiedzi na wniosek o dostęp - to obowiązek przejrzystości
 // (art. 12-13 RODO). Baza realizuje ten wyjątek anonimizacją zamówień
-// (migracja 20260803090000), a ten komponent go nazywa.
+// (migracja 20260803090002), a ten komponent go nazywa.
 //
 // Molekuła: ikona + treść w tonacji ostrzegawczej, bez własnych kolorów -
 // wyłącznie tokeny semantyczne, więc wygląda spójnie w każdym motywie i na

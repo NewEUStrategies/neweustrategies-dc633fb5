@@ -8,7 +8,7 @@ export interface GrantableOrder {
   id: string;
   /**
    * `null` = konto kupującego zostało usunięte, a zamówienie żyje dalej jako
-   * zanonimizowany dowód księgowy (migracja 20260803090000). Nie ma komu nadać
+   * zanonimizowany dowód księgowy (migracja 20260803090002). Nie ma komu nadać
    * ani odebrać uprawnienia, więc obie operacje pomijają taki wiersz - status
    * zamówienia i tak musi się zgadzać z księgami.
    */
