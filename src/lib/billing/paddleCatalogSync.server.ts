@@ -210,9 +210,44 @@ export async function syncPaddleCatalog(env: PaddleEnv = "sandbox"): Promise<Cat
     }
   }
 
+  const failed = items.filter((i) => i.price === "failed").length;
+
+  // Sprzątanie: pozycje, których nie ma już w źródle prawdy (usunięty wpis
+  // katalogu lub `access_plans.active = false`), znikają z oferty operatora.
+  // Robimy to wyłącznie po czystym przebiegu - błąd API nie może zostać
+  // odczytany jako "plan zniknął".
+  let archived: ReapedEntry[] = [];
+  if (failed === 0) {
+    const expectedPriceIds = new Set<string>();
+    const expectedProductIds = new Set<string>();
+    const inactivePriceIds = new Set<string>();
+    for (const entry of PADDLE_CATALOG) {
+      const plan = planFor(entry);
+      if (plan && plan.active !== false) {
+        expectedPriceIds.add(entry.priceId);
+        expectedProductIds.add(entry.productId);
+      } else {
+        inactivePriceIds.add(entry.priceId);
+      }
+    }
+    try {
+      const { reapOrphanCatalogEntries } = await import("./paddleCatalogReap.server");
+      archived = await reapOrphanCatalogEntries({
+        env,
+        expectedPriceIds,
+        expectedProductIds,
+        inactivePriceIds,
+      });
+    } catch (err) {
+      // Sprzątanie jest opcjonalne - nie unieważnia udanej synchronizacji.
+      console.error("[payments] catalog reap failed", err);
+    }
+  }
+
   return {
     environment: env,
     ranAt: new Date().toISOString(),
+
     items,
     created: items.filter((i) => i.product === "created" || i.price === "created").length,
     updated: items.filter((i) => i.price === "updated").length,
