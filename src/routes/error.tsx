@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 import { errorCopy, type ErrorKind } from "@/lib/errorCopy";
+import { SITE_NAME } from "@/lib/seo/meta";
 
 const errorSearchSchema = z.object({
   kind: z.enum(["unauthorized", "sessionExpired", "network", "generic"] as const).optional(),
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/error")({
     const copy = errorCopy();
     return {
       meta: [
-        { title: copy.generic.title },
+        { title: `${copy.generic.title} - ${SITE_NAME}` },
         { name: "description", content: copy.generic.body },
         { name: "robots", content: "noindex, nofollow" },
       ],
