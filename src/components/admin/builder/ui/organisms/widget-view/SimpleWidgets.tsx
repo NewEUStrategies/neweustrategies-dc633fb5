@@ -54,6 +54,7 @@ import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
 import { CounterWidget } from "./CounterWidget";
 import { TocWidget } from "./TocWidget";
 import { PricingPlansView } from "./PricingPlansView";
+import { AuthorInline } from "./AuthorInline";
 export { ResizableBox } from "./resizeWrappers";
 
 // Render-prop most do globalnych linków social (site_settings → opcje motywu).
