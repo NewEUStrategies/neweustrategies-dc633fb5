@@ -107,7 +107,7 @@ export function CommentComposerShell({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-[6px] border border-border bg-card transition-colors focus-within:border-ring/60",
+        "overflow-hidden rounded-[6px] border border-border bg-transparent transition-colors focus-within:border-ring/60",
         className,
       )}
     >
