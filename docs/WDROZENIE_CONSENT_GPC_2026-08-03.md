@@ -1,0 +1,320 @@
+# Wdrożenie: Global Privacy Control (`Sec-GPC`) w rejestrze zgód RODO
+
+**Data:** 2026-08-03 · **Zakres audytu:** M15 „Zgody / prywatność" + wiersz `Consent RODO`
+w `OCENA_FUNKCJI_TABELE_2026-08-03.md` (rewizja 2) · **Ocena:** `7 → 8`
+
+---
+
+## 1. Punkt wyjścia i luka
+
+Wiersz audytu brzmiał dokładnie tak:
+
+| Funkcja      | Ocena     | Mocne                                                   | Luka         | Rekomendacja    |
+| ------------ | --------- | ------------------------------------------------------- | ------------ | --------------- |
+| Consent RODO | **7 → 8** | Rejestr z IP/UA/wersją/źródłem + most z CMP (patrz M15) | **Brak GPC** | Dodać `Sec-GPC` |
+
+Rejestr `user_consents` / `user_consent_events` zapisywał adres IP, User-Agent, wersję treści,
+język i źródło decyzji - czyli **wszystko poza jedną informacją**: czy w chwili decyzji
+przeglądarka wysyłała ogólny sygnał sprzeciwu. `grep -ri "sec-gpc" src/` zwracał zero wystąpień
+poza samą tabelą audytu, w trzech kolejnych wydaniach (07-30, 08-01, 08-03).
+
+Skutek nie był kosmetyczny: baner CMP pytał o zgodę osobę, która **na poziomie przeglądarki już
+odmówiła**, a wpis „zgoda udzielona" był w audycie nieodróżnialny od „zgoda udzielona wbrew
+sygnałowi opt-outu" - a to dwie różne sytuacje prawne.
+
+**Podstawy:** sygnał globalny jest ważnym sprzeciwem (art. 21 RODO) i ważnym wycofaniem zgody
+(art. 7 ust. 3 RODO - wycofanie „tak łatwe jak wyrażenie"). Pod CPRA §1798.135(b) honorowanie
+opt-out preference signal jest wprost wymagane.
+
+---
+
+## 2. Co zostało wdrożone
+
+### 2.1 Rdzeń - `src/lib/consent/gpc.ts`
+
+Czysty, bez importów frameworka i bez globali przeglądarki. Zawiera parser sygnału, odczyt z
+nagłówków / cookie / `navigator`, klamrę kategorii, regułę świadomego override'u i builder
+deklaracji `/.well-known/gpc.json`.
+
+Parser jest **ściśle** `"1"` - spec zna dokładnie jedną znaczącą wartość. Liberalne parsowanie
+(`"true"`, `"yes"`, `"0"`) zamieniłoby literówkę w cudzy opt-out albo, gorzej, w jego
+zignorowanie.
+
+**Zakres klamrowania** (uzasadnienie zamknięte w nagłówku modułu):
+
+| Kategoria / klucz                       | Klamrowane | Dlaczego                                                                             |
+| --------------------------------------- | ---------- | ------------------------------------------------------------------------------------ |
+| `analytics` (CMP) + `cookies_analytics` | **tak**    | pomiar wymaga zgody, sygnał globalny jest jej ważną odmową                           |
+| `marketing` (CMP) + `cookies_marketing` | **tak**    | rdzeń „do not sell / share"                                                          |
+| `personalization` (rejestr)             | **tak**    | profilowanie na podstawie aktywności - dokładnie to, czemu GPC się sprzeciwia        |
+| `functional`                            | nie        | first-party preferencje UI (motyw, układ, tryb czytania) nie opuszczają przeglądarki |
+| `necessary`                             | nie        | nigdy nie podlega zgodzie ani sygnałowi                                              |
+
+### 2.2 Transport SSR → klient - `src/lib/consent/gpc.server.ts`
+
+`Sec-GPC` to nagłówek **żądania**: przeglądarka nie udostępnia go JS-owi, a
+`navigator.globalPrivacyControl` jest wspierane **węziej** niż sam nagłówek (część rozszerzeń
+prywatnościowych wysyła wyłącznie nagłówek). Bez mostu SSR sygnał od takich klientów byłby dla
+aplikacji niewidzialny.
+
+`gpcMiddleware` odbija obserwowany nagłówek w cookie `nes_gpc` i dokłada `Vary: Sec-GPC` do
+każdego dokumentu HTML.
+
+**Koszt dla NES Edge Cache: zerowy.** TREŚĆ dokumentu pozostaje niezależna od GPC (klamrę
+nakłada klient przy hydratacji), więc cache trzyma nadal **jeden wpis na ścieżkę** -
+kardynalność kluczy nie rośnie. Żeby to było prawdą, `gpcMiddleware` **musi** stać powyżej
+`documentCacheMiddleware` w `src/start.ts`: odpowiedź wraca z wnętrza na zewnątrz, więc
+`Set-Cookie` i `Vary` są doklejane **po** odtworzeniu wpisu z cache'a i nigdy do niego nie
+wchodzą. Kolejność pilnuje statyczna bramka (`gpcServer.test.ts`) - reorder jest zmianą o jedną
+linię, niewidoczną w każdym teście behawioralnym, dopóki cache nie zacznie realnie trafiać.
+
+Cookie jest **ściśle niezbędne** (art. 5 ust. 3 ePrivacy): nośnik prawnego opt-outu, którego nie
+da się bramkować zgodą, której właśnie odmówiono. Nie zawiera identyfikatora - wyłącznie stałą
+`"1"`; `SameSite=Lax`, `Secure` na https, świadomie **nie** `HttpOnly` (jedynym konsumentem jest
+kod klienta CMP).
+
+Ustawienie/skasowanie leci **tylko przy rozjeździe** stanu cookie i nagłówka - bezwarunkowe
+pisanie zabiłoby trafienia cache'a brzegowego, a brak kasowania utrwaliłby opt-out po tym, jak
+użytkownik wyłączył GPC w przeglądarce.
+
+### 2.3 Deklaracja maszynowa - `/.well-known/gpc.json`
+
+```json
+{ "gpc": true, "lastUpdate": "2026-08-03" }
+```
+
+Spec wymaga tego dokumentu od każdego serwisu honorującego sygnał - bez niego honorowanie jest
+z zewnątrz **niewykrywalne** i formalnie niezadeklarowane. Kształt jest sprawdzany dokładnie
+(`toEqual`, nie `toContain`): dodatkowe pole albo zły `Content-Type` unieważniają deklarację
+w oczach walidatorów i rozszerzeń. `lastUpdate` jest **stałą**, nie `Date.now()` - spec traktuje
+je jako oświadczenie prawne, nie znacznik builda (a deklaracja musi być bit-w-bit identyczna dla
+cache'a brzegowego).
+
+### 2.4 Klamra w runtime CMP - `src/lib/ads/consent.ts`
+
+Klamra jest nałożona na **wszystkich trzech** wejściach do bramkowania, nie tylko w UI:
+
+- `useEffectiveConsent()` - hooki i `ConsentScriptInjector`,
+- `hasCategoryConsent()` / `hasAnalyticsConsent()` - **odczyt poza Reactem**, z którego korzysta
+  silnik analityki (`lib/analytics/track.ts`) i moduł reklam; gdyby klamra żyła tylko w hookach,
+  beacony wychodziłyby dalej, mimo że UI pokazywałby kategorię jako wyłączoną,
+- `useMarketingConsent()` - stare API zgodności, jedyna pozostała furtka.
+
+**Trybu podglądu nie da się użyć do obejścia sygnału** - podglądem testuje się layout banera, nie
+obchodzi się opt-outu (test pilnuje wprost).
+
+### 2.5 Świadomy override
+
+Spec GPC nie odbiera użytkownikowi prawa do świadomej zgody **po** wysłaniu sygnału - odbiera
+stronie prawo do udawania, że sygnału nie widziała. Dlatego:
+
+- klamra jest zdejmowana **wyłącznie** przez jawną decyzję podjętą przy AKTYWNYM sygnale, przy
+  widocznej nocie o GPC (znacznik `gpcOverrideAt` w `ConsentState`),
+- **stara zgoda z czasów sprzed sygnału NIGDY nie przebija GPC** - to cała istota mechanizmu,
+- inwariant znacznika: istnieje tylko wtedy, gdy OSTATNIA decyzja była override'em. Każda inna
+  decyzja go zdejmuje - także podjęta przy wyłączonym sygnale, bo inaczej ponowne włączenie GPC
+  trafiałoby na nieaktualną zgodę i klamra nigdy by nie wróciła,
+- uszkodzony znacznik (`0`, `NaN`, `Infinity`) **nie** zdejmuje klamry (fail-closed).
+
+### 2.6 Rejestr - migracja `20260803140000_consent_gpc_signal.sql`
+
+| Zmiana                                                       | Uzasadnienie                                                                                                                          |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `gpc boolean NOT NULL DEFAULT false` na obu tabelach         | stan sygnału w chwili decyzji; wiersze historyczne dostają `false` - i to jest o nich prawda                                          |
+| `tenant_id uuid DEFAULT current_tenant_id()` na obu tabelach | zgoda jest per-osoba, ale ADMINISTRATOREM jest tenant; bez stempla nie da się zrobić eksportu rejestru ani retencji per administrator |
+| `set_user_consent(..., p_gpc boolean, ...)`                  | nowa sygnatura z **wymaganym** `p_gpc`                                                                                                |
+| stara sygnatura 7-argumentowa → cienki shim                  | okno rolling deployu + jednoznaczność PostgREST                                                                                       |
+| indeks częściowy `WHERE gpc`                                 | audyt „decyzje przy aktywnym sygnale" bez skanu historii                                                                              |
+| REVOKE INSERT/UPDATE/DELETE + DROP polityk zapisu            | patrz niżej                                                                                                                           |
+
+**Dlaczego `p_gpc` nie ma DEFAULT i nie jest parametrem końcowym.** Gdyby miał default,
+wywołanie bez `p_gpc` pasowałoby do OBU funkcji i PostgREST zwróciłby PGRST203 (Multiple
+Choices). Bez defaultu zbiory wymaganych argumentów są rozłączne, więc każde wywołanie ma
+dokładnie jednego kandydata. Postgres nie pozwala, by argument bez defaultu następował po
+argumentach z defaultem - stąd pozycja czwarta (wołający używa argumentów nazwanych, więc
+kolejność jest ograniczeniem składni, nie kontraktem).
+
+**Dlaczego stara sygnatura zostaje.** Migracja wchodzi przed nowym bundlem; `DROP` zamieniłby to
+okno w serię 500-tek. Shim deleguje z `p_gpc => false` (bundle, który nie zna kolumny, nie ma jak
+zaraportować sygnału - `false` to prawda o TYM wywołaniu) i nie duplikuje logiki. `DROP` byłby
+też stratą dla bramki `check:db-contract`, która liczy `CREATE` minus `DROP` w obrębie pliku.
+
+**Zamknięcie ścieżki zapisu (sekcja 4 migracji).** Bez tego kroku nowa kolumna byłaby ozdobą.
+Rola `authenticated` miała dotąd na `user_consents` grant `INSERT/UPDATE/DELETE` i permisywne
+polityki own-row, a na `user_consent_events` grant `INSERT` z polityką own-row. Klient (albo cudzy
+skrypt wykonany w jego karcie) mógł więc przez PostgREST:
+
+- wpisać sobie zgodę z `gpc = false`, obchodząc sygnał opt-outu,
+- podać dowolne `ip` / `user_agent` - metadane, których cała wartość polega na tym, że czyta je
+  **serwer**,
+- zmienić stan w `user_consents` **bez** wpisu w `user_consent_events`, czyli bez śladu
+  w „niezmiennym audit-logu",
+- dopisać do audit-logu zdarzenie, które nigdy się nie stało,
+- a po dodaniu `tenant_id` - podstawić OBCY tenant i zaśmiecić ewidencję innego administratora.
+
+Zdjęte są **obie** warstwy (granty i polityki), bo każda osobno wystarcza do zablokowania -
+i dzięki temu przywrócenie jednej z nich nie otwiera dziury po cichu. `SELECT` zostaje nietknięty.
+Zmiana jest bezpieczna, bo w kodzie nie ma klienta piszącego wprost do tych tabel
+(`consents.functions.ts` czyta, a pisze przez RPC), a SECURITY DEFINER `set_user_consent` działa
+jako właściciel tabeli.
+
+**Zakres RLS pozostaje user-scoped.** Stempel tenanta jest dla ścieżek `service_role`
+(eksport / retencja), a **nie** furtką dla adminów tenanta do zgód innych osób - dodanie kolumny
+nie poszerza powierzchni odczytu ani o milimetr.
+
+### 2.7 Zapis sygnału z klienta - asymetria fail-closed
+
+`resolveGpcForWrite(req, clientClaim)` OR-uje deklarację klienta z odczytem serwerowym:
+
+- **nie tylko serwer**, bo przeglądarka dokłada `Sec-GPC` do NAWIGACJI, a nie do każdego fetcha
+  RPC - w wywołaniu server fn nagłówka może nie być, choć sygnał jest aktywny (dlatego `readGpc`
+  czyta też cookie transportowe), a `navigator.globalPrivacyControl` serwer nie zobaczy nigdy,
+- **nie tylko klient**, bo deklaracja klienta to dane wejściowe, a te nigdy nie są dowodem.
+
+Klient może więc sygnał **potwierdzić**, ale nie może go **zataić**.
+
+Kolumna `gpc` zapisuje **AKTYWNOŚĆ** sygnału, nie jego honorowanie: zgoda udzielona jako świadomy
+override musi być w audycie oznaczona `gpc = true`, bo właśnie ona jest wyjątkiem wymagającym
+uzasadnienia - nie odmowa.
+
+### 2.8 Ślad audytowy sygnału - `source = "gpc_signal"`
+
+Sygnał to sprzeciw i wycofanie zgody, więc nie może zostać wyłącznie klamrą w runtime.
+`syncGpcSignalToRegistry()` dopisuje wycofanie dla wszystkich klamrowanych kluczy (w tym
+`personalization`, którego CMP nie zna), z własnym źródłem `gpc_signal` - audytor musi widzieć, że
+zgodę zdjął sygnał przeglądarki, a nie klik w banerze. Wołane **po** `backfillRegistryOnLogin`,
+żeby wycofanie było chronologicznie po stanie, który wycofuje.
+
+Deduplikacja jest dwuwarstwowa (flaga per użytkownik w localStorage + mapa in-flight) i pomija
+klucze **już** wycofane - inaczej rejestr dostawałby identyczne wycofanie przy każdym otwarciu
+karty i historia decyzji zamieniłaby się w log nawigacji.
+
+### 2.9 UI (atomic design, PL/EN)
+
+| Warstwa  | Plik                                    | Rola                                         |
+| -------- | --------------------------------------- | -------------------------------------------- |
+| atom     | `components/consent/atoms/GpcBadge.tsx` | znacznik „GPC" + etykieta z klucza i18n      |
+| molekuła | `.../molecules/GpcNotice.tsx`           | nota: sygnał honorowany / nadpisany + powrót |
+| molekuła | `.../molecules/GpcRegistryNote.tsx`     | objaśnienie kolumny GPC w historii           |
+| molekuła | `.../molecules/GpcDeclarationLink.tsx`  | deklaracja + link do `gpc.json`              |
+| sloty    | `.../GpcSurfaceSlots.tsx`               | leniwe wejście + warunki renderowania        |
+
+Komponenty nie mają własnych kolorów marki - korzystają z `--cb-*` (nadpisania banera admina)
+z fallbackiem na tokeny semantyczne motywu, więc ta sama molekuła pasuje do banera i do
+`/profile/privacy`. Warianty `card` / `compact` odpowiadają gęstości obu powierzchni; nota jest
+responsywna (`flex` + `min-w-0`, bez sztywnych szerokości).
+
+Wpięcie: `ConsentBanner` (pasek kompaktowy + modal, badge na klamrowanych kategoriach),
+`ConsentsPanel` (nota, badge przy zgodzie, badge przy wpisie audytu, objaśnienie kolumny),
+`profile.privacy` (deklaracja).
+
+**Przełącznik klamrowanej kategorii zostaje AKTYWNY** - użytkownik ma prawo świadomie nadpisać
+sygnał, a zablokowana kontrolka odebrałaby mu je. Szkic startuje od stanu **efektywnego**, nie
+zapisanego, więc przełącznik pokazuje realny stan bramkowania.
+
+Nota o sygnale jest widoczna także w stanie override'u: obowiązek przejrzystości (art. 12-13
+RODO) wymaga, żeby użytkownik **wiedział**, że jego sygnał został zauważony. Powrót do
+respektowania jest jednym klikiem (art. 7 ust. 3).
+
+### 2.10 Eksport RODO
+
+Eksport (art. 15 / art. 20) **nie zawierał rejestru zgód wcale**. Doszły sekcje `consents`
+i `consent_events` (z kolumną `gpc`): art. 15 ust. 1 nakazuje ujawnić podstawę przetwarzania,
+a art. 7 ust. 1 każe móc **wykazać** zgodę - zgoda bez śladu w eksporcie była niesprawdzalna
+przez samą osobę, której dotyczy.
+
+---
+
+## 3. Budżet bundla
+
+Powierzchnia **prezentacyjna** GPC (nota, badge, deklaracja, nakładka i18n `consentGpc.*`) jest
+wyniesiona do **leniwego chunka** (`GpcSurfaceSlots.tsx`, trzy `lazy()` celujące w jeden moduł,
+więc chunk jest jeden i pobierany raz). `ConsentBanner` jest montowany z `__root`, a
+`ConsentsPanel` wisi pod dzwonkiem powiadomień - bez tego zabiegu każdy kilobajt tej treści
+płaciliby wszyscy czytelnicy, choć potrzebują jej wyłącznie osoby realnie wysyłające sygnał.
+
+Sama **logika klamry** zostaje synchroniczna i eager - bramkowanie skryptów nie może czekać na
+chunk. Prywatnościowo to właściwa kolejność i nigdy odwrotna: klamra działa od pierwszego
+renderu, a wyjaśnienie doczytuje się w tle.
+
+Pomiar (ten sam host, te same zależności, gałąź vs baza `e55e38b`):
+
+|                     | chunk                                             | public    | overall   |
+| ------------------- | ------------------------------------------------- | --------- | --------- |
+| baza                | 508,7 KB (**już ponad** floorem 508 - dryf maina) | 1783,9 KB | 2993,5 KB |
+| gałąź               | 510,0 KB                                          | 1788,3 KB | 2997,8 KB |
+| bez leniwego chunka | 511,7 KB                                          | 1787,5 KB | 2997,0 KB |
+
+Koszt w entry to **+1,3 KB i jest nieredukowalny** (to sama klamra). Floory `MAX_CHUNK_KB`
+i `MAX_TOTAL_KB` idą na nowy poziom nad zmierzonym śladem, z uzasadnieniem w
+`scripts/check-bundle-size.ts`. `MAX_PUBLIC_KB` **zostaje na 1790** - jedyny budżet o znaczeniu
+wydajnościowym dla czytelnika, gałąź się w nim mieści.
+
+---
+
+## 4. Testy i bramki
+
+| Plik                                              | Co pilnuje                                                                                                                                |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/consent/__tests__/gpc.test.ts`               | parser ściśle `"1"`, cookie bez dopasowania sufiksu, zakres klamry, reguła override'u, kształt deklaracji                                 |
+| `lib/consent/__tests__/gpcServer.test.ts`         | `Vary` na każdym dokumencie, `Set-Cookie` tylko przy rozjeździe, `Secure` per protokół, **kolejność middleware**, asymetria klient/serwer |
+| `lib/consent/__tests__/gpcCmpClamp.test.ts`       | realna ścieżka bramkowania: localStorage, tryb podglądu, override, uszkodzony znacznik, cookie transportowe                               |
+| `lib/consent/__tests__/gpcRegistry.test.ts`       | `gpc_signal` jako źródło, wpisy wycofania (w tym `personalization`), brak duplikatów w audycie                                            |
+| `components/consent/__tests__/GpcNotice.test.tsx` | treści PL **i** EN na prawdziwej instancji i18n, brak wycieku surowych kluczy, warunki renderowania slotów                                |
+| `routes/-gpc.json.test.ts`                        | dokładny kształt deklaracji, `Content-Type`, cache, ścieżka w źródle i w drzewie tras                                                     |
+| `__tests__/consentGpcRegistry.invariant.test.ts`  | **stan końcowy** migracji: kolumny, `p_gpc` bez DEFAULT, zapis do obu tabel, brak grantów i polityk zapisu dla roli klienckiej            |
+
+Statyczne bramki inwariantów są celowo statyczne: migracje są forward-only, więc o stanie
+końcowym decyduje OSTATNIA instrukcja. Sama obecność migracji naprawczej nic nie gwarantuje -
+dowolna późniejsza mogłaby przywrócić klientowi `INSERT` (i wtedy `gpc = false` dałoby się wpisać
+ręcznie) albo usunąć kolumnę. Dokładnie ta klasa regresji powtarzała się w audycie.
+
+### Stan po wdrożeniu
+
+```
+vitest        5572 passed, 1 failed*, 50 skipped
+tsc --noEmit  czysto
+eslint        czysto
+check:sql-tenant-scope   ✓ 524 funkcje
+check:sql-anon-insert    ✓ 514 polityk, 6 tabel intake
+check:sql-app-role       ✓ 875 literałów
+check:bundle             ✓ w budżecie
+check:chunks             ✓ graf acykliczny
+vite build               ✓
+```
+
+\* `settingsFidelity.gate.test.tsx > join-us` - **awaria zastana na `e55e38b`**, niezwiązana
+z tym wdrożeniem (panel buildera widgetu „join-us" nie oferuje 19 ustawień, które czyta jego
+renderer). Zweryfikowane przez `git stash` na bazie.
+
+### Weryfikacja end-to-end na zbudowanym workerze
+
+`vite preview` w tym repo jest niesprawny (szuka `dist/server/server.js` przy preseecie
+`cloudflare-module`), więc handler `fetch` zbudowanego workera był wołany bezpośrednio:
+
+| Żądanie                          | Wynik                                                                                                                                  |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /.well-known/gpc.json`      | `200`, `application/json; charset=utf-8`, `{"gpc":true,"lastUpdate":"2026-08-03"}`, `public, max-age=3600, s-maxage=86400, swr=604800` |
+| dokument, brak sygnału           | `Vary: Sec-GPC`, zero `Set-Cookie`                                                                                                     |
+| dokument, `Sec-GPC: 1`           | `Set-Cookie: nes_gpc=1; Max-Age=31536000; Path=/; SameSite=Lax; Secure`                                                                |
+| dokument, cookie bez sygnału     | `Set-Cookie: nes_gpc=; Max-Age=0` (kasowanie)                                                                                          |
+| dokument, sygnał + cookie zgodne | zero `Set-Cookie` (cache-friendly)                                                                                                     |
+
+Trafienia NES Edge Cache nie dało się wymusić bez bazy (bez niej trasy degradują do
+`private, no-store`, więc nic nie wchodzi do magazynu) - dlatego kolejność middleware jest zamknięta
+**bramką statyczną**, a nie tylko obserwacją.
+
+---
+
+## 5. Świadomie poza zakresem
+
+- **Anonimowy rejestr sygnału.** GPC osoby niezalogowanej jest honorowane w pełni (klamra działa),
+  ale nie zostawia wpisu w `user_consents` - tabela jest per-`auth.users`. Zapis anonimowy
+  wymagałby nowej tabeli intake i identyfikatora urządzenia, czyli **przetwarzania większej ilości
+  danych osoby, która właśnie poprosiła o mniej**. Świadoma decyzja, nie brak.
+- **`personalization` jako bramka dla rekomendacji.** Klucz jest teraz klamrowany sygnałem
+  i `useIsConsentGiven("personalization")` zwraca `false` pod GPC, ale wpięcie tej zgody
+  w `relatedPosts` (`weight_personalization`) to osobna zmiana w silniku rekomendacji - drugi
+  punkt tego samego wiersza audytu.
+- **Bump `lastUpdate`.** Tylko przy realnej zmianie zakresu honorowania sygnału, nie przy każdym
+  buildzie.

@@ -12,6 +12,7 @@ import {
   ListEventsSchema,
   readIp,
   readUserAgent,
+  resolveGpcForWrite,
 } from "@/lib/consents.server";
 
 export const listMyConsents = createServerFn({ method: "GET" })
@@ -20,7 +21,7 @@ export const listMyConsents = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data, error } = await supabase
       .from("user_consents")
-      .select("consent_key, given, version, lang, given_at, withdrawn_at, updated_at")
+      .select("consent_key, given, version, lang, gpc, given_at, withdrawn_at, updated_at")
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
     return data ?? [];
@@ -45,6 +46,7 @@ export const setMyConsent = createServerFn({ method: "POST" })
       p_key: data.key,
       p_given: data.given,
       p_version: data.version,
+      p_gpc: resolveGpcForWrite(req, data.gpc),
       p_lang: data.lang,
       p_ip: ip ?? undefined,
       p_user_agent: ua ?? undefined,
@@ -74,12 +76,21 @@ export const setMyConsentsBulk = createServerFn({ method: "POST" })
     const ip = readIp(req);
     const ua = readUserAgent(req);
 
+    // Sygnał rozstrzygany RAZ na całą partię: jedno żądanie = jeden stan
+    // przeglądarki, więc wszystkie wpisy tej decyzji muszą nieść identyczny
+    // znacznik GPC (inaczej audyt sugerowałby, że sygnał migał w trakcie).
+    const gpc = resolveGpcForWrite(
+      req,
+      data.entries.some((e) => e.gpc === true),
+    );
+
     const savedKeys: string[] = [];
     for (const entry of data.entries) {
       const { error } = await supabase.rpc("set_user_consent", {
         p_key: entry.key,
         p_given: entry.given,
         p_version: entry.version,
+        p_gpc: gpc,
         p_lang: entry.lang,
         p_ip: ip ?? undefined,
         p_user_agent: ua ?? undefined,
@@ -98,7 +109,7 @@ export const listMyConsentEvents = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: rows, error } = await supabase
       .from("user_consent_events")
-      .select("id, consent_key, given, version, lang, source, created_at")
+      .select("id, consent_key, given, version, lang, source, gpc, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(data.limit ?? 100);

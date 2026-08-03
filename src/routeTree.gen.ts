@@ -49,6 +49,7 @@ import { Route as SupportRouteImport } from './routes/support'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as ZwrotyIReklamacjeRouteImport } from './routes/zwroty-i-reklamacje'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
+import { Route as Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport } from './routes/[.well-known]/gpc[.]json'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
@@ -459,6 +460,12 @@ const Char91DotmcpChar93ListToolsRoute =
   Char91DotmcpChar93ListToolsRouteImport.update({
     id: '/.mcp/list-tools',
     path: '/.mcp/list-tools',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute =
+  Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport.update({
+    id: '/.well-known/gpc.json',
+    path: '/.well-known/gpc.json',
     getParentRoute: () => rootRouteImport,
   } as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
@@ -1579,6 +1586,7 @@ export interface FileRoutesByFullPath {
   '/unsubscribe': typeof UnsubscribeRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
@@ -1829,6 +1837,7 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
@@ -2074,6 +2083,7 @@ export interface FileRoutesById {
   '/unsubscribe': typeof UnsubscribeRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
@@ -2328,6 +2338,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
+    | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/analytics'
@@ -2578,6 +2589,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
+    | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/analytics'
@@ -2822,6 +2834,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
+    | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/analytics'
@@ -3075,6 +3088,7 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   ZwrotyIReklamacjeRoute: typeof ZwrotyIReklamacjeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
+  Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute: typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiSttRoute: typeof ApiSttRoute
   ApiTtsRoute: typeof ApiTtsRoute
@@ -3415,6 +3429,13 @@ declare module '@tanstack/react-router' {
       path: '/.mcp/list-tools'
       fullPath: '/.mcp/list-tools'
       preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/gpc.json': {
+      id: '/.well-known/gpc.json'
+      path: '/.well-known/gpc.json'
+      fullPath: '/.well-known/gpc.json'
+      preLoaderRoute: typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-protected-resource': {
@@ -5468,6 +5489,8 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   ZwrotyIReklamacjeRoute: ZwrotyIReklamacjeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
+  Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute:
+    Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiSttRoute: ApiSttRoute,

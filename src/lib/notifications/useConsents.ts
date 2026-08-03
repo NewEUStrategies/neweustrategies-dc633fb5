@@ -6,6 +6,8 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
+import { useGpcHonored, useGpcSignal } from "@/lib/ads/consent";
+import { clampRegistryValueForGpc } from "@/lib/consent/gpc";
 import { listMyConsents, listMyConsentEvents, setMyConsent } from "@/lib/consents.functions";
 import { CONSENT_CATALOG, type ConsentDefinition } from "@/lib/notifications/consentCatalog";
 
@@ -14,6 +16,8 @@ export interface ConsentStateRow {
   given: boolean;
   version: string;
   lang: string | null;
+  /** Czy przy ostatniej decyzji aktywny był sygnał Global Privacy Control. */
+  gpc: boolean;
   given_at: string | null;
   withdrawn_at: string | null;
   updated_at: string;
@@ -26,6 +30,8 @@ export interface ConsentEventRow {
   version: string;
   lang: string | null;
   source: string | null;
+  /** Czy w momencie tego zdarzenia aktywny był sygnał GPC. */
+  gpc: boolean;
   created_at: string;
 }
 
@@ -34,8 +40,10 @@ export interface ConsentView {
   state: ConsentStateRow | null;
   /** true, gdy użytkownik podjął decyzję i wersja jest aktualna. */
   isCurrent: boolean;
-  /** Efektywna wartość (uwzględnia default i required). */
+  /** Efektywna wartość (default, required ORAZ klamra GPC). */
   effectiveGiven: boolean;
+  /** true, gdy wartość została ściągnięta do „nie" sygnałem GPC. */
+  gpcClamped: boolean;
 }
 
 export function useMyConsents() {
@@ -70,6 +78,16 @@ export function useSetMyConsent() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const fn = useServerFn(setMyConsent);
+  // Sygnał GPC dołączany do KAŻDEGO zapisu: serwer i tak OR-uje go z własnym
+  // odczytem (`resolveGpcForWrite`), ale przeglądarka nie dokłada `Sec-GPC` do
+  // wywołań RPC, więc bez tej deklaracji sygnał widziany tylko przez
+  // `navigator.globalPrivacyControl` nie trafiłby do rejestru.
+  //
+  // Świadomie AKTYWNOŚĆ sygnału, nie jego honorowanie: kolumna `gpc` odpowiada
+  // na pytanie „czy przeglądarka wysyłała opt-out, gdy to zapisywano" - zgoda
+  // udzielona jako świadomy override MUSI być w audycie oznaczona `gpc = true`,
+  // bo właśnie ona jest wyjątkiem wymagającym uzasadnienia.
+  const gpc = useGpcSignal().active;
   return useMutation({
     mutationFn: async (input: {
       key: string;
@@ -77,7 +95,7 @@ export function useSetMyConsent() {
       version: string;
       lang?: "pl" | "en";
       source?: string;
-    }) => fn({ data: input }),
+    }) => fn({ data: { ...input, gpc } }),
     onMutate: async (input) => {
       await qc.cancelQueries({ queryKey: ["user-consents", user?.id ?? "anon"] });
       const prev = qc.getQueryData<ConsentStateRow[]>(["user-consents", user?.id ?? "anon"]);
@@ -90,6 +108,7 @@ export function useSetMyConsent() {
           given: input.given,
           version: input.version,
           lang: input.lang ?? base[idx]?.lang ?? null,
+          gpc,
           given_at: input.given ? now : (base[idx]?.given_at ?? null),
           withdrawn_at: input.given ? null : now,
           updated_at: now,
@@ -114,22 +133,44 @@ export function useSetMyConsent() {
   });
 }
 
-/** Zbuduj widok zgód (definicja + stan) w kolejności katalogu. */
-export function buildConsentViews(rows: ConsentStateRow[] | undefined): ConsentView[] {
+/**
+ * Zbuduj widok zgód (definicja + stan) w kolejności katalogu.
+ *
+ * @param gpcHonored czy sygnał GPC jest honorowany - klamruje klucze
+ *   `cookies_analytics` / `cookies_marketing` / `personalization` na „nie".
+ *   Klamra działa na EFEKTYWNEJ wartości, nie na zapisanym stanie: rejestr
+ *   pozostaje wiernym śladem decyzji, a UI pokazuje, co realnie obowiązuje.
+ */
+export function buildConsentViews(
+  rows: ConsentStateRow[] | undefined,
+  gpcHonored = false,
+): ConsentView[] {
   const byKey = new Map((rows ?? []).map((r) => [r.consent_key, r]));
   return CONSENT_CATALOG.map((def) => {
     const state = byKey.get(def.key) ?? null;
     const isCurrent = !!state && state.version === def.version;
-    const effectiveGiven = def.required ? true : state ? state.given : (def.defaultGiven ?? false);
-    return { definition: def, state, isCurrent, effectiveGiven };
+    const declared = def.required ? true : state ? state.given : (def.defaultGiven ?? false);
+    const effectiveGiven = clampRegistryValueForGpc(def.key, declared, gpcHonored);
+    return {
+      definition: def,
+      state,
+      isCurrent,
+      effectiveGiven,
+      gpcClamped: declared && !effectiveGiven,
+    };
   });
 }
 
-/** Wygodny helper dla podglądu efektywnej wartości pojedynczej zgody. */
+/**
+ * Wygodny helper dla podglądu efektywnej wartości pojedynczej zgody. Uwzględnia
+ * klamrę GPC, więc konsumenci personalizacji dostają „nie", gdy przeglądarka
+ * wysyła sygnał opt-outu - bez pamiętania o tym w każdym miejscu wywołania.
+ */
 export function useIsConsentGiven(key: string): boolean | undefined {
   const q = useMyConsents();
+  const gpcHonored = useGpcHonored();
   if (!q.data) return undefined;
-  const view = buildConsentViews(q.data).find((v) => v.definition.key === key);
+  const view = buildConsentViews(q.data, gpcHonored).find((v) => v.definition.key === key);
   return view?.effectiveGiven;
 }
 

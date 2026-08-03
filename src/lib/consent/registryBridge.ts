@@ -12,6 +12,7 @@
 // (setConsent w src/lib/ads/consent.ts); rejestr jest śladem audytowym, nigdy
 // źródłem prawdy dla bramkowania skryptów.
 import type { ConsentCategory, ConsentState } from "@/lib/ads/consent";
+import { GPC_CLAMPED_REGISTRY_KEYS } from "@/lib/consent/gpc";
 import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
 
 /** Skąd pochodzi decyzja - trafia do user_consent_events.source. */
@@ -19,7 +20,14 @@ export type ConsentDecisionSource =
   | "cmp_banner"
   | "profile_privacy"
   | "notifications_center"
-  | "login_sync";
+  | "login_sync"
+  /**
+   * Wycofanie wymuszone sygnałem Global Privacy Control (`Sec-GPC` /
+   * `navigator.globalPrivacyControl`). Nie jest decyzją podjętą w UI, więc ma
+   * własne źródło - audytor musi widzieć, że zgodę zdjął sygnał przeglądarki,
+   * a nie klik w banerze.
+   */
+  | "gpc_signal";
 
 /** Kategorie CMP objęte audytem (necessary jest zawsze true - bez decyzji). */
 export type AuditableCmpCategory = Exclude<ConsentCategory, "necessary">;
@@ -48,6 +56,7 @@ const VALID_SOURCES: ReadonlySet<string> = new Set([
   "profile_privacy",
   "notifications_center",
   "login_sync",
+  "gpc_signal",
 ]);
 
 /**
@@ -67,6 +76,12 @@ export interface RegistryEntry {
   version: string;
   lang?: "pl" | "en";
   source?: string;
+  /**
+   * Czy w momencie decyzji aktywny był sygnał GPC. Trafia do kolumny
+   * `user_consent_events.gpc` - bez tego audyt nie potrafiłby odpowiedzieć na
+   * pytanie "czy zgoda została udzielona wbrew sygnałowi opt-outu".
+   */
+  gpc?: boolean;
 }
 
 /**
@@ -88,6 +103,7 @@ export function buildRegistryEntries(
   state: ConsentState,
   source: ConsentDecisionSource,
   lang?: "pl" | "en",
+  gpc = false,
 ): RegistryEntry[] {
   const entries: RegistryEntry[] = [];
   for (const cat of categories) {
@@ -100,6 +116,29 @@ export function buildRegistryEntries(
       version: def.version,
       lang,
       source,
+      gpc,
+    });
+  }
+  return entries;
+}
+
+/**
+ * Wpisy wycofania wymuszonego sygnałem GPC. Obejmują WSZYSTKIE klucze
+ * klamrowane sygnałem - także `personalization`, którego CMP nie zna (nie jest
+ * kategorią cookie, ale jest profilowaniem, więc sygnał go dotyczy).
+ */
+export function buildGpcWithdrawalEntries(lang?: "pl" | "en"): RegistryEntry[] {
+  const entries: RegistryEntry[] = [];
+  for (const key of GPC_CLAMPED_REGISTRY_KEYS) {
+    const def = getConsentDefinition(key);
+    if (!def) continue;
+    entries.push({
+      key,
+      given: false,
+      version: def.version,
+      lang,
+      source: "gpc_signal",
+      gpc: true,
     });
   }
   return entries;
@@ -151,6 +190,7 @@ export function syncCmpDecisionToRegistry(
   prev: ConsentState | null,
   next: ConsentState,
   source: ConsentDecisionSource,
+  gpcActive = false,
 ): Promise<void> {
   // Diff liczony synchronicznie w momencie decyzji; kolejka serializuje tylko
   // sam transport, więc chronologia audytu = chronologia decyzji.
@@ -161,6 +201,7 @@ export function syncCmpDecisionToRegistry(
     next,
     normalizeDecisionSource(source),
     detectLang(),
+    gpcActive,
   );
   if (entries.length === 0) return Promise.resolve();
 
@@ -215,7 +256,11 @@ function markBackfillDone(userId: string): void {
  * nie nadpisujemy stanem z tego urządzenia; rozjazd wartości domyka pierwsza
  * jawna decyzja (diff w syncCmpDecisionToRegistry).
  */
-export function backfillRegistryOnLogin(state: ConsentState, userId: string): Promise<void> {
+export function backfillRegistryOnLogin(
+  state: ConsentState,
+  userId: string,
+  gpcActive = false,
+): Promise<void> {
   if (typeof window === "undefined" || !userId) return Promise.resolve();
   if (backfillFlagDone(userId)) return Promise.resolve();
   const inFlight = backfillInFlight.get(userId);
@@ -228,7 +273,7 @@ export function backfillRegistryOnLogin(state: ConsentState, userId: string): Pr
       const present = new Set(rows.map((r) => r.consent_key));
       const missing = missingRegistryCategories(present);
       if (missing.length > 0) {
-        const entries = buildRegistryEntries(missing, state, "login_sync", detectLang());
+        const entries = buildRegistryEntries(missing, state, "login_sync", detectLang(), gpcActive);
         await pushEntriesToRegistry(entries);
       }
       markBackfillDone(userId);
@@ -241,5 +286,78 @@ export function backfillRegistryOnLogin(state: ConsentState, userId: string): Pr
   });
 
   backfillInFlight.set(userId, run);
+  return run;
+}
+
+// -------------------- Wycofanie wymuszone sygnałem GPC --------------------
+
+// Deduplikacja per użytkownik: sygnał GPC nie zmienia się między nawigacjami, a
+// `onAuthStateChange` odpala się przy każdym INITIAL_SESSION - bez tej flagi
+// rejestr dostawałby identyczne wycofanie przy każdym otwarciu karty i historia
+// decyzji zamieniłaby się w log nawigacji.
+const GPC_SYNC_FLAG_PREFIX = "consent:gpc-registry:v1:";
+const gpcSyncInFlight = new Map<string, Promise<void>>();
+
+function gpcSyncDone(userId: string): boolean {
+  try {
+    return window.localStorage.getItem(`${GPC_SYNC_FLAG_PREFIX}${userId}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markGpcSyncDone(userId: string): void {
+  try {
+    window.localStorage.setItem(`${GPC_SYNC_FLAG_PREFIX}${userId}`, "1");
+  } catch {
+    /* private mode - powtórzymy przy następnym evencie auth */
+  }
+}
+
+/**
+ * Czy trzeba dopisać wycofanie GPC: tylko dla kluczy, których rejestr NIE ma
+ * jeszcze jako wycofanych. Wpis już wycofany (albo przez sygnał, albo ręcznie)
+ * jest zgodny ze skutkiem sygnału - powtarzanie go byłoby szumem w audycie.
+ */
+export function gpcWithdrawalsNeeded(
+  registryState: ReadonlyMap<string, boolean>,
+): readonly string[] {
+  return GPC_CLAMPED_REGISTRY_KEYS.filter((key) => registryState.get(key) !== false);
+}
+
+/**
+ * Dopisz do rejestru RODO wycofanie wymuszone sygnałem GPC (źródło
+ * `gpc_signal`, `gpc = true`). Sygnał jest sprzeciwem art. 21 RODO i wycofaniem
+ * zgody art. 7 ust. 3 - musi mieć ślad audytowy z IP/UA/wersją, nie tylko efekt
+ * w runtime. Fire-and-forget: klamra działa niezależnie od powodzenia zapisu.
+ *
+ * Wywoływane po `backfillRegistryOnLogin`, żeby wycofanie było w audycie
+ * chronologicznie PO stanie, który wycofuje.
+ */
+export function syncGpcSignalToRegistry(userId: string): Promise<void> {
+  if (typeof window === "undefined" || !userId) return Promise.resolve();
+  if (gpcSyncDone(userId)) return Promise.resolve();
+  const inFlight = gpcSyncInFlight.get(userId);
+  if (inFlight) return inFlight;
+
+  const run = enqueueRegistryWrite(async () => {
+    try {
+      const { listMyConsents } = await import("@/lib/consents.functions");
+      const rows = (await listMyConsents()) as Array<{ consent_key: string; given: boolean }>;
+      const current = new Map(rows.map((r) => [r.consent_key, r.given]));
+      const needed = new Set(gpcWithdrawalsNeeded(current));
+      if (needed.size > 0) {
+        const entries = buildGpcWithdrawalEntries(detectLang()).filter((e) => needed.has(e.key));
+        if (entries.length > 0) await pushEntriesToRegistry(entries);
+      }
+      markGpcSyncDone(userId);
+    } catch {
+      // Best-effort: bez flagi spróbujemy ponownie przy następnym evencie auth.
+    }
+  }).finally(() => {
+    gpcSyncInFlight.delete(userId);
+  });
+
+  gpcSyncInFlight.set(userId, run);
   return run;
 }

@@ -4,14 +4,29 @@
 //   decyzja przetrwa wyczyszczenie localStorage / przejście do subdomen SSR.
 // - Zalogowany użytkownik = synchronizacja z profiles.prefs.consent ORAZ
 //   audytowany ślad każdej decyzji w rejestrze RODO user_consents/
-//   user_consent_events (IP/UA/wersja/źródło) przez registryBridge -
+//   user_consent_events (IP/UA/wersja/źródło/GPC) przez registryBridge -
 //   unifikacja CMP z rejestrem zgód (audyt M15/M19).
+// - Global Privacy Control: `Sec-GPC: 1` / `navigator.globalPrivacyControl`
+//   KLAMRUJE kategorie analytics i marketing na "nie", niezależnie od tego, co
+//   leży w localStorage. Klamra jest zdejmowana wyłącznie świadomym override'em
+//   (jawna zgoda podjęta przy widocznej nocie o GPC - znacznik `gpcOverrideAt`).
+//   Zasady i uzasadnienie prawne: `src/lib/consent/gpc.ts`.
 // - Tryb podglądu (session-scoped) pozwala testować różne zgody bez czyszczenia
 //   trwałych danych - override żyje w sessionStorage i nadpisuje state tylko
-//   dla useEffectiveConsent()/useCategoryGranted().
+//   dla useEffectiveConsent()/useCategoryGranted(). GPC obowiązuje TAKŻE w
+//   podglądzie: podglądem testuje się layout banera, nie obchodzi się opt-outu.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  clampCategoriesForGpc,
+  isGpcClampedCategory,
+  isGpcHonored,
+  type GpcSignal,
+  GPC_CLAMPED_CMP_CATEGORIES as GPC_CLAMPED_CATEGORIES,
+  GPC_INACTIVE,
+} from "@/lib/consent/gpc";
+import { notifyGpcChange, readGpcSignal, subscribeGpc } from "@/lib/consent/gpcClient";
 import type { ConsentDecisionSource } from "@/lib/consent/registryBridge";
 
 const CONSENT_VERSION = 2;
@@ -32,6 +47,13 @@ export interface ConsentState {
   categories: Record<ConsentCategory, boolean>;
   /** Skąd pochodzi ostatnia decyzja - przydatne przy mergowaniu profil/local. */
   source?: "local" | "profile";
+  /**
+   * Znacznik ŚWIADOMEGO override'u sygnału GPC: ustawiany wyłącznie wtedy, gdy
+   * użytkownik jawnie włączył klamrowaną kategorię przy AKTYWNYM sygnale (a
+   * więc przy widocznej nocie o GPC w banerze). Brak znacznika = GPC wygrywa,
+   * także nad zgodą zapisaną przed pojawieniem się sygnału.
+   */
+  gpcOverrideAt?: number;
 }
 
 function defaultConsent(granted: boolean): ConsentState {
@@ -64,6 +86,12 @@ function safeParse(raw: string | null): ConsentState | null {
         marketing: !!cats.marketing,
       },
       source: v.source,
+      // Znacznik override'u musi PRZEŻYĆ round-trip przez localStorage/cookie/
+      // profil - inaczej świadoma zgoda użytkownika z GPC znikałaby przy każdym
+      // przeładowaniu i baner wracałby w nieskończoność.
+      ...(typeof v.gpcOverrideAt === "number" && Number.isFinite(v.gpcOverrideAt)
+        ? { gpcOverrideAt: v.gpcOverrideAt }
+        : {}),
     };
   } catch {
     return null;
@@ -132,11 +160,31 @@ function writeLocal(state: ConsentState) {
   window.dispatchEvent(new Event(EVENT));
 }
 
+/**
+ * Czy TA decyzja jest świadomym override'em sygnału GPC: użytkownik włącza
+ * którąkolwiek klamrowaną kategorię, mając aktywny sygnał (a więc widząc notę
+ * GPC w banerze - to ta sama flaga steruje notą i klamrą).
+ */
+function decisionOverridesGpc(
+  categories: Partial<Record<ConsentCategory, boolean>>,
+  signal: GpcSignal,
+): boolean {
+  if (!signal.active) return false;
+  return GPC_CLAMPED_CATEGORIES.some((cat) => !!categories[cat]);
+}
+
 function setConsent(
   categories: Partial<Record<ConsentCategory, boolean>>,
   decisionSource: ConsentDecisionSource = "cmp_banner",
 ) {
   const prev = readLocal();
+  const signal = readGpcSignal();
+  // INWARIANT znacznika override'u (od niego zależy `isGpcOverrideValid`):
+  // znacznik istnieje TYLKO wtedy, gdy OSTATNIA decyzja była świadomym
+  // override'em. Każda inna decyzja go zdejmuje - także podjęta przy wyłączonym
+  // sygnale, bo inaczej ponowne włączenie GPC trafiałoby na nieaktualną zgodę
+  // i klamra nigdy by nie wróciła.
+  const gpcOverrideAt = decisionOverridesGpc(categories, signal) ? Date.now() : undefined;
   const next: ConsentState = {
     version: CONSENT_VERSION,
     ts: Date.now(),
@@ -147,14 +195,18 @@ function setConsent(
       marketing: !!categories.marketing,
     },
     source: "local",
+    ...(gpcOverrideAt ? { gpcOverrideAt } : {}),
   };
   writeLocal(next);
   void syncConsentToProfile(next);
+  // Zmiana ważności override'u przestawia klamrę dla całego runtime - rozgłoś ją
+  // tym samym kanałem, którym idą zmiany samego sygnału.
+  if (!!prev?.gpcOverrideAt !== !!gpcOverrideAt) notifyGpcChange();
   // Audytowany ślad decyzji (tylko zalogowani, tylko zmienione kategorie).
   // Dynamiczny import: most nie obciąża chunka wejściowego, a błąd sieci
   // nigdy nie blokuje samej decyzji cookie.
   void import("@/lib/consent/registryBridge")
-    .then((m) => m.syncCmpDecisionToRegistry(prev, next, decisionSource))
+    .then((m) => m.syncCmpDecisionToRegistry(prev, next, decisionSource, signal.active))
     .catch(() => {
       /* offline / chunk load error */
     });
@@ -216,8 +268,16 @@ async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
       // (wiele instancji useConsent na ten sam event auth) i kolejkowanie są
       // wewnątrz mostu.
       const state = resolved;
+      const signal = readGpcSignal();
       void import("@/lib/consent/registryBridge")
-        .then((m) => m.backfillRegistryOnLogin(state, uid))
+        .then(async (m) => {
+          await m.backfillRegistryOnLogin(state, uid, signal.active);
+          // Sygnał GPC jest sprzeciwem (art. 21 RODO) i wycofaniem zgody
+          // (art. 7 ust. 3) - musi zostawić ślad w rejestrze, a nie tylko
+          // zaklamrować runtime. Dopisujemy go PO backfillu, żeby wycofanie
+          // było w audycie chronologicznie po stanie, który wycofuje.
+          if (isGpcHonored(signal, state)) await m.syncGpcSignalToRegistry(uid);
+        })
         .catch(() => {
           /* best-effort */
         });
@@ -282,6 +342,50 @@ export function isConsentPreviewRequested(): boolean {
 
 // -------------------- React hooks --------------------
 
+/**
+ * Sygnał GPC jako stan Reacta. SSR zwraca `GPC_INACTIVE` (serwer nie zna
+ * `navigator`, a klamra i tak nie zmienia treści dokumentu - patrz
+ * `gpc.server.ts`), klient dociąga prawdę przy pierwszym efekcie, przed
+ * jakimkolwiek wstrzyknięciem skryptu (ConsentScriptInjector też działa z
+ * efektu). Zero migotania, zero rozjazdu hydratacji.
+ */
+export function useGpcSignal(): GpcSignal {
+  const [signal, setSignal] = useState<GpcSignal>(GPC_INACTIVE);
+  useEffect(() => {
+    const sync = () => setSignal(readGpcSignal());
+    sync();
+    return subscribeGpc(sync);
+  }, []);
+  return signal;
+}
+
+/**
+ * Czy sygnał GPC jest REALNIE honorowany w tej karcie (aktywny i bez świadomego
+ * override'u). Jedno źródło prawdy dla wszystkiego, co bramkuje: klamry
+ * kategorii CMP, klamry kluczy rejestru (`useConsents`) i not w UI.
+ */
+export function useGpcHonored(): boolean {
+  const gpc = useGpcSignal();
+  const [state, setState] = useState<ConsentState | null>(null);
+  useEffect(() => {
+    const sync = () => setState(readLocal());
+    sync();
+    window.addEventListener(EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+  return isGpcHonored(gpc, state);
+}
+
+/** Wariant non-hook `useGpcHonored` - dla kodu spoza drzewa Reacta. */
+export function isGpcCurrentlyHonored(): boolean {
+  if (typeof window === "undefined") return false;
+  return isGpcHonored(readGpcSignal(), readLocal());
+}
+
 export function useConsent() {
   const [state, setState] = useState<ConsentState | null>(() => readLocal());
   const [mounted, setMounted] = useState(false);
@@ -341,15 +445,21 @@ export function useConsent() {
 
 /**
  * Zwraca aktywny stan zgód: jeśli tryb podglądu jest ustawiony, override wygrywa;
- * inaczej zwraca trwały zapis. Skrypty analityczne/marketingowe podłączają się
- * właśnie do tej funkcji, żeby preview realnie wpływał na runtime.
+ * inaczej zwraca trwały zapis. Na wynik nakładana jest klamra GPC - skrypty
+ * analityczne/marketingowe podłączają się właśnie do tej funkcji, więc podgląd
+ * realnie wpływa na runtime, a sygnał opt-outu nie da się nim obejść.
  */
 export function useEffectiveConsent(): {
   categories: Record<ConsentCategory, boolean>;
   preview: boolean;
   mounted: boolean;
+  /** Sygnał GPC tej karty (aktywny/nieaktywny + nośnik). */
+  gpc: GpcSignal;
+  /** Czy sygnał jest realnie honorowany (aktywny i bez świadomego override'u). */
+  gpcHonored: boolean;
 } {
   const { state, mounted } = useConsent();
+  const gpc = useGpcSignal();
   const [preview, setPreview] = useState<ConsentPreview | null>(() => readPreview());
   useEffect(() => {
     const sync = () => setPreview(readPreview());
@@ -361,15 +471,21 @@ export function useEffectiveConsent(): {
     };
   }, []);
 
-  const categories = preview?.categories ??
-    state?.categories ?? {
-      necessary: true,
-      functional: false,
-      analytics: false,
-      marketing: false,
-    };
+  const gpcHonored = isGpcHonored(gpc, state);
+  // useMemo, żeby tożsamość obiektu kategorii nie zmieniała się co render -
+  // konsumenci (ConsentScriptInjector) trzymają go w zależnościach efektów.
+  const categories = useMemo(() => {
+    const raw = preview?.categories ??
+      state?.categories ?? {
+        necessary: true,
+        functional: false,
+        analytics: false,
+        marketing: false,
+      };
+    return clampCategoriesForGpc(raw, gpcHonored);
+  }, [preview?.categories, state?.categories, gpcHonored]);
 
-  return { categories, preview: !!preview, mounted };
+  return { categories, preview: !!preview, mounted, gpc, gpcHonored };
 }
 
 export function useCategoryGranted(cat: ConsentCategory): boolean {
@@ -379,16 +495,19 @@ export function useCategoryGranted(cat: ConsentCategory): boolean {
 
 /**
  * Non-hook, poza-Reactowy odczyt aktywnej zgody dla danej kategorii.
- * Uwzględnia tryb podglądu (sessionStorage) oraz trwały zapis (localStorage).
- * Używany m.in. przez silnik analityki (`src/lib/analytics/track.ts`),
- * gdzie beacony wysyłane są z event-handlerów spoza drzewa Reacta.
+ * Uwzględnia tryb podglądu (sessionStorage), trwały zapis (localStorage) ORAZ
+ * klamrę GPC. Używany m.in. przez silnik analityki
+ * (`src/lib/analytics/track.ts`), gdzie beacony wysyłane są z event-handlerów
+ * spoza drzewa Reacta - dlatego klamra MUSI być tu, a nie tylko w hookach:
+ * inaczej bramkowanie UI i bramkowanie beaconów rozjechałyby się.
  */
 export function hasCategoryConsent(cat: ConsentCategory): boolean {
   if (cat === "necessary") return true;
   if (typeof window === "undefined") return false;
+  const state = readLocal();
+  if (isGpcClampedCategory(cat) && isGpcHonored(readGpcSignal(), state)) return false;
   const preview = readPreview();
   if (preview) return !!preview.categories[cat];
-  const state = readLocal();
   return !!state?.categories?.[cat];
 }
 
@@ -400,7 +519,10 @@ export function hasAnalyticsConsent(): boolean {
 
 export function useMarketingConsent() {
   const { state, decided, save } = useConsent();
-  const granted = !!state?.categories.marketing;
+  const gpc = useGpcSignal();
+  // Stare API też przechodzi przez klamrę - inaczej powierzchnie, które nadal go
+  // używają, byłyby jedyną furtką obchodzącą sygnał opt-outu.
+  const granted = !!state?.categories.marketing && !isGpcHonored(gpc, state);
   return {
     granted,
     decided,

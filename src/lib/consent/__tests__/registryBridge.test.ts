@@ -81,13 +81,16 @@ describe("diffCmpCategories", () => {
 });
 
 describe("buildRegistryEntries", () => {
-  it("builds entries with catalog version, decision value, lang and source", () => {
+  it("builds entries with catalog version, decision value, lang, source and GPC flag", () => {
     const entries = buildRegistryEntries(
       ["analytics", "marketing"],
       state({ analytics: true, marketing: false }),
       "profile_privacy",
       "pl",
     );
+    // `gpc` jest częścią kontraktu wpisu (kolumna `user_consent_events.gpc`) -
+    // domyślnie `false`, żeby brak sygnału nigdy nie był wymyślany. Zakres i
+    // znaczenie znacznika: `gpcRegistry.test.ts`.
     expect(entries).toEqual([
       {
         key: "cookies_analytics",
@@ -95,6 +98,7 @@ describe("buildRegistryEntries", () => {
         version: getConsentDefinition("cookies_analytics")?.version,
         lang: "pl",
         source: "profile_privacy",
+        gpc: false,
       },
       {
         key: "cookies_marketing",
@@ -102,6 +106,7 @@ describe("buildRegistryEntries", () => {
         version: getConsentDefinition("cookies_marketing")?.version,
         lang: "pl",
         source: "profile_privacy",
+        gpc: false,
       },
     ]);
   });

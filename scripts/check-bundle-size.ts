@@ -109,9 +109,23 @@ const CLIENT_DIR =
 // dla czytelnika i ta gałąź się w nim MIEŚCI (1788,9), więc nie ma powodu go
 // rozluźniać. Realna redukcja (split locale'i PL/EN, odchudzenie eager-owego
 // zestawu widgetów chrome, @tanstack poza entry) pozostaje osobną pracą.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 508); // largest single gzipped JS chunk (zmierzone: ~505,4KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1790); // gzipped JS a public visitor can load (zmierzone: ~1788,9KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2996); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~2990,3KB)
+// 2026-08-03 (Global Privacy Control): pomiar na tym samym hoście i tej samej
+// wersji zależności, gałąź GPC vs jej baza (e55e38b):
+//   * baza:    508,7 KB chunk / 1783,9 KB public / 2993,5 KB overall
+//              (CHUNK już wtedy PONAD floorem 508 - dryf maina, nie ta gałąź),
+//   * gałąź:   510,0 KB chunk / 1788,3 KB public / 2997,8 KB overall.
+// Koszt gałęzi w entry to +1,3 KB i jest NIEREDUKOWALNY: klamra sygnału musi
+// działać synchronicznie, zanim cokolwiek wstrzyknie skrypt analityczny
+// (`lib/consent/gpc.ts` + `gpcClient.ts` + klamra w `useEffectiveConsent`/
+// `hasCategoryConsent`). Cała powierzchnia PREZENTACYJNA jest już wyniesiona do
+// leniwego chunka (`components/consent/GpcSurfaceSlots.tsx`) - notę i nakładkę
+// i18n `consentGpc.*` pobierają WYŁĄCZNIE osoby realnie wysyłające sygnał, a nie
+// wszyscy czytelnicy. Bez tego zabiegu koszt byłby +3,0 KB w entry.
+// CHUNK i OVERALL idą więc na nowy floor nad zmierzonym śladem.
+// PUBLIC znowu zostaje na 1790: gałąź się w nim MIEŚCI (1788,3).
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 511); // largest single gzipped JS chunk (zmierzone: ~510,0KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1790); // gzipped JS a public visitor can load (zmierzone: ~1788,3KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2999); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~2997,8KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

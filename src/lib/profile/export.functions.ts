@@ -89,6 +89,21 @@ export const exportMyData = createServerFn({ method: "POST" })
         .from("user_purchases")
         .select("entity_type, entity_id, status, amount_cents, currency, purchased_at")
         .eq("user_id", userId),
+      // Rejestr zgód RODO - do 2026-08-03 eksport go NIE zawierał, choć art. 15
+      // ust. 1 nakazuje ujawnić także podstawę przetwarzania, a art. 7 ust. 1
+      // każe móc WYKAZAĆ zgodę. Zgoda bez własnego śladu w eksporcie była
+      // niesprawdzalna przez samą osobę, której dotyczy. `gpc` mówi, czy w
+      // momencie decyzji przeglądarka wysyłała sygnał opt-outu.
+      consents: supabase
+        .from("user_consents")
+        .select("consent_key, given, version, lang, gpc, given_at, withdrawn_at, updated_at")
+        .eq("user_id", userId),
+      consent_events: supabase
+        .from("user_consent_events")
+        .select("consent_key, given, version, lang, source, gpc, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(2000),
       notification_preferences: supabase
         .from("notification_preferences")
         .select("*")
