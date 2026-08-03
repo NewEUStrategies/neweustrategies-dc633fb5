@@ -294,17 +294,18 @@ export function RatedListView({
       // stronie klienta dzialo sie PO `.range(offset, offset+limit-1)`, wiec
       // widget oddawal mniej wierszy niz `numberOfPosts` (a przy autorze spoza
       // pierwszej strony - zero). Rozwiazujemy nazwy na identyfikatory i
-      // wkladamy je do zapytania o wpisy.
-      const authorNameById = new Map<string, string>();
+      // wkladamy je do zapytania o wpisy. Trzymamy tez avatar_url, zeby
+      // renderowac spojny AuthorInline (12 px / 20 px) zamiast samego tekstu.
+      const authorById = new Map<string, ProfileRow>();
       let authorIdFilter: string[] | null = null;
       if (authors.length) {
         const { data: matched } = await supabase
           .from("profiles")
-          .select("id, display_name")
+          .select("id, display_name, avatar_url")
           .in("display_name", authors);
         const matchedRows = (matched ?? []) as ProfileRow[];
         for (const p of matchedRows) {
-          if (p.display_name) authorNameById.set(p.id, p.display_name);
+          if (p.display_name) authorById.set(p.id, p);
         }
         authorIdFilter = matchedRows.map((p) => p.id);
         // Zaden profil o takiej nazwie = pusty wynik. Bez tego `.in()` z pusta
