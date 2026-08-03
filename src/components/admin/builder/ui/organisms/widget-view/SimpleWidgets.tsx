@@ -504,6 +504,18 @@ export function renderSimpleWidget(
         return resolveSocialHref(own, globalLinks, k, linksSource);
       };
 
+      // Delikatny gradient marki platformy używany na hover wiersza listy.
+      // Kolory pochodzą z oficjalnych palet (OFFICIAL) - trzymamy je tutaj,
+      // bo to kolory MAREK ZEWNĘTRZNYCH, nie tokeny naszego motywu.
+      const BRAND_GRADIENT: Record<string, string> = {
+        facebook: "linear-gradient(135deg, #1877F2 0%, #0C5FD1 100%)",
+        x: "linear-gradient(135deg, #1A1A1A 0%, #000000 100%)",
+        youtube: "linear-gradient(135deg, #FF3B30 0%, #CC0000 100%)",
+        instagram: "linear-gradient(135deg, #F58529 0%, #DD2A7B 55%, #8134AF 100%)",
+        linkedin: "linear-gradient(135deg, #0A66C2 0%, #004182 100%)",
+        spotify: "linear-gradient(135deg, #1ED760 0%, #14833B 100%)",
+      };
+
       const renderSocials = (globalLinks: GlobalSocialLinks): ReactElement => {
         if (layout === "list") {
           const defaultCta: Record<string, string> = {
@@ -520,6 +532,10 @@ export function renderSimpleWidget(
               if (!href && !showEmpty) return null;
               const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
               const cta = getStr(c, ctaKey) || defaultCta[k] || "";
+              const rowVars = {
+                "--sb-grad": BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))",
+                "--sb-fg": "#ffffff",
+              } as CSSProperties;
               return (
                 <AppLink
                   key={k}
@@ -527,30 +543,31 @@ export function renderSimpleWidget(
                   aria-label={label}
                   target={href ? "_blank" : undefined}
                   rel={href ? "noopener noreferrer" : undefined}
-                  // Odnośnik zewnętrzny, ale wygląda jak wiersz listy, nie
-                  // jak hiperłącze. Na hover cały pasek przybiera kolor brandu
-                  // platformy, a tekst i ikona kontrastują z tłem.
-                  style={{ textDecoration: "none" }}
-                  className={`group flex items-center gap-3 border-b border-border/60 py-2.5 no-underline transition-colors last:border-b-0 hover:bg-brand hover:text-brand-foreground focus-visible:bg-brand focus-visible:text-brand-foreground ${!href ? "pointer-events-none opacity-40" : ""}`}
+                  // Odnośnik zewnętrzny, ale wygląda jak wiersz listy, nie jak
+                  // hiperłącze. Na hover pasek przybiera delikatny gradient
+                  // marki danej platformy, a tekst i ikona kontrastują z tłem.
+                  style={{ textDecoration: "none", ...rowVars }}
+                  className={`group flex items-center gap-3 rounded-[6px] border-b border-border/60 px-2 py-2.5 no-underline transition-all last:border-b-0 hover:border-transparent hover:[background-image:var(--sb-grad)] hover:[color:var(--sb-fg)] focus-visible:border-transparent focus-visible:[background-image:var(--sb-grad)] focus-visible:[color:var(--sb-fg)] ${!href ? "pointer-events-none opacity-40" : ""}`}
                 >
                   <span
-                    className={`inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors group-hover:bg-transparent group-hover:!text-brand-foreground`}
+                    className={`inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors group-hover:bg-transparent group-hover:![color:var(--sb-fg)]`}
                     style={chipStyle(k, Boolean(href))}
                   >
                     <Cmp size={size} />
                   </span>
-                  <span className="mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors group-hover:bg-brand-foreground/70" aria-hidden="true" />
-                  <span className="flex-1 truncate text-sm font-medium transition-colors group-hover:text-brand-foreground">
+                  <span className="mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors group-hover:bg-[color:var(--sb-fg)]/70" aria-hidden="true" />
+                  <span className="flex-1 truncate text-sm font-medium transition-colors group-hover:[color:var(--sb-fg)]">
                     {label}
                   </span>
                   {cta && (
-                    <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground transition-colors group-hover:text-brand-foreground">
+                    <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground transition-colors group-hover:[color:var(--sb-fg)]">
                       {cta}
                     </span>
                   )}
                 </AppLink>
               );
             })
+
             .filter(Boolean);
           return (
             <div
