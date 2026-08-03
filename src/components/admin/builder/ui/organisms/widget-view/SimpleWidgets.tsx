@@ -486,92 +486,107 @@ export function renderSimpleWidget(
         if (layout === "list") {
           const defaultCta: Record<string, string> = {
 
-          facebook: "Like",
-          x: "Follow",
-          youtube: "Subscribe",
-          instagram: "Follow",
-          linkedin: "Follow",
-          spotify: "Follow",
-        };
-        const rows = items
-          .map(({ k, altKeys, Cmp, label }) => {
-            const href = getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
-            if (!href && !showEmpty) return null;
-            const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
-            const cta = getStr(c, ctaKey) || defaultCta[k] || "";
-            return (
-              <AppLink
-                key={k}
-                href={href ? safeUrl(href) : "#"}
-                aria-label={label}
-                className={`group flex items-center gap-3 border-b border-border/60 py-2.5 transition-colors last:border-b-0 hover:bg-muted/40 ${!href ? "pointer-events-none opacity-40" : ""}`}
-              >
+          const defaultCta: Record<string, string> = {
+            facebook: "Like",
+            x: "Follow",
+            youtube: "Subscribe",
+            instagram: "Follow",
+            linkedin: "Follow",
+            spotify: "Follow",
+          };
+          const rows = items
+            .map(({ k, altKeys, Cmp, label }) => {
+              const href = hrefOf(k, altKeys, globalLinks);
+              if (!href && !showEmpty) return null;
+              const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+              const cta = getStr(c, ctaKey) || defaultCta[k] || "";
+              return (
+                <AppLink
+                  key={k}
+                  href={href ? safeUrl(href) : "#"}
+                  aria-label={label}
+                  target={href ? "_blank" : undefined}
+                  rel={href ? "noopener noreferrer" : undefined}
+                  // Kolor tekstu dziedziczy po body (dark/light), a nie po
+                  // stylach linków treści - to odnośnik zewnętrzny, ale ma
+                  // wyglądać jak wiersz listy, nie jak hiperłącze.
+                  style={{ color: "inherit", textDecoration: "none" }}
+                  className={`group flex items-center gap-3 border-b border-border/60 py-2.5 no-underline transition-colors last:border-b-0 hover:bg-muted/40 ${!href ? "pointer-events-none opacity-40" : ""}`}
+                >
+                  <span
+                    className={`inline-flex items-center justify-center ${radiusCls} shrink-0`}
+                    style={chipStyle(k, Boolean(href))}
+                  >
+                    <Cmp size={size} />
+                  </span>
+                  <span className="mx-1 h-4 w-px shrink-0 bg-border/70" aria-hidden="true" />
+                  <span className="flex-1 truncate text-sm font-medium text-foreground">
+                    {label}
+                  </span>
+                  {cta && (
+                    <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground group-hover:text-foreground">
+                      {cta}
+                    </span>
+                  )}
+                </AppLink>
+              );
+            })
+            .filter(Boolean);
+          return (
+            <div
+              className={`flex flex-col w-full text-foreground ${themeCls}`}
+              style={{ ...compactRowStyle, gap: `${gap}px` }}
+            >
+              {rows}
+            </div>
+          );
+        }
+
+        return (
+          <div
+            className={`flex flex-wrap items-center text-foreground ${themeCls}`}
+            style={{ ...compactRowStyle, gap: `${gap}px` }}
+          >
+            {items.map(({ k, altKeys, Cmp, label }) => {
+              const href = hrefOf(k, altKeys, globalLinks);
+              const active = !!href;
+              if (!active && !showEmpty) return null;
+              const bg = resolveBg(k, active);
+              const style: CSSProperties = {
+                ...chipStyle(k, active),
+                opacity: active ? 1 : 0.35,
+              };
+              const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
+              return active ? (
+                <AppLink
+                  key={k}
+                  href={safeUrl(href)}
+                  aria-label={label}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cls}
+                  style={style}
+                >
+                  <Cmp size={size} />
+                </AppLink>
+              ) : (
                 <span
-                  className={`inline-flex items-center justify-center ${radiusCls} shrink-0`}
-                  style={chipStyle(k, Boolean(href))}
+                  key={k}
+                  aria-label={`${label} (${lang === "pl" ? "brak linku" : "no link"})`}
+                  className={cls}
+                  style={style}
                 >
                   <Cmp size={size} />
                 </span>
-                <span className="mx-1 h-4 w-px shrink-0 bg-border/70" aria-hidden="true" />
-                <span className="flex-1 truncate text-sm font-medium">{label}</span>
-                {cta && (
-                  <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground group-hover:text-foreground">
-                    {cta}
-                  </span>
-                )}
-              </AppLink>
-            );
-          })
-          .filter(Boolean);
-        return (
-          <div
-            className={`flex flex-col w-full text-foreground ${themeCls}`}
-            style={{ ...compactRowStyle, gap: `${gap}px` }}
-          >
-            {rows}
+              );
+            })}
           </div>
         );
-      }
+      };
 
-      return (
-        <div
-          className={`flex flex-wrap items-center text-foreground ${themeCls}`}
-          style={{ ...compactRowStyle, gap: `${gap}px` }}
-        >
-          {items.map(({ k, altKeys, Cmp, label }) => {
-            const href = getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
-            const active = !!href;
-            if (!active && !showEmpty) return null;
-            const bg = resolveBg(k, active);
-            const style: CSSProperties = {
-              ...chipStyle(k, active),
-              opacity: active ? 1 : 0.35,
-            };
-            const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
-            return active ? (
-              <AppLink
-                key={k}
-                href={safeUrl(href)}
-                aria-label={label}
-                className={cls}
-                style={style}
-              >
-                <Cmp size={size} />
-              </AppLink>
-            ) : (
-              <span
-                key={k}
-                aria-label={`${label} (${lang === "pl" ? "brak linku" : "no link"})`}
-                className={cls}
-                style={style}
-              >
-                <Cmp size={size} />
-              </span>
-            );
-          })}
-        </div>
-      );
+      return <WithGlobalSocials render={renderSocials} />;
     }
+
 
     case "lang-switcher": {
       const label =
