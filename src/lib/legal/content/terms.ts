@@ -70,7 +70,12 @@ export const TERMS_CONTENT: LegalDocContent = {
           "Naruszanie praw własności intelektualnej osób trzecich.",
           "Ingerowanie w bezpieczeństwo Serwisu: złośliwe oprogramowanie, skanowanie podatności, obchodzenie limitów, masowe pobieranie treści (scraping).",
           "Odsprzedaż, redystrybucja lub udostępnianie płatnych treści osobom bez ważnego dostępu.",
+          "Treści zabronione bez wyjątku: materiały dla dorosłych, mowa nienawiści, nawoływanie do przemocy i nękanie, broń i amunicja, narkotyki i substancje kontrolowane, hazard, kryptoaktywa o charakterze spekulacyjnym, piramidy finansowe oraz produkty naruszające prawa autorskie lub znaki towarowe.",
+          "Korzystanie z Serwisu wymaga ukończenia 18 lat albo zgody opiekuna prawnego; konto może założyć wyłącznie osoba działająca we własnym imieniu lub w imieniu reprezentowanej firmy.",
+          "Naruszenia zgłaszasz na kontakt@neweuropeanstrategies.com - rozpatrujemy je bez zbędnej zwłoki, nie później niż w 14 dni.",
+          "Naruszenie tych zasad uprawnia nas do ograniczenia funkcji, zawieszenia albo rozwiązania umowy ze skutkiem natychmiastowym; opłata za niewykorzystany okres jest wtedy zwracana proporcjonalnie, chyba że naruszenie miało charakter oszustwa.",
         ],
+
       },
       {
         id: "wlasnosc",
@@ -196,7 +201,12 @@ export const TERMS_CONTENT: LegalDocContent = {
           "Infringing third-party intellectual property rights.",
           "Interfering with the security of the service: malware, vulnerability probing, circumventing limits, bulk scraping.",
           "Reselling, redistributing or sharing paid content with people who have no valid access.",
+          "Categorically prohibited content: adult material, hate speech, incitement to violence and harassment, weapons and ammunition, drugs and controlled substances, gambling, speculative crypto assets, pyramid schemes, and anything infringing copyright or trademarks.",
+          "You must be 18 or older (or have guardian consent) and may only register on your own behalf or on behalf of a company you represent.",
+          "Report violations to kontakt@neweuropeanstrategies.com - we review reports without undue delay and within 14 days at the latest.",
+          "Breaching these rules entitles us to limit features, suspend the account or terminate the agreement with immediate effect; any unused paid period is refunded pro rata unless the breach was fraudulent.",
         ],
+
       },
       {
         id: "wlasnosc",
