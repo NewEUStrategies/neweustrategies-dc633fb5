@@ -145,11 +145,36 @@ COMMENT ON FUNCTION public.record_post_tts_rendition(
 ) IS
   'Service-role only: records the canonical TTS rendition of (post, lang) after a paid synthesis. Atomic upsert bumping synth_count; tenant_id is derived from the post, never supplied by the caller.';
 
+-- Czyszczenie osieroconych obiektów cache TTS po starym dostawcy.
+--
+-- POPRAWKA 2026-08-03: ten blok robił BEZPOŚREDNI `DELETE FROM storage.objects`,
+-- co od storage-api >= 0055 (w CI od pinu supabase/setup-cli 2.111.0) rzuca
+-- 42501 „Direct deletion from storage tables is not allowed" - statementowy
+-- trigger `protect_objects_delete` wymaga GUC `storage.allow_delete_query`.
+-- Skutek był poważniejszy niż nieudane czyszczenie cache'u: `supabase db start`
+-- PRZERYWAŁ tu odtwarzanie migracji, więc jobs `pgtap`, `e2e` i `e2e-seeded`
+-- padały na tej jednej instrukcji, a ŻADNA późniejsza migracja nie była już
+-- w CI walidowana.
+--
+-- Furtka jest dokładnie ta sama, którą repo sankcjonuje od 20260801122000
+-- (`tg_messages_purge_attachment`): GUC ustawiony TRANSAKCYJNIE wokół DELETE
+-- i przywrócony po nim, plus blok EXCEPTION, żeby kolejna zmiana w storage-api
+-- nie zabiła znowu całego odtworzenia bazy. Czyszczenie cache'u jest
+-- porządkowe - ostrzeżenie jest tu właściwą reakcją, przerwanie migracji nie.
 DO $$
+DECLARE
+  v_prev text;
 BEGIN
   IF EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'tts-cache') THEN
-    DELETE FROM storage.objects
-     WHERE bucket_id = 'tts-cache'
-       AND name LIKE '%-eleven!_%' ESCAPE '!';
+    BEGIN
+      v_prev := current_setting('storage.allow_delete_query', true);
+      PERFORM set_config('storage.allow_delete_query', 'true', true);
+      DELETE FROM storage.objects
+       WHERE bucket_id = 'tts-cache'
+         AND name LIKE '%-eleven!_%' ESCAPE '!';
+      PERFORM set_config('storage.allow_delete_query', coalesce(v_prev, 'false'), true);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'tts: czyszczenie cache po starym dostawcy nie powiodlo sie: %', SQLERRM;
+    END;
   END IF;
 END $$;

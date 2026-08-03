@@ -303,6 +303,61 @@ Zweryfikowane osobnym `git worktree` na `origin/main`: ten sam jeden failed, 216
 `prettier/prettier`). Żaden z nich nie dotyczy plików tej gałęzi - sprawdzone maszynowo przez
 przecięcie raportu ESLint z listą `git status --porcelain`: 0 trafień.
 
+### Odblokowanie CI: `supabase db start` przerywał odtwarzanie migracji
+
+Po scaleniu padły `pgtap`, `e2e` i `e2e-seeded` - wszystkie trzy na **jednej instrukcji cudzej,
+wcześniejszej migracji** `20260803085428` (kanoniczny lektor TTS), która robiła bezpośredni
+`DELETE FROM storage.objects`:
+
+```
+ERROR: Direct deletion from storage tables is not allowed.
+       Use the Storage API instead. (SQLSTATE 42501)
+```
+
+Skutek był poważniejszy niż nieudane czyszczenie cache'u: `supabase db start` **przerywał
+odtwarzanie bazy w tym miejscu**, więc żadna późniejsza migracja - w tym `20260803140000` z tego
+wdrożenia - **nie była w CI walidowana w ogóle**, a testy nawet nie startowały
+(„No files were found with the provided path: playwright-report/").
+
+Repo udokumentowało ten dokładny problem **dwa dni wcześniej** w `20260801122000`: storage-api
+≥ 0055 (w CI od pinu `supabase/setup-cli` 2.111.0) zakłada statementowy trigger
+`protect_objects_delete`, który wymaga GUC `storage.allow_delete_query`. Poprawka nakłada tę samą,
+sankcjonowaną furtkę (transakcyjne `set_config` wokół `DELETE` + przywrócenie) i blok `EXCEPTION`,
+żeby kolejna zmiana w storage-api nie zabiła znowu całego odtworzenia bazy. Czyszczenie cache'u
+jest porządkowe - ostrzeżenie jest tu właściwą reakcją, przerwanie migracji nie.
+
+Awaria była **zastana na `main`**: run `30826604510` (`85b4c7b`) ma `pgtap` czerwony na tym samym
+kroku 4 („Start local database") i `verify` czerwony na tym samym kroku 7 („Test + coverage gate").
+
+### Walidacja migracji na prawdziwym PostgreSQL 16
+
+Skoro CI nie dochodziło do tej migracji, walidacja poszła lokalnie: PostgreSQL 16.13, wierny
+szkielet (`auth.users`, `tenants`, `profiles`, `auth.uid()` sterowane GUC,
+`current_tenant_id()`, role `anon`/`authenticated`/`service_role`), na nim **oryginalne** migracje
+rejestru (`20260717095322`, `20260802155237`), a dopiero na nich `20260803140000`.
+
+| Sprawdzenie                                                              | Wynik |
+| ------------------------------------------------------------------------ | ----- |
+| migracja stosuje się bez błędu                                           | ✓     |
+| drugi przebieg też przechodzi (idempotencja)                             | ✓     |
+| nowa sygnatura 8-arg, argumenty NAZWANE, `p_gpc => true`                 | ✓     |
+| dokładnie DWA przeciążenia, `p_gpc` BEZ defaultu (4 defaulty na 8 argów) | ✓     |
+| stary shim 7-arg deleguje z `gpc = false` (bez rekurencji)               | ✓     |
+| `gpc`, `source` i `tenant_id` lądują w audit-logu                        | ✓     |
+| wycofanie `gpc_signal` ustawia `withdrawn_at`                            | ✓     |
+| stempel tenanta NIE jest przepisywany decyzją w innym obszarze           | ✓     |
+| brak sesji → `not_authenticated` (fail-closed)                           | ✓     |
+| `authenticated` ma na rejestrze **wyłącznie** `SELECT`                   | ✓     |
+| zostały **tylko** polityki `SELECT`                                      | ✓     |
+| bezpośredni `INSERT` do stanu → `permission denied for table`            | ✓     |
+| podrobienie wpisu audit-logu → `permission denied for table`             | ✓     |
+| podstawienie OBCEGO `tenant_id` → `permission denied for table`          | ✓     |
+| `DELETE` własnej zgody (obejście audytu) → `permission denied for table` | ✓     |
+| RPC nadal działa dla tego samego użytkownika                             | ✓     |
+
+To domyka jedyną lukę w weryfikacji: cztery wektory podrabiania rejestru z sekcji 4 migracji są
+teraz sprawdzone wykonaniem, nie tylko rozumowaniem.
+
 ### Rozwiązanie konfliktu scalania
 
 PR zapalił „Unable to merge". Jedynym konfliktem był `src/routeTree.gen.ts` - plik GENEROWANY,
