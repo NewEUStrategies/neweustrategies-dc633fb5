@@ -10572,10 +10572,12 @@ export type Database = {
           consent_key: string
           created_at: string
           given: boolean
+          gpc: boolean
           id: string
           ip: string | null
           lang: string | null
           source: string | null
+          tenant_id: string | null
           user_agent: string | null
           user_id: string
           version: string
@@ -10584,10 +10586,12 @@ export type Database = {
           consent_key: string
           created_at?: string
           given: boolean
+          gpc?: boolean
           id?: string
           ip?: string | null
           lang?: string | null
           source?: string | null
+          tenant_id?: string | null
           user_agent?: string | null
           user_id: string
           version: string
@@ -10596,15 +10600,25 @@ export type Database = {
           consent_key?: string
           created_at?: string
           given?: boolean
+          gpc?: boolean
           id?: string
           ip?: string | null
           lang?: string | null
           source?: string | null
+          tenant_id?: string | null
           user_agent?: string | null
           user_id?: string
           version?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_consent_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_consents: {
         Row: {
@@ -10612,8 +10626,10 @@ export type Database = {
           created_at: string
           given: boolean
           given_at: string | null
+          gpc: boolean
           ip: string | null
           lang: string | null
+          tenant_id: string | null
           updated_at: string
           user_agent: string | null
           user_id: string
@@ -10625,8 +10641,10 @@ export type Database = {
           created_at?: string
           given: boolean
           given_at?: string | null
+          gpc?: boolean
           ip?: string | null
           lang?: string | null
+          tenant_id?: string | null
           updated_at?: string
           user_agent?: string | null
           user_id: string
@@ -10638,15 +10656,25 @@ export type Database = {
           created_at?: string
           given?: boolean
           given_at?: string | null
+          gpc?: boolean
           ip?: string | null
           lang?: string | null
+          tenant_id?: string | null
           updated_at?: string
           user_agent?: string | null
           user_id?: string
           version?: string
           withdrawn_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_consents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_follows: {
         Row: {
@@ -14367,36 +14395,72 @@ export type Database = {
         }
         Returns: string
       }
-      set_user_consent: {
-        Args: {
-          p_given: boolean
-          p_ip?: string
-          p_key: string
-          p_lang?: string
-          p_source?: string
-          p_user_agent?: string
-          p_version: string
-        }
-        Returns: {
-          consent_key: string
-          created_at: string
-          given: boolean
-          given_at: string | null
-          ip: string | null
-          lang: string | null
-          updated_at: string
-          user_agent: string | null
-          user_id: string
-          version: string
-          withdrawn_at: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "user_consents"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      set_user_consent:
+        | {
+            Args: {
+              p_given: boolean
+              p_gpc: boolean
+              p_ip?: string
+              p_key: string
+              p_lang?: string
+              p_source?: string
+              p_user_agent?: string
+              p_version: string
+            }
+            Returns: {
+              consent_key: string
+              created_at: string
+              given: boolean
+              given_at: string | null
+              gpc: boolean
+              ip: string | null
+              lang: string | null
+              tenant_id: string | null
+              updated_at: string
+              user_agent: string | null
+              user_id: string
+              version: string
+              withdrawn_at: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "user_consents"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_given: boolean
+              p_ip?: string
+              p_key: string
+              p_lang?: string
+              p_source?: string
+              p_user_agent?: string
+              p_version: string
+            }
+            Returns: {
+              consent_key: string
+              created_at: string
+              given: boolean
+              given_at: string | null
+              gpc: boolean
+              ip: string | null
+              lang: string | null
+              tenant_id: string | null
+              updated_at: string
+              user_agent: string | null
+              user_id: string
+              version: string
+              withdrawn_at: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "user_consents"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
       skill_endorsement_counts: {
         Args: { p_user: string }
         Returns: {
