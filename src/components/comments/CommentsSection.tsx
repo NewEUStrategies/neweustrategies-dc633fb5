@@ -3,7 +3,7 @@
 // (enforced by the DB trigger `comments_before_insert`); with
 // require_login_to_comment=false guests may post with a signature (server fn
 // with IP rate limit + honeypot; the DB trigger stays the source of truth).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -16,10 +16,11 @@ import { Button } from "@/components/ui/button";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { MentionText } from "@/components/mentions/MentionText";
 import { MentionTextarea } from "@/components/mentions/MentionTextarea";
+import { CommentComposerShell } from "@/components/comments/CommentComposerShell";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/appDialogs";
 import { Trash2 } from "@/lib/lucide-shim";
-import { MessageCircle, Pencil, Reply } from "lucide-react";
+import { CornerDownLeft, MessageCircle, Pencil, Reply } from "lucide-react";
 import {
   canEditComment,
   createComment,
