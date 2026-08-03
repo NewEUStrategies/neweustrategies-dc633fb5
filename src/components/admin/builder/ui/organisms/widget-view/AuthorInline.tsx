@@ -45,7 +45,7 @@ export function AuthorInline({
   const safeName = name.trim();
   if (!safeName) return null;
 
-  const safeAvatar = safeImageUrl(avatarUrl);
+  const safeAvatar = safeImageUrl(avatarUrl ?? undefined);
   const style: React.CSSProperties = {
     fontSize: `${fontSizePx}px`,
     lineHeight: 1.35,
