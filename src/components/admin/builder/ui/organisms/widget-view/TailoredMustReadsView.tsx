@@ -4,6 +4,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
+import { AppLink } from "@/components/atoms/AppLink";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { useAuth } from "@/hooks/useAuth";
 import { useRecommendedPosts } from "@/hooks/useRecommendedPosts";
