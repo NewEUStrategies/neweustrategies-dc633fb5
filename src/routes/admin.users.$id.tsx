@@ -40,13 +40,8 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { impersonateUser } from "@/lib/admin/impersonation";
-import {
-  BADGE_ORDER,
-  badgeLabel,
-  grantBadge,
-  revokeBadge,
-  useUserBadges,
-} from "@/lib/profile/badges";
+import { BADGE_ORDER, badgeLabel, useUserBadges } from "@/lib/profile/badges";
+import { grantBadge, revokeUserBadge } from "@/lib/admin/badges";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { AuthorProfileEditor } from "@/components/profile/AuthorProfileEditor";
 import { adminToast } from "@/lib/adminToasts";
@@ -341,7 +336,7 @@ function UserDetail() {
           </Card>
 
           <Card title={L("Odznaki", "Badges")}>
-            <BadgesEditor userId={data.id} tenantId={tenantId ?? null} />
+            <BadgesEditor userId={data.id} />
           </Card>
 
           <Card title={L("Zgody prywatności", "Privacy consent")}>
@@ -611,7 +606,7 @@ function AvatarEditor({
 
 // Nadawanie/odbieranie odznak profilowych (verified/expert/contributor/staff).
 // Nadanie triggeruje w DB powiadomienie do użytkownika.
-function BadgesEditor({ userId, tenantId }: { userId: string; tenantId: string | null }) {
+function BadgesEditor({ userId }: { userId: string }) {
   const { i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();
@@ -621,10 +616,9 @@ function BadgesEditor({ userId, tenantId }: { userId: string; tenantId: string |
   const toggle = async (badge: (typeof BADGE_ORDER)[number], has: boolean) => {
     try {
       if (has) {
-        await revokeBadge(userId, badge);
+        await revokeUserBadge(userId, badge);
       } else {
-        if (!tenantId) throw new Error("tenant");
-        await grantBadge(userId, badge, tenantId);
+        await grantBadge(userId, badge);
       }
       await qc.invalidateQueries({ queryKey: ["profile-badges"] });
     } catch {
@@ -647,7 +641,7 @@ function BadgesEditor({ userId, tenantId }: { userId: string; tenantId: string |
               disabled={badgesQ.isLoading}
               onClick={() => void toggle(badge, has)}
             >
-              {has ? "− " : "+ "}
+              {has ? "- " : "+ "}
               {badgeLabel(badge, lang)}
             </Button>
           );

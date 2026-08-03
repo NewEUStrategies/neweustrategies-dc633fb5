@@ -314,10 +314,10 @@ SELECT set_config('request.jwt.claims',
   '{"sub":"d0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 
 SELECT lives_ok(
-  $$ INSERT INTO public.profile_badges (tenant_id, user_id, badge)
-     VALUES ('d4444444-4444-4444-4444-444444444444',
-             'd0000000-0000-0000-0000-000000000003', 'verified') $$,
-  'admin: INSERT profile_badges dozwolone (has_role admin, tenant match)'
+  $$ SELECT public.admin_grant_profile_badge(
+       'd0000000-0000-0000-0000-000000000003', 'verified', NULL
+     ) $$,
+  'admin: nadanie profile_badges dozwolone przez tenantowe RPC'
 );
 
 SELECT lives_ok(
@@ -335,10 +335,10 @@ SELECT lives_ok(
 );
 
 SELECT lives_ok(
-  $$ DELETE FROM public.profile_badges
-      WHERE tenant_id = 'd4444444-4444-4444-4444-444444444444'
-        AND badge = 'verified' $$,
-  'admin: DELETE profile_badges dozwolone (has_role admin, tenant match)'
+  $$ SELECT public.admin_revoke_user_profile_badge(
+       'd0000000-0000-0000-0000-000000000003', 'verified'
+     ) $$,
+  'admin: odebranie profile_badges dozwolone przez tenantowe RPC'
 );
 
 SELECT lives_ok(

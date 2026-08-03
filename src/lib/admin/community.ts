@@ -1,10 +1,10 @@
-// Panel superadmina Community — warstwa danych (queries + mutations) dla
+// Panel superadmina Community - warstwa danych (queries + mutations) dla
 // modułów: Chat, Events, Q&A. Współdzielona przez /admin/community/*.
 //
 // Zasady:
 //  - Dostęp do wszystkich rekordów odbywa się dzięki RLS "*_staff_*"
 //    (has_role admin | super_admin | editor). Klient używa zwykłego supabase.
-//  - Toggle modułów w site_settings.community_modules — globalne włączanie/
+//  - Toggle modułów w site_settings.community_modules - globalne włączanie/
 //    wyłączanie funkcji app'a.
 //  - Metryki w admin_community_stats() (jeden round-trip).
 import { supabase } from "@/integrations/supabase/client";
@@ -689,57 +689,6 @@ export async function reviewContributorSubmission(
   };
   if (editorNote !== undefined) patch.editor_note = editorNote;
   const { error } = await supabase.from("contributor_submissions").update(patch).eq("id", id);
-  if (error) throw error;
-}
-
-// ------- Badges --------
-
-export type BadgeRow = Database["public"]["Tables"]["profile_badges"]["Row"];
-
-export interface BadgeCatalogEntry {
-  key: string;
-  labelPl: string;
-  labelEn: string;
-}
-
-export const BADGE_CATALOG: BadgeCatalogEntry[] = [
-  { key: "verified", labelPl: "Zweryfikowany", labelEn: "Verified" },
-  { key: "contributor", labelPl: "Współtwórca", labelEn: "Contributor" },
-  { key: "expert", labelPl: "Ekspert", labelEn: "Expert" },
-  { key: "moderator", labelPl: "Moderator", labelEn: "Moderator" },
-  { key: "early_adopter", labelPl: "Wczesny użytkownik", labelEn: "Early adopter" },
-  { key: "supporter", labelPl: "Wspierający", labelEn: "Supporter" },
-];
-
-export async function fetchBadges(): Promise<BadgeRow[]> {
-  const { data, error } = await supabase
-    .from("profile_badges")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(300);
-  if (error) throw error;
-  return data ?? [];
-}
-
-export async function grantBadge(userId: string, badge: string, note?: string): Promise<void> {
-  const { data: profile, error: pErr } = await supabase
-    .from("profiles")
-    .select("tenant_id")
-    .eq("id", userId)
-    .maybeSingle();
-  if (pErr) throw pErr;
-  if (!profile?.tenant_id) throw new Error("Cannot resolve tenant for user");
-  const { error } = await supabase.from("profile_badges").insert({
-    user_id: userId,
-    badge,
-    note: note ?? null,
-    tenant_id: profile.tenant_id,
-  });
-  if (error) throw error;
-}
-
-export async function revokeBadge(id: string): Promise<void> {
-  const { error } = await supabase.from("profile_badges").delete().eq("id", id);
   if (error) throw error;
 }
 

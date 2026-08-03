@@ -1,23 +1,27 @@
-// Odznaki profilowe (profile_badges): warstwa danych + katalog etykiet.
-// Odczyt publiczny w obrębie tenantu (RLS); nadawanie/odbieranie tylko admin.
+// Odznaki profilowe (profile_badges): publiczna warstwa danych.
+// Odczyt jest ograniczony przez RLS do aktywnego tenantu. Mutacje admina żyją
+// w lib/admin/badges i przechodzą przez RPC wyprowadzające tenant z sesji.
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  BADGE_ORDER,
+  badgeLabel,
+  isProfileBadgeKind,
+  normalizeProfileBadges,
+  PROFILE_BADGE_CATALOG,
+  PROFILE_BADGE_KINDS,
+  type ProfileBadgeKind,
+} from "./badgeCatalog";
 
-export type ProfileBadgeKind = "verified" | "expert" | "contributor" | "staff";
-
-export const BADGE_ORDER: ProfileBadgeKind[] = ["verified", "expert", "staff", "contributor"];
-
-export const BADGE_LABELS: Record<ProfileBadgeKind, { pl: string; en: string }> = {
-  verified: { pl: "Zweryfikowany", en: "Verified" },
-  expert: { pl: "Ekspert", en: "Expert" },
-  contributor: { pl: "Autor gościnny", en: "Contributor" },
-  staff: { pl: "Redakcja", en: "Staff" },
+export {
+  BADGE_ORDER,
+  badgeLabel,
+  isProfileBadgeKind,
+  normalizeProfileBadges,
+  PROFILE_BADGE_CATALOG,
+  PROFILE_BADGE_KINDS,
+  type ProfileBadgeKind,
 };
-
-export function badgeLabel(badge: ProfileBadgeKind, lang: string): string {
-  const def = BADGE_LABELS[badge];
-  return lang === "en" ? def.en : def.pl;
-}
 
 /** Odznaki dla partii użytkowników (np. strona katalogu /people) jednym zapytaniem. */
 export async function fetchBadgesForUsers(
@@ -31,15 +35,13 @@ export async function fetchBadgesForUsers(
     .in("user_id", userIds);
   if (error) throw error;
   for (const row of data ?? []) {
+    if (!isProfileBadgeKind(row.badge)) continue;
     const list = map.get(row.user_id) ?? [];
-    list.push(row.badge as ProfileBadgeKind);
+    list.push(row.badge);
     map.set(row.user_id, list);
   }
   for (const [key, list] of map) {
-    map.set(
-      key,
-      BADGE_ORDER.filter((b) => list.includes(b)),
-    );
+    map.set(key, normalizeProfileBadges(list));
   }
   return map;
 }
@@ -63,26 +65,10 @@ export function useUserBadges(userId: string | undefined): UseQueryResult<Profil
     queryKey: ["profile-badges", "single", userId ?? "none"],
     enabled: !!userId,
     queryFn: async () => {
-      const map = await fetchBadgesForUsers([userId!]);
-      return map.get(userId!) ?? [];
+      if (!userId) return [];
+      const map = await fetchBadgesForUsers([userId]);
+      return map.get(userId) ?? [];
     },
     staleTime: 60_000,
   });
-}
-
-/** Admin: nadaj odznakę (trigger w DB powiadamia użytkownika). */
-export async function grantBadge(userId: string, badge: ProfileBadgeKind, tenantId: string) {
-  const { error } = await supabase
-    .from("profile_badges")
-    .insert({ user_id: userId, badge, tenant_id: tenantId });
-  if (error) throw error;
-}
-
-export async function revokeBadge(userId: string, badge: ProfileBadgeKind) {
-  const { error } = await supabase
-    .from("profile_badges")
-    .delete()
-    .eq("user_id", userId)
-    .eq("badge", badge);
-  if (error) throw error;
 }

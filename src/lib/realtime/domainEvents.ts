@@ -32,6 +32,10 @@ export const DOMAIN_EVENT_TYPES = [
   "event.published.v1",
   "event.cancelled.v1",
   "policy.updated.v1",
+  // Odznaki profilowe: odbiorca jest aktorem zdarzenia, staff widzi całość
+  // tenantu. Payload zawiera wyłącznie user_id, badge i grant_source.
+  "profile_badge.granted.v1",
+  "profile_badge.revoked.v1",
   // Monetyzacja (migracja 20260723120000): katalog cennika (warstwy/plany/
   // segmenty/FAQ - zdarzenie "changed" z op w payloadzie) oraz cykl życia
   // uprawnień (subskrypcje/nadania/organizacje/miejsca/darowizny). Aktorem
@@ -85,6 +89,7 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "newsletter_subscriber",
   "event",
   "policy",
+  "profile_badge",
   "membership_tier",
   "access_plan",
   "pricing_audience",

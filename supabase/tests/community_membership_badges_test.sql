@@ -160,10 +160,10 @@ SELECT set_config('request.jwt.claims',
   '{"sub":"c1000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);
 
 SELECT lives_ok(
-  $$ INSERT INTO public.profile_badges (tenant_id, user_id, badge)
-     VALUES ('c1111111-1111-1111-1111-111111111111',
-             'c1000000-0000-0000-0000-0000000000bb', 'expert') $$,
-  'admin nadaje odznake we wlasnym tenancie'
+  $$ SELECT public.admin_grant_profile_badge(
+       'c1000000-0000-0000-0000-0000000000bb', 'expert', NULL
+     ) $$,
+  'admin nadaje odznake we wlasnym tenancie przez RPC'
 );
 
 SELECT set_config('request.jwt.claims',
