@@ -201,7 +201,12 @@ export const TERMS_CONTENT: LegalDocContent = {
           "Infringing third-party intellectual property rights.",
           "Interfering with the security of the service: malware, vulnerability probing, circumventing limits, bulk scraping.",
           "Reselling, redistributing or sharing paid content with people who have no valid access.",
+          "Categorically prohibited content: adult material, hate speech, incitement to violence and harassment, weapons and ammunition, drugs and controlled substances, gambling, speculative crypto assets, pyramid schemes, and anything infringing copyright or trademarks.",
+          "You must be 18 or older (or have guardian consent) and may only register on your own behalf or on behalf of a company you represent.",
+          "Report violations to kontakt@neweuropeanstrategies.com - we review reports without undue delay and within 14 days at the latest.",
+          "Breaching these rules entitles us to limit features, suspend the account or terminate the agreement with immediate effect; any unused paid period is refunded pro rata unless the breach was fraudulent.",
         ],
+
       },
       {
         id: "wlasnosc",
