@@ -452,7 +452,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-1">
+        // Card-style composer: pełnej szerokości pole tekstowe, a pod nim pasek
+        // narzędzi (emoji + załącznik po lewej, mikrofon/wyślij po prawej).
+        <div className="flex w-full flex-col gap-1.5 rounded-[6px] border border-input bg-muted/30 px-2 py-1.5 transition-colors focus-within:border-ring/60 focus-within:bg-background">
           <input
             ref={fileInputRef}
             type="file"
@@ -464,113 +466,121 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               e.target.value = "";
             }}
           />
-          {!editing && (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!!uploading || !!staged}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
-              aria-label={t("chat.attach")}
-              title={`${t("chat.attach")} (max ${formatBytes(30 * 1024 * 1024, lang)})`}
-            >
-              <Paperclip className="h-4 w-4" aria-hidden />
-            </button>
-          )}
 
-          <div className="relative min-w-0 flex-1">
-            <textarea
-              ref={textareaRef}
-              value={text}
-              rows={1}
-              maxLength={MAX_BODY_LENGTH}
-              onChange={(e) => {
-                setText(e.target.value);
-                resize();
-                emitTyping();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void submit();
-                } else if (e.key === "Escape" && editing) {
-                  // Cancel the edit only - do not bubble up to the dock
-                  // window's Escape-to-close handler.
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onCancelEdit();
-                } else if (e.key === "Escape" && staged) {
-                  e.preventDefault();
-                  clearStaged();
-                }
-              }}
-              placeholder={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
-              aria-label={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
-              className="max-h-[120px] w-full resize-none rounded-[6px] border border-input bg-muted/40 py-1.5 pl-3 pr-9 text-[13px] leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-              <PopoverTrigger asChild>
+          <textarea
+            ref={textareaRef}
+            value={text}
+            rows={1}
+            maxLength={MAX_BODY_LENGTH}
+            onChange={(e) => {
+              setText(e.target.value);
+              resize();
+              emitTyping();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void submit();
+              } else if (e.key === "Escape" && editing) {
+                // Cancel the edit only - do not bubble up to the dock
+                // window's Escape-to-close handler.
+                e.preventDefault();
+                e.stopPropagation();
+                onCancelEdit();
+              } else if (e.key === "Escape" && staged) {
+                e.preventDefault();
+                clearStaged();
+              }
+            }}
+            placeholder={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
+            aria-label={staged ? t("chat.caption.placeholder") : t("chat.inputPlaceholder")}
+            className="max-h-[120px] w-full resize-none border-none bg-transparent px-1 py-1 text-[13px] leading-relaxed shadow-none outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+          />
+
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-0.5">
+              <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                      emojiOpen && "bg-muted text-foreground",
+                    )}
+                    aria-label={t("chat.emoji")}
+                    title={t("chat.emoji")}
+                  >
+                    <Smile className="h-4 w-4" aria-hidden />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="top"
+                  align="start"
+                  sideOffset={8}
+                  className="w-auto overflow-hidden rounded-[6px] border-border/60 bg-popover p-0 shadow-xl"
+                >
+                  <Suspense
+                    fallback={<div className="h-[264px] w-[288px] animate-pulse bg-muted/40" />}
+                  >
+                    <EmojiPicker
+                      onPick={(emoji) => {
+                        insertEmoji(emoji);
+                      }}
+                    />
+                  </Suspense>
+                </PopoverContent>
+              </Popover>
+
+              {!editing && (
                 <button
                   type="button"
-                  className={cn(
-                    "absolute bottom-[7px] right-2 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                    emojiOpen && "text-foreground",
-                  )}
-                  aria-label={t("chat.emoji")}
-                  title={t("chat.emoji")}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!!uploading || !!staged}
+                  className="flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+                  aria-label={t("chat.attach")}
+                  title={`${t("chat.attach")} (max ${formatBytes(30 * 1024 * 1024, lang)})`}
                 >
-                  <Smile className="h-4 w-4" aria-hidden />
+                  <Paperclip className="h-4 w-4" aria-hidden />
                 </button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="top"
-                align="end"
-                sideOffset={8}
-                className="w-auto overflow-hidden border-border/60 bg-popover p-0 shadow-xl"
-              >
-                <Suspense
-                  fallback={<div className="h-[264px] w-[288px] animate-pulse bg-muted/40" />}
-                >
-                  <EmojiPicker
-                    onPick={(emoji) => {
-                      insertEmoji(emoji);
-                    }}
-                  />
-                </Suspense>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {!editing && !text.trim() && !staged && recorder.supported ? (
-            // WhatsApp morph: empty input shows the mic, typing/staging swaps
-            // it for send.
-            <button
-              type="button"
-              onClick={() => void recorder.start()}
-              disabled={!!uploading}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--chat-user-to)] transition-all hover:bg-muted disabled:opacity-35"
-              aria-label={t("chat.voice.record")}
-              title={t("chat.voice.record")}
-            >
-              <Mic className="h-4.5 w-4.5" aria-hidden />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={!text.trim() && !staged}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--chat-user-to)] transition-all hover:bg-muted disabled:opacity-35"
-              aria-label={editing ? t("chat.saveEdit") : t("chat.send")}
-              title={editing ? t("chat.saveEdit") : t("chat.send")}
-            >
-              {editing ? (
-                <Check className="h-4.5 w-4.5" aria-hidden />
-              ) : (
-                <SendHorizontal className="h-4.5 w-4.5" aria-hidden />
               )}
-            </button>
-          )}
+            </div>
+
+            {!editing && !text.trim() && !staged && recorder.supported ? (
+              // WhatsApp morph: empty input shows the mic, typing/staging swaps
+              // it for send.
+              <button
+                type="button"
+                onClick={() => void recorder.start()}
+                disabled={!!uploading}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] text-[var(--chat-user-to)] transition-colors hover:bg-muted disabled:opacity-35"
+                aria-label={t("chat.voice.record")}
+                title={t("chat.voice.record")}
+              >
+                <Mic className="h-4.5 w-4.5" aria-hidden />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={!text.trim() && !staged}
+                className="flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[6px] bg-[var(--chat-user-to)] px-3 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-35"
+                aria-label={editing ? t("chat.saveEdit") : t("chat.send")}
+                title={editing ? t("chat.saveEdit") : t("chat.send")}
+              >
+                {editing ? (
+                  <Check className="h-4 w-4" aria-hidden />
+                ) : (
+                  <SendHorizontal className="h-4 w-4" aria-hidden />
+                )}
+                <span className="hidden sm:inline">
+                  {editing ? t("chat.saveEdit") : t("chat.send")}
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       )}
+
     </div>
   );
 });
