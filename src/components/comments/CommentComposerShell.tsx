@@ -161,4 +161,4 @@ export function CommentComposerShell({
   );
 }
 
-export { Button as CommentComposerButton };
+
