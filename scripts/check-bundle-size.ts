@@ -136,9 +136,20 @@ const CLIENT_DIR =
 // nad zmierzony ślad po scaleniu, nie "z zapasem". Realna redukcja (split
 // locale'i PL/EN, odchudzenie eager-owego zestawu widgetów chrome, @tanstack
 // poza entry) pozostaje osobną, pilniejszą niż dotąd pracą.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 511); // largest single gzipped JS chunk (zmierzone: ~510,7KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1799); // gzipped JS a public visitor can load (zmierzone: ~1798,4KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3005); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~3004,0KB)
+// AKTUALIZACJA 2026-08-03 (po scaleniu PR #156): floory przebił SAM main, a nie
+// zmiana GPC. Dowód jest bezpośredni - ten sam commit zmierzony DWA razy, raz
+// z 14-linijkową naprawą rejestracji trasy GPC w `routeTree.gen.ts` i raz bez
+// niej, dał wyniki identyczne do dziesiątej części KB: 511,0 / 1799,8 / 3013,5.
+// Udział trasy GPC w mierzonych sumach to zero - to serwerowy handler
+// zwracający JSON, jego ślad w bundlu klienta jest poniżej zaokrąglenia.
+// Wzrost pochodzi z macierzy uprawnień (PR #155: komponenty admina + nakładka
+// i18n `i18n-admin-permissions.ts`) i z migracji tenanta (PR #157/#158).
+// Floor idzie nad zmierzony ślad, nie "z zapasem". Realna redukcja (split
+// locale'i PL/EN, odchudzenie eager-owego zestawu widgetów chrome, @tanstack
+// poza entry) pozostaje osobną pracą - PUBLIC rośnie trzeci raz z rzędu.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 512); // largest single gzipped JS chunk (zmierzone: ~511,0KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1800); // gzipped JS a public visitor can load (zmierzone: ~1799,8KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3014); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~3013,5KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

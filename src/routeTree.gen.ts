@@ -163,6 +163,7 @@ import { Route as AdminAudienceRouteImport } from './routes/admin.audience'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
+import { Route as Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport } from './routes/[.well-known]/gpc[.]json'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
@@ -1030,6 +1031,12 @@ const AdminAdsRoute = AdminAdsRouteImport.update({
   path: '/ads',
   getParentRoute: () => AdminRoute,
 } as any)
+const Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute =
+  Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport.update({
+    id: '/.well-known/gpc.json',
+    path: '/.well-known/gpc.json',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
   Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
     id: '/.well-known/oauth-protected-resource',
@@ -4221,6 +4228,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/ads'
       preLoaderRoute: typeof AdminAdsRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/.well-known/gpc.json': {
+      id: '/.well-known/gpc.json'
+      path: '/.well-known/gpc.json'
+      fullPath: '/.well-known/gpc.json'
+      preLoaderRoute: typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
