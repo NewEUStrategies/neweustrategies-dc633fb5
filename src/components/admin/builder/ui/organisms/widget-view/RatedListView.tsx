@@ -624,7 +624,10 @@ export function RatedListView({
                   </div>
                 )}
                 {(showAuthor && it.author) || (showDate && it.date) ? (
-                  <p className="rl-meta cms-meta mt-2 inline-flex flex-wrap items-center gap-x-3 gap-y-1" style={{ fontSize: `${metaSize}px` }}>
+                  <p
+                    className="rl-meta cms-meta mt-2 inline-flex flex-wrap items-center gap-x-3 gap-y-1"
+                    style={{ fontSize: `${metaSize}px` }}
+                  >
                     {showAuthor && it.author && (
                       <AuthorInline
                         name={it.author}

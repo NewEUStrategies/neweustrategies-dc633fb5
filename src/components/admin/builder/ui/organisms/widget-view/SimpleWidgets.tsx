@@ -1385,12 +1385,7 @@ export function renderSimpleWidget(
           <figcaption
             className={`flex flex-wrap items-center gap-3 ${variant === "centered" ? "justify-center" : ""}`}
           >
-            <AuthorInline
-              name={author}
-              avatarUrl={avatar}
-              lang={lang}
-              avatarRadiusPx={999}
-            />
+            <AuthorInline name={author} avatarUrl={avatar} lang={lang} avatarRadiusPx={999} />
             {role && <div className="cms-meta text-muted-foreground">{role}</div>}
           </figcaption>
         </figure>
