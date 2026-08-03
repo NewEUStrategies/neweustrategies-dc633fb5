@@ -284,9 +284,9 @@ ręcznie) albo usunąć kolumnę. Dokładnie ta klasa regresji powtarzała się 
 ### Stan po scaleniu z `main` (`85b4c7b`)
 
 ```
-vitest        5586 passed, 1 failed*, 50 skipped
+vitest        5616 passed, 0 failed, 50 skipped
 tsc --noEmit  czysto
-eslint        czysto (na plikach tej gałęzi)**
+eslint        czysto w CAŁYM repo (0 błędów)
 check:sql-tenant-scope         ✓ 524 funkcje
 check:sql-anon-insert          ✓ 514 polityk, 6 tabel intake
 check:sql-app-role             ✓ 875 literałów
@@ -398,6 +398,85 @@ Wdrożenie rekomendacji, w dwóch częściach:
 Odwołania do przenumerowanej migracji zaktualizowane w kodzie i komentarzach (7 plików +
 `WDROZENIE_RODO_RETENCJA_ZAMOWIEN`). Tabela audytu `OCENA_FUNKCJI_TABELE_2026-08-03` zostaje
 nietknięta - to migawka ustalenia, nie dokumentacja bieżącego stanu.
+
+### Trzy awarie ujawnione dopiero po odblokowaniu CI
+
+Naprawa odtwarzania bazy odsłoniła defekty, które przez cały czas były przykryte - `pgTAP` nie
+startował wcale, a `verify` padał przed swoimi bramkami. Wszystkie trzy są **zastane na `main`**.
+
+**1. `pgTAP profiles_pii_grant_test.sql` - test pilnował ścieżki, którą świadomie usunięto.**
+Padał na `permission denied for table profiles` (Bad plan: planned 10 but ran 8), bo jego sekcja (2)
+sprawdzała WIDOCZNOŚĆ WIERSZY dla anona w `public.profiles`, zakładając grant + filtrowanie RLS.
+Migracja `20260803095618` zlikwidowała tę ścieżkę wprost („Remove anon row-level read on profiles
+base table (full-row PII exposure)"): zdjęła politykę anona **i** `REVOKE ALL`. Test asertował więc
+dostęp, który jest dziś NIEPOŻĄDANY.
+
+Sekcja (2) pilnuje teraz stanu końcowego, i to **mocniej** niż wcześniej (plan 10 → 14): brak grantu
+tabelarycznego, brak grantu **kolumnowego** (pułapka, przed którą ostrzega `20260801120000`:
+„REVOKE tabelaryczny zeruje także ACL kolumnowe"), brak polityki anona - plus dowód, że
+sankcjonowana ścieżka publiczna (`profiles_public`, `author_profiles_public`) nadal działa i została
+definer-style. Asercje są czysto katalogowe, więc plik nie potrzebuje już fixture'ów ani
+`ALTER TABLE auth.users DISABLE TRIGGER USER`. Zweryfikowane na PostgreSQL 16 razem z **kontrolą
+negatywną**: asercja `security_invoker` realnie zapala się przy `security_invoker=on` (0 → 1).
+
+**2. Bramka wierności ustawień widgetu `join-us`.** Renderer czyta 19 kluczy treści
+(`title`, `perk1`, `namePlaceholder`, ...), których panel nie oferuje - bo panel przeszedł na
+`<klucz>_pl|_en`, a renderer trzyma klucz bezjęzykowy jako **fallback dla dokumentów sprzed
+migracji** (`pickStrict`, i tylko gdy nie ma ŻADNEJ wersji językowej). Żadna z dwóch „normalnych"
+dróg nie jest tu poprawna: wystawienie kluczy bezjęzykowych w panelu cofnęłoby naprawę przecieku
+PL/EN, a usunięcie fallbacku skasowałoby redakcji treść na istniejących stronach.
+
+To dokładnie ten kształt, dla którego repo ma już precedens - `toc.items`. Doszło więc zwolnienie…
+**plus test, którego zwolnienie dotąd nie miało**:
+`joinUsLegacyContent.test.tsx` (10 przypadków) pilnuje reguły precedencji, na którą zwolnienie się
+powołuje: zlokalizowane wygrywa, legacy tylko przy zerze wersji językowych, pusta wartość nie liczy
+się jako wersja, strona PL nie pokazuje tekstu wpisanego tylko po angielsku, wszystkie 19 kluczy
+realnie dociera do formularza, a zestaw zwolniony **pokrywa się dokładnie** z zestawem pokrytym
+testem. Bez tego zwolnienie byłoby deklaracją bez dowodu - i odwrócenie priorytetu w `pickStrict`
+przywróciłoby przeciek PL/EN po cichu.
+
+**3. `e2e`: `/tracker/rss.xml` i `/live/rss.xml` zwracały 404 tam, gdzie `/rss.xml` zwracał 200.**
+To był realny błąd w kodzie, nie w teście. Helper `crawlerDegradeIsSafe` rozdziela dwa powody braku
+tenanta i jego docstring mówi wprost: _„utrzymywane razem z resolveCrawlerTenantForHost, żeby
+predykat bezpieczeństwa był jeden"_ -
+
+- nieznany host przy **zasiedlonym** katalogu domen → 404 (nie wolno reklamować treści domyślnego
+  tenanta na cudzej domenie),
+- host podglądu/lokalny albo **pusty** katalog domen → nie ma czego wyciekać, więc kanał podaje
+  poprawny, PUSTY feed.
+
+`/rss.xml` miał oba człony; dwa nowsze kanały - tylko pierwszy. Stąd rozjazd `e2e` (bez seeda:
+katalog pusty → `/rss.xml` 200, tracker/live 404) vs `e2e-seeded` (katalog zasiedlony → wszystko
+200). Test kodował intencję poprawnie („404 jest akceptowalny tylko gdy redakcja wyłączyła RSS").
+
+Przegląd wszystkich powierzchni crawlerowych wykazał **trzecią** z tym samym brakiem:
+`news-sitemap.xml`, którego własny komentarz obiecywał tolerancję hosta podglądu („and that is not
+a preview host"), ale kod jej nie implementował. Naprawione wszystkie trzy; fail-closed dla realnych
+obcych domen nietknięty. Pozostałe powierzchnie (`robots.txt` - celowo „disallow all", strony
+treści per-slug, kanały podcastów) zostawiam bez zmian: żaden kontrakt nie wymaga tam degradacji,
+a zmiana zachowania izolacji tenantów bez testu, który by to walidował, to droga do regresji.
+
+Weryfikacja end-to-end na zbudowanym workerze, przy hoście podglądu (dokładnie warunek awarii
+`e2e`):
+
+| Ścieżka             | Przed               | Po                     |
+| ------------------- | ------------------- | ---------------------- |
+| `/rss.xml`          | 200 `<rss`          | 200 `<rss` (bez zmian) |
+| `/tracker/rss.xml`  | **404**             | **200 `<rss`**         |
+| `/live/rss.xml`     | **404**             | **200 `<rss`**         |
+| `/news-sitemap.xml` | **404** (latentnie) | **200 `<urlset`**      |
+
+### Zaległość lintu (blokujący krok CI, dotąd nieosiągalny)
+
+`bun run lint` (`eslint .`) jest krokiem **blokującym**, ale `verify` nigdy do niego nie dochodził -
+padał na kroku 7. Pod spodem czekało 86 auto-naprawialnych błędów `prettier/prettier` w 13 cudzych
+plikach. Naprawione `eslint --fix`; diff jest w 100% formatujący (przełamania atrybutów JSX,
+usunięcie pustych linii - sprawdzone `git diff -w`). `eslint .` zwraca teraz **0 błędów**
+(134 ostrzeżenia nie wpływają na kod wyjścia).
+
+`prettier --check .` zgłasza jeszcze 24 pliki, ale to **nie jest krok CI** - wśród nich generowany
+`src/integrations/supabase/types.ts`, którego formatowanie odpłynęłoby przy następnej regeneracji.
+Świadomie nietknięte.
 
 ### Walidacja migracji na prawdziwym PostgreSQL 16
 
