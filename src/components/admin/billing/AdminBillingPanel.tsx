@@ -150,10 +150,11 @@ export function AdminBillingPanel() {
     onSuccess: (r) =>
       toast.success(
         L(
-          `Katalog zsynchronizowany: ${r.created} nowych, ${r.updated} zaktualizowanych, ${r.failed} błędów`,
-          `Catalog synced: ${r.created} created, ${r.updated} updated, ${r.failed} failed`,
+          `Katalog zsynchronizowany: ${r.created} nowych, ${r.updated} zaktualizowanych, ${r.archived?.length ?? 0} zarchiwizowanych, ${r.failed} błędów`,
+          `Catalog synced: ${r.created} created, ${r.updated} updated, ${r.archived?.length ?? 0} archived, ${r.failed} failed`,
         ),
       ),
+
     onError: (e: Error) => toast.error(e.message),
     onSettled: () => void catalogStateQ.refetch(),
   });

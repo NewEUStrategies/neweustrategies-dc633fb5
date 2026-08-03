@@ -8,6 +8,7 @@
 import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
 
 import { PADDLE_CATALOG, type PaddlePriceEntry } from "./paddleCatalog";
+import type { ReapedEntry } from "./paddleCatalogReap.server";
 
 export type CatalogSyncAction = "created" | "updated" | "ok" | "skipped" | "failed";
 
@@ -23,10 +24,13 @@ export interface CatalogSyncReport {
   environment: PaddleEnv;
   ranAt: string;
   items: CatalogSyncItem[];
+  /** Pozycje zarchiwizowane, bo zniknęły ze źródła prawdy. */
+  archived: ReapedEntry[];
   created: number;
   updated: number;
   failed: number;
 }
+
 
 interface PlanRow {
   tier_key: string | null;
@@ -210,14 +214,50 @@ export async function syncPaddleCatalog(env: PaddleEnv = "sandbox"): Promise<Cat
     }
   }
 
+  const failed = items.filter((i) => i.price === "failed").length;
+
+  // Sprzątanie: pozycje, których nie ma już w źródle prawdy (usunięty wpis
+  // katalogu lub `access_plans.active = false`), znikają z oferty operatora.
+  // Robimy to wyłącznie po czystym przebiegu - błąd API nie może zostać
+  // odczytany jako "plan zniknął".
+  let archived: ReapedEntry[] = [];
+  if (failed === 0) {
+    const expectedPriceIds = new Set<string>();
+    const expectedProductIds = new Set<string>();
+    const inactivePriceIds = new Set<string>();
+    for (const entry of PADDLE_CATALOG) {
+      const plan = planFor(entry);
+      if (plan && plan.active !== false) {
+        expectedPriceIds.add(entry.priceId);
+        expectedProductIds.add(entry.productId);
+      } else {
+        inactivePriceIds.add(entry.priceId);
+      }
+    }
+    try {
+      const { reapOrphanCatalogEntries } = await import("./paddleCatalogReap.server");
+      archived = await reapOrphanCatalogEntries({
+        env,
+        expectedPriceIds,
+        expectedProductIds,
+        inactivePriceIds,
+      });
+    } catch (err) {
+      // Sprzątanie jest opcjonalne - nie unieważnia udanej synchronizacji.
+      console.error("[payments] catalog reap failed", err);
+    }
+  }
+
   return {
     environment: env,
     ranAt: new Date().toISOString(),
     items,
+    archived,
     created: items.filter((i) => i.product === "created" || i.price === "created").length,
     updated: items.filter((i) => i.price === "updated").length,
-    failed: items.filter((i) => i.price === "failed").length,
+    failed,
   };
+
 }
 
 /** Cache jednokrotnego samo-naprawiania w obrębie instancji workera. */
