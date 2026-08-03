@@ -527,24 +527,24 @@ export function renderSimpleWidget(
                   aria-label={label}
                   target={href ? "_blank" : undefined}
                   rel={href ? "noopener noreferrer" : undefined}
-                  // Kolor tekstu dziedziczy po body (dark/light), a nie po
-                  // stylach linków treści - to odnośnik zewnętrzny, ale ma
-                  // wyglądać jak wiersz listy, nie jak hiperłącze.
-                  style={{ color: "inherit", textDecoration: "none" }}
-                  className={`group flex items-center gap-3 border-b border-border/60 py-2.5 no-underline transition-colors last:border-b-0 hover:bg-muted/40 ${!href ? "pointer-events-none opacity-40" : ""}`}
+                  // Odnośnik zewnętrzny, ale wygląda jak wiersz listy, nie
+                  // jak hiperłącze. Na hover cały pasek przybiera kolor brandu
+                  // platformy, a tekst i ikona kontrastują z tłem.
+                  style={{ textDecoration: "none" }}
+                  className={`group flex items-center gap-3 border-b border-border/60 py-2.5 no-underline transition-colors last:border-b-0 hover:bg-brand hover:text-brand-foreground focus-visible:bg-brand focus-visible:text-brand-foreground ${!href ? "pointer-events-none opacity-40" : ""}`}
                 >
                   <span
-                    className={`inline-flex items-center justify-center ${radiusCls} shrink-0`}
+                    className={`inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors group-hover:bg-transparent group-hover:!text-brand-foreground`}
                     style={chipStyle(k, Boolean(href))}
                   >
                     <Cmp size={size} />
                   </span>
-                  <span className="mx-1 h-4 w-px shrink-0 bg-border/70" aria-hidden="true" />
-                  <span className="flex-1 truncate text-sm font-medium text-foreground">
+                  <span className="mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors group-hover:bg-brand-foreground/70" aria-hidden="true" />
+                  <span className="flex-1 truncate text-sm font-medium transition-colors group-hover:text-brand-foreground">
                     {label}
                   </span>
                   {cta && (
-                    <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground group-hover:text-foreground">
+                    <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground transition-colors group-hover:text-brand-foreground">
                       {cta}
                     </span>
                   )}
