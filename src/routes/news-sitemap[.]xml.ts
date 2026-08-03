@@ -10,7 +10,7 @@ import { localizedPath } from "@/lib/i18n/localePath";
 import { buildNewsSitemapXml, type NewsSitemapEntry } from "@/lib/seo/newsSitemap";
 import { effectiveNewsPublicationName, parseSeoSettings } from "@/lib/seo/settings";
 import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
-import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
+import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 async function requestContext(): Promise<{ origin: string; host: string }> {
   const req = getRequest();
@@ -28,17 +28,24 @@ export const Route = createFileRoute("/news-sitemap.xml")({
         // tenant. FAIL-CLOSED: a host no tenant has claimed (and that is not
         // a preview host) gets a 404 instead of the default tenant's articles
         // on a foreign domain.
+        // POPRAWKA 2026-08-03: komentarz wyżej obiecywał tolerancję hosta
+        // podglądu („and that is not a preview host"), ale kod jej NIE
+        // implementował - brakowało członu degradacji z `crawlerDegradeIsSafe`,
+        // tego samego, który ma `/rss.xml` i `sitemapRequest.server.ts`. Skutek:
+        // na hoście podglądu i przy pustym katalogu domen ten shard zwracał 404,
+        // choć indeks sitemapy go ogłasza. Fail-closed dla realnych obcych domen
+        // zostaje nietknięty. (Ta sama klasa, co /tracker/rss.xml i /live/rss.xml.)
         const tenantId = await resolveCrawlerTenantIdForHost(host);
-        if (!tenantId) {
+        if (!tenantId && !(await crawlerDegradeIsSafe(host))) {
           return new Response("Unknown host", { status: 404 });
         }
-        const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
+        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
         if (!settings.news_sitemap_enabled) {
           return new Response("News sitemap disabled", { status: 404 });
         }
 
         // 200 recent posts comfortably covers any 48h publishing window.
-        const posts = await fetchPublishedPosts(tenantId, 200);
+        const posts = tenantId ? await fetchPublishedPosts(tenantId, 200) : [];
         const entries: NewsSitemapEntry[] = [];
         for (const post of posts) {
           if (!post.published_at) continue;
