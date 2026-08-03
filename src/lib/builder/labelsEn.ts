@@ -1086,12 +1086,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   // ------------------------------------- wierność ustawień (bramka M3, 03.08)
   // Pola odsłonięte po tym, jak bramka panel⇄renderer pokazała, że renderer je
   // czytał, a panel nie dawał na nie kontrolki.
-  "Źródło linków": "Link source",
-  "Globalne linki do mediów społecznościowych ustawia się raz w Admin → Wygląd → Opcje motywu → „Ikony social” (/admin/theme-options). Widgety zaciągają je automatycznie.":
-    "Global social links are set once in Admin → Appearance → Theme options → “Social icons” (/admin/theme-options). Widgets pick them up automatically.",
-  "własne, a gdy puste - globalne": "own, falling back to global when empty",
-  "globalne (Opcje motywu → Ikony social)": "global (Theme options → Social icons)",
-  "tylko wpisane poniżej": "only the ones entered below",
+  // (klucze „Źródło linków” / social fallback są już wyżej - patrz linie 73-77)
   "Użyj logo witryny": "Use the site logo",
   "Bierze logo z Wygląd → Opcje motywu (wraz z wersją dark). Wtedy pola URL poniżej są ignorowane.":
     "Takes the logo from Appearance → Theme options (including its dark variant). The URL fields below are then ignored.",
