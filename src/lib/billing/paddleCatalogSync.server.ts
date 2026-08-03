@@ -247,12 +247,13 @@ export async function syncPaddleCatalog(env: PaddleEnv = "sandbox"): Promise<Cat
   return {
     environment: env,
     ranAt: new Date().toISOString(),
-
     items,
+    archived,
     created: items.filter((i) => i.product === "created" || i.price === "created").length,
     updated: items.filter((i) => i.price === "updated").length,
-    failed: items.filter((i) => i.price === "failed").length,
+    failed,
   };
+
 }
 
 /** Cache jednokrotnego samo-naprawiania w obrębie instancji workera. */
