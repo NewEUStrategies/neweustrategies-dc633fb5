@@ -11760,10 +11760,7 @@ export type Database = {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
       }
-      accounting_metadata_minimum: {
-        Args: { p_metadata: Json }
-        Returns: Json
-      }
+      accounting_metadata_minimum: { Args: { p_metadata: Json }; Returns: Json }
       accounting_retention_until: { Args: { p_at: string }; Returns: string }
       accounting_subject_ref: { Args: { p_user_id: string }; Returns: string }
       add_cross_reference: {
