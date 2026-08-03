@@ -1,48 +1,76 @@
-# Tabele modułów — funkcja po funkcji: ocena, argumenty, rekomendacje + szczegółowa ocena konkurencji (PL / UE / Świat) — 2026-08-03
+# Tabele modułów - funkcja po funkcji: ocena, argumenty, rekomendacje + szczegółowa ocena konkurencji (PL / UE / Świat) - 2026-08-03
 
-**Data:** 2026-08-03 · **HEAD:** `c4de8a2` (main po PR #127–#142 + commity Lovable prosto na main) ·
-**Gałąź:** `claude/modules-audit-competition-analysis-lzudv2`
+**Data:** 2026-08-03 · **REWIZJA 2** · **HEAD:** `715f934` (main po PR #143-#153 + commity Lovable
+prosto na main) · **Gałąź:** `claude/audyt-platformy-rewizja-2026-08-03`
 
-Dokument rozbija platformę na **20 modułów × pojedyncze funkcje**. Każda funkcja ma: ocenę 0–10,
-argument **✅ dobry**, argument **⚠️ słaby** i **🔧 rekomendację**. To **wydanie 2026-08-03** dokumentu
-`OCENA_FUNKCJI_TABELE_2026-08-01.md` (tamten pozostaje nietknięty jako migawka stanu 01.08). Druga część
-dokumentu — **znacznie rozbudowana wobec wydania 01.08** — to szczegółowa ocena konkurencji w trzech
-geografiach (PL / UE / Świat): pełne macierze per podmiot, rozbicia kryterialne, profile konkurentów,
-test kategorii zdolności i ranking wszystkich 38 podmiotów.
+> **Rewizja 2 tego samego dnia.** Rewizja 1 opisywała HEAD `c4de8a2`. Od tamtego pomiaru `main` przesunął
+> się o **99 commitów** (fala PR #143-#153), która **domknęła większość rekomendacji rewizji 1** - w tym
+> jedyny otwarty punkt P1. Dokument jest w całości przeliczony na aktualny kod: sygnały zmierzone od
+> nowa, wszystkie 20 modułów zweryfikowane, oceny NES w części konkurencyjnej przeliczone razem
+> z deltami i agregatami. Konwencja zmian: „**X → Y**" = zmiana względem **rewizji 1** (nie 01.08).
 
-> **Zakres wyłączony na życzenie zamawiającego:** dokument **nie ocenia treści artykułów** — ani NES, ani
+Dokument rozbija platformę na **20 modułów × pojedyncze funkcje**. Każda funkcja ma: ocenę 0-10,
+argument **✅ dobry**, argument **⚠️ słaby** i **🔧 rekomendację**. Druga część dokumentu to szczegółowa
+ocena konkurencji w trzech geografiach (PL / UE / Świat): pełne macierze per podmiot, rozbicia
+kryterialne, profile konkurentów, test kategorii zdolności i ranking wszystkich 38 podmiotów.
+
+> **Zakres wyłączony na życzenie zamawiającego:** dokument **nie ocenia treści artykułów** - ani NES, ani
 > konkurencji. Nie ma tu sądów o jakości analiz, doborze tematów, autorytecie marki czy sile redakcji.
-> Moduł 1 („Wpisy — czytelnik") mierzy **mechanikę czytania** (typografia, TOC, przypisy, postęp, audio,
+> Moduł 1 („Wpisy - czytelnik") mierzy **mechanikę czytania** (typografia, TOC, przypisy, postęp, audio,
 > bramka), nie wartość tekstu. Wszystkie oceny dotyczą **zdolności produktowych i inżynierskich**.
 
 ## Sygnały na tym HEAD (zmierzone, nie zadeklarowane)
 
-| Sygnał | Wynik 03.08 | 01.08 | Uwaga |
-| ------ | ----------- | ----- | ----- |
-| `vitest run` | **4625 pass / 0 fail / 50 skip** (507 plików pass, 2 skip) | 3666 pass | +959 testów w 2 dni |
-| `tsc --noEmit` | **czysto** | czysto | — |
-| `eslint .` | **czerwono: 146 problemów (10 errors / 136 warnings)** | czerwono: 1440 | wszystkie 10 błędów = `prettier/prettier` (formatowanie) |
-| `check:sql-tenant-scope` | ✓ (504 funkcje, 3 uzasadnione ścieżki publiczne) | ✓ | — |
-| `check:sql-app-role` | ✓ (870 literałów `has_role`) | ✓ | — |
-| `check:sql-anon-insert` | ✓ (**518 polityk** w stanie końcowym, 6 tabel intake) | ✓ (517) | metryka stanu końcowego |
-| Migracje / pgTAP | **579 migracji / 65 plików pgTAP** | ~557 / 65 | — |
-| Kod | 2405 plików TS/TSX · **509 plików testów** · 225 tras | — | — |
-| Bundle publiczny (budżet) | **≤1790 KB gzip** (zmierzone ~1756) | ≤1475 (zmierzone ~1472) | **regres: +284 KB, budżet podniesiony dwukrotnie** |
+| Sygnał | **Wynik r2 (HEAD 715f934)** | r1 (c4de8a2) | Uwaga |
+| ------ | --------------------------- | ------------ | ----- |
+| `vitest run` | **5477 pass / 0 fail / 50 skip** (537 plików pass, 2 skip) | 4625 pass | **+852 testów** w ciągu doby |
+| `tsc --noEmit` | **czysto** | czysto | - |
+| `eslint .` | **czerwono: 144 problemy (10 errors / 134 warnings)** | 146 (10 / 136) | te **same 10 błędów** `prettier/prettier` w 3 plikach z commitów Lovable (`ChatComposer`, `FriendlyErrorPage`, `MobileTopTools`) - bramka CI nadal czerwona na `main` |
+| `check:sql-tenant-scope` | ✓ (**523** funkcje, 3 uzasadnione ścieżki publiczne) | ✓ (504) | - |
+| `check:sql-app-role` | ✓ (**874** literały `has_role`) | ✓ (870) | - |
+| `check:sql-anon-insert` | ✓ (**519 polityk** w stanie końcowym, 6 tabel intake) | ✓ (518) | metryka stanu końcowego |
+| **`check:widget-fidelity` (nowa bramka)** | ✓ (**511 testów** w 3 plikach) | nie istniała | blokujący krok CI + artefakt raportu; **to wdrożona rekomendacja z r1** (parytet schemat⇄renderer) |
+| Migracje / pgTAP | **587 migracji / 69 plików pgTAP** | 579 / 65 | +4 suity kontraktowe |
+| Kod | **2483 pliki TS/TSX · 539 plików testów · 229 tras** | 2405 / 509 / 225 | - |
+| Bloki / widgety | **101 typów bloków / 89 widgetów** | 101 / 89 | bez zmian |
+| Bundle publiczny (budżet) | **≤1790 KB gzip** (zmierzone **~1788,9**) | ≤1790 (zmierzone ~1756) | **regres trwa**: +33 KB w dobę, do sufitu zostało **1,9 KB** |
 
-**Delta kodu od wydania 01.08:** 208 commitów, 584 plików, +35 808 / −7 028 linii. Fala PR #127–#142
-plus **duża liczba commitów Lovable pchanych prosto na `main`** (bramki CI weryfikują je post-hoc).
+**Delta kodu od rewizji 1:** 99 commitów, 210 plików, +22 682 / −4 551 linii. Fala **PR #143-#153**
+(dwa z nich to wydania tego audytu i jego wdrożenia) plus commity Lovable pchane prosto na `main`.
 
-Skala: **9–10** wybitne · **7–8** produkcyjne · **5–6** działa z wyraźną luką · **<5** zepsute/wydmuszka.
+Skala: **9-10** wybitne · **7-8** produkcyjne · **5-6** działa z wyraźną luką · **<5** zepsute/wydmuszka.
 Ocena modułu = kompozyt jego funkcji (kompletność + inżynieria + dopracowanie + bezpieczeństwo + testy).
-Konwencja: „**X → Y**" = zmiana względem wydania 01.08 · „**(nowa)**" = funkcja dodana po 01.08 ·
-„**(nowa w audycie)**" = funkcja istniała, ale **nie była objęta** tabelami 01.08 (luka pokrycia audytu).
+Konwencja: „**X → Y**" = zmiana względem **rewizji 1** · „**(nowa)**" = funkcja dodana po r1 ·
+„**(nowa w audycie)**" = funkcja istniała, ale **nie była objęta** tabelami wcześniejszych wydań.
+
+## Co domknęła fala PR #143-#153 (zweryfikowane na kodzie, nie na deklaracjach)
+
+| PR | Zamknięta rekomendacja r1 | Dowód w kodzie |
+| -- | ------------------------- | -------------- |
+| **#151** | **P1: `payment_orders.user_id ON DELETE CASCADE`** - usunięcie konta niszczyło dowody księgowe (art. 74 uor) | migracja `20260803090000_payment_orders_gdpr_retention`: FK → `ON DELETE SET NULL`, `user_id` bez `NOT NULL`, kolumny `subject_ref`/`anonymized_at`, `COMMENT` „nigdy CASCADE"; doc `WDROZENIE_RODO_RETENCJA_ZAMOWIEN` |
+| **#152** | **Gate parytetu schemat⇄renderer widgetów** (r1: „jedyna realna obrona przed powrotem klasy z PR #141") | `check:widget-fidelity` = 3 pliki / **511 testów**, blokujący krok CI + artefakt; mierzy **wykonaniem**, które klucze panel oferuje, a które renderer czyta; osobne bramki na dane przykładowe i język w kluczach zapytań |
+| **#148** | **Odznaki: katalog UI (6 kluczy) ≠ DB CHECK (4)**, zero auto-grantu | jeden `lib/profile/badgeCatalog.ts` (4 rodzaje = CHECK), kolumna `grant_source`, **auto-grant z reputacji** triggerami na Q&A/votes/RSVP/komentarzach/ankietach, RPC `admin_list_profile_badges`, pgTAP `profile_badge_domain_sync_test` |
+| **#147** | **TTS: 24-krotna amplifikacja kosztu** (klient wybierał głos i model, oba w kluczu cache) | `voiceId`/`model` **wypadły z ciała żądania**; kanoniczna „przypinka" per wpis (`lib/audio/ttsCanonical.ts`), ETag renditionu, sprzątanie osieroconych obiektów, pgTAP `post_tts_canonical_rendition_test` |
+| **#153** | **Sitemap jednoplikowa bez indeksu + `news-sitemap.xml` nieodkrywalny** | `/sitemap.xml` jest teraz `<sitemapindex>` z shardami sekcji (`sitemaps.$section.ts`, `lib/seo/sitemapIndex.ts`), `robots.txt` ogłasza indeks **i** news sitemap (gdy włączona) |
+| **#153** | **Monitor linków: brak polityki działania i alertu progowego** | migracja `20260803090000_link_monitor_archive_and_alerts`: zapamiętana migawka `web.archive.org` dla zepsutego linku + stan alertu progowego per tenant (raz na dobę / przy narośnięciu) |
+| **#150** | **Brak asercji pgTAP dla 3 rodzajów powiadomień** | `notification_preferences_gating_test.sql` pokrywa `enabled_tracker`, `enabled_saved_search`, `enabled_crm_task` |
+| **#144** | **Meta quizu zahardkodowane po polsku** (bez `activeLang`, bez `og:url`) | `quiz.tsx`: opis per język, self-referencing canonical + `og:url`, klaster hreflang PL/EN, JSON-LD `mainEntity → WebApplication` kredytujący `nes-quiz.com` |
+| **#146** | **Cross-block selection i Shift+strzałki** - jedyne twarde `✗` rdzenia edytora w matrycy parytetu z Gutenbergiem | `WDROZENIE_CROSS_BLOCK_SELECTION`: pełna semantyka WP dla zaznaczenia w poprzek bloków, operacje zbiorcze bez zmian w swoich modułach |
+| **#145** | Kanał RSS trackera + rozjazd limitów takeaways (wydanie tego audytu) | `/tracker/rss.xml`, `lib/keyTakeaways/limits.ts`, 2 nowe suity pgTAP |
+
+**Czego fala NIE ruszyła** (pozycje otwarte co najmniej cztery wydania): autozapis stron, import WP
+niszczący drugi język, dwie równoległe tabele programów, konfiguracja FTS czatu `simple`, allowlista MIME
+w STT, dedup `newsletter_campaign_events`, A/B po stronie klienta, `GA4_*` w `.env.example`, prerender,
+guard strumienia w e2e SSR, GPC, lista sesji, MFA w OAuth, `rel=amphtml` warunkowe, SVG w liście
+importera WP, pola stron w `REVISION_FIELDS`, gate unikalności wersji migracji (patrz korekta 5).
 
 ---
 
-# KOREKTY DO WYDANIA 01.08 (przed tabelami — bo zmieniają odczyt trzech modułów)
+# KOREKTY (przed tabelami - bo zmieniają odczyt pięciu modułów)
 
-Trzy ustalenia z weryfikacji na kodzie podważają zapisy z 01.08. Zostawiam je na wierzchu, bo
-audyt, który nie poprawia własnych błędów, jest tylko marketingiem:
+Pięć ustaleń z weryfikacji na kodzie podważa wcześniejsze zapisy - **trzy dotyczą wydania 01.08, dwie
+rewizji 1 z dzisiaj**. Zostawiam je na wierzchu, bo audyt, który nie poprawia własnych błędów, jest
+tylko marketingiem. Korekty 4 i 5 są ustaleniami rewizji 2 przeciw rewizji 1:
 
 **1. „Tracker: obserwacje nikogo nie powiadamiają" — NIEPRAWDA (błąd audytu 01.08).**
 Trigger `tg_eu_policy_update_applied` (migracja `20260713104316`, więc obowiązywał już 01.08) robi
@@ -77,9 +105,30 @@ nagłówek, stopka, popupy, szuflada mobilna, strony taksonomii. Metryka „100/
 pokrycie rejestru" była **odporna na tę klasę błędu**. Efektywna ocena buildera na 01.08 to ~7, nie 9;
 na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwariantu** (patrz M3).
 
+**4. Rewizja 1 oceniła „Powiadomienia in-app: 8" - a w bazie stała otwarta furtka phishingowa (przeoczenie audytu).**
+`enqueue_notification` jest SECURITY DEFINER, przyjmuje odbiorcę **wprost** (`p_user_id`) razem z tytułem,
+treścią, ikoną i `href`-em, a migracja `20260711081539` dała `EXECUTE` roli **`authenticated`**. Oznaczało
+to, że dowolny zalogowany użytkownik mógł przez PostgREST wstrzyknąć **dowolne powiadomienie do skrzynki
+dowolnego konta** - także w obcym tenancie (funkcja stempluje tenant z profilu **odbiorcy**, więc bramka
+tenanta nie stawiała oporu) i także jako rodzaj `'security'`, który obchodzi preferencje. Renderowany
+`href` czynił z tego gotowy kanał phishingowy wewnątrz produktu. Zamknięte 03.08 migracją
+`20260803090000_harden_enqueue_notification_acl` (REVOKE dla `PUBLIC`/`anon`/`authenticated`; 22 funkcje-
+producenci są SECURITY DEFINER, więc nie korzystały z grantu klienckiego, a `service_role` zachowuje
+EXECUTE dla runnerów). **Wniosek dla metodyki audytu:** oceniałem producentów powiadomień i preferencje,
+nie **ACL samej funkcji** - klasa „SECURITY DEFINER z grantem dla `authenticated`" powinna mieć własny
+statyczny gate, jak `check-sql-anon-insert`.
+
+**5. Kolizja wersji migracji, którą rewizja 1 opisała jako ryzyko, ZMATERIALIZOWAŁA SIĘ - trzykrotnie.**
+Na tym HEAD **trzy różne pliki** mają identyczny prefiks wersji `20260803090000`
+(`harden_enqueue_notification_acl`, `link_monitor_archive_and_alerts`, `payment_orders_gdpr_retention`).
+`supabase_migrations.schema_migrations` ma `version` jako klucz, więc ledger widzi **jedną** wersję, a
+kolejność aplikacji zależy od porządku nazw plików. Rewizja 1 rekomendowała gate unikalności po dwóch
+incydentach; incydent trzeci wjechał razem z falą, która zamykała inne rekomendacje. **Ta rekomendacja
+przechodzi z P2 do P1** - nie z powodu skutku dzisiaj (CI zielone), lecz dlatego, że różnica między
+„działa" a „nie da się odtworzyć bazy z migracji" jest tu kwestią kolejności alfabetycznej.
 ---
 
-# MODUŁ 1 — Wpisy: doświadczenie czytelnika · **8,4/10** (01.08: 8,2)
+# MODUŁ 1 - Wpisy: doświadczenie czytelnika · **8,6/10** (r1: 8,4 · 01.08: 8,2)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -91,12 +140,12 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 | Przypisy (footnotes) | **9** | End-to-end: edytor→silnik→SSR, jeden kontrakt wyjścia, 8+ plików testów | — | Utrzymać |
 | Key takeaways | **8 → 9** | **Działa też dla stron** (korekta 2 powyżej): kolumny + trigger walidacji na `pages`, loader selectuje (kontrakt kolumn `ENTITY_SELECT_COLS` + test), `$.tsx` renderuje bez bramki `isPost`; **od 03.08 jedno rozstrzygnięcie dla obu encji** (`lib/keyTakeaways/resolve.ts` - koniec dwóch kopii wyrażenia w head() i body) oraz **naprawiony rozjazd limitów**: baza dopuszczała 7, zod odrzucał 7, panel liczył do 6 i obiecywał „max 7" - jedna stała `KEY_TAKEAWAYS_MAX_ITEMS` + kontrakt pgTAP na obu triggerach | — | Utrzymać (zarzut z 01.08 wycofany, limit zunifikowany) |
 | Cytowania / eksport bib. | **7** | Realny formatter (Chicago i in.), testy fallbacków | Zakres formatów ograniczony (brak BibTeX/RIS) | Dodać BibTeX/RIS jeśli jest popyt |
-| Audio artykułu (TTS) | **7** | Publiczny `post-tts` z cache w prywatnym buckecie, gating `has_content_access`, allowlisty głosów i modeli | **Amplifikacja kosztu utrzymana**: cache kluczowany `(post, lang, voice, model, hash)`, a klient wybiera głos/model → do 24 plików na wpis | Jeden kanoniczny głos/model per artykuł |
+| Audio artykułu (TTS) | **7 → 9** | Publiczny `post-tts` z cache w prywatnym buckecie, gating `has_content_access`; **03.08 amplifikacja kosztu wycięta u źródła** (PR #147): `voiceId`/`model` **wypadły z ciała żądania** - obowiązuje kanoniczna przypinka per wpis (`lib/audio/ttsCanonical.ts`), więc anonimowy czytelnik nie wymusi już pętlą 6×2×2 = 24 płatnych syntez; dodatkowo ETag renditionu, sprzątanie osieroconych obiektów po edycji wpisu i pgTAP `post_tts_canonical_rendition_test` | Zmiana przypinki wymaga świadomej decyzji redakcji (koszt = jedna resynteza) | Utrzymać (rekomendacja r1 wdrożona) |
 | Publiczny licznik odsłon (nowa) | **8** | `post_view_count` SECURITY DEFINER wzorem `popular_post_ids`: wymusza tenant publiczny + `status='published'`, zwraca **sam licznik** bez `viewer_hash`/`user_id`, dla obcego tenanta **0 zamiast NULL** (nie jest wyrocznią istnienia); wcześniej publicznie nie mógł się pokazać nigdy (`post_views` bez polityki SELECT), a kanwa pokazywała próbkę 1234 | Brak dedupu okna czasowego w prezentacji (licznik surowy) | Utrzymać; rozważyć „unikalni czytelnicy" jako druga metryka |
 
 ---
 
-# MODUŁ 2 — Edytor wpisów i workflow redakcyjny · **8,5/10** (01.08: 8,4)
+# MODUŁ 2 - Edytor wpisów i workflow redakcyjny · **8,6/10** (r1: 8,5 · 01.08: 8,4)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -106,26 +155,26 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 | Publikacja planowana | **8** | pg_cron `publish_due_posts` co minutę + fallback best-effort | — | Utrzymać |
 | Kalendarz redakcyjny | **7** | Drag-and-drop, realny (`/admin/posts/calendar`) | Brak testu trasy kalendarza (istnieje test `lib/community/calendar.ts`, ale to kalendarz wydarzeń) | Dodać smoke test |
 | Redirecty 301 przy zmianie slug | **8** | Automatyczne, realne; `?lang=` przeżywa twardy reload edytora; degradacja indeksu przekierowań | — | Utrzymać |
-| **Parytet z Gutenbergiem (nowa w audycie)** | **8** | PR #132–#134 + `OCENA_GUTENBERG_PARYTET_2026-08-01.md`: matryca zachowań (writing flow, dwustopniowe Ctrl+A, Shift/Ctrl-klik zakresy, markdown, transformacje, appender) — **plus przewagi nad WP core**: wklejanie bloków skopiowanych **w WordPressie** i **do** WordPressa (payload niesie markup `<!-- wp:… -->`), tabele z Worda jako strukturalny blok, zagnieżdżone kanwy bez podwójnej wklejki; **101 typów bloków** (+1: podgląd linku) | Świadome braki: Shift+strzałki nie rozszerzają zaznaczenia blokowego, brak zaznaczania tekstu w poprzek bloków, `/` tylko w pustym akapicie | Domknąć cross-block selection albo udokumentować jako by-design |
+| **Parytet z Gutenbergiem (nowa w audycie)** | **8 → 9** | PR #132-#134 + `OCENA_GUTENBERG_PARYTET_2026-08-01.md`: matryca zachowań (writing flow, dwustopniowe Ctrl+A, Shift/Ctrl-klik zakresy, markdown, transformacje, appender) - **plus przewagi nad WP core**: wklejanie bloków skopiowanych **w WordPressie** i **do** WordPressa, tabele z Worda jako strukturalny blok, zagnieżdżone kanwy bez podwójnej wklejki; **101 typów bloków**; **03.08 domknięte cross-block selection i Shift+strzałki** (PR #146) - ostatnie twarde znaki braku w rdzeniu redakcyjnym, z pełną semantyką WP dla operacji zbiorczych (`WDROZENIE_CROSS_BLOCK_SELECTION_2026-08-03.md`) | Slash otwiera wybór bloku tylko w pustym akapicie (świadomy kompromis) | Utrzymać (rekomendacja r1 wdrożona) |
 
 ---
 
-# MODUŁ 3 — Silniki treści: bloki + page builder · **8,9/10** (01.08: 8,8 — patrz korekta 3)
+# MODUŁ 3 - Silniki treści: bloki + page builder · **9,0/10** (r1: 8,9 · 01.08: 8,8 - patrz korekta 3)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
 | Silnik bloków (posty) | **9** | **101 typów bloków**, renderer pokrywa 100%, 0 placeholderów, ~25 plików testów widgetów + 20 plików testów bloków | Schemat persystencji celowo luźny (dowolny JSON) | Utrzymać (ryzyko cięte error boundaries) |
 | Page builder (widgety) | **9** | **89 widgetów**, pełne pokrycie rejestru, sekcja→kolumna→widget, globalne widgety, layouty | — | Utrzymać |
-| **Wierność ustawień widgetów (panel ⇄ renderer) (nowa w audycie)** | **7 → 9** | PR #141 przeorał klasę „panel obiecuje, renderer nie czyta": karuzela z realnym autoplay (pauza na hover/fokus, `prefers-reduced-motion`), warianty akordeonu, responsywne kolumny tablet/telefon, `showTitle`/`authorDisplay`/rozmiary slidera, grubość rozdzielacza z jednej stałej, `cssColor.ts` z whitelistą wzorców (blokuje `url()`/`expression()`), ikony social (gap/bgMode/CTA Spotify), 9 widgetów `post-*` dostało schematy i edytory, ustawienia obrazu odsłonięte, formularze auth z kanonicznymi kluczami + aliasami starych (`authFormSettings.ts` jako czysty, testowalny moduł), placeholdery pól wreszcie widoczne, podgląd newslettera renderuje **ten sam komponent co produkcja** | **Parytet pilnują testy punktowe, nie inwariant**: nie ma bramki „każde pole schematu jest czytane przez renderer i odwrotnie" — klasa może wrócić przy następnym widgecie | **Dodać gate parytetu schemat⇄renderer** (jak `builderI18nKeys` dla i18n) |
+| **Wierność ustawień widgetów (panel ⇄ renderer) (nowa w audycie)** | **9** (r1: 7 → 9) | PR #141 przeorał klasę „panel obiecuje, renderer nie czyta” (~40 przypadków: autoplay karuzeli, warianty akordeonu, responsywne kolumny, `showTitle`/`authorDisplay`, grubość rozdzielacza z jednej stałej, `cssColor.ts` z whitelistą, 9 widgetów `post-*` ze schematami, formularze auth z kanonicznymi kluczami, podgląd newslettera = produkcja); **03.08 klasa jest ZABRAMKOWANA** (PR #152): `check:widget-fidelity` - blokujący krok CI, 3 pliki / **511 testów**, mierzy **wykonaniem**, które klucze panel oferuje redakcji, a które renderer naprawdę czyta, i wywala się na rozjeździe bez jawnego zwolnienia; artefakt raportu w CI | Zwolnienia są jawne, ale to wciąż lista wyjątków do przeglądu | Utrzymać (rekomendacja r1 wdrożona - to była **kluczowa** rekomendacja modułu) |
 | **Dyscyplina danych przykładowych (nowa w audycie)** | **3 → 9** | Próbka kontekstu wpisu **związana z trybem edycji**: poza kanwą brak kontekstu = „nie renderuj", nigdy „zmyśl"; strony taksonomii dostarczają realny kontekst archiwum; próbka licznika odsłon zastąpiona realnym RPC | Wcześniej: zmyślone „Jan Kowalski / Tytuł przykładowego wpisu / 12 wpisów / 1234 odsłon" **na produkcji** w nagłówku, stopce, popupach, szufladzie mobilnej i taksonomiach | Utrzymać; rozważyć e2e „żadna strona publiczna nie zawiera stringów próbki" |
 | Interop bloki⇄builder | **7** | Konwersja blocks→builder realna (`blocksToBuilder`, `localizedBlocksToBuilderDoc`) | **Jednokierunkowa** i tylko w imporcie WP; builder→bloki nie istnieje | Dorobić kierunek odwrotny albo udokumentować jako by-design |
 | Import z Gutenberga / markdown | **8** | Realne parsery, osobne stosy undo per język, wzmocniony parser wklejania z Worda | — | Utrzymać |
 | Undo/redo per język | **8** | Osobne stosy, poprawne | — | Utrzymać |
-| Świeżość danych widgetów (nowa w audycie) | **8** | Kanoniczne korzenie kluczy zapytań w jednym miejscu (`WIDGET_QUERY_ROOTS`), klucz zależny od języka tam, gdzie `queryFn` wpieka zlokalizowany tytuł (wcześniej po zmianie języka widget pokazywał poprzedni do wygaśnięcia 5-min `staleTime`), jawny `staleTime` | Brak testu, że każdy widget z lokalizowanym `queryFn` ma język w kluczu | Dodać asercję w teście rejestru |
+| Świeżość danych widgetów (nowa w audycie) | **8 → 9** | Kanoniczne korzenie kluczy zapytań w jednym miejscu (`WIDGET_QUERY_ROOTS`), klucz zależny od języka tam, gdzie `queryFn` wpieka zlokalizowany tytuł, jawny `staleTime`; **03.08 własna bramka** `localizedQueryKeys.gate.test.ts` w kroku `check:widget-fidelity` - widget z lokalizowanym `queryFn` bez języka w kluczu nie przejdzie CI | - | Utrzymać (rekomendacja r1 wdrożona) |
 
 ---
 
-# MODUŁ 4 — Strony, wygląd, motyw, media, import · **6,8/10** (bez zmian)
+# MODUŁ 4 - Strony, wygląd, motyw, media, import · **6,8/10** (bez zmian - trzecie wydanie)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -140,7 +189,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 5 — Strona główna, archiwa, chrome · **8,3/10** (01.08: 8,0)
+# MODUŁ 5 - Strona główna, archiwa, chrome · **8,3/10** (bez zmian wobec r1)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -152,7 +201,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 6 — Wyszukiwarka · **8,3/10** (bez zmian)
+# MODUŁ 6 - Wyszukiwarka · **8,3/10** (bez zmian)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -165,7 +214,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 7 — Typy treści specjalne · **7,6/10** (01.08: 7,0)
+# MODUŁ 7 - Typy treści specjalne · **7,8/10** (r1: 7,6 · 01.08: 7,0)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -177,29 +226,29 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 | Ankiety (polls) | **7 → 8** | Realtime głosowanie, zapisy przez utwardzone RPC, pgTAP; **SSR loader dodany** (PR #130), profile prelegentów i ankiety zabezpieczone (`f567498`) | — | Utrzymać (rekomendacja z 01.08 wdrożona) |
 | Biblioteka | **7 → 8** | Pliki w prywatnym buckecie, bramka rangi **egzekwowana w DB**, logowanie pobrań; **SSR loader** (PR #130) + **podmiana pliku w edycji** („Edytuj (opcjonalna podmiana)", `admin.library.tsx:279`) | — | Utrzymać (obie rekomendacje z 01.08 wdrożone) |
 | Glosariusz | **8** | CRUD + realny odbiorca (tooltipy w treści) | — | Utrzymać |
-| Quiz (EuroChallenge) | **7** | Celowa landing-strona promocyjna drugiej platformy NES (`nes-quiz.com`): branded `head()`, `LazyQuizIframe`, tło z preloadem, przyciski udostępniania | `head()` **nadal zahardkodowany po polsku** (`quiz.tsx:33–47`: description i og:description PL, bez `activeLang`), **brak `og:url`/canonical** do `nes-quiz.com` — odwiedzający EN dostaje polski snippet. Trzecie wydanie z tym samym zapisem | Zbilingwalizować meta + `og:url`/canonical |
+| Quiz (EuroChallenge) | **7 → 9** | Celowa landing-strona promocyjna drugiej platformy NES (`nes-quiz.com`): branded `head()`, `LazyQuizIframe`, tło z preloadem, przyciski udostępniania; **03.08 meta zbilingwalizowane** (PR #144): opis i `og:description` per `activeLang`, self-referencing canonical + `og:url`, klaster hreflang PL/EN, `documentTitle` z marką, JSON-LD `mainEntity → WebApplication` kredytujący promowaną platformę | - | Utrzymać (rekomendacja z trzech wydań wdrożona) |
 | Web stories | **7** | AMP + JSON-LD + sitemap + indeks | `rel=amphtml` **tylko gdy `cover_url`** (`web-stories.$slug.tsx:43`); indeks bez `ItemList`/paginacji | Emitować `amphtml` zawsze + paginacja indeksu |
 | **Live blog (nowa w audycie)** | **7** | Blok `liveblog` + **publiczny indeks `/live`** z plakietką LIVE dla relacji z wpisem w ostatnich 3 h (wcześniej live blog nie miał żadnego publicznego adresu — nie dało się go podlinkować ani odkryć); admin przestał być konsolą deweloperską (wybór postu z listy + autodetekcja bloków `liveblog`, edycja wpisów, nie tylko przypinanie) | Brak SSR-owego JSON-LD `LiveBlogPosting`, brak RSS relacji, brak testu trasy `/live` | Dodać `LiveBlogPosting` + prosty RSS relacji |
 
 ---
 
-# MODUŁ 8 — SEO, feedy, dane strukturalne · **7,8/10** (01.08: 7,5)
+# MODUŁ 8 - SEO, feedy, dane strukturalne · **8,4/10** (r1: 7,8 · 01.08: 7,5)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
 | JSON-LD (`safeJsonLd`) | **9** | Escaping `< > & U+2028/9`, ~20 tras (w tym ItemList trackera i listy wydarzeń), test kontraktu w CI (osobny krok „SEO head + schema contract") | — | Utrzymać |
 | hreflang PL/EN | **8 → 9** | x-default + pl + en, suppress przy canonical-override; **sitemap emituje pełny, wzajemny klaster hreflang per URL** (`xhtml:link` × 3) — poprawka 01.08 (`86cfc75`) z 110-liniowym testem `sitemapUrls.test.ts` | — | Utrzymać |
 | Paywall markup (AEO) | **8** | `isAccessibleForFree:false` + `hasPart/cssSelector`, selektor realnie istnieje | — | Utrzymać |
-| Sitemap | **6 → 7** | Wpisy PL i EN osobno z klastrem hreflang, kolekcje: web-stories/tracker/programy/eksperci/Q&A/eventy | **Jednoplikowa bez indeksu** (461 linii logiki, ściana 50k URL przy skali); **`news-sitemap.xml` nadal nieodkrywalny** — `robots[.]txt.ts:47` deklaruje tylko `Sitemap: /sitemap.xml` | Dopisać `Sitemap: news-sitemap.xml` + sitemap-index |
+| Sitemap | **7 → 9** | **03.08 `/sitemap.xml` to `<sitemapindex>`** (PR #153): shardy sekcji (`sitemaps.$section.ts` + `lib/seo/sitemapIndex.ts` z `SITEMAP_SECTIONS` i `shardCountFor`), więc ściana 50 000 URL protokołu przestała być ryzykiem, a crawler nie odpala kilkunastu zapytań na jedno żądanie; **`robots.txt` ogłasza indeks I news sitemap** (gdy redakcja ją włączy) - wcześniej news-sitemap był nieodkrywalny mimo istniejącej trasy; wpisy PL/EN osobno z klastrem hreflang | Shardy dziedziczą cache 1:1 z poprzedniej trasy - warto zmierzyć realny czas generacji największej sekcji | Utrzymać (obie rekomendacje r1 wdrożone) |
 | Podcast RSS | **8** | Ingestowalny (enclosure + length + type, `itunes:*`), panel readiness, feed per show | GUID z prefiksem językowym (PL/EN = 2 kanały); brak autodiscovery w `<head>` | Wspólny GUID + `<link rel=alternate>` |
 | OG images | **8** | HMAC-gated webhook refresh, 501 bez sekretu | — | Utrzymać |
 | RSS / feedy treści | **8 → 9** | Kategoria/tag/program RSS realne + `/feed`, `rss.xml`; **od 03.08 `/tracker/rss.xml`** (scalony strumień dossier + osi czasu, jawne GUID-y `isPermaLink=false`, autodiscovery, `llms.txt`, 26 asercji jednostkowych) | Brak RSS relacji live (patrz M7) | Dorobić kanał relacji live |
-| **Monitor linków wychodzących (nowa w audycie)** | **7** | `/admin/link-monitor`: zepsute linki zewnętrzne w opublikowanych wpisach, **rotacyjny skan w `jobs-tick`** + skan ręczny; komplementarny do monitora 404 | Brak polityki działania (nie proponuje zamiany/archive.org), brak alertu przy progu | Dodać sugestię `web.archive.org` + alert progowy |
+| **Monitor linków wychodzących (nowa w audycie)** | **7 → 8** | `/admin/link-monitor`: zepsute linki zewnętrzne w opublikowanych wpisach, rotacyjny skan w `jobs-tick` + skan ręczny; **03.08 warstwa DZIAŁANIA** (PR #153, migracja `20260803090000_link_monitor_archive_and_alerts`): zapamiętana **migawka `web.archive.org`** dla linku, który faktycznie padł (Wayback odpytywany tylko dla martwych), oraz **stan alertu progowego per tenant** - powiadomienie raz na dobę albo przy wyraźnym narośnięciu, zamiast listy 404 rosnącej do przypadkowego zajrzenia w panel | Podmiana linku na migawkę jest sugestią, nie akcją jednym kliknięciem | Dorobić akcję „podmień na migawkę” |
 | **`llms.txt` (nowa w audycie)** | **7 → 8** | Trasa `llms[.]txt` - deklaracja dla crawlerów LLM/AEO (rzadkość w sektorze); **od 03.08 wystawia kanał trackera PL/EN** jako najgęstsze źródło „co się zmieniło w prawie UE", z testem kontraktu | Brak pełnego testu kontraktu pozostałych sekcji | Rozszerzyć test kontraktu |
 
 ---
 
-# MODUŁ 9 — Czat / komunikator · **8,1/10** (01.08: 8,0)
+# MODUŁ 9 - Czat / komunikator · **8,1/10** (bez zmian wobec r1)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -218,7 +267,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 10 — Sieć / networking · **8,1/10** (01.08: 8,0)
+# MODUŁ 10 - Sieć / networking · **8,1/10** (bez zmian wobec r1)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -231,7 +280,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 11 — Newsletter · **7,5/10** (bez zmian)
+# MODUŁ 11 - Newsletter · **7,5/10** (bez zmian - trzecie wydanie)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -246,12 +295,12 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 12 — Realtime / powiadomienia / web-push · **8,1/10** (01.08: 8,0)
+# MODUŁ 12 - Realtime / powiadomienia / web-push · **8,3/10** (r1: 8,1 - patrz korekta 4)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
 | Szyna zdarzeń domenowych | **9** | Anti-drift, korelacja, optymistyczne mutacje, `emit_domain_event` używany przez tracker/CRM/kupony | — | Utrzymać |
-| Powiadomienia in-app | **8** | Producenci w triggerach DB, dedup 5 min, RLS insert-only-definer, realtime dzwonka | — | Utrzymać |
+| Powiadomienia in-app | **8 → 9** | Producenci w triggerach DB, dedup 5 min, RLS insert-only-definer, realtime dzwonka; **03.08 zamknięta furtka ACL** (patrz korekta 4): `enqueue_notification` straciło `EXECUTE` dla `PUBLIC`/`anon`/`authenticated` (migracja `20260803090000_harden_enqueue_notification_acl`) - dowolny zalogowany użytkownik mógł wcześniej wstrzyknąć powiadomienie z własnym `href` do skrzynki **dowolnego konta, także w obcym tenancie**, w tym jako rodzaj `security` obchodzący preferencje | Klasa „SECURITY DEFINER z grantem dla `authenticated`” **nie ma statycznego gate'u** - to samo przeoczenie może wrócić inną funkcją | Dodać czwarty gate SQL: definer-grant (wzorem `check-sql-anon-insert`) |
 | Paginacja powiadomień | **8** | `useInfiniteQuery` + `.range()`, usuwanie grupy `.in("id", ids)` | — | Utrzymać |
 | Preferencje powiadomień | **9** (03.08: 8) | Respektowane - `enqueue_notification` CASE pokrywa **10 rodzajów** (message, comment, follow, subscription, content, system, tracker, connection, saved_search, crm_task); **gating przykryty w całości** - `notification_preferences_gating_test.sql` (40 asercji) sprawdza każdy rodzaj on/off, parytet katalog↔kolumny-flagi, sweep sterowany CHECK-iem (11. rodzaj bez gałęzi w CASE = czerwone CI), bramkę po odbiorcy (nie `auth.uid()`), fail-open bez wiersza, stempel tenanta odbiorcy + RLS, ACL producenta (migracja `20260803090000` zdejmuje EXECUTE rolom klienckim), odporność na wyjątki i dedup 5 min | - | Utrzymać; przy nowym rodzaju wystarczy dopisać kolumnę `enabled_<rodzaj>` i gałąź w CASE - sweep pilnuje reszty |
 | Krypto web-push (VAPID) | **9** | Własna impl. RFC 8291/8188, ES256, roundtrip test | — | Utrzymać |
@@ -261,7 +310,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 13 — Monetyzacja: checkout / subskrypcje / billing · **8,5/10** (01.08: 8,3)
+# MODUŁ 13 - Monetyzacja: checkout / subskrypcje / billing · **8,5/10** (bez zmian wobec r1)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -280,7 +329,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 14 — Monetyzacja: kupony / darowizny / prezenty / reklamy · **7,7/10** (01.08: 7,3)
+# MODUŁ 14 - Monetyzacja: kupony / darowizny / prezenty / reklamy · **7,7/10** (bez zmian wobec r1)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -293,7 +342,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 15 — Profil i konto · **8,0/10** (01.08: 7,8)
+# MODUŁ 15 - Profil i konto · **8,2/10** (r1: 8,0 - P1 domknięty)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -310,20 +359,20 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 16 — Zarządzanie społecznością · **7,5/10** (bez zmian)
+# MODUŁ 16 - Zarządzanie społecznością · **8,0/10** (r1: 7,5 - odznaki naprawione)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
 | Moderacja Q&A / ankiet | **8** | Statusy, odpowiedzi eksperckie, zapisy przez utwardzone RPC | — | Utrzymać |
-| Reputacja | **7** | Leaderboard, poziomy, RPC, testy; typy akcji zawierają `badge_expert`/`badge_contributor`/`badge_verified` | Akcje „badge_*" istnieją w typie, ale nic ich nie emituje automatycznie | Podłączyć auto-grant |
-| **Odznaki** | **4** | Emiter domain-eventu przy nadaniu; `lib/profile/badges.ts` (warstwa publiczna) ma **dokładnie 4 rodzaje zgodne z DB** | **Katalog admina nadal rozjechany z DB CHECK**: `BADGE_CATALOG` (`lib/admin/community.ts:705`) ma 6 kluczy, w tym `moderator`, `early_adopter`, `supporter` — CHECK dopuszcza `('verified','expert','contributor','staff')`, więc te trzy **zawsze** kończą się błędem 23514; `staff` **nienadawalny** z UI; **zero auto-przyznawania** mimo silnika reputacji. Bez zmian na 03.08 | Zunifikować `BADGE_CATALOG` z DB (albo rozszerzyć CHECK migracją) + auto-grant z reputacji |
+| Reputacja | **7 → 8** | Leaderboard, poziomy, RPC, testy; **03.08 akcje `badge_*` mają realnego producenta** - triggery reputacyjne na `qa_questions`, `qa_question_votes`, `event_rsvps`, `comments` i `poll_votes` nadają odznaki automatycznie (`grant_source='reputation'`), z rekonsyliacją odporną na wyjątki | Progi auto-grantu żyją w SQL, bez panelu do ich zmiany | Wystawić progi w ustawieniach społeczności |
+| **Odznaki** | **4 → 9** | **03.08 domena zsynchronizowana** (PR #148, migracja `20260803113000_profile_badge_domain_sync`): JEDEN katalog `lib/profile/badgeCatalog.ts` = 4 rodzaje zgodne z DB CHECK (koniec `moderator`/`early_adopter`/`supporter`, które **zawsze** rzucały 23514), kolumna `grant_source` (`manual`/`reputation`/`contributor_submission`/`system`), **auto-grant z reputacji** triggerami, aktor sesji przy nadaniu ręcznym, RPC `admin_list_profile_badges`, atom `ProfileBadge`, pgTAP `profile_badge_domain_sync_test` | Świeże - brak danych o realnym rozkładzie nadań | Utrzymać (rekomendacja z trzech wydań wdrożona) |
 | Powitania | **7** | Wołaczowe, szablony maili | — | Utrzymać |
 | Engagement dashboard | **7** | Jeden RPC `get_engagement_overview` | — | Utrzymać |
 | Contribute → review | **8** | Pełna pętla zgłoszenie→moderacja z RLS | — | Utrzymać |
 
 ---
 
-# MODUŁ 17 — Analityka i BI · **7,5/10** (bez zmian)
+# MODUŁ 17 - Analityka i BI · **7,5/10** (bez zmian - trzecie wydanie)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -337,7 +386,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 18 — CRM · **8,4/10** (01.08: 8,0)
+# MODUŁ 18 - CRM · **8,4/10** (bez zmian wobec r1)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -352,7 +401,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 19 — Ustawienia / integracje / users / multi-tenant / RODO · **8,5/10** (01.08: 8,2)
+# MODUŁ 19 - Ustawienia / integracje / users / multi-tenant / RODO · **8,5/10** (bez zmian wobec r1)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -360,7 +409,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 | RLS coverage | **9** | 0 tabel bez RLS; parser stanu końcowego liczy **518 realnych polityk** (metryka odporna na churn); 3 gate'y statyczne zielone na tym HEAD | Stare metryki („915", „408") opatrzone korektami w dokumentach historycznych | Używać metryki stanu końcowego |
 | Sekrety (Vault) | **9** | Sekrety CRM/integracji w Vault, service-role tylko w `*.server.ts`, nowy model endpointów trzyma sekret partnera w Vault | Klucze Merydian historycznie plaintext | Zweryfikować migrację do Vault |
 | Impersonacja | **8** | Gate `is_super_admin`, audytowana, ścieżka `end` domknięta | — | Utrzymać |
-| Anonimowe INSERT-y | **8 → 9** | Gate `check-sql-anon-insert.ts` z self-testem: inwariant A (żadna permisywna polityka INSERT dla `anon`/`public`) + B (6 tabel intake bez klienckiego INSERT); ✓ na tym HEAD (**518 polityk**); PR #138 domknął zgody RODO, `f80cd8f` dodał polityki Data API | Commity pchane prosto na `main` weryfikuje dopiero post-hoc | Ochrona gałęzi `main` |
+| Anonimowe INSERT-y | **8 → 9** | Gate `check-sql-anon-insert.ts` z self-testem: inwariant A (żadna permisywna polityka INSERT dla `anon`/`public`) + B (6 tabel intake bez klienckiego INSERT); ✓ na tym HEAD (**519 polityk**); PR #138 domknął zgody RODO, `f80cd8f` dodał polityki Data API | Commity pchane prosto na `main` weryfikuje dopiero post-hoc | Ochrona gałęzi `main` |
 | CSP / nagłówki | **6 → 7** | CSP + XFO + Referrer + Permissions + HSTS + nosniff; **`script-src-attr 'none'` zamyka realny wektor stored-XSS** (inline `onerror=`/`onclick=` w treści redakcyjnej są martwe niezależnie od `unsafe-inline`), `connect-src` zawężony do `'self'` + origin Supabase (+ wss), `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'self'`; rozluźnienie tylko dla hostów podglądu Lovable | `script-src 'unsafe-inline'` zostaje (TanStack Start nie wspiera nonce dla własnych skryptów); `frame-src https:` szeroki | Plan wyjścia z `unsafe-inline` (nonce), zawężyć `frame-src` do allowlisty osadzeń |
 | Consent RODO | **7 → 8** | Rejestr z IP/UA/wersją/źródłem + **most z CMP** (patrz M15) | Brak GPC | Dodać `Sec-GPC` |
 | **Audyt tłumaczeń widgetów (nowa w audycie)** | **8** | `/admin/i18n` (`WidgetI18nAuditPane`) — audyt PL→EN treści widgetów; w CI **blokująca bramka i18n parity** (`check:i18n-parity`, artefakt `reports/i18n-parity.json`), bramka `builderI18nKeys` złapała brak kluczy karuzeli (klucz bez wpisu degraduje cicho do polskiego `defaultValue`) | Audyt pokrywa widgety; treść wpisów/stron poza zakresem | Rozszerzyć na `custom_meta`/etykiety taksonomii |
@@ -369,45 +418,52 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 ---
 
-# MODUŁ 20 — Platforma / backend / infrastruktura / SSR · **7,9/10** (01.08: 7,8)
+# MODUŁ 20 - Platforma / backend / infrastruktura / SSR · **8,0/10** (r1: 7,9)
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
 | SSR render treści | **9** | Post/home/archiwa/eksperci/autor/tracker + **od 01.08 wydarzenia, ankiety i biblioteka** renderują treść serwerowo (defensywne loadery `allSettled`, budżety czasowe, `pendingComponent`/`errorComponent` zamiast migających komunikatów); SSR-paginacja `/`, `/blog`, archiwum autora | Pozostałe listy społecznościowe (np. `/contributors`) nieaudytowane pod SSR | Przejrzeć resztę tras publicznych |
 | Edge cache dokumentów | **7** | L1 per-isolate + L2 per-colo, kill-switch, ISR trackera, `edgeTtlCache` dla listy wydarzeń; **audyt jest jedynym punktem inwalidacji** (`recordAudit` → `purgeDocumentCacheForCurrentHost`), więc nowe mutacje treści dziedziczą purge automatycznie | Regex `DOCUMENT_PURGE_ACTIONS` (`post.` \| `page.` \| `category.` \| `tag.` \| `redirect.` \| `revision.`) **nie pokrywa** podcastów, programów, web-stories, wydarzeń ani trackera; `reader.cancel` nie ubija upstreamu | Rozszerzyć `DOCUMENT_PURGE_ACTIONS`; naprawić kolejność tee/guard |
 | Bramka kompletności SSR (e2e) | **3 → 4** | Do asercji „dokument się domyka" doszły: `status < 400`, budżet 20 s, oraz **test hydracji strony głównej** (`h1` widoczny + zero `pageerror`) | **Nadal pozorna w rdzeniu**: `documentStreamGuard.server.ts` dopisuje `FORCED_CLOSE_TAIL = "\n</body></html>"` przy zawieszeniu strumienia, więc asercja „kończy się `</html>`" **nie może zafailować**; 5 ścieżek, zero asercji treści poza `h1` na `/` | Wyłączyć guard w teście (flaga env) + asercje treściowe per trasa |
-| **Bundle publiczny** | **5 → 4** | Gate `check:bundle` + `check:chunks` (Tarjan) blokujące w CI; klasyfikacja błędów importu chunka per przeglądarka | **Regres zmierzony**: budżet publiczny podniesiony **1475 → 1790 KB** gzip (zmierzone 1472 → ~1756), największy chunk **350 → 505 KB** (zmierzone ~492) — dwa „re-floory" w 3 dni. Czytelnik płaci ~1,76 MB gzip JS: 5–6× ponad rozsądny budżet | **Zatrzymać re-floory**: zamrozić budżet, code-split agresywnie (edytor/builder/admin poza ścieżkę publiczną), rozliczyć wzrost z PR #141/#132 |
+| **Bundle publiczny** | **4** (r1: 5 → 4) | Gate `check:bundle` + `check:chunks` (Tarjan) blokujące w CI; klasyfikacja błędów importu chunka per przeglądarka | **Regres trwa - trzeci re-floor w trzy dni**: budżet publiczny 1475 → 1790 KB, a **zmierzony ładunek 1472 → 1756 → 1788,9 KB** gzip; największy chunk 350 → **508 KB** (zmierzone ~505,4). Do sufitu **1,9 KB**, więc następny widget wywali bramkę albo wymusi czwarte podniesienie. Czytelnik płaci ~1,79 MB gzip JS: 5-6× ponad rozsądny budżet | **Zamrozić budżet** (żadnego podniesienia bez rozliczenia), code-split agresywnie (edytor/builder/admin poza ścieżkę publiczną czytelnika), rozliczyć wzrost z fal #132/#141/#146/#152 |
 | Prerender | **3** | — | **Nie istnieje** (0 stron); `prerender.ts` to Speculation Rules, nie build | Rozważyć prerender kluczowych stron |
-| Testy jednostkowe | **7 → 8** | **4625 pass / 0 fail / 50 skip** (509 plików, +959 testów w 2 dni), gate coverage w CI, CI samo przepina lockfile na publiczny rejestr, osobne nazwane kroki dla SEO i i18n | Progi coverage nadal niskie (statements 19,5 / lines 20 / branches 15,75 / functions 13); **knip poza CI**; **lint czerwony na main** (146 problemów, 10 błędów formatowania) przez commity prosto na main | Podnieść progi; wpiąć knip; chronić `main` |
-| pgTAP (izolacja/tenant) | **8** | Realnie odpala się w CI (pin `setup-cli@2.111.0`, krok własności triggerów `auth.users`), **65 plików**, kontrakty na `get_chat_peers`, rekomendacje, suppression, scoring, izolację 3 tenantów | Kolizje numeracji migracji między równoległymi gałęziami **nadal bez gate'u** (2 incydenty w 2 dni na przełomie 07/08) | Gate na unikalność wersji migracji |
-| Gate'y SQL statyczne | **9** | Trzy blokujące, wspólny parser stanu końcowego, wszystkie ✓ na tym HEAD: tenant-scope (504 funkcje), app_role (870 literałów), anon-insert (518 polityk + self-test) | Brak gate'u kolizji wersji migracji (j.w.) | Dodać czwarty gate |
+| Testy jednostkowe | **8 → 9** | **5477 pass / 0 fail / 50 skip** (539 plików, **+852 testów w dobę**), gate coverage w CI, osobne nazwane kroki dla SEO, i18n **i wierności widgetów** (511 testów), CI samo przepina lockfile na publiczny rejestr | Progi coverage nadal niskie (statements 19,5 / lines 20 / branches 15,75 / functions 13); **knip poza CI**; **lint czerwony na main** - te same 10 błędów `prettier/prettier` w 3 plikach z commitów Lovable, czyli bramka broni PR-ów, nie gałęzi | Podnieść progi; wpiąć knip; **chronić `main`** |
+| pgTAP (izolacja/tenant) | **8 → 9** | Realnie odpala się w CI (pin `setup-cli@2.111.0`, krok własności triggerów `auth.users`), **69 plików** (+4 suity kontraktowe: limity takeaways, izolacja kanału trackera, kanoniczny rendition TTS, synchronizacja odznak) | **Kolizja numeracji migracji ZMATERIALIZOWAŁA SIĘ**: trzy pliki dzielą prefiks `20260803090000` (patrz korekta 5), a `schema_migrations.version` jest kluczem - ledger widzi jedną wersję, kolejność zależy od nazw plików | **Gate unikalności wersji migracji - podniesione do P1** |
+| Gate'y SQL statyczne | **9** | Trzy blokujące, wspólny parser stanu końcowego, wszystkie ✓ na tym HEAD: tenant-scope (**523** funkcje), app_role (**874** literały), anon-insert (**519** polityk + self-test); od 03.08 towarzyszy im czwarta blokująca bramka poza SQL - `check:widget-fidelity` | Brak gate'u kolizji wersji migracji (korekta 5) **i** gate'u „SECURITY DEFINER z grantem dla `authenticated`” (korekta 4) | Dodać dwa brakujące gate'y |
 | **Kontrakt bazy po wdrożeniu (nowa)** | **8** | Job `post-deploy` (push na main / ręcznie): `check:db-contract` sonduje Data API i rozróżnia **PGRST205/PGRST202 (brak obiektu)** od 401/403 („istnieje, ale RLS"), potem `report:deployment` generuje raport zgodności (zakres PR-ów od tagu, liczba testów, status CI, smoke) + artefakty; `db-schema-invariant.test.ts` pilnuje listy tabel | Uruchamiany **po** merge'u — nie blokuje PR-a; wymaga sekretów produkcyjnych | Utrzymać; rozważyć wariant PR-owy na bazie efemerycznej |
 
 ---
 
 # PODSUMOWANIE OCEN MODUŁÓW
 
-| # | Moduł | 30.07 | 01.08 | **03.08** | # | Moduł | 30.07 | 01.08 | **03.08** |
-| - | ----- | :---: | :---: | :-------: | - | ----- | :---: | :---: | :-------: |
-| 1 | Wpisy — czytelnik | 8,0 | 8,2 | **8,4** ↑ | 11 | Newsletter | 6,5 | 7,5 | **7,5** |
-| 2 | Edytor + workflow | 8,4 | 8,4 | **8,5** ↑ | 12 | Realtime / push | 6,5 | 8,0 | **8,1** ↑ |
-| 3 | Bloki + builder | 8,8 | 8,8 | **8,9** ↑ | 13 | Monetyzacja — checkout | 8,0 | 8,3 | **8,5** ↑ |
-| 4 | Strony / media / import | 6,8 | 6,8 | **6,8** | 14 | Monetyzacja — kupony/reklamy | 6,8 | 7,3 | **7,7** ↑ |
-| 5 | Strona główna / archiwa | 7,8 | 8,0 | **8,3** ↑ | 15 | Profil i konto | 7,5 | 7,8 | **8,0** ↑ |
-| 6 | Wyszukiwarka | 8,3 | 8,3 | **8,3** | 16 | Społeczność | 7,5 | 7,5 | **7,5** |
-| 7 | Typy specjalne | 6,5 | 7,0 | **7,6** ↑ | 17 | Analityka i BI | 7,5 | 7,5 | **7,5** |
-| 8 | SEO / feedy | 7,5 | 7,5 | **7,8** ↑ | 18 | CRM | 8,0 | 8,0 | **8,4** ↑ |
-| 9 | Czat | 7,5 | 8,0 | **8,1** ↑ | 19 | Ustawienia / multi-tenant | 7,8 | 8,2 | **8,5** ↑ |
-| 10 | Sieć | 8,0 | 8,0 | **8,1** ↑ | 20 | Platforma / backend / SSR | 7,5 | 7,8 | **7,9** ↑ |
+| # | Moduł | 30.07 | 01.08 | 03.08 r1 | **03.08 r2** | # | Moduł | 30.07 | 01.08 | 03.08 r1 | **03.08 r2** |
+| - | ----- | :---: | :---: | :------: | :----------: | - | ----- | :---: | :---: | :------: | :----------: |
+| 1 | Wpisy - czytelnik | 8,0 | 8,2 | 8,4 | **8,6** ↑ | 11 | Newsletter | 6,5 | 7,5 | 7,5 | **7,5** |
+| 2 | Edytor + workflow | 8,4 | 8,4 | 8,5 | **8,6** ↑ | 12 | Realtime / push | 6,5 | 8,0 | 8,1 | **8,3** ↑ |
+| 3 | Bloki + builder | 8,8 | 8,8 | 8,9 | **9,0** ↑ | 13 | Monetyzacja - checkout | 8,0 | 8,3 | 8,5 | **8,5** |
+| 4 | Strony / media / import | 6,8 | 6,8 | 6,8 | **6,8** | 14 | Monetyzacja - kupony/reklamy | 6,8 | 7,3 | 7,7 | **7,7** |
+| 5 | Strona główna / archiwa | 7,8 | 8,0 | 8,3 | **8,3** | 15 | Profil i konto | 7,5 | 7,8 | 8,0 | **8,2** ↑ |
+| 6 | Wyszukiwarka | 8,3 | 8,3 | 8,3 | **8,3** | 16 | Społeczność | 7,5 | 7,5 | 7,5 | **8,0** ↑ |
+| 7 | Typy specjalne | 6,5 | 7,0 | 7,6 | **7,8** ↑ | 17 | Analityka i BI | 7,5 | 7,5 | 7,5 | **7,5** |
+| 8 | SEO / feedy | 7,5 | 7,5 | 7,8 | **8,4** ↑ | 18 | CRM | 8,0 | 8,0 | 8,4 | **8,4** |
+| 9 | Czat | 7,5 | 8,0 | 8,1 | **8,1** | 19 | Ustawienia / multi-tenant | 7,8 | 8,2 | 8,5 | **8,5** |
+| 10 | Sieć | 8,0 | 8,0 | 8,1 | **8,1** | 20 | Platforma / backend / SSR | 7,5 | 7,8 | 7,9 | **8,0** ↑ |
 
-**Średnia platformy: ~8,0/10** (01.08: ~7,8 · 30.07: ~7,5). **Werdykt kompozytu: 7,8/10** (01.08: 7,5) —
-niżej niż średnia arytmetyczna, bo ważę w dół: (a) **regres bundla** (jedyna sub-ocena, która spadła: 5→4),
-(b) wydmuszki, które przetrwały trzy wydania (autozapis stron, odznaki, quiz-meta, import WP, dwie tabele
-programów), (c) **otwarte P1** (`CASCADE` na dowodach księgowych), (d) **czerwony lint na main** i dryf
-z commitów pchanych poza PR-ami. **14 modułów w górę, 6 bez zmian, żaden w dół.**
+**Średnia platformy: ~8,1/10** (r1: ~8,0 · 01.08: ~7,8 · 30.07: ~7,5). **Werdykt kompozytu: 8,0/10**
+(r1: 7,8 · 01.08: 7,5) - niżej niż średnia arytmetyczna, bo ważę w dół cztery rzeczy, z których **dwie
+pogorszyły się w ciągu doby**:
 
----
----
+- **regres bundla trwa** - publiczny ładunek 1756 → **1788,9 KB gzip**, do sufitu budżetu **1,9 KB**;
+  to jedyna sub-ocena, która w tej rewizji nie wróciła w górę (4/10),
+- **kolizja wersji migracji zmaterializowała się trzykrotnie** na jednym prefiksie (korekta 5) - ryzyko
+  z r1 przestało być ryzykiem,
+- **lint na `main` nadal czerwony** (te same 10 błędów formatowania z commitów pchanych poza PR-ami),
+- **wydmuszki, które przetrwały trzy wydania**: autozapis stron (komentarz nadal kłamie), import WP
+  niszczący drugi język, dwie tabele programów, konfiguracja FTS czatu `simple` wbrew komentarzowi.
+
+**8 modułów w górę, 12 bez zmian, żaden w dół.** Fala PR #143-#153 zamknęła **9 z 12** rekomendacji,
+które r1 nazwała priorytetowymi - w tym jedyny punkt P1 (dowody księgowe) i **kluczową** rekomendację
+modułu 3 (gate parytetu schemat⇄renderer, 511 testów).
 
 # CZĘŚĆ II — KONKURENCJA: OCENA SZCZEGÓŁOWA (PL / UE / ŚWIAT)
 
@@ -448,20 +504,20 @@ dla członków i prenumeratorów) — potwierdza notę paywall 5,5 [1].
 
 # K.1 NES na 03.08 w przeliczeniu na moduły obserwowalne
 
-| Moduł obserwowalny | NES 24.07 | NES 01.08 | **NES 03.08** | Co się zmieniło |
-| ------------------ | :-------: | :-------: | :-----------: | --------------- |
-| M1 Wpisy — czytelnik | 7,8 | 8,2 | **8,4** | takeaways na stronach (korekta), licznik odsłon, TOC ręczny |
-| M5 Strona główna / archiwa | 8,0 | 8,0 | **8,3** | tryb „najnowsze wpisy" domknięty, mega menu odmartwione |
-| M6 Wyszukiwarka | 8,3 | 8,3 | **8,3** | wyszukiwanie kontaktów; STT bez allowlisty MIME |
-| M7 Typy specjalne | 7,5 | 7,0 | **7,6** | tracker (alerty — korekta), eventy/ankiety/biblioteka SSR, live blog |
-| M8 SEO / feedy | 7,9 | 7,5 | **7,8** | klaster hreflang w sitemapie, monitor linków, `llms.txt` |
-| M9 Czat | 8,0 | 8,0 | **8,1** | demo-bot bez duplikacji UI, ochrona purge załączników |
-| M10 Sieć | 7,6 | 8,0 | **8,1** | polityki dokręcone, pierwszy test klienta |
-| M11 Newsletter | 7,7 | 7,5 | **7,5** | podgląd = produkcja; open/click nadal podwójnie zapisywane |
-| M13 Paywall / checkout | 8,4 | 8,3 | **8,5** | webhook fail-closed, trial 7 dni |
-| M14 Konwersja | 6,9 | 7,3 | **7,7** | reklamy w sandboxie, cap prezentów w UI |
-| M15 Profil | 8,0 | 7,8 | **8,0** | most zgód CMP↔rejestr; `CASCADE` faktur otwarty |
-| **Agregat 11 modułów obserwowalnych** | **7,9** | **7,9** | **8,0** | — |
+| Moduł obserwowalny | 24.07 | 01.08 | 03.08 r1 | **03.08 r2** | Co zmieniła fala PR #143-#153 |
+| ------------------ | :---: | :---: | :------: | :----------: | ----------------------------- |
+| M1 Wpisy - czytelnik | 7,8 | 8,2 | 8,4 | **8,6** | TTS: kanoniczny rendition zamiast 24 płatnych wariantów (#147) |
+| M5 Strona główna / archiwa | 8,0 | 8,0 | 8,3 | **8,3** | - |
+| M6 Wyszukiwarka | 8,3 | 8,3 | 8,3 | **8,3** | - (allowlista MIME w STT nadal otwarta) |
+| M7 Typy specjalne | 7,5 | 7,0 | 7,6 | **7,8** | quiz: meta PL/EN + canonical + hreflang (#144) |
+| M8 SEO / feedy | 7,9 | 7,5 | 7,8 | **8,4** | sitemap-index + shardy + news sitemap w robots; monitor linków z migawką Wayback i alertem (#153) |
+| M9 Czat | 8,0 | 8,0 | 8,1 | **8,1** | - |
+| M10 Sieć | 7,6 | 8,0 | 8,1 | **8,1** | - |
+| M11 Newsletter | 7,7 | 7,5 | 7,5 | **7,5** | - (dedup open/click nadal otwarty) |
+| M13 Paywall / checkout | 8,4 | 8,3 | 8,5 | **8,5** | - |
+| M14 Konwersja | 6,9 | 7,3 | 7,7 | **7,7** | - |
+| M15 Profil | 8,0 | 7,8 | 8,0 | **8,2** | P1: usunięcie konta nie niszczy dowodów księgowych (#151) |
+| **Agregat 11 modułów obserwowalnych** | **7,9** | **7,9** | **8,0** | **8,1** | - |
 
 > **Uwaga o dwóch agregatach.** Starsze dokumenty podają agregat z **5 modułów** badania 07-20
 > (NES 8,0; FT 5,5). Ten dokument liczy agregat z **11 modułów obserwowalnych** — te same dane, inny
@@ -479,18 +535,18 @@ Roster: **PISM**, **OSW**, **Klub Jagielloński (KJ)**, **Nowa Konfederacja (NK)
 
 | Moduł | **NES** | PISM | OSW | KJ | NK | INE | najlepszy PL | **Δ NES** |
 | ----- | :-----: | :--: | :-: | :-: | :-: | :-: | :----------: | :-------: |
-| M1 Czytelnik | **8,4** | 4,5 | 5,0 | 4,5 | 4,5 | 4,0 | OSW 5,0 | **+3,4** |
+| M1 Czytelnik | **8,6** | 4,5 | 5,0 | 4,5 | 4,5 | 4,0 | OSW 5,0 | **+3,6** |
 | M5 Strona gł. / archiwa | **8,3** | 3,5 | 4,0 | 3,5 | 3,0 | 3,0 | OSW 4,0 | **+4,3** |
 | M6 Wyszukiwarka | **8,3** | 2,1 | 2,3 | 1,6 | 1,6 | 1,3 | OSW 2,3 | **+6,0** |
-| M7 Typy specjalne | **7,6** | 2,5 | 3,0 | 2,5 | 2,5 | 2,0 | OSW 3,0 | **+4,6** |
-| M8 SEO / feedy | **7,8** | 4,5 | 5,0 | 4,0 | 3,5 | 3,0 | OSW 5,0 | **+2,8** |
+| M7 Typy specjalne | **7,8** | 2,5 | 3,0 | 2,5 | 2,5 | 2,0 | OSW 3,0 | **+4,8** |
+| M8 SEO / feedy | **8,4** | 4,5 | 5,0 | 4,0 | 3,5 | 3,0 | OSW 5,0 | **+3,4** |
 | M9 Czat | **8,1** | 0 | 0 | 0 | 0 | 0 | **brak** | **kategorialna** |
 | M10 Sieć | **8,1** | 0,5 | 0,5 | 0,5 | 0,5 | 0,5 | 0,5 | **+7,6** |
 | M11 Newsletter | **7,5** | 2,5 | 3,0 | 2,5 | 2,5 | 2,0 | OSW 3,0 | **+4,5** |
 | M13 Paywall | **8,5** | 1,0 | 1,0 | 2,5 | 4,0 | 1,5 | NK 4,0 | **+4,5** |
 | M14 Konwersja | **7,7** | 1,5 | 1,5 | 3,0 | 3,5 | 2,5 | NK 3,5 | **+4,2** |
-| M15 Profil | **8,0** | 2,3 | 2,3 | 1,9 | 1,9 | 1,8 | PISM/OSW 2,3 | **+5,7** |
-| **Agregat-11** | **8,0** | **2,3** | **2,5** | **2,4** | **2,5** | **2,0** | OSW/NK 2,5 | **+5,5** |
+| M15 Profil | **8,2** | 2,3 | 2,3 | 1,9 | 1,9 | 1,8 | PISM/OSW 2,3 | **+5,9** |
+| **Agregat-11** | **8,1** | **2,3** | **2,5** | **2,4** | **2,5** | **2,0** | OSW/NK 2,5 | **+5,6** |
 | Agregat-5 (07-20) | 8,0 | 2,3 | 2,4 | 2,1 | 2,1 | 1,8 | OSW 2,4 | +5,6 |
 
 ## K.2.2 Rozbicie kryterialne — gdzie liga PL jest najmocniejsza
@@ -557,18 +613,18 @@ Roster: **ECFR**, **Bruegel**, **Chatham House (CH)**, **RUSI**, **CEPS**, **SWP
 
 | Moduł | **NES** | ECFR | Bruegel | CH | RUSI | CEPS | SWP | najlepszy UE | **Δ NES** |
 | ----- | :-----: | :--: | :-----: | :-: | :--: | :--: | :-: | :----------: | :-------: |
-| M1 Czytelnik | **8,4** | 6,5 | 6,5 | 6,0 | 5,5 | 5,0 | 5,0 | ECFR/Bruegel 6,5 | **+1,9** |
+| M1 Czytelnik | **8,6** | 6,5 | 6,5 | 6,0 | 5,5 | 5,0 | 5,0 | ECFR/Bruegel 6,5 | **+2,1** |
 | M5 Strona gł. / archiwa | **8,3** | 6,0 | 6,0 | 5,0 | 5,0 | 4,5 | 4,5 | ECFR/Bruegel 6,0 | **+2,3** |
 | M6 Wyszukiwarka | **8,3** | 3,8 | 3,7 | 3,3 | 3,0 | 3,0 | 3,1 | ECFR 3,8 | **+4,5** |
-| M7 Typy specjalne | **7,6** | 5,0 | 5,0 | 4,0 | 4,0 | 3,5 | 3,0 | ECFR/Bruegel 5,0 | **+2,6** |
-| M8 SEO / feedy | **7,8** | 6,0 | 6,0 | 5,5 | 5,0 | 5,0 | 5,0 | ECFR/Bruegel 6,0 | **+1,8** |
+| M7 Typy specjalne | **7,8** | 5,0 | 5,0 | 4,0 | 4,0 | 3,5 | 3,0 | ECFR/Bruegel 5,0 | **+2,8** |
+| M8 SEO / feedy | **8,4** | 6,0 | 6,0 | 5,5 | 5,0 | 5,0 | 5,0 | ECFR/Bruegel 6,0 | **+2,4** |
 | M9 Czat | **8,1** | 0 | 0 | 0 | 0 | 0 | 0 | **brak** | **kategorialna** |
 | M10 Sieć | **8,1** | 1,0 | 1,0 | 1,0 | 1,0 | 0,5 | 0,5 | 1,0 | **+7,1** |
 | M11 Newsletter | **7,5** | 4,0 | 3,5 | 3,5 | 3,5 | 3,0 | 3,0 | ECFR 4,0 | **+3,5** |
 | M13 Paywall | **8,5** | 1,0 | 2,0 | **5,5** | **6,0** | 2,5 | 1,0 | RUSI 6,0 | **+2,5** |
 | M14 Konwersja | **7,7** | 4,0 | 4,0 | **6,0** | **6,0** | 4,0 | 2,0 | CH/RUSI 6,0 | **+1,7** |
-| M15 Profil | **8,0** | 3,8 | 3,7 | 3,7 | 3,5 | 3,2 | 3,3 | ECFR 3,8 | **+4,2** |
-| **Agregat-11** | **8,0** | **3,7** | **3,8** | **4,0** | **3,9** | **3,1** | **2,8** | CH 4,0 | **+4,0** |
+| M15 Profil | **8,2** | 3,8 | 3,7 | 3,7 | 3,5 | 3,2 | 3,3 | ECFR 3,8 | **+4,4** |
+| **Agregat-11** | **8,1** | **3,7** | **3,8** | **4,0** | **3,9** | **3,1** | **2,8** | CH 4,0 | **+4,1** |
 | Agregat-5 (07-20) | 8,0 | 3,6 | 3,5 | 3,6 | 3,4 | 2,9 | 2,8 | ECFR/CH 3,6 | +4,4 |
 
 ## K.3.2 Rozbicie kryterialne — dwa bieguny ligi UE
@@ -642,18 +698,18 @@ Roster: **Brookings**, **CSIS**, **CFR**, **RAND**, **Carnegie Endowment**, **At
 
 | Moduł | **NES** | Brookings | CSIS | CFR | RAND | Carnegie | AC | CNAS | najlepszy USA | **Δ NES** |
 | ----- | :-----: | :-------: | :--: | :-: | :--: | :------: | :-: | :--: | :-----------: | :-------: |
-| M1 Czytelnik | **8,4** | 7,0 | 7,0 | **7,5** | 6,5 | 7,0 | 6,5 | 6,0 | CFR 7,5 | **+0,9** |
+| M1 Czytelnik | **8,6** | 7,0 | 7,0 | **7,5** | 6,5 | 7,0 | 6,5 | 6,0 | CFR 7,5 | **+1,1** |
 | M5 Strona gł. / archiwa | **8,3** | 6,5 | 6,5 | **7,0** | 6,0 | 6,5 | 6,0 | 5,5 | CFR 7,0 | **+1,3** |
 | M6 Wyszukiwarka | **8,3** | 4,6 | 4,4 | 4,3 | **5,6** | 4,1 | 3,9 | 3,5 | RAND 5,6 | **+2,7** |
-| M7 Typy specjalne | **7,6** | 5,5 | **7,0** | 6,5 | 5,0 | 5,0 | 6,0 | 4,0 | CSIS 7,0 | **+0,6** |
-| M8 SEO / feedy | **7,8** | **7,5** | 7,0 | **7,5** | **7,5** | 7,0 | 6,5 | 6,0 | 7,5 | **+0,3** |
+| M7 Typy specjalne | **7,8** | 5,5 | **7,0** | 6,5 | 5,0 | 5,0 | 6,0 | 4,0 | CSIS 7,0 | **+0,8** |
+| M8 SEO / feedy | **8,4** | **7,5** | 7,0 | **7,5** | **7,5** | 7,0 | 6,5 | 6,0 | 7,5 | **+0,9** |
 | M9 Czat | **8,1** | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **brak** | **kategorialna** |
 | M10 Sieć | **8,1** | 1,0 | 1,0 | 1,0 | 1,0 | 1,0 | 1,0 | 1,0 | 1,0 | **+7,1** |
 | M11 Newsletter | **7,5** | 5,0 | 5,0 | 5,0 | 4,5 | 4,5 | 4,5 | 4,0 | 5,0 | **+2,5** |
 | M13 Paywall | **8,5** | 1,5 | 1,5 | 2,0 | 1,5 | 1,0 | 1,5 | 1,5 | CFR 2,0 | **+6,5** |
 | M14 Konwersja | **7,7** | 5,0 | 5,0 | 4,5 | 4,5 | 4,5 | 4,5 | 4,0 | 5,0 | **+2,7** |
-| M15 Profil | **8,0** | **4,0** | 3,8 | 3,7 | 3,8 | 3,8 | 3,7 | 3,5 | Brookings 4,0 | **+4,0** |
-| **Agregat-11** | **8,0** | **4,3** | **4,4** | **4,5** | **4,2** | **4,0** | **4,0** | **3,5** | CFR 4,5 | **+3,5** |
+| M15 Profil | **8,2** | **4,0** | 3,8 | 3,7 | 3,8 | 3,8 | 3,7 | 3,5 | Brookings 4,0 | **+4,2** |
+| **Agregat-11** | **8,1** | **4,3** | **4,4** | **4,5** | **4,2** | **4,0** | **4,0** | **3,5** | CFR 4,5 | **+3,6** |
 | Agregat-5 (07-20) | 8,0 | 4,0 | 4,1 | 4,1 | 4,0 | 3,8 | 3,7 | 3,2 | CSIS/CFR 4,1 | +3,9 |
 
 ## K.4.2 Rozbicie kryterialne — gdzie liga USA jest światową czołówką
@@ -721,18 +777,18 @@ Reuters Eikon/Connect, Axios Pro, Euractiv Pro** — inna kategoria produktu i c
 
 | Moduł | **NES** | FT | Bloomberg | Reuters | Economist | Politico | Axios | Euractiv | najlepsze medium | **Δ NES** |
 | ----- | :-----: | :-: | :-------: | :-----: | :-------: | :------: | :---: | :------: | :--------------: | :-------: |
-| M1 Czytelnik | **8,4** | **9,0** | **9,0** | 8,0 | 8,5 | 7,0 | 7,5 | 5,5 | FT/Bloomberg 9,0 | **−0,6** |
+| M1 Czytelnik | **8,6** | **9,0** | **9,0** | 8,0 | 8,5 | 7,0 | 7,5 | 5,5 | FT/Bloomberg 9,0 | **−0,4** |
 | M5 Strona gł. / archiwa | **8,3** | 7,0 | 7,5 | 7,0 | 6,5 | 6,5 | 6,0 | 5,0 | Bloomberg 7,5 | **+0,8** |
 | M6 Wyszukiwarka | **8,3** | 4,8 | 4,0 | 3,6 | 3,6 | 3,4 | 2,8 | 2,7 | FT 4,8 | **+3,5** |
-| M7 Typy specjalne | **7,6** | 8,0 | **9,0** | 8,5 | 6,0 | 7,5 | 5,5 | 4,5 | Bloomberg 9,0 | **−1,4** |
-| M8 SEO / feedy | **7,8** | 8,5 | 8,5 | **9,0** | 8,0 | 8,5 | 7,5 | 7,0 | Reuters 9,0 | **−1,2** |
+| M7 Typy specjalne | **7,8** | 8,0 | **9,0** | 8,5 | 6,0 | 7,5 | 5,5 | 4,5 | Bloomberg 9,0 | **−1,2** |
+| M8 SEO / feedy | **8,4** | 8,5 | 8,5 | **9,0** | 8,0 | 8,5 | 7,5 | 7,0 | Reuters 9,0 | **−0,6** |
 | M9 Czat | **8,1** | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **brak** | **kategorialna** |
 | M10 Sieć | **8,1** | 1,0 | 1,0 | 1,0 | 1,0 | 1,0 | 1,0 | 1,0 | 1,0 | **+7,1** |
 | M11 Newsletter | **7,5** | **8,0** | **8,0** | 7,5 | 7,5 | **8,0** | 7,5 | 6,0 | FT/BB/Politico 8,0 | **−0,5** |
 | M13 Paywall | **8,5** | **9,0** | 8,0 | 7,0 | 8,5 | 4,0 | 3,0 | 4,5 | FT 9,0 | **−0,5** |
 | M14 Konwersja | **7,7** | **8,5** | 8,0 | 7,0 | 8,0 | 5,5 | 5,0 | 4,5 | FT 8,5 | **−0,8** |
-| M15 Profil | **8,0** | 3,7 | 3,2 | 3,2 | 2,7 | 3,2 | 2,9 | 2,8 | FT 3,7 | **+4,3** |
-| **Agregat-11** | **8,0** | **6,1** | **6,0** | **5,6** | **5,5** | **5,0** | **4,4** | **4,0** | FT 6,1 | **+1,9** |
+| M15 Profil | **8,2** | 3,7 | 3,2 | 3,2 | 2,7 | 3,2 | 2,9 | 2,8 | FT 3,7 | **+4,5** |
+| **Agregat-11** | **8,1** | **6,1** | **6,0** | **5,6** | **5,5** | **5,0** | **4,4** | **4,0** | FT 6,1 | **+2,0** |
 | Agregat-5 (07-20) | 8,0 | 5,5 | 4,9 | 4,7 | 4,4 | 4,2 | 3,6 | 3,3 | FT 5,5 | +2,5 |
 
 ## K.5.2 Rozbicie kryterialne — dokładnie tam, gdzie NES przegrywa
@@ -785,21 +841,21 @@ Reuters Eikon/Connect, Axios Pro, Euractiv Pro** — inna kategoria produktu i c
 **Media pozostają jedynymi realnymi rywalami NES.** Lista przegranych modułów **skróciła się z 6 do 5**,
 a marginesy stopniały:
 
-| Przegrany moduł | 30.07 | 01.08 | **03.08** | Kto | Dlaczego wciąż przegrywamy |
-| --------------- | :---: | :---: | :-------: | --- | -------------------------- |
-| M7 Typy specjalne | −2,5 | −2,0 | **−1,4** | Bloomberg 9,0 | brak flagowego interaktywnego produktu; tracker bez importu/RSS |
-| M8 SEO / feedy | −1,5 | −1,5 | **−1,2** | Reuters 9,0 | sitemap jednoplikowa, news-sitemap nieodkrywalny, brak prerenderu |
-| M14 Konwersja | −1,5 | −1,2 | **−0,8** | FT 8,5 | brak checkoutu bez wybicia do `/profile/billing`, capping popupów w localStorage |
-| M1 Czytelnik | −1,2 | −0,8 | **−0,6** | FT/Bloomberg 9,0 | mechanika czytania (typografia/tempo) to dystans szlifu |
-| M11 Newsletter | −0,5 | −0,5 | **−0,5** | FT/BB/Politico 8,0 | open/click zawyżone (podwójny zapis), segmentacja nie self-service |
-| M13 Paywall | −0,6 | −0,7 | **−0,5** | FT 9,0 | dekada optymalizacji lejka; NES nadrabia elastycznością (per-item, prezenty, dożywotni) |
+| Przegrany moduł | 30.07 | 01.08 | 03.08 r1 | **03.08 r2** | Kto | Dlaczego wciąż przegrywamy |
+| --------------- | :---: | :---: | :------: | :----------: | --- | -------------------------- |
+| M7 Typy specjalne | −2,5 | −2,0 | −1,4 | **−1,2** | Bloomberg 9,0 | brak flagowego interaktywnego produktu; tracker bez importu i diffu wersji |
+| M8 SEO / feedy | −1,5 | −1,5 | −1,2 | **−0,6** | Reuters 9,0 | po sitemap-indeksie i news sitemap zostaje prerender i szlif dystrybucji |
+| M14 Konwersja | −1,5 | −1,2 | −0,8 | **−0,8** | FT 8,5 | checkout wybija do `/profile/billing`, capping popupów w localStorage |
+| M1 Czytelnik | −1,2 | −0,8 | −0,6 | **−0,4** | FT/Bloomberg 9,0 | mechanika czytania (typografia/tempo) to dystans szlifu |
+| M11 Newsletter | −0,5 | −0,5 | −0,5 | **−0,5** | FT/BB/Politico 8,0 | open/click zawyżone (podwójny zapis), segmentacja nie self-service |
+| M13 Paywall | −0,6 | −0,7 | −0,5 | **−0,5** | FT 9,0 | dekada optymalizacji lejka; NES nadrabia elastycznością (per-item, prezenty, dożywotni) |
 
 **Ale:** media mają **wyszukiwarkę o połowę słabszą** (max FT 4,8 vs 8,3), **profil czytelnika szczątkowy**
-(max FT 3,7 vs 8,0), a **czat i sieć zerowe**. To firmy z setkami inżynierów robiące jedną rzecz świetnie —
-NES robi 20 rzeczy w jednym systemie.
+(max FT 3,7 vs **8,2**), a **czat i sieć zerowe**. To firmy z setkami inżynierów robiące jedną rzecz
+świetnie - NES robi 20 rzeczy w jednym systemie.
 
 **Jedna korekta na niekorzyść NES:** kryterium „wydajność techniczna" obniżam **9,0 → 7,5** z powodu
-regresu bundla (1,76 MB gzip JS dla czytelnika). To **pierwszy raz, gdy media dorównują lub wyprzedzają
+regresu bundla (1,79 MB gzip JS dla czytelnika). To **pierwszy raz, gdy media dorównują lub wyprzedzają
 NES w warstwie technicznej** (Bloomberg/Reuters 8,0, FT/Economist 7,5). SSR jest mocny, ładunek klienta nie.
 
 ---
@@ -855,7 +911,7 @@ kryterium korpusu 07-20 wynika odpowiedź i przy jakim progu (żeby dało się t
 | - | -------- | :-: | :---------: | -------------- | -------------------------- |
 | 1 | **Czat 1:1 / grupowy na platformie** | ✅ | **0** | nikt | czat = 0,0 u wszystkich 38 |
 | 2 | **Sieć / networking z rekomendacjami** | ✅ | **0** | nikt (wszyscy delegują do LinkedIna) | networking ≤1,0 u wszystkich |
-| 3 | **Profil czytelnika jako produkt** | ✅ | **1** | FT (myFT 4,0) — reszta ≤3,0 | prof. czytelnika ≥4,0 |
+| 3 | **Profil czytelnika jako produkt** | ✅ | **1** | FT (myFT 4,0) - reszta ≤3,0 | prof. czytelnika ≥4,0 |
 | 4 | **Alerty zapisanych wyszukiwań** | ✅ | **1** | FT (6,0); RAND 4,0 = graniczne | alerty ≥5,0 |
 | 5 | **Fasety wyszukiwania klasy produkcyjnej** | ✅ | **3** | RAND 8,0, Brookings 6,5, CSIS 6,0 | fasety ≥6,0 |
 | 6 | **Paywall / bramka treści** | ✅ | **9** | FT 9,0, Economist 8,5, Bloomberg 8,0, Reuters 7,0, RUSI 6,0, CH 5,5, Euractiv 4,5, NK 4,0, Politico 4,0 | paywall ≥4,0 |
@@ -899,10 +955,11 @@ utrzymane.
 | The Economist | Audio | 9,0 : 9,0 | bez zmian | remis: pełne wydanie audio vs TTS per artykuł |
 | FT / Bloomberg / Economist | Landingi konwersji | 8,0–8,5 : 7,0 | bez zmian | dekada optymalizacji lejków |
 | RAND | Fasety wyszukiwania | 8,0 : 8,0 | **remis utrzymany** | jedyny TT na tym poziomie |
+| ~~konkurenci~~ | ~~Zaufanie (odznaki/weryfikacja)~~ | max 2,0 : **8,5** | **NES 7,5 → 8,5 w r2** | odznaki naprawione i z auto-grantem (#148) - r1 obniżył to kryterium z 8,0 do 7,5 z powodu 3 kluczy rzucających 23514 |
 | FT | Komentarze | 7,0 : 7,0 | bez zmian | remis |
 | Politico / FT / Bloomberg | Kanały (newslettery) | 8,0 : 8,0 | bez zmian | remis; warsztat newsletterowy = benchmark |
 | FT | Paywall | 9,0 : 9,0 | bez zmian | remis; inny model (metered vs elastyczny per-item) |
-| **Bloomberg / Reuters** | **Wydajność techniczna** | **8,0 : 7,5** | **NOWE — regres NES** | bundle 1,76 MB gzip dla czytelnika |
+| **Bloomberg / Reuters** | **Wydajność techniczna** | **8,0 : 7,5** | **NOWE — regres NES** | bundle 1,79 MB gzip dla czytelnika (r2: 1788,9 KB, sufit 1790) |
 | **FT / Economist** | **Wydajność techniczna** | **7,5 : 7,5** | **NOWE — remis** | j.w. |
 | ~~FT~~ | ~~Alerty wyszukiwania~~ | ~~6,0 : 5,0~~ → **6,0 : 6,5** | **NES wyszedł na prowadzenie** | fan-out obserwacji trackera + cron zapisanych wyszukiwań + push; **zastrzeżenie: brak testu integracyjnego** |
 
@@ -917,38 +974,38 @@ nie bije NES w ani jednym kryterium modułów czatu i profili**; w wyszukiwarce 
 
 | # | Podmiot | Typ | Agregat-11 | Δ do NES | Agregat-5 (07-20) | Najmniejsza luka do NES |
 | - | ------- | --- | :--------: | :------: | :---------------: | ----------------------- |
-| — | **NES (03.08)** | platforma | **8,0** | — | 8,0 | — |
-| 1 | Financial Times | media | **6,1** | −1,9 | 5,5 | paywall −0,5 · czytanie **+0,6 na korzyść FT** |
-| 2 | Bloomberg.com | media | **6,0** | −2,0 | 4,9 | typy specjalne **+1,4 na korzyść BB** |
-| 3 | Reuters | media | **5,6** | −2,4 | 4,7 | SEO **+1,2 na korzyść Reutersa** |
-| 4 | The Economist | media | **5,5** | −2,5 | 4,4 | paywall **remis** (moduł 8,5 : 8,5) · audio remis (9,0) |
-| 5 | Politico | media | **5,0** | −3,0 | 4,2 | newsletter **+0,5 na korzyść Politico** |
-| 6 | CFR | TT USA | **4,5** | −3,5 | 4,1 | SEO −0,3 |
-| 7 | CSIS | TT USA | **4,4** | −3,6 | 4,1 | typy specjalne −0,6 |
-| 8 | Axios | media | **4,4** | −3,6 | 3,6 | SEO −0,3 |
-| 9 | Brookings | TT USA | **4,3** | −3,7 | 4,0 | SEO −0,3 |
-| 10 | RAND | TT USA | **4,2** | −3,8 | 4,0 | SEO −0,3 · fasety remis |
-| 11 | Chatham House | TT UE | **4,0** | −4,0 | 3,6 | konwersja −1,7 |
-| 12 | Carnegie Endowment | TT USA | **4,0** | −4,0 | 3,8 | SEO −0,8 |
-| 13 | Atlantic Council | TT USA | **4,0** | −4,0 | 3,7 | typy specjalne −1,6 |
-| 14 | Euractiv | media | **4,0** | −4,0 | 3,3 | SEO −0,8 |
-| 15 | RUSI | TT UE | **3,9** | −4,1 | 3,4 | konwersja −1,7 |
-| 16 | Bruegel | TT UE | **3,8** | −4,2 | 3,5 | SEO −1,8 |
-| 17 | ECFR | TT UE | **3,7** | −4,3 | 3,6 | **microsites remis 7,0** |
-| 18 | CNAS | TT USA | **3,5** | −4,5 | 3,2 | SEO −1,8 |
-| 19 | CEPS | TT UE | **3,1** | −4,9 | 2,9 | SEO −2,8 |
-| 20 | SWP | TT UE | **2,8** | −5,2 | 2,8 | SEO −2,8 |
+| - | **NES (03.08 r2)** | platforma | **8,1** | - | 8,0 | - |
+| 1 | Financial Times | media | **6,1** | −2,0 | 5,5 | paywall −0,5 · czytanie **+0,6 na korzyść FT** |
+| 2 | Bloomberg.com | media | **6,0** | −2,1 | 4,9 | typy specjalne **+1,4 na korzyść BB** |
+| 3 | Reuters | media | **5,6** | −2,5 | 4,7 | SEO **+1,2 na korzyść Reutersa** |
+| 4 | The Economist | media | **5,5** | −2,6 | 4,4 | paywall **remis** (moduł 8,5 : 8,5) · audio remis (9,0) |
+| 5 | Politico | media | **5,0** | −3,1 | 4,2 | newsletter **+0,5 na korzyść Politico** |
+| 6 | CFR | TT USA | **4,5** | −3,6 | 4,1 | SEO −0,3 |
+| 7 | CSIS | TT USA | **4,4** | −3,7 | 4,1 | typy specjalne −0,6 |
+| 8 | Axios | media | **4,4** | −3,7 | 3,6 | SEO −0,3 |
+| 9 | Brookings | TT USA | **4,3** | −3,8 | 4,0 | SEO −0,3 |
+| 10 | RAND | TT USA | **4,2** | −3,9 | 4,0 | SEO −0,3 · fasety remis |
+| 11 | Chatham House | TT UE | **4,0** | −4,1 | 3,6 | konwersja −1,7 |
+| 12 | Carnegie Endowment | TT USA | **4,0** | −4,1 | 3,8 | SEO −0,8 |
+| 13 | Atlantic Council | TT USA | **4,0** | −4,1 | 3,7 | typy specjalne −1,6 |
+| 14 | Euractiv | media | **4,0** | −4,1 | 3,3 | SEO −0,8 |
+| 15 | RUSI | TT UE | **3,9** | −4,2 | 3,4 | konwersja −1,7 |
+| 16 | Bruegel | TT UE | **3,8** | −4,3 | 3,5 | SEO −1,8 |
+| 17 | ECFR | TT UE | **3,7** | −4,4 | 3,6 | **microsites remis 7,0** |
+| 18 | CNAS | TT USA | **3,5** | −4,6 | 3,2 | SEO −1,8 |
+| 19 | CEPS | TT UE | **3,1** | −5,0 | 2,9 | SEO −2,8 |
+| 20 | SWP | TT UE | **2,8** | −5,3 | 2,8 | SEO −2,8 |
 | 21 | RIAC | TT RU | b/d¹ | — | 2,9 | języki −2,0 |
 | 22 | Klub Wałdajski | TT RU | b/d¹ | — | 2,8 | języki −1,5 |
-| 23 | OSW | TT PL | **2,5** | −5,5 | 2,4 | języki −2,0 |
-| 24 | Nowa Konfederacja | TT PL | **2,5** | −5,5 | 2,1 | paywall −4,5 |
-| 25 | Klub Jagielloński | TT PL | **2,4** | −5,6 | 2,1 | SEO −3,8 |
+| 23 | OSW | TT PL | **2,5** | −5,6 | 2,4 | języki −2,0 |
+| 24 | Nowa Konfederacja | TT PL | **2,5** | −5,6 | 2,1 | paywall −4,5 |
+| 25 | Klub Jagielloński | TT PL | **2,4** | −5,7 | 2,1 | SEO −3,8 |
 | 26 | RIETI | TT JP | b/d¹ | — | 2,4 | SEO −3,3 |
-| 27 | PISM | TT PL | **2,3** | −5,7 | 2,3 | języki −2,0 |
+| 27 | PISM | TT PL | **2,3** | −5,8 | 2,3 | języki −2,0 |
 | 28 | Sasakawa PF | TT JP | b/d¹ | — | 2,3 | języki −3,0 |
 | 29 | Russia in Global Aff. | TT RU | b/d¹ | — | 2,1 | języki −2,5 |
 | 30 | Genron NPO | TT JP | b/d¹ | — | 2,1 | Q&A/wydarzenia −3,0 |
-| 31 | INE | TT PL | **2,0** | −6,0 | 1,8 | języki −3,0 |
+| 31 | INE | TT PL | **2,0** | −6,1 | 1,8 | języki −3,0 |
 | 32 | CCG | TT CN | b/d¹ | — | 2,0 | kanały −4,0 |
 | 33 | IMEMO | TT RU | b/d¹ | — | 1,9 | języki −3,5 |
 | 34 | JIIA | TT JP | b/d¹ | — | 1,9 | języki −3,5 |
@@ -971,7 +1028,7 @@ nie bije NES w ani jednym kryterium modułów czatu i profili**; w wyszukiwarce 
 
 **1. Warstwa, na której nie ma z kim się porównać (9 modułów „b/d").** Edytor z parytetem Gutenberga,
 builder (101 bloków + 89 widgetów), realtime-infra, silnik workflow, analityka BI z warstwą semantyczną,
-CRM z lead scoringiem i outboxem integracji, multi-tenant z zaufanym hostem, backend z 518 politykami RLS
+CRM z lead scoringiem i outboxem integracji, multi-tenant z zaufanym hostem, backend z 519 politykami RLS
 i trzema statycznymi gate'ami SQL — **żaden z 38 konkurentów nie wystawia tego publicznie**. Dla think-tanku
 posiadanie własnego CMS + membership + CRM + BI w jednym systemie jest **ewenementem sektorowym**.
 
@@ -980,17 +1037,20 @@ czat (**0 u wszystkich 38**), sieć/networking (**≤1,0 u wszystkich 38**), pro
 wyszukiwarka (max RAND 5,6 / FT 4,8 vs 8,3), builder self-service i A/B poza mediami (max 3,0 / TT ≤2,0),
 elastyczna monetyzacja per-item + prezenty. **Żadna z tych przewag nie ucierpiała w tym wydaniu.**
 
-**3. Gdzie NES realnie przegrywa (stan 03.08, uczciwie):**
-- **Dorobek interaktywny** — Bloomberg Graphics (9,5) i CSIS (9,0) poza zasięgiem (−2,5 / −2,0); z CFR (8,0)
-  jest −1,0, z ECFR (7,0) **remis**. Utrzymanie remisu wymaga domknięcia trackera: **import EUR-Lex/OEIL,
-  diff wersji, RSS, digest e-mail**.
-- **Mechanika czytania** — media 8,0–9,0 vs 6,5. Dystans szlifu, nie architektury.
-- **Live** — Reuters 9,5. **Świadomie poza modelem** (NES ma live blog jako format, nie jako rdzeń).
-- **Wydajność ładunku klienta (NOWE)** — 1,76 MB gzip JS dla czytelnika. **Pierwsza pozycja, w której NES
-  cofnął się wobec konkurencji**: Bloomberg/Reuters 8,0 vs NES 7,5. Jedyny obszar, gdzie regres jest
-  wewnętrzny (re-floory budżetu), a nie wynikiem ruchu konkurencji.
-- **Konwersja i newsletter** — FT −0,8 / −0,5. Dystans szlifu (dedup open/click, segmentacja self-service,
-  checkout bez wybicia do `/profile/billing`).
+**3. Gdzie NES realnie przegrywa (stan 03.08 r2, uczciwie):**
+- **Dorobek interaktywny** - Bloomberg Graphics (9,5) i CSIS (9,0) poza zasięgiem (−2,5 / −2,0); z CFR (8,0)
+  jest −1,0, z ECFR (7,0) **remis**. Lista braków trackera skróciła się do dwóch pozycji: **import
+  EUR-Lex/OEIL i diff wersji** (RSS wdrożony w #145, digest i alerty istniały - patrz korekty 1 i 1b).
+- **Mechanika czytania** - media 8,0-9,0 vs 6,5 w kryterium. Dystans szlifu, nie architektury; moduł
+  podciągnęły funkcje wokół czytania (TTS, licznik, TOC), nie samo czytanie.
+- **Live** - Reuters 9,5. **Świadomie poza modelem** (NES ma live blog jako format, nie jako rdzeń).
+- **Wydajność ładunku klienta** - **1788,9 KB gzip JS** dla czytelnika (r1: 1756). To **jedyna pozycja,
+  w której NES cofnął się także w tej rewizji**: Bloomberg/Reuters 8,0 vs NES 7,5, a do sufitu własnego
+  budżetu zostało 1,9 KB. Regres jest w całości wewnętrzny - konkurencja się nie ruszyła.
+- **Konwersja i newsletter** - FT −0,8 / −0,5, bez zmian. Dystans szlifu (dedup open/click, segmentacja
+  self-service, checkout bez wybicia do `/profile/billing`).
+- **SEO - luka skurczyła się o połowę** (−1,2 → **−0,6** wobec Reutersa) po sitemap-indeksie i ogłoszeniu
+  news sitemap; zostaje prerender (0 stron) i szlif dystrybucji.
 
 **4. Ryzyka konkurencyjne w horyzoncie 12 miesięcy (nie oceny — ryzyka):**
 - **Wysokie:** wzrost bundla dalej zjada przewagę techniczną; każdy kolejny re-floor to realna strata
@@ -1002,12 +1062,14 @@ elastyczna monetyzacja per-item + prezenty. **Żadna z tych przewag nie ucierpia
   ich retencja stoi na newsletterach i personalizacji).
 
 **Konkluzja.** W kategorii **think-tank** NES nie ma realnego rywala: wyprzedza całą ligę PL o kategorię
-(+5,5 agregatu), UE o +4,0 (najcieńszy margines: konwersja +1,7, remis w microsites z ECFR), a najlepsze
-TT USA o +3,5, **nie przegrywając już żadnego modułu z żadnym think-tankiem** (30.07: jeden, z CSIS).
-Realną poprzeczką pozostają **globalne media** (FT 6,1 / Bloomberg 6,0 / Reuters 5,6): biją NES w czytaniu
-(−0,6), storytellingu (−1,4), SEO (−1,2), konwersji (−0,8), newsletterze (−0,5) i paywallu (−0,5), a od
-tego wydania **dorównują lub wyprzedzają w wydajności ładunku klienta** — ale warstwy
-społecznościowo-sieciowo-wyszukiwarkowej nie mają wcale.
+(**+5,6** agregatu), UE o **+4,1** (najcieńszy margines: konwersja +1,7), a najlepsze TT USA o **+3,6**,
+**nie przegrywając żadnego modułu z żadnym think-tankiem** i prowadząc w typach specjalnych nad CSIS
+(+0,8) po zamknięciu meta quizu i kanału trackera. Realną poprzeczką pozostają **globalne media**
+(FT 6,1 / Bloomberg 6,0 / Reuters 5,6): biją NES w czytaniu (−0,4), storytellingu (−1,2), SEO (**już tylko
+−0,6**), konwersji (−0,8), newsletterze (−0,5) i paywallu (−0,5) - **pięć z sześciu marginesów zwężyło się
+albo stanęło**, a w SEO różnica spadła o połowę w ciągu doby. Jedyny ruch w drugą stronę jest po naszej
+stronie: **ładunek klienta**, gdzie media dorównują lub wyprzedzają. Warstwy
+społecznościowo-sieciowo-wyszukiwarkowej nadal nie mają wcale.
 
 ---
 
@@ -1019,41 +1081,65 @@ społecznościowo-sieciowo-wyszukiwarkowej nie mają wcale.
   triggerem `BEFORE DELETE ON auth.users` i statyczną bramką CI pilnującą stanu końcowego FK. Szczegóły:
   `WDROZENIE_RODO_RETENCJA_ZAMOWIEN_2026-08-03.md`. Klasa P1 nie ma już otwartych punktów.
 
-**P2 — regres, który trzeba zatrzymać teraz:**
-- **Bundle publiczny.** Zamrozić budżet (koniec re-floorów), rozliczyć wzrost 1472 → 1756 KB z PR #141/#132,
-  wypchnąć edytor/builder/admin poza ścieżkę publiczną.
-- **Lint na `main`.** 10 błędów `prettier/prettier` blokuje bramkę; przyczyna to commity pchane poza PR-ami →
-  **ochrona gałęzi `main`**.
+**P1 (NOWY, otwarty - podniesiony z P2 po materializacji):**
+- **Gate unikalności wersji migracji.** Trzy pliki dzielą prefiks `20260803090000` (korekta 5). Rekomendacja
+  z dwóch wydań; incydent trzeci wjechał razem z falą, która zamykała inne rekomendacje. Bez gate'u różnica
+  między „baza da się odtworzyć z migracji" a „nie da się" jest kwestią kolejności alfabetycznej nazw plików.
+- **Gate „SECURITY DEFINER z grantem dla `authenticated`".** Korekta 4 pokazała, że klasa istnieje i jest
+  niewidoczna dla audytu czytającego producentów, nie ACL. `enqueue_notification` był kanałem phishingowym
+  wewnątrz produktu przez ~3 tygodnie. Wzorzec do skopiowania: `check-sql-anon-insert` (inwariant + self-test).
 
-**P2 — wydmuszki, które przetrwały trzy wydania:**
-- Autozapis stron (kłamliwy komentarz albo włączenie hooka).
-- `BADGE_CATALOG` (6 kluczy) vs DB CHECK (4) — 3 klucze zawsze rzucają 23514; brak auto-grantu.
-- Meta quizu zahardkodowane po polsku (bez `activeLang`, bez `og:url`).
-- Import WP niszczący drugi język + dwa równoległe stacki.
-- Dwie tabele programów (`programs` vs `research_programs`).
+**P2 - regres, który trzeba zatrzymać teraz:**
+- **Bundle publiczny.** Trzy re-floory w trzy dni: 1472 → 1756 → **1788,9 KB gzip**, sufit 1790.
+  **Zamrozić budżet** (żadnego kolejnego podniesienia bez rozliczenia), rozliczyć wzrost z fal PR
+  #132/#141/#146/#152, wypchnąć edytor/builder/admin poza ścieżkę publiczną czytelnika.
+- **Lint na `main`.** Te same 10 błędów `prettier/prettier` w 3 plikach z commitów Lovable pchanych poza
+  PR-ami. Bramka broni PR-ów, nie gałęzi → **ochrona `main`** (albo hook formatujący po stronie Lovable).
 
-**P2 — inwarianty, których brakuje (klasy błędów bez gate'u):**
-- **Parytet schemat⇄renderer widgetów** — jedyna realna obrona przed powrotem klasy z PR #141.
-- **Unikalność wersji migracji** (2 kolizje w 2 dni).
-- **UNIQUE na `newsletter_campaign_events`** + wyłączenie jednego z dwóch pisarzy open/click.
-- **Wyłączenie `documentStreamGuard` w e2e** — bez tego bramka kompletności SSR nie może zafailować.
+**P2 - wydmuszki, które przetrwały trzy wydania (i tego dnia się nie ruszyły):**
+- **Autozapis stron** - `useAutosave` nadal nieimportowany w `admin.pages.$slug.tsx`, a komentarz w linii 294
+  nadal zaczyna się „Autozapis włączony (jak dla wpisów)". Czwarte wydanie z tym zapisem.
+- **Import WP niszczący drugi język** - `blocks_data` nadpisywane hurtowo (`{pl: doc, en: pusty}`) plus
+  `title_en: ""`; dwa równoległe stacki (688 + 924 linie).
+- **Dwie tabele programów** (`programs` vs `research_programs`) - po 4 miejsca odczytu każda.
+- **FTS czatu w konfiguracji `simple`** - zero fleksji wbrew komentarzowi „polska fleksja".
+- **Brak allowlisty MIME w `/api/stt`** - dowolny 8 MB blob idzie do gatewaya.
+- **`rel=amphtml` warunkowe** (`web-stories.$slug.tsx:43` - tylko gdy `cover_url`).
+- **SVG na liście importera WP** (`wp-media.server.ts:16`) przy allowliście aplikacyjnej blokującej SVG.
+- **`REVISION_FIELDS` postowe dla stron** - snapshot strony gubi `template_type`/`header_override`/`toc_override`.
 
-**P3 — najkrótsza droga do zamknięcia luk konkurencyjnych:**
-1. **Tracker: import EUR-Lex/OEIL + diff wersji + RSS + digest** → utrzymuje remis z ECFR, atakuje CFR (−1,0).
-2. **Tryb czytania (typografia/tempo)** → jedyna droga do skrócenia −0,6 wobec FT/Bloomberg.
-3. **Sitemap-index + `news-sitemap` w `robots.txt` + prerender kluczowych stron** → −1,2 wobec Reutersa.
+**P2 - inwarianty, których wciąż brakuje:**
+- **UNIQUE na `newsletter_campaign_events`** + wyłączenie jednego z dwóch pisarzy open/click (webhook Resend
+  i piksel/`nl-click` zapisują to samo zdarzenie).
+- **Wyłączenie `documentStreamGuard` w e2e** - `FORCED_CLOSE_TAIL` nadal dopisuje `</body></html>`, więc
+  asercja kompletności SSR nie może zafailować.
+- **Przydział A/B po stronie serwera** + bramka istotności (flash wariantu B, SSR zawsze A).
+- **`GA4_*` w `.env.example`** i cache odczytów GA4 (2 wywołania API na odświeżenie).
+- **Prerender** - nadal 0 stron; `prerender.ts` to Speculation Rules, nie build.
+- **GPC / „do not sell"** - zero wystąpień `Sec-GPC`; kategoria `personalization` niczego nie bramkuje.
+- **Lista sesji/urządzeń** i **MFA na ścieżce OAuth** (user z TOTP wchodzi przez blok buildera na aal1).
+
+**P3 - najkrótsza droga do zamknięcia luk konkurencyjnych:**
+1. **Tracker: import EUR-Lex/OEIL + diff wersji** → utrzymuje remis z ECFR w microsites i atakuje CFR (−1,0).
+   To już jedyne dwa braki modułu - alerty (in-app, push, digest, RSS) są domknięte.
+2. **Tryb czytania (typografia/tempo)** → jedyna droga do skrócenia −0,4 wobec FT/Bloomberg; wszystko wokół
+   czytania (TTS, TOC, licznik, przypisy) jest już na 9.
+3. **Prerender kluczowych stron** → domyka −0,6 wobec Reutersa po sitemap-indeksie.
 4. **Dedup open/click + segmentacja self-service** → −0,5 wobec FT/Politico.
+5. **Zamrożenie bundla** → odzyskuje jedyną pozycję, w której NES cofa się wobec mediów.
 
 ---
 
-*Wydanie 2026-08-03 dokumentu `OCENA_FUNKCJI_TABELE_2026-08-01.md` (tamten pozostaje nietknięty jako migawka
-stanu 01.08). Oceny NES — z kodu na HEAD `c4de8a2` (testy, tsc, lint i trzy gate'y SQL uruchomione, wyniki
-w tabeli sygnałów). Oceny konkurentów — przemapowanie korpusu
-`OCENA_KONKURENCI_INDYWIDUALNIE_2026-07-20.md` / `OCENA_FUNKCJI_KONKURENCI_2026-07-24.md` (stan wiedzy do
-poł. 2026); **w tym wydaniu nie było możliwe ponowne pobranie serwisów konkurencji** (polityka sieciowa
-środowiska: HTTP 403 na wszystkie wychodzące pobrania), więc nowa jest głębokość rozbicia i przeliczenie
-różnic, nie sam pomiar konkurencji. „b/d" = brak danych z zewnątrz, nie brak funkcji. **Treść artykułów —
-NES i konkurencji — celowo poza zakresem oceny.***
+*Wydanie 2026-08-03, **rewizja 2** (r1 opisywała HEAD `c4de8a2`; ta rewizja - `715f934`, po fali PR
+#143-#153). Poprzednie wydania (`OCENA_FUNKCJI_TABELE_2026-07-30.md`, `...2026-08-01.md`) pozostają
+nietknięte jako migawki. Oceny NES - **z kodu**: `vitest`, `tsc`, `eslint`, trzy gate'y SQL i nowa bramka
+`check:widget-fidelity` uruchomione na tym HEAD, wyniki w tabeli sygnałów; każda pozycja „zamknięte"
+zweryfikowana w migracji albo w pliku, nie w dokumencie wdrożenia. Oceny konkurentów - przemapowanie
+korpusu `OCENA_KONKURENCI_INDYWIDUALNIE_2026-07-20.md` / `OCENA_FUNKCJI_KONKURENCI_2026-07-24.md` (stan
+wiedzy do poł. 2026); **ponowne pobranie serwisów konkurencji nadal niemożliwe** (polityka sieciowa
+środowiska: HTTP 403 na wychodzące pobrania), więc w części konkurencyjnej nowe są **oceny NES, delty
+i agregaty**, nie pomiar konkurencji. „b/d" = brak danych z zewnątrz, nie brak funkcji. **Treść artykułów -
+NES i konkurencji - celowo poza zakresem oceny.***
 
 [1] Chatham House — model członkostwa i dostępu: <https://www.chathamhouse.org/become-member/individual-membership>,
 <https://www.chathamhouse.org/publications/the-world-today/subscribe> (weryfikacja 2026-08-03).
