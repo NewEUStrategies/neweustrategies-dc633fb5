@@ -970,8 +970,23 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   </div>
                 )}
                 {/* Mobile: odsluch (TTS) + pobranie artykulu w miejscu paska
-                    czasu czytania / aktualizacji. */}
-                <MobileArticleActions lang={lang} />
+                    czasu czytania / aktualizacji. Odsluch idzie przez globalny
+                    player i kanoniczny endpoint post-tts (jeden glos i jeden
+                    plik na wpis), wiec formaty audio/wideo - ktore maja wlasny
+                    odtwarzacz - go nie pokazuja. */}
+                {format !== "audio" && format !== "video" && (
+                  <MobileArticleActions
+                    lang={lang}
+                    postId={post.id}
+                    title={title}
+                    author={
+                      postAuthor?.display_name ||
+                      [postAuthor?.first_name, postAuthor?.last_name].filter(Boolean).join(" ") ||
+                      null
+                    }
+                    audioUrl={(lang === "en" ? post.audio_url_en : post.audio_url_pl) ?? null}
+                  />
+                )}
 
                 {!merged.quick_view_info && giftButton && (
                   <div className="no-print mb-4 hidden justify-end sm:flex">{giftButton}</div>

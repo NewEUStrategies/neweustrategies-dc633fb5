@@ -10,4 +10,5 @@ export { CategoriesCard } from "./CategoriesCard";
 export { TagsCard } from "./TagsCard";
 export { BilingualPickerCard } from "./BilingualPickerCard";
 export { EditorModeToggle } from "./EditorModeToggle";
+export { TtsVoiceCard } from "./TtsVoiceCard";
 export { StepIndicator } from "./StepIndicator";

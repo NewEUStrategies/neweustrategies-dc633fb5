@@ -17,6 +17,7 @@ import { rateLimit } from "./server/rate-limit.server";
 import { POST_STATUSES, evaluateTransition, isFirstPublish } from "./content/workflow";
 import { editConflictError } from "./content/saveConflict";
 import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
+import { isAllowedTtsVoiceId } from "./audio/ttsCanonical";
 import {
   REVISION_KEEP_LIMIT,
   pickRevisionSnapshot,
@@ -257,6 +258,21 @@ const TitleBlock = {
   title_en: z.string().max(300).default(""),
 };
 
+/**
+ * Kanoniczny głos lektora AI: id z allowlisty TTS_VOICES albo null
+ * ("dziedzicz głos najemcy"). Pusty string z <select> traktujemy jak null,
+ * bo taką wartość niesie opcja "Domyślny głos witryny".
+ */
+const TtsVoiceId = z
+  .string()
+  .max(64)
+  .nullable()
+  .optional()
+  .transform((v) => (v === "" ? null : v))
+  .refine((v) => v === null || v === undefined || isAllowedTtsVoiceId(v), {
+    message: "Voice outside the allowlist",
+  });
+
 // Yoast-class per-entity SEO fields, shared by posts and pages. Every field is
 // optional - the public head() falls back to title/excerpt/site defaults, so
 // editors only fill these when they want to override the derived meta.
@@ -303,6 +319,12 @@ const PostCore = z.object({
   cover_image_url: z.string().url().max(2048).nullable().optional(),
   audio_url_pl: z.string().url().max(2048).nullable().optional(),
   audio_url_en: z.string().url().max(2048).nullable().optional(),
+  // Kanoniczny głos lektora AI per język. Walidowany przeciw TEJ SAMEJ
+  // allowlistcie, co endpoint publiczny i CHECK-i w bazie (jedno źródło:
+  // lib/audio/ttsCanonical.ts) - redakcja nie może zapisać głosu, którego
+  // synteza nie zaakceptuje. null = dziedzicz głos najemcy.
+  tts_voice_pl: TtsVoiceId,
+  tts_voice_en: TtsVoiceId,
   read_minutes: z.number().int().min(0).max(999).nullable().optional(),
   builder_data: BuilderJsonValue.nullable().optional(),
   blocks_data: BuilderJsonValue.nullable().optional(),

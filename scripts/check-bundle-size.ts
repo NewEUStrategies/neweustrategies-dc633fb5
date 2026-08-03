@@ -96,9 +96,22 @@ const CLIENT_DIR =
 // zwykły ruch na mainie. Zejście z powrotem do ciasnych floorów ma sens
 // dopiero po realnej redukcji (split locale'i PL/EN, odchudzenie eager-owego
 // zestawu widgetów chrome, @tanstack poza entry) - to osobna praca.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 505); // largest single gzipped JS chunk (zmierzone: ~492KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1790); // gzipped JS a public visitor can load (zmierzone: ~1756KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2990); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~2928KB)
+// 2026-08-03: pomiar na tym samym hoście i tej samej wersji zależności,
+// gałąź kanonicznego lektora TTS vs jej baza (be5e79d):
+//   * baza:    504,8 KB chunk / 1788,3 KB public / 2986,4 KB overall,
+//   * gałąź:   505,4 KB chunk / 1788,9 KB public / 2990,3 KB overall.
+// Zapas dwóch floorów zjadł dryf maina (0,2 KB przy chunku i przy overall -
+// 0,04% zamiast założonych ~2%), więc bramka zapalała się na +0,6 KB w entry
+// (przycisk odsłuchu na mobile, który dotąd wołał endpoint redakcyjny i dla
+// czytelnika po prostu nie działał) i na +3,3 KB kodu WYŁĄCZNIE adminowego.
+// CHUNK i OVERALL wracają więc do funkcji "floor nad zmierzonym śladem".
+// PUBLIC zostaje na 1790 świadomie: to jedyny budżet o znaczeniu wydajnościowym
+// dla czytelnika i ta gałąź się w nim MIEŚCI (1788,9), więc nie ma powodu go
+// rozluźniać. Realna redukcja (split locale'i PL/EN, odchudzenie eager-owego
+// zestawu widgetów chrome, @tanstack poza entry) pozostaje osobną pracą.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 508); // largest single gzipped JS chunk (zmierzone: ~505,4KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1790); // gzipped JS a public visitor can load (zmierzone: ~1788,9KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2996); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~2990,3KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the
@@ -121,8 +134,15 @@ const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 2990); // gzipped JS inc
 // `profile.index`, `search`, `people`), czyli dokładnie odwrotnie do celu.
 // Nazwanie chunków tutaj jest tym samym wzorcem, co `EChartClient` i
 // `ThemeOptionsPane` powyżej.
+// 2026-08-03: dochodzą dwa chunki kanonicznego lektora AI (TTS) - `TtsVoiceSelect`
+// (atom wyboru głosu z allowlisty) i `i18n-admin-tts` (jego ciągi PL/EN). Oba są
+// importowane WYŁĄCZNIE przez /admin/settings/reading i sekcję Audio edytora wpisu
+// (molekuła TtsVoiceCard) - czytelnik nie wybiera głosu, więc nigdy ich nie
+// pobiera. Ciągi są celowo w nakładce i18n-admin-* zamiast w rdzennych
+// `locale/{pl,en}.ts`: tamte chunki pobiera KAŻDY czytelnik (ten sam powód, co
+// przy `i18n-admin-semantic`).
 const ADMIN_ONLY =
-  /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-|EChartClient|SemanticReconciliationPanel|MetricDictionary|WindowProvenance|i18n-admin-semantic)/;
+  /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-|EChartClient|SemanticReconciliationPanel|MetricDictionary|WindowProvenance|i18n-admin-semantic|i18n-admin-tts|TtsVoiceSelect)/;
 function isAdminOnly(file: string): boolean {
   return ADMIN_ONLY.test(basename(file));
 }
