@@ -339,6 +339,7 @@ function GuestCommentComposer({
   const [name, setName] = useState("");
   const [body, setBody] = useState("");
   const [website, setWebsite] = useState("");
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
   const disabled =
     name.trim().length < 2 ||
     name.trim().length > 80 ||
@@ -376,38 +377,46 @@ function GuestCommentComposer({
         autoComplete="name"
         lang={lang}
       />
-      <MentionTextarea
-        label={t("comments.placeholder")}
+      <CommentComposerShell
         value={body}
-        onChange={setBody}
-        rows={4}
+        onValueChange={setBody}
+        textareaRef={bodyRef}
         maxLength={5000}
-        lang={lang}
-      />
-      {/* Honeypot - niewidoczne dla ludzi, kuszące dla botów. */}
-      <input
-        type="text"
-        name="website"
-        value={website}
-        onChange={(e) => setWebsite(e.target.value)}
-        tabIndex={-1}
-        autoComplete="off"
-        aria-hidden="true"
-        className="hidden"
-      />
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={disabled}>
-          {t("comments.submit")}
-        </Button>
-        {onCancel && (
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            {t("common.cancel", { defaultValue: lang === "pl" ? "Anuluj" : "Cancel" })}
-          </Button>
-        )}
-        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-          {body.length}/5000
-        </span>
-      </div>
+        actions={
+          <>
+            {onCancel && (
+              <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+                {t("common.cancel", { defaultValue: lang === "pl" ? "Anuluj" : "Cancel" })}
+              </Button>
+            )}
+            <Button type="submit" size="sm" disabled={disabled}>
+              {t("comments.submit")}
+              <CornerDownLeft className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+            </Button>
+          </>
+        }
+      >
+        <MentionTextarea
+          label={t("comments.placeholder")}
+          value={body}
+          onChange={setBody}
+          rows={4}
+          maxLength={5000}
+          lang={lang}
+          textareaRef={bodyRef}
+        />
+        {/* Honeypot - niewidoczne dla ludzi, kuszące dla botów. */}
+        <input
+          type="text"
+          name="website"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          className="hidden"
+        />
+      </CommentComposerShell>
     </form>
   );
 }
@@ -432,6 +441,7 @@ function CommentComposer({
 }) {
   const { t } = useTranslation();
   const [body, setBody] = useState(initialValue ?? "");
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
   const disabled =
     body.trim().length < 1 ||
     body.trim().length > 5000 ||
@@ -453,27 +463,35 @@ function CommentComposer({
       }}
       className="space-y-3"
     >
-      <MentionTextarea
-        label={placeholder ?? t("comments.placeholder")}
+      <CommentComposerShell
         value={body}
-        onChange={setBody}
-        rows={4}
+        onValueChange={setBody}
+        textareaRef={bodyRef}
         maxLength={5000}
-        lang={lang}
-      />
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={disabled} className="text-xs">
-          {submitLabel ?? t("comments.submit")}
-        </Button>
-        {onCancel && (
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            {t("common.cancel", { defaultValue: lang === "pl" ? "Anuluj" : "Cancel" })}
-          </Button>
-        )}
-        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-          {body.length}/5000
-        </span>
-      </div>
+        actions={
+          <>
+            {onCancel && (
+              <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+                {t("common.cancel", { defaultValue: lang === "pl" ? "Anuluj" : "Cancel" })}
+              </Button>
+            )}
+            <Button type="submit" size="sm" disabled={disabled}>
+              {submitLabel ?? t("comments.submit")}
+              <CornerDownLeft className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+            </Button>
+          </>
+        }
+      >
+        <MentionTextarea
+          label={placeholder ?? t("comments.placeholder")}
+          value={body}
+          onChange={setBody}
+          rows={4}
+          maxLength={5000}
+          lang={lang}
+          textareaRef={bodyRef}
+        />
+      </CommentComposerShell>
     </form>
   );
 }
