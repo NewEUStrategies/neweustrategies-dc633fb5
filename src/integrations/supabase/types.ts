@@ -6462,6 +6462,7 @@ export type Database = {
       payment_orders: {
         Row: {
           amount_cents: number
+          anonymized_at: string | null
           created_at: string
           currency: string
           entity_id: string | null
@@ -6478,13 +6479,17 @@ export type Database = {
           provider_session_id: string | null
           provider_subscription_id: string | null
           receipt_email: string | null
+          retention_hold: boolean
+          retention_until: string | null
           status: Database["public"]["Enums"]["order_status"]
+          subject_ref: string | null
           tenant_id: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           amount_cents?: number
+          anonymized_at?: string | null
           created_at?: string
           currency?: string
           entity_id?: string | null
@@ -6501,13 +6506,17 @@ export type Database = {
           provider_session_id?: string | null
           provider_subscription_id?: string | null
           receipt_email?: string | null
+          retention_hold?: boolean
+          retention_until?: string | null
           status?: Database["public"]["Enums"]["order_status"]
+          subject_ref?: string | null
           tenant_id?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           amount_cents?: number
+          anonymized_at?: string | null
           created_at?: string
           currency?: string
           entity_id?: string | null
@@ -6524,10 +6533,13 @@ export type Database = {
           provider_session_id?: string | null
           provider_subscription_id?: string | null
           receipt_email?: string | null
+          retention_hold?: boolean
+          retention_until?: string | null
           status?: Database["public"]["Enums"]["order_status"]
+          subject_ref?: string | null
           tenant_id?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -11748,6 +11760,9 @@ export type Database = {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
       }
+      accounting_metadata_minimum: { Args: { p_metadata: Json }; Returns: Json }
+      accounting_retention_until: { Args: { p_at: string }; Returns: string }
+      accounting_subject_ref: { Args: { p_user_id: string }; Returns: string }
       add_cross_reference: {
         Args: {
           p_created_by?: string
@@ -12058,6 +12073,10 @@ export type Database = {
       }
       analytics_semantic_snapshot: {
         Args: { p_since: string; p_until: string }
+        Returns: Json
+      }
+      anonymize_payment_orders_for_user: {
+        Args: { p_user_id: string }
         Returns: Json
       }
       apply_b2b_coupon_effects: { Args: { _order_id: string }; Returns: Json }
@@ -13804,6 +13823,7 @@ export type Database = {
         Args: { p_publish?: boolean; p_session_id: string }
         Returns: Json
       }
+      purge_expired_payment_orders: { Args: never; Returns: number }
       qa_escape_html: { Args: { p_text: string }; Returns: string }
       qa_text_to_html: { Args: { p_text: string }; Returns: string }
       rate_limit_hit: {
