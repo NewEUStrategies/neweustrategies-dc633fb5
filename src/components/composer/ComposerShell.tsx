@@ -38,17 +38,42 @@ interface ToolbarItem {
 }
 
 const TOOLBAR: readonly ToolbarItem[] = [
-  { id: "bold", icon: Bold, labelKey: "comments.toolbar.bold", action: { kind: "wrap", before: "**", after: "**" } },
-  { id: "italic", icon: Italic, labelKey: "comments.toolbar.italic", action: { kind: "wrap", before: "_", after: "_" } },
-  { id: "bulletList", icon: List, labelKey: "comments.toolbar.bulletList", action: { kind: "prefix", prefix: "- " } },
+  {
+    id: "bold",
+    icon: Bold,
+    labelKey: "comments.toolbar.bold",
+    action: { kind: "wrap", before: "**", after: "**" },
+  },
+  {
+    id: "italic",
+    icon: Italic,
+    labelKey: "comments.toolbar.italic",
+    action: { kind: "wrap", before: "_", after: "_" },
+  },
+  {
+    id: "bulletList",
+    icon: List,
+    labelKey: "comments.toolbar.bulletList",
+    action: { kind: "prefix", prefix: "- " },
+  },
   {
     id: "numberedList",
     icon: ListOrdered,
     labelKey: "comments.toolbar.numberedList",
     action: { kind: "prefix", prefix: (i: number) => `${i + 1}. ` },
   },
-  { id: "quote", icon: Quote, labelKey: "comments.toolbar.quote", action: { kind: "prefix", prefix: "> " } },
-  { id: "code", icon: Code, labelKey: "comments.toolbar.code", action: { kind: "wrap", before: "`", after: "`" } },
+  {
+    id: "quote",
+    icon: Quote,
+    labelKey: "comments.toolbar.quote",
+    action: { kind: "prefix", prefix: "> " },
+  },
+  {
+    id: "code",
+    icon: Code,
+    labelKey: "comments.toolbar.code",
+    action: { kind: "wrap", before: "`", after: "`" },
+  },
   {
     id: "link",
     icon: LinkIcon,
@@ -71,7 +96,10 @@ export function applyMarkdown(
   }
   const lines = (selected || "").split("\n");
   const prefixed = lines
-    .map((line, i) => `${typeof action.prefix === "function" ? action.prefix(i) : action.prefix}${line}`)
+    .map(
+      (line, i) =>
+        `${typeof action.prefix === "function" ? action.prefix(i) : action.prefix}${line}`,
+    )
     .join("\n");
   const next = `${value.slice(0, start)}${prefixed}${value.slice(end)}`;
   return { value: next, caret: start + prefixed.length };
