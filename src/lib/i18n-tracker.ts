@@ -85,6 +85,11 @@ export const trackerPl = {
       link: "Otwórz explorer",
       changesLink: "Co się zmieniło",
     },
+    feed: {
+      link: "Kanał RSS",
+      title:
+        "Subskrybuj kanał RSS trackera: nowe dossier, zmiany etapu procedury i wpisy osi czasu - bez konta.",
+    },
   },
 };
 
@@ -165,6 +170,11 @@ export const trackerEn = {
       },
       link: "Open explorer",
       changesLink: "What changed",
+    },
+    feed: {
+      link: "RSS feed",
+      title:
+        "Subscribe to the tracker RSS feed: new files, procedure stage transitions and timeline entries - no account needed.",
     },
   },
 };

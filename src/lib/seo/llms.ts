@@ -74,6 +74,11 @@ export function buildLlmsTxt(input: LlmsTxtInput): string {
     `- Google News sitemap: ${input.origin}/news-sitemap.xml`,
     `- RSS (PL): ${input.origin}/rss.xml`,
     `- RSS (EN): ${input.origin}/en/rss.xml`,
+    // Kanał trackera: strumień zmian legislacyjnych (nowe dossier, zmiany
+    // etapu, wpisy osi czasu). Dla asystentów AI to najgęstsze źródło "co się
+    // zmieniło w prawie UE" w całym serwisie - stąd jawnie w zasobach.
+    `- RSS trackera legislacyjnego / EU legislative tracker RSS (PL): ${input.origin}/tracker/rss.xml`,
+    `- RSS trackera legislacyjnego / EU legislative tracker RSS (EN): ${input.origin}/en/tracker/rss.xml`,
     "",
     "## Zasady cytowania / Citation policy",
     "",

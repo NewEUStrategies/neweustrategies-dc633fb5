@@ -16,6 +16,40 @@ import { edgeTtlCache } from "@/lib/ssrCache";
 const ACCESS_RULE_COLS =
   "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, metering_policy";
 
+/**
+ * Kolumny sekcji "dowiesz się, że..." - WSPÓLNE dla wpisów i stron.
+ *
+ * Wyciągnięte do nazwanej stałej, bo to najcieńsze ogniwo tej funkcji: gdy
+ * wypadnie z selectu STRON, sekcja przestaje się renderować na stronach i nikt
+ * tego nie zauważy (żaden test nie patrzył na listę kolumn, a audyty 07-30 i
+ * 08-01 zapisały wprost nieprawdę, że dla stron ta gałąź jest martwa).
+ * Kontrakt pilnuje `lib/keyTakeaways/__tests__/selectContract.test.ts`.
+ */
+export const TAKEAWAYS_SELECT_COLS = "takeaways_pl, takeaways_en, takeaways_variant";
+
+/** Wspólny prefiks kolumn każdej encji treści (tożsamość + prezentacja + daty). */
+const ENTITY_BASE_COLS =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at";
+
+/**
+ * Kolumny encji treści dla renderu publicznego (bez body - to gated RPC).
+ *
+ * UWAGA: każdy wpis MUSI być jednym literałem szablonowym. Klient Supabase
+ * typuje wynik `.select()` z literalnego typu argumentu - konkatenacja przez
+ * `+` rozszerza typ do `string` i wynik degraduje do `GenericStringError`,
+ * czyli tracimy całe typowanie wierszy (i wracamy do rzutowań przez `unknown`).
+ */
+export const ENTITY_SELECT_COLS = {
+  post: `${ENTITY_BASE_COLS}, read_minutes, post_format, layout_overrides, ${TAKEAWAYS_SELECT_COLS}, toc_override, custom_meta, related_override, author_id, audio_url_pl, audio_url_en, ${SEO_FIELDS_SELECT}`,
+  page: `${ENTITY_BASE_COLS}, template_type, header_override, ${TAKEAWAYS_SELECT_COLS}, ${SEO_FIELDS_SELECT}`,
+  /**
+   * Strona główna w trybie statycznej strony: bez pól postowych i bez pól
+   * stron (szablon/nagłówek rozstrzyga trasa `/`), ale Z takeaways - sekcja
+   * działa też na stronie głównej.
+   */
+  homepage: `${ENTITY_BASE_COLS}, ${TAKEAWAYS_SELECT_COLS}, ${SEO_FIELDS_SELECT}`,
+} as const;
+
 async function fetchAccessRule(
   entityType: "post" | "page",
   entityId: string,
@@ -372,7 +406,7 @@ export const homePageQueryOptions = () =>
         // is never read through direct body-column selects. Excerpts + SEO
         // overrides are included so the homepage head() (src/routes/index.tsx)
         // resolves the static page's own SEO fields like any other page.
-        const cols = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, takeaways_pl, takeaways_en, takeaways_variant, ${SEO_FIELDS_SELECT}`;
+        const cols = ENTITY_SELECT_COLS.homepage;
 
         let row: Record<string, unknown> | null = null;
         if (reading.homepage_mode === "static_page") {
@@ -590,13 +624,7 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
       crumbs,
       access,
     ] = await Promise.all([
-      supabase
-        .from("posts")
-        .select(
-          `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, takeaways_variant, toc_override, custom_meta, related_override, author_id, audio_url_pl, audio_url_en, ${SEO_FIELDS_SELECT}`,
-        )
-        .eq("id", hit.post_id)
-        .maybeSingle(),
+      supabase.from("posts").select(ENTITY_SELECT_COLS.post).eq("id", hit.post_id).maybeSingle(),
       fetchGatedBody("post", hit.post_id),
       supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
       supabase
@@ -680,13 +708,7 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
   }
 
   const [{ data, error }, body, crumbs, access] = await Promise.all([
-    supabase
-      .from("pages")
-      .select(
-        `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, takeaways_pl, takeaways_en, takeaways_variant, ${SEO_FIELDS_SELECT}`,
-      )
-      .eq("id", hit.page_id)
-      .maybeSingle(),
+    supabase.from("pages").select(ENTITY_SELECT_COLS.page).eq("id", hit.page_id).maybeSingle(),
     fetchGatedBody("page", hit.page_id),
     fetchPageBreadcrumbs(hit.page_id),
     fetchAccessRule("page", hit.page_id),
