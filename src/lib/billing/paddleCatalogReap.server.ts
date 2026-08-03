@@ -37,10 +37,7 @@ function externalIdOf(row: ProviderRow): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-async function listActive(
-  env: PaddleEnv,
-  resource: "products" | "prices",
-): Promise<ProviderRow[]> {
+async function listActive(env: PaddleEnv, resource: "products" | "prices"): Promise<ProviderRow[]> {
   const rows: ProviderRow[] = [];
   let after: string | null = null;
   // Twardy limit stron - katalog jest mały, a pętla nie może zawisnąć na

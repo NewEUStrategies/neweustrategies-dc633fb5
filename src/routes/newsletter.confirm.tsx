@@ -15,7 +15,9 @@ export const Route = createFileRoute("/newsletter/confirm")({
     const url = getRequestUrl() || "/newsletter/confirm";
     const lang = activeLang(url);
     const title =
-      lang === "en" ? `Newsletter confirmed - ${SITE_NAME}` : `Newsletter potwierdzony - ${SITE_NAME}`;
+      lang === "en"
+        ? `Newsletter confirmed - ${SITE_NAME}`
+        : `Newsletter potwierdzony - ${SITE_NAME}`;
     return buildContentHead({
       url,
       lang,

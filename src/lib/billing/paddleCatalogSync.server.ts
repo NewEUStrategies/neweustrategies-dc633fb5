@@ -31,7 +31,6 @@ export interface CatalogSyncReport {
   failed: number;
 }
 
-
 interface PlanRow {
   tier_key: string | null;
   interval: string | null;
@@ -257,7 +256,6 @@ export async function syncPaddleCatalog(env: PaddleEnv = "sandbox"): Promise<Cat
     updated: items.filter((i) => i.price === "updated").length,
     failed,
   };
-
 }
 
 /** Cache jednokrotnego samo-naprawiania w obrębie instancji workera. */
