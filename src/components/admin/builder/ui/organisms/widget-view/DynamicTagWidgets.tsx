@@ -133,17 +133,15 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const views = ctxViews ?? (typeof fetchedViews === "number" ? fetchedViews : null);
   const parts: ReactElement[] = [];
   if (asBool(c.showAuthor, true) && ctx.author?.name) {
+    const authorHref = ctx.author.slug ? `/author/${ctx.author.slug}` : null;
     parts.push(
-      <span key="a" className="inline-flex items-center gap-1.5">
-        <UserIcon className="w-3.5 h-3.5" />
-        {ctx.author.slug ? (
-          <AppLink href={`/author/${ctx.author.slug}`} className="hover:text-brand">
-            {ctx.author.name}
-          </AppLink>
-        ) : (
-          ctx.author.name
-        )}
-      </span>,
+      <AuthorInline
+        key="a"
+        name={ctx.author.name}
+        avatarUrl={ctx.author.avatarUrl}
+        href={authorHref}
+        lang={lang}
+      />,
     );
   }
   if (asBool(c.showCategory, true) && ctx.categories?.[0]) {
