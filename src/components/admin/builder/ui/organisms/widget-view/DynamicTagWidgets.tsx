@@ -21,6 +21,7 @@ import { asBool, asNum, asOneOf, asStr, pickI18n } from "@/lib/builder/contentVa
 import { postViewCountQueryOptions } from "@/lib/builder/postViewCountQuery";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import {
+  User as UserIcon,
   Clock,
   Eye,
   ChevronRight,
