@@ -6,6 +6,8 @@ import {
   buildContentHead,
   buildRootHead,
   buildArticleJsonLd,
+  feedAlternateLink,
+  feedDiscoveryLinks,
   imagePreloadLink,
   SITE_NAME,
   SITE_DEFAULT_TITLE,
@@ -248,5 +250,58 @@ describe("imagePreloadLink", () => {
   it("defaults imageSizes to 100vw when a srcSet is given without explicit sizes", () => {
     const link = imagePreloadLink({ href: "x", imageSrcSet: "x 320w" });
     expect(link.imageSizes).toBe("100vw");
+  });
+});
+
+describe("feed discovery", () => {
+  it("advertises one site feed per language on every page", () => {
+    const links = feedDiscoveryLinks("https://nes.example");
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      expect(link.rel).toBe("alternate");
+      expect(link.type).toBe("application/rss+xml");
+      expect(link.href.startsWith("https://nes.example/")).toBe(true);
+    }
+    expect(links.map((l) => l.href)).toEqual([
+      "https://nes.example/rss.xml",
+      "https://nes.example/en/rss.xml",
+    ]);
+  });
+
+  it("localizes a section feed to the document language", () => {
+    // Autodiscovery to jedyny sposob, w jaki czytnik RSS / Apple Podcasts
+    // znajduje kanal bez znajomosci naszej konwencji URL.
+    expect(
+      feedAlternateLink({
+        origin: "https://nes.example",
+        feedPath: "/podcast/rss.xml",
+        title: "Podcast NES - RSS",
+        lang: "pl",
+      }),
+    ).toEqual({
+      rel: "alternate",
+      type: "application/rss+xml",
+      title: "Podcast NES - RSS",
+      href: "https://nes.example/podcast/rss.xml",
+    });
+
+    expect(
+      feedAlternateLink({
+        origin: "https://nes.example",
+        feedPath: "/tracker/rss.xml",
+        title: "EU policy tracker - RSS",
+        lang: "en",
+      }).href,
+    ).toBe("https://nes.example/en/tracker/rss.xml");
+  });
+
+  it("never emits a relative feed href (scrapers ignore relative alternates)", () => {
+    const link = feedAlternateLink({
+      origin: "https://nes.example",
+      feedPath: "/live/rss.xml",
+      title: "Live - RSS",
+      lang: "pl",
+    });
+    expect(link.href).toMatch(/^https:\/\//);
   });
 });

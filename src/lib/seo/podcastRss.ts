@@ -35,8 +35,23 @@ export type { PodcastEpisodeType, PodcastShowType } from "@/lib/podcast/types";
 import type { PodcastEpisodeType, PodcastShowType } from "@/lib/podcast/types";
 
 export interface PodcastRssItem {
-  /** Absolute episode page URL (also the guid). */
+  /** Absolute episode page URL (localized - the <link> readers open). */
   url: string;
+  /**
+   * WSPÓLNY, NIEZALEŻNY OD JĘZYKA identyfikator odcinka.
+   *
+   * Do 2026-08-03 guid był po prostu `url`, czyli adresem ZLOKALIZOWANYM. Kanał
+   * PL i EN to w Apple/Spotify dwa różne feedy tego samego programu, więc ten
+   * sam odcinek miał dwa różne guidy - agregator, który zassał oba kanały (albo
+   * redakcja, która przełączyła kanał programu z PL na EN), widział podwójny
+   * katalog i wypychał powiadomienia o "nowych" odcinkach, których nie było.
+   * Podajemy tu adres kanoniczny bez prefiksu językowego; wtedy guid feedu PL
+   * NIE ZMIENIA SIĘ (PL jest językiem domyślnym, adres nagi), a EN dopina się
+   * do tej samej tożsamości - jednorazowy koszt tylko po stronie EN.
+   *
+   * Brak wartości = zachowanie historyczne (guid = url, isPermaLink="true").
+   */
+  guid?: string | null;
   title: string;
   description: string | null;
   publishedAt: string | null;
@@ -133,6 +148,10 @@ export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
   const ownerEmail = input.ownerEmail?.trim() || "";
 
   const itemXml = input.items.map((item) => {
+    // Wspólny guid nie jest adresem TEGO wpisu (wpis EN linkuje do /en/...),
+    // więc isPermaLink musi być "false" - inaczej agregator mógłby traktować
+    // guid jako adres do pobrania zamiast <link>.
+    const guid = item.guid?.trim();
     const lines = [
       "    <item>",
       `      <title>${xmlEscape(item.title)}</title>`,
@@ -140,7 +159,9 @@ export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
       // prefiksów typu "S2E14", które lubią siedzieć w <title>).
       `      <itunes:title>${xmlEscape(item.title)}</itunes:title>`,
       `      <link>${xmlEscape(item.url)}</link>`,
-      `      <guid isPermaLink="true">${xmlEscape(item.url)}</guid>`,
+      guid
+        ? `      <guid isPermaLink="false">${xmlEscape(guid)}</guid>`
+        : `      <guid isPermaLink="true">${xmlEscape(item.url)}</guid>`,
     ];
     const pub = rfc822Date(item.publishedAt);
     if (pub) lines.push(`      <pubDate>${pub}</pubDate>`);

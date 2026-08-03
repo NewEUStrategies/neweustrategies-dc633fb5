@@ -109,8 +109,11 @@ test.describe("user paths (seeded)", () => {
   });
 
   test("crawler surfaces advertise the seeded article", async ({ request }) => {
-    const sitemap = await (await request.get("/sitemap.xml")).text();
-    expect(sitemap).toContain(POST.path);
+    // /sitemap.xml jest indeksem - adres wpisu mieszka w shardzie sekcji "posts".
+    const index = await (await request.get("/sitemap.xml")).text();
+    expect(index).toMatch(/<loc>[^<]*\/sitemaps\/posts\.xml<\/loc>/);
+    const posts = await (await request.get("/sitemaps/posts.xml")).text();
+    expect(posts).toContain(POST.path);
     const rss = await (await request.get("/rss.xml")).text();
     expect(rss).toContain(POST.title_pl);
   });

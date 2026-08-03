@@ -6,17 +6,47 @@ import { test, expect } from "@playwright/test";
 // nie konkretnych rekordow.
 
 test.describe("SEO surfaces", () => {
-  test("sitemap.xml returns valid XML urlset", async ({ request }) => {
+  test("sitemap.xml is a sitemapindex pointing at shard files", async ({ request }) => {
     const res = await request.get("/sitemap.xml");
     expect(res.status(), "sitemap status").toBe(200);
     expect(res.headers()["content-type"] ?? "").toContain("xml");
     const body = await res.text();
     expect(body).toContain("<?xml");
-    expect(body).toContain("<urlset");
-    expect(body).toContain("</urlset>");
+    // /sitemap.xml jest INDEKSEM (limit 50 000 adresow na plik), a nie jednym
+    // wielkim <urlset> - adresy mieszkaja w shardach /sitemaps/<sekcja>.xml.
+    expect(body).toContain("<sitemapindex");
+    expect(body).toContain("</sitemapindex>");
+    expect(body).toMatch(/<loc>[^<]*\/sitemaps\/core\.xml<\/loc>/);
     // Rewalidacja: cache musi pozwolic edge/CDN odswiezyc bez rucznej akcji.
     const cc = res.headers()["cache-control"] ?? "";
     expect(cc, "sitemap cache-control").toMatch(/max-age=0|no-cache|must-revalidate/);
+  });
+
+  test("every sitemap listed in the index resolves to a urlset", async ({ request }) => {
+    const index = await (await request.get("/sitemap.xml")).text();
+    const locs = [...index.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    expect(locs.length, "index nie moze byc pusty").toBeGreaterThan(0);
+    for (const loc of locs) {
+      const path = new URL(loc, "http://localhost").pathname;
+      const res = await request.get(path);
+      expect(res.status(), `${path} status`).toBe(200);
+      const body = await res.text();
+      // news-sitemap ma wlasny format (news:), pozostale shardy to <urlset>.
+      expect(body, `${path} zawartosc`).toMatch(/<urlset/);
+    }
+  });
+
+  test("an unknown sitemap shard is a 404, not an empty urlset", async ({ request }) => {
+    // Pusty plik w Search Console wyglada jak blad publikacji; 404 czysci wpis.
+    expect((await request.get("/sitemaps/nie-ma-takiej-sekcji.xml")).status()).toBe(404);
+    // Shard pierwszy mieszka pod "core.xml" - "-1" byloby duplikatem adresu.
+    expect((await request.get("/sitemaps/core-1.xml")).status()).toBe(404);
+  });
+
+  test("sitemap-index.xml redirects to the canonical index", async ({ request }) => {
+    const res = await request.get("/sitemap-index.xml", { maxRedirects: 0 });
+    expect(res.status()).toBe(301);
+    expect(res.headers()["location"] ?? "").toContain("/sitemap.xml");
   });
 
   test("llms.txt is text/plain and lists sections", async ({ request }) => {
@@ -43,6 +73,40 @@ test.describe("SEO surfaces", () => {
     expect(res.status()).toBe(200);
     const body = await res.text();
     expect(body.toLowerCase()).toContain("user-agent");
+    // Na hoscie kanonicznym KAZDA zadeklarowana sitemapa musi byc osiagalna -
+    // robots kierujacy crawlera na 404 to gotowy blad w Search Console.
+    // (Na hostach podgladowych robots celowo nie deklaruje zadnej sitemapy.)
+    for (const line of body.split("\n").filter((l) => l.startsWith("Sitemap:"))) {
+      const url = line.slice("Sitemap:".length).trim();
+      expect(url, "Sitemap musi byc adresem absolutnym").toMatch(/^https?:\/\//);
+    }
+  });
+
+  test("content feeds respond for the tracker and live coverage", async ({ request }) => {
+    // Dwa kanaly dopisane w audycie - 404 jest akceptowalny tylko gdy redakcja
+    // wylaczyla RSS w ustawieniach SEO (wtedy /rss.xml tez zwraca 404).
+    const site = await request.get("/rss.xml");
+    for (const path of ["/tracker/rss.xml", "/live/rss.xml"]) {
+      const res = await request.get(path);
+      if (site.status() === 404) {
+        expect(res.status(), `${path} przy wylaczonym RSS`).toBe(404);
+        continue;
+      }
+      expect(res.status(), `${path} status`).toBe(200);
+      const body = await res.text();
+      expect(body).toContain("<?xml");
+      expect(body).toContain("<rss");
+    }
+  });
+
+  test("podcast feed is auto-discoverable from the podcast pages", async ({ page }) => {
+    await page.goto("/podcasts");
+    // Autodiscovery to jedyny sposob, w jaki czytnik RSS / Apple Podcasts znajduje
+    // kanal bez znajomosci naszej konwencji URL.
+    const feed = page.locator('link[rel="alternate"][type="application/rss+xml"]');
+    expect(await feed.count()).toBeGreaterThan(0);
+    const hrefs = await feed.evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
+    expect(hrefs.some((h) => h.includes("/podcast/rss.xml"))).toBe(true);
   });
 
   test("HTML sitemap /sitemap renders navigable page", async ({ page }) => {

@@ -24,7 +24,12 @@ import {
 } from "@/lib/podcast/types";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead } from "@/lib/seo/meta";
+import {
+  SITE_CANONICAL_ORIGIN,
+  buildContentHead,
+  feedAlternateLink,
+  splitUrl,
+} from "@/lib/seo/meta";
 
 const INDEX_LIMIT = 30;
 
@@ -38,7 +43,7 @@ export const Route = createFileRoute("/podcasts/")({
   head: () => {
     const url = getRequestUrl() || "/podcasts";
     const lang = activeLang(url);
-    return buildContentHead({
+    const head = buildContentHead({
       url,
       lang,
       type: "website",
@@ -48,6 +53,21 @@ export const Route = createFileRoute("/podcasts/")({
           ? "New European Strategies podcast network — browse programs and listen to the latest episodes."
           : "Sieć podcastów New European Strategies — przeglądaj programy i słuchaj najnowszych odcinków.",
     });
+    // Autodiscovery kanału sieciowego: bez tego feed podcastu dawał się
+    // zasubskrybować wyłącznie po ręcznym wklejeniu adresu.
+    const origin = splitUrl(url).origin || SITE_CANONICAL_ORIGIN;
+    return {
+      ...head,
+      links: [
+        ...head.links,
+        feedAlternateLink({
+          origin,
+          feedPath: "/podcast/rss.xml",
+          title: lang === "en" ? "NES Podcast - RSS" : "Podcast NES - RSS",
+          lang,
+        }),
+      ],
+    };
   },
   component: PodcastsIndex,
   errorComponent: (props) => (

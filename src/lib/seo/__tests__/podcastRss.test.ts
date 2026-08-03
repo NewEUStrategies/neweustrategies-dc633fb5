@@ -212,6 +212,42 @@ describe("summarizeEpisodes", () => {
   });
 });
 
+describe("podcast RSS guid", () => {
+  it("uses the language-neutral guid for both language channels", () => {
+    // Ten sam odcinek w kanale PL i EN musi mieć JEDNĄ tożsamość - inaczej
+    // agregator, który zassał oba kanały, pokazuje podwójny katalog.
+    const pl = build([
+      {
+        ...baseItem,
+        url: "https://example.org/podcast/odc-1",
+        guid: "https://example.org/podcast/odc-1",
+      },
+    ]);
+    const en = build([
+      {
+        ...baseItem,
+        url: "https://example.org/en/podcast/odc-1",
+        guid: "https://example.org/podcast/odc-1",
+      },
+    ]);
+    const guid = '<guid isPermaLink="false">https://example.org/podcast/odc-1</guid>';
+    expect(pl).toContain(guid);
+    expect(en).toContain(guid);
+    // <link> zostaje zlokalizowany - czytelnik EN trafia na wersję EN.
+    expect(en).toContain("<link>https://example.org/en/podcast/odc-1</link>");
+  });
+
+  it("marks a shared guid as a non-permalink", () => {
+    const xml = build([{ ...baseItem, guid: "https://example.org/podcast/odc-1" }]);
+    expect(xml).not.toContain('<guid isPermaLink="true">');
+  });
+
+  it("falls back to the permalink guid when no shared guid is supplied", () => {
+    const xml = build([baseItem]);
+    expect(xml).toContain('<guid isPermaLink="true">https://example.org/podcast/odc-1</guid>');
+  });
+});
+
 describe("normalizeAppleCategory", () => {
   it("keeps a valid pair", () => {
     expect(normalizeAppleCategory("Science", "Social Sciences")).toEqual({

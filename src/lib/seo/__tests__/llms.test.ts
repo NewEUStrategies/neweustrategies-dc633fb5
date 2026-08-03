@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildLlmsTxt } from "@/lib/seo/llms";
+import { llmsTxtResourceLines } from "@/lib/seo/machineSurfaces";
+import { localizedPath } from "@/lib/i18n/localePath";
 
 describe("buildLlmsTxt", () => {
   const txt = buildLlmsTxt({
@@ -23,6 +25,9 @@ describe("buildLlmsTxt", () => {
       },
     ],
     latestEn: [{ title: "EN post", url: "https://nes.example/en/blog/post" }],
+    // Zasoby maszynowe przychodzą teraz z rejestru (seo/machineSurfaces), a nie
+    // z twardej listy w builderze - patrz machineSurfaces.contract.test.ts.
+    resources: llmsTxtResourceLines("https://nes.example", localizedPath),
     contactEmail: "office@nes.example",
   });
 

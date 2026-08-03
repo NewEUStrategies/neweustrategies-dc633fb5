@@ -17,6 +17,12 @@ export interface LlmsTxtArticle {
   publishedAt?: string | null;
 }
 
+/** Powierzchnia maszynowa ogłaszana w llms.txt (patrz seo/machineSurfaces). */
+export interface LlmsTxtResource {
+  label: string;
+  url: string;
+}
+
 export interface LlmsTxtInput {
   siteName: string;
   origin: string;
@@ -25,6 +31,13 @@ export interface LlmsTxtInput {
   sections: readonly LlmsTxtSection[];
   latestPl: readonly LlmsTxtArticle[];
   latestEn: readonly LlmsTxtArticle[];
+  /**
+   * Zasoby maszynowe. Wcześniej lista była WPISANA NA SZTYWNO w builderze, więc
+   * każdy nowy feed (tracker, relacje live, podcast) był niewidoczny dla modeli,
+   * dopóki ktoś nie pamiętał o edycji tego pliku. Teraz przychodzi z jednego
+   * rejestru (`MACHINE_SURFACES`), pilnowanego testem kontraktu.
+   */
+  resources: readonly LlmsTxtResource[];
   contactEmail?: string | null;
 }
 

@@ -47,7 +47,21 @@ export interface JobsTickResult {
   digestWeekly: { claimed: number; sent: number } | { error: string };
   eventReminders: number | { error: string };
   crmTaskReminders: number | { error: string };
-  linkCheck: { postsScanned: number; linksChecked: number; broken: number } | { error: string };
+  /**
+   * `archived`/`alerted`: skaner nie tylko raportuje martwe linki, ale też
+   * dobiera im migawkę Internet Archive i - po przekroczeniu progu - powiadamia
+   * redakcję. Oba licznikami w logu przebiegów, żeby dało się odróżnić "brak
+   * zepsutych linków" od "polityka działania przestała działać".
+   */
+  linkCheck:
+    | {
+        postsScanned: number;
+        linksChecked: number;
+        broken: number;
+        archived: number;
+        alerted: number;
+      }
+    | { error: string };
   integrations: { claimed: number; delivered: number; failed: number } | { error: string };
   semanticIndex: { scanned: number; embedded: number; skipped?: string } | { error: string };
 }

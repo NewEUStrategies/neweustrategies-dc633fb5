@@ -9,6 +9,7 @@ import { trustedPublicHost } from "@/lib/http/requestHost";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/seo/meta";
 import { buildLlmsTxt, type LlmsTxtArticle } from "@/lib/seo/llms";
+import { llmsTxtResourceLines } from "@/lib/seo/machineSurfaces";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import {
   fetchPublicCategories,
@@ -77,6 +78,9 @@ export const Route = createFileRoute("/llms.txt")({
           })),
           latestPl: toArticle("pl"),
           latestEn: toArticle("en"),
+          // Jedno źródło prawdy o powierzchniach maszynowych - dopisanie feedu
+          // bez ogłoszenia go tutaj nie przechodzi testu kontraktu.
+          resources: llmsTxtResourceLines(origin, localizedPath),
         });
 
         return new Response(body, {

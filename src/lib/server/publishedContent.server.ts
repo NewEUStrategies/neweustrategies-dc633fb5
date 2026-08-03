@@ -482,6 +482,135 @@ export async function fetchTaxonomyForFeed(
   );
 }
 
+export interface PublishedTrackerItemRow {
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  summary_pl: string | null;
+  summary_en: string | null;
+  policy_area: string;
+  stage: string;
+  updated_at: string | null;
+  created_at: string | null;
+}
+
+/**
+ * Opublikowane dossier trackera legislacyjnego UE - materiał feedu /tracker/rss.xml.
+ *
+ * Tracker pozycjonuje się jako źródło prawdy o legislacji UE, ale nie miał ŻADNEGO
+ * kanału subskrypcji: czytelnik (i agregator branżowy) musiał sam wracać na stronę,
+ * żeby zauważyć zmianę etapu dossier. Sortowanie po `updated_at`, nie po dacie
+ * utworzenia - w trackerze wartość informacyjną ma RUCH sprawy, nie jej debiut.
+ */
+export async function fetchPublishedTrackerItems(
+  tenantId: string,
+  limit = 50,
+): Promise<PublishedTrackerItemRow[]> {
+  return edgeTtlCache(`seo:tracker-items:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
+    resilient("tracker-items", [], async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const { data } = await supabaseAdmin
+        .from("eu_policy_items")
+        .select(
+          "slug, title_pl, title_en, summary_pl, summary_en, policy_area, stage, updated_at, created_at",
+        )
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .order("updated_at", { ascending: false })
+        .limit(limit);
+      return (data ?? []) as PublishedTrackerItemRow[];
+    }),
+  );
+}
+
+export interface LiveCoverageEntryRow {
+  id: string;
+  /** Kanoniczna ścieżka posta prowadzącego relację ("/sekcja/slug"). */
+  postPath: string;
+  postTitlePl: string;
+  postTitleEn: string;
+  /** Tytuł wpisu relacji (opcjonalny - redakcja często wrzuca sam tekst). */
+  title: string | null;
+  bodyHtml: string;
+  /** Język wpisu ("pl"/"en"); wpisy relacji są jednojęzyczne. */
+  lang: string;
+  occurredAt: string;
+}
+
+/**
+ * Najnowsze wpisy relacji na żywo z opublikowanych postów - materiał feedu
+ * /live/rss.xml.
+ *
+ * Relacja live jest z natury kanałem PUSH: czytelnik chce dostać nowy wpis, a nie
+ * odświeżać stronę. Do tej pory /live było wyłącznie stroną HTML, więc jedyną
+ * formą subskrypcji było ręczne odświeżanie. Elementem feedu jest WPIS relacji
+ * (nie post), bo to on jest jednostką aktualizacji; link prowadzi do posta z
+ * zakotwiczeniem na wpisie.
+ */
+export async function fetchLiveCoverageEntries(
+  tenantId: string,
+  limit = 50,
+): Promise<LiveCoverageEntryRow[]> {
+  return edgeTtlCache(`seo:live-entries:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
+    resilient("live-entries", [], async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      const { data: entries } = await supabaseAdmin
+        .from("live_blog_entries")
+        .select("id, post_id, title, body_html, lang, occurred_at")
+        .eq("tenant_id", tenantId)
+        .order("occurred_at", { ascending: false })
+        // Z zapasem: część najświeższych wpisów może wisieć na postach, które
+        // wróciły do szkicu - odfiltrowanie następuje po złączeniu niżej.
+        .limit(limit * 4);
+      const rows = entries ?? [];
+      if (rows.length === 0) return [];
+
+      const postIds = [...new Set(rows.map((r) => r.post_id))];
+      const [pagePaths, { data: posts }] = await Promise.all([
+        fetchPagePaths(tenantId),
+        supabaseAdmin
+          .from("posts")
+          .select("id, slug, parent_page_id, title_pl, title_en")
+          .eq("tenant_id", tenantId)
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .eq("seo_noindex", false)
+          .in("id", postIds),
+      ]);
+      const byId = new Map(
+        (posts ?? []).map((p) => [
+          p.id,
+          {
+            path: pagePaths.get(p.parent_page_id)
+              ? `/${pagePaths.get(p.parent_page_id)}/${p.slug}`
+              : null,
+            titlePl: p.title_pl,
+            titleEn: p.title_en,
+          },
+        ]),
+      );
+
+      const out: LiveCoverageEntryRow[] = [];
+      for (const entry of rows) {
+        const post = byId.get(entry.post_id);
+        if (!post?.path) continue;
+        out.push({
+          id: entry.id,
+          postPath: post.path,
+          postTitlePl: post.titlePl,
+          postTitleEn: post.titleEn,
+          title: entry.title,
+          bodyHtml: entry.body_html,
+          lang: entry.lang,
+          occurredAt: entry.occurred_at,
+        });
+        if (out.length >= limit) break;
+      }
+      return out;
+    }),
+  );
+}
+
 /** Opublikowane wpisy przypięte do taksonomii - kolejność jak w /rss.xml. */
 export async function fetchPublishedPostsByTaxonomy(
   tenantId: string,

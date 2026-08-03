@@ -27,7 +27,12 @@ import {
 } from "@/lib/podcast/types";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead } from "@/lib/seo/meta";
+import {
+  SITE_CANONICAL_ORIGIN,
+  buildContentHead,
+  feedAlternateLink,
+  splitUrl,
+} from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
 
 export const Route = createFileRoute("/podcasts/$show")({
@@ -63,8 +68,30 @@ export const Route = createFileRoute("/podcasts/$show")({
       ...(s.cover_image_url ? { image: s.cover_image_url } : {}),
       webFeed: `/podcasts/${s.slug}/rss.xml`,
     };
+    // Autodiscovery: kanał programu (główny) + kanał sieciowy jako drugi wybór.
+    // `webFeed` w JSON-LD widzą wyszukiwarki, ale nie czytniki RSS ani Apple -
+    // te szukają wyłącznie <link rel="alternate">.
+    const origin = splitUrl(url).origin || SITE_CANONICAL_ORIGIN;
     return {
       ...base,
+      links: [
+        ...base.links,
+        feedAlternateLink({
+          origin,
+          feedPath: `/podcasts/${s.slug}/rss.xml`,
+          title: `${title} - RSS`,
+          lang,
+        }),
+        feedAlternateLink({
+          origin,
+          feedPath: "/podcast/rss.xml",
+          title:
+            lang === "en"
+              ? "NES Podcast - RSS (all programs)"
+              : "Podcast NES - RSS (wszystkie programy)",
+          lang,
+        }),
+      ],
       scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
     };
   },
