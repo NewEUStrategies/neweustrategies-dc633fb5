@@ -615,7 +615,9 @@ function AdminShellInner({
                 to: "/admin/permissions",
                 icon: ShieldCheck,
                 label: t("admin.nav.permissions", {
-                  defaultValue: lang === "pl" ? "Uprawnienia (role)" : "Permissions (roles)",
+                  // Strona opisuje role ORAZ warstwy członkostwa (macierz
+                  // generowana z bramek SQL), więc etykieta nie zawęża jej do ról.
+                  defaultValue: lang === "pl" ? "Macierz uprawnień" : "Permissions matrix",
                 }),
               },
               {
