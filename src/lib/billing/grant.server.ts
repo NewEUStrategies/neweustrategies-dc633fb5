@@ -6,7 +6,13 @@ import { periodEndFor, entitlementForOrder } from "@/lib/billing/entitlement";
 
 export interface GrantableOrder {
   id: string;
-  user_id: string;
+  /**
+   * `null` = konto kupującego zostało usunięte, a zamówienie żyje dalej jako
+   * zanonimizowany dowód księgowy (migracja 20260803090000). Nie ma komu nadać
+   * ani odebrać uprawnienia, więc obie operacje pomijają taki wiersz - status
+   * zamówienia i tak musi się zgadzać z księgami.
+   */
+  user_id: string | null;
   tenant_id: string;
   kind: "subscription" | "one_time";
   plan_id: string | null;
@@ -82,6 +88,9 @@ export async function revokeOrderEntitlement(
   }
 
   if (entitlement.type === "purchase") {
+    // Uprawnienie zakupowe jest kluczowane po użytkowniku - bez niego nie ma
+    // czego odbierać (konto usunięte, `user_purchases` zniknęło kaskadą).
+    if (!order.user_id) return;
     const { error } = await supabaseAdmin
       .from("user_purchases")
       .update({ status: "refunded" })
@@ -120,6 +129,15 @@ export async function grantEntitlement(
   order: GrantableOrder,
   externalRef: string | null,
 ): Promise<void> {
+  // Zamówienie zanonimizowanego konta: pieniądze są zaksięgowane, ale nie ma
+  // komu nadać dostępu. Pomijamy CICHO (bez rzucania) - inaczej webhook
+  // operatora wpadłby w nieskończoną pętlę ponowień na wierszu, który nigdy
+  // już nie odzyska właściciela.
+  if (!order.user_id) {
+    console.warn("[payments] grant skipped: order has no owner (anonymised)", order.id);
+    return;
+  }
+
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const entitlement = entitlementForOrder(order);
 

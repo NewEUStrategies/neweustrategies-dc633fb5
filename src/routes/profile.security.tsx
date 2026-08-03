@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { PasswordStrengthMeter } from "@/components/molecules/PasswordStrengthMeter";
+import { LegalRetentionNotice } from "@/components/molecules/LegalRetentionNotice";
 import { toast } from "sonner";
 import type { Factor } from "@supabase/supabase-js";
 import { toQrDataUri } from "@/lib/auth/mfa";
@@ -143,9 +144,18 @@ function SecurityPage() {
     if (!delPw) return;
     setDelBusy(true);
     try {
-      await deleteMyAccount({ data: { password: delPw } });
+      const result = await deleteMyAccount({ data: { password: delPw } });
       setDelOpen(false);
-      toast.success(t("profile.security.danger.deleted"));
+      // Ile dowodów księgowych zostało - liczbą, nie ogólnikiem (art. 12 RODO).
+      // Zero zachowanych zamówień => zwykły komunikat, bez zbędnej prawniczej
+      // adnotacji dla kogoś, kto nigdy u nas nie płacił.
+      toast.success(
+        result.retainedOrders > 0
+          ? t("profile.security.danger.deletedWithRetention", {
+              count: result.retainedOrders,
+            })
+          : t("profile.security.danger.deleted"),
+      );
       // Konto już nie istnieje - czyścimy lokalną sesję i wracamy na stronę główną.
       await supabase.auth.signOut().catch(() => {});
       navigate({ to: "/" });
@@ -598,7 +608,10 @@ function SecurityPage() {
             <CardTitle className="text-destructive">{t("profile.security.danger.title")}</CardTitle>
             <CardDescription>{t("profile.security.danger.subtitle")}</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-4">
+            {/* Nota retencyjna PRZED przyciskiem: użytkownik ma wiedzieć, co
+                zostaje, zanim otworzy dialog - nie dopiero w nim. */}
+            <LegalRetentionNotice />
             <AlertDialog
               open={delOpen}
               onOpenChange={(o) => {
@@ -607,7 +620,9 @@ function SecurityPage() {
               }}
             >
               <AlertDialogTrigger asChild>
-                <Button variant="destructive">{t("profile.security.danger.button")}</Button>
+                <Button variant="destructive" className="justify-self-start">
+                  {t("profile.security.danger.button")}
+                </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -616,6 +631,7 @@ function SecurityPage() {
                     {t("profile.security.danger.confirmBody")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                <LegalRetentionNotice variant="compact" />
                 <div className="grid gap-2 py-2">
                   <FieldLabel htmlFor="del-pw">
                     {t("profile.security.danger.passwordLabel")}

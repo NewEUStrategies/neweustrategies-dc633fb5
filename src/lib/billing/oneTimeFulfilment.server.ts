@@ -190,6 +190,15 @@ async function fulfilOrder(
   const metadata = (order.metadata ?? {}) as Record<string, unknown>;
   const eventId = str(metadata, "event_id");
 
+  // Zamówienie zanonimizowane (konto usunięte, dowód księgowy został -
+  // migracja 20260803090000): punkty 1-3 wciąż mają sens, bo dotyczą ksiąg.
+  // RSVP, dzwonek i mail nie mają już adresata - kończymy tutaj, zamiast
+  // rzucać i skazywać webhook na wieczne ponowienia.
+  if (!order.user_id) {
+    console.warn("[payments] one-time: order has no owner (anonymised), effects skipped", order.id);
+    return "order";
+  }
+
   // 4. Bilet na wydarzenie: opłacenie = potwierdzony zapis.
   if (eventId) {
     const { error: rsvpErr } = await supabaseAdmin.from("event_rsvps").upsert(

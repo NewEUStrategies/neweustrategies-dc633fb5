@@ -20,9 +20,12 @@ export interface TicketOrderRow {
   /** Liczba biletów w zamówieniu (domyślnie 1 - jeden RSVP na konto). */
   tickets: number;
   couponCode: string | null;
-  buyerId: string;
+  /** `null` = konto kupującego usunięte; zamówienie żyje jako dowód księgowy. */
+  buyerId: string | null;
   buyerName: string | null;
   buyerEmail: string | null;
+  /** Zamówienie po anonimizacji (RODO) - panel pokazuje etykietę zamiast danych. */
+  buyerAnonymized: boolean;
   eventId: string;
   eventTitlePl: string | null;
   eventTitleEn: string | null;
@@ -43,7 +46,8 @@ export interface TicketOrderHistoryEntry {
 
 interface OrderRecord {
   id: string;
-  user_id: string;
+  user_id: string | null;
+  anonymized_at: string | null;
   status: string;
   provider: string;
   provider_intent_id: string | null;
@@ -77,7 +81,7 @@ export async function loadTicketOrders(
   const { data, error } = await supabase
     .from("payment_orders")
     .select(
-      "id,user_id,status,provider,provider_intent_id,amount_cents,currency,paid_at,created_at,metadata",
+      "id,user_id,anonymized_at,status,provider,provider_intent_id,amount_cents,currency,paid_at,created_at,metadata",
     )
     .eq("kind", "one_time")
     // Bilet rozpoznajemy po metadanych - te same, które czyta webhook.
@@ -92,7 +96,9 @@ export async function loadTicketOrders(
   const eventIds = [
     ...new Set(orders.map((o) => str(o.metadata, "event_id")).filter((v): v is string => !!v)),
   ];
-  const buyerIds = [...new Set(orders.map((o) => o.user_id))];
+  // Zamówienia zanonimizowane (konto usunięte) nie mają kogo szukać w
+  // profilach - wypadają z zapytania, żeby `.in()` nie dostał NULL-a.
+  const buyerIds = [...new Set(orders.map((o) => o.user_id).filter((v): v is string => !!v))];
 
   const [eventsRes, profilesRes] = await Promise.all([
     supabase.from("events").select("id,slug,title_pl,title_en,starts_at").in("id", eventIds),
@@ -131,7 +137,7 @@ export async function loadTicketOrders(
     const eventId = str(order.metadata, "event_id");
     if (!eventId) return [];
     const event = eventById.get(eventId) ?? null;
-    const profile = profileById.get(order.user_id) ?? null;
+    const profile = order.user_id ? (profileById.get(order.user_id) ?? null) : null;
     const buyerName =
       profile?.display_name?.trim() ||
       [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() ||
@@ -152,6 +158,7 @@ export async function loadTicketOrders(
         buyerId: order.user_id,
         buyerName,
         buyerEmail: profile?.email ?? null,
+        buyerAnonymized: order.anonymized_at !== null,
         eventId,
         eventTitlePl: event?.title_pl ?? null,
         eventTitleEn: event?.title_en ?? null,

@@ -219,6 +219,20 @@ describe("grantEntitlement", () => {
     expect(h.state.calls).toHaveLength(0);
   });
 
+  // Zamówienie po anonimizacji (konto usunięte, dowód księgowy został -
+  // migracja 20260803090000). Nie ma komu nadać dostępu, a webhook operatora
+  // MUSI dostać 200: rzucenie skazałoby go na wieczne ponowienia na wierszu,
+  // który nigdy już nie odzyska właściciela.
+  it("pomija grant dla zanonimizowanego zamówienia (user_id NULL) bez rzucania", async () => {
+    await grantEntitlement({ ...subOrder, user_id: null }, "sub_anon");
+    expect(h.state.calls).toHaveLength(0);
+  });
+
+  it("pomija grant zakupu jednorazowego, gdy zamówienie stracilo właściciela", async () => {
+    await grantEntitlement({ ...oneTimeOrder, user_id: null }, "ord_anon");
+    expect(h.state.calls).toHaveLength(0);
+  });
+
   // -------------------------------------------------------------------------
   // Kontrakt: KAŻDA porażka bazy musi rzucić. Webhook Stripe opiera na tym
   // zabezpieczenie "grant-before-flip" - wyjątek staje się odpowiedzią 500,
@@ -392,6 +406,20 @@ describe("revokeOrderEntitlement", () => {
   it("niekompletne zamówienie (bez planu i encji) nie dotyka bazy", async () => {
     await revokeOrderEntitlement({ ...subRevocable, id: "ord_x", plan_id: null });
     expect(h.state.calls).toHaveLength(0);
+  });
+
+  // Po usunięciu konta `user_purchases` znika kaskadą, a zamówienie zostaje
+  // jako dowód księgowy z `user_id = NULL`. Zwrot musi przestawić status
+  // zamówienia (robi to refunds.server), ale nie ma czego odbierać.
+  it("zanonimizowany zakup jednorazowy nie próbuje cofać user_purchases", async () => {
+    await revokeOrderEntitlement({ ...purchaseRevocable, user_id: null });
+    expect(h.state.calls).toHaveLength(0);
+  });
+
+  it("zanonimizowane zamówienie planu wciąż cofa się po external_ref (klucz nie zależy od usera)", async () => {
+    await revokeOrderEntitlement({ ...subRevocable, user_id: null });
+    expect(tables()).toEqual(["user_subscriptions"]);
+    expect(find("eq")?.args).toEqual(["external_ref", "ord_sub"]);
   });
 
   it("rzuca, gdy cofnięcie subskrypcji padło", async () => {

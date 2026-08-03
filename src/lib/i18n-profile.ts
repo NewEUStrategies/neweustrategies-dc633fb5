@@ -239,12 +239,25 @@ const pl = {
         button: "Usuń moje konto",
         confirmTitle: "Na pewno usunąć konto?",
         confirmBody:
-          "Ta operacja jest nieodwracalna. Aby potwierdzić, wpisz swoje hasło. Wszystkie Twoje dane zostaną trwale usunięte.",
+          "Ta operacja jest nieodwracalna. Aby potwierdzić, wpisz swoje hasło. Usuwamy profil, zakładki, obserwacje i wyniki testów.",
         passwordLabel: "Potwierdź hasłem",
         cancel: "Anuluj",
         confirm: "Usuń konto na stałe",
         deleted: "Konto zostało usunięte.",
+        deletedWithRetention_one:
+          "Konto zostało usunięte. Zachowaliśmy 1 zanonimizowany dowód księgowy - bez Twoich danych osobowych.",
+        deletedWithRetention_few:
+          "Konto zostało usunięte. Zachowaliśmy {{count}} zanonimizowane dowody księgowe - bez Twoich danych osobowych.",
+        deletedWithRetention_many:
+          "Konto zostało usunięte. Zachowaliśmy {{count}} zanonimizowanych dowodów księgowych - bez Twoich danych osobowych.",
+        deletedWithRetention_other:
+          "Konto zostało usunięte. Zachowaliśmy {{count}} zanonimizowanych dowodów księgowych - bez Twoich danych osobowych.",
         failed: "Nie udało się usunąć konta.",
+        retentionTitle: "Co zostaje po usunięciu konta",
+        retentionBody:
+          "Historia płatności (kwoty, waluty, daty, numery transakcji u operatora) zostaje jako dowód księgowy, ale tracisz z nią związek: usuwamy identyfikator konta, adres e-mail do potwierdzeń i dane opisowe, a w ich miejsce wchodzi nieodwracalny pseudonim.",
+        retentionBasis:
+          "Podstawa: art. 74 ust. 2 ustawy o rachunkowości (5 lat od końca roku obrotowego) w związku z art. 17 ust. 3 lit. b RODO. Po tym terminie zapisy usuwamy automatycznie.",
       },
       tip: {
         currentPassword: "Podaj obecne hasło, aby potwierdzić, że to Ty.",
@@ -817,12 +830,29 @@ const en: typeof pl = {
         button: "Delete my account",
         confirmTitle: "Delete your account?",
         confirmBody:
-          "This action is irreversible. To confirm, enter your password. All your data will be permanently removed.",
+          "This action is irreversible. To confirm, enter your password. We remove your profile, bookmarks, follows and test results.",
         passwordLabel: "Confirm with password",
         cancel: "Cancel",
         confirm: "Delete account permanently",
         deleted: "Your account has been deleted.",
+        deletedWithRetention_one:
+          "Your account has been deleted. We kept 1 anonymised accounting record - stripped of your personal data.",
+        // `_few` / `_many` istnieją tylko dla parytetu kluczy z polskim (en: typeof pl).
+        // Intl.PluralRules dla angielskiego zwraca wyłącznie "one" i "other",
+        // więc te warianty nigdy nie zostaną wybrane - i mają brzmieć jak "other",
+        // gdyby kiedyś doszedł język z bogatszą fleksją.
+        deletedWithRetention_few:
+          "Your account has been deleted. We kept {{count}} anonymised accounting records - stripped of your personal data.",
+        deletedWithRetention_many:
+          "Your account has been deleted. We kept {{count}} anonymised accounting records - stripped of your personal data.",
+        deletedWithRetention_other:
+          "Your account has been deleted. We kept {{count}} anonymised accounting records - stripped of your personal data.",
         failed: "Could not delete the account.",
+        retentionTitle: "What stays after deletion",
+        retentionBody:
+          "Your payment history (amounts, currencies, dates, provider transaction ids) stays on file as accounting evidence, but it can no longer be traced to you: we drop the account id, the receipt e-mail address and descriptive fields, and put an irreversible pseudonym in their place.",
+        retentionBasis:
+          "Legal basis: Article 74(2) of the Polish Accounting Act (5 years from the end of the financial year) read with Article 17(3)(b) GDPR. Records are purged automatically once that period lapses.",
       },
       tip: {
         currentPassword: "Enter your current password to confirm it's you.",
