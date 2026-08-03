@@ -135,6 +135,7 @@ type ThemeOptions = {
       instagram: string;
       linkedin: string;
       youtube: string;
+      spotify: string;
       email: string;
       size: number;
     };
@@ -231,6 +232,7 @@ const DEFAULTS: ThemeOptions = {
       instagram: "",
       linkedin: "",
       youtube: "",
+      spotify: "",
       email: "",
       size: 16,
     },
@@ -1033,7 +1035,15 @@ export function ThemeOptionsPane() {
                   />
                 </Row>
                 {(
-                  ["facebook", "twitter", "instagram", "linkedin", "youtube", "email"] as const
+                  [
+                    "facebook",
+                    "twitter",
+                    "instagram",
+                    "linkedin",
+                    "youtube",
+                    "spotify",
+                    "email",
+                  ] as const
                 ).map((k) => (
                   <Row
                     key={k}

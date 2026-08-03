@@ -1762,6 +1762,17 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   "social-icons": [
     {
+      key: "linksSource",
+      type: "select",
+      label: "Źródło linków",
+      options: [
+        { value: "auto", label: "własne, a gdy puste - globalne" },
+        { value: "global", label: "globalne (Opcje motywu → Ikony social)" },
+        { value: "own", label: "tylko wpisane poniżej" },
+      ],
+      hint: "Globalne linki do mediów społecznościowych ustawia się raz w Admin → Wygląd → Opcje motywu → „Ikony social” (/admin/theme-options). Widgety zaciągają je automatycznie.",
+    },
+    {
       key: "facebook",
       type: "url",
       label: "Facebook URL",
