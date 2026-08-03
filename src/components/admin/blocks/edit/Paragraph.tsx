@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
+import type { SelectionDirection } from "@/lib/blocks/crossSelection";
 import { detectMarkdownShortcut, htmlToPlain, shortcutToBlock } from "@/lib/blocks/markdown";
 import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
 import { parseBlocksFromClipboard } from "@/lib/blocks/clipboard";
@@ -47,6 +48,8 @@ interface Props {
   onFocusNext?: () => boolean;
   /** Ctrl/Cmd+A przy zaznaczonej całej treści bloku - eskalacja do dokumentu. */
   onSelectAllBlocks?: () => void;
+  /** Shift+strzałka na krawędzi treści - zaznaczenie w poprzek bloków (WP). */
+  onExtendBlockSelection?: (dir: SelectionDirection) => boolean;
 }
 
 export function ParagraphBlock({
@@ -60,6 +63,7 @@ export function ParagraphBlock({
   onFocusPrevious,
   onFocusNext,
   onSelectAllBlocks,
+  onExtendBlockSelection,
 }: Props) {
   const { t } = useTranslation();
   const html = String(block.data.html ?? "");
@@ -73,6 +77,7 @@ export function ParagraphBlock({
     onFocusPrevious,
     onFocusNext,
     onSelectAllBlocks,
+    onExtendBlockSelection,
   });
   handlersRef.current = {
     onTransform,
@@ -82,6 +87,7 @@ export function ParagraphBlock({
     onFocusPrevious,
     onFocusNext,
     onSelectAllBlocks,
+    onExtendBlockSelection,
   };
   const blockRef = useRef(block);
   blockRef.current = block;
@@ -223,6 +229,30 @@ export function ParagraphBlock({
             event.preventDefault();
             closeSlash(); // tekst "/zapytanie" zostaje w akapicie - parytet z WP
             return true;
+          }
+        }
+
+        // Shift+strzałka na krawędzi treści -> ESKALACJA do zaznaczenia
+        // BLOKOWEGO (parytet z WP: zaznaczenie tekstowe nie potrafi przejść
+        // granicy bloku, więc od granicy zaznaczamy CAŁE bloki).
+        if (event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          const extend = handlersRef.current.onExtendBlockSelection;
+          if (extend) {
+            const sel = ed.state.selection;
+            const inFirstChild = sel.$from.index(0) === 0;
+            const inLastChild = sel.$to.index(0) === ed.state.doc.childCount - 1;
+            const atDocStart = sel.from <= 1;
+            const atDocEnd = sel.to >= ed.state.doc.content.size - 1;
+            const back =
+              (event.key === "ArrowUp" && inFirstChild && view.endOfTextblock("up")) ||
+              (event.key === "ArrowLeft" && atDocStart);
+            const forward =
+              (event.key === "ArrowDown" && inLastChild && view.endOfTextblock("down")) ||
+              (event.key === "ArrowRight" && atDocEnd);
+            if ((back && extend(-1)) || (forward && extend(1))) {
+              event.preventDefault();
+              return true;
+            }
           }
         }
 

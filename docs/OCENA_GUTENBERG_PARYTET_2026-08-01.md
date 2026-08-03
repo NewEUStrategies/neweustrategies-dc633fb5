@@ -11,6 +11,11 @@ zawiera wynik niezależnego adwersaryjnego przeglądu 8 przepływów end-to-end.
 
 Skala: **✓** pełny parytet · **±** parytet częściowy (świadomy kompromis) · **✗** brak.
 
+> **Aktualizacja 2026-08-03:** zaznaczenie w poprzek bloków zostało domknięte -
+> patrz `WDROZENIE_CROSS_BLOCK_SELECTION_2026-08-03.md`. Wiersze §1.2 i §1.1
+> (slash) są zaktualizowane poniżej; wnioski i rekomendacje z 2026-08-01
+> pozostają jako zapis stanu z tamtej daty.
+
 ---
 
 ## 1. Matryca parytetu zachowań
@@ -26,7 +31,7 @@ Skala: **✓** pełny parytet · **±** parytet częściowy (świadomy kompromis
 | Backspace na POCZĄTKU niepustego bloku scala z poprzednim, karetka w punkcie złączenia | tak | tak (`mergeWithPrevious` + `lib/blocks/merge.ts` + karetka offsetowa w `focus.ts`) | ✓ |
 | Strzałki góra/dół na krawędzi wizualnej linii przechodzą do sąsiedniego bloku | tak | tak (ProseMirror `endOfTextblock` - respektuje zawijanie i bidi) | ✓ |
 | Strzałki lewo/prawo na początku/końcu treści przechodzą do sąsiedniego bloku | tak | tak | ✓ |
-| Slash `/` otwiera wybór bloku | wszędzie w pustej linii | tylko pusty akapit; `/` nie filtruje inline (osobne pole) | ± |
+| Slash `/` otwiera wybór bloku | tylko w PUSTYM kontekście bloku (`allowContext` autouzupełniacza) | pusty akapit + filtrowanie inline `/zapytanie` | ✓ (2026-08-03: weryfikacja WP potwierdziła ten sam warunek; różnica została w polach innych niż akapit - nagłówek/lista) |
 | Skróty markdown (`##`, `>`, `-`, `1.`, `---`, ``` ) | tak | tak; transformacja nie gubi karetki | ✓ |
 | Placeholder "Wpisz / aby wybrać blok" | tak | tak (akapit + appender) | ✓ |
 
@@ -39,8 +44,12 @@ Skala: **✓** pełny parytet · **±** parytet częściowy (świadomy kompromis
 | Ctrl/Cmd+klik przełącza pojedynczy blok | tak | tak (`toggleInSelection`, kolejność dokumentu) | ✓ |
 | Delete/Backspace usuwa zaznaczone; Escape czyści | tak | tak | ✓ |
 | Ctrl+Shift+D duplikuje (też podczas pisania) | tak | tak (`duplicateSelection`; świeże id również w zagnieżdżeniach) | ✓ |
-| Shift+strzałki rozszerzają zaznaczenie blokowe | tak | nie | ✗ |
-| Zaznaczenie tekstu w poprzek bloków (cross-block text selection) | tak | nie (zaznaczenie blokowe zamiast tekstowego) | ✗ |
+| Shift+strzałki rozszerzają zaznaczenie blokowe | tak | tak (kotwica + ognisko; odwrotny kierunek ZAWĘŻA, eskalacja z wnętrza akapitu/nagłówka na krawędzi treści) | ✓ |
+| Zaznaczenie w poprzek bloków przeciągnięciem myszą | tak - przechodzi w zaznaczenie CAŁYCH bloków | tak (`useCrossBlockSelection`: obserwator selekcji + wygaszenie natywnego podświetlenia w trakcie przeciągania) | ✓ |
+| Shift+klik w treść INNEGO bloku zaznacza zakres bloków | tak | tak | ✓ |
+| Pisanie / Enter przy zaznaczeniu >= 2 bloków zastępuje je akapitem | tak (`onBeforeInput`) | tak (znak escapowany, jeden blok NIE jest nadpisywany) | ✓ |
+| Shift+Home / Shift+End - zaznaczenie do krawędzi dokumentu | nie | tak | ✓+ |
+| Komunikat `aria-live` o liczbie zaznaczonych bloków | tak (`speak()`) | tak (PL/EN z pluralizacją) | ✓ |
 
 ### 1.3 Schowek
 
@@ -79,6 +88,10 @@ Skala: **✓** pełny parytet · **±** parytet częściowy (świadomy kompromis
 
 ## 2. Czego nadal NIE mamy z Gutenberga (uczciwa lista)
 
+> Lista jest zapisem stanu z 2026-08-01. Punkty 1-4 zostały wdrożone w PR #134
+> (`NestedBlocksEditor`, `BlockListView`, zakładka „Wzorce" w insererze,
+> `CodeViewDialog`), a punkt 6 doprecyzowany 2026-08-03 - patrz poniżej.
+
 1. **Edycja zagnieżdżeń w UI** - `group`/`columns`/`row`/`stack`/`grid` istnieją w modelu
    i renderują się na froncie, ale edytor nie pozwala edytować dzieci (Etap 1b: nested editor).
 2. **Patterns / synced patterns (reusable blocks)** - brak odpowiednika; `patterns/library.ts`
@@ -88,7 +101,9 @@ Skala: **✓** pełny parytet · **±** parytet częściowy (świadomy kompromis
    w schowku, ale nie ma UI podglądu markupu całego dokumentu.
 5. **Blokady bloków (lock/templateLock)**, **tryby fullscreen/spotlight**, **podgląd urządzeń
    w edytorze** (jest link "Zobacz preview" w nowej karcie).
-6. Slash `/` tylko w pustym akapicie i bez filtrowania inline (świadome uproszczenie).
+6. Slash `/` w polach innych niż akapit (nagłówek, element listy) - w WP autouzupełniacz
+   żyje w każdym RichText; u nas w akapicie (warunek „pusty kontekst bloku" jest ten sam).
+   Zaznaczenie w poprzek bloków i Shift+strzałki NIE są już brakiem (2026-08-03).
 
 Żaden z braków nie dotyczy pisania artykułu (rdzeń przepływu redakcyjnego = pełny parytet);
 wszystkie dotyczą kompozycji layoutów, do której w NES służy builder (architektura hybrydowa,

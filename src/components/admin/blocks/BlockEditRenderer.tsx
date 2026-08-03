@@ -6,6 +6,7 @@
 // Nowy typ bloku = case tutaj + wpis w registry + renderer publiczny.
 
 import type { Block } from "@/lib/blocks/types";
+import type { SelectionDirection } from "@/lib/blocks/crossSelection";
 import { GenericWidgetToolbar } from "./GenericWidgetToolbar";
 import { ParagraphBlock } from "./edit/Paragraph";
 import { HeadingBlock } from "./edit/Heading";
@@ -150,6 +151,11 @@ export interface BlockEditRendererProps {
   /** Fokus na następny blok tekstowy (strzałka w dół/prawo na krawędzi). */
   onFocusNext: () => boolean;
   onSelectAllBlocks: () => void;
+  /**
+   * Shift+strzałka na krawędzi treści - eskalacja zaznaczenia TEKSTOWEGO do
+   * zaznaczenia BLOKOWEGO w poprzek bloków (parytet z WP Gutenberg).
+   */
+  onExtendBlockSelection: (dir: SelectionDirection) => boolean;
 }
 
 export function BlockEditRenderer({
@@ -163,6 +169,7 @@ export function BlockEditRenderer({
   onFocusPrevious,
   onFocusNext,
   onSelectAllBlocks,
+  onExtendBlockSelection,
 }: BlockEditRendererProps) {
   switch (block.type) {
     case "paragraph":
@@ -178,6 +185,7 @@ export function BlockEditRenderer({
           onFocusPrevious={onFocusPrevious}
           onFocusNext={onFocusNext}
           onSelectAllBlocks={onSelectAllBlocks}
+          onExtendBlockSelection={onExtendBlockSelection}
         />
       );
     case "heading":
@@ -193,6 +201,7 @@ export function BlockEditRenderer({
           onFocusPrevious={onFocusPrevious}
           onFocusNext={onFocusNext}
           onSelectAllBlocks={onSelectAllBlocks}
+          onExtendBlockSelection={onExtendBlockSelection}
         />
       );
     case "image":

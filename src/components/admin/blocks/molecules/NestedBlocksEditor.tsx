@@ -223,6 +223,10 @@ export function NestedBlocksEditor({ blocks, onChange, emptyLabel }: Props) {
                     onFocusPrevious={() => focusNeighbor(idx, -1)}
                     onFocusNext={() => focusNeighbor(idx, 1)}
                     onSelectAllBlocks={() => undefined}
+                    // Zaznaczenie blokowe żyje na poziomie kanwy głównej -
+                    // wewnątrz kontenera Shift+strzałka zostaje zaznaczeniem
+                    // tekstowym (blok-rodzic zaznacza się klikiem w jego obwód).
+                    onExtendBlockSelection={() => false}
                   />
                 </BlockWithToolbar>
               </NestedChildRow>
