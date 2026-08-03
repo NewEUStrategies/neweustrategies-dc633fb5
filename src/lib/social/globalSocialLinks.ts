@@ -35,13 +35,22 @@ const EMPTY_LINKS: GlobalSocialLinks = {
 
 const DEFAULTS = { header: { socials: EMPTY_LINKS } } as const;
 
-/** Globalne linki social z ustawień witryny (współdzielony bulk query). */
+/**
+ * Globalne linki social z ustawień witryny (współdzielony bulk query).
+ *
+ * Poza drzewem QueryClientProvider (izolowane renderowanie widgetu w testach
+ * i w podglądach) zwraca puste linki zamiast rzucać - widget ma wtedy działać
+ * na własnych adresach.
+ */
 export function useGlobalSocialLinks(): GlobalSocialLinks {
+  const hasClient = useContext(QueryClientContext) != null;
   const options = useSiteSetting<{ header: { socials: GlobalSocialLinks } }>("theme_options", {
     header: { socials: { ...DEFAULTS.header.socials } },
   });
+  if (!hasClient) return EMPTY_LINKS;
   return options.header?.socials ?? EMPTY_LINKS;
 }
+
 
 function readGlobal(global: GlobalSocialLinks | undefined, key: string): string {
   if (!global) return "";
