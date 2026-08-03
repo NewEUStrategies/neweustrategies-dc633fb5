@@ -5775,13 +5775,14 @@ textarea::placeholder {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px 7px;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 10px;
   border-radius: 6px;
   color: color-mix(in oklab, var(--foreground) 62%, transparent);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.15;
+  line-height: 1.25;
   transition:
     background-color 0.22s ease-out,
     color 0.22s ease-out,

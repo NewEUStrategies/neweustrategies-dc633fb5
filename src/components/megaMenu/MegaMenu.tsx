@@ -186,7 +186,7 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
       {triggerHref && triggerOn !== "click" ? (
         <AppLink
           href={triggerHref}
-          className="inline-flex items-center gap-1.5 h-10 px-1 text-xs font-bold tracking-wider uppercase leading-none text-foreground hover:opacity-80 transition"
+          className="inline-flex items-center gap-1.5 h-11 px-2 text-xs font-bold tracking-wider uppercase leading-none text-foreground hover:opacity-80 transition"
           aria-expanded={open}
           aria-controls={panelId}
         >
@@ -196,7 +196,7 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
       ) : (
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 h-10 px-1 text-xs font-bold tracking-wider uppercase leading-none text-foreground hover:opacity-80 transition"
+          className="inline-flex items-center gap-1.5 h-11 px-2 text-xs font-bold tracking-wider uppercase leading-none text-foreground hover:opacity-80 transition"
           aria-expanded={open}
           aria-controls={panelId}
           onClick={() => {
@@ -255,7 +255,7 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
               <li key={i}>
                 <AppLink
                   href={href}
-                  className="block rounded-md px-2 py-1.5 -mx-2 hover:bg-muted transition"
+                  className="block rounded-md px-2 py-2.5 -mx-2 hover:bg-muted transition"
                 >
                   <span className="block text-sm font-medium text-foreground leading-tight">
                     {label}
@@ -502,7 +502,7 @@ function MobileColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }
               <li key={i}>
                 <AppLink
                   href={href}
-                  className="block py-2 text-foreground transition hover:text-brand-ink"
+                  className="block py-2.5 text-foreground transition hover:text-brand-ink"
                 >
                   <span className="block text-sm leading-tight">{label}</span>
                   {desc && (
