@@ -6,7 +6,7 @@
 // formularzy (bez załączników). Wszystkie napisy pochodzą z i18n (PL/EN),
 // zaokrąglenia = 6px, kolory wyłącznie z tokenów semantycznych.
 import { useTranslation } from "react-i18next";
-import type { MutableRefObject, ReactNode } from "react";
+import { useEffect, useRef, type MutableRefObject, type ReactNode } from "react";
 import {
   Bold,
   Code,
@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import {
+  composerStatusMessageKey,
+  validateComposerValue,
+  type ComposerValidation,
+} from "@/lib/composer/validation";
 
 export type MarkdownAction =
   | { kind: "wrap"; before: string; after: string }
@@ -79,8 +84,21 @@ export interface ComposerShellProps {
   maxLength: number;
   /** Pole treści i ewentualne dodatkowe pola. */
   children: ReactNode;
-  /** Akcje po prawej stronie dolnego paska (submit / anuluj). */
-  actions?: ReactNode;
+  /**
+   * Akcje po prawej stronie dolnego paska (submit / anuluj). Wariant funkcyjny
+   * dostaje wynik walidacji - jedno źródło prawdy dla `disabled` przycisku.
+   */
+  actions?: ReactNode | ((validation: ComposerValidation) => ReactNode);
+  /** Minimalna długość treści po trim (domyślnie 1). */
+  minLength?: number;
+  /** Trwa wysyłka - blokuje submit. */
+  submitting?: boolean;
+  /** Tryb edycji: brak zmian względem wartości początkowej blokuje submit. */
+  initialValue?: string;
+  /** Powiadomienie o zmianie walidacji (dla formularzy z własnym submitem). */
+  onValidationChange?: (validation: ComposerValidation) => void;
+  /** Id komunikatu walidacji (do aria-describedby pola treści). */
+  statusId?: string;
   className?: string;
   /** Padding wokół slotu treści (domyślnie karta komentarza). */
   bodyClassName?: string;
@@ -95,8 +113,39 @@ export function ComposerShell({
   actions,
   className,
   bodyClassName,
+  minLength = 1,
+  submitting = false,
+  initialValue,
+  onValidationChange,
+  statusId,
 }: ComposerShellProps) {
   const { t } = useTranslation();
+  const validation = validateComposerValue({
+    value,
+    maxLength,
+    minLength,
+    submitting,
+    initialValue,
+  });
+  const lastReported = useRef<string>("");
+  useEffect(() => {
+    if (!onValidationChange) return;
+    const key = `${validation.status}:${validation.canSubmit}`;
+    if (lastReported.current === key) return;
+    lastReported.current = key;
+    onValidationChange(validation);
+  }, [onValidationChange, validation]);
+
+  const messageKey = composerStatusMessageKey(validation.status);
+  const message = messageKey
+    ? t(messageKey, {
+        count: validation.status === "tooLong" ? maxLength : minLength,
+        defaultValue:
+          validation.status === "tooLong"
+            ? `Maksymalnie ${maxLength} znaków.`
+            : `Minimum ${minLength} znaków.`,
+      })
+    : null;
 
   const run = (action: MarkdownAction) => {
     const el = textareaRef.current;
@@ -160,10 +209,29 @@ export function ComposerShell({
       <div className={cn("space-y-3 p-3", bodyClassName)}>{children}</div>
 
       <div className="flex items-center justify-between gap-2 border-t border-border/70 px-3 py-2">
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {value.length}/{maxLength}
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className={cn(
+              "text-xs tabular-nums",
+              validation.isTooLong ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {value.length}/{maxLength}
+          </span>
+          <span
+            id={statusId}
+            role="status"
+            aria-live="polite"
+            className="truncate text-xs text-destructive"
+          >
+            {message}
+          </span>
         </span>
-        {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex items-center gap-2">
+            {typeof actions === "function" ? actions(validation) : actions}
+          </div>
+        ) : null}
       </div>
     </div>
   );
