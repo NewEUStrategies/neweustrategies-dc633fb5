@@ -55,6 +55,18 @@ import { TocWidget } from "./TocWidget";
 import { PricingPlansView } from "./PricingPlansView";
 export { ResizableBox } from "./resizeWrappers";
 
+// Render-prop most do globalnych linków social (site_settings → opcje motywu).
+// Renderery widgetów żyją w wielkim switchu, więc hooka nie można wywołać
+// bezpośrednio - ten mikro-komponent daje bezpieczny punkt zaczepienia.
+function WithGlobalSocials({
+  render,
+}: {
+  render: (links: GlobalSocialLinks) => ReactElement;
+}): ReactElement {
+  return render(useGlobalSocialLinks());
+}
+
+
 // Wraps AnimatedHeadingRender with dynamic-token resolution. Runs on every
 // render so `{post.title}` / `{author.name}` reflect the current post context
 // (or the placeholder ctx in the admin canvas via PLACEHOLDER_POST_CTX).
