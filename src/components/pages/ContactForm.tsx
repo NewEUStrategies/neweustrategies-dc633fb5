@@ -8,6 +8,7 @@ import { useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
 import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
+import { MessageComposerField } from "@/components/forms/MessageComposerField";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { toast } from "sonner";
 
