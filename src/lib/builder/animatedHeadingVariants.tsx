@@ -93,101 +93,104 @@ const HOVER_LINE_CSS = `
 .ah-hu-8:hover { --p:10.1%; transition: .5s cubic-bezier(0,800,1,800); }
 `;
 
+// Ramka rysowana JEDNYM pudełkiem z prawdziwym `border`, a odsłaniana maską.
+// Wcześniej każdy bok był osobnym gradientem tła - przy ułamkowej wysokości
+// tekstu poziome i pionowe kreski trafiały na różne piksele i „przecinały się"
+// w rogach. Border jednego elementu ma zawsze idealny, zeszlifowany narożnik
+// 90 stopni, a maska tylko odsłania kolejne fragmenty tej samej ramki.
 const HOVER_ALLSIDES_CSS = `
-.ah-as { display: inline-block; padding: 8px; cursor: pointer; }
-.allsides-1 {
-  background:
-    linear-gradient(currentColor 0 0) 100% 0,
-    linear-gradient(currentColor 0 0) 0 0,
-    linear-gradient(currentColor 0 0) 0 100%,
-    linear-gradient(currentColor 0 0) 100% 100%;
-  background-size: var(--d, 0) 3px, 3px var(--d, 0);
-  background-repeat: no-repeat;
-  transition: 0.5s;
+.ah-as { position: relative; display: inline-block; padding: 8px; cursor: pointer; --ah-bw: 3px; --ah-t: 0.5s; }
+.ah-as::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: var(--ah-bw) solid currentColor;
+  pointer-events: none;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  transition:
+    -webkit-mask-size var(--ah-t) linear,
+    mask-size var(--ah-t) linear,
+    -webkit-mask-position var(--ah-t) linear,
+    mask-position var(--ah-t) linear;
 }
-.allsides-1:hover { --d: 100%; }
-.allsides-2 {
-  background:
-    linear-gradient(currentColor 0 0) 0 0,
-    linear-gradient(currentColor 0 0) 0 0,
-    linear-gradient(currentColor 0 0) 100% 100%,
-    linear-gradient(currentColor 0 0) 100% 100%;
-  background-size: var(--d, 0) 3px, 3px var(--d, 0);
-  background-repeat: no-repeat;
-  transition: 0.5s;
+.allsides-1::before {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 100% 0, 0 0, 0 100%, 100% 100%;
+  mask-position: 100% 0, 0 0, 0 100%, 100% 100%;
+  -webkit-mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
+  mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
-.allsides-2:hover { --d: 100%; }
-.allsides-3 {
-  background:
-    linear-gradient(currentColor 0 0) top,
-    linear-gradient(currentColor 0 0) left,
-    linear-gradient(currentColor 0 0) bottom,
-    linear-gradient(currentColor 0 0) right;
-  background-size: var(--d, 0) 3px, 3px var(--d, 0);
-  background-repeat: no-repeat;
-  transition: 0.5s;
+.allsides-1:hover::before { --d: 100%; }
+.allsides-2::before {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 0 0, 0 0, 100% 100%, 100% 100%;
+  mask-position: 0 0, 0 0, 100% 100%, 100% 100%;
+  -webkit-mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
+  mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
-.allsides-3:hover { --d: 100%; }
-.allsides-4 {
-  background:
-    linear-gradient(currentColor 0 0) var(--p, 100%) 0,
-    linear-gradient(currentColor 0 0) 0 var(--d, 0),
-    linear-gradient(currentColor 0 0) var(--d, 0) 100%,
-    linear-gradient(currentColor 0 0) 100% var(--p, 100%);
-  background-size: var(--d, 0) 3px, 3px var(--d, 0);
-  background-repeat: no-repeat;
-  transition: 0.5s, background-position 0s 0.5s;
+.allsides-2:hover::before { --d: 100%; }
+.allsides-3::before {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 50% 0, 0 50%, 50% 100%, 100% 50%;
+  mask-position: 50% 0, 0 50%, 50% 100%, 100% 50%;
+  -webkit-mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
+  mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
-.allsides-4:hover { --d: 100%; --p: 0%; }
-.allsides-5 {
-  background:
-    linear-gradient(currentColor 0 0) var(--d, 0) 0,
-    linear-gradient(currentColor 0 0) 0 var(--d, 0),
-    linear-gradient(currentColor 0 0) var(--p, 100%) 100%,
-    linear-gradient(currentColor 0 0) 100% var(--p, 100%);
-  background-size: var(--d, 0) 3px, 3px var(--d, 0);
-  background-repeat: no-repeat;
-  transition: 0.5s, background-position 0s 0.5s;
+.allsides-3:hover::before { --d: 100%; }
+.allsides-4::before {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: var(--p, 100%) 0, 0 var(--p, 100%), var(--p, 100%) 100%, 100% var(--p, 100%);
+  mask-position: var(--p, 100%) 0, 0 var(--p, 100%), var(--p, 100%) 100%, 100% var(--p, 100%);
+  -webkit-mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
+  mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
-.allsides-5:hover { --d: 100%; --p: 0%; }
-.allsides-6 {
-  background:
-    linear-gradient(currentColor 0 0) 0 0,
-    linear-gradient(currentColor 0 0) 0 0,
-    linear-gradient(currentColor 0 0) 0 100%,
-    linear-gradient(currentColor 0 0) 0 100%,
-    linear-gradient(currentColor 0 0) 100% 0,
-    linear-gradient(currentColor 0 0) 100% 0,
-    linear-gradient(currentColor 0 0) 100% 100%,
-    linear-gradient(currentColor 0 0) 100% 100%;
-  background-size: var(--d, 0) 3px, 3px var(--d, 0);
-  background-repeat: no-repeat;
-  transition: 0.5s;
+.allsides-4:hover::before { --d: 100%; --p: 0%; }
+.allsides-5::before {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 0 0, 0 0, var(--p, 100%) 100%, 100% var(--p, 100%);
+  mask-position: 0 0, 0 0, var(--p, 100%) 100%, 100% var(--p, 100%);
+  -webkit-mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
+  mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
-.allsides-6:hover { --d: 20px; }
-.allsides-7 {
-  background:
-    linear-gradient(currentColor 0 0) 0 100%,
-    linear-gradient(currentColor 0 0) 0 100%,
-    linear-gradient(currentColor 0 0) 100% 100%,
-    linear-gradient(currentColor 0 0) 100% 100%;
-  background-size: var(--p, 50%) 3px, 3px var(--d, 0);
-  background-repeat: no-repeat;
-  transition: 0.5s;
+.allsides-5:hover::before { --d: 100%; --p: 0%; }
+.allsides-6::before {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 0 0, 0 100%, 100% 0, 100% 100%;
+  mask-position: 0 0, 0 100%, 100% 0, 100% 100%;
+  -webkit-mask-size: var(--d, 0) var(--d, 0);
+  mask-size: var(--d, 0) var(--d, 0);
 }
-.allsides-7:hover { --d: 100%; --p: 0%; }
-.allsides-8 {
-  background:
-    linear-gradient(currentColor 0 0) 0 100%,
-    linear-gradient(currentColor 0 0) 0 100%,
-    linear-gradient(currentColor 0 0) 100% 0,
-    linear-gradient(currentColor 0 0) 100% 0;
-  background-size: 20px 3px, 3px 20px;
-  background-repeat: no-repeat;
-  transition: 0.5s;
+.allsides-6:hover::before { --d: 20px; }
+.allsides-7::before {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 0 100%, 0 100%, 100% 100%, 100% 100%;
+  mask-position: 0 100%, 0 100%, 100% 100%, 100% 100%;
+  -webkit-mask-size: var(--p, 50%) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--p, 50%) var(--ah-bw), var(--ah-bw) var(--d, 0);
+  mask-size: var(--p, 50%) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--p, 50%) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
-.allsides-8:hover { background-position: 100% 100%, 0 0, 0 0, 100% 100%; }
+.allsides-7:hover::before { --d: 100%; --p: 100%; }
+.allsides-8::before {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 0 100%, 100% 0;
+  mask-position: 0 100%, 100% 0;
+  -webkit-mask-size: 20px 20px;
+  mask-size: 20px 20px;
+}
+.allsides-8:hover::before {
+  -webkit-mask-position: 100% 100%, 0 0;
+  mask-position: 100% 100%, 0 0;
+}
 `;
+
 
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [
   { value: "highlight", label: "Wyróżnione słowo" },
