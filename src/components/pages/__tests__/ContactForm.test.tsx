@@ -3,7 +3,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const submitContactMessage = vi.fn();
 
-vi.mock("@tanstack/react-start", () => ({
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) => fn,
 }));
 vi.mock("@/lib/contact.functions", () => ({
