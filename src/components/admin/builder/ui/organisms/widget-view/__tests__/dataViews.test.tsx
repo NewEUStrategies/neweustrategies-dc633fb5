@@ -213,7 +213,7 @@ describe("RatedListView (manual source)", () => {
         author_id: "a1",
       },
     ];
-    db.tables.profiles = [{ id: "a1", display_name: "Redakcja" }];
+    db.tables.profiles_public = [{ id: "a1", display_name: "Redakcja" }];
     wrap(
       <RatedListView
         c={{ source: "dynamic", numberOfPosts: 4, showAuthor: true, showPostFormat: true }}

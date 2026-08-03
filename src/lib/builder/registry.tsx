@@ -1829,8 +1829,10 @@ export const WIDGETS: WidgetDef[] = [
     label: "Meta wpisu (data, autor, czas)",
     category: "dynamic",
     icon: Clock,
+    // Widoczność autora NIE jest tu defaultem: rozstrzyga ją wspólny kontrakt
+    // (`resolveAuthorDisplay`), który domyślnie pokazuje zdjęcie i nazwisko.
+    // Trzymanie kopii w palecie znaczyłoby dwa źródła prawdy dla jednej reguły.
     defaults: () => ({
-      showAuthor: true,
       showDate: true,
       showReadingTime: true,
       showViews: false,
@@ -1858,7 +1860,8 @@ export const WIDGETS: WidgetDef[] = [
     label: "Karta autora",
     category: "dynamic",
     icon: User,
-    defaults: () => ({ showAvatar: true, showBio: true, showSocial: true, variant: "card" }),
+    // `showAvatar` przeszło do wspólnej kontrolki autora - patrz post-meta wyżej.
+    defaults: () => ({ showBio: true, showSocial: true, variant: "card" }),
   },
   {
     type: "post-breadcrumbs",

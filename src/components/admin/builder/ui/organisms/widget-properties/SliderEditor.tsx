@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { PropField } from "../../atoms";
+import { AuthorDisplayControl } from "../../molecules/AuthorDisplayControl";
 import { ImageSlot } from "./ImageSlot";
 import { PostPicker } from "./PostPicker";
 import { TaxonomyPicker } from "./TaxonomyPicker";
@@ -25,7 +26,6 @@ import {
   NAV_ARROW_VARIANT_VALUES,
   NAV_BG_STYLES,
   NAV_POSITIONS,
-  SLIDER_AUTHOR_DISPLAYS,
   SLIDER_RATIOS,
   SLIDER_ROUNDED_VALUES,
   SLIDER_VARIANT_VALUES,
@@ -33,6 +33,7 @@ import {
   type SliderItem,
 } from "@/lib/builder/sliderVariants";
 import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
@@ -63,16 +64,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const showExcerpt = asBool(c.showExcerpt, true);
   const showCover = asBool(c.showCover, true);
   const showTitle = asBool(c.showTitle, true);
-  const authorDisplay = asOneOf(
-    c.authorDisplay,
-    SLIDER_AUTHOR_DISPLAYS,
-    asBool(c.showAuthor, true) ? "avatar" : "none",
-  );
-  const showAuthor = authorDisplay !== "none";
-  const authorLabelPl = asStr(c.authorLabel_pl);
-  const authorLabelEn = asStr(c.authorLabel_en);
-  const authorSizePx = asNumInRange(c.authorSizePx, 12, 8, 24);
-  const authorAvatarSizePx = asNumInRange(c.authorAvatarSizePx, 20, 8, 64);
+  // Autor: ten sam rezolwer, co renderer i podgląd - dzięki temu podgląd na
+  // żywo nie może pokazać innego stanu niż kanwa i strona publiczna.
+  const author = resolveAuthorDisplay(c, lang);
 
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = asStr(c[ctaKey]);
@@ -186,14 +180,15 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     // Podgląd MUSI dostać komplet sekcji "Wyświetlanie" - inaczej redakcja
     // widzi tu jedno, a na kanwie i stronie publicznej drugie.
     showExcerpt,
-    showAuthor,
+    showAuthor: author.visible,
     showTitle,
     showCover,
-    authorDisplay,
-    authorLabel_pl: authorLabelPl,
-    authorLabel_en: authorLabelEn,
-    authorSizePx,
-    authorAvatarSizePx,
+    showAuthorName: author.showName,
+    showAuthorAvatar: author.showAvatar,
+    authorLabel_pl: asStr(c.authorLabel_pl),
+    authorLabel_en: asStr(c.authorLabel_en),
+    authorSizePx: author.nameSizePx,
+    authorAvatarSizePx: author.avatarSizePx,
 
     navSizePx,
     navRoundedPx,
@@ -403,99 +398,13 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           <span className="text-xs">{t("builder.sliderEditor.showExcerpt")}</span>
           <Switch checked={showExcerpt} onCheckedChange={(v) => setContent("showExcerpt", v)} />
         </label>
+        {/* Autor: WSPÓLNA kontrolka buildera - dwie niezależne osie widoczności
+            plus oba rozmiary (12 px / 20 px domyślnie). */}
         <div className="border-t border-brand/20 pt-2 space-y-2">
-          <PropField label={t("builder.sliderEditor.authorDisplay", { defaultValue: "Autor" })}>
-            <Select
-              value={authorDisplay}
-              onValueChange={(v) => {
-                setContent("authorDisplay", v);
-                setContent("showAuthor", v !== "none");
-              }}
-            >
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="avatar">
-                  {t("builder.sliderEditor.authorAvatar", {
-                    defaultValue: "Zdjęcie + imię i nazwisko",
-                  })}
-                </SelectItem>
-                <SelectItem value="label">
-                  {t("builder.sliderEditor.authorLabel", {
-                    defaultValue: "Etykieta „Autor: Imię Nazwisko”",
-                  })}
-                </SelectItem>
-                <SelectItem value="none">
-                  {t("builder.sliderEditor.authorNone", { defaultValue: "Bez autora" })}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </PropField>
-          {authorDisplay !== "none" && (
-            <PropField
-              label={t("builder.sliderEditor.authorSize", {
-                defaultValue: "Rozmiar czcionki autora (px)",
-              })}
-            >
-              <Input
-                type="number"
-                min={8}
-                max={24}
-                value={authorSizePx}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  setContent(
-                    "authorSizePx",
-                    Number.isFinite(n) ? Math.max(8, Math.min(24, n)) : 12,
-                  );
-                }}
-                className="h-8 text-xs"
-              />
-            </PropField>
-          )}
-          {authorDisplay === "avatar" && (
-            <PropField
-              label={t("builder.sliderEditor.authorAvatarSize", {
-                defaultValue: "Rozmiar zdjęcia autora (px)",
-              })}
-            >
-              <Input
-                type="number"
-                min={8}
-                max={64}
-                value={authorAvatarSizePx}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  setContent(
-                    "authorAvatarSizePx",
-                    Number.isFinite(n) ? Math.max(8, Math.min(64, n)) : 20,
-                  );
-                }}
-                className="h-8 text-xs"
-              />
-            </PropField>
-          )}
-          {authorDisplay === "label" && (
-            <div className="grid grid-cols-2 gap-2">
-              <PropField label="Etykieta (PL)">
-                <Input
-                  value={authorLabelPl}
-                  onChange={(e) => setContent("authorLabel_pl", e.target.value)}
-                  placeholder="Autor: "
-                  className="h-8 text-xs"
-                />
-              </PropField>
-              <PropField label="Label (EN)">
-                <Input
-                  value={authorLabelEn}
-                  onChange={(e) => setContent("authorLabel_en", e.target.value)}
-                  placeholder="Author: "
-                  className="h-8 text-xs"
-                />
-              </PropField>
-            </div>
-          )}
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            {t("builder.sliderEditor.authorDisplay", { defaultValue: "Autor" })}
+          </p>
+          <AuthorDisplayControl c={c} lang={lang} setContent={setContent} />
         </div>
       </div>
 

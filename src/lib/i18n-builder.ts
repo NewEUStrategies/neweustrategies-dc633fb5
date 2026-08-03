@@ -672,6 +672,19 @@ const pl = {
       postCount: "Liczba wpisów",
       viewAllLink: "Link 'Zobacz wszystkie'",
     },
+    // Wspólna kontrolka prezentacji autora - JEDEN zestaw etykiet dla
+    // wszystkich widgetów z bylinem (post-lista, slider, lista z oceną,
+    // rekomendacje, metadane wpisu, karta autora, opinia).
+    authorDisplay: {
+      section: "Autor",
+      showName: "Imię i nazwisko autora",
+      showAvatar: "Zdjęcie autora (awatar)",
+      nameSize: "Rozmiar czcionki autora (px)",
+      avatarSize: "Rozmiar zdjęcia autora (px)",
+      labelText: "Etykieta autora (i18n)",
+      labelHint: "Puste = „Autor” (PL) / „By” (EN).",
+      reset: "Przywróć domyślne (12 px / 20 px)",
+    },
     sliderEditor: {
       showTitle: "Pokaż tytuł",
       authorDisplay: "Autor",
@@ -2065,6 +2078,16 @@ const en: typeof pl = {
       none: "- none -",
       postCount: "Number of posts",
       viewAllLink: "'View all' link",
+    },
+    authorDisplay: {
+      section: "Author",
+      showName: "Author full name",
+      showAvatar: "Author photo (avatar)",
+      nameSize: "Author font size (px)",
+      avatarSize: "Author photo size (px)",
+      labelText: "Author label (i18n)",
+      labelHint: 'Empty = "Autor" (PL) / "By" (EN).',
+      reset: "Reset to defaults (12 px / 20 px)",
     },
     sliderEditor: {
       showTitle: "Show title",

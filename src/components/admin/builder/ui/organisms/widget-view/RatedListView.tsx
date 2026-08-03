@@ -17,7 +17,8 @@ import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { AppLink } from "@/components/atoms/AppLink";
 import { hardenStyleCss } from "@/lib/sanitize";
-import { AuthorInline } from "./AuthorInline";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
+import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 
 // Auto-derive a dark-mode color from the light value when the user hasn't
 // explicitly set one. Empty string === inherit/default.
@@ -71,7 +72,8 @@ type PostRow = {
   author_id: string | null;
 };
 
-type ProfileRow = { id: string; display_name: string | null; avatar_url: string | null };
+/** Publiczna projekcja profilu (`profiles_public`) - `id` bywa nullowalne w typach widoku. */
+type ProfileRow = { id: string | null; display_name: string | null; avatar_url: string | null };
 
 const FONT_FAMILIES = ["display", "sans", "serif", "mono"] as const;
 const NUMBER_POSITIONS = ["behind", "left", "top"] as const;
@@ -136,7 +138,11 @@ export function RatedListView({
   const titleWeight = asStr(bag.titleWeight) || "700";
   const titleFont = asOneOf(bag.titleFont, FONT_FAMILIES, "display");
 
-  const showAuthor = asBool(bag.showAuthor, true);
+  // Autor: wspolny kontrakt calego buildera (nazwisko 12 px / zdjecie 20 px,
+  // obie osie chowane niezaleznie). Historyczny `showAuthor` nadal gasi cala
+  // sekcje - rezolwer czyta go jako wartosc domyslna.
+  const authorDisplay = resolveAuthorDisplay(bag, lang);
+  const showAuthor = authorDisplay.visible;
   const showDate = asBool(bag.showDate, false);
   const metaColor = asStr(bag.metaColor);
   const metaColorDark = autoDark(metaColor, asStr(bag.metaColorDark));
@@ -295,15 +301,24 @@ export function RatedListView({
       // widget oddawal mniej wierszy niz `numberOfPosts` (a przy autorze spoza
       // pierwszej strony - zero). Rozwiazujemy nazwy na identyfikatory i
       // wkladamy je do zapytania o wpisy. Trzymamy tez avatar_url, zeby
-      // renderowac spojny AuthorInline (12 px / 20 px) zamiast samego tekstu.
+      // renderowac spojny byline (12 px / 20 px) zamiast samego tekstu.
+      //
+      // IZOLACJA NAJEMCY: `profiles_public` zamiast tabeli `profiles`. Widok
+      // zawezony do `public_tenant_id()` wystawia wylacznie kolumny publiczne,
+      // wiec filtr "autor o nazwie X" nie ma jak trafic w profil z obszaru
+      // roboczego innej firmy (ani ujawnic, ze taki profil istnieje).
       const authorById = new Map<string, ProfileRow>();
       let authorIdFilter: string[] | null = null;
       if (authors.length) {
         const { data: matched } = await supabase
-          .from("profiles")
+          .from("profiles_public")
           .select("id, display_name, avatar_url")
           .in("display_name", authors);
-        const matchedRows = (matched ?? []) as ProfileRow[];
+        // Widok publiczny typuje `id` jako nullowalne - zawezamy raz, zeby
+        // dalsza czesc zapytania pracowala na pewnych identyfikatorach.
+        const matchedRows = ((matched ?? []) as ProfileRow[]).filter(
+          (row): row is ProfileRow & { id: string } => !!row.id,
+        );
         for (const p of matchedRows) {
           if (p.display_name) authorById.set(p.id, p);
         }
@@ -366,11 +381,11 @@ export function RatedListView({
       ).filter((id) => !authorById.has(id));
       if (missingAuthorIds.length) {
         const { data: profs } = await supabase
-          .from("profiles")
+          .from("profiles_public")
           .select("id, display_name, avatar_url")
           .in("id", missingAuthorIds);
         for (const p of (profs ?? []) as ProfileRow[]) {
-          if (p.display_name) authorById.set(p.id, p);
+          if (p.id && p.display_name) authorById.set(p.id, p);
         }
       }
       if (orderBy === "random") rows = [...rows].sort(() => Math.random() - 0.5);
@@ -629,11 +644,11 @@ export function RatedListView({
                     style={{ fontSize: `${metaSize}px` }}
                   >
                     {showAuthor && it.author && (
-                      <AuthorInline
+                      <AuthorByline
                         name={it.author}
                         avatarUrl={it.authorAvatar}
                         href={it.authorHref}
-                        lang={lang}
+                        display={authorDisplay}
                       />
                     )}
                     {showAuthor && it.author && showDate && it.date && (

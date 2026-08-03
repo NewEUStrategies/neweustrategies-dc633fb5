@@ -2739,7 +2739,10 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "fallback", type: "i18nText", label: "Tekst zastępczy (gdy brak tytułu)" },
   ],
   "post-meta": [
-    { key: "showAuthor", type: "bool", label: "Pokaż autora", default: true, hint: POST_CTX_HINT },
+    // `showAuthor` NIE jest polem schematu: widoczność (i rozmiar) autora ma
+    // wspólną kontrolkę `AuthorDisplayControl`, dorysowaną przez panel dla
+    // każdego widgetu z bylinem. Rezolwer nadal czyta ten klucz z dokumentów
+    // sprzed ujednolicenia - patrz `@/lib/builder/authorDisplay`.
     { key: "showCategory", type: "bool", label: "Pokaż kategorię", default: true },
     { key: "showDate", type: "bool", label: "Pokaż datę", default: true },
     {
@@ -2813,7 +2816,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
       default: "card",
     },
-    { key: "showAvatar", type: "bool", label: "Pokaż awatar", default: true },
+    // `showAvatar` przeszło do wspólnej kontrolki autora (oś „Zdjęcie autora”).
+    // Rezolwer czyta stary klucz jako wartość domyślną tej osi.
     { key: "showBio", type: "bool", label: "Pokaż biogram", default: true },
     { key: "showSocial", type: "bool", label: "Pokaż linki społecznościowe", default: true },
   ],
@@ -3165,12 +3169,8 @@ const authFieldBlock = (
   // więc treść zapisana wcześniej jako "0"/"1" działa dalej.
   { key: "showKicker", type: "bool", label: "Pokaż kicker", default: true },
   { key: "showExcerpt", type: "bool", label: "Pokaż opis (zajawkę)", default: true },
-  {
-    key: "showAuthor",
-    type: "bool",
-    label: "Pokaż autora (zdjęcie + imię i nazwisko)",
-    default: true,
-  },
+  // Autor: wspólna kontrolka panelu (widoczność nazwiska i zdjęcia osobno +
+  // oba rozmiary). Klucz `showAuthor` zostaje czytany jako wartość historyczna.
   { key: "limit", type: "number", label: "Liczba wpisów", min: 1, max: 9, default: 3 },
   {
     key: "columns",

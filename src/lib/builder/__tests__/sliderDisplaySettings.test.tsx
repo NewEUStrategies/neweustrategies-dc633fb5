@@ -58,9 +58,10 @@ function renderSlider(config: Partial<SliderConfig>, lang: "pl" | "en" = "pl") {
   return render(ui);
 }
 
-/** Awatar autora, a nie obrazek slajdu - slajdy renderują <img> bez alt. */
+/** Awatar autora: jedyny <img> WEWNĄTRZ bylinu (alt="" - nazwisko stoi obok
+ *  jako tekst, więc zdjęcie jest dekoracyjne). */
 const avatarOf = (root: HTMLElement): HTMLImageElement | null =>
-  root.querySelector<HTMLImageElement>('[data-author-badge] img[alt="Anna Nowak"]');
+  root.querySelector<HTMLImageElement>("[data-author-byline] img");
 
 const titlesOf = (root: HTMLElement): HTMLElement[] =>
   Array.from(root.querySelectorAll<HTMLElement>("h3.cms-post-title"));
@@ -102,7 +103,7 @@ describe("slider (tryb ręczny) - tryb prezentacji autora", () => {
   it("renders a prefixed label WITHOUT the avatar in label mode", () => {
     const { container } = renderSlider({ authorDisplay: "label" });
     expect(avatarOf(container)).toBeNull();
-    expect(container.querySelector('[data-author-badge="label"]')).not.toBeNull();
+    expect(container.querySelector('[data-author-byline="label"]')).not.toBeNull();
     expect(container.textContent).toContain("Autor: Anna Nowak");
   });
 
@@ -132,7 +133,7 @@ describe("slider (tryb ręczny) - tryb prezentacji autora", () => {
   it("hides the author entirely in none mode", () => {
     const { container } = renderSlider({ authorDisplay: "none" });
     expect(container.textContent).not.toContain("Anna Nowak");
-    expect(container.querySelector("[data-author-badge]")).toBeNull();
+    expect(container.querySelector("[data-author-byline]")).toBeNull();
   });
 
   it("keeps the legacy showAuthor=false working when authorDisplay is unset", () => {
@@ -160,7 +161,7 @@ describe("slider (tryb ręczny) - rozmiary metadanych autora", () => {
     const { container } = renderSlider({});
     const avatar = avatarOf(container);
     expect(avatar?.getAttribute("width")).toBe("20");
-    expect(container.querySelector<HTMLElement>("[data-author-badge]")?.style.fontSize).toBe(
+    expect(container.querySelector<HTMLElement>("[data-author-byline]")?.style.fontSize).toBe(
       "12px",
     );
   });
@@ -170,7 +171,7 @@ describe("slider (tryb ręczny) - rozmiary metadanych autora", () => {
     const avatar = avatarOf(container);
     expect(avatar?.getAttribute("width")).toBe("44");
     expect(avatar?.style.width).toBe("44px");
-    expect(container.querySelector<HTMLElement>("[data-author-badge]")?.style.fontSize).toBe(
+    expect(container.querySelector<HTMLElement>("[data-author-byline]")?.style.fontSize).toBe(
       "18px",
     );
   });
@@ -182,7 +183,7 @@ describe("slider (tryb ręczny) - rozmiary metadanych autora", () => {
     });
     const avatar = avatarOf(container);
     expect(avatar?.getAttribute("width")).toBe("16");
-    expect(container.querySelector<HTMLElement>("[data-author-badge]")?.style.fontSize).toBe(
+    expect(container.querySelector<HTMLElement>("[data-author-byline]")?.style.fontSize).toBe(
       "24px",
     );
   });
@@ -201,7 +202,7 @@ describe("slider (tryb ręczny) - rozmiary metadanych autora", () => {
         />
       </QueryClientProvider>,
     );
-    const badge = container.querySelector<HTMLElement>('[data-author-badge="avatar"]');
+    const badge = container.querySelector<HTMLElement>('[data-author-byline="avatar"]');
     const placeholder = badge?.querySelector<HTMLElement>("span[aria-hidden]");
     expect(placeholder?.style.width).toBe("32px");
   });

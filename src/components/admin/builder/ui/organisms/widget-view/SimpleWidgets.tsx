@@ -54,7 +54,8 @@ import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
 import { CounterWidget } from "./CounterWidget";
 import { TocWidget } from "./TocWidget";
 import { PricingPlansView } from "./PricingPlansView";
-import { AuthorInline } from "./AuthorInline";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
+import { resolveAuthorDisplay, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
 export { ResizableBox } from "./resizeWrappers";
 
 // Render-prop most do globalnych linków social (site_settings → opcje motywu).
@@ -1385,7 +1386,11 @@ export function renderSimpleWidget(
           <figcaption
             className={`flex flex-wrap items-center gap-3 ${variant === "centered" ? "justify-center" : ""}`}
           >
-            <AuthorInline name={author} avatarUrl={avatar} lang={lang} avatarRadiusPx={999} />
+            <AuthorByline
+              name={author}
+              avatarUrl={avatar}
+              display={resolveAuthorDisplay(c, lang, widgetAuthorDisplayDefaults("testimonial", c))}
+            />
             {role && <div className="cms-meta text-muted-foreground">{role}</div>}
           </figcaption>
         </figure>

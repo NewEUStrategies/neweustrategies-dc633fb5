@@ -19,6 +19,7 @@ import { PropField, CollapsibleSection as Collapsible, ColorField } from "../../
 import { AdminDatePicker } from "@/components/admin/blocks/AdminDatePicker";
 import { IndexColorPreview } from "./IndexColorPreview";
 import { DisplayLivePreview } from "./DisplayLivePreview";
+import { AuthorDisplayControl } from "../../molecules/AuthorDisplayControl";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import { ImageSlot } from "./ImageSlot";
 import { readThumbnailOverrides, setThumbnailOverride } from "@/lib/builder/thumbnailOverrides";
@@ -499,63 +500,21 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
             </PropField>
           ))}
         </div>
+        {/* Autor: WSPÓLNA kontrolka (te same klucze i ten sam rezolwer, co
+            slider, lista z oceną i metadane wpisu). Wcześniej post-lista miała
+            własny trójstanowy select, który nie potrafił wyrazić „samo zdjęcie"
+            ani zmienić rozmiaru bylinu. */}
         {supportsByline && (
-          <div className="mt-2">
-            <PropField
-              label={t("builder.postListEditor.authorDisplay", { defaultValue: "Autor" })}
-              hint={t("builder.postListEditor.authorDisplayHint", {
+          <div className="mt-2 space-y-1.5 border-t border-border/60 pt-2">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              {t("builder.postListEditor.authorDisplay", { defaultValue: "Autor" })}
+            </p>
+            <p className="text-[9px] leading-snug text-muted-foreground/60">
+              {t("builder.postListEditor.authorDisplayHint", {
                 defaultValue: "Sposób prezentacji autora pod tytułem.",
               })}
-            >
-              <Select
-                value={str(c, "authorDisplay", "avatar")}
-                onValueChange={(v) => {
-                  setContent("authorDisplay", v);
-                  // Keep legacy toggles in sync so older variants that read them still update.
-                  setContent("showAuthor", v !== "none" ? "1" : "0");
-                  setContent("showAuthorAvatar", v === "avatar" ? "1" : "0");
-                  setContent("showAuthorLabel", v === "label" ? "1" : "0");
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="avatar" className="text-xs">
-                    {t("builder.postListEditor.authorAvatar", {
-                      defaultValue: "Zdjęcie + imię i nazwisko",
-                    })}
-                  </SelectItem>
-                  <SelectItem value="label" className="text-xs">
-                    {t("builder.postListEditor.authorLabelMode", {
-                      defaultValue: 'Etykieta: „Autor: Imię Nazwisko"',
-                    })}
-                  </SelectItem>
-                  <SelectItem value="none" className="text-xs">
-                    {t("builder.postListEditor.authorNone", { defaultValue: "Bez autora" })}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </PropField>
-            {str(c, "authorDisplay", "avatar") === "label" && (
-              <div className="mt-2">
-                <PropField
-                  label={t("builder.postListEditor.authorLabelText", {
-                    defaultValue: "Etykieta autora (i18n)",
-                  })}
-                  hint={t("builder.postListEditor.authorLabelHint", {
-                    defaultValue: 'Puste = „Autor" (PL) / „By" (EN).',
-                  })}
-                >
-                  <Input
-                    value={str(c, `authorLabel_${lang}`, "")}
-                    placeholder={lang === "pl" ? "Autor" : "By"}
-                    onChange={(e) => setContent(`authorLabel_${lang}`, e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                </PropField>
-              </div>
-            )}
+            </p>
+            <AuthorDisplayControl c={c} lang={lang} setContent={setContent} />
           </div>
         )}
         <DisplayLivePreview c={c} lang={lang} />

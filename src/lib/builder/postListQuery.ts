@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import { asBool, asNum, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { authorDisplayMode, type AuthorDisplayMode } from "@/lib/builder/authorDisplay";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
@@ -78,21 +79,17 @@ export function postListVariantHasByline(variant: string): boolean {
 }
 
 /** Sposob prezentacji autora w post-liscie. */
-export type PostListAuthorDisplay = "avatar" | "label" | "none";
+export type PostListAuthorDisplay = AuthorDisplayMode;
 
 /**
- * Rozstrzyga ustawienie "Autor" tak samo jak PostListView: nowe pole
- * `authorDisplay` wygrywa, a dla starszej tresci wynik wyprowadzamy z pary
- * `showAuthorAvatar` / `showAuthorLabel`. Eksportowane, zeby widok mogl czytac
- * TE SAMA regule (jedna definicja "czy autor jest w ogole pokazywany").
+ * Rozstrzyga ustawienie "Autor" TYM SAMYM rezolwerem, ktorego uzywa widok i
+ * panel wlasciwosci (`@/lib/builder/authorDisplay`). Wczesniej ta funkcja byla
+ * druga, niezalezna kopia reguly - a "czy autor jest pokazywany" musi miec
+ * dokladnie jedna definicje, inaczej zapytanie dociaga profile, ktorych widok
+ * nie rysuje (albo odwrotnie: byline bez danych).
  */
 export function postListAuthorDisplay(c: WidgetContent): PostListAuthorDisplay {
-  const raw = asStr(c["authorDisplay"]).trim();
-  if (raw === "avatar" || raw === "label" || raw === "none") return raw;
-  const legacyAvatar = asBool(c["showAuthorAvatar"], true);
-  const legacyLabel = asBool(c["showAuthorLabel"], true);
-  if (!legacyAvatar && !legacyLabel) return "none";
-  return legacyAvatar ? "avatar" : "label";
+  return authorDisplayMode(c);
 }
 
 interface PostListInput {

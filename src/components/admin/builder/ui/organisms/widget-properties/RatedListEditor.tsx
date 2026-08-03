@@ -11,6 +11,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { PropField, ColorField, ItemFrame, CollapsibleSection as Collapsible } from "../../atoms";
+import { AuthorDisplayControl } from "../../molecules/AuthorDisplayControl";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
 import { asBool, asNum, asOneOf, asStr } from "@/lib/builder/contentValue";
@@ -414,15 +415,12 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-      <Collapsible title={t("builder.ratedListEditor.entryMeta")}>
-        <label className="flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            checked={bool("showAuthor", true)}
-            onChange={(e) => setContent("showAuthor", e.target.checked as Json)}
-          />
-          {t("builder.ratedListEditor.showAuthor")}
-        </label>
+      {/* Otwarta domyślnie: mieszka tu wspólna kontrolka autora, a jest to
+          jedno z najczęściej zmienianych ustawień listy. */}
+      <Collapsible title={t("builder.ratedListEditor.entryMeta")} defaultOpen>
+        {/* Autor: WSPÓLNA kontrolka buildera (te same klucze, co post-lista i
+            slider) - dwie niezależne osie widoczności plus oba rozmiary. */}
+        <AuthorDisplayControl c={c} lang={lang} setContent={setContent} />
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"

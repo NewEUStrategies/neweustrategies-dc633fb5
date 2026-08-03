@@ -75,6 +75,18 @@ export function asStr(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * Czy redakcja W OGÓLE ustawiła to pole.
+ *
+ * `undefined` / `null` / `""` to "brak wartości", więc dziedziczy się wartość
+ * domyślna (globalna albo wyliczona z klucza historycznego). Bez tego
+ * rozróżnienia "wyłączone" (`false`, `0`) zlewa się z "nie ustawiono" i
+ * świadome wyłączenie ustawienia cicho wraca do domyślnego włączenia.
+ */
+export function isContentValueSet(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== "";
+}
+
 /** Tablica stringów z odfiltrowaniem elementów innego typu. */
 export function asStrArray(value: unknown): string[] {
   return Array.isArray(value)

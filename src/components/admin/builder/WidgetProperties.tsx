@@ -42,6 +42,7 @@ import {
   SlidersHorizontal,
 } from "@/lib/lucide-shim";
 import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgets";
+import { needsSharedAuthorControl, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,7 @@ import { VisibilityControl } from "./ui/molecules/VisibilityControl";
 import { AccessControl } from "./ui/molecules/AccessControl";
 import { HoverControl } from "./ui/molecules/HoverControl";
 import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
+import { AuthorDisplayControl } from "./ui/molecules/AuthorDisplayControl";
 import { WidgetLivePreview } from "./ui/organisms/WidgetLivePreview";
 import { LinkPicker } from "./ui/molecules/LinkPicker";
 
@@ -1486,16 +1488,42 @@ export function WidgetContentFields({
   const adminLang = useAdminLang();
   const c = widget.content;
 
+  // Prezentacja autora: JEDNA kontrolka dla wszystkich widgetów z bylinem,
+  // które nie mają własnego edytora (post-lista, slider i lista z oceną wpinają
+  // ją same w swojej sekcji „Wyświetlanie"). Dzięki temu rozmiar nazwiska i
+  // zdjęcia oraz niezależne chowanie obu osi są edytowalne w KAŻDYM takim
+  // widgecie, a nie tylko w sliderze.
+  const authorSection = needsSharedAuthorControl(widget.type) ? (
+    <section className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-2">
+      <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {t("builder.authorDisplay.section", { defaultValue: "Autor" })}
+      </h4>
+      <AuthorDisplayControl
+        c={c}
+        lang={lang}
+        setContent={setContent}
+        defaults={widgetAuthorDisplayDefaults(widget.type, c)}
+      />
+    </section>
+  ) : null;
+
   // Custom (list-style) editors for complex widgets. Fields of the widget's
   // schema that the custom editor does NOT claim are rendered below it, so a
   // schema entry can never be silently swallowed by the custom branch.
   const custom = customContentEditor(widget, lang, setContent);
   if (custom) {
     const leftover = unhandledSchemaFields(widget.type);
-    if (leftover.length === 0) return custom;
+    if (leftover.length === 0)
+      return (
+        <>
+          {custom}
+          {authorSection}
+        </>
+      );
     return (
       <>
         {custom}
+        {authorSection}
         <section className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-2">
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             {adminLang === "en" ? "Other settings" : "Pozostałe ustawienia"}
@@ -1520,9 +1548,11 @@ export function WidgetContentFields({
   const schema = WIDGET_SCHEMAS[widget.type];
   if (!schema || schema.length === 0) {
     return (
-      <div className="text-xs text-muted-foreground">
-        {t("builder.widgetProps.noEditableFields")}
-      </div>
+      authorSection ?? (
+        <div className="text-xs text-muted-foreground">
+          {t("builder.widgetProps.noEditableFields")}
+        </div>
+      )
     );
   }
   // Group fields by their `group` label, preserving declaration order.
@@ -1535,6 +1565,7 @@ export function WidgetContentFields({
   }
   return (
     <>
+      {authorSection}
       {groups.map((g, gi) => {
         const body = (
           <div className="space-y-2">

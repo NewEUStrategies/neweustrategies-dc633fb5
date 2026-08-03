@@ -12,12 +12,12 @@ import {
   NAV_ARROW_VARIANT_VALUES,
   NAV_BG_STYLES,
   NAV_POSITIONS,
-  SLIDER_AUTHOR_DISPLAYS,
   SLIDER_RATIOS,
   SLIDER_ROUNDED_VALUES,
   SLIDER_VARIANT_VALUES,
 } from "@/lib/builder/sliderOptions";
 import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { SliderRender } from "./lazyWidgets";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { supabase } from "@/integrations/supabase/client";
@@ -276,12 +276,10 @@ export function PostsSliderWidget({
   const showExcerpt = asBool(c.showExcerpt, true);
   const showCover = asBool(c.showCover, true);
   const showTitle = asBool(c.showTitle, true);
-  const authorDisplay = asOneOf(
-    c.authorDisplay,
-    SLIDER_AUTHOR_DISPLAYS,
-    asBool(c.showAuthor, true) ? "avatar" : "none",
-  );
-  const showAuthor = authorDisplay !== "none";
+  // Prezentacja autora rozstrzygana wspólnym rezolwerem (`authorDisplay`),
+  // ten sam kontrakt co w post-liście, liście z oceną i metadanych wpisu.
+  const author = resolveAuthorDisplay(c, lang);
+  const showAuthor = author.visible;
   const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "";
 
   // Shared with the SSR prefetch registry (lib/builder/prefetch), so the
@@ -290,7 +288,14 @@ export function PostsSliderWidget({
   const { data: items = [], isPending } = useQuery(sliderPostsQueryOptions(c, lang));
 
   // Batch-fetch author profiles for the resolved slider posts so name+avatar
-  // propagate live to the AuthorBadge without one query per slide.
+  // propagate live to the byline without one query per slide.
+  //
+  // IZOLACJA NAJEMCY: czytamy `profiles_public`, nie tabelę `profiles`. Widok
+  // jest zawężony do `public_tenant_id()` i wystawia wyłącznie kolumny
+  // publiczne, więc slider jednej firmy nie ma jak pokazać (ani pobrać) profilu
+  // z obszaru roboczego innej - nawet gdyby `author_id` wpisu wskazywał poza
+  // najemcę. Ten sam widok czyta post-lista (`attachAuthorNames`) i widget
+  // rekomendacji, więc kontrakt danych autora jest jeden.
   const authorIds = Array.from(
     new Set(items.map((p) => p.author_id).filter((x): x is string => Boolean(x))),
   );
@@ -302,7 +307,7 @@ export function PostsSliderWidget({
       gcTime: 5 * 60_000,
       queryFn: async () => {
         const { data } = await supabase
-          .from("profiles")
+          .from("profiles_public")
           .select("id, display_name, first_name, last_name, avatar_url, slug")
           .in("id", authorIds);
         const map = new Map<string, { name: string; avatar: string; slug: string }>();
@@ -378,15 +383,14 @@ export function PostsSliderWidget({
     showAuthor,
     showTitle,
     showCover,
-    // Pełny tryb autora (avatar / etykieta / brak) plus etykiety PL+EN -
-    // sam boolean `showAuthor` gubił wariant "label" i renderował avatar.
-    authorDisplay,
+    // Obie osie widoczności i oba rozmiary jadą do renderera JUŻ rozstrzygnięte
+    // - `SliderRender` nie może dojść do innego wyniku niż kanwa i panel.
+    showAuthorName: author.showName,
+    showAuthorAvatar: author.showAvatar,
     authorLabel_pl: asStr(c.authorLabel_pl),
     authorLabel_en: asStr(c.authorLabel_en),
-    // Rozmiary metadanych autora działały wyłącznie w podglądzie edytora;
-    // bez nich kanwa i strona publiczna trzymały sztywne 12/20 px.
-    authorSizePx: asNumInRange(c.authorSizePx, 12, 8, 24),
-    authorAvatarSizePx: asNumInRange(c.authorAvatarSizePx, 20, 8, 64),
+    authorSizePx: author.nameSizePx,
+    authorAvatarSizePx: author.avatarSizePx,
     // Nie odfiltrowujemy slajdów po braku cover_image_url - inaczej wyłączenie
     // "Pokaż cover" (lub post bez okładki) trwale usuwałoby slajd z karuzeli
     // i nie dałoby się go przywrócić bez ponownego dodania okładki do wpisu.
