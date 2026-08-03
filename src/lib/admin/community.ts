@@ -171,20 +171,27 @@ export async function purgeExpiredMessages(): Promise<number> {
 export type EventRow = Database["public"]["Tables"]["events"]["Row"];
 export type EventStatus = "draft" | "published" | "cancelled";
 
+// Pelne wiersze wydarzen (z join_url/recording_url) sa poza zasiegiem kolumnowych
+// grantow dla anon/authenticated - redakcja czyta je przez funkcje sprawdzajaca role.
 export async function fetchAdminEvents(params: {
   status?: EventStatus | "all";
   q?: string;
 }): Promise<EventRow[]> {
-  const query = supabase.from("events").select("*").order("starts_at", { ascending: false });
-  if (params.status && params.status !== "all") query.eq("status", params.status);
-  if (params.q && params.q.trim().length > 0) {
-    const s = `%${params.q.trim()}%`;
-    query.or(`title_pl.ilike.${s},title_en.ilike.${s},slug.ilike.${s}`);
-  }
-  const { data, error } = await query.limit(200);
-  if (error) throw error;
-  return data ?? [];
+  const { data, error } = await rpcUntyped("admin_list_events", {
+    p_status: params.status && params.status !== "all" ? params.status : null,
+    p_q: params.q && params.q.trim().length > 0 ? params.q.trim() : null,
+  });
+  if (error) throw new Error(error.message);
+  return Array.isArray(data) ? (data as EventRow[]) : [];
 }
+
+export async function fetchAdminEvent(id: string): Promise<EventRow | null> {
+  const { data, error } = await rpcUntyped("admin_get_event", { p_id: id });
+  if (error) throw new Error(error.message);
+  const rows = Array.isArray(data) ? (data as EventRow[]) : [];
+  return rows[0] ?? null;
+}
+
 
 export async function updateEventStatus(id: string, status: EventStatus): Promise<void> {
   const { error } = await supabase.from("events").update({ status }).eq("id", id);
