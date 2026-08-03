@@ -26,6 +26,9 @@ import {
   showTitle,
 } from "@/lib/podcast/types";
 import { safeJsonLd } from "@/lib/seo/jsonld";
+import { activeLang } from "@/lib/seo/head";
+import { SITE_CANONICAL_ORIGIN, feedAlternateLink, splitUrl } from "@/lib/seo/meta";
+import { getRequestUrl } from "@/lib/seo/request";
 import { sanitizeHtml } from "@/lib/sanitize";
 
 export const Route = createFileRoute("/podcast/$slug")({
@@ -52,6 +55,13 @@ export const Route = createFileRoute("/podcast/$slug")({
         contentUrl: p.audio_url,
       },
     };
+    // Autodiscovery kanału podcastu wprost ze strony odcinka - to najczęstszy
+    // punkt wejścia z social mediów, a czytnik/Apple szuka <link rel="alternate">.
+    // Strona odcinka zna show_id, nie slug programu, więc wskazujemy kanał
+    // sieciowy (zawiera ten odcinek), a nie per-program.
+    const url = getRequestUrl() || `/podcast/${p.slug}`;
+    const lang = activeLang(url);
+    const origin = splitUrl(url).origin || SITE_CANONICAL_ORIGIN;
     return {
       meta: [
         { title: `${title} · Podcast` },
@@ -60,6 +70,14 @@ export const Route = createFileRoute("/podcast/$slug")({
         { property: "og:type", content: "article" },
         ...(description ? [{ property: "og:description", content: description }] : []),
         ...(p.cover_image_url ? [{ property: "og:image", content: p.cover_image_url }] : []),
+      ],
+      links: [
+        feedAlternateLink({
+          origin,
+          feedPath: "/podcast/rss.xml",
+          title: lang === "en" ? "NES Podcast - RSS" : "Podcast NES - RSS",
+          lang,
+        }),
       ],
       scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
     };

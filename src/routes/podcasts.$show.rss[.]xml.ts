@@ -67,6 +67,9 @@ export const Route = createFileRoute("/podcasts/$show/rss.xml")({
         );
         const items: PodcastRssItem[] = withAudio.map((e) => ({
           url: `${origin}${localizedPath(`/podcast/${e.slug}`, lang)}`,
+          // Wspólny guid PL/EN - ten sam odcinek w kanale programu i w kanale
+          // sieciowym ma jedną tożsamość (patrz PodcastRssItem.guid).
+          guid: `${origin}/podcast/${e.slug}`,
           title: (lang === "en" ? e.title_en || e.title_pl : e.title_pl || e.title_en) || e.slug,
           description: lang === "en" ? e.excerpt_en || e.excerpt_pl : e.excerpt_pl || e.excerpt_en,
           publishedAt: e.published_at,

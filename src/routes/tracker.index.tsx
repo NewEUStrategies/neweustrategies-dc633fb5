@@ -42,7 +42,7 @@ import {
 } from "@/lib/tracker/stages";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead } from "@/lib/seo/meta";
+import { SITE_CANONICAL_ORIGIN, buildContentHead, feedAlternateLink } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
 
@@ -160,6 +160,17 @@ export const Route = createFileRoute("/tracker/")({
     );
     return {
       ...head,
+      // Autodiscovery kanału trackera - analityk subskrybuje ruch dossier
+      // zamiast wracać na stronę po zmianę etapu.
+      links: [
+        ...head.links,
+        feedAlternateLink({
+          origin: origin || SITE_CANONICAL_ORIGIN,
+          feedPath: "/tracker/rss.xml",
+          title: lang === "en" ? "EU policy tracker - RSS" : "Tracker legislacyjny UE - RSS",
+          lang,
+        }),
+      ],
       scripts: [
         { type: "application/ld+json", children: safeJsonLd(collection) },
         { type: "application/ld+json", children: safeJsonLd(breadcrumbs) },

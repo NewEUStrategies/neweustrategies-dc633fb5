@@ -205,6 +205,30 @@ export function feedDiscoveryLinks(origin: string): Array<Record<string, string>
 }
 
 /**
+ * Jeden `<link rel="alternate" type="application/rss+xml">` dla feedu SEKCJI
+ * (podcast, tracker, relacje live, taksonomia). Autodiscovery to jedyny sposób,
+ * w jaki czytnik RSS, Apple Podcasts czy agregator znajduje kanał bez znajomości
+ * naszej konwencji URL - kanał podcastu nie miał jej wcale, więc odcinki dawały
+ * się subskrybować tylko po ręcznym wklejeniu adresu feedu.
+ *
+ * `feedPath` podajemy BEZ prefiksu językowego; funkcja lokalizuje go do języka
+ * dokumentu, żeby czytelnik EN dostał kanał EN.
+ */
+export function feedAlternateLink(input: {
+  origin: string;
+  feedPath: string;
+  title: string;
+  lang: Lang;
+}): Record<string, string> {
+  return {
+    rel: "alternate",
+    type: "application/rss+xml",
+    title: input.title,
+    href: absoluteUrl(input.origin, localizedPath(input.feedPath, input.lang)),
+  };
+}
+
+/**
  * Default document <head> meta for the app root - the brand fallback rendered
  * by any route that does not supply its own head() (error pages, parts of the
  * admin, fallbacks) and in the first social-share preview before a content

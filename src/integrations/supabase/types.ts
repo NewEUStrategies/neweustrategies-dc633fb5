@@ -6241,8 +6241,37 @@ export type Database = {
           },
         ]
       }
+      outbound_link_alerts: {
+        Row: {
+          broken_count: number
+          notified_at: string
+          tenant_id: string
+        }
+        Insert: {
+          broken_count?: number
+          notified_at?: string
+          tenant_id: string
+        }
+        Update: {
+          broken_count?: number
+          notified_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_link_alerts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbound_link_checks: {
         Row: {
+          archive_checked_at: string | null
+          archive_timestamp: string | null
+          archive_url: string | null
           checked_at: string
           error: string | null
           id: string
@@ -6253,6 +6282,9 @@ export type Database = {
           url: string
         }
         Insert: {
+          archive_checked_at?: string | null
+          archive_timestamp?: string | null
+          archive_url?: string | null
           checked_at?: string
           error?: string | null
           id?: string
@@ -6263,6 +6295,9 @@ export type Database = {
           url: string
         }
         Update: {
+          archive_checked_at?: string | null
+          archive_timestamp?: string | null
+          archive_url?: string | null
           checked_at?: string
           error?: string | null
           id?: string

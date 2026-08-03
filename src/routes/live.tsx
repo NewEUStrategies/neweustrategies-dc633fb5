@@ -13,7 +13,12 @@ import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { isLiveNow, liveBlogsQueryOptions } from "@/lib/queries/liveBlogs";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead } from "@/lib/seo/meta";
+import {
+  SITE_CANONICAL_ORIGIN,
+  buildContentHead,
+  feedAlternateLink,
+  splitUrl,
+} from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
 
 export const Route = createFileRoute("/live")({
@@ -21,7 +26,7 @@ export const Route = createFileRoute("/live")({
   head: () => {
     const url = getRequestUrl() || "/live";
     const lang = activeLang(url);
-    return buildContentHead({
+    const head = buildContentHead({
       url,
       lang,
       type: "website",
@@ -34,6 +39,21 @@ export const Route = createFileRoute("/live")({
           ? "Ongoing and recent live coverage of key European events."
           : "Trwające i niedawne relacje na żywo z kluczowych wydarzeń europejskich.",
     });
+    // Autodiscovery kanału relacji: czytelnik trwającej relacji ma dostawać
+    // kolejne wpisy pushem, a nie odświeżać stronę.
+    const origin = splitUrl(url).origin || SITE_CANONICAL_ORIGIN;
+    return {
+      ...head,
+      links: [
+        ...head.links,
+        feedAlternateLink({
+          origin,
+          feedPath: "/live/rss.xml",
+          title: lang === "en" ? "Live coverage - RSS" : "Relacje na żywo - RSS",
+          lang,
+        }),
+      ],
+    };
   },
   component: LiveIndex,
   pendingComponent: () => <ArchiveSkeleton />,
