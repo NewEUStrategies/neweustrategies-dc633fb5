@@ -8,6 +8,7 @@
 import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
 
 import { PADDLE_CATALOG, type PaddlePriceEntry } from "./paddleCatalog";
+import type { ReapedEntry } from "./paddleCatalogReap.server";
 
 export type CatalogSyncAction = "created" | "updated" | "ok" | "skipped" | "failed";
 
@@ -23,10 +24,13 @@ export interface CatalogSyncReport {
   environment: PaddleEnv;
   ranAt: string;
   items: CatalogSyncItem[];
+  /** Pozycje zarchiwizowane, bo zniknęły ze źródła prawdy. */
+  archived: ReapedEntry[];
   created: number;
   updated: number;
   failed: number;
 }
+
 
 interface PlanRow {
   tier_key: string | null;
