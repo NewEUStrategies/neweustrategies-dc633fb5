@@ -29,8 +29,18 @@ export function rfc822Date(iso: string | null | undefined): string | null {
 }
 
 export interface RssItem {
-  /** Absolute canonical URL (also the permalink guid). */
+  /** Absolute canonical URL (also the default permalink guid). */
   url: string;
+  /**
+   * Explicit, stable identity emitted as `guid isPermaLink="false"`.
+   *
+   * Needed whenever several items share ONE canonical URL - the tracker feed
+   * emits one entry per timeline update of the same dossier, so a
+   * URL-as-guid feed would look like duplicates to readers and silently drop
+   * every alert after the first. Omit it for one-item-per-URL feeds (posts,
+   * podcasts): the URL then stays the permalink guid, unchanged.
+   */
+  guid?: string;
   title: string;
   /** Plain-text or HTML excerpt (tags are stripped). */
   description: string | null;
@@ -59,11 +69,14 @@ export function buildRssXml(input: RssChannelInput): string {
   const newest = input.items.map((i) => rfc822Date(i.publishedAt)).find((d) => d !== null);
 
   const itemXml = input.items.map((item) => {
+    const explicitGuid = item.guid?.trim();
     const lines = [
       "    <item>",
       `      <title>${xmlEscape(item.title)}</title>`,
       `      <link>${xmlEscape(item.url)}</link>`,
-      `      <guid isPermaLink="true">${xmlEscape(item.url)}</guid>`,
+      explicitGuid
+        ? `      <guid isPermaLink="false">${xmlEscape(explicitGuid)}</guid>`
+        : `      <guid isPermaLink="true">${xmlEscape(item.url)}</guid>`,
     ];
     const pub = rfc822Date(item.publishedAt);
     if (pub) lines.push(`      <pubDate>${pub}</pubDate>`);

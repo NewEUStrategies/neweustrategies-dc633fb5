@@ -49,8 +49,16 @@ Trigger `tg_eu_policy_update_applied` (migracja `20260713104316`, więc obowiąz
 **fan-out do wszystkich obserwujących** opublikowane dossier: pętla po `eu_policy_follows` →
 `enqueue_notification(user_id, 'tracker', …)` + `emit_domain_event('policy.updated.v1')`. Gałąź
 `'tracker'` jest w mapie preferencji `enqueue_notification` (`WHEN 'tracker' THEN np.enabled_tracker`).
-Alerty trackera **nie są** wydmuszką w cenniku — brakuje im e-mailowego digestu i RSS, nie samego
-powiadomienia. Ocena trackera podniesiona; zarzut „sprzedawane bez implementacji" **wycofany**.
+Alerty trackera **nie są** wydmuszką w cenniku. Ocena trackera podniesiona; zarzut „sprzedawane bez
+implementacji" **wycofany**.
+
+**1b. Domknięcie tej samej pozycji (weryfikacja 03.08, po pierwszym wydaniu tego dokumentu): także
+„brak e-mailowego digestu" było NIEPRAWDĄ.** `lib/notifications/digestEmail.ts` ma **dedykowaną sekcję
+`tracker` jako PIERWSZĄ** w `DIGEST_SECTIONS` („żeby digest czytał się jak brief legislacyjny"), a
+`dispatchDueDigests` wysyła ją przez `claim_due_digests` z listą wykluczeń i idempotencją. Z listy
+braków alertowych została więc **tylko jedna realna pozycja: RSS** — i ta została **wdrożona w tym
+PR** (`/tracker/rss.xml`, patrz `WDROZENIE_TRACKER_RSS_TAKEAWAYS_2026-08-03.md`). Otwarte pozostają
+wyłącznie **import EUR-Lex/OEIL** i **diff wersji**, czyli zasilanie i porównywanie treści, nie alerty.
 
 **2. „Key takeaways: dla stron gałąź renderu nigdy ich nie pokazuje (martwy przełącznik)" — NIEPRAWDA.**
 Tabela `pages` ma kolumny `takeaways_pl/en/variant` z walidacją triggerem (`20260709100809`), loader
@@ -81,7 +89,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 | Spis treści (TOC) | **9** | Jeden kanoniczny `slugifyAnchor` + test parytetu na `ł`, scrollspy, mobile sheet z focus-trap; **ręczne pozycje TOC wreszcie się renderują** — kontrolka pisała `content.items`, widget czytał `items_${lang}` (PR #141, z fallbackiem na stary klucz) | — | Utrzymać |
 | Pasek postępu czytania | **8** | `rafThrottle` na najgorętszym handlerze, liczony wg realnych granic `.article-body` | Sticky header bez własnego wskaźnika | Kosmetyka — opcjonalnie |
 | Przypisy (footnotes) | **9** | End-to-end: edytor→silnik→SSR, jeden kontrakt wyjścia, 8+ plików testów | — | Utrzymać |
-| Key takeaways | **8 → 9** | **Działa też dla stron** (korekta 2 powyżej): kolumny + trigger walidacji na `pages`, loader selectuje, `$.tsx:846` renderuje bez bramki `isPost`; placeholder publiczny usunięty | — | Utrzymać (zarzut z 01.08 wycofany) |
+| Key takeaways | **8 → 9** | **Działa też dla stron** (korekta 2 powyżej): kolumny + trigger walidacji na `pages`, loader selectuje (kontrakt kolumn `ENTITY_SELECT_COLS` + test), `$.tsx` renderuje bez bramki `isPost`; **od 03.08 jedno rozstrzygnięcie dla obu encji** (`lib/keyTakeaways/resolve.ts` - koniec dwóch kopii wyrażenia w head() i body) oraz **naprawiony rozjazd limitów**: baza dopuszczała 7, zod odrzucał 7, panel liczył do 6 i obiecywał „max 7" - jedna stała `KEY_TAKEAWAYS_MAX_ITEMS` + kontrakt pgTAP na obu triggerach | — | Utrzymać (zarzut z 01.08 wycofany, limit zunifikowany) |
 | Cytowania / eksport bib. | **7** | Realny formatter (Chicago i in.), testy fallbacków | Zakres formatów ograniczony (brak BibTeX/RIS) | Dodać BibTeX/RIS jeśli jest popyt |
 | Audio artykułu (TTS) | **7** | Publiczny `post-tts` z cache w prywatnym buckecie, gating `has_content_access`, allowlisty głosów i modeli | **Amplifikacja kosztu utrzymana**: cache kluczowany `(post, lang, voice, model, hash)`, a klient wybiera głos/model → do 24 plików na wpis | Jeden kanoniczny głos/model per artykuł |
 | Publiczny licznik odsłon (nowa) | **8** | `post_view_count` SECURITY DEFINER wzorem `popular_post_ids`: wymusza tenant publiczny + `status='published'`, zwraca **sam licznik** bez `viewer_hash`/`user_id`, dla obcego tenanta **0 zamiast NULL** (nie jest wyrocznią istnienia); wcześniej publicznie nie mógł się pokazać nigdy (`post_views` bez polityki SELECT), a kanwa pokazywała próbkę 1234 | Brak dedupu okna czasowego w prezentacji (licznik surowy) | Utrzymać; rozważyć „unikalni czytelnicy" jako druga metryka |
@@ -161,7 +169,7 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
-| Tracker legislacyjny | **7 → 8** | Pasek etapów, macierz 27 państw, feed „co się zmieniło" (`/tracker/changes`), eksplorator (`/tracker/explorer`), bramka warstw w DB, SSR + ItemList JSON-LD + ISR; **korekta 1: obserwacje REALNIE powiadamiają** — trigger `tg_eu_policy_update_applied` robi fan-out `enqueue_notification` do `eu_policy_follows` + `emit_domain_event('policy.updated.v1')`, z poszanowaniem `enabled_tracker` | **Brak importu** (EUR-Lex/OEIL — wszystko ręcznie), **brak diffu wersji**, **brak `tracker.rss.xml`** (jest RSS kategorii/tagu/programu, trackera nie ma), brak e-mailowego digestu alertów | Import EUR-Lex/OEIL + RSS trackera + digest e-mail |
+| Tracker legislacyjny | **7 → 8** | Pasek etapów, macierz 27 państw, feed „co się zmieniło" (`/tracker/changes`), eksplorator (`/tracker/explorer`), bramka warstw w DB, SSR + ItemList JSON-LD + ISR; **korekta 1: obserwacje REALNIE powiadamiają** (fan-out `enqueue_notification` + `emit_domain_event`, z poszanowaniem `enabled_tracker`) **i mają własną sekcję w digeście e-mail** (korekta 1b); **od 03.08 kanał `/tracker/rss.xml`** - scalony strumień nowych dossier i wpisów osi czasu, stabilne GUID-y (`tracker:item:` / `tracker:update:`), kotwice `#update-<id>` realnie obecne w dokumencie, autodiscovery w `<head>` obu tras, wpis w `llms.txt`, tenant fail-closed + kontrakt pgTAP | **Brak importu** (EUR-Lex/OEIL - wszystko ręcznie) i **brak diffu wersji** - to już jedyne realne braki modułu (alerty: in-app + push + digest + RSS domknięte) | Import EUR-Lex/OEIL + diff wersji |
 | Huby ekspertów | **8** | Katalog z filtrami, capability „zapytanie do eksperta" (Pro+) z kwotami, inline editor layoutów per-ekspert, `/admin/expert-requests` jako kolejka obsługi | — | Utrzymać |
 | Programy badawcze | **5** | `research-programs` realny hub (members/projects/partners), RSS per program | **Dwie równoległe tabele nadal żyją**: `programs` (czytane przez `usePostEditorData`, `experts/queries`, `profile.follows`) vs `research_programs` (czytane przez `publishedContent.server`, `queries/programs`, sitemap) — zero zmian od 01.08 | Zmigrować na jedną tabelę, usunąć duplikat |
 | Wydarzenia | **8 → 9** | Waitlist FIFO serwerowy, RSVP-mail idempotentny, ICS RFC 5545, przypomnienia cron; **SSR loader dodany** (PR #128 + `WDROZENIE_SSR_WYDARZENIA_2026-08-01.md`): bramka modułu rozstrzygana serwerowo i fail-soft, lista fail-loud przez `ensureQueryData`, `edgeTtlCache("public:events-list", 60 s)`, klucz `["public-events"]` identyczny z rejestrem inwalidacji realtime, `fetchPublicEvents` przestał być eksportowany (nie da się ominąć cache) | — | Utrzymać (rekomendacja z 01.08 wdrożona) |
@@ -185,9 +193,9 @@ na 03.08 (po naprawie + testach) 9 jest uzasadnione, ale **wymaga własnego inwa
 | Sitemap | **6 → 7** | Wpisy PL i EN osobno z klastrem hreflang, kolekcje: web-stories/tracker/programy/eksperci/Q&A/eventy | **Jednoplikowa bez indeksu** (461 linii logiki, ściana 50k URL przy skali); **`news-sitemap.xml` nadal nieodkrywalny** — `robots[.]txt.ts:47` deklaruje tylko `Sitemap: /sitemap.xml` | Dopisać `Sitemap: news-sitemap.xml` + sitemap-index |
 | Podcast RSS | **8** | Ingestowalny (enclosure + length + type, `itunes:*`), panel readiness, feed per show | GUID z prefiksem językowym (PL/EN = 2 kanały); brak autodiscovery w `<head>` | Wspólny GUID + `<link rel=alternate>` |
 | OG images | **8** | HMAC-gated webhook refresh, 501 bez sekretu | — | Utrzymać |
-| RSS / feedy treści | **8** | Kategoria/tag/program RSS realne + `/feed`, `rss.xml` | Brak RSS trackera i relacji live (patrz M7) | Dorobić dwa brakujące kanały |
+| RSS / feedy treści | **8 → 9** | Kategoria/tag/program RSS realne + `/feed`, `rss.xml`; **od 03.08 `/tracker/rss.xml`** (scalony strumień dossier + osi czasu, jawne GUID-y `isPermaLink=false`, autodiscovery, `llms.txt`, 26 asercji jednostkowych) | Brak RSS relacji live (patrz M7) | Dorobić kanał relacji live |
 | **Monitor linków wychodzących (nowa w audycie)** | **7** | `/admin/link-monitor`: zepsute linki zewnętrzne w opublikowanych wpisach, **rotacyjny skan w `jobs-tick`** + skan ręczny; komplementarny do monitora 404 | Brak polityki działania (nie proponuje zamiany/archive.org), brak alertu przy progu | Dodać sugestię `web.archive.org` + alert progowy |
-| **`llms.txt` (nowa w audycie)** | **7** | Trasa `llms[.]txt` — deklaracja dla crawlerów LLM/AEO (rzadkość w sektorze) | Brak testu kontraktu treści (jak dla `robots`/`sitemap`) | Dopisać test kontraktu |
+| **`llms.txt` (nowa w audycie)** | **7 → 8** | Trasa `llms[.]txt` - deklaracja dla crawlerów LLM/AEO (rzadkość w sektorze); **od 03.08 wystawia kanał trackera PL/EN** jako najgęstsze źródło „co się zmieniło w prawie UE", z testem kontraktu | Brak pełnego testu kontraktu pozostałych sekcji | Rozszerzyć test kontraktu |
 
 ---
 
