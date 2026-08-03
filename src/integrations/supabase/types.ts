@@ -11971,6 +11971,48 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_get_event: {
+        Args: { p_id: string }
+        Returns: {
+          capacity: number | null
+          chatham_house: boolean
+          conversation_id: string | null
+          cover_url: string | null
+          created_at: string
+          created_by: string | null
+          description_en: string | null
+          description_pl: string | null
+          early_rsvp_rank: number | null
+          ends_at: string | null
+          host_user_id: string | null
+          id: string
+          join_url: string | null
+          kind: string
+          location: string | null
+          min_tier_rank: number
+          program_id: string | null
+          recording_url: string | null
+          region_id: string | null
+          rsvp_opens_at: string | null
+          slug: string
+          starts_at: string
+          status: string
+          tenant_id: string
+          ticket_currency: string
+          ticket_price_cents: number | null
+          timezone: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          visibility: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       admin_get_speaker_profile: {
         Args: { p_user_id: string }
         Returns: {
@@ -12037,6 +12079,48 @@ export type Database = {
       admin_grant_profile_badge: {
         Args: { p_badge: string; p_note?: string; p_user_id: string }
         Returns: string
+      }
+      admin_list_events: {
+        Args: { p_q?: string; p_status?: string }
+        Returns: {
+          capacity: number | null
+          chatham_house: boolean
+          conversation_id: string | null
+          cover_url: string | null
+          created_at: string
+          created_by: string | null
+          description_en: string | null
+          description_pl: string | null
+          early_rsvp_rank: number | null
+          ends_at: string | null
+          host_user_id: string | null
+          id: string
+          join_url: string | null
+          kind: string
+          location: string | null
+          min_tier_rank: number
+          program_id: string | null
+          recording_url: string | null
+          region_id: string | null
+          rsvp_opens_at: string | null
+          slug: string
+          starts_at: string
+          status: string
+          tenant_id: string
+          ticket_currency: string
+          ticket_price_cents: number | null
+          timezone: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          visibility: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       admin_list_inmails: {
         Args: { p_limit?: number; p_offset?: number; p_status?: string }
