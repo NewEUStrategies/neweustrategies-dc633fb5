@@ -21,7 +21,7 @@ export type SocialLinksSource = "auto" | "global" | "own";
 export const GLOBAL_SOCIALS_SETTINGS_PATH = "theme_options.header.socials";
 
 /** Adres panelu admina, w którym edytuje się globalne linki social. */
-export const GLOBAL_SOCIALS_ADMIN_HREF = "/admin/design/theme-options";
+export const GLOBAL_SOCIALS_ADMIN_HREF = "/admin/theme-options";
 
 const EMPTY_LINKS: GlobalSocialLinks = {
   facebook: "",
