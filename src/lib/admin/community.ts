@@ -232,11 +232,14 @@ export async function createEvent(input: {
       min_tier_rank: input.min_tier_rank ?? 0,
       status: "draft",
     })
-    .select()
+    .select("id")
     .single();
   if (error) throw error;
-  return data;
+  const row = await fetchAdminEvent(data.id);
+  if (!row) throw new Error("event_not_found_after_create");
+  return row;
 }
+
 
 export async function runEventReminders(): Promise<number> {
   const { data, error } = await supabase.rpc("run_event_reminders");
