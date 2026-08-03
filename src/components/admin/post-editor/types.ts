@@ -27,6 +27,11 @@ export interface PostForm {
   cover_image_url: string | null;
   audio_url_pl: string | null;
   audio_url_en: string | null;
+  // Kanoniczny głos lektora AI per język (null = głos najemcy z
+  // site_settings.reading). Czytelnik nie ma tu żadnego wpływu - to jedyne
+  // źródło wariantu poza ustawieniami witryny (audyt 2026-08-03).
+  tts_voice_pl: string | null;
+  tts_voice_en: string | null;
   read_minutes: number | null;
   published_at: string | null;
   publish_at: string | null;

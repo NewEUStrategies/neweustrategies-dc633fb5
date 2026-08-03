@@ -7858,6 +7858,69 @@ export type Database = {
           },
         ]
       }
+      post_tts_renditions: {
+        Row: {
+          byte_size: number
+          char_count: number
+          content_hash: string
+          created_at: string
+          lang: string
+          model: string
+          post_id: string
+          storage_path: string
+          synth_count: number
+          synthesized_at: string
+          tenant_id: string
+          updated_at: string
+          voice_id: string
+        }
+        Insert: {
+          byte_size?: number
+          char_count?: number
+          content_hash: string
+          created_at?: string
+          lang: string
+          model: string
+          post_id: string
+          storage_path: string
+          synth_count?: number
+          synthesized_at?: string
+          tenant_id: string
+          updated_at?: string
+          voice_id: string
+        }
+        Update: {
+          byte_size?: number
+          char_count?: number
+          content_hash?: string
+          created_at?: string
+          lang?: string
+          model?: string
+          post_id?: string
+          storage_path?: string
+          synth_count?: number
+          synthesized_at?: string
+          tenant_id?: string
+          updated_at?: string
+          voice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_tts_renditions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_tts_renditions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_views: {
         Row: {
           id: string
@@ -7945,6 +8008,8 @@ export type Database = {
           title_en: string
           title_pl: string
           toc_override: Json | null
+          tts_voice_en: string | null
+          tts_voice_pl: string | null
           updated_at: string
         }
         Insert: {
@@ -7991,6 +8056,8 @@ export type Database = {
           title_en?: string
           title_pl?: string
           toc_override?: Json | null
+          tts_voice_en?: string | null
+          tts_voice_pl?: string | null
           updated_at?: string
         }
         Update: {
@@ -8037,6 +8104,8 @@ export type Database = {
           title_en?: string
           title_pl?: string
           toc_override?: Json | null
+          tts_voice_en?: string | null
+          tts_voice_pl?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -12979,6 +13048,8 @@ export type Database = {
           title_en: string
           title_pl: string
           toc_override: Json | null
+          tts_voice_en: string | null
+          tts_voice_pl: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -13877,6 +13948,19 @@ export type Database = {
           p_tenant_id?: string
         }
         Returns: number
+      }
+      record_post_tts_rendition: {
+        Args: {
+          _byte_size: number
+          _char_count: number
+          _content_hash: string
+          _lang: string
+          _model: string
+          _post_id: string
+          _storage_path: string
+          _voice_id: string
+        }
+        Returns: undefined
       }
       record_post_view: {
         Args: { _post_id: string; _viewer_hash: string }
