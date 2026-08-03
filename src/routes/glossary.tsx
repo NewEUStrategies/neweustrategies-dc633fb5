@@ -31,7 +31,7 @@ export const Route = createFileRoute("/glossary")({
       url,
       lang,
       type: "website",
-      title: c.title,
+      title: `${c.title} - ${SITE_NAME}`,
       description: c.subtitle,
     });
   },

@@ -16,6 +16,9 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowLeft, Eye, Loader2, Mail, Lock, User, LogIn } from "@/lib/lucide-shim";
 import { EyeOff, UserPlus, KeyRound, Sun, Moon } from "lucide-react";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
 
 import illustrationLight from "@/assets/login-illustration-light.jpg";
 import illustrationDark from "@/assets/login-illustration-dark.jpg";
@@ -25,6 +28,22 @@ export const Route = createFileRoute("/login")({
     const m = search.mode;
     if (m === "signup" || m === "reset" || m === "signin") return { mode: m };
     return {};
+  },
+  head: () => {
+    const url = getRequestUrl() || "/login";
+    const lang = activeLang(url);
+    const title = lang === "en" ? `Sign in - ${SITE_NAME}` : `Zaloguj się - ${SITE_NAME}`;
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title,
+      description:
+        lang === "en"
+          ? "Sign in to your New European Strategies account."
+          : "Zaloguj się do swojego konta New European Strategies.",
+      robots: "noindex, nofollow",
+    });
   },
   component: LoginPage,
 });

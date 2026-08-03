@@ -192,7 +192,6 @@ export async function fetchAdminEvent(id: string): Promise<EventRow | null> {
   return rows[0] ?? null;
 }
 
-
 export async function updateEventStatus(id: string, status: EventStatus): Promise<void> {
   const { error } = await supabase.from("events").update({ status }).eq("id", id);
   if (error) throw error;
@@ -239,7 +238,6 @@ export async function createEvent(input: {
   if (!row) throw new Error("event_not_found_after_create");
   return row;
 }
-
 
 export async function runEventReminders(): Promise<number> {
   const { data, error } = await supabase.rpc("run_event_reminders");

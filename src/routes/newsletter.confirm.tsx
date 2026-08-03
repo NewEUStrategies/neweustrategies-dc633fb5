@@ -6,8 +6,32 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
 
-export const Route = createFileRoute("/newsletter/confirm")({ component: Page });
+export const Route = createFileRoute("/newsletter/confirm")({
+  head: () => {
+    const url = getRequestUrl() || "/newsletter/confirm";
+    const lang = activeLang(url);
+    const title =
+      lang === "en"
+        ? `Newsletter confirmed - ${SITE_NAME}`
+        : `Newsletter potwierdzony - ${SITE_NAME}`;
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title,
+      description:
+        lang === "en"
+          ? "Your newsletter subscription has been confirmed."
+          : "Twoja subskrypcja newslettera została potwierdzona.",
+      robots: "noindex, nofollow",
+    });
+  },
+  component: Page,
+});
 
 type State = "loading" | "ok" | "already" | "expired" | "error";
 
