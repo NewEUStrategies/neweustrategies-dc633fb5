@@ -486,7 +486,6 @@ export function renderSimpleWidget(
         if (layout === "list") {
           const defaultCta: Record<string, string> = {
 
-          const defaultCta: Record<string, string> = {
             facebook: "Like",
             x: "Follow",
             youtube: "Subscribe",
