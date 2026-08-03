@@ -1063,7 +1063,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           interestsLabel={pick("interestsLabel")}
           submitLabel={pick("submitLabel")}
           submittingLabel={pick("submittingLabel")}
-          consentText={pick("consentText")}
+          consentText={pickStrict("consentText")}
           successText={pick("successText")}
           namePlaceholder={pick("namePlaceholder")}
           emailPlaceholder={pick("emailPlaceholder")}
