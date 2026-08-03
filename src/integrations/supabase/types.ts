@@ -10572,12 +10572,10 @@ export type Database = {
           consent_key: string
           created_at: string
           given: boolean
-          gpc: boolean
           id: string
           ip: string | null
           lang: string | null
           source: string | null
-          tenant_id: string | null
           user_agent: string | null
           user_id: string
           version: string
@@ -10586,12 +10584,10 @@ export type Database = {
           consent_key: string
           created_at?: string
           given: boolean
-          gpc?: boolean
           id?: string
           ip?: string | null
           lang?: string | null
           source?: string | null
-          tenant_id?: string | null
           user_agent?: string | null
           user_id: string
           version: string
@@ -10600,12 +10596,10 @@ export type Database = {
           consent_key?: string
           created_at?: string
           given?: boolean
-          gpc?: boolean
           id?: string
           ip?: string | null
           lang?: string | null
           source?: string | null
-          tenant_id?: string | null
           user_agent?: string | null
           user_id?: string
           version?: string
@@ -10618,10 +10612,8 @@ export type Database = {
           created_at: string
           given: boolean
           given_at: string | null
-          gpc: boolean
           ip: string | null
           lang: string | null
-          tenant_id: string | null
           updated_at: string
           user_agent: string | null
           user_id: string
@@ -10633,10 +10625,8 @@ export type Database = {
           created_at?: string
           given: boolean
           given_at?: string | null
-          gpc?: boolean
           ip?: string | null
           lang?: string | null
-          tenant_id?: string | null
           updated_at?: string
           user_agent?: string | null
           user_id: string
@@ -10648,10 +10638,8 @@ export type Database = {
           created_at?: string
           given?: boolean
           given_at?: string | null
-          gpc?: boolean
           ip?: string | null
           lang?: string | null
-          tenant_id?: string | null
           updated_at?: string
           user_agent?: string | null
           user_id?: string
@@ -14382,7 +14370,6 @@ export type Database = {
       set_user_consent: {
         Args: {
           p_given: boolean
-          p_gpc: boolean
           p_ip?: string
           p_key: string
           p_lang?: string
@@ -14395,10 +14382,8 @@ export type Database = {
           created_at: string
           given: boolean
           given_at: string | null
-          gpc: boolean
           ip: string | null
           lang: string | null
-          tenant_id: string | null
           updated_at: string
           user_agent: string | null
           user_id: string
