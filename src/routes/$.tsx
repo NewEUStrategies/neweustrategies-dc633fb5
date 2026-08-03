@@ -102,6 +102,7 @@ import { QuickViewInfoBar } from "@/components/post/QuickViewInfoBar";
 import { MobileArticleActions } from "@/components/post/MobileArticleActions";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
+import { resolveTakeaways } from "@/lib/keyTakeaways/resolve";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
 import { InlineToc } from "@/components/post/InlineToc";
 import { ContentSkeleton } from "@/components/content/ContentSkeleton";
@@ -377,7 +378,9 @@ export const Route = createFileRoute("/$")({
     // node carries the AEO layer (section, keywords, abstract, speakable);
     // BreadcrumbList is SSR-emitted here because the body breadcrumbs only
     // exist after hydration.
-    const takeaways = (lang === "en" ? it.takeaways_en : it.takeaways_pl) ?? [];
+    // Jeden seam dla wpisów i STRON (lib/keyTakeaways/resolve.ts) - to samo
+    // rozstrzygnięcie zasila JSON-LD tutaj i sekcję w body niżej.
+    const takeaways = resolveTakeaways(it, lang);
     const parentCrumbs = [...(loaderData.crumbs ?? [])].sort((a, b) => a.depth - b.depth);
     const sectionCrumb = isPost
       ? parentCrumbs[parentCrumbs.length - 1]
@@ -759,7 +762,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const outerMaxStyle = { maxWidth: `${outerMaxWidthPx}px` } as const;
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
 
-  const takeaways: readonly string[] = (lang === "en" ? it.takeaways_en : it.takeaways_pl) ?? [];
+  const takeaways: readonly string[] = resolveTakeaways(it, lang);
 
   const currentPostCtx: CurrentPostCtx = {
     kind: isPost ? "post" : "page",

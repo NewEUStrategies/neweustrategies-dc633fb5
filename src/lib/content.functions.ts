@@ -23,8 +23,21 @@ import {
   revisionTouches,
   shouldSnapshot,
 } from "./content/revisions";
+import { KEY_TAKEAWAYS_MAX_ITEMS, KEY_TAKEAWAYS_MAX_ITEM_LENGTH } from "./keyTakeaways/limits";
 
 // ---------- shared helpers ----------
+
+/**
+ * Punkty "dowiesz się, że..." - identyczny kontrakt dla wpisów i stron.
+ * Limity z JEDNEJ stałej (`lib/keyTakeaways/limits.ts`), która odpowiada
+ * triggerom `posts_validate_takeaways` / `pages_validate_takeaways`. Wcześniej
+ * schemat twardo kodował `.max(6)`, gdy baza dopuszczała 7 - siódmy punkt,
+ * obiecywany przez panel, nie dawał się zapisać.
+ */
+const TakeawaysField = z
+  .array(z.string().max(KEY_TAKEAWAYS_MAX_ITEM_LENGTH))
+  .max(KEY_TAKEAWAYS_MAX_ITEMS)
+  .optional();
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,118}[a-z0-9])?$/;
 
@@ -310,8 +323,8 @@ const PostCore = z.object({
   template_id: UUID.nullable().optional(),
   post_format: z.enum(["standard", "video", "audio", "gallery"]).optional(),
   layout_overrides: z.record(z.string(), z.unknown()).nullable().optional(),
-  takeaways_pl: z.array(z.string().max(500)).max(6).optional(),
-  takeaways_en: z.array(z.string().max(500)).max(6).optional(),
+  takeaways_pl: TakeawaysField,
+  takeaways_en: TakeawaysField,
   takeaways_variant: z.enum(["card", "heading", "ghost"]).nullable().optional(),
   toc_override: z.record(z.string(), z.unknown()).nullable().optional(),
   custom_meta: z.record(z.string().max(64), z.string().max(200)).nullable().optional(),
@@ -990,8 +1003,8 @@ const PageCore = z.object({
     .optional(),
   header_override: z.string().max(64).nullable().optional(),
   toc_override: z.record(z.string(), z.unknown()).nullable().optional(),
-  takeaways_pl: z.array(z.string().max(500)).max(6).optional(),
-  takeaways_en: z.array(z.string().max(500)).max(6).optional(),
+  takeaways_pl: TakeawaysField,
+  takeaways_en: TakeawaysField,
   takeaways_variant: z.enum(["card", "heading", "ghost"]).nullable().optional(),
   ...SeoBlock,
 });

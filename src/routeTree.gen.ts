@@ -55,6 +55,7 @@ import { Route as PodcastsIndexRouteImport } from './routes/podcasts.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
+import { Route as TrackerRssDotxmlRouteImport } from './routes/tracker.rss[.]xml'
 import { Route as TrackerExplorerRouteImport } from './routes/tracker.explorer'
 import { Route as TrackerChangesRouteImport } from './routes/tracker.changes'
 import { Route as TrackerSlugRouteImport } from './routes/tracker.$slug'
@@ -484,6 +485,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const WebStoriesSlugRoute = WebStoriesSlugRouteImport.update({
   id: '/web-stories/$slug',
   path: '/web-stories/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackerRssDotxmlRoute = TrackerRssDotxmlRouteImport.update({
+  id: '/tracker/rss.xml',
+  path: '/tracker/rss.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TrackerExplorerRoute = TrackerExplorerRouteImport.update({
@@ -1659,6 +1665,7 @@ export interface FileRoutesByFullPath {
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
   '/tracker/explorer': typeof TrackerExplorerRoute
+  '/tracker/rss.xml': typeof TrackerRssDotxmlRoute
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -1898,6 +1905,7 @@ export interface FileRoutesByTo {
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
   '/tracker/explorer': typeof TrackerExplorerRoute
+  '/tracker/rss.xml': typeof TrackerRssDotxmlRoute
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
@@ -2146,6 +2154,7 @@ export interface FileRoutesById {
   '/tracker/$slug': typeof TrackerSlugRoute
   '/tracker/changes': typeof TrackerChangesRoute
   '/tracker/explorer': typeof TrackerExplorerRoute
+  '/tracker/rss.xml': typeof TrackerRssDotxmlRoute
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -2396,6 +2405,7 @@ export interface FileRouteTypes {
     | '/tracker/$slug'
     | '/tracker/changes'
     | '/tracker/explorer'
+    | '/tracker/rss.xml'
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
@@ -2635,6 +2645,7 @@ export interface FileRouteTypes {
     | '/tracker/$slug'
     | '/tracker/changes'
     | '/tracker/explorer'
+    | '/tracker/rss.xml'
     | '/web-stories/$slug'
     | '/admin'
     | '/blog'
@@ -2882,6 +2893,7 @@ export interface FileRouteTypes {
     | '/tracker/$slug'
     | '/tracker/changes'
     | '/tracker/explorer'
+    | '/tracker/rss.xml'
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
@@ -3048,6 +3060,7 @@ export interface RootRouteChildren {
   TrackerSlugRoute: typeof TrackerSlugRoute
   TrackerChangesRoute: typeof TrackerChangesRoute
   TrackerExplorerRoute: typeof TrackerExplorerRoute
+  TrackerRssDotxmlRoute: typeof TrackerRssDotxmlRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
   PodcastsIndexRoute: typeof PodcastsIndexRoute
@@ -3405,6 +3418,13 @@ declare module '@tanstack/react-router' {
       path: '/web-stories/$slug'
       fullPath: '/web-stories/$slug'
       preLoaderRoute: typeof WebStoriesSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tracker/rss.xml': {
+      id: '/tracker/rss.xml'
+      path: '/tracker/rss.xml'
+      fullPath: '/tracker/rss.xml'
+      preLoaderRoute: typeof TrackerRssDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tracker/explorer': {
@@ -5410,6 +5430,7 @@ const rootRouteChildren: RootRouteChildren = {
   TrackerSlugRoute: TrackerSlugRoute,
   TrackerChangesRoute: TrackerChangesRoute,
   TrackerExplorerRoute: TrackerExplorerRoute,
+  TrackerRssDotxmlRoute: TrackerRssDotxmlRoute,
   WebStoriesSlugRoute: WebStoriesSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
   PodcastsIndexRoute: PodcastsIndexRoute,

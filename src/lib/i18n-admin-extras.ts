@@ -212,8 +212,30 @@ export const adminExtrasPl = {
         toc: "Spis treści",
       },
       takeaways: {
-        hint: "Max 7 punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. 90-200 znaków ze spacjami na punkt (limit można przekroczyć).",
+        hint: "Max {{max}} punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. {{min}}-{{rec}} znaków ze spacjami na punkt (limit można przekroczyć).",
         title: "Z tego materiału dowiesz się, że…",
+        variant: {
+          legend: "Wariant wizualny",
+          globalPrefix: "Globalny:",
+          inheritLabel: "Globalny",
+          inheritDesc: "Użyj ustawienia globalnego",
+          card: "Karta",
+          heading: "Nagłówek + kropki",
+          ghost: "Ghost",
+        },
+        preview: {
+          title: "Podgląd na żywo (obie wersje językowe)",
+          activeVariant: "Aktywny wariant:",
+          empty: "Dodaj przynajmniej jeden punkt (PL lub EN), aby zobaczyć podgląd sekcji.",
+        },
+        row: {
+          placeholder: "Jedno zdanie, jedna myśl...",
+          counter: "{{len}}/{{max}} znaków ze spacjami · rekom. {{min}}-{{rec}}",
+          tooShort: "Za krótkie - dodaj kontekst (min. {{min}} znaków)",
+          ok: "Dobra długość",
+          tooLong: "Powyżej rekomendacji - dopuszczalne, ale krótsze zdanie działa lepiej",
+          remove: "Usuń punkt",
+        },
       },
       title: "Ustawienia strony",
       toc: {
@@ -707,8 +729,30 @@ export const adminExtrasEn = {
         toc: "Table of contents",
       },
       takeaways: {
-        hint: "Max 7 points. Recommendation: one sentence = one idea, approx. 90-200 characters including spaces per point (the limit can be exceeded).",
+        hint: "Max {{max}} points. Recommendation: one sentence = one idea, approx. {{min}}-{{rec}} characters including spaces per point (the limit can be exceeded).",
         title: "From this material you'll learn that…",
+        variant: {
+          legend: "Visual variant",
+          globalPrefix: "Global:",
+          inheritLabel: "Global",
+          inheritDesc: "Use the global setting",
+          card: "Card",
+          heading: "Heading + dots",
+          ghost: "Ghost",
+        },
+        preview: {
+          title: "Live preview (both languages)",
+          activeVariant: "Active variant:",
+          empty: "Add at least one point (PL or EN) to see the section preview.",
+        },
+        row: {
+          placeholder: "One sentence, one idea...",
+          counter: "{{len}}/{{max}} characters including spaces · rec. {{min}}-{{rec}}",
+          tooShort: "Too short - add context (min. {{min}} characters)",
+          ok: "Good length",
+          tooLong: "Above the recommendation - allowed, but a shorter sentence reads better",
+          remove: "Remove point",
+        },
       },
       title: "Page settings",
       toc: {

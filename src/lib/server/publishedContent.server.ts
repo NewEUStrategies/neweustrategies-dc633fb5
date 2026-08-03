@@ -564,3 +564,86 @@ export async function fetchPublishedPostsByTaxonomy(
     }),
   );
 }
+
+// ---------------------------------------------------------------------------
+// Tracker legislacyjny UE: źródła kanału RSS (/tracker/rss.xml).
+//
+// TENANT SCOPE: service role omija RLS, więc OBA zapytania filtrują jawnie po
+// tenancie właściciela hosta. Aktualizacje dodatkowo zawężamy do id dossier,
+// które przeszły filtr `status = 'published'` - nawet gdyby polityka RLS
+// kiedyś się rozluźniła, nota z wersji roboczej nie ma jak trafić do kanału.
+// Jeden wpis cache na parę (tenant, limit): kanał czyta oba strumienie razem.
+// ---------------------------------------------------------------------------
+
+export interface PublishedTrackerItemRow {
+  id: string;
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  summary_pl: string | null;
+  summary_en: string | null;
+  policy_area: string;
+  stage: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublishedTrackerUpdateRow {
+  id: string;
+  item_id: string;
+  note_pl: string;
+  note_en: string;
+  stage_from: string | null;
+  stage_to: string | null;
+  happened_on: string;
+  created_at: string;
+}
+
+export interface TrackerFeedSources {
+  items: PublishedTrackerItemRow[];
+  updates: PublishedTrackerUpdateRow[];
+}
+
+/**
+ * Opublikowane dossier + ich aktualizacje dla kanału RSS trackera.
+ * Degraduje do pustych list (jak każda powierzchnia crawlerowa) - awaria bazy
+ * nie może dać 500 na feedzie.
+ */
+export async function fetchTrackerFeedSources(
+  tenantId: string,
+  limit = 50,
+): Promise<TrackerFeedSources> {
+  return edgeTtlCache(`seo:tracker-feed:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
+    resilient<TrackerFeedSources>("tracker-feed", { items: [], updates: [] }, async () => {
+      const supabaseAdmin = await getSupabaseAdmin();
+      // Okno dossier jest szersze niż limit kanału: scalanie i przycięcie
+      // dzieje się PO posortowaniu obu strumieni (buildTrackerFeedItems), więc
+      // starsze dossier musi być dostępne jako kontekst swojej świeżej
+      // aktualizacji (tytuł, obszar, etap) - inaczej wpis osi czasu wypadłby
+      // z kanału jako "sierota".
+      const { data: itemRows } = await supabaseAdmin
+        .from("eu_policy_items")
+        .select(
+          "id, slug, title_pl, title_en, summary_pl, summary_en, policy_area, stage, created_at, updated_at",
+        )
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .order("updated_at", { ascending: false })
+        .limit(Math.max(limit * 4, 100));
+      const items: PublishedTrackerItemRow[] = itemRows ?? [];
+      if (items.length === 0) return { items, updates: [] };
+
+      const { data: updateRows } = await supabaseAdmin
+        .from("eu_policy_updates")
+        .select("id, item_id, note_pl, note_en, stage_from, stage_to, happened_on, created_at")
+        .eq("tenant_id", tenantId)
+        .in(
+          "item_id",
+          items.map((item) => item.id),
+        )
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      return { items, updates: updateRows ?? [] };
+    }),
+  );
+}

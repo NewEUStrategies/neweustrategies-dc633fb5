@@ -21,8 +21,11 @@ import {
   useToggleFollowItem,
 } from "@/lib/tracker/queries";
 import { PolicyPositionsMap } from "@/components/tracker/PolicyPositionsMap";
+import { TrackerFeedLink } from "@/components/tracker/TrackerFeedLink";
 import { DossierFollowers } from "@/components/network/DossierFollowers";
 import { POLICY_STAGES, areaLabel, isTerminal, stageIndex, stageLabel } from "@/lib/tracker/stages";
+import { TRACKER_FEED_PATH } from "@/lib/tracker/feed";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -96,8 +99,20 @@ export const Route = createFileRoute("/tracker/$slug")({
       origin,
       lang,
     );
+    // Autodiscovery kanału trackera także ze strony dossier: czytnik dodany z
+    // konkretnego dossier subskrybuje strumień zmian całego trackera (kanał
+    // per-dossier byłby jednym wpisem na kwartał - patrz komentarz w feed.ts).
     return {
       ...head,
+      links: [
+        ...head.links,
+        {
+          rel: "alternate",
+          type: "application/rss+xml",
+          title: lang === "en" ? "EU legislative tracker - RSS" : "Tracker legislacyjny UE - RSS",
+          href: `${origin}${localizedPath(TRACKER_FEED_PATH, lang)}`,
+        },
+      ],
       scripts: [
         { type: "application/ld+json", children: safeJsonLd(legislation) },
         { type: "application/ld+json", children: safeJsonLd(breadcrumbs) },
@@ -371,7 +386,10 @@ function TrackerDetail() {
       )}
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold">{t("tracker.timeline")}</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold">{t("tracker.timeline")}</h2>
+          <TrackerFeedLink className="text-xs" />
+        </div>
         {(updatesQ.data?.length ?? 0) === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">{t("tracker.timelineEmpty")}</p>
         ) : (
@@ -379,7 +397,10 @@ function TrackerDetail() {
             {updatesQ.data!.map((u) => {
               const note = lang === "en" ? u.note_en || u.note_pl : u.note_pl || u.note_en;
               return (
-                <li key={u.id} className="relative">
+                // Kotwica wpisu osi czasu: pozycje kanału RSS trackera linkują
+                // wprost do zmiany (`#update-<id>`), więc cel MUSI istnieć w
+                // dokumencie. scroll-mt trzyma wpis pod sticky nagłówkiem.
+                <li key={u.id} id={`update-${u.id}`} className="relative scroll-mt-24">
                   <span
                     className="absolute -left-[23px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary"
                     aria-hidden="true"
