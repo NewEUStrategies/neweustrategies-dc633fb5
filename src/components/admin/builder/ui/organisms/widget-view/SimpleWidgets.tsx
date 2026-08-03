@@ -472,8 +472,20 @@ export function renderSimpleWidget(
         };
       };
 
-      if (layout === "list") {
-        const defaultCta: Record<string, string> = {
+      const linksSource = asOneOf(c.linksSource, ["auto", "global", "own"] as const, "auto");
+      const hrefOf = (
+        k: string,
+        altKeys: string[] | undefined,
+        globalLinks: GlobalSocialLinks,
+      ): string => {
+        const own = getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
+        return resolveSocialHref(own, globalLinks, k, linksSource);
+      };
+
+      const renderSocials = (globalLinks: GlobalSocialLinks): ReactElement => {
+        if (layout === "list") {
+          const defaultCta: Record<string, string> = {
+
           facebook: "Like",
           x: "Follow",
           youtube: "Subscribe",
