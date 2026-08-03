@@ -16,7 +16,7 @@ function Harness() {
 describe("MessageComposerField", () => {
   it("renderuje pasek formatowania i licznik znaków", () => {
     render(<Harness />);
-    expect(screen.getByRole("textbox", { name: "Wiadomość" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Wiadomość")).toBeInTheDocument();
     expect(screen.getByText("5/100")).toBeInTheDocument();
   });
 

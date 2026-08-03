@@ -66,7 +66,7 @@ describe("MessageComposerField - @wzmianki", () => {
   it("z wyłączonymi wzmiankami nie renderuje comboboxa ani listy", () => {
     render(<Harness mentions={false} />);
     expect(screen.queryByRole("combobox")).toBeNull();
-    const box = screen.getByRole("textbox", { name: "Wiadomość" });
+    const box = screen.getByLabelText("Wiadomość");
     type(box, "cześć @jan");
     expect(screen.queryByRole("listbox")).toBeNull();
   });
@@ -90,7 +90,7 @@ describe("MessageComposerField - walidacja", () => {
     }
     render(<V />);
     expect(seen.at(-1)).toBe(false);
-    type(screen.getByRole("textbox", { name: "Wiadomość" }), "treść");
+    type(screen.getByLabelText("Wiadomość"), "treść");
     expect(seen.at(-1)).toBe(true);
   });
 
