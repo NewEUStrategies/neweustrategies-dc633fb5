@@ -47,6 +47,7 @@ import {
 } from "@/lib/notifications/useNotifications";
 import { groupNotifications } from "@/lib/notifications/grouping";
 import {
+  NOTIFICATION_KINDS,
   TOGGLEABLE_NOTIFICATION_KINDS,
   isNotificationKindEnabled,
 } from "@/lib/notifications/preferences";
@@ -72,17 +73,10 @@ type KindFilter = "all" | NotificationKind;
 
 // Toggleable kinds + gating live in @/lib/notifications/preferences (pure, unit-tested).
 
-const KIND_OPTIONS: KindFilter[] = [
-  "all",
-  "message",
-  "comment",
-  "follow",
-  "subscription",
-  "content",
-  "saved_search",
-  "crm_task",
-  "system",
-];
+// Filtr skrzynki jedzie z katalogu rodzajów, a nie z ręcznej listy - ręczna
+// gubiła tracker/connection/security, więc powiadomienia tych rodzajów nie dało
+// się odfiltrować mimo że lądują w skrzynce.
+const KIND_OPTIONS: KindFilter[] = ["all", ...NOTIFICATION_KINDS];
 
 // Rozmiar strony pochodzi z warstwy danych - Bell i Center współdzielą cache
 // tylko wtedy, gdy używają tego samego `pageSize` (patrz useNotifications.ts).
