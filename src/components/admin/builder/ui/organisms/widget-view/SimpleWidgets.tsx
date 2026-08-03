@@ -533,7 +533,8 @@ export function renderSimpleWidget(
               const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
               const cta = getStr(c, ctaKey) || defaultCta[k] || "";
               const rowVars = {
-                "--sb-grad": BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))",
+                "--sb-grad":
+                  BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))",
                 "--sb-fg": "#ffffff",
               } as CSSProperties;
               return (
@@ -555,7 +556,10 @@ export function renderSimpleWidget(
                   >
                     <Cmp size={size} />
                   </span>
-                  <span className="mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors group-hover:bg-[color:var(--sb-fg)]/70" aria-hidden="true" />
+                  <span
+                    className="mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors group-hover:bg-[color:var(--sb-fg)]/70"
+                    aria-hidden="true"
+                  />
                   <span className="flex-1 truncate text-sm font-medium transition-colors group-hover:[color:var(--sb-fg)]">
                     {label}
                   </span>

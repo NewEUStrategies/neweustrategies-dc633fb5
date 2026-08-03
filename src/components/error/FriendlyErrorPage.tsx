@@ -176,11 +176,13 @@ export function FriendlyErrorPage({
           <span>{lang === "pl" ? "Potrzebujesz pomocy? " : "Need help? "}</span>
           {/* Strona kontaktu jest treścią CMS (trasa catch-all), więc zwykły
               anchor - Link nie zna tej ścieżki w typach routera. */}
-          <a href={lang === "en" ? "/en/kontakt" : "/kontakt"} className="text-brand hover:underline">
+          <a
+            href={lang === "en" ? "/en/kontakt" : "/kontakt"}
+            className="text-brand hover:underline"
+          >
             {lang === "pl" ? "Skontaktuj się z nami" : "Contact support"}
           </a>
         </div>
-
       </div>
     </div>
   );

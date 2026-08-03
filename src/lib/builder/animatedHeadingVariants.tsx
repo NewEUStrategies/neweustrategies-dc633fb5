@@ -191,7 +191,6 @@ const HOVER_ALLSIDES_CSS = `
 }
 `;
 
-
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [
   { value: "highlight", label: "Wyróżnione słowo" },
   { value: "rotate", label: "Rotujące słowa" },

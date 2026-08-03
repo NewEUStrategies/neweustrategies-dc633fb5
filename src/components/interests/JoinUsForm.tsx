@@ -48,8 +48,6 @@ export const MARKETING_CONSENT_KEY = "marketing_email";
 export const MARKETING_CONSENT_VERSION =
   getConsentDefinition(MARKETING_CONSENT_KEY)?.version ?? "1.0";
 
-
-
 export interface JoinUsFormProps {
   variant?: "card" | "split" | "inline" | "split-image";
   showInterests?: boolean;
@@ -338,7 +336,6 @@ export function JoinUsForm({
   // (jedno źródło prawdy widoczne w profilu użytkownika).
   const [consentAccepted, setConsentAccepted] = useState(false);
 
-
   const useSplitName = showFirstName || showLastName;
 
   useEffect(() => {
@@ -521,8 +518,6 @@ export function JoinUsForm({
       return;
     }
 
-
-
     try {
       const nlText =
         lang === "en"
@@ -670,8 +665,6 @@ export function JoinUsForm({
         /* non-fatal */
       }
     }
-
-
 
     setState("ok");
     setEmail("");
@@ -1276,8 +1269,6 @@ export function JoinUsForm({
       </div>
 
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
-
-
     </form>
   );
 
