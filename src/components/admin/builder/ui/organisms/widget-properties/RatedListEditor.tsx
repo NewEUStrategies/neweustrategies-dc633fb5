@@ -541,6 +541,15 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               onChange={(v) => setContent("bookmarkColor", (v ?? "") as Json)}
             />
           </PropField>
+          {/* Wariant dark: renderer emitował dla niego regułę `.dark .rl-bookmark`
+              od zawsze, ale panel oferował go tylko dla sześciu innych kolorów -
+              zakładka i ikona formatu wypadły z zestawu. */}
+          <PropField label={t("builder.ratedListEditor.colorDark")}>
+            <ColorField
+              value={txt("bookmarkColorDark", "")}
+              onChange={(v) => setContent("bookmarkColorDark", (v ?? "") as Json)}
+            />
+          </PropField>
           <PropField label={t("builder.ratedListEditor.sizePx")}>
             <Input
               type="number"
@@ -563,12 +572,20 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
           />
           {t("builder.ratedListEditor.showPostFormat")}
         </label>
-        <PropField label={t("builder.ratedListEditor.iconColor")}>
-          <ColorField
-            value={txt("postFormatColor", "")}
-            onChange={(v) => setContent("postFormatColor", (v ?? "") as Json)}
-          />
-        </PropField>
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label={t("builder.ratedListEditor.iconColor")}>
+            <ColorField
+              value={txt("postFormatColor", "")}
+              onChange={(v) => setContent("postFormatColor", (v ?? "") as Json)}
+            />
+          </PropField>
+          <PropField label={t("builder.ratedListEditor.colorDark")}>
+            <ColorField
+              value={txt("postFormatColorDark", "")}
+              onChange={(v) => setContent("postFormatColorDark", (v ?? "") as Json)}
+            />
+          </PropField>
+        </div>
       </Collapsible>
 
       <Collapsible title={t("builder.ratedListEditor.colorSchemeSection")}>

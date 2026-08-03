@@ -42,7 +42,6 @@ function csv(c: WidgetContent, key: string): string[] {
 
 export interface SliderPostsInput {
   limit: number;
-  categoryId: string;
   categorySlugs: string[];
   tagSlugs: string[];
   excludeIds: string[];
@@ -63,7 +62,10 @@ export function sliderPostsLimit(c: WidgetContent): number {
 export function sliderPostsInput(c: WidgetContent, lang: Lang): SliderPostsInput {
   return {
     limit: sliderPostsLimit(c),
-    categoryId: getStr(c, "categoryId"),
+    // Bez `categoryId`: filtr po identyfikatorze kategorii nie miał AUTORA -
+    // ani edytor slidera, ani import, ani szablony startowe nigdy go nie
+    // zapisywały. Zapytanie płaciło za gałąź, której nie dało się włączyć,
+    // a redakcja i tak filtruje po `categorySlugs` (czytelnych i edytowalnych).
     categorySlugs: csv(c, "categorySlugs"),
     tagSlugs: csv(c, "tagSlugs"),
     excludeIds: csv(c, "excludeIds"),
@@ -104,22 +106,15 @@ export function sliderUsesPostsSource(c: WidgetContent): boolean {
 }
 
 async function fetchSliderPosts(input: SliderPostsInput): Promise<SliderPostRow[]> {
-  const { limit, categoryId, categorySlugs, tagSlugs, excludeIds, orderBy, lang } = input;
+  const { limit, categorySlugs, tagSlugs, excludeIds, orderBy, lang } = input;
   let allowedIds: string[] | null = null;
-  if (categoryId) {
-    const { data } = await supabase
-      .from("post_categories")
-      .select("post_id")
-      .eq("category_id", categoryId);
-    allowedIds = (data ?? []).map((r) => r.post_id);
-  }
   if (categorySlugs.length) {
     const { data } = await supabase
       .from("post_categories")
       .select("post_id, categories!inner(slug)")
       .in("categories.slug", categorySlugs);
-    const ids = (data ?? []).map((r: { post_id: string }) => r.post_id);
-    allowedIds = allowedIds ? allowedIds.filter((id) => ids.includes(id)) : ids;
+    // Pierwszy filtr USTAWIA zbiór dozwolonych id (nie ma jeszcze czego przecinać).
+    allowedIds = (data ?? []).map((r: { post_id: string }) => r.post_id);
   }
   if (tagSlugs.length) {
     const { data: tagRows } = await supabase.from("tags").select("id").in("slug", tagSlugs);

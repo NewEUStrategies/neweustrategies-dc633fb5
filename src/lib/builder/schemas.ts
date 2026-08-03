@@ -31,6 +31,14 @@ type FieldType =
 export interface SchemaField {
   /** Storage key for non-i18n fields, OR base key (without `_pl|_en`) for i18n fields. */
   key: string;
+  /**
+   * Klucze HISTORYCZNE tego samego ustawienia, czytane gdy klucz kanoniczny jest
+   * pusty. Panel pokazuje wtedy starą wartość (zamiast pustego pola nad
+   * działającym ustawieniem), ale zapisuje ZAWSZE `key` - treść migruje sama
+   * przy pierwszej edycji. Renderer musi rozumieć oba klucze; bramka wierności
+   * ustawień pilnuje, że tak jest.
+   */
+  legacyKeys?: ReadonlyArray<string>;
   type: FieldType;
   label: string;
   placeholder?: string;
@@ -224,6 +232,22 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
   ],
   image: [
+    // Renderer umie podstawić logo witryny z Opcji motywu (razem z wariantem
+    // dark), ale wyłącznie ten klucz to włącza - bez kontrolki jedyną drogą był
+    // przypadek: alt zawierający słowo "logo".
+    {
+      key: "useSiteLogo",
+      type: "select",
+      label: "Użyj logo witryny",
+      options: [
+        { value: "", label: "nie - własna grafika poniżej" },
+        { value: "main", label: "logo główne" },
+        { value: "mobile", label: "logo mobilne" },
+        { value: "transparent", label: "logo na przezroczystym tle" },
+      ],
+      default: "",
+      hint: "Bierze logo z Wygląd → Opcje motywu (wraz z wersją dark). Wtedy pola URL poniżej są ignorowane.",
+    },
     { key: "src", type: "url", label: "URL obrazka", placeholder: "https://..." },
     {
       key: "srcDark",
@@ -1657,6 +1681,26 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   "search-button": [
     { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
+    // Renderer obsługiwał trzy tryby i własny nagłówek panelu wyników, ale
+    // panel nie dawał na nie ŻADNEJ kontrolki - jedynym dostępnym trybem był
+    // domyślny "dropdown".
+    {
+      key: "mode",
+      type: "select",
+      label: "Tryb wyszukiwania",
+      options: [
+        { value: "dropdown", label: "rozwijany panel pod polem" },
+        { value: "standalone", label: "samo pole (wyniki na stronie)" },
+        { value: "fullscreen", label: "pełny ekran" },
+      ],
+      default: "dropdown",
+    },
+    {
+      key: "heading",
+      type: "i18nText",
+      label: "Nagłówek panelu wyników",
+      hint: "Puste = bez nagłówka. Gdy placeholder jest pusty, nagłówek staje się jego zamiennikiem.",
+    },
     {
       key: "height",
       type: "number",
@@ -1779,7 +1823,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       placeholder: "https://facebook.com/...",
     },
     {
-      key: "twitter",
+      key: "x",
+      legacyKeys: ["twitter"],
       type: "url",
       label: "X (dawniej Twitter) URL",
       placeholder: "https://x.com/...",
@@ -2328,6 +2373,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "titleSize", type: "number", label: "Rozmiar tytułu (px)", min: 10, max: 96 },
     { key: "descriptionSize", type: "number", label: "Rozmiar opisu (px)", min: 8, max: 48 },
     { key: "perkSize", type: "number", label: "Rozmiar bulletpointów (px)", min: 8, max: 32 },
+    // Renderer czyta `iconSize` (ikona ✓ przy bulletpointach) i honoruje go w
+    // edycji inline na kanwie, ale panel nie miał na to kontrolki.
+    {
+      key: "iconSize",
+      type: "number",
+      label: "Rozmiar ikony ✓ (px)",
+      min: 8,
+      max: 40,
+      hint: "Puste = rozmiar dobierany do tekstu bulletpointu.",
+    },
     { key: "labelSize", type: "number", label: "Rozmiar etykiet (px)", min: 8, max: 24 },
     {
       key: "placeholderSize",
@@ -2544,6 +2599,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
+    // Formularz czyta `successMsg_${lang}` od zawsze, a panel nie miał na to
+    // ŻADNEGO pola: komunikat po wysłaniu był zaszyty ("Wysłano!" / "Sent!").
+    {
+      key: "successMsg",
+      type: "i18nText",
+      label: "Komunikat po wysłaniu",
+      placeholder: "Wysłano!",
+      hint: "Widoczny po udanym wysłaniu formularza. Puste = tekst domyślny.",
+    },
     {
       key: "buttonPosition",
       type: "select",
@@ -2888,17 +2952,20 @@ const pushLabelsFor = (widgetType: WidgetType, fields: Array<[string, string]>) 
   if (!existingKeys.has("customFields")) arr.push(customFieldsField);
 };
 
-pushLabelsFor("join-us", [
-  ["firstName", "Imię"],
-  ["lastName", "Nazwisko"],
-  ["email", "E-mail"],
-  ["position", "Stanowisko"],
-  ["linkedin", "LinkedIn"],
-  ["phone", "Telefon"],
-  ["company", "Firma"],
-  ["country", "Kraj"],
-  ["interests", "Zainteresowania"],
-]);
+/**
+ * `join-us` NIE dostaje pary etykieta+placeholder.
+ *
+ * Formularz "Dołącz do nas" jest zbudowany na `FloatingInput`: pływająca
+ * etykieta JEST placeholderem, więc na pole przypada jeden widoczny napis.
+ * `pushLabelsFor` dokładał tu drugą kontrolkę (`${key}Label`) na każde z 9 pól -
+ * 18 kluczy, których formularz nigdy nie czytał. Redakcja wpisywała tekst,
+ * zapisywała i nic się nie zmieniało. Placeholdery są już w schemacie wyżej,
+ * więc widgetowi brakuje wyłącznie edytora pól dodatkowych.
+ *
+ * `contact-form` zostaje przy parze: tam etykieta i placeholder to dwa różne,
+ * realnie czytane napisy.
+ */
+(WIDGET_SCHEMAS["join-us"] as SchemaField[]).push(customFieldsField);
 
 pushLabelsFor("contact-form", [
   ["firstName", "Imię"],
@@ -3040,6 +3107,16 @@ const authFieldBlock = (
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
   ...labelPh("email", "E-mail"),
   { key: "loginHref", type: "text", label: "URL powrotu do logowania", placeholder: "/login" },
+  // Adres w linku wysyłanym mailem. Renderer czytał `redirectTo` od zawsze
+  // (`resetPasswordForEmail({ redirectTo })`), a panel go nie wystawiał - jedyną
+  // opcją była zaszyta wartość `/reset-password`.
+  {
+    key: "redirectTo",
+    type: "text",
+    label: "Adres w linku z maila",
+    placeholder: "/reset-password",
+    hint: "Strona, na którą prowadzi link resetu hasła. Musi renderować widget „Ustaw nowe hasło”.",
+  },
   { key: "successText", type: "i18nText", label: "Komunikat po wysłaniu" },
 ];
 

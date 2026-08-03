@@ -36,6 +36,20 @@ export interface DeploymentReportInput {
   readonly ciStatus: CheckStatus;
   readonly dbContract: { readonly status: CheckStatus; readonly missing: number } | null;
   readonly i18nParity: { readonly status: CheckStatus; readonly missing: number } | null;
+  /**
+   * Bramka wierności ustawień widgetów (panel ⇄ renderer).
+   *
+   * `unwaived` to rozjazdy między tym, co panel oferuje redakcji, a tym, co
+   * renderer naprawdę czyta - BEZ uzasadnienia (każdy z nich to defekt).
+   * `waived` to rozjazdy zamierzone, opisane powodem. Raportujemy OBA, bo
+   * pokrycie rejestru widgetów jest na tę klasę błędu całkowicie odporne:
+   * widget istnieje, renderuje się, a pojedyncze ustawienie kłamie.
+   */
+  readonly widgetFidelity: {
+    readonly status: CheckStatus;
+    readonly unwaived: number;
+    readonly waived: number;
+  } | null;
 }
 
 const STATUS_ICON: Record<CheckStatus, string> = {
@@ -73,6 +87,7 @@ export function overallStatus(input: DeploymentReportInput): CheckStatus {
     input.smoke?.status ?? "unknown",
     input.dbContract?.status ?? "unknown",
     input.i18nParity?.status ?? "unknown",
+    input.widgetFidelity?.status ?? "unknown",
   ];
   if (statuses.includes("failed")) return "failed";
   if ((input.unitTests?.failed ?? 0) > 0) return "failed";
@@ -110,6 +125,9 @@ export function renderDeploymentReport(input: DeploymentReportInput): string {
     input.i18nParity
       ? `| Parytet PL/EN | ${STATUS_ICON[input.i18nParity.status]} ${input.i18nParity.status} | brakujących kluczy: ${input.i18nParity.missing} |`
       : `| Parytet PL/EN | ${STATUS_ICON.unknown} unknown | brak raportu |`,
+    input.widgetFidelity
+      ? `| Wierność ustawień widgetów (panel ⇄ renderer) | ${STATUS_ICON[input.widgetFidelity.status]} ${input.widgetFidelity.status} | rozjazdy bez uzasadnienia: ${input.widgetFidelity.unwaived} · zwolnione z powodem: ${input.widgetFidelity.waived} |`
+      : `| Wierność ustawień widgetów (panel ⇄ renderer) | ${STATUS_ICON.unknown} unknown | brak raportu |`,
     "",
     `## Pull requesty w wydaniu (${input.pullRequests.length})`,
     "",

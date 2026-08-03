@@ -18,6 +18,7 @@ const base: DeploymentReportInput = {
   ciStatus: "passed",
   dbContract: { status: "passed", missing: 0 },
   i18nParity: { status: "passed", missing: 0 },
+  widgetFidelity: { status: "passed", unwaived: 0, waived: 11 },
 };
 
 describe("parsePullRequests", () => {

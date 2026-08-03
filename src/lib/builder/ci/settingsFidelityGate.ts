@@ -1,0 +1,160 @@
+// Konfiguracja bramki wierności ustawień: stany próbek + jawne zwolnienia.
+//
+// Bramka (`settingsFidelity.gate.test.tsx`) porównuje zbiór kluczy treści, które
+// panel oferuje redakcji, ze zbiorem kluczy, które renderer naprawdę czyta.
+// Ten moduł zawiera DWIE rzeczy i trzeba je ostro rozdzielać:
+//
+//  1. `WIDGET_PROBE_STATES` - FIXTURA. Mówi, w jakim stanie postawić widget, by
+//     jego warunkowa gałąź się otworzyła ("slider ze źródłem manual"). Nie
+//     wymienia kluczy, więc nie potrafi niczego zamaskować: ustawienie
+//     nieczytane w ŻADNYM stanie nadal wywala bramkę.
+//
+//  2. `FIDELITY_WAIVERS` - ZWOLNIENIA. Wymieniają konkretne klucze, dla których
+//     rozjazd jest zamierzony. Reguły:
+//       - POWÓD JEST OBOWIĄZKOWY (bramka odrzuca puste stringi),
+//       - ZWOLNIENIE, KTÓRE PRZESTAŁO BYĆ POTRZEBNE, WALI TESTEM - gdy pole
+//         zaczyna być czytane albo pojawia się w panelu, wpis MUSI zniknąć,
+//       - NIE ZWALNIAJ, ŻEBY ODBLOKOWAĆ WDROŻENIE: martwe pole usuwa się ze
+//         schematu, ukryte - dodaje do schematu.
+import type { WidgetType } from "../types";
+import type { WidgetFidelityWaiver, WidgetProbeState } from "./settingsFidelity";
+
+/**
+ * Stany, w których trzeba postawić widget, żeby panel narysował całą swoją
+ * powierzchnię, a renderer wszedł we wszystkie gałęzie.
+ *
+ * Stosowane po OBU stronach inwariantu, więc nie da się nimi "dosypać" odczytów
+ * tylko rendererowi ani tylko panelowi. Stan, który nie odblokowuje żadnego
+ * nowego klucza, jest zgłaszany jako martwy - lista nie gnije.
+ */
+export const WIDGET_PROBE_STATES: Partial<Record<WidgetType, ReadonlyArray<WidgetProbeState>>> = {
+  // Edytor prelegentów rysuje picker wydarzenia tylko dla źródła "event",
+  // a limit/paginację tylko dla katalogu.
+  speakers: [
+    { label: "source=event", patch: { source: "event", eventId: "stub-event" } },
+    // Tryb paginacji (`pageMode`) pojawia się tylko przy niezerowym `pageSize`.
+    { label: "source=directory+paged", patch: { source: "directory", pageSize: 8 } },
+  ],
+  // Rezerwacja spotkań: tryb wydarzenia to inny zestaw pól niż domyślny tryb
+  // hosta (ten pokrywają już próbki bazowe).
+  "meeting-booking": [{ label: "mode=event", patch: { mode: "event", eventId: "stub-event" } }],
+  "event-countdown": [{ label: "mode=event", patch: { mode: "event", eventId: "stub-event" } }],
+  "event-countdown-card": [
+    { label: "mode=event", patch: { mode: "event", eventId: "stub-event" } },
+  ],
+  // Mega menu: szerokość "fixed" odsłania suwak szerokości w px.
+  "mega-menu": [{ label: "width=fixed", patch: { width: "fixed", widthPx: 900 } }],
+  // Slider: samo `source: "manual"` NIE WYSTARCZA - `sliderUsesPostsSource`
+  // traktuje listę bez powiązanego zdjęcia/wpisu jak stan nieskonfigurowany i
+  // routuje slider do trybu wpisów. Ręczna gałąź otwiera się dopiero na
+  // slajdzie z realną treścią.
+  slider: [
+    {
+      label: "source=manual+slides",
+      patch: {
+        source: "manual",
+        items: [
+          { image: "https://example.org/probe-1.jpg", title_pl: "Slajd", title_en: "Slide" },
+          { image: "https://example.org/probe-2.jpg", title_pl: "Slajd 2", title_en: "Slide 2" },
+        ],
+      },
+    },
+  ],
+  // Lista z oceną: źródło dynamiczne odsłania filtry zapytania, a każdy tryb
+  // przewijania - własne pole (wysokość okna vs rozmiar strony).
+  "rated-list": [
+    { label: "source=dynamic", patch: { source: "dynamic" } },
+    { label: "scrollingMode=scroll", patch: { source: "dynamic", scrollingMode: "scroll" } },
+    { label: "scrollingMode=loadmore", patch: { source: "dynamic", scrollingMode: "loadmore" } },
+  ],
+};
+
+/**
+ * Widgety, których renderer przekazuje CAŁĄ treść dalej (`{...content}`), więc
+ * czyta każdy klucz naraz. Dla nich bramka nie potrafi wykryć martwego
+ * ustawienia - i właśnie dlatego muszą być tu wymienione: luka w pokryciu ma
+ * być widoczna, a nie milcząca.
+ *
+ * Docelowo każdy z nich powinien czytać jawną listę kluczy (jak
+ * `authFormSettings.ts` po PR #141) - wtedy wpis znika, a bramka zaczyna go
+ * pilnować w pełni.
+ */
+export const RENDERER_ENUMERATES_CONTENT: Partial<Record<WidgetType, string>> = {
+  newsletter:
+    "WidgetView buduje config formularza przez `{...content}` (newsletterFormConfig), " +
+    "żeby zmapować historyczny `placeholder_*` na `emailPlaceholder_*`. Do rozbicia na " +
+    "jawną listę kluczy - wtedy ten wpis znika.",
+};
+
+/** Zwolnienia per typ widgetu. Brak wpisu = widget jest w pełni pod bramką. */
+export const FIDELITY_WAIVERS: Partial<Record<WidgetType, WidgetFidelityWaiver>> = {
+  button: {
+    hidden: {
+      widthPx: "Ustawiane uchwytem zmiany rozmiaru na kanwie (ResizableBox), nie kontrolką panelu.",
+      heightPx:
+        "Ustawiane uchwytem zmiany rozmiaru na kanwie (ResizableBox), nie kontrolką panelu.",
+    },
+  },
+  cta: {
+    hidden: {
+      ctaWidthPx: "Uchwyt zmiany rozmiaru na kanwie (ResizableBox) - patrz WidgetView case 'cta'.",
+      ctaHeightPx: "Uchwyt zmiany rozmiaru na kanwie (ResizableBox) - patrz WidgetView case 'cta'.",
+    },
+  },
+  toc: {
+    hidden: {
+      items:
+        "Klucz historyczny: kontrolka pisała `items` (bez języka), zanim panel przeszedł na " +
+        "`items_pl|_en`. Renderer czyta go jako fallback, żeby stare dokumenty nie zgubiły " +
+        "ręcznych pozycji. Nie wystawiamy go w panelu - to by cofnęło naprawę.",
+    },
+  },
+  "team-member": {
+    dead: {
+      authorId:
+        "Klucz techniczny wybranego eksperta: panel hydratuje z niego pozostałe pola, " +
+        "renderer linkuje po `authorSlug`. Nie jest ustawieniem prezentacji.",
+    },
+    hidden: {
+      image: "Alias historyczny pola `photo` (dokumenty przed ujednoliceniem nazwy).",
+    },
+  },
+  contact: {
+    hidden: {
+      showName:
+        "Alias historyczny: jeden przełącznik gasił imię i nazwisko razem. Dziś panel ma " +
+        "`showFirstName`/`showLastName`, a renderer czyta stary klucz jako domyślną wartość obu.",
+    },
+  },
+  "contact-form": {
+    hidden: {
+      showName:
+        "Alias historyczny: jeden przełącznik gasił imię i nazwisko razem. Dziś panel ma " +
+        "`showFirstName`/`showLastName`, a renderer czyta stary klucz jako domyślną wartość obu.",
+    },
+  },
+  "post-list": {
+    hidden: {
+      showAuthorAvatar:
+        "Klucz historyczny pary avatar/etykieta. Panel oferuje jedno pole `authorDisplay` i " +
+        "utrzymuje starą parę w spójności zapisem; renderer czyta ją tylko jako wartość " +
+        "domyślną dla dokumentów sprzed ujednolicenia (patrz `postListAuthorDisplay`).",
+      showAuthorLabel:
+        "Klucz historyczny pary avatar/etykieta - jak `showAuthorAvatar`. Wystawienie go w " +
+        "panelu cofnęłoby ujednolicenie do jednego pola `authorDisplay`.",
+    },
+  },
+  carousel: {
+    hidden: {
+      showAuthorAvatar: "Jak w `post-list` - klucz historyczny pary avatar/etykieta.",
+      showAuthorLabel: "Jak w `post-list` - klucz historyczny pary avatar/etykieta.",
+    },
+  },
+  donations: {
+    hidden: {
+      quickDonate:
+        "Alias historyczny: przed wprowadzeniem pola `mode` szybka darowizna była booleanem. " +
+        "Renderer czyta go tylko jako domyślną wartość `mode`.",
+    },
+  },
+};

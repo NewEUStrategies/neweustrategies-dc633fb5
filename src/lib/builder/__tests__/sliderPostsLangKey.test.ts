@@ -37,13 +37,22 @@ describe("klucz zapytania slidera postow", () => {
   it("input jest pochodna wylacznie tresci i jezyka", () => {
     expect(sliderPostsInput({ limit: 3 }, "en")).toEqual({
       limit: 3,
-      categoryId: "",
       categorySlugs: [],
       tagSlugs: [],
       excludeIds: [],
       orderBy: "newest",
       lang: "en",
     });
+  });
+
+  it("nie niesie martwego filtra `categoryId`", () => {
+    // Filtr po identyfikatorze kategorii nie miał autora: zadnej kontrolki,
+    // importu ani szablonu, ktory by go zapisal. Zostal usuniety razem z
+    // gałęzią zapytania - ten test pilnuje, żeby nie wrócił jako "opcja",
+    // ktorej nie da sie ustawic.
+    expect(sliderPostsInput({ categoryId: "abc", limit: 3 }, "pl")).not.toHaveProperty(
+      "categoryId",
+    );
   });
 });
 

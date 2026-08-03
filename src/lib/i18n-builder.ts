@@ -778,6 +778,11 @@ const pl = {
       showCover: "Okładka",
       showTitle: "Tytuł",
       showExcerpt: "Opis",
+      // Grubości: renderer honorował je od zawsze, panel dostał kontrolki po
+      // uruchomieniu bramki wierności ustawień (panel ⇄ renderer).
+      titleWeight: "Grubość tytułu",
+      excerptWeight: "Grubość opisu",
+      weightInherit: "domyślna",
       yes: "Tak",
       no: "Nie",
       authorDisplay: "Autor",
@@ -2166,6 +2171,9 @@ const en: typeof pl = {
       showCover: "Cover",
       showTitle: "Title",
       showExcerpt: "Excerpt",
+      titleWeight: "Title weight",
+      excerptWeight: "Excerpt weight",
+      weightInherit: "default",
       yes: "Yes",
       no: "No",
       authorDisplay: "Author",
