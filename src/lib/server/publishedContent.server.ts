@@ -482,7 +482,7 @@ export async function fetchTaxonomyForFeed(
   );
 }
 
-export interface PublishedTrackerItemRow {
+export interface PublishedTrackerSitemapRow {
   slug: string;
   title_pl: string;
   title_en: string;
@@ -505,7 +505,7 @@ export interface PublishedTrackerItemRow {
 export async function fetchPublishedTrackerItems(
   tenantId: string,
   limit = 50,
-): Promise<PublishedTrackerItemRow[]> {
+): Promise<PublishedTrackerSitemapRow[]> {
   return edgeTtlCache(`seo:tracker-items:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
     resilient("tracker-items", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
@@ -518,7 +518,7 @@ export async function fetchPublishedTrackerItems(
         .eq("status", "published")
         .order("updated_at", { ascending: false })
         .limit(limit);
-      return (data ?? []) as PublishedTrackerItemRow[];
+      return (data ?? []) as PublishedTrackerSitemapRow[];
     }),
   );
 }

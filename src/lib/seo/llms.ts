@@ -79,19 +79,14 @@ export function buildLlmsTxt(input: LlmsTxtInput): string {
     lines.push("");
   }
 
+  // Jedno źródło prawdy: rejestr MACHINE_SURFACES (patrz seo/machineSurfaces).
+  // Twarda lista w tym pliku była powodem, dla którego nowe feedy (podcast,
+  // relacje live) nie były ogłaszane modelom.
+  lines.push("## Zasoby maszynowe / Machine-readable resources", "");
+  for (const resource of input.resources) {
+    lines.push(`- ${resource.label}: ${resource.url}`);
+  }
   lines.push(
-    "## Zasoby maszynowe / Machine-readable resources",
-    "",
-    `- Sitemap: ${input.origin}/sitemap.xml`,
-    `- Mapa strony HTML / HTML site map: ${input.origin}/sitemap`,
-    `- Google News sitemap: ${input.origin}/news-sitemap.xml`,
-    `- RSS (PL): ${input.origin}/rss.xml`,
-    `- RSS (EN): ${input.origin}/en/rss.xml`,
-    // Kanał trackera: strumień zmian legislacyjnych (nowe dossier, zmiany
-    // etapu, wpisy osi czasu). Dla asystentów AI to najgęstsze źródło "co się
-    // zmieniło w prawie UE" w całym serwisie - stąd jawnie w zasobach.
-    `- RSS trackera legislacyjnego / EU legislative tracker RSS (PL): ${input.origin}/tracker/rss.xml`,
-    `- RSS trackera legislacyjnego / EU legislative tracker RSS (EN): ${input.origin}/en/tracker/rss.xml`,
     "",
     "## Zasady cytowania / Citation policy",
     "",

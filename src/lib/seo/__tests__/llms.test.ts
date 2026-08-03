@@ -61,6 +61,7 @@ describe("llms.txt - zasoby maszynowe trackera", () => {
     sections: [],
     latestPl: [],
     latestEn: [],
+    resources: llmsTxtResourceLines("https://nes.example", localizedPath),
   });
 
   it("wystawia kanał trackera w obu językach", () => {
