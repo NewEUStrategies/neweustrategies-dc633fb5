@@ -2135,6 +2135,16 @@ export const en = {
     guestBadge: "guest",
     guestName: "Your name or nickname",
     loadMore: "Load more comments",
+    toolbar: {
+      bold: "Bold",
+      italic: "Italic",
+      bulletList: "Bullet list",
+      numberedList: "Numbered list",
+      quote: "Quote",
+      code: "Code",
+      link: "Link",
+      clear: "Clear text",
+    },
     submittedPending: "Thank you - your comment will appear once approved by moderation.",
     errors: {
       authRequired: "Please sign in to comment.",
