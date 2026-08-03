@@ -1773,7 +1773,6 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       hint: "Globalne linki do mediów społecznościowych ustawia się raz w Admin → Wygląd → Opcje motywu → „Ikony social” (/admin/theme-options). Widgety zaciągają je automatycznie.",
     },
     {
-
       key: "facebook",
       type: "url",
       label: "Facebook URL",

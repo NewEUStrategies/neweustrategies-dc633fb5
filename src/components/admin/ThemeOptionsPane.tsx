@@ -1035,7 +1035,15 @@ export function ThemeOptionsPane() {
                   />
                 </Row>
                 {(
-                  ["facebook", "twitter", "instagram", "linkedin", "youtube", "spotify", "email"] as const
+                  [
+                    "facebook",
+                    "twitter",
+                    "instagram",
+                    "linkedin",
+                    "youtube",
+                    "spotify",
+                    "email",
+                  ] as const
                 ).map((k) => (
                   <Row
                     key={k}

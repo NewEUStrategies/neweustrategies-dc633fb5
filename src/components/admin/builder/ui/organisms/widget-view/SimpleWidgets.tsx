@@ -66,7 +66,6 @@ function WithGlobalSocials({
   return render(useGlobalSocialLinks());
 }
 
-
 // Wraps AnimatedHeadingRender with dynamic-token resolution. Runs on every
 // render so `{post.title}` / `{author.name}` reflect the current post context
 // (or the placeholder ctx in the admin canvas via PLACEHOLDER_POST_CTX).
@@ -503,7 +502,6 @@ export function renderSimpleWidget(
       const renderSocials = (globalLinks: GlobalSocialLinks): ReactElement => {
         if (layout === "list") {
           const defaultCta: Record<string, string> = {
-
             facebook: "Like",
             x: "Follow",
             youtube: "Subscribe",
@@ -603,7 +601,6 @@ export function renderSimpleWidget(
 
       return <WithGlobalSocials render={renderSocials} />;
     }
-
 
     case "lang-switcher": {
       const label =
