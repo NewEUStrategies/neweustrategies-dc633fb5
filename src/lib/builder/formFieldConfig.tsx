@@ -173,24 +173,20 @@ export function CustomFieldsRenderer({
 
         if (f.type === "textarea") {
           return (
-            <label key={f.id} className="sm:col-span-2 block">
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">
-                {label}
-                {f.required && <span className="ml-1 text-destructive">*</span>}
-              </span>
-              <textarea
-                {...commonAria}
-                value={value}
-                onChange={(e) => onChange(f.id, e.target.value)}
-                placeholder={placeholder}
-                required={f.required}
-                maxLength={f.maxLength ?? 2000}
-                rows={4}
-                className={cn(baseInput, "resize-y min-h-[80px]")}
-                style={inputStyle}
-                data-edit-target={inputEditTarget}
-              />
-            </label>
+            <MessageComposerField
+              key={f.id}
+              className="sm:col-span-2"
+              label={label}
+              value={value}
+              onChange={(next) => onChange(f.id, next)}
+              placeholder={placeholder}
+              required={f.required}
+              maxLength={f.maxLength ?? 2000}
+              rows={4}
+              textareaClassName="min-h-[80px]"
+              textareaStyle={inputStyle}
+              dataEditTarget={inputEditTarget}
+            />
           );
         }
 
