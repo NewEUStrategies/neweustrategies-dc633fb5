@@ -195,7 +195,7 @@ export const TERMS_CONTENT: LegalDocContent = {
       {
         id: "zakazy",
         icon: "Ban",
-        heading: "Prohibited use",
+        heading: "Acceptable Use Policy",
         bullets: [
           "Unlawful activity, fraud, spam and abusive communication.",
           "Infringing third-party intellectual property rights.",
