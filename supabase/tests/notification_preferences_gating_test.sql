@@ -1,41 +1,79 @@
 -- pgTAP: każdy przełącznik preferencji powiadomień REALNIE tłumi swój rodzaj.
 --
 -- Blokuje regresję "martwych przełączników": enqueue_notification (wspólny
--- producent wołany przez wszystkie triggery: message/comment/follow/
--- subscription/content/system) musi pominąć wstawienie, gdy odbiorca wyłączył
--- dany rodzaj, a 'security' ma docierać ZAWSZE (przełącznik always-on).
+-- producent wołany przez WSZYSTKIE 22 funkcje-producentów: message/comment/
+-- follow/subscription/content/system/tracker/connection/saved_search/crm_task)
+-- musi pominąć wstawienie, gdy odbiorca wyłączył dany rodzaj, a 'security' ma
+-- docierać ZAWSZE (przełącznik always-on).
+--
+-- Zakres (po rozszerzeniu katalogu rodzajów do 11):
+--   1. Komplet rodzajów jawnie - dla KAŻDEGO z 10 przełączalnych: włączony =>
+--      wstawia, wyłączony => pomija. Wcześniej test kończył się na 'system',
+--      więc gałęzie tracker/connection/saved_search/crm_task w CASE nie były
+--      niczym przykryte.
+--   2. Parytet strukturalny katalog <-> preferencje: każdy rodzaj z
+--      `notifications_kind_check` (poza 'security') ma kolumnę
+--      `enabled_<rodzaj>` i odwrotnie - żadna kolumna-flaga nie wisi w próżni.
+--   3. Sweep behawioralny sterowany katalogiem: 11. rodzaj dodany do CHECK-a
+--      bez gałęzi w CASE (ELSE true => przeciek) albo bez kolumny wywala ten
+--      test SAM Z SIEBIE, bez dopisywania asercji.
+--   4. Bramka czyta preferencje ODBIORCY (p_user_id), nie wołającego
+--      (auth.uid()) - klasyczna pomyłka w SECURITY DEFINER.
+--   5. Fail-open bez wiersza preferencji (świeże konto nie gubi powiadomień).
+--   6. Stempel tenanta bierze się z profilu ODBIORCY, nie z tenanta wołającego,
+--      a RLS nie pokazuje cudzego powiadomienia (izolacja obszarów roboczych).
+--   7. ACL producenta: enqueue_notification jest wyłącznie serwerowy
+--      (service_role + funkcje SECURITY DEFINER). Grant dla `authenticated`
+--      pozwalał dowolnemu zalogowanemu wstrzyknąć dowolną treść do skrzynki
+--      dowolnego użytkownika w dowolnym tenancie - patrz migracja
+--      20260803090000_harden_enqueue_notification_acl.sql.
+--   8. Odporność wywołania z triggera: NULL/pusty/nieznany rodzaj zwraca NULL
+--      zamiast wyjątku (wyjątek przerwałby zapis użytkownika, np. komentarz).
+--   9. Dedup 5-minutowy po (user, kind, href).
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(13);
+SELECT plan(40);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
 INSERT INTO public.tenants (id, slug, name) VALUES
-  ('c1111111-1111-1111-1111-1111111100ff', 'prefs-tenant', 'Prefs Tenant');
+  ('c1111111-1111-1111-1111-1111111100ff', 'prefs-tenant', 'Prefs Tenant'),
+  ('c1111111-1111-1111-1111-1111111100fe', 'prefs-tenant-b', 'Prefs Tenant B');
 
 INSERT INTO auth.users (id, email) VALUES
-  ('c0000000-0000-0000-0000-0000000000ff', 'prefs@test.test');
+  ('c0000000-0000-0000-0000-0000000000ff', 'prefs@test.test'),
+  ('c0000000-0000-0000-0000-0000000000fe', 'peer@test.test'),
+  ('c0000000-0000-0000-0000-0000000000fd', 'other-tenant@test.test'),
+  ('c0000000-0000-0000-0000-0000000000fc', 'no-prefs@test.test'),
+  ('c0000000-0000-0000-0000-0000000000fb', 'sweep@test.test');
 
 INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
   ('c0000000-0000-0000-0000-0000000000ff', 'prefs@test.test', 'Prefs User',
+   'c1111111-1111-1111-1111-1111111100ff'),
+  ('c0000000-0000-0000-0000-0000000000fe', 'peer@test.test', 'Peer User',
+   'c1111111-1111-1111-1111-1111111100ff'),
+  ('c0000000-0000-0000-0000-0000000000fd', 'other-tenant@test.test', 'Other Tenant User',
+   'c1111111-1111-1111-1111-1111111100fe'),
+  ('c0000000-0000-0000-0000-0000000000fc', 'no-prefs@test.test', 'No Prefs User',
+   'c1111111-1111-1111-1111-1111111100ff'),
+  ('c0000000-0000-0000-0000-0000000000fb', 'sweep@test.test', 'Sweep User',
    'c1111111-1111-1111-1111-1111111100ff');
 
-INSERT INTO public.notification_preferences (
-  user_id, tenant_id,
-  enabled_message, enabled_comment, enabled_follow, enabled_subscription,
-  enabled_content, enabled_system, enabled_security
-) VALUES (
-  'c0000000-0000-0000-0000-0000000000ff', 'c1111111-1111-1111-1111-1111111100ff',
-  true, true, true, true, true, true, true
-);
+-- Wiersze preferencji: komplet flag na true (kolumny mają DEFAULT true, więc
+-- wystarczy user_id + tenant_id; 'c...fc' CELOWO bez wiersza - fail-open).
+INSERT INTO public.notification_preferences (user_id, tenant_id) VALUES
+  ('c0000000-0000-0000-0000-0000000000ff', 'c1111111-1111-1111-1111-1111111100ff'),
+  ('c0000000-0000-0000-0000-0000000000fe', 'c1111111-1111-1111-1111-1111111100ff'),
+  ('c0000000-0000-0000-0000-0000000000fd', 'c1111111-1111-1111-1111-1111111100fe'),
+  ('c0000000-0000-0000-0000-0000000000fb', 'c1111111-1111-1111-1111-1111111100ff');
 
--- Helper wołany jako właściciel (enqueue_notification jest SECURITY DEFINER,
--- bierze odbiorcę wprost i czyta jego tenant z profilu).
+-- ── 1. Komplet rodzajów jawnie ──────────────────────────────────────────────
+-- enqueue_notification jest SECURITY DEFINER, bierze odbiorcę wprost i czyta
+-- jego tenant z profilu; wołamy jako właściciel (tak jak robią to triggery).
 -- Każde wywołanie ma UNIKALNY href, by ominąć 5-min dedup po (user,kind,href).
 
--- Dla każdego rodzaju: włączony -> wstawia; wyłączony -> pomija (NULL).
 -- message
 SELECT isnt(
   public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'message',
@@ -108,13 +146,251 @@ SELECT is(
     't', 't', 'b', 'b', '/sys-off', 'i'),
   NULL, 'system wyłączony: pominięte');
 
--- security: always-on - dociera nawet przy wyłączonym enabled_security.
+-- connection (producent: tg_user_connections_notify - zaproszenia do sieci)
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'connection',
+    't', 't', 'b', 'b', '/cn-on', 'i'),
+  NULL, 'connection włączony: wstawione');
+UPDATE public.notification_preferences SET enabled_connection = false
+  WHERE user_id = 'c0000000-0000-0000-0000-0000000000ff';
+SELECT is(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'connection',
+    't', 't', 'b', 'b', '/cn-off', 'i'),
+  NULL, 'connection wyłączony: pominięte');
+
+-- tracker (producent: tg_eu_policy_update_applied - zmiana etapu dossier)
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'tracker',
+    't', 't', 'b', 'b', '/tr-on', 'i'),
+  NULL, 'tracker włączony: wstawione');
+UPDATE public.notification_preferences SET enabled_tracker = false
+  WHERE user_id = 'c0000000-0000-0000-0000-0000000000ff';
+SELECT is(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'tracker',
+    't', 't', 'b', 'b', '/tr-off', 'i'),
+  NULL, 'tracker wyłączony: pominięte');
+
+-- saved_search (producent: run_saved_search_alerts - alerty zapisanych wyszukiwań)
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'saved_search',
+    't', 't', 'b', 'b', '/ss-on', 'i'),
+  NULL, 'saved_search włączony: wstawione');
+UPDATE public.notification_preferences SET enabled_saved_search = false
+  WHERE user_id = 'c0000000-0000-0000-0000-0000000000ff';
+SELECT is(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'saved_search',
+    't', 't', 'b', 'b', '/ss-off', 'i'),
+  NULL, 'saved_search wyłączony: pominięte');
+
+-- crm_task (producent: run_crm_task_reminders - przypomnienia o follow-upach)
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'crm_task',
+    't', 't', 'b', 'b', '/ct-task-on', 'i'),
+  NULL, 'crm_task włączony: wstawione');
+UPDATE public.notification_preferences SET enabled_crm_task = false
+  WHERE user_id = 'c0000000-0000-0000-0000-0000000000ff';
+SELECT is(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'crm_task',
+    't', 't', 'b', 'b', '/ct-task-off', 'i'),
+  NULL, 'crm_task wyłączony: pominięte');
+
+-- ── 2. security: always-on ──────────────────────────────────────────────────
 UPDATE public.notification_preferences SET enabled_security = false
   WHERE user_id = 'c0000000-0000-0000-0000-0000000000ff';
 SELECT isnt(
   public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'security',
     't', 't', 'b', 'b', '/sec', 'i'),
   NULL, 'security dociera ZAWSZE, nawet przy wyłączonym przełączniku');
+
+-- ── 3. Parytet strukturalny: katalog rodzajów <-> kolumny-flagi ─────────────
+-- Źródłem prawdy dla obu stron jest schemat, nie lista w teście - dzięki temu
+-- dorzucenie 11. rodzaju bez kolumny (albo kolumny bez rodzaju) jest czerwone.
+
+CREATE FUNCTION pg_temp.allowed_kinds() RETURNS text[]
+LANGUAGE sql STABLE AS $fn$
+  SELECT COALESCE(array_agg(DISTINCT m[1] ORDER BY m[1]), '{}'::text[])
+    FROM pg_constraint c,
+         LATERAL regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''::text', 'g') AS m
+   WHERE c.conrelid = 'public.notifications'::regclass
+     AND c.conname = 'notifications_kind_check';
+$fn$;
+
+CREATE FUNCTION pg_temp.flag_kinds() RETURNS text[]
+LANGUAGE sql STABLE AS $fn$
+  SELECT COALESCE(array_agg(substring(column_name FROM 9) ORDER BY column_name), '{}'::text[])
+    FROM information_schema.columns
+   WHERE table_schema = 'public'
+     AND table_name = 'notification_preferences'
+     AND column_name LIKE 'enabled\_%'
+     AND data_type = 'boolean';
+$fn$;
+
+SELECT is(
+  ARRAY(SELECT k FROM unnest(pg_temp.allowed_kinds()) AS k
+         WHERE k <> 'security' AND NOT (k = ANY (pg_temp.flag_kinds())) ORDER BY k),
+  ARRAY[]::text[],
+  'każdy rodzaj z notifications_kind_check (poza security) ma kolumnę enabled_<rodzaj>');
+
+SELECT is(
+  ARRAY(SELECT k FROM unnest(pg_temp.flag_kinds()) AS k
+         WHERE NOT (k = ANY (pg_temp.allowed_kinds())) ORDER BY k),
+  ARRAY[]::text[],
+  'żadna kolumna enabled_<x> nie wisi bez rodzaju w katalogu');
+
+-- ── 4. Sweep behawioralny sterowany katalogiem ──────────────────────────────
+-- Dla KAŻDEGO rodzaju z CHECK-a (poza security) ustawia flagę i sprawdza, czy
+-- producent zachował się zgodnie z kontraktem. Zwraca rodzaje, które kontrakt
+-- ŁAMIĄ - pusta tablica to jedyny poprawny wynik.
+
+CREATE FUNCTION pg_temp.gating_violations(p_user uuid, p_flag boolean) RETURNS text[]
+LANGUAGE plpgsql AS $fn$
+DECLARE
+  v_kind text;
+  v_id uuid;
+  v_bad text[] := '{}'::text[];
+BEGIN
+  FOREACH v_kind IN ARRAY pg_temp.allowed_kinds() LOOP
+    CONTINUE WHEN v_kind = 'security';
+    -- Rodzaj bez kolumny-flagi raportuje asercja parytetu wyżej; tutaj tylko
+    -- go omijamy, żeby dynamiczny UPDATE nie wywrócił całego pliku.
+    CONTINUE WHEN NOT (v_kind = ANY (pg_temp.flag_kinds()));
+    EXECUTE format(
+      'UPDATE public.notification_preferences SET %I = $1 WHERE user_id = $2',
+      'enabled_' || v_kind
+    ) USING p_flag, p_user;
+    v_id := public.enqueue_notification(
+      p_user, v_kind, 'sweep', 'sweep', NULL, NULL,
+      '/sweep/' || v_kind || '/' || p_flag::text, NULL);
+    -- Włączony, a nie dotarł ALBO wyłączony, a przeciekł.
+    IF (p_flag AND v_id IS NULL) OR (NOT p_flag AND v_id IS NOT NULL) THEN
+      v_bad := v_bad || v_kind;
+    END IF;
+  END LOOP;
+  RETURN v_bad;
+END;
+$fn$;
+
+SELECT is(
+  pg_temp.gating_violations('c0000000-0000-0000-0000-0000000000fb', false),
+  ARRAY[]::text[],
+  'każdy rodzaj z katalogu jest TŁUMIONY przy wyłączonej fladze (bez wyjątków)');
+
+SELECT is(
+  pg_temp.gating_violations('c0000000-0000-0000-0000-0000000000fb', true),
+  ARRAY[]::text[],
+  'każdy rodzaj z katalogu DOCIERA przy włączonej fladze (kontrola pozytywna)');
+
+-- ── 5. Bramka czyta preferencje ODBIORCY, nie wołającego ────────────────────
+-- Wcielenie się w wołającego (claims) bez zmiany roli: enqueue_notification
+-- jest SECURITY DEFINER, więc liczy się WYŁĄCZNIE p_user_id. Regresja
+-- "WHERE user_id = auth.uid()" wyciszyłaby cudze powiadomienia.
+
+-- Wołający 'c...ff' ma WSZYSTKO wyłączone, odbiorca 'c...fe' - włączone.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c0000000-0000-0000-0000-0000000000ff","role":"authenticated"}', true);
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000fe', 'crm_task',
+    't', 't', 'b', 'b', '/peer-on', 'i'),
+  NULL, 'odbiorca z włączoną flagą dostaje powiadomienie, choć wołający ma ją wyłączoną');
+
+-- Odwrotnie: wołający z włączoną flagą nie przepycha powiadomienia do odbiorcy,
+-- który ją wyłączył.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c0000000-0000-0000-0000-0000000000fe","role":"authenticated"}', true);
+SELECT is(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'crm_task',
+    't', 't', 'b', 'b', '/main-off', 'i'),
+  NULL, 'odbiorca z wyłączoną flagą nie dostaje nic, choć wołający ma ją włączoną');
+
+-- ── 6. Fail-open bez wiersza preferencji ────────────────────────────────────
+-- Świeże konto nie ma jeszcze wiersza (upsert powstaje przy pierwszym zapisie
+-- ustawień) - brak wiersza NIE MOŻE oznaczać ciszy.
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000fc', 'crm_task',
+    't', 't', 'b', 'b', '/no-prefs', 'i'),
+  NULL, 'brak wiersza preferencji: powiadomienie dociera (fail-open)');
+
+-- ── 7. Stempel tenanta = tenant ODBIORCY + izolacja RLS ─────────────────────
+-- Wołający z tenanta B kolejkuje powiadomienie dla odbiorcy z tenanta A
+-- (rodzaj 'security', żeby wynik nie zależał od flag ustawionych wyżej).
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c0000000-0000-0000-0000-0000000000fd","role":"authenticated"}', true);
+
+-- Identyfikator wędruje przez GUC transakcyjny, a nie tabelę tymczasową:
+-- po SET LOCAL ROLE tabela pg_temp należałaby do innego właściciela.
+SELECT set_config('tests.cross_tenant_note',
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'security',
+    't', 't', 'b', 'b', '/cross-tenant', 'i')::text, true);
+
+SELECT is(
+  (SELECT n.tenant_id FROM public.notifications n
+    WHERE n.id = current_setting('tests.cross_tenant_note')::uuid),
+  'c1111111-1111-1111-1111-1111111100ff'::uuid,
+  'powiadomienie stemplowane tenantem ODBIORCY, nie wołającego z obcego tenanta');
+
+-- RLS: wołający z tenanta B nie widzi wyprodukowanego wiersza...
+SET LOCAL ROLE authenticated;
+SELECT is(
+  (SELECT count(*)::int FROM public.notifications n
+    WHERE n.id = current_setting('tests.cross_tenant_note')::uuid),
+  0, 'obcy tenant nie odczyta powiadomienia, które wyprodukował');
+
+-- ...a odbiorca widzi je u siebie (kontrola pozytywna dla polityki SELECT).
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c0000000-0000-0000-0000-0000000000ff","role":"authenticated"}', true);
+SELECT is(
+  (SELECT count(*)::int FROM public.notifications n
+    WHERE n.id = current_setting('tests.cross_tenant_note')::uuid),
+  1, 'odbiorca widzi swoje powiadomienie w swoim tenancie');
+RESET ROLE;
+
+-- ── 8. ACL producenta: wyłącznie serwerowy ──────────────────────────────────
+-- enqueue_notification wstawia DOWOLNĄ treść (tytuł, treść, href) do skrzynki
+-- DOWOLNEGO user_id - to kanał phishingowy, jeśli wystawić go klientowi.
+-- Wszystkie 22 funkcje-producenci są SECURITY DEFINER, więc grant dla ról
+-- klienckich jest zbędny.
+SELECT ok(
+  NOT has_function_privilege('anon',
+    'public.enqueue_notification(uuid,text,text,text,text,text,text,text)', 'EXECUTE'),
+  'anon NIE MOŻE wołać enqueue_notification');
+SELECT ok(
+  NOT has_function_privilege('authenticated',
+    'public.enqueue_notification(uuid,text,text,text,text,text,text,text)', 'EXECUTE'),
+  'authenticated NIE MOŻE wołać enqueue_notification (brak wstrzykiwania powiadomień)');
+SELECT ok(
+  has_function_privilege('service_role',
+    'public.enqueue_notification(uuid,text,text,text,text,text,text,text)', 'EXECUTE'),
+  'service_role zachowuje EXECUTE (runnery zadań tła)');
+
+-- ── 9. Odporność wywołania z triggera ───────────────────────────────────────
+-- Producent wisi na triggerach zapisu użytkownika (komentarz, obserwacja,
+-- wiadomość). Wyjątek z tej funkcji przerwałby CAŁĄ transakcję użytkownika,
+-- więc kontrakt brzmi: zawsze NULL zamiast błędu.
+SELECT is(
+  public.enqueue_notification(NULL, 'message', 't', 't', 'b', 'b', '/nil', 'i'),
+  NULL, 'brak odbiorcy: NULL zamiast wyjątku');
+SELECT is(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000fe', '   ',
+    't', 't', 'b', 'b', '/blank', 'i'),
+  NULL, 'pusty rodzaj: NULL zamiast wyjątku');
+SELECT is(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000fe', 'bogus_kind',
+    't', 't', 'b', 'b', '/bogus', 'i'),
+  NULL, 'rodzaj spoza katalogu: NULL zamiast naruszenia CHECK-a');
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000fe', 'system',
+    't', 't', 'b', 'b', '/after-bogus', 'i'),
+  NULL, 'transakcja pozostaje sprawna po odrzuconym rodzaju');
+
+-- ── 10. Dedup 5-minutowy po (user, kind, href) ──────────────────────────────
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000fe', 'follow',
+    't', 't', 'b', 'b', '/dedup', 'i'),
+  NULL, 'pierwsze powiadomienie o danym href przechodzi');
+SELECT is(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000fe', 'follow',
+    't', 't', 'b', 'b', '/dedup', 'i'),
+  NULL, 'powtórka tego samego (user, kind, href) w oknie 5 minut jest pomijana');
 
 SELECT * FROM finish();
 ROLLBACK;

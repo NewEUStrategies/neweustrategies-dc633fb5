@@ -11,6 +11,16 @@ export function looksLikeInlineHtml(value: string): boolean {
 }
 
 /**
+ * Escapuje tekst przed wstawieniem do treści bloku jako HTML. Wspólne miejsce
+ * prawdy dla transformacji i dla ścieżek, w których treść pochodzi od
+ * użytkownika (np. znak wpisany po zaznaczeniu wielu bloków) - bez tego `<`
+ * z klawiatury stawałby się znacznikiem, a nie znakiem.
+ */
+export function escapeInlineText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
  * Usuwa pojedynczy zewnętrzny wrapper `<p>…</p>`, który TipTap zawsze dokłada
  * wokół treści jednoakapitowego dokumentu. Wielolinijkowa zawartość (dwa i
  * więcej akapitów) jest sklejana `<br>`, bo nagłówek to jeden wiersz treści.

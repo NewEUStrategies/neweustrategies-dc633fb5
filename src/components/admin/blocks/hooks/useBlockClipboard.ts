@@ -7,8 +7,8 @@
 //     -> zwykły tekst (dokładnie w tej kolejności prób),
 //   - toasty z poprawną liczbą mnogą (PL/EN),
 //   - arbitraż zagnieżdżonych kanw (edytor bloków w modalu buildera nad
-//     edytorem wpisu): globalne zdarzenia obsługuje wyłącznie kanwa
-//     zamontowana najpóźniej, żeby jedno Ctrl+V nie wklejało dwa razy.
+//     edytorem wpisu) przez wspólny moduł `canvasStack` - ten sam, z którego
+//     korzysta zaznaczenie blokowe, żeby jedno Ctrl+V nie wklejało dwa razy.
 //
 // Zdarzenia w polach tekstowych zostawiamy edytorom inline (TipTap ma własną
 // obsługę wklejania) - hook działa tylko dla zaznaczenia blokowego.
@@ -25,19 +25,12 @@ import {
 import { filesToImageBlocks, isImageFile } from "@/lib/blocks/imagePaste";
 import { looksLikeRichPaste, parseWordHtml } from "@/lib/blocks/wordPaste";
 import { isTextEntryBlockType, requestBlockFocus } from "@/lib/blocks/focus";
-
-/**
- * Stos zamontowanych kanw - moduł współdzielony przez wszystkie instancje
- * hooka. Wierzchnia kanwa (ostatnio zamontowana) wygrywa zdarzenia globalne.
- * Trzymamy REFERENCJE (nie elementy): kanwa podmienia węzeł DOM przy przejściu
- * pusty dokument <-> lista bloków, a ref zawsze wskazuje żywy element -
- * porównywanie zapamiętanych elementów blokowało schowek po takiej podmianie.
- */
-const MOUNTED_CANVAS_REFS: Array<React.RefObject<HTMLDivElement | null>> = [];
+import { isEditableTarget } from "@/lib/blocks/selectionDom";
+import { canvasOwnsEvent, useCanvasStack, type CanvasRef } from "./canvasStack";
 
 export interface UseBlockClipboardArgs {
   /** Root kanwy (element z `data-block-canvas`). */
-  rootRef: React.RefObject<HTMLDivElement | null>;
+  rootRef: CanvasRef;
   /** Aktualny dokument bloków (stabilna referencja). */
   docRef: React.MutableRefObject<BlocksDoc>;
   /** Aktywny blok (stabilna referencja). */
@@ -65,13 +58,7 @@ export function useBlockClipboard(args: UseBlockClipboardArgs): void {
   } = args;
 
   // Rejestracja kanwy w stosie arbitrażu zagnieżdżeń (raz na mount hooka).
-  useEffect(() => {
-    MOUNTED_CANVAS_REFS.push(rootRef);
-    return () => {
-      const i = MOUNTED_CANVAS_REFS.indexOf(rootRef);
-      if (i >= 0) MOUNTED_CANVAS_REFS.splice(i, 1);
-    };
-  }, [rootRef]);
+  useCanvasStack(rootRef);
 
   /** Bloki objęte operacją schowka: zaznaczenie wielokrotne albo aktywny blok. */
   const clipboardSelection = useCallback((): Block[] => {
@@ -113,26 +100,10 @@ export function useBlockClipboard(args: UseBlockClipboardArgs): void {
   );
 
   useEffect(() => {
-    const isEditableTarget = (target: EventTarget | null): boolean => {
-      const el = target as HTMLElement | null;
-      return (
-        !!el &&
-        (el.isContentEditable ||
-          el.tagName === "INPUT" ||
-          el.tagName === "TEXTAREA" ||
-          el.tagName === "SELECT")
-      );
-    };
-    const shouldHandle = (e: ClipboardEvent): boolean => {
-      if (isEditableTarget(e.target)) return false;
-      const root = rootRef.current;
-      if (!root) return false;
-      const el = e.target as HTMLElement | null;
-      const inSomeCanvas = el?.closest?.("[data-block-canvas]") ?? null;
-      if (inSomeCanvas) return inSomeCanvas === root;
-      // Zdarzenie poza jakąkolwiek kanwą (fokus na body) - obsługuje wierzchnia.
-      return MOUNTED_CANVAS_REFS[MOUNTED_CANVAS_REFS.length - 1]?.current === root;
-    };
+    const shouldHandle = (e: ClipboardEvent): boolean =>
+      // Pola tekstowe mają własną obsługę wklejania (TipTap), a zdarzenia
+      // spoza kanwy trafiają do kanwy wierzchniej (arbitraż zagnieżdżeń).
+      !isEditableTarget(e.target) && canvasOwnsEvent(rootRef, e.target);
 
     const onCopyOrCut = (e: ClipboardEvent) => {
       if (!shouldHandle(e)) return;

@@ -14,11 +14,13 @@ import {
   AlarmClock,
   Bell,
   BellOff,
+  BellRing,
   Check,
   Circle,
   Crown,
   Inbox,
   Info,
+  Landmark,
   Mail,
   MessageCircle,
   ShieldAlert,
@@ -41,6 +43,7 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationsRead,
   useMarkNotificationUnread,
+  type NotificationKind,
   type NotificationRow,
 } from "@/lib/notifications/useNotifications";
 import { groupNotifications } from "@/lib/notifications/grouping";
@@ -74,7 +77,10 @@ function relTime(iso: string, lang: Lang): string {
 // Ikona zapasowa per rodzaj (spójna z /profile/notifications), gdy producent
 // nie zapisał własnej. Ikony po nazwie z DB (kebab-case) renderuje DynamicIcon
 // (kurowany zestaw synchronicznie, resztę dociąga leniwie).
-const KIND_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+//
+// Mapa jest KOMPLETNA (Record po NotificationKind) - dopisanie rodzaju bez
+// ikony nie skompiluje się, zamiast po cichu spaść do neutralnego kółka.
+const KIND_ICONS: Record<NotificationKind, React.ComponentType<{ className?: string }>> = {
   system: Info,
   follow: UserPlus,
   content: Sparkles,
@@ -83,7 +89,15 @@ const KIND_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   security: ShieldAlert,
   connection: UserCheck,
   crm_task: AlarmClock,
+  message: Mail,
+  tracker: Landmark,
+  saved_search: BellRing,
 };
+
+// `notifications.kind` przychodzi z bazy jako `string`, więc odczyt idzie przez
+// widok mapy z indeksem stringowym - bez rzutowania i bez `any`.
+const KIND_ICON_BY_NAME: Readonly<Record<string, React.ComponentType<{ className?: string }>>> =
+  KIND_ICONS;
 
 // Internal hrefs render a real <a href> for semantics, but plain left-clicks
 // are hijacked and routed through router.navigate({ href }). Unlike
@@ -282,7 +296,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             <ul className="divide-y divide-border/60">
               {groups.map((g) => {
                 const n = g.latest;
-                const KindIcon = KIND_ICONS[n.kind] ?? Circle;
+                const KindIcon = KIND_ICON_BY_NAME[n.kind] ?? Circle;
                 const actorId = notificationActorId(n.href);
                 const actor = actorId ? actorProfiles.get(actorId) : undefined;
                 const groupUnread = g.unreadCount;

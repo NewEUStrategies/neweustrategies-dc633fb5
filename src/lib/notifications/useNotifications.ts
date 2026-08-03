@@ -15,102 +15,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  NOTIFICATION_PREFERENCE_SELECT,
+  type NotificationKind,
+  type NotificationPreferences,
+} from "./preferences";
 
 export type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
-export type NotificationKind =
-  | "system"
-  | "comment"
-  | "follow"
-  | "subscription"
-  | "content"
-  | "security"
-  | "message"
-  | "tracker"
-  | "connection"
-  | "saved_search"
-  | "crm_task";
 
-/** Who may START a new conversation with the user (existing threads live on). */
-export type AllowMessagesFrom = "everyone" | "existing" | "nobody";
-
-/** Who may send the user a connection invitation (existing connections remain). */
-export type AllowConnectionsFrom = "everyone" | "mutual" | "nobody";
-
-export interface NotificationPreferences {
-  enabled_message: boolean;
-  enabled_comment: boolean;
-  enabled_follow: boolean;
-  enabled_subscription: boolean;
-  enabled_content: boolean;
-  enabled_system: boolean;
-  enabled_security: boolean;
-  enabled_tracker: boolean;
-  enabled_connection: boolean;
-  /** Alerty zapisanych wyszukiwań (producent: run_saved_search_alerts). */
-  enabled_saved_search: boolean;
-  /** Przypomnienia o follow-upach CRM (producent: run_crm_task_reminders). */
-  enabled_crm_task: boolean;
-  auto_mark_on_open: boolean;
-  group_by_conversation: boolean;
-  /**
-   * Chat privacy (enforced server-side, not just in the UI):
-   * - read_receipts_enabled: reciprocal - turning it off hides your read state
-   *   from peers AND their read state from you (RLS on participants),
-   * - typing_indicators_enabled: stop broadcasting "typing..." pings,
-   * - show_online_status: stop announcing yourself on the presence channel,
-   * - allow_messages_from: 'nobody' also mutes incoming sends in existing
-   *   threads (DB trigger), 'existing' only blocks NEW conversations.
-   */
-  read_receipts_enabled: boolean;
-  typing_indicators_enabled: boolean;
-  show_online_status: boolean;
-  allow_messages_from: AllowMessagesFrom;
-  /**
-   * Sieć kontaktów: kto może wysłać zaproszenie (egzekwowane w DB przez
-   * connection_request; 'mutual' wymaga co najmniej jednego wspólnego kontaktu).
-   */
-  allow_connections_from: AllowConnectionsFrom;
-  /**
-   * Kanały doręczeń (poza in-app):
-   * - push_enabled: web push na tym i innych urządzeniach użytkownika
-   *   (subskrypcje per przeglądarka w push_subscriptions),
-   * - email_digest: zbiorczy e-mail z nieprzeczytanymi powiadomieniami.
-   */
-  push_enabled: boolean;
-  email_digest: EmailDigestFrequency;
-  /**
-   * Toggle dla ikony czatu (bell) w nagłówku - per tenant (preferencje są
-   * powiązane z tenantem użytkownika przez `tenant_id`). Wyłączenie ukrywa
-   * dzwonek, ale rozmowy nadal działają w /messages i ChatDock.
-   */
-  chat_bell_enabled: boolean;
-}
-
-export type EmailDigestFrequency = "off" | "daily" | "weekly";
-
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-  enabled_message: true,
-  enabled_comment: true,
-  enabled_follow: true,
-  enabled_subscription: true,
-  enabled_content: true,
-  enabled_system: true,
-  enabled_security: true,
-  enabled_tracker: true,
-  enabled_connection: true,
-  enabled_saved_search: true,
-  enabled_crm_task: true,
-  auto_mark_on_open: true,
-  group_by_conversation: true,
-  read_receipts_enabled: true,
-  typing_indicators_enabled: true,
-  show_online_status: true,
-  allow_messages_from: "everyone",
-  allow_connections_from: "everyone",
-  push_enabled: false,
-  email_digest: "off",
-  chat_bell_enabled: true,
-};
+// Model preferencji (typy + wartości domyślne + lista kolumn) mieszka w
+// czystym module `./preferences`; re-eksport trzyma jedno miejsce importu dla
+// konsumentów warstwy danych.
+export { DEFAULT_NOTIFICATION_PREFERENCES } from "./preferences";
+export type {
+  AllowConnectionsFrom,
+  AllowMessagesFrom,
+  NotificationKind,
+  NotificationPreferences,
+} from "./preferences";
 
 const prefsKey = (uid: string | undefined) =>
   ["notifications", "preferences", uid ?? "anon"] as const;
@@ -360,11 +283,12 @@ export function useNotificationPreferences(): UseQueryResult<NotificationPrefere
     queryKey: prefsKey(user?.id),
     enabled: !!user,
     queryFn: async (): Promise<NotificationPreferences> => {
+      // Lista kolumn wyprowadzona z DEFAULT_NOTIFICATION_PREFERENCES - ręczna
+      // gubiła nowe flagi (enabled_saved_search, enabled_crm_task), przez co
+      // zapisane "wyłączone" wracało do UI jako "włączone".
       const { data, error } = await supabase
         .from("notification_preferences")
-        .select(
-          "enabled_message, enabled_comment, enabled_follow, enabled_subscription, enabled_content, enabled_system, enabled_security, enabled_tracker, enabled_connection, auto_mark_on_open, group_by_conversation, read_receipts_enabled, typing_indicators_enabled, show_online_status, allow_messages_from, allow_connections_from, push_enabled, email_digest, chat_bell_enabled",
-        )
+        .select(NOTIFICATION_PREFERENCE_SELECT)
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;

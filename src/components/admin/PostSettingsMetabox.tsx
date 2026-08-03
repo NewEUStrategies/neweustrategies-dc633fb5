@@ -2,7 +2,9 @@
 // - Zakładki po lewej (pionowo, jak w Foxiz "Single Page Settings")
 // - Panel po prawej
 // - Zakładki: Spis treści (ToC), Ochrona treści (Membership), „Dowiesz się, że..."
-// - Sekcja „Dowiesz się, że..." dostępna dla wpisów i stron (max 6 punktów).
+// - Sekcja „Dowiesz się, że..." dostępna dla wpisów i stron; limity punktów
+//   pochodzą z lib/keyTakeaways/limits.ts (KEY_TAKEAWAYS_MAX_ITEMS = 7, tyle
+//   samo co trigger w bazie - wcześniej ten komentarz i panel mówiły 6).
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
@@ -48,6 +50,12 @@ import type { LocalizedBlocks } from "@/lib/blocks/types";
 import type { AccessEntityType } from "@/hooks/useContentAccess";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 import { useKeyTakeawaysSettings } from "@/lib/keyTakeaways/settings";
+import {
+  KEY_TAKEAWAYS_MAX_ITEMS,
+  KEY_TAKEAWAYS_MAX_ITEM_LENGTH,
+  KEY_TAKEAWAYS_RECOMMENDED_MAX_LENGTH,
+  KEY_TAKEAWAYS_RECOMMENDED_MIN_LENGTH,
+} from "@/lib/keyTakeaways/limits";
 
 type EntityType = "post" | "page";
 
@@ -71,10 +79,13 @@ export interface PostSettingsMetaboxProps {
 
 type TabKey = "toc" | "membership" | "takeaways";
 
-const MAX_TAKEAWAYS = 6;
-const MAX_TAKEAWAY_LEN = 500;
-const RECOMMENDED_MIN = 90;
-const RECOMMENDED_MAX = 200;
+// Limity z JEDNEGO źródła (lib/keyTakeaways/limits.ts) - do 2026-08-03 panel
+// liczył do 6, baza dopuszczała 7, a podpowiedź w tym samym panelu obiecywała
+// "max 7". Aliasy zostają, żeby reszta pliku czytała się jak dotąd.
+const MAX_TAKEAWAYS = KEY_TAKEAWAYS_MAX_ITEMS;
+const MAX_TAKEAWAY_LEN = KEY_TAKEAWAYS_MAX_ITEM_LENGTH;
+const RECOMMENDED_MIN = KEY_TAKEAWAYS_RECOMMENDED_MIN_LENGTH;
+const RECOMMENDED_MAX = KEY_TAKEAWAYS_RECOMMENDED_MAX_LENGTH;
 
 export function PostSettingsMetabox({
   entityType,
@@ -544,8 +555,11 @@ export function TakeawaysTab({
           defaultValue: "Z tego materiału dowiesz się, że…",
         })}
         hint={t("admin.metabox.takeaways.hint", {
+          max: MAX_TAKEAWAYS,
+          min: RECOMMENDED_MIN,
+          rec: RECOMMENDED_MAX,
           defaultValue:
-            "Max 7 punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. 90-200 znaków ze spacjami na punkt (limit można przekroczyć).",
+            "Max {{max}} punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. {{min}}-{{rec}} znaków ze spacjami na punkt (limit można przekroczyć).",
         })}
         globalHref="/admin/key-takeaways"
       />
@@ -555,19 +569,42 @@ export function TakeawaysTab({
         <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Wariant wizualny
+              {t("admin.metabox.takeaways.variant.legend", { defaultValue: "Wariant wizualny" })}
             </span>
             <span className="text-[10px] text-muted-foreground">
-              Globalny: <span className="font-mono">{ktSettings.variant}</span>
+              {t("admin.metabox.takeaways.variant.globalPrefix", { defaultValue: "Globalny:" })}{" "}
+              <span className="font-mono">{ktSettings.variant}</span>
             </span>
           </div>
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
             {(
               [
-                { id: null, label: "Globalny", desc: "Użyj ustawienia globalnego" },
-                { id: "card", label: "A", desc: "Karta" },
-                { id: "heading", label: "B", desc: "Nagłówek + kropki" },
-                { id: "ghost", label: "C", desc: "Ghost" },
+                {
+                  id: null,
+                  label: t("admin.metabox.takeaways.variant.inheritLabel", {
+                    defaultValue: "Globalny",
+                  }),
+                  desc: t("admin.metabox.takeaways.variant.inheritDesc", {
+                    defaultValue: "Użyj ustawienia globalnego",
+                  }),
+                },
+                {
+                  id: "card",
+                  label: "A",
+                  desc: t("admin.metabox.takeaways.variant.card", { defaultValue: "Karta" }),
+                },
+                {
+                  id: "heading",
+                  label: "B",
+                  desc: t("admin.metabox.takeaways.variant.heading", {
+                    defaultValue: "Nagłówek + kropki",
+                  }),
+                },
+                {
+                  id: "ghost",
+                  label: "C",
+                  desc: t("admin.metabox.takeaways.variant.ghost", { defaultValue: "Ghost" }),
+                },
               ] as const
             ).map((opt) => {
               const on = (variantOverride ?? null) === opt.id;
@@ -637,10 +674,15 @@ export function TakeawaysTab({
       <div className="pt-4 mt-2 border-t border-border space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Podgląd na żywo (obie wersje językowe)
+            {t("admin.metabox.takeaways.preview.title", {
+              defaultValue: "Podgląd na żywo (obie wersje językowe)",
+            })}
           </h5>
           <span className="text-[10px] text-muted-foreground">
-            Aktywny wariant: <span className="font-mono">{effectiveVariant}</span>
+            {t("admin.metabox.takeaways.preview.activeVariant", {
+              defaultValue: "Aktywny wariant:",
+            })}{" "}
+            <span className="font-mono">{effectiveVariant}</span>
             {variantOverride && (
               <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[9px] font-semibold uppercase text-primary">
                 override
@@ -651,7 +693,10 @@ export function TakeawaysTab({
 
         {!hasAnyContent ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground italic">
-            Dodaj przynajmniej jeden punkt (PL lub EN), aby zobaczyć podgląd sekcji.
+            {t("admin.metabox.takeaways.preview.empty", {
+              defaultValue:
+                "Dodaj przynajmniej jeden punkt (PL lub EN), aby zobaczyć podgląd sekcji.",
+            })}
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -750,6 +795,7 @@ function TakeawayRow({
   onChange: (v: string) => void;
   onRemove: () => void;
 }) {
+  const { t } = useTranslation();
   const len = value.length;
   const status =
     len === 0 ? "empty" : len < RECOMMENDED_MIN ? "short" : len <= RECOMMENDED_MAX ? "ok" : "long";
@@ -761,9 +807,14 @@ function TakeawayRow({
   }[status];
   const statusMsg = {
     empty: "",
-    short: `Za krótkie – dodaj kontekst (min. ${RECOMMENDED_MIN} znaków)`,
-    ok: "Dobra długość",
-    long: "Powyżej rekomendacji – dopuszczalne, ale krótsze zdanie działa lepiej",
+    short: t("admin.metabox.takeaways.row.tooShort", {
+      min: RECOMMENDED_MIN,
+      defaultValue: "Za krótkie - dodaj kontekst (min. {{min}} znaków)",
+    }),
+    ok: t("admin.metabox.takeaways.row.ok", { defaultValue: "Dobra długość" }),
+    long: t("admin.metabox.takeaways.row.tooLong", {
+      defaultValue: "Powyżej rekomendacji - dopuszczalne, ale krótsze zdanie działa lepiej",
+    }),
   }[status];
 
   return (
@@ -776,17 +827,31 @@ function TakeawayRow({
           value={value}
           rows={2}
           maxLength={MAX_TAKEAWAY_LEN}
-          placeholder="Jedno zdanie, jedna myśl…"
+          placeholder={t("admin.metabox.takeaways.row.placeholder", {
+            defaultValue: "Jedno zdanie, jedna myśl...",
+          })}
           onChange={(e) => onChange(e.target.value)}
         />
         <div className={cn("mt-1 text-[10px] flex justify-between gap-2", statusColor)}>
           <span>{statusMsg}</span>
           <span className="tabular-nums">
-            {len}/{MAX_TAKEAWAY_LEN} znaków ze spacjami · rekom. {RECOMMENDED_MIN}-{RECOMMENDED_MAX}
+            {t("admin.metabox.takeaways.row.counter", {
+              len,
+              max: MAX_TAKEAWAY_LEN,
+              min: RECOMMENDED_MIN,
+              rec: RECOMMENDED_MAX,
+              defaultValue: "{{len}}/{{max}} znaków ze spacjami · rekom. {{min}}-{{rec}}",
+            })}
           </span>
         </div>
       </div>
-      <Button type="button" variant="ghost" size="sm" onClick={onRemove} aria-label="Usuń punkt">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onRemove}
+        aria-label={t("admin.metabox.takeaways.row.remove", { defaultValue: "Usuń punkt" })}
+      >
         <Trash2 className="w-4 h-4 text-destructive" />
       </Button>
     </li>

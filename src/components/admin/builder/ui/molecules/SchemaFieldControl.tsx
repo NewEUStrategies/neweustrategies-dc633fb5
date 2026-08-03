@@ -55,6 +55,27 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
   const langSuffix = lang.toUpperCase();
   const i18nKey = `${field.key}_${lang}`;
+
+  /**
+   * Odczyt wartości pola z uwzględnieniem kluczy HISTORYCZNYCH.
+   *
+   * Bez tego zmiana nazwy klucza w schemacie kosztowała cudzą treść: renderer
+   * dalej rozumiał stary klucz (alias), ale panel pokazywał PUSTE pole, więc
+   * redaktor widział "nieustawione" nad działającym ustawieniem - i pierwsza
+   * edycja czegokolwiek innego utrwalała tę pustkę. Zapisujemy WYŁĄCZNIE klucz
+   * kanoniczny, więc treść migruje sama przy pierwszej zmianie pola.
+   */
+  const read = (key: string): unknown => {
+    const primary = content[key];
+    if (primary !== undefined && primary !== null && primary !== "") return primary;
+    for (const legacy of field.legacyKeys ?? []) {
+      // Pole i18n ma klucz bazowy: alias dostaje ten sam sufiks języka.
+      const candidate = key === i18nKey ? `${legacy}_${lang}` : legacy;
+      const value = content[candidate];
+      if (value !== undefined && value !== null && value !== "") return value;
+    }
+    return primary;
+  };
   const label = bl(field.label);
   const hint = bl(field.hint);
   const placeholder = bl(field.placeholder);
@@ -64,7 +85,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       return (
         <PropField label={label} hint={hint}>
           <Input
-            value={asString(content[field.key])}
+            value={asString(read(field.key))}
             placeholder={placeholder}
             onChange={(e) => setContent(field.key, e.target.value)}
             className="h-8 text-xs"
@@ -77,7 +98,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         <PropField label={label} hint={hint}>
           <div className="flex flex-col gap-1.5">
             <PageUrlAutocomplete
-              value={asString(content[field.key])}
+              value={asString(read(field.key))}
               onChange={(v) => setContent(field.key, v)}
               placeholder={placeholder}
               lang={lang}
@@ -116,7 +137,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       return (
         <PropField label={label} hint={hint}>
           <LucideIconPicker
-            value={asString(content[field.key])}
+            value={asString(read(field.key))}
             onChange={(v) => setContent(field.key, v ?? "")}
             placeholder={placeholder}
           />
@@ -128,7 +149,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         <ImageSlot
           label={label}
           icon={<ImageIcon className="w-3 h-3" />}
-          value={asString(content[field.key])}
+          value={asString(read(field.key))}
           onChange={(v) => setContent(field.key, v)}
           hint={hint}
         />
@@ -138,7 +159,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       return (
         <PropField label={`${label} (${langSuffix})`} hint={hint}>
           <Input
-            value={asString(content[i18nKey])}
+            value={asString(read(i18nKey))}
             placeholder={placeholder}
             onChange={(e) => setContent(i18nKey, e.target.value)}
             className="h-8 text-xs"
@@ -150,7 +171,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       return (
         <PropField label={`${label} (${langSuffix})`} hint={hint}>
           <RichHtmlField
-            value={asString(content[i18nKey])}
+            value={asString(read(i18nKey))}
             onChange={(html: string) => setContent(i18nKey, html)}
             rows={field.rows ?? 4}
             ariaLabel={`${label} (${langSuffix})`}
@@ -163,7 +184,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         <PropField label={label} hint={hint}>
           <Textarea
             rows={field.rows ?? 4}
-            value={asString(content[field.key])}
+            value={asString(read(field.key))}
             onChange={(e) => setContent(field.key, e.target.value)}
             className="text-xs"
           />
@@ -176,7 +197,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
           <div className="space-y-2">
             <Textarea
               rows={field.rows ?? 6}
-              value={asString(content[field.key])}
+              value={asString(read(field.key))}
               onChange={(e) => setContent(field.key, e.target.value)}
               className="text-xs font-mono"
               placeholder={t("builder.schemaField.chartDataPlaceholder", {
@@ -184,7 +205,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
               })}
             />
             <ChartDataSpreadsheetDialog
-              value={asString(content[field.key])}
+              value={asString(read(field.key))}
               onChange={(v) => setContent(field.key, v)}
               kind={asString(content["kind"])}
               unit={asString(content["unit"])}
@@ -196,7 +217,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       );
 
     case "number": {
-      const raw = content[field.key];
+      const raw = read(field.key);
       const hasValue = typeof raw === "number" && Number.isFinite(raw);
       const display = hasValue
         ? String(raw)
@@ -229,7 +250,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
 
     case "select": {
       const EMPTY = "__default__";
-      const raw = asString(content[field.key]);
+      const raw = asString(read(field.key));
       const current = raw === "" ? EMPTY : raw || field.options?.[0]?.value || EMPTY;
       return (
         <PropField label={label} hint={hint}>
@@ -253,7 +274,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
     }
 
     case "color": {
-      const value = asString(content[field.key]);
+      const value = asString(read(field.key));
       return (
         <PropField label={label} hint={hint}>
           <AdminColorPicker
@@ -274,7 +295,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       // Real booleans, never "0"/"1" strings: a string "0" is truthy, which is
       // exactly how several auth-form toggles ended up being impossible to
       // switch off. Readers still coerce via `asBool` for legacy content.
-      const checked = asBool(content[field.key], field.default === true);
+      const checked = asBool(read(field.key), field.default === true);
       return (
         <PropField label={label} hint={hint}>
           <div className="flex h-8 items-center">
@@ -293,7 +314,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         <PropField label={label} hint={hint}>
           <Textarea
             rows={field.rows ?? 4}
-            value={asStringArray(content[field.key]).join("\n")}
+            value={asStringArray(read(field.key)).join("\n")}
             onChange={(e) => setContent(field.key, splitLines(e.target.value))}
             className="text-xs font-mono"
           />
@@ -305,7 +326,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         <PropField label={`${label} (${langSuffix})`} hint={hint}>
           <Textarea
             rows={field.rows ?? 4}
-            value={asStringArray(content[i18nKey]).join("\n")}
+            value={asStringArray(read(i18nKey)).join("\n")}
             onChange={(e) => setContent(i18nKey, splitLines(e.target.value))}
             className="text-xs font-mono"
             aria-label={`${label} (${langSuffix})`}

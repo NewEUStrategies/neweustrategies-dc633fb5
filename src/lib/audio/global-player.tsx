@@ -127,6 +127,11 @@ function cacheKey(postId: string, lang: "pl" | "en"): string {
  * razie odpalamy TTS przez `/api/public/post-tts` z payloadem `{ postId, lang }`.
  * Eksportowane, żeby móc testować kryterium "fallback do ElevenLabs tylko gdy
  * brak wgranego audio dla danego języka" bez montowania całego providera.
+ *
+ * KONTRAKT: payload to DOKŁADNIE `{ postId, lang }`. Głos i model są kanoniczne
+ * per wpis i rozstrzyga je wyłącznie serwer (redakcja albo ustawienia najemcy) -
+ * klient nie ma czym poprosić o inny wariant, więc nie ma czym zwielokrotnić
+ * płatnej syntezy ani plików w cache (audyt 2026-08-03).
  */
 export function resolveAudioFetch(
   postId: string,

@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { TrackerFeedLink } from "@/components/tracker/TrackerFeedLink";
 import { TrackerIndexSkeleton } from "@/components/tracker/TrackerIndexSkeleton";
 import {
   TRACKER_PAGE_SIZE,
@@ -29,6 +30,8 @@ import {
   type PolicyItem,
 } from "@/lib/tracker/queries";
 import { trackerItemListJsonLd, type TrackerListEntry } from "@/lib/tracker/jsonld";
+import { TRACKER_FEED_PATH } from "@/lib/tracker/feed";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { withBudget } from "@/lib/asyncBudget";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
@@ -158,18 +161,20 @@ export const Route = createFileRoute("/tracker/")({
       origin,
       lang,
     );
+    // Autodiscovery kanału trackera: czytniki RSS i agregatory znajdują feed
+    // bez znajomości konwencji URL - ten sam wzorzec, co feedy kategorii/tagu.
+    const feedTitle =
+      lang === "en" ? "EU legislative tracker - RSS" : "Tracker legislacyjny UE - RSS";
     return {
       ...head,
-      // Autodiscovery kanału trackera - analityk subskrybuje ruch dossier
-      // zamiast wracać na stronę po zmianę etapu.
       links: [
         ...head.links,
-        feedAlternateLink({
-          origin: origin || SITE_CANONICAL_ORIGIN,
-          feedPath: "/tracker/rss.xml",
-          title: lang === "en" ? "EU policy tracker - RSS" : "Tracker legislacyjny UE - RSS",
-          lang,
-        }),
+        {
+          rel: "alternate",
+          type: "application/rss+xml",
+          title: feedTitle,
+          href: `${origin}${localizedPath(TRACKER_FEED_PATH, lang)}`,
+        },
       ],
       scripts: [
         { type: "application/ld+json", children: safeJsonLd(collection) },
@@ -325,6 +330,7 @@ function TrackerIndex() {
             <Link to="/tracker/changes" className="text-primary hover:underline">
               {t("tracker.explorer.changesLink")}
             </Link>
+            <TrackerFeedLink />
           </div>
         </div>
       </header>

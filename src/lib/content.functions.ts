@@ -17,14 +17,28 @@ import { rateLimit } from "./server/rate-limit.server";
 import { POST_STATUSES, evaluateTransition, isFirstPublish } from "./content/workflow";
 import { editConflictError } from "./content/saveConflict";
 import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
+import { isAllowedTtsVoiceId } from "./audio/ttsCanonical";
 import {
   REVISION_KEEP_LIMIT,
   pickRevisionSnapshot,
   revisionTouches,
   shouldSnapshot,
 } from "./content/revisions";
+import { KEY_TAKEAWAYS_MAX_ITEMS, KEY_TAKEAWAYS_MAX_ITEM_LENGTH } from "./keyTakeaways/limits";
 
 // ---------- shared helpers ----------
+
+/**
+ * Punkty "dowiesz się, że..." - identyczny kontrakt dla wpisów i stron.
+ * Limity z JEDNEJ stałej (`lib/keyTakeaways/limits.ts`), która odpowiada
+ * triggerom `posts_validate_takeaways` / `pages_validate_takeaways`. Wcześniej
+ * schemat twardo kodował `.max(6)`, gdy baza dopuszczała 7 - siódmy punkt,
+ * obiecywany przez panel, nie dawał się zapisać.
+ */
+const TakeawaysField = z
+  .array(z.string().max(KEY_TAKEAWAYS_MAX_ITEM_LENGTH))
+  .max(KEY_TAKEAWAYS_MAX_ITEMS)
+  .optional();
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,118}[a-z0-9])?$/;
 
@@ -257,6 +271,21 @@ const TitleBlock = {
   title_en: z.string().max(300).default(""),
 };
 
+/**
+ * Kanoniczny głos lektora AI: id z allowlisty TTS_VOICES albo null
+ * ("dziedzicz głos najemcy"). Pusty string z <select> traktujemy jak null,
+ * bo taką wartość niesie opcja "Domyślny głos witryny".
+ */
+const TtsVoiceId = z
+  .string()
+  .max(64)
+  .nullable()
+  .optional()
+  .transform((v) => (v === "" ? null : v))
+  .refine((v) => v === null || v === undefined || isAllowedTtsVoiceId(v), {
+    message: "Voice outside the allowlist",
+  });
+
 // Yoast-class per-entity SEO fields, shared by posts and pages. Every field is
 // optional - the public head() falls back to title/excerpt/site defaults, so
 // editors only fill these when they want to override the derived meta.
@@ -303,6 +332,12 @@ const PostCore = z.object({
   cover_image_url: z.string().url().max(2048).nullable().optional(),
   audio_url_pl: z.string().url().max(2048).nullable().optional(),
   audio_url_en: z.string().url().max(2048).nullable().optional(),
+  // Kanoniczny głos lektora AI per język. Walidowany przeciw TEJ SAMEJ
+  // allowlistcie, co endpoint publiczny i CHECK-i w bazie (jedno źródło:
+  // lib/audio/ttsCanonical.ts) - redakcja nie może zapisać głosu, którego
+  // synteza nie zaakceptuje. null = dziedzicz głos najemcy.
+  tts_voice_pl: TtsVoiceId,
+  tts_voice_en: TtsVoiceId,
   read_minutes: z.number().int().min(0).max(999).nullable().optional(),
   builder_data: BuilderJsonValue.nullable().optional(),
   blocks_data: BuilderJsonValue.nullable().optional(),
@@ -310,8 +345,8 @@ const PostCore = z.object({
   template_id: UUID.nullable().optional(),
   post_format: z.enum(["standard", "video", "audio", "gallery"]).optional(),
   layout_overrides: z.record(z.string(), z.unknown()).nullable().optional(),
-  takeaways_pl: z.array(z.string().max(500)).max(6).optional(),
-  takeaways_en: z.array(z.string().max(500)).max(6).optional(),
+  takeaways_pl: TakeawaysField,
+  takeaways_en: TakeawaysField,
   takeaways_variant: z.enum(["card", "heading", "ghost"]).nullable().optional(),
   toc_override: z.record(z.string(), z.unknown()).nullable().optional(),
   custom_meta: z.record(z.string().max(64), z.string().max(200)).nullable().optional(),
@@ -990,8 +1025,8 @@ const PageCore = z.object({
     .optional(),
   header_override: z.string().max(64).nullable().optional(),
   toc_override: z.record(z.string(), z.unknown()).nullable().optional(),
-  takeaways_pl: z.array(z.string().max(500)).max(6).optional(),
-  takeaways_en: z.array(z.string().max(500)).max(6).optional(),
+  takeaways_pl: TakeawaysField,
+  takeaways_en: TakeawaysField,
   takeaways_variant: z.enum(["card", "heading", "ghost"]).nullable().optional(),
   ...SeoBlock,
 });

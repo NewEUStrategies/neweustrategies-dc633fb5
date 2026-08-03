@@ -45,8 +45,19 @@ export const IMAGE_EDITOR_HANDLED_KEYS: ReadonlySet<string> = new Set<string>([
   "maxWidthPx",
   "align",
   "href",
+  "useSiteLogo",
   ...PRESENTATION_KEYS,
 ]);
+
+/**
+ * Wybór logo witryny stoi PRZED slotami plików, bo je unieważnia: gdy jest
+ * ustawiony, renderer bierze grafikę z Opcji motywu i ignoruje własne URL-e.
+ * Wcześniej ten klucz istniał tylko w rendererze - jedyną drogą do podstawienia
+ * logo był przypadek (alt zawierający słowo "logo").
+ */
+const SITE_LOGO_FIELD: SchemaField | undefined = (WIDGET_SCHEMAS.image ?? []).find(
+  (f) => f.key === "useSiteLogo",
+);
 
 export function ImageEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
@@ -104,6 +115,15 @@ export function ImageEditor({ c, lang, setContent }: Props) {
           })()}
         </div>
       </div>
+
+      {SITE_LOGO_FIELD ? (
+        <SchemaFieldControl
+          field={SITE_LOGO_FIELD}
+          lang={lang}
+          content={c}
+          setContent={setContent}
+        />
+      ) : null}
 
       <ImageSlot
         label={t("builder.imageEditor.slotLight")}

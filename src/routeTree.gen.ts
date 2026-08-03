@@ -51,6 +51,111 @@ import { Route as ZwrotyIReklamacjeRouteImport } from './routes/zwroty-i-reklama
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
+import { Route as TrackerRssDotxmlRouteImport } from './routes/tracker.rss[.]xml'
+import { Route as TrackerExplorerRouteImport } from './routes/tracker.explorer'
+import { Route as TrackerChangesRouteImport } from './routes/tracker.changes'
+import { Route as TrackerSlugRouteImport } from './routes/tracker.$slug'
+import { Route as TagSlugRouteImport } from './routes/tag.$slug'
+import { Route as SeriesSlugRouteImport } from './routes/series.$slug'
+import { Route as QaSlugRouteImport } from './routes/qa.$slug'
+import { Route as ProgramsSlugRouteImport } from './routes/programs.$slug'
+import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
+import { Route as ProfileSocialRouteImport } from './routes/profile.social'
+import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
+import { Route as ProfilePrivacyRouteImport } from './routes/profile.privacy'
+import { Route as ProfilePersonalityRouteImport } from './routes/profile.personality'
+import { Route as ProfileOrganizationRouteImport } from './routes/profile.organization'
+import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
+import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
+import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
+import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
+import { Route as ProfileExpertRequestsRouteImport } from './routes/profile.expert-requests'
+import { Route as ProfileEditRouteImport } from './routes/profile.edit'
+import { Route as ProfileBookmarksRouteImport } from './routes/profile.bookmarks'
+import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
+import { Route as ProfileAuthorRouteImport } from './routes/profile.author'
+import { Route as ProfileAccountRouteImport } from './routes/profile.account'
+import { Route as PreviewTokenRouteImport } from './routes/preview.$token'
+import { Route as PostSlugRouteImport } from './routes/post.$slug'
+import { Route as PodcastsShowRouteImport } from './routes/podcasts.$show'
+import { Route as PodcastRssDotxmlRouteImport } from './routes/podcast.rss[.]xml'
+import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
+import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
+import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
+import { Route as EventsSlugRouteImport } from './routes/events.$slug'
+import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
+import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
+import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
+import { Route as CategorySlugRouteImport } from './routes/category.$slug'
+import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
+import { Route as ApiTtsRouteImport } from './routes/api/tts'
+import { Route as ApiSttRouteImport } from './routes/api/stt'
+import { Route as AdminWorkflowsRouteImport } from './routes/admin.workflows'
+import { Route as AdminWebStoriesRouteImport } from './routes/admin.web-stories'
+import { Route as AdminVersionsRouteImport } from './routes/admin.versions'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminTrackerGuideRouteImport } from './routes/admin.tracker-guide'
+import { Route as AdminTrackerRouteImport } from './routes/admin.tracker'
+import { Route as AdminTocRouteImport } from './routes/admin.toc'
+import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-options'
+import { Route as AdminThemeDesignRouteImport } from './routes/admin.theme-design'
+import { Route as AdminTagsRouteImport } from './routes/admin.tags'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
+import { Route as AdminSeoRouteImport } from './routes/admin.seo'
+import { Route as AdminResearchProgramsRouteImport } from './routes/admin.research-programs'
+import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
+import { Route as AdminRedirectsRouteImport } from './routes/admin.redirects'
+import { Route as AdminReadingTimeRouteImport } from './routes/admin.reading-time'
+import { Route as AdminProgramsRouteImport } from './routes/admin.programs'
+import { Route as AdminPricingRouteImport } from './routes/admin.pricing'
+import { Route as AdminPostsRouteImport } from './routes/admin.posts'
+import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
+import { Route as AdminPopupsRouteImport } from './routes/admin.popups'
+import { Route as AdminPodcastsRouteImport } from './routes/admin.podcasts'
+import { Route as AdminPersonalizedRouteImport } from './routes/admin.personalized'
+import { Route as AdminPermissionsRouteImport } from './routes/admin.permissions'
+import { Route as AdminPerformanceRouteImport } from './routes/admin.performance'
+import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
+import { Route as AdminPagesRouteImport } from './routes/admin.pages'
+import { Route as AdminOrganizationsRouteImport } from './routes/admin.organizations'
+import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
+import { Route as AdminNamesRouteImport } from './routes/admin.names'
+import { Route as AdminMonetizationRouteImport } from './routes/admin.monetization'
+import { Route as AdminMembershipRouteImport } from './routes/admin.membership'
+import { Route as AdminMediaRouteImport } from './routes/admin.media'
+import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
+import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
+import { Route as AdminLinkMonitorRouteImport } from './routes/admin.link-monitor'
+import { Route as AdminLibraryRouteImport } from './routes/admin.library'
+import { Route as AdminKeyTakeawaysRouteImport } from './routes/admin.key-takeaways'
+import { Route as AdminIntegrationsRouteImport } from './routes/admin.integrations'
+import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
+import { Route as AdminIconsRouteImport } from './routes/admin.icons'
+import { Route as AdminI18nRouteImport } from './routes/admin.i18n'
+import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
+import { Route as AdminGlossaryRouteImport } from './routes/admin.glossary'
+import { Route as AdminGiftingRouteImport } from './routes/admin.gifting'
+import { Route as AdminExpertRequestsRouteImport } from './routes/admin.expert-requests'
+import { Route as AdminExpertLayoutsRouteImport } from './routes/admin.expert-layouts'
+import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
+import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
+import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
+import { Route as AdminCrmRouteImport } from './routes/admin.crm'
+import { Route as AdminCouponsRouteImport } from './routes/admin.coupons'
+import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
+import { Route as AdminContactRouteImport } from './routes/admin.contact'
+import { Route as AdminCompaniesRouteImport } from './routes/admin.companies'
+import { Route as AdminCommunityRouteImport } from './routes/admin.community'
+import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
+import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
+import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminBillingRouteImport } from './routes/admin.billing'
+import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
+import { Route as AdminAudienceRouteImport } from './routes/admin.audience'
+import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
+import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
@@ -477,10 +582,15 @@ const AdminAdsRoute = AdminAdsRouteImport.update({
   path: '/ads',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
-  getParentRoute: () => AdminRoute,
+const TrackerRssDotxmlRoute = TrackerRssDotxmlRouteImport.update({
+  id: '/tracker/rss.xml',
+  path: '/tracker/rss.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackerExplorerRoute = TrackerExplorerRouteImport.update({
+  id: '/tracker/explorer',
+  path: '/tracker/explorer',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminAppearanceRoute = AdminAppearanceRouteImport.update({
   id: '/appearance',
@@ -3445,12 +3555,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAnalyticsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/appearance': {
-      id: '/admin/appearance'
-      path: '/appearance'
-      fullPath: '/admin/appearance'
-      preLoaderRoute: typeof AdminAppearanceRouteImport
-      parentRoute: typeof AdminRoute
+    '/tracker/rss.xml': {
+      id: '/tracker/rss.xml'
+      path: '/tracker/rss.xml'
+      fullPath: '/tracker/rss.xml'
+      preLoaderRoute: typeof TrackerRssDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tracker/explorer': {
+      id: '/tracker/explorer'
+      path: '/tracker/explorer'
+      fullPath: '/tracker/explorer'
+      preLoaderRoute: typeof TrackerExplorerRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/audience': {
       id: '/admin/audience'

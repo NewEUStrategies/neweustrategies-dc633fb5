@@ -51,3 +51,20 @@ describe("buildLlmsTxt", () => {
     expect(txt).toContain("Kontakt / Contact: office@nes.example");
   });
 });
+
+describe("llms.txt - zasoby maszynowe trackera", () => {
+  const txt = buildLlmsTxt({
+    siteName: "NES",
+    origin: "https://nes.example",
+    descriptionPl: "Opis",
+    descriptionEn: "Description",
+    sections: [],
+    latestPl: [],
+    latestEn: [],
+  });
+
+  it("wystawia kanał trackera w obu językach", () => {
+    expect(txt).toContain("https://nes.example/tracker/rss.xml");
+    expect(txt).toContain("https://nes.example/en/tracker/rss.xml");
+  });
+});

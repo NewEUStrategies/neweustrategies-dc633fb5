@@ -4,6 +4,7 @@
 
 import type { Block, BlockType, Json } from "./types";
 import { newBlockId } from "./types";
+import { escapeInlineText } from "./inlineHtml";
 
 /** Rodzina tekstowa - tylko między tymi typami oferujemy przekształcenia. */
 const TEXT_FAMILY: readonly BlockType[] = [
@@ -32,9 +33,6 @@ const strip = (html: string): string =>
     .replace(/&quot;/gi, '"')
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** Tekst źródłowy bloku - wspólny punkt wyjścia dla większości transformacji. */
 function sourceText(block: Block): string {
@@ -75,7 +73,7 @@ function sourceInlineHtml(block: Block): string {
     case "heading":
       return String(block.data.text ?? "");
     default:
-      return escapeHtml(sourceText(block)).replace(/\n/g, "<br>");
+      return escapeInlineText(sourceText(block)).replace(/\n/g, "<br>");
   }
 }
 
@@ -108,7 +106,7 @@ export function transformBlock(block: Block, to: BlockType): Block[] | null {
         {
           id: newBlockId(),
           type: "paragraph",
-          data: { html: inline || escapeHtml(text).replace(/\n/g, "<br>") },
+          data: { html: inline || escapeInlineText(text).replace(/\n/g, "<br>") },
         },
       ];
     }
@@ -171,7 +169,7 @@ export function transformBlock(block: Block, to: BlockType): Block[] | null {
         {
           id: newBlockId(),
           type: "html",
-          data: { html: inline ? `<p>${inline}</p>` : `<p>${escapeHtml(text)}</p>` },
+          data: { html: inline ? `<p>${inline}</p>` : `<p>${escapeInlineText(text)}</p>` },
         },
       ];
     default:

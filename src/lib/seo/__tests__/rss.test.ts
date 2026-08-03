@@ -70,3 +70,47 @@ describe("buildRssXml", () => {
     expect(item).not.toContain("<description>");
   });
 });
+
+describe("buildRssXml - jawny guid (kanały wielopozycyjne per URL)", () => {
+  // Kanał trackera emituje jedną pozycję na wpis osi czasu, a wszystkie
+  // wskazują TEN SAM adres dossier. Bez jawnego guida czytnik widziałby
+  // duplikaty i po pierwszej pozycji przestałby pokazywać alerty.
+  const xml = buildRssXml({
+    title: "Tracker",
+    description: "Zmiany",
+    siteUrl: "https://nes.example/tracker",
+    feedUrl: "https://nes.example/tracker/rss.xml",
+    language: "pl",
+    items: [
+      {
+        url: "https://nes.example/tracker/ai-act#update-u1",
+        guid: "tracker:update:u1",
+        title: "AI Act - etap: Parlament -> Rada",
+        description: "Rada przyjęła stanowisko",
+        publishedAt: "2026-08-02T12:00:00.000Z",
+      },
+      {
+        url: "https://nes.example/tracker/ai-act#update-u2",
+        guid: "  ",
+        title: "AI Act - aktualizacja",
+        description: null,
+        publishedAt: null,
+      },
+    ],
+  });
+
+  it("emituje guid isPermaLink=false, gdy podano jawną tożsamość", () => {
+    expect(xml).toContain(`<guid isPermaLink="false">tracker:update:u1</guid>`);
+  });
+
+  it("zachowuje link jako osobne pole (kotwica wpisu osi czasu)", () => {
+    expect(xml).toContain(`<link>https://nes.example/tracker/ai-act#update-u1</link>`);
+  });
+
+  it("puste/whitespace guid degraduje do permalinku - bez pustego węzła", () => {
+    expect(xml).toContain(
+      `<guid isPermaLink="true">https://nes.example/tracker/ai-act#update-u2</guid>`,
+    );
+    expect(xml).not.toContain(`<guid isPermaLink="false">  </guid>`);
+  });
+});

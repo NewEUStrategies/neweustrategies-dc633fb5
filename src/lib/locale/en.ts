@@ -1331,6 +1331,11 @@ export const en = {
     slash: {
       hint: "Type / to pick a block",
     },
+    selection: {
+      count_one: "1 block selected.",
+      count_other: "{{count}} blocks selected.",
+      hint: "Shift+arrows extend the selection, Shift+Home/End reach the document edges.",
+    },
     clipboard: {
       copied_one: "Copied 1 block to clipboard.",
       copied_other: "Copied {{count}} blocks to clipboard.",

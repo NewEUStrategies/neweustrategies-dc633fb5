@@ -9,6 +9,8 @@ import {
   Checkbox,
   SaveBar,
 } from "@/components/admin/settings/fields";
+import { TtsVoiceSelect } from "@/components/admin/atoms/TtsVoiceSelect";
+import { DEFAULT_TTS_SETTINGS, TTS_MODELS, findTtsModel } from "@/lib/audio/ttsCanonical";
 
 type Reading = {
   posts_per_page: number;
@@ -21,6 +23,14 @@ type Reading = {
   reading_mode_ads: boolean;
   max_ad_zones_free: number;
   max_ad_zones_paid: number;
+  // Kanoniczny lektor AI (TTS) tego najemcy. Czyta to serwerowa ścieżka
+  // /api/public/post-tts (lib/server/tts.server.ts) - allowlisty i wartości
+  // domyślne pochodzą z lib/audio/ttsCanonical.ts, więc panel, endpoint i
+  // CHECK-i w bazie nie mogą się rozjechać. Czytelnik NIE wybiera głosu:
+  // na (wpis, język) istnieje dokładnie jedno nagranie.
+  tts_voice_pl: string;
+  tts_voice_en: string;
+  tts_model: string;
 };
 
 const DEFAULTS: Reading = {
@@ -31,6 +41,7 @@ const DEFAULTS: Reading = {
   reading_mode_ads: true,
   max_ad_zones_free: 2,
   max_ad_zones_paid: 1,
+  ...DEFAULT_TTS_SETTINGS,
 };
 
 export const Route = createFileRoute("/admin/settings/reading")({
@@ -123,6 +134,41 @@ function ReadingSettings() {
           </Field>
         </>
       )}
+
+      <h3 className="font-display text-lg mt-8 mb-1">{t("admin.reading.ttsTitle")}</h3>
+      <p className="text-xs text-muted-foreground mb-4">{t("admin.reading.ttsHint")}</p>
+      <Field label={t("admin.reading.ttsVoicePl")} hint={t("admin.reading.ttsVoicePlHint")}>
+        <TtsVoiceSelect
+          value={draft.tts_voice_pl}
+          onChange={(v) => set("tts_voice_pl", v)}
+          ariaLabel={t("admin.reading.ttsVoicePl")}
+        />
+      </Field>
+      <Field label={t("admin.reading.ttsVoiceEn")} hint={t("admin.reading.ttsVoiceEnHint")}>
+        <TtsVoiceSelect
+          value={draft.tts_voice_en}
+          onChange={(v) => set("tts_voice_en", v)}
+          ariaLabel={t("admin.reading.ttsVoiceEn")}
+        />
+      </Field>
+      <Field
+        label={t("admin.reading.ttsModel")}
+        hint={t("admin.reading.ttsModelHint", {
+          tier: t(`admin.reading.ttsModelTier.${findTtsModel(draft.tts_model)?.tier ?? "quality"}`),
+        })}
+      >
+        <Select
+          value={draft.tts_model}
+          onChange={(e) => set("tts_model", e.target.value)}
+          aria-label={t("admin.reading.ttsModel")}
+        >
+          {TTS_MODELS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {`${t(`admin.reading.ttsModelTier.${m.tier}`)} - ${m.id}`}
+            </option>
+          ))}
+        </Select>
+      </Field>
 
       <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
     </div>

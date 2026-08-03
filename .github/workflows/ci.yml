@@ -75,9 +75,25 @@ jobs:
           path: reports/i18n-parity.json
           if-no-files-found: ignore
 
+      # Blokująca bramka wierności ustawień widgetów (panel ⇄ renderer). Mierzy
+      # WYKONANIEM, które klucze treści panel oferuje redakcji, a które renderer
+      # naprawdę czyta - i wywala się na każdym rozjeździe bez jawnego,
+      # uzasadnionego zwolnienia. Zamyka klasę defektu, na którą metryka "100%
+      # pokrycia rejestru widgetów" była całkowicie odporna: widget istnieje i
+      # renderuje się, a pojedyncze ustawienia są martwe albo nieedytowalne
+      # (PR #141 naprawił ~40 przypadków testami punktowymi). Ten sam krok pilnuje
+      # dyscypliny danych przykładowych (żadna powierzchnia publiczna nie pokazuje
+      # próbki kontekstu wpisu) i języka w kluczach zapytań widgetów.
+      - name: Widget settings fidelity gate
+        run: bun run check:widget-fidelity
 
-
-
+      - name: Upload widget fidelity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: widget-fidelity-report
+          path: reports/widget-fidelity.txt
+          if-no-files-found: ignore
 
       - name: Build
         run: bun run build

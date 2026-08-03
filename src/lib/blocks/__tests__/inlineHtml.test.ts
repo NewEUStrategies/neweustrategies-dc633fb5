@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  escapeInlineText,
   inlineHtmlToText,
   looksLikeInlineHtml,
   safeCssColor,
@@ -14,6 +15,15 @@ describe("inlineHtml helpers", () => {
   it("rozpoznaje inline HTML vs czysty tekst", () => {
     expect(looksLikeInlineHtml("<strong>A</strong>")).toBe(true);
     expect(looksLikeInlineHtml("Zwykły tytuł")).toBe(false);
+  });
+
+  it("escapuje tekst wstawiany do treści bloku (anty-wstrzyknięcie markupu)", () => {
+    expect(escapeInlineText("<")).toBe("&lt;");
+    expect(escapeInlineText("a & b > c")).toBe("a &amp; b &gt; c");
+    expect(escapeInlineText('<img src=x onerror="alert(1)">')).toBe(
+      '&lt;img src=x onerror="alert(1)"&gt;',
+    );
+    expect(escapeInlineText("ą")).toBe("ą");
   });
 
   it("zdejmuje wrapper <p> i skleja wiele akapitów przez <br>", () => {

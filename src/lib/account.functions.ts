@@ -16,6 +16,15 @@ const DeleteAccountSchema = z.object({
  * hasła. Kasowanie auth.users kaskaduje (ON DELETE CASCADE) na profiles,
  * bookmarks, follows, wyniki quizu itd. Zwraca się dopiero po faktycznym
  * usunięciu, żeby klient mógł wyczyścić sesję.
+ *
+ * Kolejność kroków jest częścią kontraktu i nie wolno jej zamienić:
+ *   1. re-uwierzytelnienie hasłem,
+ *   2. anulowanie subskrypcji u operatora (inaczej karta byłaby dalej
+ *      obciążana za dostęp, którego już nie ma),
+ *   3. anonimizacja zamówień (dowody księgowe muszą przeżyć konto -
+ *      art. 74 ust. 2 uor w związku z art. 17 ust. 3 lit. b RODO),
+ *   4. dopiero teraz `deleteUser`.
+ * Każdy z kroków 2-3 rzuca przy awarii i przerywa usuwanie.
  */
 export const deleteMyAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -43,13 +52,23 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     const { closeBillingForUser } = await import("@/lib/billing/accountClosure.server");
     await closeBillingForUser(userId, email);
 
+    // Potem księgi: zamówienia tracą dane osobowe, ale zostają jako dowód
+    // (FK jest `ON DELETE SET NULL`, więc samo `deleteUser` już ich nie
+    // zabiera - ten krok dokłada redakcję e-maila, metadanych i pseudonim).
+    // Rzuca przy awarii; konto zostaje, bo dowodów nie da się odtworzyć.
+    const { retainAccountingEvidence } = await import("@/lib/billing/accountingRetention.server");
+    const retention = await retainAccountingEvidence(userId);
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (deleteError) {
       throw new Error(`Nie udało się usunąć konta: ${deleteError.message}`);
     }
 
-    return { ok: true as const };
+    // `retainedOrders` wraca do UI, żeby komunikat po usunięciu mówił wprost,
+    // ile dowodów księgowych zostało w systemie - obowiązek informacyjny
+    // z art. 12 RODO realizuje się liczbą, nie ogólnikiem.
+    return { ok: true as const, retainedOrders: retention.retained };
   });
 
 const ChangeEmailSchema = z.object({
