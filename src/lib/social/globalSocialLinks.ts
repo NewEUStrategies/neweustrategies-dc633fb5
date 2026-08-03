@@ -3,7 +3,10 @@
 // Redakcja wprowadza adresy w Admin → Wygląd → Opcje motywu → "Ikony social"
 // (site_settings.theme_options.header.socials). Każdy widget social czyta stąd
 // wartości, więc zmiana linku w jednym miejscu aktualizuje cały serwis.
-import { useSiteSetting } from "@/lib/useSiteSetting";
+import { useContext } from "react";
+import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+
 
 export type GlobalSocialLinks = {
   facebook: string;
