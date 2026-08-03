@@ -45,14 +45,22 @@ const DEFAULTS = { header: { socials: EMPTY_LINKS } } as const;
  * i w podglądach) zwraca puste linki zamiast rzucać - widget ma wtedy działać
  * na własnych adresach.
  */
+let fallbackClient: QueryClient | null = null;
+
 export function useGlobalSocialLinks(): GlobalSocialLinks {
-  const hasClient = useContext(QueryClientContext) != null;
-  const options = useSiteSetting<{ header: { socials: GlobalSocialLinks } }>("theme_options", {
+  const ctxClient = useContext(QueryClientContext);
+  const client = ctxClient ?? (fallbackClient ??= new QueryClient());
+  const { data } = useQuery(
+    { ...siteSettingsQueryOptions, enabled: ctxClient != null },
+    client,
+  );
+  if (!ctxClient) return EMPTY_LINKS;
+  const options = resolveSetting(data, "theme_options", {
     header: { socials: { ...DEFAULTS.header.socials } },
   });
-  if (!hasClient) return EMPTY_LINKS;
   return options.header?.socials ?? EMPTY_LINKS;
 }
+
 
 
 function readGlobal(global: GlobalSocialLinks | undefined, key: string): string {
