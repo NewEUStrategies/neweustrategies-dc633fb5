@@ -8227,6 +8227,7 @@ export type Database = {
         Row: {
           badge: string
           created_at: string
+          grant_source: string
           granted_by: string | null
           id: string
           note: string | null
@@ -8236,6 +8237,7 @@ export type Database = {
         Insert: {
           badge: string
           created_at?: string
+          grant_source?: string
           granted_by?: string | null
           id?: string
           note?: string | null
@@ -8245,6 +8247,7 @@ export type Database = {
         Update: {
           badge?: string
           created_at?: string
+          grant_source?: string
           granted_by?: string | null
           id?: string
           note?: string | null
@@ -11875,6 +11878,10 @@ export type Database = {
         }[]
       }
       admin_get_user_consent: { Args: { _user_id: string }; Returns: Json }
+      admin_grant_profile_badge: {
+        Args: { p_badge: string; p_note?: string | null; p_user_id: string }
+        Returns: string
+      }
       admin_grant_membership: {
         Args: {
           p_email: string
@@ -11924,6 +11931,22 @@ export type Database = {
           source: string
           starts_at: string
           tier_key: string
+          user_id: string
+        }[]
+      }
+      admin_list_profile_badges: {
+        Args: { p_limit?: number }
+        Returns: {
+          badge: string
+          created_at: string
+          grant_source: string
+          granted_by: string | null
+          id: string
+          member_avatar_url: string | null
+          member_display_name: string | null
+          member_email: string | null
+          note: string | null
+          tenant_id: string
           user_id: string
         }[]
       }
@@ -12011,6 +12034,14 @@ export type Database = {
       admin_resolve_user_report: {
         Args: { p_action: string; p_note?: string; p_report_id: string }
         Returns: undefined
+      }
+      admin_revoke_profile_badge: {
+        Args: { p_badge_id: string }
+        Returns: boolean
+      }
+      admin_revoke_user_profile_badge: {
+        Args: { p_badge: string; p_user_id: string }
+        Returns: boolean
       }
       admin_set_content_password: {
         Args: {
@@ -13834,6 +13865,10 @@ export type Database = {
         Returns: Json
       }
       recompute_my_pending_counters: { Args: never; Returns: undefined }
+      reconcile_due_profile_badges: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       recompute_tenant_pending_counters: {
         Args: { p_tenant_id: string }
         Returns: undefined

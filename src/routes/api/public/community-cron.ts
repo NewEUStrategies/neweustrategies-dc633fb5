@@ -168,6 +168,12 @@ async function runJobs(job: SchedulerJob): Promise<{ result: JobOutcome; errors:
   if (job === "all" || job === "crm-task-reminders") {
     await step("crmTaskReminders", () => runCrmTaskReminders());
   }
+  if (job === "all") {
+    await step("reputationBadges", async () => {
+      const { reconcileReputationBadges } = await import("@/lib/community/reputationBadges.server");
+      return reconcileReputationBadges(250);
+    });
+  }
   return { result, errors };
 }
 

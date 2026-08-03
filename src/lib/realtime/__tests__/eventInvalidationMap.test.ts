@@ -43,4 +43,12 @@ describe("eventInvalidationMap", () => {
     const keys = invalidationKeysFor(eventOf("comment.created.v1"), { userId: "u1" });
     expect(keys).toContainEqual(["comments", "p1"]);
   });
+
+  it("invalidates public, admin and reputation caches for badge grants", () => {
+    const keys = invalidationKeysFor(eventOf("profile_badge.granted.v1"), { userId: "u1" });
+    expect(keys).toContainEqual(["profile-badges"]);
+    expect(keys).toContainEqual(["admin-badges"]);
+    expect(keys).toContainEqual(["contributor-leaderboard"]);
+    expect(keys).toContainEqual(["public", "experts-directory"]);
+  });
 });

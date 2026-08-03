@@ -99,6 +99,11 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     ["tracker", "updates"],
   ],
 
+  // Odznaka wpływa równocześnie na profil, katalog osób i ekspertów,
+  // reputację oraz listę administracyjną. Nadanie tworzy też powiadomienie.
+  "profile_badge.granted.v1": (_event, ctx) => profileBadgeKeys(ctx),
+  "profile_badge.revoked.v1": (_event, ctx) => profileBadgeKeys(ctx),
+
   // Monetyzacja - katalog cennika: edycja w panelu odświeża publiczny
   // /pricing i panele we WSZYSTKICH kartach staffu (nie tylko tej, która
   // zapisała). Zmiana warstwy dotyka też rozstrzygniętej warstwy użytkowników
@@ -160,6 +165,19 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
 
 function billingDocumentKeys(): QueryKey[] {
   return [billingKeys.myBillingDocumentsAll(), billingKeys.myOrdersAll()];
+}
+
+function profileBadgeKeys(ctx: InvalidationContext): QueryKey[] {
+  return [
+    ["profile-badges"],
+    ["admin-badges"],
+    ["contributor-leaderboard"],
+    ["my-reputation"],
+    ["public", "expert"],
+    ["public", "experts-directory"],
+    ["notifications"],
+    pendingCounterKeys.user(ctx.userId),
+  ];
 }
 
 // Subskrypcja zmienia: warstwę i paywall właściciela, jego profilowe widoki

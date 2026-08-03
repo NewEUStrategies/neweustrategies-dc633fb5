@@ -103,10 +103,7 @@ export const exportMyData = createServerFn({ method: "POST" })
           "openness, conscientiousness, extraversion, agreeableness, neuroticism, taken_at, created_at",
         )
         .eq("user_id", userId),
-      badges: supabase
-        .from("profile_badges")
-        .select("badge, note, created_at")
-        .eq("user_id", userId),
+      badges: supabase.from("profile_badges").select("badge, created_at").eq("user_id", userId),
       network_connections: fetchNetworkPages(
         (offset) => supabase.rpc("my_connections", { p_query: "", p_limit: 50, p_offset: offset }),
         (row) => ({
