@@ -2,6 +2,21 @@
 // treści wpisu ładowanej server-side (nie przyjmujemy tekstu od klienta - żeby
 // atakujący nie mogli przepompowywać dowolnego tekstu przez naszą kwotę API).
 //
+// KONTRAKT WEJSCIA: `{ postId, lang }` i nic więcej. Głos i model są KANONICZNE
+// per wpis i rozstrzygane WYŁĄCZNIE po stronie serwera (nadpisanie redakcyjne
+// `posts.tts_voice_*` -> ustawienia najemcy `site_settings.reading` ->
+// platformowa wartość domyślna). Pola `voiceId` / `model` w ciele żądania są
+// świadomie IGNOROWANE, a nie odrzucane - stary klient nie ma się na czym
+// wywalić, a mimo to nie kupi już drugiego wariantu.
+//
+// PRZYCZYNA ZRODLOWA usunięcia wyboru z klienta (audyt 2026-08-03): przy
+// kluczu cache `(post, lang, voice, model, hash)` i wyborze po stronie klienta
+// allowlista 6 głosów × 2 modele × 2 języki dawała do 24 PŁATNYCH syntez i 24
+// plików na jeden wpis - dostępnych dla dowolnego anonimowego czytelnika pętlą
+// po allowliście. Teraz na (wpis, język) istnieje dokładnie jedno nagranie:
+// klucz główny `post_tts_renditions (post_id, lang)` + ścieżka obiektu bez
+// głosu i modelu, nadpisywana przy zmianie treści albo głosu.
+//
 // Rate-limit: 3/min i 15/h per IP; 60/h globalnie per postId (klucze tekstowe
 // wymagają rate_limits.subject_id typu text - migracja 20260711120000).
 // Endpoint jest wyłącznie same-origin (brak nagłówków CORS): audio odtwarza
@@ -10,38 +25,31 @@
 // Post jest dodatkowo zawężany do tenanta wynikającego z hosta żądania -
 // service role omija RLS, więc bez tego filtra treść tenanta A dałaby się
 // syntezować przez domenę tenanta B.
-// Zsyntezowane MP3 trafia do prywatnego bucketa `tts-cache` (klucz = hash
-// treści+głosu+modelu); kolejni słuchacze dostają plik z cache zamiast
-// ponownej płatnej syntezy.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequestIP } from "@tanstack/react-start/server";
 import { rateLimit } from "@/lib/server/rate-limit.server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
+import {
+  TTS_MAX_CHARS,
+  ttsRenditionEtag,
+  type TtsLang,
+  type TtsVoiceOverrides,
+} from "@/lib/audio/ttsCanonical";
+import {
+  TTS_CACHE_BUCKET,
+  coalesceTtsSynthesis,
+  recordTtsRendition,
+  resolveCanonicalTtsPlan,
+  ttsContentHash,
+} from "@/lib/server/tts.server";
 import type { BlocksDoc, Block, Json, LocalizedBlocks } from "@/lib/blocks/types";
 import type { Database } from "@/integrations/supabase/types";
 
-const MAX_CHARS = 5000;
-const DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb"; // George
-const DEFAULT_MODEL = "eleven_multilingual_v2";
-const ALLOWED_MODELS = new Set(["eleven_multilingual_v2", "eleven_turbo_v2_5"]);
-const ALLOWED_VOICES = new Set([
-  "JBFqnCBsd6RMkjVDRZzb", // George
-  "EXAVITQu4vr4xnSDxMaL", // Sarah
-  "onwK4e9ZLuTAKqWW03F9", // Daniel
-  "pFZP5JQG7iQjIQuC4Bku", // Lily
-  "FGY2WhTYpPnrIDTdsKH5", // Laura
-  "XrExE9yKIg1WjnnlVkGX", // Matilda
-]);
-
 interface PostTtsRequest {
   postId?: string;
-  lang?: "pl" | "en";
-  voiceId?: string;
-  model?: string;
+  lang?: TtsLang;
 }
-
-const TTS_CACHE_BUCKET = "tts-cache";
 
 function jsonError(status: number, message: string, extra?: Record<string, string>): Response {
   return new Response(JSON.stringify({ error: message }), {
@@ -122,14 +130,15 @@ function blocksToText(doc: BlocksDoc | null | undefined): string {
   return parts.join(". ").replace(/\.\.+/g, ".").trim();
 }
 
-async function fnv1a(input: string): Promise<string> {
-  // ETag: prosty hash bez zależności - stabilny między requestami.
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
+/** Błąd upstreamu ElevenLabs przenoszony przez koalescencję syntez. */
+class TtsUpstreamError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(`ElevenLabs ${status}`);
+    this.name = "TtsUpstreamError";
   }
-  return hash.toString(16);
 }
 
 export const Route = createFileRoute("/api/public/post-tts")({
@@ -144,10 +153,7 @@ export const Route = createFileRoute("/api/public/post-tts")({
         }
 
         const postId = typeof body.postId === "string" ? body.postId.trim() : "";
-        const lang: "pl" | "en" = body.lang === "en" ? "en" : "pl";
-        const voiceId =
-          body.voiceId && ALLOWED_VOICES.has(body.voiceId) ? body.voiceId : DEFAULT_VOICE;
-        const model = body.model && ALLOWED_MODELS.has(body.model) ? body.model : DEFAULT_MODEL;
+        const lang: TtsLang = body.lang === "en" ? "en" : "pl";
 
         if (!/^[0-9a-f-]{8,64}$/i.test(postId)) {
           return jsonError(400, "Invalid postId");
@@ -192,11 +198,15 @@ export const Route = createFileRoute("/api/public/post-tts")({
           return jsonError(503, "Tenant directory unavailable");
         }
 
-        // Ładowanie treści przez service role (server-only).
+        // Ładowanie treści przez service role (server-only). `tts_voice_*` to
+        // redakcyjne nadpisanie kanonicznego głosu - jedyne dopuszczone źródło
+        // wariantu poza ustawieniami najemcy.
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: post, error: postErr } = await supabaseAdmin
           .from("posts")
-          .select("id, title_pl, title_en, content_pl, content_en, blocks_data, status, tenant_id")
+          .select(
+            "id, title_pl, title_en, content_pl, content_en, blocks_data, status, tenant_id, tts_voice_pl, tts_voice_en",
+          )
           .eq("id", postId)
           .eq("tenant_id", tenantId)
           .maybeSingle();
@@ -258,15 +268,31 @@ export const Route = createFileRoute("/api/public/post-tts")({
             : (post.content_pl as string | null) || (post.content_en as string | null);
         const fromHtml = html ? stripHtml(html) : "";
 
-        const text = [title, fromBlocks || fromHtml].filter(Boolean).join(". ").slice(0, MAX_CHARS);
+        const text = [title, fromBlocks || fromHtml]
+          .filter(Boolean)
+          .join(". ")
+          .slice(0, TTS_MAX_CHARS);
         if (!text.trim()) {
           return jsonError(422, "No readable content");
         }
 
-        // Hash pełnej treści (nie samej długości): zmiana artykułu = nowy klucz
-        // cache i nowy ETag.
-        const contentHash = await fnv1a(`${postId}:${lang}:${voiceId}:${model}:${text}`);
-        const etag = `"tts-${contentHash}"`;
+        // Hash pełnej treści (nie samej długości): zmiana artykułu = nowe
+        // nagranie i nowy ETag. Głos i model są POZA hashem - trzyma je rejestr
+        // nagrań, a do ETag-a wchodzą osobno.
+        const contentHash = ttsContentHash(`${postId}:${lang}:${text}`);
+        const overrides: TtsVoiceOverrides = {
+          pl: post.tts_voice_pl,
+          en: post.tts_voice_en,
+        };
+        const plan = await resolveCanonicalTtsPlan({
+          tenantId,
+          postId,
+          lang,
+          overrides,
+          contentHash,
+        });
+
+        const etag = ttsRenditionEtag(contentHash, plan.pin);
         const audioHeaders = {
           "Content-Type": "audio/mpeg",
           "Cache-Control": "private, max-age=86400",
@@ -278,20 +304,23 @@ export const Route = createFileRoute("/api/public/post-tts")({
           return new Response(null, { status: 304, headers: audioHeaders });
         }
 
-        // Cache serwerowy: ten sam artykuł+głos+model syntezujemy raz.
-        const cachePath = `${postId}/${lang}-${voiceId}-${model}-${contentHash}.mp3`;
-        try {
-          const { data: cached } = await supabaseAdmin.storage
-            .from(TTS_CACHE_BUCKET)
-            .download(cachePath);
-          if (cached) {
-            return new Response(cached, {
-              status: 200,
-              headers: { ...audioHeaders, "X-Tts-Cache": "hit" },
-            });
+        // Cache serwerowy: kanoniczne nagranie tego wpisu i języka. Podajemy je
+        // tylko gdy rejestr potwierdza zgodność treści, głosu i modelu - stary
+        // plik po zmianie głosu nie może wygrać z decyzją redakcji.
+        if (plan.fresh) {
+          try {
+            const { data: cached } = await supabaseAdmin.storage
+              .from(TTS_CACHE_BUCKET)
+              .download(plan.storagePath);
+            if (cached) {
+              return new Response(cached, {
+                status: 200,
+                headers: { ...audioHeaders, "X-Tts-Cache": "hit" },
+              });
+            }
+          } catch {
+            // Brak obiektu (lub brak bucketa) = zwykła synteza poniżej.
           }
-        } catch {
-          // Brak cache (lub brak bucketa) = zwykła synteza poniżej.
         }
 
         // Cache miss => we are about to spend ElevenLabs budget. Apply the
@@ -319,47 +348,75 @@ export const Route = createFileRoute("/api/public/post-tts")({
           return jsonError(429, "Post throttled", { "Retry-After": "3600" });
         }
 
-        const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`;
-        const upstream = await fetch(ttsUrl, {
-          method: "POST",
-          headers: {
-            "xi-api-key": apiKey,
-            "Content-Type": "application/json",
-            Accept: "audio/mpeg",
-          },
-          body: JSON.stringify({
-            text,
-            model_id: model,
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-              style: 0.3,
-              use_speaker_boost: true,
-            },
-          }),
-        });
+        // Premiera artykułu: wielu czytelników trafia na zimny cache w tej samej
+        // sekundzie. Koalescencja sprowadza to do JEDNEJ płatnej syntezy w
+        // izolacie zamiast jednej na żądanie.
+        let audio: ArrayBuffer;
+        try {
+          audio = await coalesceTtsSynthesis(plan.storagePath, async () => {
+            const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${plan.pin.voiceId}?output_format=mp3_44100_128`;
+            const upstream = await fetch(ttsUrl, {
+              method: "POST",
+              headers: {
+                "xi-api-key": apiKey,
+                "Content-Type": "application/json",
+                Accept: "audio/mpeg",
+              },
+              body: JSON.stringify({
+                text,
+                model_id: plan.pin.model,
+                voice_settings: {
+                  stability: 0.5,
+                  similarity_boost: 0.75,
+                  style: 0.3,
+                  use_speaker_boost: true,
+                },
+              }),
+            });
 
-        if (!upstream.ok) {
-          const errBody = await upstream.text().catch(() => "");
-          console.error(`[post-tts] ElevenLabs ${upstream.status}: ${errBody.slice(0, 300)}`);
-          if (/quota_exceeded/i.test(errBody)) {
-            return jsonError(402, "TTS quota exceeded - uzupełnij kredyty ElevenLabs");
+            if (!upstream.ok) {
+              const errBody = await upstream.text().catch(() => "");
+              console.error(`[post-tts] ElevenLabs ${upstream.status}: ${errBody.slice(0, 300)}`);
+              throw new TtsUpstreamError(upstream.status, errBody);
+            }
+            return upstream.arrayBuffer();
+          });
+        } catch (e) {
+          if (e instanceof TtsUpstreamError) {
+            if (/quota_exceeded/i.test(e.body)) {
+              return jsonError(402, "TTS quota exceeded - uzupełnij kredyty ElevenLabs");
+            }
+            if (e.status === 429) {
+              return jsonError(429, "TTS rate limited", { "Retry-After": "60" });
+            }
+            return jsonError(502, "TTS upstream failed");
           }
-          if (upstream.status === 429) {
-            return jsonError(429, "TTS rate limited", { "Retry-After": "60" });
-          }
+          console.error("[post-tts] synthesis failed:", e);
           return jsonError(502, "TTS upstream failed");
         }
 
-        const audio = await upstream.arrayBuffer();
-
         // Zapis do cache w tle - odpowiedź nie czeka na upload, a jego błąd
-        // (np. brak bucketa w starym środowisku) nie psuje odtwarzania.
+        // (np. brak bucketa w starym środowisku) nie psuje odtwarzania. Rejestr
+        // nagrania aktualizujemy PO uploadzie, żeby nigdy nie wskazywał
+        // obiektu, którego nie ma.
         void supabaseAdmin.storage
           .from(TTS_CACHE_BUCKET)
-          .upload(cachePath, audio, { contentType: "audio/mpeg", upsert: true })
-          .then(({ error }) => {
-            if (error) console.warn(`[post-tts] cache write failed: ${error.message}`);
+          .upload(plan.storagePath, audio, { contentType: "audio/mpeg", upsert: true })
+          .then(async ({ error }) => {
+            if (error) {
+              console.warn(`[post-tts] cache write failed: ${error.message}`);
+              return;
+            }
+            if (!plan.registryAvailable) return;
+            await recordTtsRendition({
+              postId,
+              lang,
+              pin: plan.pin,
+              contentHash,
+              storagePath: plan.storagePath,
+              byteSize: audio.byteLength,
+              charCount: text.length,
+            });
           })
           .catch((e: unknown) => {
             console.warn(`[post-tts] cache write failed:`, e);
