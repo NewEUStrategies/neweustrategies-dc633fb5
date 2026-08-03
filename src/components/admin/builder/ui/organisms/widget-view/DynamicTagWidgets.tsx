@@ -21,7 +21,6 @@ import { asBool, asNum, asOneOf, asStr, pickI18n } from "@/lib/builder/contentVa
 import { postViewCountQueryOptions } from "@/lib/builder/postViewCountQuery";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import {
-  User as UserIcon,
   Clock,
   Eye,
   ChevronRight,
@@ -35,6 +34,7 @@ import {
   Headphones,
   Link as LinkIcon,
 } from "@/lib/lucide-shim";
+import { AuthorInline } from "./AuthorInline";
 
 type Lang = "pl" | "en";
 
