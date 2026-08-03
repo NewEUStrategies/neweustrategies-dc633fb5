@@ -1,0 +1,53 @@
+name: Rozliczenia (nocna sonda odnowienia i dunningu)
+
+# Odnowienie subskrypcji i ścieżka nieudanej płatności to jedyne części lejka,
+# których nie da się sprawdzić klikając checkout. Przebieg przesuwa datę
+# kolejnego obciążenia w środowisku TESTOWYM operatora, czeka na naliczenie
+# i weryfikuje, że okres rozliczeniowy oraz transakcja faktycznie powstały.
+#
+# Konfiguracja (Settings -> Secrets and variables -> Actions):
+#   secrets.PADDLE_SANDBOX_API_KEY
+#   secrets.LOVABLE_API_KEY
+# Bez nich przebieg kończy się zielono z ostrzeżeniem.
+
+on:
+  schedule:
+    # 02:40 UTC - poza godzinami szczytu Actions.
+    - cron: "40 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: billing-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  renewal:
+    name: Odnowienie i dunning (środowisko testowe)
+    if: github.event_name != 'schedule' || github.repository_owner == 'NewEUStrategies'
+    runs-on: ubuntu-latest
+    # Operator nie pozwala przesunąć obciążenia bliżej niż 30 minut, więc
+    # przebieg musi mieć zapas na oczekiwanie plus weryfikację.
+    timeout-minutes: 55
+    env:
+      PADDLE_SANDBOX_API_KEY: ${{ secrets.PADDLE_SANDBOX_API_KEY }}
+      LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
+      PROBE_STATE_FILE: ${{ github.workspace }}/billing-renewal-probe.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      - name: Przesuń datę kolejnego obciążenia
+        run: bun scripts/billing-renewal-probe.ts arm
+
+      - name: Poczekaj na naliczenie
+        run: |
+          for i in $(seq 1 40); do sleep 60; done
+
+      - name: Zweryfikuj odnowienie i dunning
+        run: bun scripts/billing-renewal-probe.ts verify
