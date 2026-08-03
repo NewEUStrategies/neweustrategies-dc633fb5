@@ -6,7 +6,14 @@
 // formularzy (bez załączników). Wszystkie napisy pochodzą z i18n (PL/EN),
 // zaokrąglenia = 6px, kolory wyłącznie z tokenów semantycznych.
 import { useTranslation } from "react-i18next";
-import { useEffect, useRef, type MutableRefObject, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import {
   Bold,
   Code,
@@ -21,6 +28,11 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
+  formatShortcutHint,
+  isAppleShortcutPlatform,
+  type MarkdownActionId,
+} from "@/lib/composer/shortcuts";
+import {
   composerStatusMessageKey,
   validateComposerValue,
   type ComposerValidation,
@@ -31,7 +43,7 @@ export type MarkdownAction =
   | { kind: "prefix"; prefix: string | ((index: number) => string) };
 
 interface ToolbarItem {
-  id: string;
+  id: MarkdownActionId;
   icon: LucideIcon;
   labelKey: string;
   action: MarkdownAction;
@@ -127,6 +139,11 @@ export interface ComposerShellProps {
   onValidationChange?: (validation: ComposerValidation) => void;
   /** Id komunikatu walidacji (do aria-describedby pola treści). */
   statusId?: string;
+  /**
+   * Wystawia funkcję formatującą (po id akcji) na zewnątrz - pole treści
+   * podpina do niej skróty klawiszowe, korzystając z tej samej logiki co pasek.
+   */
+  formatterRef?: MutableRefObject<((id: MarkdownActionId) => void) | null>;
   className?: string;
   /** Padding wokół slotu treści (domyślnie karta komentarza). */
   bodyClassName?: string;
@@ -146,6 +163,7 @@ export function ComposerShell({
   initialValue,
   onValidationChange,
   statusId,
+  formatterRef,
 }: ComposerShellProps) {
   const { t } = useTranslation();
   const validation = validateComposerValue({
@@ -175,20 +193,37 @@ export function ComposerShell({
       })
     : null;
 
-  const run = (action: MarkdownAction) => {
-    const el = textareaRef.current;
-    const start = el?.selectionStart ?? value.length;
-    const end = el?.selectionEnd ?? value.length;
-    const next = applyMarkdown(value, start, end, action);
-    if (next.value.length > maxLength) return;
-    onValueChange(next.value);
-    requestAnimationFrame(() => {
-      const node = textareaRef.current;
-      if (!node) return;
-      node.focus();
-      node.setSelectionRange(next.caret, next.caret);
-    });
-  };
+  const run = useCallback(
+    (action: MarkdownAction) => {
+      const el = textareaRef.current;
+      const start = el?.selectionStart ?? value.length;
+      const end = el?.selectionEnd ?? value.length;
+      const next = applyMarkdown(value, start, end, action);
+      if (next.value.length > maxLength) return;
+      onValueChange(next.value);
+      requestAnimationFrame(() => {
+        const node = textareaRef.current;
+        if (!node) return;
+        node.focus();
+        node.setSelectionRange(next.caret, next.caret);
+      });
+    },
+    [maxLength, onValueChange, textareaRef, value],
+  );
+
+  // Skróty klawiszowe działają dokładnie tak samo jak kliknięcie w pasek.
+  useEffect(() => {
+    if (!formatterRef) return;
+    formatterRef.current = (id: MarkdownActionId) => {
+      const item = TOOLBAR.find((entry) => entry.id === id);
+      if (item) run(item.action);
+    };
+    return () => {
+      formatterRef.current = null;
+    };
+  }, [formatterRef, run]);
+
+  const apple = useMemo(() => isAppleShortcutPlatform(), []);
 
   return (
     <div
@@ -201,19 +236,27 @@ export function ComposerShell({
         <div className="flex flex-wrap items-center gap-0.5">
           {TOOLBAR.map((item) => {
             const label = t(item.labelKey);
+            const hint = formatShortcutHint(item.id, apple);
             return (
               <Tooltip key={item.id}>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     onClick={() => run(item.action)}
-                    aria-label={label}
+                    aria-label={`${label} (${hint})`}
                     className="flex h-8 w-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     <item.icon className="h-4 w-4" aria-hidden />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>{label}</TooltipContent>
+                <TooltipContent>
+                  <span className="flex items-center gap-2">
+                    {label}
+                    <kbd className="rounded-[6px] bg-muted px-1 text-[10px] text-muted-foreground">
+                      {hint}
+                    </kbd>
+                  </span>
+                </TooltipContent>
               </Tooltip>
             );
           })}
