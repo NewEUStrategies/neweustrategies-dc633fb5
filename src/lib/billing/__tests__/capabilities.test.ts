@@ -12,6 +12,16 @@ import {
 } from "@/lib/billing/capabilities";
 
 // Dokładnie te flagi mają dziś realną bramkę (SQL / RLS / server fn).
+//
+// Ta lista jest kontraktem CZYTANYM PRZEZ LUDZI - świadomą decyzją, co sprzedajemy
+// jako egzekwowane. Prawdę maszynową (czy jakakolwiek bramka faktycznie czyta
+// flagę) sprawdza osobno bramka parytetu snapshotu bramek:
+// src/lib/authz/__tests__/authzSnapshotParity.test.ts. Dwa niezależne testy z
+// dwóch stron: ten pilnuje ludzkiej decyzji, tamten - zgodności ze SQL-em.
+//
+// `chat_inmail_quota_2` / `chat_inmail_quota_5` dopisane po audycie: były
+// egzekwowane przez my_inmail_quota / send_expert_inmail, ale rejestr o nich
+// milczał - dokładnie ten rodzaj rozjazdu, który wykryła bramka parytetu.
 const EXPECTED_ENFORCED = [
   "premium_content",
   "regulatory_monitoring",
@@ -20,6 +30,8 @@ const EXPECTED_ENFORCED = [
   "qa_priority",
   "chat_enabled",
   "chat_direct_gated",
+  "chat_inmail_quota_2",
+  "chat_inmail_quota_5",
   "gift_links",
 ].sort();
 

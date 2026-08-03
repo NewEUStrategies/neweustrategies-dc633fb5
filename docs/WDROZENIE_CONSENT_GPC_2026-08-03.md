@@ -116,7 +116,7 @@ stronie prawo do udawania, że sygnału nie widziała. Dlatego:
   trafiałoby na nieaktualną zgodę i klamra nigdy by nie wróciła,
 - uszkodzony znacznik (`0`, `NaN`, `Infinity`) **nie** zdejmuje klamry (fail-closed).
 
-### 2.6 Rejestr - migracja `20260803140000_consent_gpc_signal.sql`
+### 2.6 Rejestr - migracja `20260803140001_consent_gpc_signal.sql`
 
 | Zmiana                                                       | Uzasadnienie                                                                                                                          |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -325,7 +325,7 @@ ERROR: Direct deletion from storage tables is not allowed.
 ```
 
 Skutek był poważniejszy niż nieudane czyszczenie cache'u: `supabase db start` **przerywał
-odtwarzanie bazy w tym miejscu**, więc żadna późniejsza migracja - w tym `20260803140000` z tego
+odtwarzanie bazy w tym miejscu**, więc żadna późniejsza migracja - w tym `20260803140001` z tego
 wdrożenia - **nie była w CI walidowana w ogóle**, a testy nawet nie startowały
 („No files were found with the provided path: playwright-report/").
 
@@ -483,7 +483,7 @@ usunięcie pustych linii - sprawdzone `git diff -w`). `eslint .` zwraca teraz **
 Skoro CI nie dochodziło do tej migracji, walidacja poszła lokalnie: PostgreSQL 16.13, wierny
 szkielet (`auth.users`, `tenants`, `profiles`, `auth.uid()` sterowane GUC,
 `current_tenant_id()`, role `anon`/`authenticated`/`service_role`), na nim **oryginalne** migracje
-rejestru (`20260717095322`, `20260802155237`), a dopiero na nich `20260803140000`.
+rejestru (`20260717095322`, `20260802155237`), a dopiero na nich `20260803140001`.
 
 | Sprawdzenie                                                              | Wynik |
 | ------------------------------------------------------------------------ | ----- |

@@ -28,11 +28,23 @@ const GATED_PREFIXES = [
   "countryCompare",
   "adminBlocks",
   "adminThemeDesign",
+  // Macierz uprawnień renderuje etykiety z kluczy technicznych (wiersze bramek,
+  // flagi warstw), więc brak tłumaczenia oznaczałby surowy klucz na ekranie
+  // audytu - to musi być bramkowane, nie tylko raportowane.
+  "adminPermissions",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
 // skróty, jednostki).
-const IDENTICAL_ALLOWLIST: readonly string[] = [];
+const IDENTICAL_ALLOWLIST: readonly string[] = [
+  // Nazwy własne poziomów członkostwa i ról - tłumaczenie byłoby błędem.
+  "adminPermissions.caps.presidents_circle",
+  "adminPermissions.roles.super_admin.name",
+  "adminPermissions.roles.admin.name",
+  "adminPermissions.roles.editor.name",
+  // Słowo kluczowe SQL - w obu językach brzmi tak samo, bo tak brzmi w bazie.
+  "adminPermissions.gate.definer",
+];
 
 function loadOverlays(): void {
   // Nakładki rejestrują zasoby jako efekt uboczny importu.

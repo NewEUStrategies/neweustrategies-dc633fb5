@@ -167,6 +167,18 @@ jobs:
       - name: SQL migration replay safety
         run: bun run check:sql-migration-replay
 
+      # Blocking tenant-isolation gate: fails if an owner-scoped RLS clause
+      # (`auth.uid() = <column>`) drops the tenant binding while a sibling
+      # clause on the SAME table keeps it. That asymmetry made author_profiles
+      # rows writable only in the home tenant yet readable AND deletable from
+      # any tenant context (fixed by 20260803140000). Self-calibrating - the
+      # schema declares the intent, so there is no hand-maintained table list.
+      # KNOWN_OPEN_GAPS carries the debt that predates the gate: it is printed
+      # on every run, any NEW gap fails immediately, and a closed gap fails
+      # until its entry is removed, so the list can only shrink.
+      - name: SQL owner tenant-scope invariant
+        run: bun run check:sql-owner-tenant-scope
+
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +
   # seed.sql). Complements Vitest, which never touches RLS policies.

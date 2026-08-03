@@ -6,8 +6,13 @@
 // a bramką i nie sprzedawała czegoś, czego system nie pilnuje.
 //
 // Utrzymanie: dodając nową bramkę na flagę, zmień `enforced` na true i opisz
-// punkt egzekwowania. To celowo mapa RĘCZNA (nie autogenerowana) - stanowi
-// kontrakt weryfikowany code-review, a nie zgadywankę po grepie.
+// punkt egzekwowania. Opis (`where_*`) pozostaje RĘCZNY - to kontrakt czytany
+// przez ludzi. Samo pole `enforced` jest natomiast WERYFIKOWANE maszynowo:
+// snapshot bramek (src/lib/authz/authzSnapshot.generated.ts, generowany ze
+// SQL-a) wie, które flagi są realnie czytane przez bramkę, a test parytetu
+// (src/lib/authz/__tests__/authzSnapshotParity.test.ts) porównuje jedno z drugim.
+// Dopisanie bramki bez `enforced: true` (albo odwrotnie) obleje CI - koniec z
+// cichym rozjazdem obietnicy i bramki.
 
 /** Gdzie flaga jest egzekwowana (do grupowania i ikon w panelu). */
 export type CapabilityGate = "content" | "events" | "qa" | "tracker" | "chat" | "none";
@@ -86,6 +91,24 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
       "Bezpośredni DM z ekspertami i VIP-ami bez zapytania (VIP i wyżej). Bez tej flagi Plus/Pro wysyłają zapytanie do eksperta (liczbę ustawia expert_request_quota).",
     where_en:
       "Direct DM with experts and VIPs without a request (VIP and above). Without it, Plus/Pro must send an expert request (count set by expert_request_quota).",
+  },
+  {
+    key: "chat_inmail_quota_5",
+    enforced: true,
+    gate: "chat",
+    where_pl:
+      "Pula 5 InMaili miesięcznie do ekspertów i VIP-ów (my_inmail_quota, send_expert_inmail). Wygrywa z pulą 2.",
+    where_en:
+      "A pool of 5 InMails per month to experts and VIPs (my_inmail_quota, send_expert_inmail). Beats the pool of 2.",
+  },
+  {
+    key: "chat_inmail_quota_2",
+    enforced: true,
+    gate: "chat",
+    where_pl:
+      "Pula 2 InMaili miesięcznie do ekspertów i VIP-ów (my_inmail_quota, send_expert_inmail).",
+    where_en:
+      "A pool of 2 InMails per month to experts and VIPs (my_inmail_quota, send_expert_inmail).",
   },
   {
     key: "events_members",
@@ -174,6 +197,15 @@ export const TIER_CAPABILITIES: readonly CapabilityMeta[] = [
       "Creating gift links to analyses (can_gift_articles / create_gift_link) - available from Pro upwards.",
   },
 ] as const;
+
+/**
+ * Flagi `features`, które NIE są przełącznikami boolowskimi - trzymają wartość
+ * (limit) i mają w panelu własne pole liczbowe, więc świadomie nie ma ich na
+ * liście powyżej. Test parytetu wymaga, żeby KAŻDA flaga czytana przez bramkę
+ * była albo w `TIER_CAPABILITIES`, albo tutaj - nowa bramka nie przemknie bez
+ * decyzji, gdzie jej miejsce.
+ */
+export const NUMERIC_FEATURE_KEYS: readonly string[] = ["expert_request_quota"];
 
 const CAPABILITY_BY_KEY: ReadonlyMap<string, CapabilityMeta> = new Map(
   TIER_CAPABILITIES.map((c) => [c.key, c]),

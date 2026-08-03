@@ -13,7 +13,7 @@
  * 20260730140000 - ale to JEDNA klasa bledu, ktora wroci bez bramki.
  *
  * INWARIANTY (stan koncowy polityk - migracje forward-only, CREATE/DROP POLICY
- * liczone po kolei):
+ * liczone po kolei; parser: src/lib/ci/rlsPolicies.ts):
  *   A. HARD, wszystkie tabele: zadna polityka INSERT-capable (FOR INSERT/FOR ALL)
  *      z rola `anon`/`public` nie moze miec PERMISYWNEGO checku INSERT-u (WITH
  *      CHECK sprowadzajacy sie do `true`, albo jego brak). Polityki z realnym
@@ -32,6 +32,12 @@
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  extractLatestPolicies,
+  insertCheckKind,
+  isInsertCapable,
+  type PolicyDef,
+} from "../src/lib/ci/rlsPolicies";
 import { MIGRATIONS_DIR, stripSqlComments } from "./lib/sqlMigrations";
 
 /** Legalne permisywne polityki anon-insert (klucz `tabela::nazwa` -> uzasadnienie). */
@@ -47,182 +53,43 @@ const PROTECTED_INTAKE_TABLES: ReadonlySet<string> = new Set([
   "web_vitals",
 ]);
 
-interface PolicyState {
-  readonly table: string;
-  readonly name: string;
-  readonly file: string;
-  readonly insertCapable: boolean;
-  readonly roles: ReadonlySet<string>;
-  /** Efektywny check INSERT-u: 'permissive' (true/brak), 'deny' (false), 'restricted' (warunek). */
-  readonly insertCheck: "permissive" | "deny" | "restricted";
-}
-
-function normTable(raw: string): string {
-  return raw
-    .replace(/"/g, "")
-    .replace(/^[a-z0-9_]+\./i, "")
-    .toLowerCase();
-}
-function normName(raw: string): string {
-  return raw.replace(/"/g, "").trim().toLowerCase();
-}
-
-/** Od `fromIdx` czyta do `;` na poziomie 0 nawiasow, poza literalem '...'. */
-function readStatementTail(sql: string, fromIdx: number): string {
-  let depth = 0;
-  let inSingle = false;
-  for (let i = fromIdx; i < sql.length; i += 1) {
-    const ch = sql[i];
-    if (inSingle) {
-      if (ch === "'") inSingle = false;
-      continue;
-    }
-    if (ch === "'") inSingle = true;
-    else if (ch === "(") depth += 1;
-    else if (ch === ")") depth -= 1;
-    else if (ch === ";" && depth === 0) return sql.slice(fromIdx, i);
-  }
-  return sql.slice(fromIdx);
-}
-
-/** Wyrazenie w nawiasach po slowie kluczowym (np. WITH CHECK / USING), zbalansowane. */
-function parenExprAfter(tail: string, kw: RegExp): string | null {
-  const m = kw.exec(tail);
-  if (!m) return null;
-  let i = m.index + m[0].length;
-  while (i < tail.length && tail[i] !== "(") i += 1;
-  if (i >= tail.length) return null;
-  let depth = 0;
-  const start = i;
-  for (; i < tail.length; i += 1) {
-    if (tail[i] === "(") depth += 1;
-    else if (tail[i] === ")") {
-      depth -= 1;
-      if (depth === 0) return tail.slice(start + 1, i).trim();
-    }
-  }
-  return null;
-}
-
-function normExpr(expr: string | null): "true" | "false" | "other" | "none" {
-  if (expr === null) return "none";
-  const n = expr.replace(/\s+/g, "").toLowerCase();
-  if (n === "true") return "true";
-  if (n === "false") return "false";
-  return "other";
-}
-
-function parseRoles(tail: string): Set<string> {
-  // Klauzula TO jest przed USING/WITH CHECK; wytnijmy ja do pierwszego z nich.
-  const head = tail.split(/\bUSING\b|\bWITH\s+CHECK\b/i)[0];
-  const m = /\bTO\s+([A-Za-z0-9_,"\s]+)/i.exec(head);
-  if (!m) return new Set(["public"]);
-  return new Set(
-    m[1]
-      .split(",")
-      .map((r) => r.replace(/"/g, "").trim().toLowerCase())
-      .filter(Boolean),
+function render(policy: PolicyDef): string {
+  return (
+    `  • ${policy.table} :: "${policy.name}"  (${policy.file}), ` +
+    `role: ${[...policy.roles].join(", ")}`
   );
 }
 
-function isInsertCapable(tail: string): boolean {
-  const head = tail.split(/\bUSING\b|\bWITH\s+CHECK\b/i)[0];
-  const m = /\bFOR\s+(ALL|INSERT|SELECT|UPDATE|DELETE)\b/i.exec(head);
-  if (!m) return true; // brak FOR = FOR ALL
-  const op = m[1].toUpperCase();
-  return op === "ALL" || op === "INSERT";
-}
-
-/** Efektywny check INSERT: WITH CHECK, wpp. USING (FOR ALL), wpp. brak = permisywny. */
-function insertCheckKind(tail: string): "permissive" | "deny" | "restricted" {
-  const withCheck = normExpr(parenExprAfter(tail, /\bWITH\s+CHECK\b/i));
-  if (withCheck === "true") return "permissive";
-  if (withCheck === "false") return "deny";
-  if (withCheck === "other") return "restricted";
-  // Brak WITH CHECK -> dla FOR ALL check INSERT-u dziedziczy z USING.
-  const using = normExpr(parenExprAfter(tail, /\bUSING\b/i));
-  if (using === "true") return "permissive";
-  if (using === "false") return "deny";
-  if (using === "other") return "restricted";
-  return "permissive"; // ani WITH CHECK, ani USING -> nic nie ogranicza
-}
-
-interface PolicyEvent {
-  readonly kind: "create" | "drop";
-  readonly index: number;
-  readonly table: string;
-  readonly name: string;
-  readonly state?: PolicyState;
-}
-
-const CREATE_HEAD = /CREATE\s+POLICY\s+("[^"]+"|[A-Za-z0-9_]+)\s+ON\s+([A-Za-z0-9_."]+)/gi;
-const DROP_RE =
-  /DROP\s+POLICY\s+(?:IF\s+EXISTS\s+)?("[^"]+"|[A-Za-z0-9_]+)\s+ON\s+([A-Za-z0-9_."]+)/gi;
-
 function main(): void {
   const files = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .map((file) => ({
+      file,
+      sql: stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8")),
+    }));
 
-  const policies = new Map<string, PolicyState>();
+  const policies = extractLatestPolicies(files);
 
-  for (const file of files) {
-    const sql = stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
-    const events: PolicyEvent[] = [];
-
-    CREATE_HEAD.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = CREATE_HEAD.exec(sql)) !== null) {
-      const table = normTable(m[2]);
-      const name = normName(m[1]);
-      const tail = readStatementTail(sql, m.index + m[0].length);
-      events.push({
-        kind: "create",
-        index: m.index,
-        table,
-        name,
-        state: {
-          table,
-          name,
-          file,
-          insertCapable: isInsertCapable(tail),
-          roles: parseRoles(tail),
-          insertCheck: insertCheckKind(tail),
-        },
-      });
-    }
-    DROP_RE.lastIndex = 0;
-    while ((m = DROP_RE.exec(sql)) !== null) {
-      events.push({ kind: "drop", index: m.index, table: normTable(m[2]), name: normName(m[1]) });
-    }
-
-    events.sort((a, b) => a.index - b.index);
-    for (const ev of events) {
-      const key = `${ev.table}::${ev.name}`;
-      if (ev.kind === "drop") policies.delete(key);
-      else if (ev.state) policies.set(key, ev.state);
-    }
-  }
-
-  const anonViolations: PolicyState[] = [];
-  const intakeViolations: PolicyState[] = [];
+  const anonViolations: PolicyDef[] = [];
+  const intakeViolations: PolicyDef[] = [];
   const allowlistHit = new Set<string>();
 
-  for (const p of policies.values()) {
-    if (!p.insertCapable) continue;
-    const key = `${p.table}::${p.name}`;
-    const hasAnon = p.roles.has("anon") || p.roles.has("public");
-    const hasClient = hasAnon || p.roles.has("authenticated");
+  for (const policy of policies.values()) {
+    if (!isInsertCapable(policy)) continue;
+    const hasAnon = policy.roles.has("anon") || policy.roles.has("public");
+    const hasClient = hasAnon || policy.roles.has("authenticated");
+    const check = insertCheckKind(policy);
 
     // A: permisywny anon-insert (rola anon/public + check == true/brak).
-    if (hasAnon && p.insertCheck === "permissive") {
-      if (ANON_INSERT_ALLOWLIST[key] !== undefined) allowlistHit.add(key);
-      else anonViolations.push(p);
+    if (hasAnon && check === "permissive") {
+      if (ANON_INSERT_ALLOWLIST[policy.key] !== undefined) allowlistHit.add(policy.key);
+      else anonViolations.push(policy);
     }
 
-    // B: tabela intake z jakąkolwiek nie-DENY polityką INSERT dla roli klienta.
-    if (PROTECTED_INTAKE_TABLES.has(p.table) && hasClient && p.insertCheck !== "deny") {
-      intakeViolations.push(p);
+    // B: tabela intake z jakakolwiek nie-DENY polityka INSERT dla roli klienta.
+    if (PROTECTED_INTAKE_TABLES.has(policy.table) && hasClient && check !== "deny") {
+      intakeViolations.push(policy);
     }
   }
 
@@ -232,7 +99,7 @@ function main(): void {
     failed = true;
     console.error(`\n✗ Permisywny anonimowy INSERT w ${anonViolations.length} polityce/ach:\n`);
     for (const v of anonViolations.sort((a, b) => a.table.localeCompare(b.table))) {
-      console.error(`  • ${v.table} :: "${v.name}"  (${v.file}), role: ${[...v.roles].join(", ")}`);
+      console.error(render(v));
     }
     console.error(
       "\n  Naprawa: zapis anonimowy prowadz przez funkcje serwerowa / RPC SECURITY" +
@@ -247,7 +114,7 @@ function main(): void {
       `\n✗ Tabela intake przyjmuje INSERT klienta w ${intakeViolations.length} polityce/ach:\n`,
     );
     for (const v of intakeViolations.sort((a, b) => a.table.localeCompare(b.table))) {
-      console.error(`  • ${v.table} :: "${v.name}"  (${v.file}), role: ${[...v.roles].join(", ")}`);
+      console.error(render(v));
     }
     console.error(
       "\n  Te tabele przyjmuja zapis WYLACZNIE przez service_role. Usun polityke" +

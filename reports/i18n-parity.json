@@ -5,7 +5,8 @@
     "comparison",
     "countryCompare",
     "adminBlocks",
-    "adminThemeDesign"
+    "adminThemeDesign",
+    "adminPermissions"
   ],
   "missing": [],
   "missingEn": [],

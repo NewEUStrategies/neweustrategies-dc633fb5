@@ -5,7 +5,7 @@
  * wydaniach z rzędu: „Brak GPC / »do not sell« - zero wystąpień `Sec-GPC`").
  * Rejestr `user_consents` / `user_consent_events` zapisywał IP, UA, wersję,
  * język i źródło - wszystko poza stanem ogólnego sygnału sprzeciwu. Zamyka to
- * migracja 20260803140000.
+ * migracja 20260803140001.
  *
  * Test jest STATYCZNY (bez bazy), bo migracje są forward-only: o stanie końcowym
  * decyduje OSTATNIA instrukcja dotykająca danego obiektu. Sama obecność migracji
