@@ -70,7 +70,12 @@ export const TERMS_CONTENT: LegalDocContent = {
           "Naruszanie praw własności intelektualnej osób trzecich.",
           "Ingerowanie w bezpieczeństwo Serwisu: złośliwe oprogramowanie, skanowanie podatności, obchodzenie limitów, masowe pobieranie treści (scraping).",
           "Odsprzedaż, redystrybucja lub udostępnianie płatnych treści osobom bez ważnego dostępu.",
+          "Treści zabronione bez wyjątku: materiały dla dorosłych, mowa nienawiści, nawoływanie do przemocy i nękanie, broń i amunicja, narkotyki i substancje kontrolowane, hazard, kryptoaktywa o charakterze spekulacyjnym, piramidy finansowe oraz produkty naruszające prawa autorskie lub znaki towarowe.",
+          "Korzystanie z Serwisu wymaga ukończenia 18 lat albo zgody opiekuna prawnego; konto może założyć wyłącznie osoba działająca we własnym imieniu lub w imieniu reprezentowanej firmy.",
+          "Naruszenia zgłaszasz na kontakt@neweuropeanstrategies.com - rozpatrujemy je bez zbędnej zwłoki, nie później niż w 14 dni.",
+          "Naruszenie tych zasad uprawnia nas do ograniczenia funkcji, zawieszenia albo rozwiązania umowy ze skutkiem natychmiastowym; opłata za niewykorzystany okres jest wtedy zwracana proporcjonalnie, chyba że naruszenie miało charakter oszustwa.",
         ],
+
       },
       {
         id: "wlasnosc",
