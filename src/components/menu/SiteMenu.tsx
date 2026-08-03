@@ -348,7 +348,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-          className="inline-flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded px-4 py-2.5 text-sm font-medium text-foreground/90 hover:text-foreground"
         >
           {node.icon ? (
             <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
@@ -375,7 +375,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded px-4 py-2.5 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {node.icon ? (
           <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
@@ -454,7 +454,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         <AppLink
           href={itemHref(node)}
           target={itemTarget(node)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium"
+          className="flex min-h-11 items-center gap-2 px-3 py-2.5 text-sm font-medium"
         >
           {node.icon ? (
             <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
@@ -467,7 +467,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   return (
     <li>
       <details className="group">
-        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 py-2.5 text-sm font-medium">
           <span className="flex items-center gap-2">
             {node.icon ? (
               <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
@@ -486,7 +486,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
               href={itemHref(node)}
               target={itemTarget(node)}
               rel={itemTarget(node) === "_blank" ? "noopener noreferrer" : undefined}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:text-brand"
+              className="flex min-h-11 items-center gap-2 px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-brand"
             >
               {node.icon ? (
                 <DynamicIcon name={node.icon} size={14} strokeWidth={1.75} aria-hidden />
@@ -500,7 +500,7 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           {megaLinks.map((lnk, i) =>
             lnk.label ? (
               <li key={`m-${i}`}>
-                <AppLink href={lnk.href} className="block px-3 py-2 text-sm text-foreground/80">
+                <AppLink href={lnk.href} className="block min-h-10 px-3 py-2.5 text-sm text-foreground/80">
                   {lnk.label}
                 </AppLink>
               </li>

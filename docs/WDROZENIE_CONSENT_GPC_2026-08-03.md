@@ -237,18 +237,30 @@ Sama **logika klamry** zostaje synchroniczna i eager - bramkowanie skryptów nie
 chunk. Prywatnościowo to właściwa kolejność i nigdy odwrotna: klamra działa od pierwszego
 renderu, a wyjaśnienie doczytuje się w tle.
 
-Pomiar (ten sam host, te same zależności, gałąź vs baza `e55e38b`):
+Pomiar po scaleniu z `main` (ten sam host, te same zależności - `main` nie zmieniał
+`package.json` ani `bun.lock`):
 
-|                     | chunk                                             | public    | overall   |
-| ------------------- | ------------------------------------------------- | --------- | --------- |
-| baza                | 508,7 KB (**już ponad** floorem 508 - dryf maina) | 1783,9 KB | 2993,5 KB |
-| gałąź               | 510,0 KB                                          | 1788,3 KB | 2997,8 KB |
-| bez leniwego chunka | 511,7 KB                                          | 1787,5 KB | 2997,0 KB |
+|                          | chunk    | public        | overall   |
+| ------------------------ | -------- | ------------- | --------- |
+| sam `main` (`85b4c7b`)   | 509,5 KB | **1794,0 KB** | 2999,6 KB |
+| po scaleniu (main + GPC) | 510,7 KB | **1798,4 KB** | 3004,0 KB |
+| **udział tej gałęzi**    | **+1,2** | **+4,4**      | **+4,4**  |
 
-Koszt w entry to **+1,3 KB i jest nieredukowalny** (to sama klamra). Floory `MAX_CHUNK_KB`
-i `MAX_TOTAL_KB` idą na nowy poziom nad zmierzonym śladem, z uzasadnieniem w
-`scripts/check-bundle-size.ts`. `MAX_PUBLIC_KB` **zostaje na 1790** - jedyny budżet o znaczeniu
-wydajnościowym dla czytelnika, gałąź się w nim mieści.
+**Sam `main` przekracza wszystkie trzy poprzednie floory (508 / 1790 / 2996) niezależnie od tej
+gałęzi** - chunk +1,5 KB, public +4,0 KB, overall +3,6 KB dryfu. Udział GPC (+1,2 / +4,4 / +4,4)
+jest stabilny w dwóch niezależnych pomiarach; wcześniejszy, przed scaleniem, dał te same liczby
+(baza `e55e38b` 508,7 / 1783,9 / 2993,5 → gałąź 510,0 / 1788,3 / 2997,8).
+
+Z tych +4,4 KB **tylko +1,2 KB siedzi w entry i jest nieredukowalne** (to sama klamra).
+Pozostałe ~3,2 KB to leniwy chunk powierzchni prezentacyjnej - liczy się do `public`, bo jest
+osiągalny z publicznego URL-a, ale pobierają go wyłącznie osoby realnie wysyłające sygnał. Bez
+wyniesienia byłoby +3,0 KB w entry zamiast +1,2 KB (zmierzone: 511,7 KB chunk).
+
+`MAX_PUBLIC_KB` rusza się **pierwszy raz od 07-25** - nie dlatego, że ta gałąź go przebiła, ale
+dlatego, że przebił go sam `main`. Wszystkie trzy floory idą nad zmierzony ślad po scaleniu, nie
+„z zapasem", z rozdzieleniem odpowiedzialności w `scripts/check-bundle-size.ts`. Realna redukcja
+(split locale'i PL/EN, odchudzenie eager-owego zestawu widgetów chrome, `@tanstack` poza entry)
+jest teraz pilniejsza niż dotąd.
 
 ---
 
@@ -269,12 +281,12 @@ końcowym decyduje OSTATNIA instrukcja. Sama obecność migracji naprawczej nic 
 dowolna późniejsza mogłaby przywrócić klientowi `INSERT` (i wtedy `gpc = false` dałoby się wpisać
 ręcznie) albo usunąć kolumnę. Dokładnie ta klasa regresji powtarzała się w audycie.
 
-### Stan po wdrożeniu
+### Stan po scaleniu z `main` (`85b4c7b`)
 
 ```
-vitest        5572 passed, 1 failed*, 50 skipped
+vitest        5586 passed, 1 failed*, 50 skipped
 tsc --noEmit  czysto
-eslint        czysto
+eslint        czysto (na plikach tej gałęzi)**
 check:sql-tenant-scope   ✓ 524 funkcje
 check:sql-anon-insert    ✓ 514 polityk, 6 tabel intake
 check:sql-app-role       ✓ 875 literałów
@@ -283,9 +295,23 @@ check:chunks             ✓ graf acykliczny
 vite build               ✓
 ```
 
-\* `settingsFidelity.gate.test.tsx > join-us` - **awaria zastana na `e55e38b`**, niezwiązana
-z tym wdrożeniem (panel buildera widgetu „join-us" nie oferuje 19 ustawień, które czyta jego
-renderer). Zweryfikowane przez `git stash` na bazie.
+\* `settingsFidelity.gate.test.tsx > join-us` - **awaria zastana na `main`**, niezwiązana z tym
+wdrożeniem (panel buildera widgetu „join-us" nie oferuje 19 ustawień, które czyta jego renderer).
+Zweryfikowane osobnym `git worktree` na `origin/main`: ten sam jeden failed, 216 passed.
+
+\*\* `eslint .` na całym repo raportuje 384 problemy formatowania **na `main`** (132 pliki, głównie
+`prettier/prettier`). Żaden z nich nie dotyczy plików tej gałęzi - sprawdzone maszynowo przez
+przecięcie raportu ESLint z listą `git status --porcelain`: 0 trafień.
+
+### Rozwiązanie konfliktu scalania
+
+PR zapalił „Unable to merge". Jedynym konfliktem był `src/routeTree.gen.ts` - plik GENEROWANY,
+który `main` przegenerował innym narzędziem (odwrotna kolejność importów: 2593 wstawek / 2593
+usunięć wobec bazy tej gałęzi). Pełna regeneracja u siebie dałaby ten sam szum w drugą stronę,
+więc konflikt rozwiązany **wersją z `main` + wstawieniem samej trasy GPC** (11 kotwic na sąsiedniej
+trasie `[.well-known]/oauth-protected-resource`). Diff `routeTree.gen.ts` wobec `main`: **23
+wstawki, 0 usunięć.** `main` nie dotknął żadnego pliku zgód ani żadnej migracji, więc reszta
+scalenia była bezkonfliktowa.
 
 ### Weryfikacja end-to-end na zbudowanym workerze
 

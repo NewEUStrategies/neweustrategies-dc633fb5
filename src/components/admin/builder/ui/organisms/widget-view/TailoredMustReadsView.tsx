@@ -214,46 +214,56 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
                 </AppLink>
                 <div className="flex min-w-0 flex-col gap-1.5">
                   {showAuthor && authorName ? (
-                    authorHref ? (
-                      <AppLink
-                        href={authorHref}
-                        className="inline-flex items-center gap-2 min-w-0 text-[12px] font-medium text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        {author?.avatar_url ? (
-                          <img
-                            src={author.avatar_url}
-                            alt=""
-                            width={20}
-                            height={20}
-                            loading="lazy"
-                            className="h-5 w-5 shrink-0 rounded-full object-cover"
-                            style={{ borderRadius: 5 }}
-                          />
-                        ) : (
-                          <span
-                            aria-hidden
-                            className="h-5 w-5 shrink-0 bg-muted"
-                            style={{ borderRadius: 5 }}
-                          />
-                        )}
-                        <span className="truncate">{authorName}</span>
-                      </AppLink>
-                    ) : (
-                      <span className="inline-flex items-center gap-2 min-w-0 text-[12px] font-medium text-muted-foreground">
-                        {author?.avatar_url ? (
-                          <img
-                            src={author.avatar_url}
-                            alt=""
-                            width={20}
-                            height={20}
-                            loading="lazy"
-                            className="h-5 w-5 shrink-0 object-cover"
-                            style={{ borderRadius: 5 }}
-                          />
-                        ) : null}
-                        <span className="truncate">{authorName}</span>
-                      </span>
-                    )
+                    (() => {
+                      const AVATAR_PX = 20;
+                      const FONT_PX = 12;
+                      const badgeStyle = { fontSize: `${FONT_PX}px`, lineHeight: 1.35 };
+                      const avatarStyle = {
+                        width: AVATAR_PX,
+                        height: AVATAR_PX,
+                        borderRadius: 6,
+                      };
+                      const media = author?.avatar_url ? (
+                        <img
+                          src={author.avatar_url}
+                          alt=""
+                          width={AVATAR_PX}
+                          height={AVATAR_PX}
+                          loading="lazy"
+                          decoding="async"
+                          className="shrink-0 object-cover"
+                          style={avatarStyle}
+                        />
+                      ) : (
+                        <span aria-hidden className="shrink-0 bg-muted" style={avatarStyle} />
+                      );
+                      const inner = (
+                        <>
+                          {media}
+                          <span className="truncate" style={badgeStyle} data-typography-exempt>
+                            {authorName}
+                          </span>
+                        </>
+                      );
+                      return authorHref ? (
+                        <AppLink
+                          href={authorHref}
+                          className="inline-flex min-w-0 items-center gap-1.5 font-medium text-muted-foreground transition-colors hover:text-primary"
+                          style={badgeStyle}
+                          data-typography-exempt
+                        >
+                          {inner}
+                        </AppLink>
+                      ) : (
+                        <span
+                          className="inline-flex min-w-0 items-center gap-1.5 font-medium text-muted-foreground"
+                          style={badgeStyle}
+                          data-typography-exempt
+                        >
+                          {inner}
+                        </span>
+                      );
+                    })()
                   ) : null}
                   <AppLink href={href} className="min-w-0">
                     <h3 className="line-clamp-3 font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
