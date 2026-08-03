@@ -122,13 +122,13 @@ export function ContactForm({ lang }: Props) {
           value={form.subject}
           onChange={(e) => setForm({ ...form, subject: e.target.value })}
         />
-        <FloatingTextarea
+        <MessageComposerField
           id={messageId}
           label={t.msg}
           required
           rows={5}
           value={form.message}
-          onChange={(e) => setForm({ ...form, message: e.target.value })}
+          onChange={(next) => setForm({ ...form, message: next })}
         />
         <SubscribeButton
           type="submit"
