@@ -11997,10 +11997,6 @@ export type Database = {
         }[]
       }
       admin_get_user_consent: { Args: { _user_id: string }; Returns: Json }
-      admin_grant_profile_badge: {
-        Args: { p_badge: string; p_note?: string | null; p_user_id: string }
-        Returns: string
-      }
       admin_grant_membership: {
         Args: {
           p_email: string
@@ -12008,6 +12004,10 @@ export type Database = {
           p_note?: string
           p_tier_key: string
         }
+        Returns: string
+      }
+      admin_grant_profile_badge: {
+        Args: { p_badge: string; p_note?: string; p_user_id: string }
         Returns: string
       }
       admin_list_inmails: {
@@ -12059,12 +12059,12 @@ export type Database = {
           badge: string
           created_at: string
           grant_source: string
-          granted_by: string | null
+          granted_by: string
           id: string
-          member_avatar_url: string | null
-          member_display_name: string | null
-          member_email: string | null
-          note: string | null
+          member_avatar_url: string
+          member_display_name: string
+          member_email: string
+          note: string
           tenant_id: string
           user_id: string
         }[]
@@ -13912,6 +13912,10 @@ export type Database = {
         }
         Returns: number
       }
+      profile_badge_activity_points: {
+        Args: { p_since?: string; p_tenant_id: string; p_user_id: string }
+        Returns: number
+      }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       profile_view_stats: {
         Args: never
@@ -13991,10 +13995,6 @@ export type Database = {
         Returns: Json
       }
       recompute_my_pending_counters: { Args: never; Returns: undefined }
-      reconcile_due_profile_badges: {
-        Args: { p_limit?: number }
-        Returns: number
-      }
       recompute_tenant_pending_counters: {
         Args: { p_tenant_id: string }
         Returns: undefined
@@ -14002,6 +14002,14 @@ export type Database = {
       recompute_user_pending_counters: {
         Args: { p_user_id: string }
         Returns: undefined
+      }
+      reconcile_due_profile_badges: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
+      reconcile_profile_badge_for_user: {
+        Args: { p_tenant_id: string; p_user_id: string }
+        Returns: boolean
       }
       record_job_run: {
         Args: {
