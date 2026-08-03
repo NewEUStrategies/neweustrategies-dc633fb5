@@ -624,13 +624,20 @@ export function RatedListView({
                   </div>
                 )}
                 {(showAuthor && it.author) || (showDate && it.date) ? (
-                  <p className="rl-meta cms-meta mt-2" style={{ fontSize: `${metaSize}px` }}>
+                  <p className="rl-meta cms-meta mt-2 inline-flex flex-wrap items-center gap-x-3 gap-y-1" style={{ fontSize: `${metaSize}px` }}>
                     {showAuthor && it.author && (
-                      <>
-                        - <span className="font-semibold text-foreground/80">{it.author}</span>
-                      </>
+                      <AuthorInline
+                        name={it.author}
+                        avatarUrl={it.authorAvatar}
+                        href={it.authorHref}
+                        lang={lang}
+                      />
                     )}
-                    {showAuthor && it.author && showDate && it.date && " · "}
+                    {showAuthor && it.author && showDate && it.date && (
+                      <span aria-hidden className="opacity-60">
+                        ·
+                      </span>
+                    )}
                     {showDate && it.date && (
                       <span>
                         {new Date(it.date).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")}
