@@ -1341,6 +1341,13 @@ export const pl = {
     slash: {
       hint: "Wpisz / aby wybrać blok",
     },
+    selection: {
+      count_one: "Zaznaczono 1 blok.",
+      count_few: "Zaznaczono {{count}} bloki.",
+      count_many: "Zaznaczono {{count}} bloków.",
+      count_other: "Zaznaczono {{count}} bloku.",
+      hint: "Shift+strzałki rozszerzają zaznaczenie, Shift+Home/End sięgają krawędzi dokumentu.",
+    },
     clipboard: {
       copied_one: "Skopiowano 1 blok do schowka.",
       copied_few: "Skopiowano {{count}} bloki do schowka.",

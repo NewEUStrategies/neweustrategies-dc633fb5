@@ -106,8 +106,16 @@ export function BlockListView({
 
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
         {t("blocks.listView.title", { defaultValue: "Struktura dokumentu" })}
+      </p>
+      {/* Skróty zaznaczenia blokowego - jedyne miejsce, gdzie redakcja je
+          zobaczy bez czytania dokumentacji (Shift+klik działa też tutaj). */}
+      <p className="text-[10px] leading-snug text-muted-foreground/80 mb-1.5">
+        {t("blocks.selection.hint", {
+          defaultValue:
+            "Shift+strzałki rozszerzają zaznaczenie, Shift+Home/End sięgają krawędzi dokumentu.",
+        })}
       </p>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>

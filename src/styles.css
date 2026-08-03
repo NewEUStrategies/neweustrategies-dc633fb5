@@ -542,6 +542,21 @@ body {
   color: var(--popover-foreground);
   padding: 0.25rem 0.5rem;
 }
+/* Zaznaczenie w POPRZEK bloków (cross-block selection, parytet z WP Gutenberg):
+   w trakcie przeciągania myszą źródłem prawdy jest podświetlenie CAŁYCH bloków,
+   więc natywne podświetlenie tekstu i karetka są wygaszane - inaczej redakcja
+   widziałaby dwa nachodzące na siebie zaznaczenia. Atrybut zdejmuje hook po
+   puszczeniu przycisku (`useCrossBlockSelection`). */
+.block-canvas[data-multi-selecting="true"] {
+  caret-color: transparent;
+}
+.block-canvas[data-multi-selecting="true"] ::selection {
+  background: transparent;
+}
+.block-canvas[data-multi-selecting="true"] ::-moz-selection {
+  background: transparent;
+}
+
 /* Neutralizacja tła edytora bloków dla input/textarea (jak dotychczas transparentne
    inside inline TipTap fields) - te reguły są precyzyjniejsze i wygrywają. */
 .block-canvas :is(input, textarea, [contenteditable="true"])[data-inline="true"] {

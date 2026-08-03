@@ -8,6 +8,9 @@
 //     (karetka w punkcie złączenia), strzałki przechodzą między blokami,
 //   - zaznaczenie wielokrotne: dwustopniowe Ctrl+A, Shift+klik (zakres),
 //     Ctrl/Cmd+klik (przełączanie), Ctrl+Shift+D (duplikat),
+//   - zaznaczenie w POPRZEK bloków (`useCrossBlockSelection`): przeciąganie
+//     myszą przez granicę bloku, Shift+strzałki (także eskalacja z wnętrza
+//     akapitu), Shift+Home/End, pisanie po zaznaczeniu wielu bloków,
 //   - schowek Ctrl+C/X/V przez `useBlockClipboard` (interop z WordPressem).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -32,9 +35,13 @@ import { newBlockId } from "@/lib/blocks/types";
 import { isTextEntryBlockType, requestBlockFocus } from "@/lib/blocks/focus";
 import { regenerateBlockIds } from "@/lib/blocks/clipboard";
 import { htmlTextLength, innerInlineHtml, mergeInlineIntoHtml } from "@/lib/blocks/merge";
-import { blockRange, toggleInSelection } from "@/lib/blocks/selection";
+import { escapeInlineText } from "@/lib/blocks/inlineHtml";
+import { isEditableTarget } from "@/lib/blocks/selectionDom";
+import type { SelectionDirection } from "@/lib/blocks/crossSelection";
 import { getTransformTargets, transformBlock } from "@/lib/blocks/transforms";
 import { useBlockClipboard } from "./hooks/useBlockClipboard";
+import { useCrossBlockSelection } from "./hooks/useCrossBlockSelection";
+import { BlockSelectionAnnouncer } from "./atoms/BlockSelectionAnnouncer";
 import { BlockEditRenderer, BlockWithToolbar } from "./BlockEditRenderer";
 import { BlockInserter } from "./BlockInserter";
 import { BlockAppender } from "./molecules/BlockAppender";
@@ -172,10 +179,7 @@ export function BlockCanvas({
 
   // Zaznaczenie WIELU bloków (Ctrl/Cmd+A jak w Word) - stan kontrolowany
   // przez rodzica (PostBlockEditor), bo dzieli go z List View w sidebarze.
-  const setSelectedIds = onSelectedIdsChange;
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  // Kotwica zaznaczenia zakresowego (ostatni blok kliknięty bez modyfikatorów).
-  const anchorIdRef = useRef<string | null>(null);
 
   // Stable ref to current doc/blocks so callbacks don't churn.
   const docRef = useRef(doc);
@@ -201,29 +205,56 @@ export function BlockCanvas({
     [onChange],
   );
 
-  const selectAllBlocks = useCallback(() => {
-    // Zaznaczenie blokowe zastępuje zaznaczenie tekstowe. Bez wyczyszczenia
-    // DOM-owej selekcji Ctrl+C po drugim Ctrl+A trafiałoby w natywne
-    // kopiowanie tekstu akapitu zamiast w schowek bloków.
-    window.getSelection()?.removeAllRanges();
-    // Fokus na kanwie (tabIndex=-1): zdarzenia copy/cut/paste dostają target
-    // wewnątrz [data-block-canvas] - Firefox/Safari nie gwarantują `copy`
-    // przy pustej selekcji i fokusie na <body> (WP robi to samo na wrapperze).
-    rootRef.current?.focus({ preventScroll: true });
-    setSelectedIds(docRef.current.blocks.map((b) => b.id));
-    onSelect(null);
-  }, [onSelect]);
+  /**
+   * Pisanie przy zaznaczeniu WIELU bloków zastępuje je jednym akapitem -
+   * dokładnie jak `onBeforeInput` w WP. Wpisany znak trafia do treści
+   * ZAESCAPOWANY (nigdy jako markup), więc `<`/`&` nie potrafią wstrzyknąć
+   * HTML-a do dokumentu.
+   */
+  const replaceSelectionWithParagraph = useCallback(
+    (typed: string) => {
+      const set = new Set(selectedIdsRef.current);
+      if (set.size < 2) return;
+      const arr = docRef.current.blocks;
+      const firstIdx = arr.findIndex((b) => set.has(b.id));
+      const kept = arr.filter((b) => !set.has(b.id));
+      const fresh: Block = {
+        id: newBlockId(),
+        type: "paragraph",
+        data: { html: typed ? `<p>${escapeInlineText(typed)}</p>` : "" },
+      };
+      const next = [...kept];
+      next.splice(firstIdx < 0 ? kept.length : firstIdx, 0, fresh);
+      emitChange({ ...docRef.current, blocks: next }, true);
+      selectedIdsRef.current = [];
+      onSelectedIdsChange([]);
+      onSelect(fresh.id);
+      requestBlockFocus(fresh.id, "end");
+    },
+    [emitChange, onSelect, onSelectedIdsChange],
+  );
 
-  const clearSelection = useCallback(() => setSelectedIds([]), []);
+  // Jedyny właściciel zaznaczenia blokowego: klik z modyfikatorami, Shift+
+  // strzałki, przeciąganie przez granicę bloku i pisanie po zaznaczeniu.
+  const selection = useCrossBlockSelection({
+    rootRef,
+    docRef,
+    activeIdRef,
+    selectedIdsRef,
+    onSelectedIdsChange,
+    onSelect,
+    replaceSelection: replaceSelectionWithParagraph,
+  });
+  const { clear: clearSelection, selectAll: selectAllBlocks } = selection;
 
   const removeSelected = useCallback(() => {
     const set = new Set(selectedIds);
     if (set.size === 0) return;
     const next = docRef.current.blocks.filter((b) => !set.has(b.id));
     emitChange({ ...docRef.current, blocks: next.length ? next : [] }, true);
-    setSelectedIds([]);
+    clearSelection();
     onSelect(null);
-  }, [selectedIds, emitChange, onSelect]);
+  }, [selectedIds, emitChange, onSelect, clearSelection]);
 
   /**
    * Ctrl+Shift+D (jak w WP): duplikuje zaznaczenie wielokrotne albo aktywny
@@ -246,68 +277,49 @@ export function BlockCanvas({
     next.splice(lastIdx + 1, 0, ...copies);
     emitChange({ ...docRef.current, blocks: next }, true);
     if (copies.length === 1) {
-      setSelectedIds([]);
+      clearSelection();
       onSelect(copies[0].id);
     } else {
-      setSelectedIds(copies.map((c) => c.id));
-      onSelect(null);
+      selection.selectRange(copies[0].id, copies[copies.length - 1].id);
     }
     return true;
-  }, [emitChange, onSelect]);
+  }, [emitChange, onSelect, clearSelection, selection]);
 
   /**
    * Klik w blok z modyfikatorami (jak w WP): Shift = zakres od kotwicy,
    * Ctrl/Cmd = przełączenie pojedynczego bloku, bez modyfikatorów = zwykłe
-   * zaznaczenie aktywnego bloku (i nowa kotwica). Modyfikatory działają tylko
-   * poza polami tekstowymi - wewnątrz treści Shift+klik rozszerza tekst.
+   * zaznaczenie aktywnego bloku (i nowa kotwica).
+   *
+   * Ctrl/Cmd+klik wewnątrz treści zostawiamy przeglądarce (to nie jest gest
+   * zaznaczania tekstu), ale Shift+klik w treść INNEGO bloku eskaluje do
+   * zaznaczenia blokowego - parytet z WP, gdzie zaznaczenie tekstowe nie
+   * potrafi przekroczyć granicy bloku i zamienia się w zaznaczenie bloków.
+   * Wyjątkiem są POLA FORMULARZA bloku (np. język bloku `code`): tam Shift+klik
+   * ma zostać natywnym rozszerzeniem zaznaczenia w obrębie pola.
    */
   const handleBlockClick = useCallback(
     (id: string, e?: React.MouseEvent) => {
       const target = e?.target as HTMLElement | null;
-      const inEditable = Boolean(
-        target?.closest?.('[contenteditable="true"], input, textarea, select'),
-      );
-      const docIds = docRef.current.blocks.map((b) => b.id);
-      if (e?.shiftKey && !inEditable) {
-        const anchor = anchorIdRef.current ?? activeIdRef.current;
-        if (anchor && anchor !== id) {
-          e.preventDefault();
-          window.getSelection()?.removeAllRanges();
-          setSelectedIds(blockRange(docIds, anchor, id));
-          onSelect(null);
-          return;
-        }
-      }
-      if ((e?.metaKey || e?.ctrlKey) && !inEditable) {
-        const base = selectedIdsRef.current.length
-          ? selectedIdsRef.current
-          : activeIdRef.current
-            ? [activeIdRef.current]
-            : [];
-        window.getSelection()?.removeAllRanges();
-        setSelectedIds(toggleInSelection(docIds, base, id));
-        onSelect(null);
-        anchorIdRef.current ??= id;
+      const inFormField = Boolean(target?.closest?.("input, textarea, select"));
+      if (e?.shiftKey && !inFormField && selection.extendTo(id)) {
+        e.preventDefault();
         return;
       }
-      anchorIdRef.current = id;
-      setSelectedIds([]);
-      onSelect(id);
+      if ((e?.metaKey || e?.ctrlKey) && !isEditableTarget(target)) {
+        selection.toggle(id);
+        return;
+      }
+      selection.anchorTo(id);
     },
-    [onSelect],
+    [selection],
   );
 
   // Klawiatura dokumentu: Ctrl/Cmd+A poza edytorem zaznacza wszystkie bloki,
   // Ctrl+Shift+D duplikuje, Delete/Backspace usuwa zaznaczone, Escape czyści.
+  // Strzałki i pisanie po zaznaczeniu obsługuje `useCrossBlockSelection`.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const inEditable =
-        !!target &&
-        (target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT");
+      const inEditable = isEditableTarget(e.target);
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "d") {
         // Działa też podczas pisania (duplikuje aktywny blok) - parytet z WP.
         if (duplicateSelection()) e.preventDefault();
@@ -622,6 +634,9 @@ export function BlockCanvas({
                       onFocusPrevious={() => focusNeighborText(idx, -1)}
                       onFocusNext={() => focusNeighborText(idx, 1)}
                       onSelectAllBlocks={selectAllBlocks}
+                      onExtendBlockSelection={(dir: SelectionDirection) =>
+                        selection.extendFromBlock(b.id, dir)
+                      }
                     />
                   </BlockWithToolbar>
                 </SortableBlockItem>
@@ -639,6 +654,7 @@ export function BlockCanvas({
             onInsert={(b) => insertAt(blocks.length, b)}
             onInsertBlocks={(list) => insertBlocksAt(blocks.length, list)}
           />
+          <BlockSelectionAnnouncer count={selectedIds.length} />
         </div>
       </SortableContext>
     </DndContext>

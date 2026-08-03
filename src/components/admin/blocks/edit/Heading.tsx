@@ -16,6 +16,7 @@ import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
+import type { SelectionDirection } from "@/lib/blocks/crossSelection";
 import { safeCssColor, stripParagraphWrapper, toParagraphDoc } from "@/lib/blocks/inlineHtml";
 import { reapplyPendingBlockFocus } from "@/lib/blocks/focus";
 import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
@@ -36,6 +37,8 @@ interface Props {
   onFocusNext?: () => boolean;
   /** Ctrl/Cmd+A przy już zaznaczonej całej treści bloku - eskalacja do dokumentu. */
   onSelectAllBlocks?: () => void;
+  /** Shift+strzałka na krawędzi treści - zaznaczenie w poprzek bloków (WP). */
+  onExtendBlockSelection?: (dir: SelectionDirection) => boolean;
 }
 
 export function HeadingBlock({
@@ -49,6 +52,7 @@ export function HeadingBlock({
   onFocusPrevious,
   onFocusNext,
   onSelectAllBlocks,
+  onExtendBlockSelection,
 }: Props) {
   const bt = useBlocksI18n();
   const level = Math.min(Math.max(Number(block.data.level ?? 2), 1), 5);
@@ -66,6 +70,7 @@ export function HeadingBlock({
     onFocusPrevious,
     onFocusNext,
     onSelectAllBlocks,
+    onExtendBlockSelection,
   });
   handlersRef.current = {
     onTransform,
@@ -75,6 +80,7 @@ export function HeadingBlock({
     onFocusPrevious,
     onFocusNext,
     onSelectAllBlocks,
+    onExtendBlockSelection,
   };
   const blockRef = useRef(block);
   blockRef.current = block;
@@ -140,6 +146,27 @@ export function HeadingBlock({
             return true;
           }
           return false;
+        }
+
+        // Shift+strzałka na krawędzi treści -> ESKALACJA do zaznaczenia
+        // BLOKOWEGO w poprzek bloków (parytet z WP).
+        if (event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          const extend = handlersRef.current.onExtendBlockSelection;
+          if (extend) {
+            const sel = ed.state.selection;
+            const atDocStart = sel.from <= 1;
+            const atDocEnd = sel.to >= ed.state.doc.content.size - 1;
+            const back =
+              (event.key === "ArrowUp" && view.endOfTextblock("up")) ||
+              (event.key === "ArrowLeft" && atDocStart);
+            const forward =
+              (event.key === "ArrowDown" && view.endOfTextblock("down")) ||
+              (event.key === "ArrowRight" && atDocEnd);
+            if ((back && extend(-1)) || (forward && extend(1))) {
+              event.preventDefault();
+              return true;
+            }
+          }
         }
 
         // Strzałki na krawędziach treści -> sąsiedni blok (płynne pisanie WP).

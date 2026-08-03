@@ -68,6 +68,13 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Dopasuj zainteresowania": "Customize interests",
   "Mega menu": "Mega menu",
   "Ikony social": "Social icons",
+  // Widget social-icons: źródło linków. Bramka labelsEn wymaga EN dla każdej
+  // etykiety schematu - te przyszły z widgetem bez tłumaczeń (CI było czerwone).
+  "Źródło linków": "Links source",
+  "własne, a gdy puste - globalne": "own, fall back to global when empty",
+  "globalne (Opcje motywu → Ikony social)": "global (Theme options → Social icons)",
+  "tylko wpisane poniżej": "only the ones entered below",
+  "Globalne linki do mediów społecznościowych ustawia się raz w Admin → Wygląd → Opcje motywu → „Ikony social” (/admin/theme-options). Widgety zaciągają je automatycznie.": "Global social media links are set once in Admin → Appearance → Theme options → “Social icons” (/admin/theme-options). Widgets pick them up automatically.",
   "Tryb jasny/ciemny": "Light / dark mode",
   "Konto / Logowanie": "Account / sign in",
   "Wyszukiwarka": "Search",
