@@ -7,7 +7,15 @@
 // role="combobox", aria-expanded, aria-controls i aria-activedescendant; lista
 // to role="listbox" z role="option". Nawigacja klawiaturą: ↑/↓ zmienia
 // zaznaczenie, Enter/Tab wybiera, Esc zamyka do następnej zmiany treści.
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MutableRefObject,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { FloatingTextarea } from "@/components/ui/floating-input";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -33,6 +41,8 @@ interface MentionTextareaProps {
   maxLength?: number;
   id?: string;
   autoFocus?: boolean;
+  /** Dostęp do elementu textarea (pasek formatowania w kompozytorze). */
+  textareaRef?: MutableRefObject<HTMLTextAreaElement | null>;
 }
 
 export function MentionTextarea({
@@ -44,6 +54,7 @@ export function MentionTextarea({
   maxLength,
   id,
   autoFocus,
+  textareaRef,
 }: MentionTextareaProps) {
   const { t } = useTranslation();
   const ref = useRef<HTMLTextAreaElement | null>(null);
@@ -119,7 +130,10 @@ export function MentionTextarea({
   return (
     <div className="relative">
       <FloatingTextarea
-        ref={ref}
+        ref={(el) => {
+          ref.current = el;
+          if (textareaRef) textareaRef.current = el;
+        }}
         id={id}
         label={label}
         value={value}
