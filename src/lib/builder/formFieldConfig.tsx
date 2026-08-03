@@ -13,6 +13,7 @@
 
 import { useMemo, type CSSProperties } from "react";
 import { FormSelect } from "@/components/atoms/FormSelect";
+import { MessageComposerField } from "@/components/forms/MessageComposerField";
 import { cn } from "@/lib/utils";
 
 export type CustomFieldType = "text" | "email" | "tel" | "url" | "textarea" | "select" | "checkbox";
