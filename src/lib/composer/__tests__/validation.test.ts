@@ -37,7 +37,7 @@ describe("validateComposerValue", () => {
   it("przepuszcza poprawną treść", () => {
     const v = validateComposerValue({ value: "  cześć  ", maxLength: 100 });
     expect(v.canSubmit).toBe(true);
-    expect(v.trimmedLength).toBe(6);
+    expect(v.trimmedLength).toBe(5);
     expect(v.length).toBe(9);
     expect(composerStatusMessageKey(v.status)).toBeNull();
   });
