@@ -306,6 +306,68 @@ export function qaCollectionJsonLd(input: QaListJsonLdInput): Record<string, unk
   };
 }
 
+export interface PlatformLandingJsonLdInput {
+  origin: string;
+  lang: Lang;
+  /** Kanoniczna ścieżka landingu (bez prefiksu języka), np. "/quiz". */
+  path: string;
+  name: string;
+  description?: string | null;
+  /** Absolutny adres promowanej platformy, np. "https://nes-quiz.com". */
+  platformUrl: string;
+  /** Nazwa aplikacji w markupie (WebApplication.name). */
+  platformName: string;
+  /** applicationCategory - domyślnie edukacyjna (quiz wiedzowy). */
+  applicationCategory?: string;
+}
+
+/**
+ * WebPage dla brandowanego landingu cross-promo drugiej platformy NES
+ * (`/quiz` -> nes-quiz.com).
+ *
+ * Kanoniczny adres zostaje przy tej stronie: ma własną, unikalną treść (header,
+ * panel udostępniania, stopka) i jest celem swoich własnych przycisków „udostępnij",
+ * a canonical między domenami wyciąłby ją z indeksu. Zasługę za samą aplikację
+ * dostaje `mainEntity` -> `WebApplication` pod adresem platformy: crawler i
+ * silniki odpowiedzi widzą, czyja to aplikacja i gdzie żyje, bez oddawania
+ * indeksowalności landingu.
+ *
+ * `WebApplication` (nie `Quiz`) świadomie: markup Quiz Google'a wymaga węzłów
+ * `Question` w `hasPart`, a landing nie zna pytań - siedzą w iframe drugiej
+ * platformy. Pusty węzeł Quiz to niekompletny rich result, `WebApplication` jest
+ * poprawnym opisem tego, do czego strona prowadzi.
+ */
+export function platformLandingJsonLd(input: PlatformLandingJsonLdInput): Record<string, unknown> {
+  const url = absoluteUrl(input.origin, localizedPath(input.path, input.lang));
+  const description = input.description?.trim();
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${url}#webpage`,
+    url,
+    name: input.name,
+    inLanguage: input.lang,
+    ...(description ? { description } : {}),
+    ...(input.origin
+      ? {
+          isPartOf: { "@id": `${input.origin}/#website` },
+          publisher: { "@id": `${input.origin}/#organization` },
+        }
+      : {}),
+    // Najważniejszy link wychodzący strony - to on, a nie canonical, przypisuje
+    // aplikację jej własnej domenie.
+    significantLink: input.platformUrl,
+    mainEntity: {
+      "@type": "WebApplication",
+      name: input.platformName,
+      url: input.platformUrl,
+      applicationCategory: input.applicationCategory ?? "EducationalApplication",
+      inLanguage: input.lang,
+      ...(input.origin ? { publisher: { "@id": `${input.origin}/#organization` } } : {}),
+    },
+  };
+}
+
 /** Jedno nadchodzące wydarzenie listy /events w postaci węzła schema.org Event. */
 export interface EventsListJsonLdEvent {
   slug: string;

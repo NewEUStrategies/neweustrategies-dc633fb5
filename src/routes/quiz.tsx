@@ -23,37 +23,81 @@ import {
   QUIZ_BG_PRELOAD_SCRIPT,
 } from "@/components/quiz/QuizBackground";
 import { LazyQuizIframe } from "@/components/quiz/LazyQuizIframe";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead, splitUrl, SITE_NAME, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
+import { platformLandingJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
+import { localizedPath } from "@/lib/i18n/localePath";
+import { useLang } from "@/lib/i18n/useLang";
+
+/** Druga platforma NES, którą ten landing promuje (cross-promo EuroChallenge).
+ *  Adres główny idzie do markupu i do fallbacku udostępniania; `/embed` to ten
+ *  sam quiz bez własnego chrome'u, przeznaczony do osadzania w iframe. */
+const QUIZ_PLATFORM_URL = "https://nes-quiz.com";
+const QUIZ_EMBED_URL = `${QUIZ_PLATFORM_URL}/embed`;
+const QUIZ_TITLE = "EuroChallenge Quiz";
 
 export const Route = createFileRoute("/quiz")({
   // Strona quizu ma własny układ: renderujemy globalny header NES,
   // a pod nim rozbudowany obszar z dużym iframe'em quizu oraz paskiem powrotu.
   staticData: { ownChrome: true },
-  head: () => ({
-    meta: [
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "EuroChallenge Quiz — New European Strategies" },
-      {
-        name: "description",
-        content:
-          "Sprawdź swoją wiedzę w EuroChallenge Quiz. Interaktywne pytania o Europie, gospodarce i polityce międzynarodowej.",
-      },
-      {
-        property: "og:title",
-        content: "EuroChallenge Quiz — New European Strategies",
-      },
-      {
-        property: "og:description",
-        content:
-          "Sprawdź swoją wiedzę w EuroChallenge Quiz. Interaktywne pytania o Europie, gospodarce i polityce międzynarodowej.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    // Preload wariantu LIGHT (SSR default). DARK preloaduje inline-script
-    // poniżej, tylko dla użytkowników z aktywnym trybem ciemnym.
-    links: [...QUIZ_BG_PRELOAD_LINKS],
-    scripts: [{ children: QUIZ_BG_PRELOAD_SCRIPT }],
-  }),
+  // Landing jest zrobiony do udostępniania, więc metadane MUSZĄ iść za językiem
+  // renderu: wcześniej opis i OG były zahardkodowane po polsku i odwiedzający
+  // /en/quiz dostawał polski snippet w podglądzie linku. `activeLang` czyta
+  // prefiks ścieżki (nie globalny singleton i18next - patrz lib/seo/head.ts),
+  // więc jest poprawny także przy współbieżnym SSR.
+  head: () => {
+    const url = getRequestUrl() || "/quiz";
+    const lang = activeLang(url);
+    const description =
+      lang === "en"
+        ? "Test your knowledge in the EuroChallenge Quiz - interactive questions on Europe, the economy and international politics."
+        : "Sprawdź swoją wiedzę w EuroChallenge Quiz - interaktywne pytania o Europie, gospodarce i polityce międzynarodowej.";
+    // Self-referencing canonical + og:url + klaster hreflang PL/EN. Strona ma
+    // własną, unikalną treść (header, panel udostępniania, stopka) i jest celem
+    // swoich własnych przycisków „udostępnij", więc canonical zostaje tutaj;
+    // promowaną platformę kredytuje JSON-LD (mainEntity -> WebApplication).
+    const head = buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: QUIZ_TITLE,
+      // Marka w tytule karty przeglądarki/SERP; og:title zostaje krótki
+      // (og:site_name i tak niesie brand w karcie społecznościowej).
+      documentTitle: `${QUIZ_TITLE} - ${SITE_NAME}`,
+      description,
+    });
+    const { origin } = splitUrl(url);
+    return {
+      ...head,
+      meta: [
+        // viewport-fit=cover: strona rysuje się pod notchem (env(safe-area-inset-*)
+        // niżej w komponencie), więc nadpisuje globalny viewport z root head.
+        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+        ...head.meta,
+      ],
+      // Preload wariantu LIGHT (SSR default). DARK preloaduje inline-script
+      // poniżej, tylko dla użytkowników z aktywnym trybem ciemnym.
+      links: [...head.links, ...QUIZ_BG_PRELOAD_LINKS],
+      scripts: [
+        { children: QUIZ_BG_PRELOAD_SCRIPT },
+        {
+          type: "application/ld+json",
+          children: safeJsonLd(
+            platformLandingJsonLd({
+              origin,
+              lang,
+              path: "/quiz",
+              name: QUIZ_TITLE,
+              description,
+              platformUrl: QUIZ_PLATFORM_URL,
+              platformName: QUIZ_TITLE,
+            }),
+          ),
+        },
+      ],
+    };
+  },
   component: QuizPage,
 });
 
@@ -64,12 +108,18 @@ const SHARE_BUTTONS = [
 ] as const;
 
 function useShareUrl() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const lang = useLang();
+  // SSR nie zna window.location, a przyciski udostępniania renderują się już
+  // z serwera - fallback musi więc trafiać w wariant językowy tego renderu,
+  // inaczej HTML dla /en/quiz niesie polski adres do udostępnienia.
   const url =
-    typeof window !== "undefined" ? window.location.href : "https://neweuropeanstrategies.com/quiz";
+    typeof window !== "undefined"
+      ? window.location.href
+      : `${SITE_CANONICAL_ORIGIN}${localizedPath("/quiz", lang)}`;
   const encodedUrl = encodeURIComponent(url);
   const title = t("quiz.share.title");
-  const text = encodeURIComponent(`${title} — New European Strategies`);
+  const text = encodeURIComponent(`${title} — ${SITE_NAME}`);
 
   return {
     url,
@@ -226,7 +276,7 @@ function QuizPage() {
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
-      aria-label="EuroChallenge Quiz"
+      aria-label={QUIZ_TITLE}
     >
       {/* Background + overlay cover only the area above the footer */}
       <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -251,8 +301,8 @@ function QuizPage() {
 
             <div className="relative w-full max-w-5xl overflow-y-auto rounded-[6px] border border-border bg-black shadow-lg h-[clamp(800px,95vh,1000px)] sm:h-[clamp(880px,93vh,1200px)] md:h-[clamp(960px,90vh,1350px)] lg:h-[clamp(1040px,88vh,1550px)] xl:h-[clamp(1120px,86vh,1700px)]">
               <LazyQuizIframe
-                src="https://nes-quiz.com/embed"
-                title="EuroChallenge Quiz"
+                src={QUIZ_EMBED_URL}
+                title={QUIZ_TITLE}
                 className="h-full w-full border-0"
               />
             </div>
