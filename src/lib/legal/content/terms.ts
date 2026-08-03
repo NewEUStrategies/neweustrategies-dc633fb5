@@ -64,7 +64,7 @@ export const TERMS_CONTENT: LegalDocContent = {
       {
         id: "zakazy",
         icon: "Ban",
-        heading: "Niedozwolone korzystanie",
+        heading: "Zasady dozwolonego korzystania (Acceptable Use Policy)",
         bullets: [
           "Działania niezgodne z prawem, oszustwa, spam i nadużycia w komunikacji.",
           "Naruszanie praw własności intelektualnej osób trzecich.",
@@ -195,7 +195,7 @@ export const TERMS_CONTENT: LegalDocContent = {
       {
         id: "zakazy",
         icon: "Ban",
-        heading: "Prohibited use",
+        heading: "Acceptable Use Policy",
         bullets: [
           "Unlawful activity, fraud, spam and abusive communication.",
           "Infringing third-party intellectual property rights.",
