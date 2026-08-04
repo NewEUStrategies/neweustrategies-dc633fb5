@@ -519,22 +519,73 @@ export function renderSimpleWidget(
         spotify: "linear-gradient(135deg, #1ED760 0%, #14833B 100%)",
       };
 
+      // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
+      // kafelku, separator, etykieta i CTA - żeby nie odstawał wyglądem.
+      const MailIcon = ({ size: s = 14 }: { size?: number }) => (
+        <svg
+          width={s}
+          height={s}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+          <path d="M3 7l9 6 9-6" />
+        </svg>
+      );
+
       const renderSocials = (globalLinks: GlobalSocialLinks): ReactElement => {
         if (layout === "list") {
-          const defaultCta: Record<string, string> = {
-            facebook: "Like",
-            x: "Follow",
-            youtube: "Subscribe",
-            instagram: "Follow",
-            linkedin: "Follow",
-            spotify: "Follow",
+          // CTA są tłumaczone (PL/EN); pole w panelu nadal nadpisuje domyślną
+          // wartość, a klucz z sufiksem języka (`ctaX_pl`) ma pierwszeństwo.
+          const defaultCta: Record<string, { pl: string; en: string }> = {
+            facebook: { pl: "Lubię to", en: "Like" },
+            x: { pl: "Obserwuj", en: "Follow" },
+            youtube: { pl: "Subskrybuj", en: "Subscribe" },
+            instagram: { pl: "Obserwuj", en: "Follow" },
+            linkedin: { pl: "Obserwuj", en: "Follow" },
+            spotify: { pl: "Obserwuj", en: "Follow" },
+            newsletter: { pl: "Obserwuj", en: "Follow" },
           };
-          const rows = items
-            .map(({ k, altKeys, Cmp, label }) => {
-              const href = hrefOf(k, altKeys, globalLinks);
+
+          const newsletterHref = getStr(c, "newsletterUrl") || "/newsletter";
+          const listItems: Array<{
+            k: string;
+            altKeys?: string[];
+            Cmp: IconCmp;
+            label: string;
+            href: string;
+            external: boolean;
+          }> = [
+            ...items.map((it) => ({
+              ...it,
+              href: hrefOf(it.k, it.altKeys, globalLinks),
+              external: true,
+            })),
+          ];
+          if (getStr(c, "showNewsletter") !== "0") {
+            listItems.push({
+              k: "newsletter",
+              Cmp: MailIcon,
+              label: "Newsletter",
+              href: newsletterHref,
+              external: /^https?:/i.test(newsletterHref),
+            });
+          }
+
+          const rows = listItems
+            .map(({ k, Cmp, label, href, external }) => {
               if (!href && !showEmpty) return null;
               const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
-              const cta = getStr(c, ctaKey) || defaultCta[k] || "";
+              const cta =
+                getStr(c, `${ctaKey}_${lang}`) ||
+                getStr(c, ctaKey) ||
+                defaultCta[k]?.[lang === "pl" ? "pl" : "en"] ||
+                "";
               const rowVars = {
                 "--sb-grad":
                   BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))",
@@ -545,8 +596,8 @@ export function renderSimpleWidget(
                   key={k}
                   href={href ? safeUrl(href) : "#"}
                   aria-label={label}
-                  target={href ? "_blank" : undefined}
-                  rel={href ? "noopener noreferrer" : undefined}
+                  target={href && external ? "_blank" : undefined}
+                  rel={href && external ? "noopener noreferrer" : undefined}
                   // Odnośnik zewnętrzny, ale wygląda jak wiersz listy, nie jak
                   // hiperłącze. Na hover pasek przybiera delikatny gradient
                   // marki danej platformy, a tekst i ikona kontrastują z tłem.
@@ -563,7 +614,7 @@ export function renderSimpleWidget(
                     className="mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors group-hover:bg-[color:var(--sb-fg)]/70"
                     aria-hidden="true"
                   />
-                  <span className="flex-1 truncate text-sm font-medium transition-colors group-hover:[color:var(--sb-fg)]">
+                  <span className="flex-1 truncate text-sm font-medium text-foreground transition-colors group-hover:[color:var(--sb-fg)]">
                     {label}
                   </span>
                   {cta && (
@@ -574,6 +625,7 @@ export function renderSimpleWidget(
                 </AppLink>
               );
             })
+
 
             .filter(Boolean);
           return (
