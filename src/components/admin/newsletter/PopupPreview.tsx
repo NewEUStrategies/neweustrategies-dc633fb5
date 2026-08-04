@@ -4,6 +4,7 @@
 // marki, hasła i rotacji były widoczne od razu przy edycji.
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
+import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
 import { sanitizeHtml } from "@/lib/sanitize";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 
@@ -23,39 +24,66 @@ export function PopupPreview({ settings, lang }: PopupPreviewProps) {
     const images = (settings.popup_showcase_images ?? [])
       .filter((img) => Boolean(img?.url))
       .map((img) => ({ url: img.url, caption: lang === "pl" ? img.caption_pl : img.caption_en }));
+    const right = settings.popup_showcase_side === "right";
+    const radius = `${settings.popup_border_radius_px}px`;
     return (
       <div
         className="m-4 grid grid-cols-1 sm:grid-cols-2 overflow-hidden border border-white/10"
         style={{
           backgroundColor: settings.popup_bg_color,
           color: settings.popup_text_color,
-          borderRadius: `${settings.popup_border_radius_px}px`,
+          borderRadius: radius,
           ["--nl-bg" as string]: settings.popup_bg_color,
           ["--nl-fg" as string]: settings.popup_text_color,
           ["--nl-muted" as string]: settings.popup_muted_color,
           ["--nl-accent" as string]: settings.popup_accent_color,
+          ["--nl-accent-fg" as string]: settings.popup_accent_text_color,
+          ["--nl-radius" as string]: radius,
+          ["--brand" as string]: settings.popup_accent_color,
         }}
       >
-        <NewsletterShowcase
-          images={images}
-          brand={lang === "pl" ? settings.popup_showcase_brand_pl : settings.popup_showcase_brand_en}
-          tagline={
-            lang === "pl" ? settings.popup_showcase_tagline_pl : settings.popup_showcase_tagline_en
-          }
-          rotateMs={settings.popup_showcase_rotate_ms}
-          dotLabel={lang === "pl" ? "Slajd" : "Slide"}
-        />
-        <div className="p-5 space-y-2">
+        <div className={right ? "sm:order-2" : "sm:order-1"}>
+          <NewsletterShowcase
+            images={images}
+            brand={
+              lang === "pl" ? settings.popup_showcase_brand_pl : settings.popup_showcase_brand_en
+            }
+            tagline={
+              lang === "pl"
+                ? settings.popup_showcase_tagline_pl
+                : settings.popup_showcase_tagline_en
+            }
+            rotateMs={settings.popup_showcase_rotate_ms}
+            dotLabel={lang === "pl" ? "Slajd" : "Slide"}
+            gradFrom={settings.popup_showcase_grad_from}
+            gradTo={settings.popup_showcase_grad_to}
+            showBrand={settings.popup_showcase_show_brand}
+            showCaption={settings.popup_showcase_show_caption}
+            showDots={settings.popup_showcase_show_dots}
+          />
+        </div>
+        <div className={"p-5 space-y-3 " + (right ? "sm:order-1" : "sm:order-2")}>
           <h3 className="font-display text-xl">
             {lang === "pl" ? settings.popup_title_pl : settings.popup_title_en}
           </h3>
           <p className="text-sm" style={{ color: settings.popup_muted_color }}>
             {lang === "pl" ? settings.popup_description_pl : settings.popup_description_en}
           </p>
+          {/* Podgląd formularza - interakcje wyłączone, żeby admin nie zapisał
+              przypadkowo testowego adresu do bazy subskrybentów. */}
+          <div className="pointer-events-none select-none" aria-hidden="true">
+            <NewsletterPopupForm
+              settings={settings}
+              lang={lang}
+              source="admin-preview"
+              compact
+            />
+          </div>
         </div>
       </div>
     );
   }
+
 
   // Zsynchronizowane z /admin/newsletter/popup - renderujemy dokument z buildera
   // gdy jest zapisany. Legacy fallback tylko dla starych tenantow bez popup_doc.
