@@ -235,19 +235,19 @@ export function NewsletterPopup() {
             </div>
             <div
               className={
-                "p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto " +
+                "flex flex-col justify-center p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto " +
                 (s.popup_showcase_side === "right" ? "md:order-1" : "md:order-2")
               }
             >
               <h2
                 id="nl-popup-title"
-                className="font-display text-2xl sm:text-3xl leading-tight pr-10 md:pr-0"
+                className="font-display text-3xl sm:text-4xl leading-tight text-center pr-10 md:pr-0"
               >
                 {title}
               </h2>
               {desc && (
                 <p
-                  className="text-sm mt-2 mb-5 leading-relaxed"
+                  className="text-sm mt-2 mb-6 leading-relaxed text-center"
                   style={{ color: s.popup_muted_color || "#b8b8b8" }}
                 >
                   {desc}
@@ -255,6 +255,7 @@ export function NewsletterPopup() {
               )}
               <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
             </div>
+
           </>
         ) : s.popup_doc ? (
           <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">

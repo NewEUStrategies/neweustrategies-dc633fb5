@@ -16,7 +16,7 @@ import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
-import { FloatingInput } from "@/components/ui/floating-input";
+import { FieldBox } from "@/components/ui/field-box";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { popupFieldMap, popupFieldLabel, type PopupFieldKey } from "@/lib/newsletter/popupFields";
@@ -386,7 +386,8 @@ export function PopupSignupForm({
     );
   }
 
-  const fieldContainer = "input-group--on-dark";
+  const showFirst = ext && fieldOn("first_name");
+  const showLast = ext && fieldOn("last_name");
   return (
     <form onSubmit={onSubmit} className={compact ? "space-y-2" : "space-y-2.5"} noValidate>
       <div
@@ -406,31 +407,32 @@ export function PopupSignupForm({
         </label>
       </div>
 
-      {ext && fieldOn("first_name") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
-          label={label("first_name")}
-          required={fields.first_name.required}
-          value={v.name}
-          onChange={(e) => upd("name", e.target.value)}
-          maxLength={80}
-          autoComplete="given-name"
-        />
-      )}
-      {ext && fieldOn("last_name") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
-          label={label("last_name")}
-          required={fields.last_name.required}
-          value={v.surname}
-          onChange={(e) => upd("surname", e.target.value)}
-          maxLength={80}
-          autoComplete="family-name"
-        />
+      {(showFirst || showLast) && (
+        <div className={showFirst && showLast ? "grid grid-cols-2 gap-2.5" : ""}>
+          {showFirst && (
+            <FieldBox
+              label={label("first_name")}
+              required={fields.first_name.required}
+              value={v.name}
+              onChange={(e) => upd("name", e.target.value)}
+              maxLength={80}
+              autoComplete="given-name"
+            />
+          )}
+          {showLast && (
+            <FieldBox
+              label={label("last_name")}
+              required={fields.last_name.required}
+              value={v.surname}
+              onChange={(e) => upd("surname", e.target.value)}
+              maxLength={80}
+              autoComplete="family-name"
+            />
+          )}
+        </div>
       )}
       {ext && fieldOn("job") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
+        <FieldBox
           label={label("job")}
           required={fields.job.required}
           value={v.job}
@@ -440,8 +442,7 @@ export function PopupSignupForm({
         />
       )}
       {ext && fieldOn("company") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
+        <FieldBox
           label={label("company")}
           required={fields.company.required}
           value={v.company}
@@ -451,8 +452,7 @@ export function PopupSignupForm({
         />
       )}
       {ext && fieldOn("linkedin") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
+        <FieldBox
           label={label("linkedin")}
           required={fields.linkedin.required}
           value={v.linkedin}
@@ -461,8 +461,7 @@ export function PopupSignupForm({
           inputMode="url"
         />
       )}
-      <FloatingInput
-        containerClassName={fieldContainer}
+      <FieldBox
         type="email"
         required
         label={label("email")}
@@ -472,8 +471,7 @@ export function PopupSignupForm({
         autoComplete="email"
       />
       {ext && fieldOn("phone") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
+        <FieldBox
           type="tel"
           label={label("phone")}
           required={fields.phone.required}
@@ -484,29 +482,30 @@ export function PopupSignupForm({
         />
       )}
 
-      <div className="relative">
-        <FloatingInput
-          containerClassName={fieldContainer}
-          type={showPass ? "text" : "password"}
-          required
-          label={label("password")}
-          value={v.password}
-          onChange={(e) => upd("password", e.target.value)}
-          minLength={MIN_PASSWORD}
-          maxLength={72}
-          autoComplete="new-password"
-        />
-        <button
-          type="button"
-          onClick={() => setShowPass((s) => !s)}
-          aria-label={showPass ? t("Ukryj hasło", "Hide password") : t("Pokaż hasło", "Show password")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[6px] p-1 text-white/60 transition-colors hover:text-white"
-        >
-          {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      </div>
-      <FloatingInput
-        containerClassName={fieldContainer}
+      <FieldBox
+        type={showPass ? "text" : "password"}
+        required
+        label={label("password")}
+        value={v.password}
+        onChange={(e) => upd("password", e.target.value)}
+        minLength={MIN_PASSWORD}
+        maxLength={72}
+        autoComplete="new-password"
+        trailing={
+          <button
+            type="button"
+            onClick={() => setShowPass((s) => !s)}
+            aria-label={
+              showPass ? t("Ukryj hasło", "Hide password") : t("Pokaż hasło", "Show password")
+            }
+            className="shrink-0 rounded-[6px] p-1 opacity-60 transition-opacity hover:opacity-100"
+            style={{ color: "var(--nl-fg)" }}
+          >
+            {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        }
+      />
+      <FieldBox
         type={showPass ? "text" : "password"}
         required
         label={label("password_confirm")}
@@ -517,29 +516,43 @@ export function PopupSignupForm({
         autoComplete="new-password"
       />
 
+
       {showLists && (
-        <div className="input-group input-group--on-dark">
+        <div
+          className="flex h-12 items-center gap-3 rounded-[6px] border px-4 focus-within:border-[var(--nl-accent)]"
+          style={{
+            borderColor: "color-mix(in srgb, var(--nl-fg) 18%, transparent)",
+            backgroundColor: "color-mix(in srgb, var(--nl-fg) 5%, transparent)",
+          }}
+        >
           <select
-            className="input"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            style={{ color: "var(--nl-fg)" }}
             aria-label={label("list")}
             value={v.list}
             onChange={(e) => upd("list", e.target.value)}
           >
-            <option value="">
+            <option value="" style={{ color: "#111" }}>
               {t("Wybierz listę mailingową", "Choose your main mailing list")}
             </option>
             {lists.map((l) => (
-              <option key={l.id} value={l.id}>
+              <option key={l.id} value={l.id} style={{ color: "#111" }}>
                 {isPl ? l.label_pl : l.label_en}
               </option>
             ))}
           </select>
-          <label className="user-label">{label("list")}</label>
+          <span
+            className="shrink-0 whitespace-nowrap text-sm"
+            style={{ color: "color-mix(in srgb, var(--nl-fg) 45%, transparent)" }}
+          >
+            {label("list")}
+          </span>
         </div>
       )}
 
+
       {showNewsletter && (
-        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed text-white/70">
+        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed [color:var(--nl-muted)]">
           <Checkbox
             checked={v.newsletter}
             onCheckedChange={(checked) => upd("newsletter", checked === true)}
@@ -550,7 +563,7 @@ export function PopupSignupForm({
       )}
 
       {requirePrivacy && privacyHtml && (
-        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed text-white/70">
+        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed [color:var(--nl-muted)]">
           <Checkbox
             checked={v.privacy}
             onCheckedChange={(checked) => upd("privacy", checked === true)}
@@ -565,7 +578,7 @@ export function PopupSignupForm({
       )}
 
       {requireTerms && (
-        <label className="flex cursor-pointer items-start gap-2 text-[12px] leading-relaxed text-white/70">
+        <label className="flex cursor-pointer items-start gap-2 text-[12px] leading-relaxed [color:var(--nl-muted)]">
           <Checkbox
             checked={v.terms}
             onCheckedChange={(checked) => upd("terms", checked === true)}
@@ -587,7 +600,7 @@ export function PopupSignupForm({
 
       {state === "err" && err && <p className="text-xs text-red-300">{err}</p>}
 
-      {note && <p className="text-[11px] text-white/50 pt-1">{note}</p>}
+      {note && <p className="text-[11px] pt-1 [color:var(--nl-muted)] opacity-80">{note}</p>}
     </form>
   );
 }
