@@ -754,16 +754,21 @@ function Field({
     });
   }
   return (
-    <div className={`input-group ${className ?? ""}`} data-invalid={error ? "true" : undefined}>
+    <div
+      className={`input-group pb-[18px] ${className ?? ""}`}
+      data-invalid={error ? "true" : undefined}
+    >
       {injected}
       <label className="user-label">{label}</label>
-      {/* Komunikat błędu jest pozycjonowany absolutnie, więc nie zmienia wysokości
-          pola i nie przesuwa sąsiednich placeholderów w dół. */}
+      {/* Miejsce na komunikat jest rezerwowane zawsze (pb-[18px]), więc pola nie
+          przesuwają się po walidacji, a sam komunikat leży w tej rezerwie -
+          nie chowa się pod sąsiednim polem (z-20). */}
       {error && (
-        <span className="pointer-events-none absolute left-1 top-full mt-1 block text-[11px] leading-tight text-destructive">
+        <span className="pointer-events-none absolute bottom-0 left-1 z-20 block text-[11px] leading-tight text-destructive">
           {error}
         </span>
       )}
     </div>
   );
 }
+
