@@ -1098,14 +1098,14 @@ function EditorialHeroVariant(p: VariantProps) {
             </div>
           ))}
         {p.showExcerpt &&
-          sub &&
+          p.items.some((it) => Boolean(pickI18n(it, "subtitle", p.lang))) &&
           (href ? (
             <AppLink href={href} className="block">
               <p
                 className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
                 style={p.subtitleStyle}
               >
-                {sub}
+                {sub || "\u00A0"}
               </p>
             </AppLink>
           ) : (
@@ -1113,7 +1113,7 @@ function EditorialHeroVariant(p: VariantProps) {
               className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
               style={p.subtitleStyle}
             >
-              {sub}
+              {sub || "\u00A0"}
             </p>
           ))}
         {((p.showAuthor && cur.author) || cur.readTime) && (
