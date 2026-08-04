@@ -20,7 +20,6 @@ export const POPUP_FIELD_KEYS = [
   "newsletter_optin",
 ] as const;
 
-
 export type PopupFieldKey = (typeof POPUP_FIELD_KEYS)[number];
 
 export interface PopupFieldConfig {
@@ -29,6 +28,9 @@ export interface PopupFieldConfig {
   required: boolean;
   label_pl: string;
   label_en: string;
+  /** Podpowiedź w polu (widoczna po focusie / w wariancie inline). */
+  placeholder_pl: string;
+  placeholder_en: string;
 }
 
 interface FieldDefault {
@@ -36,13 +38,29 @@ interface FieldDefault {
   required: boolean;
   label_pl: string;
   label_en: string;
+  placeholder_pl?: string;
+  placeholder_en?: string;
   /** Pola, których nie da się wyłączyć ani odznaczyć jako wymagane. */
   locked?: boolean;
 }
 
 const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
-  first_name: { enabled: true, required: false, label_pl: "Imię", label_en: "First name" },
-  last_name: { enabled: true, required: false, label_pl: "Nazwisko", label_en: "Last name" },
+  first_name: {
+    enabled: true,
+    required: false,
+    label_pl: "Imię",
+    label_en: "First name",
+    placeholder_pl: "Jan",
+    placeholder_en: "Jane",
+  },
+  last_name: {
+    enabled: true,
+    required: false,
+    label_pl: "Nazwisko",
+    label_en: "Last name",
+    placeholder_pl: "Kowalski",
+    placeholder_en: "Doe",
+  },
   job: { enabled: true, required: false, label_pl: "Stanowisko", label_en: "Job position" },
   company: {
     enabled: true,
@@ -50,15 +68,31 @@ const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
     label_pl: "Firma / organizacja",
     label_en: "Company",
   },
-  linkedin: { enabled: true, required: false, label_pl: "LinkedIn", label_en: "LinkedIn" },
+  linkedin: {
+    enabled: true,
+    required: false,
+    label_pl: "LinkedIn",
+    label_en: "LinkedIn",
+    placeholder_pl: "https://linkedin.com/in/jan-kowalski",
+    placeholder_en: "https://linkedin.com/in/jane-doe",
+  },
   email: {
     enabled: true,
     required: true,
     label_pl: "Twój e-mail",
     label_en: "Your e-mail",
+    placeholder_pl: "jan@firma.pl",
+    placeholder_en: "jane@company.com",
     locked: true,
   },
-  phone: { enabled: true, required: false, label_pl: "Numer telefonu", label_en: "Phone number" },
+  phone: {
+    enabled: true,
+    required: false,
+    label_pl: "Numer telefonu",
+    label_en: "Phone number",
+    placeholder_pl: "+48 600 000 000",
+    placeholder_en: "+44 7700 000000",
+  },
   password: {
     enabled: true,
     required: true,
@@ -126,12 +160,23 @@ export function resolvePopupFields(raw: unknown): PopupFieldConfig[] {
       required: locked ? true : bool(o?.required, def.required),
       label_pl: str(o?.label_pl, def.label_pl),
       label_en: str(o?.label_en, def.label_en),
+      // Placeholdery są opcjonalne: pusty ciąg = brak podpowiedzi, więc
+      // `str()` z pustym fallbackiem, nie z etykietą.
+      placeholder_pl:
+        typeof o?.placeholder_pl === "string" ? o.placeholder_pl : (def.placeholder_pl ?? ""),
+      placeholder_en:
+        typeof o?.placeholder_en === "string" ? o.placeholder_en : (def.placeholder_en ?? ""),
     };
   });
 }
 
 export function popupFieldLabel(field: PopupFieldConfig, lang: "pl" | "en"): string {
   return lang === "pl" ? field.label_pl : field.label_en;
+}
+
+/** Placeholder pola; pusty ciąg oznacza brak podpowiedzi. */
+export function popupFieldPlaceholder(field: PopupFieldConfig, lang: "pl" | "en"): string {
+  return lang === "pl" ? field.placeholder_pl : field.placeholder_en;
 }
 
 /** Mapa key -> config, wygodna przy renderowaniu formularza. */

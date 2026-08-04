@@ -3,8 +3,10 @@
 // potwierdzenie mailem). Newsletter jest wyłącznie opcjonalnym checkboxem,
 // a dane profilowe trafiają do user_metadata i (za zgodą) do listy mailingowej.
 //
-// Konfiguracja pól (widoczność, etykiety PL/EN, wymagalność) pochodzi z
-// `newsletter_settings.popup_fields` - jedno źródło prawdy z panelem admina.
+// Konfiguracja pól (widoczność, etykiety i placeholdery PL/EN, wymagalność)
+// pochodzi z `newsletter_settings.popup_fields`, a warstwa prezentacji
+// (wariant etykiet, kolumny, separator, logowanie społecznościowe, wyrównanie)
+// z `newsletter_settings.popup_design` - jedno źródło prawdy z panelem admina.
 import { useRef, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -19,7 +21,17 @@ import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { FieldBox } from "@/components/ui/field-box";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { popupFieldMap, popupFieldLabel, type PopupFieldKey } from "@/lib/newsletter/popupFields";
+import {
+  popupFieldMap,
+  popupFieldLabel,
+  popupFieldPlaceholder,
+  type PopupFieldKey,
+} from "@/lib/newsletter/popupFields";
+import {
+  resolvePopupDesign,
+  resolvePopupPalette,
+  type PopupPalette,
+} from "@/lib/newsletter/popupDesign";
 
 interface Props {
   settings: NewsletterSettings;
@@ -29,6 +41,8 @@ interface Props {
   compact?: boolean;
   /** Podgląd w adminie: bez realnych zapisów i bez wywołań sieciowych. */
   previewOnly?: boolean;
+  /** Paleta panelu; brak = paleta ciemna z kolumn ustawień. */
+  palette?: PopupPalette;
 }
 
 interface SignupFields {
@@ -72,6 +86,7 @@ export function PopupSignupForm({
   onSuccess,
   compact = false,
   previewOnly = false,
+  palette,
 }: Props) {
   const [v, setV] = useState<SignupFields>(empty);
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
@@ -87,8 +102,14 @@ export function PopupSignupForm({
   const ext = settings.popup_extended_fields;
   const lists = settings.popup_mailing_lists ?? [];
   const fields = popupFieldMap(settings.popup_fields);
+  const design = resolvePopupDesign(settings.popup_design);
+  const skin = palette ?? resolvePopupPalette(settings, "dark");
+  const form = design.form;
+  const labelVariant = form.labelStyle;
+  const onDark = skin.onDark;
   const fieldOn = (key: PopupFieldKey) => fields[key].enabled;
   const label = (key: PopupFieldKey) => popupFieldLabel(fields[key], lang);
+  const placeholder = (key: PopupFieldKey) => popupFieldPlaceholder(fields[key], lang) || undefined;
   const showLists = lists.length > 0 && fieldOn("list");
   const showPhone = ext && fieldOn("phone");
   const showNewsletter = fieldOn("newsletter_optin");
@@ -99,6 +120,9 @@ export function PopupSignupForm({
       ? settings.popup_privacy_html_pl || settings.policy_html_pl
       : settings.popup_privacy_html_en || settings.policy_html_en) ?? "";
   const termsHtml = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
+  // Dwie kolumny dopiero od `sm` - w wąskim popupie na telefonie para pól
+  // obok siebie ścina etykiety.
+  const pairClass = form.twoColumnPairs ? "grid grid-cols-1 gap-2.5 sm:grid-cols-2" : "space-y-2.5";
 
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
@@ -119,6 +143,27 @@ export function PopupSignupForm({
 
   const upd = <K extends keyof SignupFields>(k: K, val: SignupFields[K]) =>
     setV((p) => ({ ...p, [k]: val }));
+
+  const redirectPath = authSettings.logged_in_redirect_url?.startsWith("/")
+    ? authSettings.logged_in_redirect_url
+    : "/";
+
+  // Rejestracja przez Google - ta sama ścieżka co w blokach /login, więc
+  // konfiguracja providera jest wspólna dla całej platformy.
+  const onGoogle = async () => {
+    if (previewOnly) return;
+    setErr(null);
+    setState("loading");
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}${redirectPath}` },
+      });
+      if (error) throw error;
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error), "oauth_google");
+    }
+  };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -272,10 +317,6 @@ export function PopupSignupForm({
         throw guardErr;
       }
 
-      const redirectPath = authSettings.logged_in_redirect_url?.startsWith("/")
-        ? authSettings.logged_in_redirect_url
-        : "/";
-
       const { error } = await supabase.auth.signUp({
         email,
         password: v.password,
@@ -350,36 +391,42 @@ export function PopupSignupForm({
     }
   };
 
-  const cta = (isPl ? settings.popup_cta_pl : settings.popup_cta_en) || t("Załóż konto", "Create account");
+  const cta =
+    (isPl ? settings.popup_cta_pl : settings.popup_cta_en) || t("Załóż konto", "Create account");
   const note =
     (isPl ? settings.popup_note_pl : settings.popup_note_en) ??
     t(
       "Zakładając konto potwierdzasz adres e-mail. Zero spamu.",
       "Creating an account confirms your e-mail. Zero spam.",
     );
+  const hint = isPl ? form.hintPl : form.hintEn;
 
   if (state === "ok") {
     return (
       <div
         role="status"
         aria-live="polite"
-        className="rounded-[6px] bg-emerald-500/10 border border-emerald-500/30 p-5 space-y-3"
+        className="space-y-3 border border-emerald-500/30 bg-emerald-500/10 p-5"
+        style={{ borderRadius: 6 }}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-            <Mail className="w-5 h-5 text-emerald-300" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20">
+            <Mail className="h-5 w-5 text-emerald-500" />
           </div>
-          <h3 className="font-display text-lg text-emerald-100">
+          <h3 className="font-display text-lg" style={{ color: "var(--nl-fg)" }}>
             {t("Konto utworzone!", "Account created!")}
           </h3>
         </div>
-        <p className="text-sm text-emerald-100/80 leading-relaxed">
+        <p className="text-sm leading-relaxed" style={{ color: "var(--nl-muted)" }}>
           {t(
             "Wysłaliśmy link potwierdzający na Twój adres e-mail - kliknij go, aby aktywować konto. Sprawdź też folder Spam.",
             "We've sent a confirmation link to your e-mail - click it to activate your account. Please also check your Spam folder.",
           )}
         </p>
-        <p className="flex items-center gap-1.5 text-[11px] text-emerald-100/60">
+        <p
+          className="flex items-center gap-1.5 text-[11px] opacity-80"
+          style={{ color: "var(--nl-muted)" }}
+        >
           <Check className="h-3.5 w-3.5" />
           {t("Status: oczekuje potwierdzenia e-mail.", "Status: pending e-mail confirmation.")}
         </p>
@@ -389,8 +436,51 @@ export function PopupSignupForm({
 
   const showFirst = ext && fieldOn("first_name");
   const showLast = ext && fieldOn("last_name");
+
+  const socialBlock = form.socialEnabled ? (
+    <div className="space-y-4">
+      <button
+        type="button"
+        onClick={() => void onGoogle()}
+        disabled={state === "loading"}
+        className="flex h-11 w-full items-center justify-center gap-2 border text-sm font-medium transition-colors disabled:opacity-60"
+        style={{
+          borderRadius: 6,
+          borderColor: "color-mix(in srgb, var(--nl-fg) 22%, transparent)",
+          backgroundColor: "color-mix(in srgb, var(--nl-fg) 6%, transparent)",
+          color: "var(--nl-fg)",
+        }}
+      >
+        <GoogleIcon />
+        <span className="whitespace-nowrap">
+          {isPl ? form.socialGoogleLabelPl : form.socialGoogleLabelEn}
+        </span>
+      </button>
+      {form.showDivider && (
+        <div
+          className="flex items-center gap-4 text-xs uppercase tracking-wider"
+          style={{ color: "var(--nl-muted)" }}
+        >
+          <span
+            className="h-px flex-1"
+            style={{ backgroundColor: "color-mix(in srgb, var(--nl-fg) 16%, transparent)" }}
+          />
+          {isPl ? form.dividerPl : form.dividerEn}
+          <span
+            className="h-px flex-1"
+            style={{ backgroundColor: "color-mix(in srgb, var(--nl-fg) 16%, transparent)" }}
+          />
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
-    <form onSubmit={onSubmit} className={compact ? "space-y-2" : "space-y-2.5"} noValidate>
+    <form
+      onSubmit={onSubmit}
+      className={compact ? "space-y-2 text-left" : "space-y-2.5 text-left"}
+      noValidate
+    >
       <div
         aria-hidden="true"
         style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}
@@ -408,11 +498,22 @@ export function PopupSignupForm({
         </label>
       </div>
 
+      {form.socialPosition === "top" && socialBlock}
+
+      {hint && (
+        <p className="pb-1 text-xs" style={{ color: "var(--nl-muted)" }}>
+          {hint}
+        </p>
+      )}
+
       {(showFirst || showLast) && (
-        <div className={showFirst && showLast ? "grid grid-cols-2 gap-2.5" : ""}>
+        <div className={showFirst && showLast ? pairClass : ""}>
           {showFirst && (
             <FieldBox
+              variant={labelVariant}
+              onDark={onDark}
               label={label("first_name")}
+              placeholder={placeholder("first_name")}
               required={fields.first_name.required}
               value={v.name}
               onChange={(e) => upd("name", e.target.value)}
@@ -422,7 +523,10 @@ export function PopupSignupForm({
           )}
           {showLast && (
             <FieldBox
+              variant={labelVariant}
+              onDark={onDark}
               label={label("last_name")}
+              placeholder={placeholder("last_name")}
               required={fields.last_name.required}
               value={v.surname}
               onChange={(e) => upd("surname", e.target.value)}
@@ -434,7 +538,10 @@ export function PopupSignupForm({
       )}
       {ext && fieldOn("job") && (
         <FieldBox
+          variant={labelVariant}
+          onDark={onDark}
           label={label("job")}
+          placeholder={placeholder("job")}
           required={fields.job.required}
           value={v.job}
           onChange={(e) => upd("job", e.target.value)}
@@ -444,7 +551,10 @@ export function PopupSignupForm({
       )}
       {ext && fieldOn("company") && (
         <FieldBox
+          variant={labelVariant}
+          onDark={onDark}
           label={label("company")}
+          placeholder={placeholder("company")}
           required={fields.company.required}
           value={v.company}
           onChange={(e) => upd("company", e.target.value)}
@@ -454,7 +564,10 @@ export function PopupSignupForm({
       )}
       {ext && fieldOn("linkedin") && (
         <FieldBox
+          variant={labelVariant}
+          onDark={onDark}
           label={label("linkedin")}
+          placeholder={placeholder("linkedin")}
           required={fields.linkedin.required}
           value={v.linkedin}
           onChange={(e) => upd("linkedin", e.target.value)}
@@ -463,11 +576,14 @@ export function PopupSignupForm({
         />
       )}
       {/* E-mail + telefon w dwoch rownych kolumnach (jak imie/nazwisko). */}
-      <div className={showPhone ? "grid grid-cols-2 gap-2.5" : ""}>
+      <div className={showPhone ? pairClass : ""}>
         <FieldBox
+          variant={labelVariant}
+          onDark={onDark}
           type="email"
           required
           label={label("email")}
+          placeholder={placeholder("email")}
           value={v.email}
           onChange={(e) => upd("email", e.target.value)}
           maxLength={254}
@@ -475,8 +591,11 @@ export function PopupSignupForm({
         />
         {showPhone && (
           <FieldBox
+            variant={labelVariant}
+            onDark={onDark}
             type="tel"
             label={label("phone")}
+            placeholder={placeholder("phone")}
             required={fields.phone.required}
             value={v.phone}
             onChange={(e) => upd("phone", e.target.value)}
@@ -486,9 +605,11 @@ export function PopupSignupForm({
         )}
       </div>
 
-      {/* Hasło + powtórzenie: dwie równe kolumny. */}
-      <div className="grid grid-cols-2 gap-2.5">
+      {/* Hasło + powtórzenie: dwie równe kolumny (albo jedna, gdy tak ustawione). */}
+      <div className={pairClass}>
         <FieldBox
+          variant={labelVariant}
+          onDark={onDark}
           type={showPass ? "text" : "password"}
           required
           label={label("password")}
@@ -512,6 +633,8 @@ export function PopupSignupForm({
           }
         />
         <FieldBox
+          variant={labelVariant}
+          onDark={onDark}
           type={showPass ? "text" : "password"}
           required
           label={label("password_confirm")}
@@ -525,8 +648,9 @@ export function PopupSignupForm({
 
       {showLists && (
         <div
-          className="flex h-12 items-center gap-3 rounded-[6px] border px-4 focus-within:border-[var(--nl-accent)]"
+          className="flex h-12 items-center gap-3 border px-4 focus-within:border-[var(--nl-accent)]"
           style={{
+            borderRadius: 6,
             borderColor: "color-mix(in srgb, var(--nl-fg) 18%, transparent)",
             backgroundColor: "color-mix(in srgb, var(--nl-fg) 5%, transparent)",
           }}
@@ -555,7 +679,6 @@ export function PopupSignupForm({
           </span>
         </div>
       )}
-
 
       {showNewsletter && (
         <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed [color:var(--nl-muted)]">
@@ -598,15 +721,61 @@ export function PopupSignupForm({
         </label>
       )}
 
-      <div className="pt-1">
-        <SubscribeButton loading={state === "loading"} aria-label={cta}>
+      <div className="pt-2">
+        <SubscribeButton
+          loading={state === "loading"}
+          aria-label={cta}
+          className="w-full"
+          style={{ minHeight: 48, fontSize: "1rem", borderRadius: 6 }}
+        >
           {cta}
         </SubscribeButton>
       </div>
 
-      {state === "err" && err && <p className="text-xs text-red-300">{err}</p>}
+      {form.socialPosition === "bottom" && socialBlock}
 
-      {note && <p className="text-[11px] pt-1 [color:var(--nl-muted)] opacity-80">{note}</p>}
+      {state === "err" && err && (
+        <p className="text-xs text-red-400" role="alert">
+          {err}
+        </p>
+      )}
+
+      {note && <p className="pt-1 text-[11px] opacity-80 [color:var(--nl-muted)]">{note}</p>}
+
+      {form.showLoginLink && (
+        <p className="pt-1 text-[12px] [color:var(--nl-muted)]">
+          <a
+            href={form.loginLinkHref}
+            className="underline underline-offset-2 transition-opacity hover:opacity-80"
+            style={{ color: "var(--nl-fg)" }}
+          >
+            {isPl ? form.loginLinkPl : form.loginLinkEn}
+          </a>
+        </p>
+      )}
     </form>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z"
+        fill="#34A853"
+      />
+      <path
+        d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84Z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z"
+        fill="#EB4335"
+      />
+    </svg>
   );
 }

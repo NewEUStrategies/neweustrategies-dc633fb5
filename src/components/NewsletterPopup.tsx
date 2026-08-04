@@ -1,7 +1,10 @@
-// Popup newslettera z dwoma układami:
-// - "stacked" - klasyczny dialog (okładka u góry, formularz pod nią)
-// - "split"   - grafika po lewej, formularz po prawej (jak konferencyjny landing)
+// Popup REJESTRACJI konta (newsletter to w nim wyłącznie opcjonalny checkbox)
+// w trzech układach:
+// - "showcase" - galeria kadrów + formularz, 1:1 z projektem referencyjnym
+// - "stacked"  - klasyczny dialog (okładka u góry, formularz pod nią)
+// - "split"    - grafika po lewej, formularz po prawej
 // Triggery: delay / scroll / exit-intent. Frequency gating w localStorage.
+// Paleta: ciemna / jasna / automatyczna (motyw strony) - patrz popupDesign.
 // Mountowany globalnie w __root.tsx.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,13 +13,19 @@ import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { PopupSignupForm } from "@/components/PopupSignupForm";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
-import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
-import "@/lib/i18n-newsletter-popup";
+import { SignupPopupPanel } from "@/components/popups/SignupPopupPanel";
+import "@/lib/i18n-signup-popup";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { X, Send } from "@/lib/lucide-shim";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-import { useBrandLogoUrl } from "@/lib/brand/useBrandLogoUrl";
+import { useTheme } from "@/components/ThemeProvider";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
+import {
+  effectivePopupMode,
+  popupPaletteVars,
+  resolvePopupDesign,
+  resolvePopupPalette,
+} from "@/lib/newsletter/popupDesign";
 
 const LS_KEY = "nl_popup_last";
 
@@ -45,7 +54,7 @@ function markDismissed() {
 
 export function NewsletterPopup() {
   const { data: s } = useNewsletterSettings();
-  const brandLogo = useBrandLogoUrl("dark");
+  const { theme } = useTheme();
   const { i18n, t } = useTranslation();
 
   const loc = useLocation();
@@ -159,29 +168,18 @@ export function NewsletterPopup() {
   const showcase = s.popup_layout === "showcase";
   const split = s.popup_layout === "split";
   const eyebrow = isPl ? s.popup_eyebrow_pl || "Newsletter" : s.popup_eyebrow_en || "Newsletter";
-  const showcaseImages = (s.popup_showcase_images ?? [])
-    .filter((img) => Boolean(img?.url))
-    .map((img) => ({
-      url: img.url,
-      caption: isPl ? img.caption_pl : img.caption_en,
-      title: isPl ? img.title_pl : img.title_en,
-    }));
-  // Logo marki: ustawienia logowania, a w razie braku globalne logo motywu.
-  const showcaseLogo = brandLogo;
 
-  const radius = `${Math.max(0, s.popup_border_radius_px ?? 16)}px`;
+  // Paleta: kolumny = wariant ciemny, popup_design.light = jasny, "auto"
+  // podąża za motywem strony. Jedna funkcja obsługuje wszystkie układy.
+  const design = resolvePopupDesign(s.popup_design);
+  const mode = effectivePopupMode(design, theme);
+  const palette = resolvePopupPalette(s, mode);
+  const radiusPx = Math.max(0, s.popup_border_radius_px ?? 6);
   const popupStyle: React.CSSProperties = {
-    backgroundColor: s.popup_bg_color || "#0a0a0a",
-    color: s.popup_text_color || "#ffffff",
-    borderRadius: radius,
-    // CSS vars consumed by NewsletterPopupForm and child elements
-    ["--nl-bg" as string]: s.popup_bg_color || "#0a0a0a",
-    ["--nl-fg" as string]: s.popup_text_color || "#ffffff",
-    ["--nl-muted" as string]: s.popup_muted_color || "#b8b8b8",
-    ["--nl-accent" as string]: s.popup_accent_color || "#f97316",
-    ["--nl-accent-fg" as string]: s.popup_accent_text_color || "#ffffff",
-    ["--nl-radius" as string]: radius,
-    ["--brand" as string]: s.popup_accent_color || "#f97316",
+    backgroundColor: palette.bg,
+    color: palette.fg,
+    borderRadius: `${radiusPx}px`,
+    ...popupPaletteVars(palette, radiusPx),
   };
 
   return (
@@ -190,171 +188,149 @@ export function NewsletterPopup() {
       aria-modal="true"
       aria-labelledby="nl-popup-title"
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in"
-      style={{ backgroundColor: s.popup_overlay_color || "rgba(0,0,0,0.7)" }}
+      style={{ backgroundColor: palette.overlay }}
       onClick={close}
     >
-      <div
-        ref={panelRef}
-        className={
-          split || showcase
-            ? "relative w-full max-w-4xl my-4 max-h-[92vh] overflow-y-auto md:overflow-hidden shadow-2xl border border-white/10 grid grid-cols-1 md:grid-cols-2"
-            : "relative w-full max-w-lg my-4 max-h-[92vh] overflow-y-auto shadow-2xl border border-white/10"
-        }
-        style={popupStyle}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          aria-label={t("common.close")}
-          onClick={close}
-          className="absolute top-3 right-3 z-20 h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-          style={{ color: s.popup_text_color || "#ffffff" }}
+      {showcase ? (
+        // Panel showcase w całości pochodzi ze wspólnego komponentu - dokładnie
+        // ten sam markup renderuje podgląd w panelu admina.
+        <div
+          ref={panelRef}
+          className="my-4 w-full max-h-[92vh] overflow-y-auto md:overflow-visible"
+          style={{ maxWidth: `${design.panel.maxWidthPx}px` }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <X className="w-4 h-4" />
-        </button>
+          <SignupPopupPanel
+            settings={s}
+            lang={isPl ? "pl" : "en"}
+            mode={mode}
+            onClose={close}
+            onSuccess={onSuccess}
+            titleId="nl-popup-title"
+          />
+        </div>
+      ) : (
+        <div
+          ref={panelRef}
+          className={
+            split
+              ? "relative w-full max-w-4xl my-4 max-h-[92vh] overflow-y-auto md:overflow-hidden shadow-2xl border border-white/10 grid grid-cols-1 md:grid-cols-2"
+              : "relative w-full max-w-lg my-4 max-h-[92vh] overflow-y-auto shadow-2xl border border-white/10"
+          }
+          style={popupStyle}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            aria-label={t("common.close")}
+            onClick={close}
+            className="absolute top-3 right-3 z-20 h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            style={{ color: palette.fg }}
+          >
+            <X className="w-4 h-4" />
+          </button>
 
-        {showcase ? (
-          <>
-            <div
-              className={
-                "relative md:max-h-[92vh] md:overflow-hidden " +
-                (s.popup_showcase_side === "right" ? "md:order-2" : "md:order-1")
-              }
-            >
-              <NewsletterShowcase
-                images={showcaseImages}
-                logoUrl={showcaseLogo}
-                brand={
-                  isPl
-                    ? s.popup_showcase_brand_pl || eyebrow
-                    : s.popup_showcase_brand_en || eyebrow
-                }
-                tagline={
-                  isPl ? s.popup_showcase_tagline_pl : s.popup_showcase_tagline_en
-                }
-                rotateMs={s.popup_showcase_rotate_ms}
-                dotLabel={t("newsletter.showcase.slide", { defaultValue: "Slide" })}
-                gradFrom={s.popup_showcase_grad_from}
-                gradTo={s.popup_showcase_grad_to}
-                showBrand={s.popup_showcase_show_brand}
-                showCaption={s.popup_showcase_show_caption}
-                showDots={s.popup_showcase_show_dots}
+          {s.popup_doc ? (
+            <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">
+              <NewsletterDocRenderer
+                doc={s.popup_doc}
+                settings={s}
+                lang={isPl ? "pl" : "en"}
+                source="popup"
               />
             </div>
-            <div
-              className={
-                "flex flex-col justify-center p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto " +
-                (s.popup_showcase_side === "right" ? "md:order-1" : "md:order-2")
-              }
-            >
-              <h2
-                id="nl-popup-title"
-                className="font-display text-3xl sm:text-4xl leading-tight text-center pr-10 md:pr-0"
+          ) : split ? (
+            <>
+              <div
+                className="relative h-40 sm:h-56 md:h-auto md:min-h-[560px] bg-cover bg-center"
+                style={{
+                  backgroundImage: s.popup_side_image_url
+                    ? `url(${s.popup_side_image_url})`
+                    : `linear-gradient(135deg, ${palette.gradFrom}, ${palette.gradTo})`,
+                }}
+                aria-hidden="true"
               >
-                {title}
-              </h2>
-              {desc && (
-                <p
-                  className="text-sm mt-2 mb-6 leading-relaxed text-center"
-                  style={{ color: s.popup_muted_color || "#b8b8b8" }}
-                >
-                  {desc}
-                </p>
-              )}
-              <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
-            </div>
-
-          </>
-        ) : s.popup_doc ? (
-          <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">
-            <NewsletterDocRenderer
-              doc={s.popup_doc}
-              settings={s}
-              lang={isPl ? "pl" : "en"}
-              source="popup"
-            />
-          </div>
-        ) : split ? (
-          <>
-            <div
-              className="relative h-40 sm:h-56 md:h-auto md:min-h-[560px] bg-cover bg-center"
-              style={{
-                backgroundImage: s.popup_side_image_url
-                  ? `url(${s.popup_side_image_url})`
-                  : `linear-gradient(135deg, ${s.popup_accent_color || "#f97316"}, ${s.popup_bg_color || "#0a0a0a"})`,
-              }}
-              aria-hidden="true"
-            >
-              {!s.popup_side_image_url && (
-                <div className="absolute inset-0 flex items-center justify-center p-6 md:p-8 text-center">
-                  <div className="space-y-2">
-                    <div
-                      className="text-[10px] sm:text-xs uppercase tracking-[0.3em]"
-                      style={{ color: s.popup_muted_color || "#b8b8b8" }}
-                    >
-                      {eyebrow}
-                    </div>
-                    <div
-                      className="font-display text-xl sm:text-2xl md:text-3xl"
-                      style={{ color: s.popup_text_color || "#ffffff" }}
-                    >
-                      {title}
+                {!s.popup_side_image_url && (
+                  <div className="absolute inset-0 flex items-center justify-center p-6 md:p-8 text-center">
+                    <div className="space-y-2">
+                      <div
+                        className="text-[10px] sm:text-xs uppercase tracking-[0.3em]"
+                        style={{ color: palette.muted }}
+                      >
+                        {eyebrow}
+                      </div>
+                      <div
+                        className="font-display text-xl sm:text-2xl md:text-3xl"
+                        style={{ color: palette.fg }}
+                      >
+                        {title}
+                      </div>
                     </div>
                   </div>
+                )}
+              </div>
+              <div className="p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto">
+                <div className="flex items-start justify-between gap-3 mb-2 pr-10 md:pr-0">
+                  <h2
+                    id="nl-popup-title"
+                    className="font-display text-2xl sm:text-3xl leading-tight"
+                  >
+                    {title}
+                  </h2>
+                  <Send
+                    className="w-6 h-6 sm:w-7 sm:h-7 shrink-0 mt-1"
+                    style={{ color: palette.accent }}
+                  />
                 </div>
-              )}
-            </div>
-            <div className="p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto">
-              <div className="flex items-start justify-between gap-3 mb-2 pr-10 md:pr-0">
-                <h2 id="nl-popup-title" className="font-display text-2xl sm:text-3xl leading-tight">
-                  {title}
-                </h2>
-                <Send
-                  className="w-6 h-6 sm:w-7 sm:h-7 shrink-0 mt-1"
-                  style={{ color: s.popup_accent_color || "#f97316" }}
+                {desc && (
+                  <p className="text-sm mb-5 leading-relaxed" style={{ color: palette.muted }}>
+                    {desc}
+                  </p>
+                )}
+                <PopupSignupForm
+                  settings={s}
+                  lang={isPl ? "pl" : "en"}
+                  onSuccess={onSuccess}
+                  palette={palette}
                 />
               </div>
-              {desc && (
-                <p
-                  className="text-sm mb-5 leading-relaxed"
-                  style={{ color: s.popup_muted_color || "#b8b8b8" }}
-                >
-                  {desc}
-                </p>
+            </>
+          ) : (
+            <>
+              {s.popup_cover_url && (
+                <img
+                  src={s.popup_cover_url}
+                  alt=""
+                  loading="lazy"
+                  className="w-full aspect-[16/7] object-cover"
+                />
               )}
-              <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
-            </div>
-          </>
-        ) : (
-          <>
-            {s.popup_cover_url && (
-              <img
-                src={s.popup_cover_url}
-                alt=""
-                loading="lazy"
-                className="w-full aspect-[16/7] object-cover"
-              />
-            )}
-            <div className="p-6 lg:p-8 space-y-3">
-              <h2 id="nl-popup-title" className="font-display text-2xl">
-                {title}
-              </h2>
-              {desc && (
-                <p className="text-sm" style={{ color: s.popup_muted_color || "#b8b8b8" }}>
-                  {desc}
-                </p>
-              )}
-              {s.popup_extended_fields ||
-              s.popup_mailing_lists.length > 0 ||
-              s.popup_require_terms ? (
-                <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
-              ) : (
-                <NewsletterForm lang={isPl ? "pl" : "en"} source="popup" variant="inline" />
-              )}
-            </div>
-          </>
-        )}
-      </div>
+              <div className="p-6 lg:p-8 space-y-3">
+                <h2 id="nl-popup-title" className="font-display text-2xl">
+                  {title}
+                </h2>
+                {desc && (
+                  <p className="text-sm" style={{ color: palette.muted }}>
+                    {desc}
+                  </p>
+                )}
+                {s.popup_extended_fields ||
+                s.popup_mailing_lists.length > 0 ||
+                s.popup_require_terms ? (
+                  <PopupSignupForm
+                    settings={s}
+                    lang={isPl ? "pl" : "en"}
+                    onSuccess={onSuccess}
+                    palette={palette}
+                  />
+                ) : (
+                  <NewsletterForm lang={isPl ? "pl" : "en"} source="popup" variant="inline" />
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

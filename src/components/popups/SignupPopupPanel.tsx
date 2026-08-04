@@ -1,0 +1,202 @@
+// Panel popupu REJESTRACJI konta - wspólny dla strony publicznej i podglądu
+// w Admin → Popupy. Jeden komponent = zero rozjazdu 1:1 między podglądem
+// a produkcją (wcześniej podgląd miał własny, uproszczony markup).
+//
+// Kompozycja odwzorowuje projekt referencyjny: lewa kolumna to galeria
+// (logo poziome z menu admina, mozaika kadrów, karta podpisu, hasło, kropki),
+// prawa to nagłówek + formularz rejestracji. Wszystko - teksty PL/EN, kolory,
+// kolejność bloków, wyrównania, szerokości - pochodzi z ustawień popupu.
+import { useTranslation } from "react-i18next";
+import { X } from "@/lib/lucide-shim";
+import { PopupSignupForm } from "@/components/PopupSignupForm";
+import { SignupShowcase } from "@/components/ui/signup-showcase";
+import { useBrandLogoUrl } from "@/lib/brand/useBrandLogoUrl";
+import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
+import {
+  popupPaletteVars,
+  resolvePopupDesign,
+  resolvePopupPalette,
+  type PopupPalette,
+} from "@/lib/newsletter/popupDesign";
+import "@/lib/i18n-signup-popup";
+
+export interface SignupPopupPanelProps {
+  settings: NewsletterSettings;
+  lang: "pl" | "en";
+  /** Wariant palety - wyliczany z popup_design.colorScheme i motywu strony. */
+  mode: "light" | "dark";
+  source?: string;
+  onSuccess?: () => void;
+  /** Podgląd w adminie: formularz bez zapisów i bez auto-rotacji galerii. */
+  previewOnly?: boolean;
+  /** Renderuje przycisk zamykania w prawym górnym rogu. */
+  onClose?: () => void;
+  /** Id nagłówka dla aria-labelledby dialogu. */
+  titleId?: string;
+  className?: string;
+}
+
+/** Proporcje kolumn (galeria : formularz) dla wariantów `panel.split`. */
+function galleryFraction(split: "half" | "gallery-wide" | "form-wide"): number {
+  if (split === "gallery-wide") return 1.14;
+  if (split === "form-wide") return 0.86;
+  return 1;
+}
+
+export function SignupPopupPanel({
+  settings,
+  lang,
+  mode,
+  source = "popup",
+  onSuccess,
+  previewOnly = false,
+  onClose,
+  titleId = "signup-popup-title",
+  className = "",
+}: SignupPopupPanelProps) {
+  const { t } = useTranslation();
+  const design = resolvePopupDesign(settings.popup_design);
+  const palette: PopupPalette = resolvePopupPalette(settings, mode);
+  const themeLogo = useBrandLogoUrl(palette.onDark ? "dark" : "light", "horizontal");
+  const isPl = lang === "pl";
+
+  const radiusPx = Math.max(0, settings.popup_border_radius_px ?? 6);
+  const galleryRight = settings.popup_showcase_side === "right";
+  const galleryFr = galleryFraction(design.panel.split);
+  const formFr = 2 - galleryFr;
+  const cols = galleryRight ? `${formFr}fr ${galleryFr}fr` : `${galleryFr}fr ${formFr}fr`;
+
+  const images = (settings.popup_showcase_images ?? [])
+    .filter((img) => Boolean(img?.url))
+    .map((img) => ({
+      url: img.url,
+      caption: isPl ? img.caption_pl : img.caption_en,
+      title: isPl ? img.title_pl : img.title_en,
+    }));
+
+  const eyebrow = isPl ? settings.popup_eyebrow_pl : settings.popup_eyebrow_en;
+  const title = isPl ? settings.popup_title_pl : settings.popup_title_en;
+  const desc = isPl ? settings.popup_description_pl : settings.popup_description_en;
+  const brand = isPl ? settings.popup_showcase_brand_pl : settings.popup_showcase_brand_en;
+  const tagline = isPl ? settings.popup_showcase_tagline_pl : settings.popup_showcase_tagline_en;
+  const captionPrefix = isPl ? design.gallery.captionPrefixPl : design.gallery.captionPrefixEn;
+  const alignLeft = design.form.align === "left";
+
+  const shadow = design.panel.shadow;
+
+  return (
+    <div
+      className={
+        "relative grid w-full grid-cols-1 overflow-hidden md:[grid-template-columns:var(--nl-cols)] " +
+        className
+      }
+      style={{
+        ...popupPaletteVars(palette, radiusPx),
+        ["--nl-cols" as string]: cols,
+        backgroundColor: palette.bg,
+        color: palette.fg,
+        borderRadius: `${radiusPx}px`,
+        maxWidth: `${design.panel.maxWidthPx}px`,
+        border: design.panel.showBorder
+          ? `1px solid color-mix(in srgb, ${palette.fg} 12%, transparent)`
+          : undefined,
+        boxShadow:
+          shadow > 0
+            ? `0 ${Math.round(shadow / 3)}px ${shadow}px rgba(0,0,0,${(shadow / 100) * 0.45})`
+            : undefined,
+      }}
+    >
+      {onClose && (
+        <button
+          type="button"
+          aria-label={t("common.close", { defaultValue: isPl ? "Zamknij" : "Close" })}
+          onClick={onClose}
+          className="absolute right-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+          style={{
+            backgroundColor: "color-mix(in srgb, var(--nl-fg) 12%, transparent)",
+            color: "var(--nl-fg)",
+          }}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+
+      <div
+        className={
+          "relative min-w-0 md:max-h-[92vh] md:overflow-hidden " +
+          (galleryRight ? "md:order-2" : "md:order-1")
+        }
+      >
+        <SignupShowcase
+          images={images}
+          design={design.gallery}
+          palette={palette}
+          brand={brand}
+          logoUrl={design.gallery.logoUrl || themeLogo}
+          tagline={tagline}
+          captionPrefix={captionPrefix}
+          radiusPx={radiusPx}
+          rotateMs={settings.popup_showcase_rotate_ms}
+          showBrand={settings.popup_showcase_show_brand}
+          showCaption={settings.popup_showcase_show_caption}
+          showDots={settings.popup_showcase_show_dots}
+          dotLabel={t("signupPopup.slide", { defaultValue: isPl ? "Slajd" : "Slide" })}
+          nextLabel={t("signupPopup.next", {
+            defaultValue: isPl ? "Następny kadr" : "Next frame",
+          })}
+          autoRotate={!previewOnly}
+        />
+      </div>
+
+      <div
+        className={
+          "flex min-w-0 flex-col justify-center p-5 sm:p-7 md:max-h-[92vh] md:overflow-y-auto md:p-8 lg:p-10 " +
+          (galleryRight ? "md:order-1" : "md:order-2")
+        }
+      >
+        <div
+          className={"mx-auto w-full " + (alignLeft ? "text-left" : "text-center")}
+          style={{ maxWidth: `${design.form.maxWidthPx}px` }}
+        >
+          {design.form.showEyebrow && eyebrow && (
+            <p
+              className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em]"
+              style={{ color: "var(--nl-accent)" }}
+            >
+              {eyebrow}
+            </p>
+          )}
+
+          <h2
+            id={titleId}
+            className={
+              "font-display font-medium leading-[1.05] tracking-[-0.03em] " +
+              (design.form.titleNoWrap ? "whitespace-nowrap " : "") +
+              (onClose && !alignLeft ? "pr-8 md:pr-0" : "")
+            }
+            style={{ fontSize: `clamp(1.6rem, 4vw, ${design.form.titleSizePx}px)` }}
+          >
+            {title}
+          </h2>
+
+          {desc && (
+            <p className="mt-2.5 text-sm leading-relaxed" style={{ color: "var(--nl-muted)" }}>
+              {desc}
+            </p>
+          )}
+
+          <div className="mt-6">
+            <PopupSignupForm
+              settings={settings}
+              lang={lang}
+              source={source}
+              onSuccess={onSuccess}
+              previewOnly={previewOnly}
+              palette={palette}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
