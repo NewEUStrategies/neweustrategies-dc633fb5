@@ -45,6 +45,7 @@ import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { PopupShowcasePanel } from "@/components/admin/newsletter/PopupShowcasePanel";
 
 interface KpiRow {
   status: string;
@@ -294,6 +295,8 @@ export function OverviewPanel() {
           </div>
         </div>
       </section>
+
+      <PopupShowcasePanel value={cur} onChange={upd} />
 
       <section className="bg-card border border-border rounded-xl p-5 space-y-4">
         <div className="flex items-center gap-2">
