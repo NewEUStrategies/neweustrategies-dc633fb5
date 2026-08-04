@@ -1411,12 +1411,48 @@ a:focus-visible .cms-post-title,
   color: var(--td-pt-hover, var(--gc-link-hover, var(--brand)));
 }
 
+/* Reusable per-line animated underline for titles that must ALSO be
+   line-clamped. `-webkit-line-clamp` requires the clamped element to be
+   `display: -webkit-box`, which cancels the per-line gradient. Solution:
+   keep typography + clamp on the heading and wrap the text in this inline
+   span, so each wrapped line gets its own growing underline. */
+.cms-title-underline {
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 2px;
+  padding-bottom: 2px;
+  transition: background-size 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+}
+.cms-title-underline:hover,
+a:hover .cms-title-underline,
+a:focus-visible .cms-title-underline,
+.group:hover .cms-title-underline,
+li:hover .cms-title-underline,
+*:hover > .cms-title-underline,
+*:hover > * > .cms-title-underline {
+  background-size: 100% 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cms-title-underline {
+    transition: none;
+  }
+}
+
 /* Prevent double underline on any anchor wrapping a .cms-post-title */
 a:has(.cms-post-title),
 a:has(.cms-post-title):hover,
-a:has(.cms-post-title):focus {
+a:has(.cms-post-title):focus,
+a:has(.cms-title-underline),
+a:has(.cms-title-underline):hover,
+a:has(.cms-title-underline):focus {
   text-decoration: none !important;
 }
+
 @media (prefers-reduced-motion: reduce) {
   .cms-post-title {
     transition: none;
