@@ -380,15 +380,22 @@ const truncate = (s: string, max: number) =>
 const SHARED_STYLES = `
 @keyframes ehFadeImg { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-/* Stała wysokość bloku tytułu - widget nie zmienia wymiaru między slajdami. */
-.eh-slider .eh-title-clamp { display: block; overflow: hidden; padding-bottom: 4px; }
+/* Stała wysokość bloku tytułu - widget nie zmienia wymiaru między slajdami.
+   Osobna rezerwa pod dekorację jest krytyczna: bez niej overflow obcina dolne
+   piksele podkreślenia ostatniej z 3 linii i optycznie zmienia jego grubość. */
+.eh-slider .eh-title-clamp {
+  display: block;
+  overflow: hidden;
+  padding-bottom: var(--cms-underline-thickness, 2px);
+}
 /* Uwaga: NIE uzywamy -webkit-box na tytule - blokifikuje inline span
    .cms-title-underline, przez co podkreslenie przestaje byc liczone
    per linia. Zamiast tego blok + stala wysokosc 3 linii. */
 .eh-slider .eh-title-clamp > * {
   display: block;
   overflow: hidden;
-  height: calc(3 * 1.25em); height: 3lh;
+  height: calc(3 * 1.25em + var(--cms-underline-thickness, 2px));
+  height: calc(3lh + var(--cms-underline-thickness, 2px));
 }
 /* Excerpt block: always reserve 2 lines so the widget height stays stable. */
 .eh-slider .eh-clamp-2.cms-post-excerpt { height: calc(2 * 1.5em); height: 2lh; }
