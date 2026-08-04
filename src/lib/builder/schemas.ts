@@ -3,6 +3,13 @@
 // Complex list-style widgets (accordion, tabs, pricing) keep custom editors.
 import type { WidgetType } from "./types";
 import { asBool } from "./contentValue";
+import {
+  SOCIAL_HOVER_GRADIENT,
+  SOCIAL_HOVER_ICON_COLOR,
+  SOCIAL_HOVER_TEXT_COLOR,
+  SOCIAL_IDLE_ICON_COLOR,
+  socialIdleColorHint,
+} from "./socialBrand";
 
 /**
  * Wspólna podpowiedź widgetów `post-*`. Od naprawy wycieku danych
