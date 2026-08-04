@@ -375,14 +375,7 @@ export function renderSimpleWidget(
       const shape = asStr(c.shape) || "md";
       const themeAdapt = asStr(c.themeAdapt) || "auto";
 
-      const OFFICIAL: Record<string, string> = {
-        facebook: "#1877F2",
-        x: "#000000",
-        youtube: "#FF0000",
-        instagram: "#E4405F",
-        linkedin: "#0A66C2",
-        spotify: "#1DB954",
-      };
+      const OFFICIAL: Record<string, string> = SOCIAL_OFFICIAL_COLOR;
 
       const mkIcon =
         (path: string) =>
