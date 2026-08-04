@@ -5748,6 +5748,48 @@ export type Database = {
         }
         Relationships: []
       }
+      newsletter_popup_events: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          event: string
+          id: string
+          lang: string
+          layout: string | null
+          meta: Json
+          session_id: string | null
+          source: string | null
+          tenant_id: string
+          variant: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          event: string
+          id?: string
+          lang?: string
+          layout?: string | null
+          meta?: Json
+          session_id?: string | null
+          source?: string | null
+          tenant_id: string
+          variant?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          event?: string
+          id?: string
+          lang?: string
+          layout?: string | null
+          meta?: Json
+          session_id?: string | null
+          source?: string | null
+          tenant_id?: string
+          variant?: string | null
+        }
+        Relationships: []
+      }
       newsletter_settings: {
         Row: {
           description_en: string
@@ -13873,6 +13915,14 @@ export type Database = {
         Args: { p_min: number; p_tenant: string }
         Returns: {
           email: string
+        }[]
+      }
+      newsletter_popup_event_stats: {
+        Args: { _days?: number }
+        Returns: {
+          count: number
+          day: string
+          event: string
         }[]
       }
       org_add_seat: {
