@@ -493,9 +493,9 @@ function SearchBar({
       <button
         onClick={onClose}
         aria-label={t("searchOverlay.close") as string}
-        className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground sm:inline-flex pointer-coarse:h-9 pointer-coarse:w-9"
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground sm:h-7 sm:w-7 pointer-coarse:h-9 pointer-coarse:w-9"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
       </button>
     </div>
   );

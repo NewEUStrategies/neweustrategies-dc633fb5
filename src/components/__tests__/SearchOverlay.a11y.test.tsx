@@ -68,4 +68,23 @@ describe("SearchOverlay a11y", () => {
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });
+
+  it("fullscreen overlay renders a visible close button and calls onClose when clicked", async () => {
+    const onClose = vi.fn();
+    render(
+      <SearchOverlay
+        open
+        onClose={onClose}
+        mode="fullscreen"
+        heading="Search"
+        liveResults
+        limit={8}
+        lang="en"
+      />,
+    );
+    const closeBtn = screen.getByRole("button", { name: /close/i });
+    expect(closeBtn).toBeVisible();
+    fireEvent.click(closeBtn);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
