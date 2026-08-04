@@ -6,7 +6,9 @@ import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRend
 import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
 import { PopupSignupForm } from "@/components/PopupSignupForm";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { useBrandLogoUrl } from "@/lib/brand/useBrandLogoUrl";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
+
 
 export interface PopupPreviewProps {
   settings: NewsletterSettings;
@@ -14,11 +16,14 @@ export interface PopupPreviewProps {
 }
 
 export function PopupPreview({ settings, lang }: PopupPreviewProps) {
+  const logoUrl = useBrandLogoUrl("dark");
+
   if (!settings.popup_enabled) {
     return (
       <p className="text-center text-sm text-muted-foreground py-16">Popup jest wyłączony.</p>
     );
   }
+
 
   if (settings.popup_layout === "showcase") {
     const images = (settings.popup_showcase_images ?? [])
@@ -49,9 +54,11 @@ export function PopupPreview({ settings, lang }: PopupPreviewProps) {
         <div className={right ? "sm:order-2" : "sm:order-1"}>
           <NewsletterShowcase
             images={images}
+            logoUrl={logoUrl}
             brand={
               lang === "pl" ? settings.popup_showcase_brand_pl : settings.popup_showcase_brand_en
             }
+
             tagline={
               lang === "pl"
                 ? settings.popup_showcase_tagline_pl

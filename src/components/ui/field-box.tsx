@@ -1,51 +1,50 @@
-// Pole formularza w stylu "auth-section-2": etykieta wyswietlana po PRAWEJ
-// stronie ramki i znikajaca w momencie, gdy uzytkownik zaczyna pisac.
-// 6px rounding, kolory z tokenow popupu (--nl-*), dark/light bez hardkodow.
+// Pole formularza popupu rejestracji - identyczne zachowanie jak w formularzach
+// kontaktowych: platformowa etykieta pływająca (`.input-group` + `.user-label`),
+// 6px rounding, wariant on-dark z chipem etykiety w kolorze tła popupu.
+// Kolory pochodzą z tokenów popupu (--nl-*), więc dark/light działa bez hardkodów.
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from "react";
 
 export interface FieldBoxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "className"> {
-  /** Etykieta pokazywana po prawej stronie pola, dopoki jest puste. */
+  /** Etykieta pływająca - w spoczynku wewnątrz pola, po focusie na ramce. */
   label: string;
-  /** Dodatkowy element po prawej (np. przycisk podgladu hasla). */
+  /** Dodatkowy element po prawej (np. przycisk podglądu hasła). */
   trailing?: ReactNode;
   className?: string;
+  invalid?: boolean;
 }
 
 export const FieldBox = forwardRef<HTMLInputElement, FieldBoxProps>(function FieldBox(
-  { label, trailing, className = "", value, required, ...rest },
+  { label, trailing, className = "", required, invalid, ...rest },
   ref,
 ) {
   const id = useId();
-  const filled = typeof value === "string" ? value.length > 0 : Boolean(value);
 
   return (
     <div
-      className={`flex h-12 min-w-0 items-center gap-2 rounded-[6px] border px-4 transition-colors focus-within:border-[var(--nl-accent)] ${className}`}
+      className={`input-group input-group--on-dark min-w-0 ${className}`}
+      data-invalid={invalid ? "true" : undefined}
       style={{
-        borderColor: "color-mix(in srgb, var(--nl-fg) 18%, transparent)",
-        backgroundColor: "color-mix(in srgb, var(--nl-fg) 5%, transparent)",
+        // Chip etykiety musi mieć pełne tło panelu popupu, a focus ring
+        // przejmuje kolor akcentu z konfiguracji popupu.
+        ["--input-group-chip-bg" as string]: "var(--nl-bg, #0b0b0f)",
+        ["--ring" as string]: "var(--nl-accent, var(--ring))",
       }}
     >
       <input
         {...rest}
         id={id}
         ref={ref}
-        value={value}
         required={required}
-        aria-label={label}
-        className="min-w-0 flex-1 truncate bg-transparent text-sm outline-none"
+        placeholder=" "
+        className={`input${trailing ? " pr-11" : ""}`}
         style={{ color: "var(--nl-fg)" }}
       />
-      {trailing}
-      {!filled && (
-        <label
-          htmlFor={id}
-          className="max-w-[55%] shrink-0 cursor-text select-none truncate whitespace-nowrap text-sm"
-          style={{ color: "color-mix(in srgb, var(--nl-fg) 45%, transparent)" }}
-        >
-          {label}
-          {required ? " *" : ""}
-        </label>
+      <label htmlFor={id} className="user-label">
+        {label}
+        {required ? " *" : ""}
+      </label>
+      {trailing && (
+        <span className="absolute right-2 top-1/2 z-10 -translate-y-1/2">{trailing}</span>
       )}
     </div>
   );
