@@ -263,30 +263,43 @@ function AdminMembershipPage() {
 
       {/* Tabs porządkują 4 obszary: katalog warstw | mapowanie planów | nadania | organizacje. */}
       <Tabs defaultValue="tiers" className="w-full">
-        <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-md bg-muted/40 p-1">
-          <TabsTrigger value="tiers" className="gap-1.5 rounded-[6px] text-xs">
-            <Layers className="h-3.5 w-3.5" aria-hidden />
-            {tm("tabs.tiers")}
-            <span className="ml-1 rounded-[6px] bg-background/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+        <TabsList className="grid w-full grid-cols-2 gap-2 rounded-[6px] border border-border/60 bg-muted/50 p-1.5 shadow-sm sm:inline-flex sm:h-11 sm:w-auto sm:grid-cols-none sm:gap-1">
+          <TabsTrigger
+            value="tiers"
+            className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:h-8"
+          >
+            <Layers className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">{tm("tabs.tiers")}</span>
+            <span className="ml-0.5 rounded-[4px] bg-muted px-1.5 py-0 text-[10px] font-semibold tabular-nums">
               {tiers.length}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="mapping" className="gap-1.5 rounded-[6px] text-xs">
-            <Tag className="h-3.5 w-3.5" aria-hidden />
-            {tm("tabs.mapping")}
+          <TabsTrigger
+            value="mapping"
+            className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:h-8"
+          >
+            <Tag className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">{tm("tabs.mapping")}</span>
           </TabsTrigger>
-          <TabsTrigger value="grants" className="gap-1.5 rounded-[6px] text-xs">
-            <Gift className="h-3.5 w-3.5" aria-hidden />
-            {tm("tabs.grants")}
-            <span className="ml-1 rounded-[6px] bg-background/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+          <TabsTrigger
+            value="grants"
+            className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:h-8"
+          >
+            <Gift className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">{tm("tabs.grants")}</span>
+            <span className="ml-0.5 rounded-[4px] bg-muted px-1.5 py-0 text-[10px] font-semibold tabular-nums">
               {activeGrantsCount}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="orgs" className="gap-1.5 rounded-[6px] text-xs">
-            <Landmark className="h-3.5 w-3.5" aria-hidden />
-            {tm("tabs.orgs")}
+          <TabsTrigger
+            value="orgs"
+            className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:h-8"
+          >
+            <Landmark className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">{tm("tabs.orgs")}</span>
           </TabsTrigger>
         </TabsList>
+
 
         {/* ————— WARSTWY ————— */}
         <TabsContent value="tiers" className="mt-4 space-y-4">
