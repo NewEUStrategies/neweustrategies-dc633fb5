@@ -23,8 +23,10 @@ export function LayoutTab({ value, design, onChange, patchPanel }: SignupPopupTa
             label={t("adminPopupSignup.trigger.enabled")}
             checked={value.popup_enabled}
             onChange={(popup_enabled) => onChange({ popup_enabled })}
-            hint={t("adminPopupSignup.trigger.enabledHint")}
           />
+          <p className="text-xs text-muted-foreground">
+            {t("adminPopupSignup.trigger.enabledHint")}
+          </p>
           <SegmentedRow<NewsletterSettings["popup_trigger"]>
             label={t("adminPopupSignup.trigger.mode")}
             value={value.popup_trigger}
