@@ -541,11 +541,11 @@ export function renderSimpleWidget(
         instagram: "linear-gradient(135deg, #F58529 0%, #DD2A7B 55%, #8134AF 100%)",
         linkedin: "linear-gradient(135deg, #0A66C2 0%, #004182 100%)",
         spotify: "linear-gradient(135deg, #1ED760 0%, #14833B 100%)",
-        // Newsletter to nasza marka - prestiżowy, GŁĘBOKI gradient na tokenie
-        // --brand. Cały przebieg zostaje ciemny (brand jest jasną brzoskwinią),
-        // dzięki czemu białe CTA "SUBSKRYBUJ" nie zlewa się z tłem.
+        // Newsletter to nasza marka - prestiżowy gradient na tokenie --brand,
+        // obrócony o 180°: przy ikonie (lewa strona) jest JAŚNIEJSZY i wygasa
+        // do głębokiej ciemności po prawej, gdzie leży białe CTA.
         newsletter:
-          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 22%, #0B0B10) 0%, color-mix(in oklab, var(--brand) 46%, #17110C) 55%, color-mix(in oklab, var(--brand) 34%, #0B0B10) 100%)",
+          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 64%, #17110C) 0%, color-mix(in oklab, var(--brand) 40%, #0F0C0A) 52%, color-mix(in oklab, var(--brand) 16%, #0B0B10) 100%)",
       };
 
 
