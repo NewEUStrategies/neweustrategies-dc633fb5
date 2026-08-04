@@ -16,6 +16,7 @@ export { RichTextEditor } from "./RichTextEditor";
 export { AccountLinkEditor } from "./AccountLinkEditor";
 export { HeadingFallbackPreview } from "./HeadingFallbackPreview";
 export { TeamMemberEditor } from "./TeamMemberEditor";
+export { AuthorProfileCardEditor } from "./AuthorProfileCardEditor";
 export { InteractiveCircleEditor } from "./InteractiveCircleEditor";
 export { SpeakersEditor } from "./SpeakersEditor";
 export { EventScheduleEditor } from "./EventScheduleEditor";

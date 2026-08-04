@@ -84,6 +84,7 @@ export const WIDGET_TYPES = [
   "logo-cloud",
   "testimonial",
   "team-member",
+  "author-profile-card",
   "speakers",
   "pricing",
   "interactive-circle",

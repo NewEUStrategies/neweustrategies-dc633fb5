@@ -96,6 +96,7 @@ import {
   AccountLinkEditor,
   HeadingFallbackPreview,
   TeamMemberEditor,
+  AuthorProfileCardEditor,
   InteractiveCircleEditor,
   SpeakersEditor,
   EventScheduleEditor,
@@ -1725,6 +1726,8 @@ function customContentEditor(
       return <AdSlotEditor c={c} setContent={setContent} />;
     case "team-member":
       return <TeamMemberEditor c={c} lang={lang} setContent={setContent} />;
+    case "author-profile-card":
+      return <AuthorProfileCardEditor c={c} lang={lang} setContent={setContent} />;
     case "interactive-circle":
       return <InteractiveCircleEditor c={c} lang={lang} setContent={setContent} />;
     case "speakers":

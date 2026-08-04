@@ -58,6 +58,11 @@ export const WIDGET_TEXT_FIELDS: Partial<Record<WidgetType, WidgetTextFieldSpec>
   // renderują się jako tekst, więc NIE wchodzą.
   "team-member": { scalar: ["bio"] },
 
+  // widget-view/AuthorProfileCardWidget.tsx - opis karty (`description_*`)
+  // renderuje się jako tekst, ale przechodzi przez ten sam pipeline treści co
+  // biogram, więc przypisy [fn] muszą być z niego usunięte.
+  "author-profile-card": { scalar: ["description"] },
+
   // widget-view/SpeakersWidget.tsx celowo NIE ma wpisu: opis prelegenta
   // renderuje się jako węzeł tekstowy (line-clamp), więc marker `[fn]…[/fn]`
   // zamieniony na <sup> pokazałby się czytelnikowi dosłownie (patrz
