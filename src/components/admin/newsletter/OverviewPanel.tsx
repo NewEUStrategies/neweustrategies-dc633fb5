@@ -47,6 +47,7 @@ import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRend
 import { sanitizeHtml } from "@/lib/sanitize";
 import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
 import { PopupShowcasePanel } from "@/components/admin/newsletter/PopupShowcasePanel";
+import { PopupEventsPanel } from "@/components/admin/newsletter/PopupEventsPanel";
 
 interface KpiRow {
   status: string;
@@ -298,6 +299,8 @@ export function OverviewPanel() {
       </section>
 
       <PopupShowcasePanel value={cur} onChange={upd} />
+
+      <PopupEventsPanel />
 
       <section className="bg-card border border-border rounded-xl p-5 space-y-4">
         <div className="flex items-center gap-2">
