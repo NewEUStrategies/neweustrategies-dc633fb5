@@ -69,7 +69,6 @@ describe("social-icons - CTA dla każdej obsługiwanej platformy", () => {
   });
 });
 
-
 describe("social-icons - układ listy honoruje te same ustawienia co rząd", () => {
   it("applies the gap between rows", () => {
     const container = paint({ ...ALL_LINKS, layout: "list", gap: 12 });
@@ -135,13 +134,19 @@ describe("social-icons - jawny colorMode wygrywa z adaptacją motywu", () => {
     },
   );
 
-  it("uses the theme-aware icon tone when no explicit mode is chosen", () => {
-    // Bez jawnego colorMode ikona bierze token --sb-icon: jaśniejszy odcień
-    // brandu w light mode, biel w dark mode (zamiast czerni z --foreground).
+  it("leaves the inherited mode on the theme ink (no inline colour)", () => {
+    // Bez jawnego colorMode ikona DZIEDZICZY `text-foreground` kontenera:
+    // ciemny atrament w light mode, biel w dark mode. Tak wygląda publiczna
+    // strona kontaktu i tak MUSI wyglądać kanwa - żaden token pośredni, bo
+    // domieszka marki liczona `color-mix` rozjeżdżała oba widoki.
     const container = paint({ facebook: ALL_LINKS.facebook });
-    expect((container.querySelector("a") as HTMLElement).style.color).toBe("var(--sb-icon)");
+    expect((container.querySelector("a") as HTMLElement).style.color).toBe("");
   });
 
+  it("keeps the official mode on the RAW brand colour", () => {
+    const container = paint({ facebook: ALL_LINKS.facebook, colorMode: "official" });
+    expect((container.querySelector("a") as HTMLElement).style.color).toBe("#1877F2");
+  });
 
   it("documents the precedence in the editor hints", () => {
     const fields = WIDGET_SCHEMAS["social-icons"] ?? [];

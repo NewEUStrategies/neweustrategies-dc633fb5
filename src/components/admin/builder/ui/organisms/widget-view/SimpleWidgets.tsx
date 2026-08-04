@@ -49,6 +49,22 @@ import {
   resolveSocialHref,
   type GlobalSocialLinks,
 } from "@/lib/social/globalSocialLinks";
+import {
+  SB_CHIP,
+  SB_CTA,
+  SB_LABEL,
+  SB_ROW,
+  SB_SEP,
+  SB_TILE,
+  SOCIAL_HOUSE_TONES,
+  SOCIAL_HOVER_ICON_MODES,
+  SOCIAL_OFFICIAL_COLORS,
+  SOCIAL_ROW_HOVER_MODES,
+  socialHoverGradient,
+  socialHoverIconColor,
+  socialHoverStyle,
+  type SocialHoverPlan,
+} from "./socialHover";
 
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
@@ -483,7 +499,7 @@ export function renderSimpleWidget(
         if (bgMode === "none") return undefined;
         if (bgMode === "subtle") return "var(--muted)";
         if (bgMode === "brand") return "var(--brand, currentColor)";
-        if (bgMode === "official") return OFFICIAL[k];
+        if (bgMode === "official") return SOCIAL_OFFICIAL_COLORS[k];
         if (bgMode === "contrast") return "var(--foreground)";
         if (bgMode === "custom") return customBgColor || undefined;
         return undefined;
@@ -495,6 +511,18 @@ export function renderSimpleWidget(
       // Wygląd kafelka ikony jest wspólny dla obu układów. Wcześniej „list"
       // rysował sam kolor ikony i ignorował tło (bgMode / customBgColor), więc
       // te same ustawienia działały tylko w jednym układzie.
+      //
+      // STAN PODSTAWOWY IKONY = `text-foreground` kontenera, czyli atrament
+      // motywu: ciemny w light mode, biały w dark mode. To wygląd ustalony na
+      // publicznej stronie kontaktu i jedyny, który jest ZE SWOJEJ NATURY
+      // spójny w kanwie, w podglądzie panelu i na froncie - nie zależy od
+      // żadnego tokenu, który mógłby się nie rozwiązać w jednym z kontekstów.
+      //
+      // Wcześniejsza próba rozjaśniania stanu podstawowego domieszką marki
+      // (`--sb-icon` / `--sb-off-tone` liczone przez `color-mix`) dała dokładnie
+      // ten rozjazd, który redakcja zgłosiła: w builderze ikony wychodziły
+      // jasnopomarańczowe, a na stronie publicznej zostawały czarne. Rozjaśnienie
+      // ikony należy do stanu HOVER (patrz socialHover.ts), nie do spoczynku.
       const chipStyle = (k: string, active: boolean): CSSProperties => {
         const bg = resolveBg(k, active);
         const onContrast = bgMode === "official" && active;
@@ -502,22 +530,13 @@ export function renderSimpleWidget(
           perPlatformColor(k) ?? (colorMode === "official" ? OFFICIAL[k] : undefined);
         return {
           ...linkStyle,
-          // W trybie dziedziczonym ikona bierze jaśniejszy ton marki (light
-          // mode) / biel (dark mode) zamiast twardej czerni z --foreground.
-          // W trybie "official" kolor marki jest w light mode rozjaśniany
-          // (var(--sb-off-tone)), a w dark mode zostaje surowy.
-          ...(official ? ({ ["--sb-off"]: official } as CSSProperties) : null),
-          color: onContrast
-            ? "#fff"
-            : active
-              ? official
-                ? "var(--sb-off-tone)"
-                : (resolveColor(k) ?? "var(--sb-icon)")
-              : undefined,
+          // Na kontrastowym tle marki ikona musi być biała, żeby nie zniknęła.
+          // Tryb „oficjalne kolory marek" daje kolor SUROWY - rozjaśniany
+          // przestawał być kolorem YouTube'a czy Facebooka, a to obiecuje nazwa.
+          color: onContrast ? "#fff" : active ? resolveColor(k) : undefined,
           backgroundColor: bg,
         };
       };
-
 
       const linksSource = asOneOf(c.linksSource, ["auto", "global", "own"] as const, "auto");
       const hrefOf = (
@@ -649,7 +668,15 @@ export function renderSimpleWidget(
                 subscribe: { pl: "Subskrybuj", en: "Subscribe" },
                 subskrybuj: { pl: "Subskrybuj", en: "Subscribe" },
               };
-              const rawCta = getStr(c, `${ctaKey}_${lang}`) || getStr(c, ctaKey) || "";
+              // Panel zapisuje CTA per język (`ctaX_pl` / `ctaX_en`). Klucz
+              // BEZJĘZYKOWY to treść sprzed tej zmiany - czytamy go WYŁĄCZNIE,
+              // gdy dokument nie ma żadnej wersji językowej, bo inaczej
+              // wyczyszczone PL podstawiałoby angielski tekst (przeciek PL/EN).
+              const hasLocalizedCta = Boolean(
+                getStr(c, `${ctaKey}_pl`) || getStr(c, `${ctaKey}_en`),
+              );
+              const rawCta =
+                getStr(c, `${ctaKey}_${lang}`) || (hasLocalizedCta ? "" : getStr(c, ctaKey));
               const cta = rawCta
                 ? (CTA_SYNONYMS[rawCta.trim().toLowerCase()]?.[target] ?? rawCta)
                 : (defaultCta[k]?.[target] ?? "");
@@ -677,30 +704,35 @@ export function renderSimpleWidget(
                     <Cmp size={size} />
                   </span>
                   <span
-                    className="mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors group-hover:bg-[color:var(--sb-fg)]/70"
+                    className={`${SB_SEP} mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors`}
                     aria-hidden="true"
                   />
-                  <span className="flex-1 truncate text-sm font-medium text-foreground transition-colors group-hover:[color:var(--sb-fg)]">
+                  <span
+                    className={`${SB_LABEL} flex-1 truncate text-sm font-medium text-foreground transition-colors`}
+                  >
                     {label}
                   </span>
                   {cta && (
-                    <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground transition-colors group-hover:[color:var(--sb-fg)]">
+                    <span
+                      className={`${SB_CTA} shrink-0 text-xs uppercase tracking-wide text-muted-foreground transition-colors`}
+                    >
                       {cta}
                     </span>
                   )}
                 </AppLink>
               );
             })
-
-
             .filter(Boolean);
           return (
-            <div
-              className={`flex w-full flex-col text-foreground ${ICON_TONE} ${themeCls}`}
-              style={{ ...compactRowStyle, gap: `${gap}px` }}
-            >
-              {rows}
-            </div>
+            <>
+              <div
+                className={`flex w-full flex-col text-foreground ${themeCls} ${hoverScope}`}
+                style={{ ...compactRowStyle, gap: `${gap}px` }}
+              >
+                {rows}
+              </div>
+              {hoverCssTag}
+            </>
           );
         }
 
