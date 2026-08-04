@@ -13,6 +13,12 @@ import "@/lib/i18n-public";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { useNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import {
+  subscribeErrorMessage,
+  subscribeErrorTitle,
+  subscribeSuccessCopy,
+  type SubscribeStatus,
+} from "@/lib/newsletter/subscribeFeedback";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
