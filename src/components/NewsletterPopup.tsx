@@ -9,6 +9,7 @@ import { useLocation } from "@tanstack/react-router";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
+import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
 import "@/lib/i18n-newsletter-popup";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
@@ -59,6 +60,15 @@ export function NewsletterPopup() {
     if (shownThisSession) return;
     if (!shouldShow(s.popup_frequency_days)) return;
 
+    // "impression" = popup kwalifikuje się do pokazania na tej odsłonie
+    // (wszystkie bramki przeszły); "open" = faktycznie się pojawił.
+    trackNewsletterPopupEvent({
+      event: "impression",
+      lang: isPl ? "pl" : "en",
+      layout: s.popup_layout,
+      source: "popup",
+    });
+
     let timer: ReturnType<typeof setTimeout> | null = null;
     let onScroll: (() => void) | null = null;
     let onMouseLeave: ((e: MouseEvent) => void) | null = null;
@@ -76,6 +86,12 @@ export function NewsletterPopup() {
           shownThisSession = true;
           releaseSlotRef.current = release;
           setOpen(true);
+          trackNewsletterPopupEvent({
+            event: "open",
+            lang: isPl ? "pl" : "en",
+            layout: s.popup_layout,
+            source: "popup",
+          });
         },
       );
     };
@@ -111,7 +127,7 @@ export function NewsletterPopup() {
       if (onScroll) window.removeEventListener("scroll", onScroll);
       if (onMouseLeave) document.removeEventListener("mouseleave", onMouseLeave);
     };
-  }, [s, loc.pathname]);
+  }, [s, loc.pathname, isPl]);
 
   const title = isPl ? s?.popup_title_pl : s?.popup_title_en;
   const desc = isPl ? s?.popup_description_pl : s?.popup_description_en;
