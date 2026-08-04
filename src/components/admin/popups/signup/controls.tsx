@@ -1,6 +1,6 @@
 // Atomy edytora popupu rejestracji. Wszystkie etykiety przychodzą z zewnątrz
 // (i18n po stronie zakładek), więc te komponenty są czysto prezentacyjne.
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
