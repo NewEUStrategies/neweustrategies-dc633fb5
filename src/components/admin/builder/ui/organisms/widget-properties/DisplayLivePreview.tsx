@@ -1,8 +1,17 @@
-// Live mini-preview for the Post List widget "Display" panel.
-// Reflects showCover / showTitle / showExcerpt / authorDisplay + authorLabel_*
-// instantly as the editor mutates widget content - no page reload required.
+// Podgląd na żywo sekcji „Wyświetlanie" widgetu post-listy.
+//
+// Odzwierciedla showCover / showTitle / showExcerpt oraz PEŁNY kontrakt autora
+// (obie osie widoczności, oba rozmiary, etykieta) natychmiast po zmianie w
+// panelu - bez przeładowania strony.
+//
+// Byline rysuje TA SAMA molekuła, co kanwa i strona publiczna. Wcześniej
+// podgląd miał własny, zaszyty na sztywno kwadracik 16 px i tekst 11 px, więc
+// suwaki rozmiaru wyglądały na „dekoracyjne": treść się zmieniała, obraz nie.
 import { useTranslation } from "react-i18next";
 import type { WidgetNode } from "@/lib/builder/types";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
+import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
+import { postListVariantHasByline } from "@/lib/builder/postListQuery";
 
 interface Props {
   c: WidgetNode["content"];
@@ -20,10 +29,10 @@ export function DisplayLivePreview({ c, lang }: Props) {
   const showTitle = s(c, "showTitle", "1") !== "0";
   const showExcerpt = s(c, "showExcerpt", "1") !== "0";
   const variant = s(c, "variant", "card");
-  const rawAuthor = s(c, "authorDisplay", "avatar");
-  const authorDisplay: "avatar" | "label" | "none" =
-    rawAuthor === "label" || rawAuthor === "none" ? rawAuthor : "avatar";
-  const authorLabel = s(c, `authorLabel_${lang}`).trim() || (lang === "pl" ? "Autor" : "By");
+  // Ta sama reguła, którą panel decyduje o pokazaniu sekcji „Autor" - podgląd
+  // nie może twierdzić, że autora nie ma tam, gdzie widget go rysuje.
+  const authorDisplay = resolveAuthorDisplay(c, lang);
+  const showAuthor = postListVariantHasByline(variant) && authorDisplay.visible;
 
   const sampleTitle = lang === "pl" ? "Przykładowy tytuł wpisu" : "Sample post title";
   const sampleExcerpt =
@@ -70,26 +79,16 @@ export function DisplayLivePreview({ c, lang }: Props) {
               {sampleExcerpt}
             </div>
           )}
-          {variant === "ranked" && authorDisplay !== "none" && (
-            <div
-              className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground"
-              data-testid="preview-author"
-            >
-              {authorDisplay === "avatar" && (
-                <span
-                  aria-hidden
-                  className="h-4 w-4 shrink-0 rounded-[5px] bg-muted-foreground/30"
-                  data-testid="preview-author-avatar"
-                />
-              )}
-              {authorDisplay === "label" && (
-                <span className="opacity-70" data-testid="preview-author-label">
-                  {authorLabel}:
-                </span>
-              )}
-              <span className="truncate text-foreground" data-testid="preview-author-name">
-                {sampleAuthor}
-              </span>
+          {showAuthor && (
+            <div className="mt-1 flex min-w-0 items-center" data-testid="preview-author">
+              <AuthorByline
+                name={sampleAuthor}
+                display={authorDisplay}
+                // Podgląd nie ma zdjęcia próbnego - molekuła rysuje wtedy
+                // kafelek z inicjałem W DOKŁADNIE tym samym rozmiarze, co
+                // realne zdjęcie na stronie.
+                avatarUrl={null}
+              />
             </div>
           )}
         </div>

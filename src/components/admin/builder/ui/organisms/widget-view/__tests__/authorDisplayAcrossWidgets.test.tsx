@@ -191,6 +191,43 @@ describe("byline autora - domyślnie 12 px nazwiska i 20 px zdjęcia w KAŻDYM w
   });
 });
 
+describe("byline autora - 6 px zaokrąglenia i nieściśliwe pudełko w KAŻDYM widgecie", () => {
+  it.each(WIDGETS.map((w) => [w.label, w] as const))("%s", async (_label, widget) => {
+    widget.prepare?.();
+    const { container } = wrap(widget.render({}));
+    await waitFor(() => expect(bylineAvatar(container)).not.toBeNull());
+
+    const s = bylineAvatar(container)!.style;
+    expect(s.borderRadius).toBe("6px");
+    // Domknięcie z obu stron: ani flex, ani `max-width:100%` z globalnych
+    // reguł obrazów nie zmieni realnych pikseli zdjęcia.
+    expect([s.minWidth, s.maxWidth, s.minHeight, s.maxHeight]).toEqual([
+      "20px",
+      "20px",
+      "20px",
+      "20px",
+    ]);
+    expect(s.flex).toBe("0 0 auto");
+  });
+});
+
+describe("byline autora - typografia sekcji nie ma jak przejąć rozmiaru", () => {
+  it.each(WIDGETS.map((w) => [w.label, w] as const))("%s", async (_label, widget) => {
+    widget.prepare?.();
+    const { container } = wrap(widget.render({}));
+    await waitFor(() => expect(byline(container)).not.toBeNull());
+
+    const root = byline(container)!;
+    const unguarded = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))].filter(
+      (el) => !el.hasAttribute("data-typography-exempt"),
+    );
+    expect(
+      unguarded.map((el) => el.tagName),
+      "węzeł bez wyłączenia zostanie przejęty przez `font-size !important` typografii widgetu",
+    ).toEqual([]);
+  });
+});
+
 describe("byline autora - oba rozmiary zmieniane niezależnie w KAŻDYM widgecie", () => {
   it.each(WIDGETS.map((w) => [w.label, w] as const))("%s", async (_label, widget) => {
     widget.prepare?.();
