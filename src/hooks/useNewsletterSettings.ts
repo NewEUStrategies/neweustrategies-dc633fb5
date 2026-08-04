@@ -54,6 +54,13 @@ export interface NewsletterSettings {
   popup_terms_html_pl: string | null;
   popup_terms_html_en: string | null;
   popup_mailing_lists: NewsletterMailingList[];
+  // Showcase layout (galeria + formularz)
+  popup_showcase_images: NewsletterShowcaseImage[];
+  popup_showcase_brand_pl: string;
+  popup_showcase_brand_en: string;
+  popup_showcase_tagline_pl: string;
+  popup_showcase_tagline_en: string;
+  popup_showcase_rotate_ms: number;
   // Style / branding
   popup_bg_color: string;
   popup_text_color: string;
