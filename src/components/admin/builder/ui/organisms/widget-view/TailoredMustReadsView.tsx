@@ -13,7 +13,8 @@ import { toPlVocative } from "@/lib/i18n/plVocative";
 import { localizedPath } from "@/lib/i18n/localePath";
 import type { WidgetContent } from "@/lib/builder/types";
 import { asBool, asNumInRange, asOneOf, pickI18n } from "@/lib/builder/contentValue";
-import { AuthorInline } from "./AuthorInline";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
+import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 
 type Lang = "pl" | "en";
 
@@ -130,7 +131,9 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
   const limit = Math.round(asNumInRange(c["limit"], 3, 1, 9));
   const showKicker = asBool(c["showKicker"], true);
   const showExcerpt = asBool(c["showExcerpt"], true);
-  const showAuthor = asBool(c["showAuthor"], true);
+  // Prezentacja autora: wspolny kontrakt (nazwisko 12 px / zdjecie 20 px,
+  // obie osie chowane niezaleznie) - ten sam rezolwer co w post-liscie.
+  const authorDisplay = resolveAuthorDisplay(c, lang);
   const audience = asOneOf(c["audience"], ["auth", "all", "guest"] as const, "auth");
   const kicker =
     pickI18n(c, "kicker", lang) || (lang === "pl" ? "Polecane dla ciebie" : "Recommended for you");
@@ -214,12 +217,12 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
                   />
                 </AppLink>
                 <div className="flex min-w-0 flex-col gap-1.5">
-                  {showAuthor && authorName ? (
-                    <AuthorInline
+                  {authorDisplay.visible && authorName ? (
+                    <AuthorByline
                       name={authorName}
                       avatarUrl={author?.avatar_url}
                       href={authorHref}
-                      lang={lang}
+                      display={authorDisplay}
                     />
                   ) : null}
                   <AppLink href={href} className="min-w-0">

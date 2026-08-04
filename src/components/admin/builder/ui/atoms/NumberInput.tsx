@@ -10,6 +10,7 @@ export function NumberInput({
   step = 1,
   suffix,
   placeholder,
+  ariaLabel,
 }: {
   value?: number;
   onChange: (v: number | undefined) => void;
@@ -18,6 +19,10 @@ export function NumberInput({
   step?: number;
   suffix?: string;
   placeholder?: string;
+  /** Etykieta dla technologii asystujących. `PropField` rysuje etykietę
+   *  wizualną, ale nie wiąże jej z kontrolką, więc bez tego pole jest dla
+   *  czytnika ekranu bezimienne. */
+  ariaLabel?: string;
 }) {
   const bump = (delta: number) => {
     const base = typeof value === "number" ? value : 0;
@@ -35,6 +40,7 @@ export function NumberInput({
       <div className="relative flex-1">
         <Input
           type="number"
+          aria-label={ariaLabel}
           value={value ?? ""}
           min={min}
           max={max}

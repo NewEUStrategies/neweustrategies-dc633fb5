@@ -298,7 +298,7 @@ describe("RatedListView - ocena tylko dla listy recznej", () => {
 describe("RatedListView - filtr autora jest czescia zapytania", () => {
   it("resolves author names to ids and narrows the posts query", async () => {
     db.tables.posts = DYN_POSTS;
-    db.tables.profiles = [
+    db.tables.profiles_public = [
       { id: "au1", display_name: "Redakcja" },
       { id: "au2", display_name: "Ktos Inny" },
     ];
@@ -312,7 +312,7 @@ describe("RatedListView - filtr autora jest czescia zapytania", () => {
 
     // Nazwy -> identyfikatory ida osobnym zapytaniem...
     expect(
-      opsFor("profiles").some(
+      opsFor("profiles_public").some(
         ([op, args]) => op === "in" && args[0] === "display_name" && Array.isArray(args[1]),
       ),
     ).toBe(true);
@@ -326,24 +326,24 @@ describe("RatedListView - filtr autora jest czescia zapytania", () => {
 
   it("short-circuits when no profile matches the filter", async () => {
     db.tables.posts = DYN_POSTS;
-    db.tables.profiles = [];
+    db.tables.profiles_public = [];
     const { container } = wrap(
       <RatedListView c={{ source: "dynamic", authorFilter: "Nikt Taki" }} lang="pl" />,
     );
-    await waitFor(() => expect(callsFor("profiles").length).toBeGreaterThan(0));
+    await waitFor(() => expect(callsFor("profiles_public").length).toBeGreaterThan(0));
     await waitFor(() => expect(container.querySelectorAll("li")).toHaveLength(0));
     expect(callsFor("posts")).toHaveLength(0);
   });
 
   it("skips the resolution round-trip when no author filter is set", async () => {
     db.tables.posts = DYN_POSTS;
-    db.tables.profiles = [{ id: "au1", display_name: "Redakcja" }];
+    db.tables.profiles_public = [{ id: "au1", display_name: "Redakcja" }];
     wrap(<RatedListView c={{ source: "dynamic", showAuthor: true }} lang="pl" />);
     await screen.findByText("Tytul PL 1");
-    // Jedyne trafienie w `profiles` to dociagniecie nazwisk dla zwroconych wierszy.
-    expect(opsFor("profiles").some(([op, args]) => op === "in" && args[0] === "display_name")).toBe(
-      false,
-    );
+    // Jedyne trafienie w `profiles_public` to dociagniecie nazwisk dla zwroconych wierszy.
+    expect(
+      opsFor("profiles_public").some(([op, args]) => op === "in" && args[0] === "display_name"),
+    ).toBe(false);
     expect(screen.getByText(/Redakcja/)).toBeTruthy();
   });
 });

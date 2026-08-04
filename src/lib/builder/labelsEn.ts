@@ -409,7 +409,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Wszyscy (goście widzą generyczny nagłówek)": "Everyone (guests see a generic heading)",
   "Pokaż nagłówek": "Show the heading",
   "Pokaż kicker": "Show the kicker",
-  "Pokaż autora (zdjęcie + imię i nazwisko)": "Show the author (photo + full name)",
   "Na telefonie zawsze jedna kolumna, od tabletu dwie, wybrana liczba od dużego ekranu.":
     "Always one column on phones, two from tablet up, the selected number on large screens.",
   "Pokaż opis (zajawkę)": "Show the description (excerpt)",
@@ -1036,7 +1035,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "The widget reads archive data (category / tag). Outside an archive page it stays hidden.",
   "Linkuj do wpisu": "Link to the post",
   "Tekst zastępczy (gdy brak tytułu)": "Fallback text (when there is no title)",
-  "Pokaż autora": "Show author",
   "Pokaż kategorię": "Show category",
   "Pokaż datę": "Show date",
   "Format daty": "Date format",
@@ -1052,7 +1050,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Limit (0 = bez limitu)": "Limit (0 = no limit)",
   "w linii": "inline",
   wyśrodkowany: "centred",
-  "Pokaż awatar": "Show avatar",
   "Pokaż biogram": "Show bio",
   "Pokaż linki społecznościowe": "Show social links",
   "Pokaż stronę główną": "Show the home crumb",

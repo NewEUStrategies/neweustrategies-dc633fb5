@@ -82,39 +82,31 @@ describe("SliderEditor - podgląd odzwierciedla sekcję Wyświetlanie", () => {
   it("renders the author label mode without an avatar", async () => {
     renderEditor({ authorDisplay: "label", authorLabel_pl: "Redakcja" });
     await waitFor(() => expect(preview().textContent).toContain("Redakcja: Anna Nowak"));
-    expect(preview().querySelector('[data-author-badge] img[alt="Anna Nowak"]')).toBeNull();
+    expect(preview().querySelector("[data-author-byline] img")).toBeNull();
   });
 
   it("drops the author entirely in none mode", async () => {
     renderEditor({ authorDisplay: "none" });
     await waitFor(() => expect(preview().textContent).toContain("Tytuł slajdu"));
-    expect(preview().querySelector("[data-author-badge]")).toBeNull();
+    expect(preview().querySelector("[data-author-byline]")).toBeNull();
   });
 
   it("keeps author sizing identical to the canvas contract (12 / 20 by default)", async () => {
     renderEditor({});
-    await waitFor(() =>
-      expect(preview().querySelector('[data-author-badge] img[alt="Anna Nowak"]')).not.toBeNull(),
-    );
-    const avatar = preview().querySelector<HTMLImageElement>(
-      '[data-author-badge] img[alt="Anna Nowak"]',
-    );
+    await waitFor(() => expect(preview().querySelector("[data-author-byline] img")).not.toBeNull());
+    const avatar = preview().querySelector<HTMLImageElement>("[data-author-byline] img");
     expect(avatar?.getAttribute("width")).toBe("20");
-    expect(preview().querySelector<HTMLElement>("[data-author-badge]")?.style.fontSize).toBe(
+    expect(preview().querySelector<HTMLElement>("[data-author-byline]")?.style.fontSize).toBe(
       "12px",
     );
   });
 
   it("applies authorSizePx and authorAvatarSizePx in the live preview", async () => {
     renderEditor({ authorSizePx: 17, authorAvatarSizePx: 36 });
-    await waitFor(() =>
-      expect(preview().querySelector('[data-author-badge] img[alt="Anna Nowak"]')).not.toBeNull(),
-    );
-    const avatar = preview().querySelector<HTMLImageElement>(
-      '[data-author-badge] img[alt="Anna Nowak"]',
-    );
+    await waitFor(() => expect(preview().querySelector("[data-author-byline] img")).not.toBeNull());
+    const avatar = preview().querySelector<HTMLImageElement>("[data-author-byline] img");
     expect(avatar?.getAttribute("width")).toBe("36");
-    expect(preview().querySelector<HTMLElement>("[data-author-badge]")?.style.fontSize).toBe(
+    expect(preview().querySelector<HTMLElement>("[data-author-byline]")?.style.fontSize).toBe(
       "17px",
     );
   });

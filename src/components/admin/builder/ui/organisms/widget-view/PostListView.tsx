@@ -15,11 +15,12 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
 import {
   dedupeAndSlice,
-  postListAuthorDisplay,
   postListQueryOptions,
   type Lang,
   type PostRow,
 } from "@/lib/builder/postListQuery";
+import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
 import {
   carouselAutoplayEnabled,
   carouselAutoplayIntervalMs,
@@ -72,17 +73,13 @@ export function PostListView({
   carousel?: boolean;
   typography?: import("@/lib/builder/types").WidgetTypography;
 }) {
-  const { t } = useTranslation();
-  const authorLabelOverride = getStr(c, `authorLabel_${lang}`).trim();
-  // Sposob prezentacji autora rozstrzyga JEDNA funkcja wspoldzielona z
-  // zapytaniem (postListAuthorDisplay). Wczesniej widok mial wlasna kopie tej
-  // reguly opartą na porownaniach do stringa "0" - rozjezdzala sie z warstwa
-  // zapytania (asBool), wiec zapytanie potrafilo dociagnac autorow, ktorych
-  // widok chowal, albo odwrotnie: widok rysowal byline bez danych.
-  const authorDisplay = postListAuthorDisplay(c);
-  const showAuthorAny = authorDisplay !== "none";
-  const byLabel =
-    authorLabelOverride || t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
+  // Prezentacje autora rozstrzyga JEDEN rezolwer wspoldzielony z warstwa
+  // zapytania (`authorDisplayMode` w postListQuery) i z panelem wlasciwosci.
+  // Wczesniej widok mial wlasna kopie tej reguly (sztywne 20 px awatara, brak
+  // rozmiaru czcionki), wiec ten sam autor renderowal sie inaczej niz w
+  // sliderze, a redakcja nie miala jak tego zmienic.
+  const authorDisplay = resolveAuthorDisplay(c, lang);
+  const showAuthorAny = authorDisplay.visible;
   // Global display toggles - apply to every variant.
   const showCover = getStr(c, "showCover") !== "0";
   const showTitleGlobal = getStr(c, "showTitle") !== "0";
@@ -172,33 +169,21 @@ export function PostListView({
   // never pop in via a late client-side fetch.
   const authorName = (p: PostRow) => p.author_display_name ?? "";
 
+  // Byline NIE jest linkiem: karta/wiersz listy jest juz opakowana w <AppLink>,
+  // a zagniezdzony <a> to nieprawidlowy HTML (przegladarka rozrywa DOM i psuje
+  // nawigacje klawiatura).
   const AuthorMeta = ({ p, tone = "default" }: { p: PostRow; tone?: "default" | "onDark" }) => {
     if (!showAuthorAny) return null;
     const name = authorName(p);
     if (!name) return null;
-    const textCls = tone === "onDark" ? "text-white/90" : "text-foreground";
-    const labelCls = tone === "onDark" ? "text-white/70" : "opacity-70";
     return (
-      <div
-        className={`cms-meta mt-2 flex items-center gap-2 min-w-0 ${tone === "onDark" ? "text-white/85" : ""}`}
-      >
-        {authorDisplay === "avatar" ? (
-          p.author_avatar_url ? (
-            <img
-              src={p.author_avatar_url}
-              alt=""
-              width={20}
-              height={20}
-              loading="lazy"
-              className="h-5 w-5 shrink-0 object-cover"
-              style={{ borderRadius: 5 }}
-            />
-          ) : (
-            <span aria-hidden className="h-5 w-5 shrink-0 bg-muted" style={{ borderRadius: 5 }} />
-          )
-        ) : null}
-        {authorDisplay === "label" && byLabel ? <span className={labelCls}>{byLabel}:</span> : null}
-        <span className={`${textCls} truncate`}>{name}</span>
+      <div className="cms-meta mt-2 flex min-w-0 items-center">
+        <AuthorByline
+          name={name}
+          avatarUrl={p.author_avatar_url}
+          display={authorDisplay}
+          tone={tone}
+        />
       </div>
     );
   };

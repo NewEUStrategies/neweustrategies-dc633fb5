@@ -1,5 +1,6 @@
 // mediaWidgets: gałęzie, których nie domyka branchClose - profil autorów
-// slidera (batch-fetch profiles: display_name vs imię+nazwisko, brak danych),
+// slidera (batch-fetch profiles_public - widok zawężony do tenanta:
+// display_name vs imię+nazwisko, brak danych),
 // dopasowanie src do logo strony (srcMatchesSiteLogo), fallback onError dla
 // logo (gc-img-light/dark), warianty ratio + link wewnętrzny bez _blank
 // oraz wyłączenie zajawki/covera w konfiguracji slidera.
@@ -107,7 +108,7 @@ describe("PostsSliderWidget - profile autorów slajdów", () => {
 
   it("resolves display_name and composed first/last names into slides", async () => {
     db.tables.posts = posts;
-    db.tables.profiles = [
+    db.tables.profiles_public = [
       {
         id: "a1",
         display_name: null,
@@ -138,7 +139,7 @@ describe("PostsSliderWidget - profile autorów slajdów", () => {
 
   it("hides excerpts when showExcerpt=false and tolerates rows without profiles", async () => {
     db.tables.posts = posts;
-    db.tables.profiles = [];
+    db.tables.profiles_public = [];
     const { container } = renderNode("slider", {
       source: "posts",
       showExcerpt: false,

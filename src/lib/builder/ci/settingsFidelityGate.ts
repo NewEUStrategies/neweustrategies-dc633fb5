@@ -184,23 +184,10 @@ export const FIDELITY_WAIVERS: Partial<Record<WidgetType, WidgetFidelityWaiver>>
         "`showFirstName`/`showLastName`, a renderer czyta stary klucz jako domyślną wartość obu.",
     },
   },
-  "post-list": {
-    hidden: {
-      showAuthorAvatar:
-        "Klucz historyczny pary avatar/etykieta. Panel oferuje jedno pole `authorDisplay` i " +
-        "utrzymuje starą parę w spójności zapisem; renderer czyta ją tylko jako wartość " +
-        "domyślną dla dokumentów sprzed ujednolicenia (patrz `postListAuthorDisplay`).",
-      showAuthorLabel:
-        "Klucz historyczny pary avatar/etykieta - jak `showAuthorAvatar`. Wystawienie go w " +
-        "panelu cofnęłoby ujednolicenie do jednego pola `authorDisplay`.",
-    },
-  },
-  carousel: {
-    hidden: {
-      showAuthorAvatar: "Jak w `post-list` - klucz historyczny pary avatar/etykieta.",
-      showAuthorLabel: "Jak w `post-list` - klucz historyczny pary avatar/etykieta.",
-    },
-  },
+  // `post-list` / `carousel` NIE MAJĄ już zwolnień dla pary avatar/etykieta:
+  // panel i renderer czytają dziś TEN SAM rezolwer (`resolveAuthorDisplay`),
+  // więc oba końce widzą identyczny zbiór kluczy autora - bramka pilnuje ich
+  // w pełni, bez odstępstw.
   donations: {
     hidden: {
       quickDonate:

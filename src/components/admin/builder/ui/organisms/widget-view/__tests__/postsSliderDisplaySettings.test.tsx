@@ -76,12 +76,15 @@ async function renderPostsSlider(content: WidgetContent, lang: "pl" | "en" = "pl
 }
 
 const authorBadge = (root: HTMLElement): HTMLElement | null =>
-  root.querySelector<HTMLElement>("[data-author-badge]");
+  root.querySelector<HTMLElement>("[data-author-byline]");
 const authorAvatar = (root: HTMLElement): HTMLImageElement | null =>
-  root.querySelector<HTMLImageElement>('[data-author-badge] img[alt="Jan Kowalski"]');
+  root.querySelector<HTMLImageElement>("[data-author-byline] img");
 
 beforeEach(() => {
-  db.tables = { posts: POSTS, profiles: PROFILES };
+  // Autorzy jadą z `profiles_public` - widoku zawężonego do `public_tenant_id()`.
+  // Slider NIE czyta już tabeli `profiles`, więc obszar roboczy jednej firmy nie
+  // ma jak wciągnąć profilu z obszaru innej.
+  db.tables = { posts: POSTS, profiles_public: PROFILES };
 });
 afterEach(cleanup);
 
@@ -122,7 +125,7 @@ describe("PostsSliderWidget - tryb prezentacji autora", () => {
     const { container } = await renderPostsSlider({ authorDisplay: "label" });
     await waitFor(() => expect(container.textContent).toContain("Autor: Jan Kowalski"));
     expect(authorAvatar(container)).toBeNull();
-    expect(authorBadge(container)?.getAttribute("data-author-badge")).toBe("label");
+    expect(authorBadge(container)?.getAttribute("data-author-byline")).toBe("label");
   });
 
   it("passes the PL label override through to the rendered text", async () => {

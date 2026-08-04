@@ -99,7 +99,7 @@ afterEach(cleanup);
 describe("PostListView variants", () => {
   it("renders every grid/list variant with and without covers", async () => {
     db.tables.posts = POSTS;
-    db.tables.profiles = [{ id: "au1", display_name: "Autorka" }];
+    db.tables.profiles_public = [{ id: "au1", display_name: "Autorka" }];
     for (const variant of ["card", "minimal", "overlay", "list", "ranked", "numbered"]) {
       const view = wrap(<PostListView c={{ variant, limit: 6, columns: 3 }} lang="pl" />);
       expect((await screen.findAllByText("Wpis A")).length).toBeGreaterThan(0);
@@ -109,7 +109,7 @@ describe("PostListView variants", () => {
 
   it("renders ranked/numbered with index side + valign options and author", async () => {
     db.tables.posts = POSTS;
-    db.tables.profiles = [{ id: "au1", display_name: "Autorka" }];
+    db.tables.profiles_public = [{ id: "au1", display_name: "Autorka" }];
     for (const indexSide of ["left", "right"]) {
       for (const indexVAlign of ["top", "middle", "bottom"]) {
         const view = wrap(
@@ -309,7 +309,7 @@ describe("RatedListView dynamic source", () => {
     ];
     db.tables.post_categories = [{ post_id: "1" }];
     db.tables.post_tags = [{ post_id: "1" }];
-    db.tables.profiles = [{ id: "au1", display_name: "Redakcja" }];
+    db.tables.profiles_public = [{ id: "au1", display_name: "Redakcja" }];
     wrap(
       <RatedListView
         c={{
@@ -376,7 +376,7 @@ describe("RatedListView dynamic source", () => {
     ];
     db.tables.post_categories = [{ post_id: "1" }, { post_id: "2" }];
     db.tables.post_tags = [{ post_id: "1" }, { post_id: "2" }];
-    db.tables.profiles = [
+    db.tables.profiles_public = [
       { id: "au1", display_name: "Red" },
       { id: "au2", display_name: "Akcja" },
     ];

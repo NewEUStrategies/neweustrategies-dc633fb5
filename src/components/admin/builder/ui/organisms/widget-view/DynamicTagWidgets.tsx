@@ -35,7 +35,13 @@ import {
   Headphones,
   Link as LinkIcon,
 } from "@/lib/lucide-shim";
-import { AuthorInline } from "./AuthorInline";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
+import {
+  authorLabelText,
+  defaultAuthorLabel,
+  resolveAuthorDisplay,
+  widgetAuthorDisplayDefaults,
+} from "@/lib/builder/authorDisplay";
 
 type Lang = "pl" | "en";
 
@@ -127,20 +133,23 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
     ...postViewCountQueryOptions(ctx?.id ?? ""),
     enabled: wantsViews && ctxViews === null && !!ctx?.id,
   });
+  // Prezentacja autora (widoczność nazwiska/zdjęcia + oba rozmiary) rozstrzygana
+  // wspólnym rezolwerem - ten sam kontrakt co w post-liście i sliderze.
+  const authorDisplay = resolveAuthorDisplay(c, lang, widgetAuthorDisplayDefaults("post-meta", c));
   if (!ctx) return null;
   const sep = strOr(c.separator, " · ");
   const dateFmt = asOneOf(c.dateFormat, DATE_FORMATS, "long");
   const views = ctxViews ?? (typeof fetchedViews === "number" ? fetchedViews : null);
   const parts: ReactElement[] = [];
-  if (asBool(c.showAuthor, true) && ctx.author?.name) {
+  if (authorDisplay.visible && ctx.author?.name) {
     const authorHref = ctx.author.slug ? `/author/${ctx.author.slug}` : null;
     parts.push(
-      <AuthorInline
+      <AuthorByline
         key="a"
         name={ctx.author.name}
         avatarUrl={ctx.author.avatarUrl}
         href={authorHref}
-        lang={lang}
+        display={authorDisplay}
       />,
     );
   }
@@ -336,6 +345,15 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
   const ctx = useCtx();
   const c = node.content;
   const a = ctx?.author;
+  // Wspólny kontrakt autora: obie osie widoczności i oba rozmiary. Historyczny
+  // przełącznik `showAvatar` tego widgetu wchodzi jako baseline osi zdjęcia
+  // (patrz `widgetAuthorDisplayDefaults`), więc starsze dokumenty nie zmieniają
+  // wyglądu, a redakcja dostaje jeden komplet ustawień zamiast dwóch.
+  const authorDisplay = resolveAuthorDisplay(
+    c,
+    lang,
+    widgetAuthorDisplayDefaults("post-author-card", c),
+  );
   if (!a?.name) return null;
   const variant = asOneOf(c.variant, AUTHOR_VARIANTS, "card");
   const bio = lang === "en" ? a.bio_en : a.bio_pl;
@@ -343,17 +361,16 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
   const centered = variant === "centered";
   const authorHref = a.slug ? `/author/${a.slug}` : null;
 
-  // Wariant "inline" używa globalnego komponentu autora (12 px / 20 px),
-  // żeby był spójny z metadanymi i listami wpisów.
+  // Wariant "inline" to zwykły byline - rysuje go ta sama molekuła, co
+  // metadane wpisu i listy wpisów (domyślnie 12 px / 20 px).
   if (variant === "inline") {
     return (
       <aside className="flex items-start gap-3">
-        <AuthorInline
+        <AuthorByline
           name={a.name}
           avatarUrl={a.avatarUrl}
           href={authorHref}
-          lang={lang}
-          avatarRadiusPx={999}
+          display={authorDisplay}
         />
         {asBool(c.showBio, true) && bio && <p className="cms-post-excerpt mt-1.5">{bio}</p>}
       </aside>
@@ -363,17 +380,26 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
   const shellClass = centered
     ? "flex flex-col items-center text-center gap-3 py-4"
     : "flex items-start gap-4 p-5 rounded-xl bg-muted/40 border border-border";
-  const avatarClass = centered ? "w-20 h-20" : "w-16 h-16";
+  // Karta to portret, nie byline: rozmiar bierzemy z ustawienia autora, ale
+  // dopiero od wartości wyraźnie większej niż byline - inaczej domyślne 20 px
+  // zamieniłoby kartę eksperta w miniaturkę.
+  const cardAvatarPx = Math.max(authorDisplay.avatarSizePx, centered ? 80 : 64);
+  // Ta sama zasada dla nazwiska: 12 px bylinu nie ma prawa zmniejszyć tytułu
+  // karty, ale świadome podbicie rozmiaru w panelu już tak.
+  const cardNamePx = Math.max(authorDisplay.nameSizePx, 18);
   return (
     <aside className={shellClass}>
-      {asBool(c.showAvatar, true) && (
+      {authorDisplay.showAvatar && (
         <div
-          className={`shrink-0 ${avatarClass} rounded-full overflow-hidden bg-muted ring-2 ring-background`}
+          className="shrink-0 overflow-hidden rounded-full bg-muted ring-2 ring-background"
+          style={{ width: cardAvatarPx, height: cardAvatarPx }}
         >
           {a.avatarUrl ? (
             <img
               src={safeImageUrl(a.avatarUrl)}
               alt={a.name}
+              width={cardAvatarPx}
+              height={cardAvatarPx}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -383,17 +409,19 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
       )}
       <div className={centered ? "min-w-0" : "flex-1 min-w-0"}>
         <div className="cms-meta uppercase tracking-wider mb-1">
-          {lang === "en" ? "Author" : "Autor"}
+          {authorLabelText(c, lang) || defaultAuthorLabel(lang)}
         </div>
-        <div className="cms-post-title">
-          {authorHref ? (
-            <AppLink href={authorHref} className="hover:text-brand">
-              {a.name}
-            </AppLink>
-          ) : (
-            a.name
-          )}
-        </div>
+        {authorDisplay.showName && (
+          <div className="cms-post-title" style={{ fontSize: `${cardNamePx}px` }}>
+            {authorHref ? (
+              <AppLink href={authorHref} className="hover:text-brand">
+                {a.name}
+              </AppLink>
+            ) : (
+              a.name
+            )}
+          </div>
+        )}
         {asBool(c.showBio, true) && bio && <p className="cms-post-excerpt mt-1.5">{bio}</p>}
         {socials.length > 0 && (
           <div className={centered ? "flex justify-center" : ""}>

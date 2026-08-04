@@ -29,6 +29,8 @@ import {
   type SliderVariant,
 } from "./sliderOptions";
 import type { WidgetTypography } from "./types";
+import { resolveAuthorDisplay, type AuthorDisplay } from "./authorDisplay";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
 
 // Katalogi i zbiory wartości mieszkają w `sliderOptions` (moduł bez runtime'u
 // Reacta), żeby miejsca wywołania mogły zawężać treść widgetu bez wciągania
@@ -104,15 +106,20 @@ export interface SliderConfig {
   showCover?: boolean;
   /** Show slide title (h3). Default: true. */
   showTitle?: boolean;
-  /** Author presentation mode. avatar = avatar+name, label = "Autor: Name",
-   *  none = hide. When set, supersedes legacy showAuthor. */
+  /** KANONICZNE osie widoczności - chowane niezależnie od siebie. */
+  showAuthorName?: boolean;
+  showAuthorAvatar?: boolean;
+  /** HISTORYCZNY trójstan. avatar = zdjęcie+nazwisko, label = "Autor: Nazwisko",
+   *  none = ukryj. Czytany wyłącznie jako wartość domyślna dwóch osi wyżej. */
   authorDisplay?: SliderAuthorDisplay;
+  /** HISTORYCZNA para z `showAuthorAvatar` (patrz `resolveAuthorDisplay`). */
+  showAuthorLabel?: boolean;
   /** Optional i18n override for the label prefix in authorDisplay='label'. */
   authorLabel_pl?: string;
   authorLabel_en?: string;
-  /** Rozmiar czcionki metadanych autora (px). Domyślnie 10. */
+  /** Rozmiar czcionki imienia i nazwiska autora (px). Domyślnie 12. */
   authorSizePx?: number;
-  /** Rozmiar awatara autora (px). Domyślnie 12, niezależny od czcionki. */
+  /** Rozmiar zdjęcia autora (px). Domyślnie 20, niezależny od czcionki. */
   authorAvatarSizePx?: number;
 
   typography?: WidgetTypography;
@@ -874,28 +881,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const showExcerpt = asBool(config.showExcerpt, true);
   const showCover = asBool(config.showCover, true);
   const showTitle = asBool(config.showTitle, true);
-  // `authorDisplay` jest kanoniczne; starsze dokumenty mają wyłącznie boolean
-  // `showAuthor`, więc służy on tylko za wartość domyślną dla zawężenia.
-  const authorDisplay = asOneOf(
-    config.authorDisplay,
-    SLIDER_AUTHOR_DISPLAYS,
-    asBool(config.showAuthor, true) ? "avatar" : "none",
-  );
-  const showAuthor = authorDisplay !== "none";
-  // Etykieta jest domykana dwukropkiem tutaj, więc redakcja może wpisać zarówno
-  // "Autor", jak i "Autor:" - nigdy nie powstanie "Autor: : Jan Kowalski".
-  const authorLabelRaw = (
-    lang === "en" ? asStr(config.authorLabel_en) : asStr(config.authorLabel_pl)
-  ).trim();
-  const authorLabelPrefix =
-    authorDisplay === "label"
-      ? `${(authorLabelRaw || (lang === "en" ? "By" : "Autor")).replace(/\s*:\s*$/, "")}: `
-      : "";
-  // Metadane autora: domyślna czcionka 12 px (parytet ze stroną główną).
-  const authorFontPx = asNumInRange(config.authorSizePx, 12, 8, 24);
-  const authorStyle: CSSProperties = { fontSize: `${authorFontPx}px`, lineHeight: 1.35 };
-  // Awatar jest niezależny od czcionki: domyślnie 20 px (parytet ze stroną główną).
-  const authorAvatarPx = asNumInRange(config.authorAvatarSizePx, 20, 8, 64);
+  // Prezentacja autora: ten sam rezolwer, co w post-liście, liście z oceną i
+  // metadanych wpisu. Slider miał wcześniej WŁASNĄ kopię tej reguły, więc
+  // „schowaj samo zdjęcie" i domyślne 12/20 px żyły w dwóch miejscach naraz.
+  const author = resolveAuthorDisplay(config, lang);
+  const showAuthor = author.visible;
+  const authorStyle: CSSProperties = { fontSize: `${author.nameSizePx}px`, lineHeight: 1.35 };
 
   const sharedProps = {
     items,
@@ -923,11 +914,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     showExcerpt,
     showAuthor,
     showTitle,
-    authorDisplay,
-    authorLabelPrefix,
+    author,
     authorStyle,
-    authorAvatarPx,
-    authorFontPx,
   };
 
   return (
@@ -936,7 +924,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       className="w-full h-full min-h-0 eh-slider"
       data-hide-cover={showCover ? undefined : "true"}
       data-show-title={showTitle ? "true" : "false"}
-      data-author-display={authorDisplay}
+      data-author-display={author.mode}
       style={{ "--eh-speed": `${speedMs}ms` } as CSSProperties}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -986,103 +974,11 @@ type VariantProps = {
   showExcerpt: boolean;
   showAuthor: boolean;
   showTitle: boolean;
-  authorDisplay: SliderAuthorDisplay;
-  authorLabelPrefix: string;
+  /** Rozstrzygnięta prezentacja autora - wspólna dla wszystkich wariantów. */
+  author: AuthorDisplay;
+  /** Styl wiersza metadanych (rozmiar czcionki autora). */
   authorStyle: CSSProperties;
-  authorAvatarPx: number;
-  authorFontPx: number;
 };
-
-/** Compact author badge: 6px-rounded avatar + display name; links to the
- *  author profile when a slug is present. Used across all slider variants so
- *  editing a post's author propagates live via useResolvedPostRefs.
- *
- *  `showAvatar={false}` realizuje tryb `authorDisplay="label"`: zostaje sam
- *  tekst "Autor: Imię Nazwisko", bez zdjęcia i bez kafelka z inicjałem. */
-function AuthorBadge({
-  name,
-  avatar,
-  slug,
-  tone = "light",
-  size = 22,
-  fontPx,
-  labelPrefix = "",
-  showAvatar = true,
-}: {
-  name?: string;
-  avatar?: string;
-  slug?: string;
-  tone?: "light" | "dark";
-  size?: number;
-  /** Rozmiar czcionki imienia i nazwiska (px). Wymuszany inline, bo link
-   *  autora dziedziczy globalny rozmiar bazowy (16px) w części wariantów. */
-  fontPx?: number;
-  labelPrefix?: string;
-  showAvatar?: boolean;
-}) {
-  if (!name && !(showAvatar && avatar)) return null;
-  const safeAvatar = avatar && showAvatar ? safeImageUrl(avatar) : "";
-  const initial = (name || "?").trim().charAt(0).toUpperCase();
-  const textCls = tone === "dark" ? "text-white" : "text-foreground/80";
-  const fontStyle: CSSProperties = fontPx
-    ? { fontSize: `${fontPx}px`, lineHeight: 1.35 }
-    : { fontSize: "inherit" };
-  const inner = (
-    <span
-      className="inline-flex items-center gap-1.5"
-      style={fontStyle}
-      data-typography-exempt
-      data-author-badge={showAvatar ? "avatar" : "label"}
-    >
-      {showAvatar &&
-        (safeAvatar ? (
-          <img
-            src={safeAvatar}
-            alt={name || ""}
-            width={size}
-            height={size}
-            loading="lazy"
-            decoding="async"
-            className="object-cover shrink-0"
-            style={{ width: size, height: size, borderRadius: 6 }}
-          />
-        ) : (
-          <span
-            aria-hidden
-            className="inline-flex items-center justify-center bg-muted text-foreground/70 font-semibold shrink-0"
-            style={{
-              width: size,
-              height: size,
-              borderRadius: 6,
-              fontSize: Math.round(size * 0.55),
-            }}
-          >
-            {initial}
-          </span>
-        ))}
-      {name && (
-        <span className={`font-medium ${textCls}`} style={fontStyle} data-typography-exempt>
-          {labelPrefix}
-          {name}
-        </span>
-      )}
-    </span>
-  );
-  if (slug) {
-    return (
-      <AppLink
-        href={`/author/${slug}`}
-        className="inline-flex items-center gap-1.5 hover:opacity-80 transition-opacity"
-        style={fontStyle}
-        data-typography-exempt
-        onClick={(e) => e.stopPropagation()}
-      >
-        {inner}
-      </AppLink>
-    );
-  }
-  return inner;
-}
 
 function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
   // pickI18n = żądany język -> PL -> EN. Ten sam łańcuch dla tytułu, zajawki
@@ -1219,15 +1115,13 @@ function EditorialHeroVariant(p: VariantProps) {
             style={p.authorStyle}
           >
             {p.showAuthor && cur.author && (
-              <AuthorBadge
+              <AuthorByline
                 name={cur.author}
-                avatar={cur.authorAvatar}
-                slug={cur.authorSlug}
-                tone="light"
-                size={p.authorAvatarPx}
-                fontPx={p.authorFontPx}
-                labelPrefix={p.authorLabelPrefix}
-                showAvatar={p.authorDisplay === "avatar"}
+                avatarUrl={cur.authorAvatar}
+                href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                display={p.author}
+                tone="default"
+                onClick={(e) => e.stopPropagation()}
               />
             )}
             {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">|</span>}
@@ -1366,15 +1260,13 @@ function MultiCardVariant(p: VariantProps) {
                       style={p.authorStyle}
                     >
                       {p.showAuthor && it.author && (
-                        <AuthorBadge
+                        <AuthorByline
                           name={it.author}
-                          avatar={it.authorAvatar}
-                          slug={it.authorSlug}
-                          tone="light"
-                          size={p.authorAvatarPx}
-                          fontPx={p.authorFontPx}
-                          labelPrefix={p.authorLabelPrefix}
-                          showAvatar={p.authorDisplay === "avatar"}
+                          avatarUrl={it.authorAvatar}
+                          href={it.authorSlug ? `/author/${it.authorSlug}` : null}
+                          display={p.author}
+                          tone="default"
+                          onClick={(e) => e.stopPropagation()}
                         />
                       )}
                       {p.showAuthor && it.author && it.readTime && (
@@ -1484,15 +1376,13 @@ function CinematicOverlayVariant(p: VariantProps) {
             {((p.showAuthor && cur.author) || cur.readTime) && (
               <div className="mt-3 flex items-center gap-2 text-white/75" style={p.authorStyle}>
                 {p.showAuthor && cur.author && (
-                  <AuthorBadge
+                  <AuthorByline
                     name={cur.author}
-                    avatar={cur.authorAvatar}
-                    slug={cur.authorSlug}
-                    tone="dark"
-                    size={p.authorAvatarPx}
-                    fontPx={p.authorFontPx}
-                    labelPrefix={p.authorLabelPrefix}
-                    showAvatar={p.authorDisplay === "avatar"}
+                    avatarUrl={cur.authorAvatar}
+                    href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                    display={p.author}
+                    tone="onDark"
+                    onClick={(e) => e.stopPropagation()}
                   />
                 )}
                 {p.showAuthor && cur.author && cur.readTime && (
@@ -1642,15 +1532,13 @@ function SplitFeatureVariant(p: VariantProps) {
         {((p.showAuthor && cur.author) || cur.readTime) && (
           <div className="mt-3 flex items-center gap-2 text-muted-foreground" style={p.authorStyle}>
             {p.showAuthor && cur.author && (
-              <AuthorBadge
+              <AuthorByline
                 name={cur.author}
-                avatar={cur.authorAvatar}
-                slug={cur.authorSlug}
-                tone="light"
-                size={p.authorAvatarPx}
-                fontPx={p.authorFontPx}
-                labelPrefix={p.authorLabelPrefix}
-                showAvatar={p.authorDisplay === "avatar"}
+                avatarUrl={cur.authorAvatar}
+                href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                display={p.author}
+                tone="default"
+                onClick={(e) => e.stopPropagation()}
               />
             )}
             {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">·</span>}
