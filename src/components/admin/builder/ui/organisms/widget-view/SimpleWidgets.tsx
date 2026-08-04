@@ -517,6 +517,10 @@ export function renderSimpleWidget(
         instagram: "linear-gradient(135deg, #F58529 0%, #DD2A7B 55%, #8134AF 100%)",
         linkedin: "linear-gradient(135deg, #0A66C2 0%, #004182 100%)",
         spotify: "linear-gradient(135deg, #1ED760 0%, #14833B 100%)",
+        // Newsletter to nasza marka - prestiżowy gradient budowany na tokenie
+        // --brand (ciemna baza -> brand -> rozjaśnienie), a nie kolor obcej marki.
+        newsletter:
+          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 45%, #101010) 0%, var(--brand) 55%, color-mix(in oklab, var(--brand) 65%, #ffffff) 100%)",
       };
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
