@@ -49,6 +49,11 @@ export interface SchemaField {
   type: FieldType;
   label: string;
   placeholder?: string;
+  /**
+   * Kolor FAKTYCZNIE użyty, gdy pole jest puste - panel pokazuje go jako
+   * próbkę zamiast pustego kwadratu („dziedziczy z global colors").
+   */
+  inheritedValue?: string;
   /** For number fields. */
   min?: number;
   max?: number;
