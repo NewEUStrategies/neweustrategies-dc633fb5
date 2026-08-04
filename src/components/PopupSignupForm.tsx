@@ -90,6 +90,7 @@ export function PopupSignupForm({
   const fieldOn = (key: PopupFieldKey) => fields[key].enabled;
   const label = (key: PopupFieldKey) => popupFieldLabel(fields[key], lang);
   const showLists = lists.length > 0 && fieldOn("list");
+  const showPhone = ext && fieldOn("phone");
   const showNewsletter = fieldOn("newsletter_optin");
   const requireTerms = settings.popup_require_terms;
   const requirePrivacy = settings.popup_require_privacy !== false;
@@ -461,61 +462,66 @@ export function PopupSignupForm({
           inputMode="url"
         />
       )}
-      <FieldBox
-        type="email"
-        required
-        label={label("email")}
-        value={v.email}
-        onChange={(e) => upd("email", e.target.value)}
-        maxLength={254}
-        autoComplete="email"
-      />
-      {ext && fieldOn("phone") && (
+      {/* E-mail + telefon w dwoch rownych kolumnach (jak imie/nazwisko). */}
+      <div className={showPhone ? "grid grid-cols-2 gap-2.5" : ""}>
         <FieldBox
-          type="tel"
-          label={label("phone")}
-          required={fields.phone.required}
-          value={v.phone}
-          onChange={(e) => upd("phone", e.target.value)}
-          maxLength={32}
-          autoComplete="tel"
+          type="email"
+          required
+          label={label("email")}
+          value={v.email}
+          onChange={(e) => upd("email", e.target.value)}
+          maxLength={254}
+          autoComplete="email"
         />
-      )}
+        {showPhone && (
+          <FieldBox
+            type="tel"
+            label={label("phone")}
+            required={fields.phone.required}
+            value={v.phone}
+            onChange={(e) => upd("phone", e.target.value)}
+            maxLength={32}
+            autoComplete="tel"
+          />
+        )}
+      </div>
 
-      <FieldBox
-        type={showPass ? "text" : "password"}
-        required
-        label={label("password")}
-        value={v.password}
-        onChange={(e) => upd("password", e.target.value)}
-        minLength={MIN_PASSWORD}
-        maxLength={72}
-        autoComplete="new-password"
-        trailing={
-          <button
-            type="button"
-            onClick={() => setShowPass((s) => !s)}
-            aria-label={
-              showPass ? t("Ukryj hasło", "Hide password") : t("Pokaż hasło", "Show password")
-            }
-            className="shrink-0 rounded-[6px] p-1 opacity-60 transition-opacity hover:opacity-100"
-            style={{ color: "var(--nl-fg)" }}
-          >
-            {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-        }
-      />
-      <FieldBox
-        type={showPass ? "text" : "password"}
-        required
-        label={label("password_confirm")}
-        value={v.passwordConfirm}
-        onChange={(e) => upd("passwordConfirm", e.target.value)}
-        minLength={MIN_PASSWORD}
-        maxLength={72}
-        autoComplete="new-password"
-      />
-
+      {/* Hasło + powtórzenie: dwie równe kolumny. */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <FieldBox
+          type={showPass ? "text" : "password"}
+          required
+          label={label("password")}
+          value={v.password}
+          onChange={(e) => upd("password", e.target.value)}
+          minLength={MIN_PASSWORD}
+          maxLength={72}
+          autoComplete="new-password"
+          trailing={
+            <button
+              type="button"
+              onClick={() => setShowPass((s) => !s)}
+              aria-label={
+                showPass ? t("Ukryj hasło", "Hide password") : t("Pokaż hasło", "Show password")
+              }
+              className="shrink-0 rounded-[6px] p-1 opacity-60 transition-opacity hover:opacity-100"
+              style={{ color: "var(--nl-fg)" }}
+            >
+              {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          }
+        />
+        <FieldBox
+          type={showPass ? "text" : "password"}
+          required
+          label={label("password_confirm")}
+          value={v.passwordConfirm}
+          onChange={(e) => upd("passwordConfirm", e.target.value)}
+          minLength={MIN_PASSWORD}
+          maxLength={72}
+          autoComplete="new-password"
+        />
+      </div>
 
       {showLists && (
         <div
