@@ -15,6 +15,7 @@ import {
 } from "react";
 
 import { useServerFn } from "@tanstack/react-start";
+import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { submitContactMessage } from "@/lib/contact.functions";
 import {
   collectCustomValues,
@@ -369,23 +370,26 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const gridCols =
     columns === 1 ? "grid-cols-1" : columns === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3";
 
+  // Bazowy wygląd (kolor/animacja "bubbly") pochodzi z utility `btn-bubbly`
+  // używanego również przez zapis do newslettera - tutaj dokładamy tylko
+  // rozmiar, wyrównanie oraz nadpisania dla wariantów niepełnych.
   const buttonClasses = useMemo(() => {
     const size =
       buttonSize === "sm"
-        ? "px-3 py-1.5 text-xs"
+        ? "min-h-[30px] px-3 text-xs"
         : buttonSize === "lg"
-          ? "px-6 py-3 text-base"
-          : "px-4 py-2 text-sm";
+          ? "min-h-[44px] px-7 text-base"
+          : "min-h-[35px] px-6 text-sm";
     const variantCls =
       buttonVariant === "outline"
-        ? "border border-current bg-transparent hover:bg-foreground/10"
+        ? "!border-current !bg-transparent !text-current hover:!bg-foreground/10"
         : buttonVariant === "ghost"
-          ? "bg-transparent hover:bg-foreground/10"
+          ? "!border-transparent !bg-transparent !text-current hover:!bg-foreground/10"
           : buttonVariant === "gradient"
-            ? "bg-gradient-to-r from-primary to-[color-mix(in_oklab,var(--primary)_70%,white)] text-primary-foreground"
-            : "bg-primary text-primary-foreground hover:opacity-90";
+            ? "!bg-gradient-to-r !from-primary !to-[color-mix(in_oklab,var(--primary)_70%,white)] !text-primary-foreground"
+            : "";
     const align = buttonAlign === "full" ? "w-full" : "";
-    return `inline-flex items-center justify-center rounded-md font-medium transition disabled:opacity-60 ${size} ${variantCls} ${align}`;
+    return `${size} ${variantCls} ${align}`.trim();
   }, [buttonAlign, buttonVariant, buttonSize]);
 
   const buttonWrapCls =
@@ -413,10 +417,16 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   }
 
   const submitButton: ReactNode = (
-    <button type="submit" disabled={status === "sending"} className={`cf-submit ${buttonClasses}`}>
-      {status === "sending" ? t.sending : submitLabel}
-    </button>
+    <SubscribeButton
+      disabled={status === "sending"}
+      loading={status === "sending"}
+      loadingLabel={t.sending}
+      className={`cf-submit ${buttonClasses}`}
+    >
+      {submitLabel}
+    </SubscribeButton>
   );
+
 
   return (
     <div className={`cf-shell cf-shell--${variant}`} style={shellStyle}>
@@ -747,7 +757,13 @@ function Field({
     <div className={`input-group ${className ?? ""}`} data-invalid={error ? "true" : undefined}>
       {injected}
       <label className="user-label">{label}</label>
-      {error && <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>}
+      {/* Komunikat błędu jest pozycjonowany absolutnie, więc nie zmienia wysokości
+          pola i nie przesuwa sąsiednich placeholderów w dół. */}
+      {error && (
+        <span className="pointer-events-none absolute left-1 top-full mt-1 block text-[11px] leading-tight text-destructive">
+          {error}
+        </span>
+      )}
     </div>
   );
 }
