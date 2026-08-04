@@ -8,6 +8,7 @@
 import * as React from "react";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import "@/lib/i18n-public";
 import { useBuilderMode } from "@/lib/builder/modeContext";
@@ -420,7 +421,19 @@ export function NewsletterForm({
           )}
         </form>
       )}
-      {state === "err" && errMsg && <p className="text-xs text-destructive mt-2">{errMsg}</p>}
+      {state === "err" && errMsg && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="mt-3 flex items-start gap-3 rounded-[6px] border border-destructive/40 bg-destructive/10 p-3"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-destructive">{subscribeErrorTitle(lang)}</p>
+            <p className="mt-0.5 text-xs text-foreground/80">{errMsg}</p>
+          </div>
+        </div>
+      )}
       {policy && (
         <p
           className="nl-consent text-xs text-muted-foreground mt-3"
