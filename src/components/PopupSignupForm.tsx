@@ -386,7 +386,8 @@ export function PopupSignupForm({
     );
   }
 
-  const fieldContainer = "input-group--on-dark";
+  const showFirst = ext && fieldOn("first_name");
+  const showLast = ext && fieldOn("last_name");
   return (
     <form onSubmit={onSubmit} className={compact ? "space-y-2" : "space-y-2.5"} noValidate>
       <div
@@ -406,31 +407,32 @@ export function PopupSignupForm({
         </label>
       </div>
 
-      {ext && fieldOn("first_name") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
-          label={label("first_name")}
-          required={fields.first_name.required}
-          value={v.name}
-          onChange={(e) => upd("name", e.target.value)}
-          maxLength={80}
-          autoComplete="given-name"
-        />
-      )}
-      {ext && fieldOn("last_name") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
-          label={label("last_name")}
-          required={fields.last_name.required}
-          value={v.surname}
-          onChange={(e) => upd("surname", e.target.value)}
-          maxLength={80}
-          autoComplete="family-name"
-        />
+      {(showFirst || showLast) && (
+        <div className={showFirst && showLast ? "grid grid-cols-2 gap-2.5" : ""}>
+          {showFirst && (
+            <FieldBox
+              label={label("first_name")}
+              required={fields.first_name.required}
+              value={v.name}
+              onChange={(e) => upd("name", e.target.value)}
+              maxLength={80}
+              autoComplete="given-name"
+            />
+          )}
+          {showLast && (
+            <FieldBox
+              label={label("last_name")}
+              required={fields.last_name.required}
+              value={v.surname}
+              onChange={(e) => upd("surname", e.target.value)}
+              maxLength={80}
+              autoComplete="family-name"
+            />
+          )}
+        </div>
       )}
       {ext && fieldOn("job") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
+        <FieldBox
           label={label("job")}
           required={fields.job.required}
           value={v.job}
@@ -440,8 +442,7 @@ export function PopupSignupForm({
         />
       )}
       {ext && fieldOn("company") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
+        <FieldBox
           label={label("company")}
           required={fields.company.required}
           value={v.company}
@@ -451,8 +452,7 @@ export function PopupSignupForm({
         />
       )}
       {ext && fieldOn("linkedin") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
+        <FieldBox
           label={label("linkedin")}
           required={fields.linkedin.required}
           value={v.linkedin}
@@ -461,8 +461,7 @@ export function PopupSignupForm({
           inputMode="url"
         />
       )}
-      <FloatingInput
-        containerClassName={fieldContainer}
+      <FieldBox
         type="email"
         required
         label={label("email")}
@@ -472,8 +471,7 @@ export function PopupSignupForm({
         autoComplete="email"
       />
       {ext && fieldOn("phone") && (
-        <FloatingInput
-          containerClassName={fieldContainer}
+        <FieldBox
           type="tel"
           label={label("phone")}
           required={fields.phone.required}
@@ -484,29 +482,30 @@ export function PopupSignupForm({
         />
       )}
 
-      <div className="relative">
-        <FloatingInput
-          containerClassName={fieldContainer}
-          type={showPass ? "text" : "password"}
-          required
-          label={label("password")}
-          value={v.password}
-          onChange={(e) => upd("password", e.target.value)}
-          minLength={MIN_PASSWORD}
-          maxLength={72}
-          autoComplete="new-password"
-        />
-        <button
-          type="button"
-          onClick={() => setShowPass((s) => !s)}
-          aria-label={showPass ? t("Ukryj hasło", "Hide password") : t("Pokaż hasło", "Show password")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[6px] p-1 text-white/60 transition-colors hover:text-white"
-        >
-          {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      </div>
-      <FloatingInput
-        containerClassName={fieldContainer}
+      <FieldBox
+        type={showPass ? "text" : "password"}
+        required
+        label={label("password")}
+        value={v.password}
+        onChange={(e) => upd("password", e.target.value)}
+        minLength={MIN_PASSWORD}
+        maxLength={72}
+        autoComplete="new-password"
+        trailing={
+          <button
+            type="button"
+            onClick={() => setShowPass((s) => !s)}
+            aria-label={
+              showPass ? t("Ukryj hasło", "Hide password") : t("Pokaż hasło", "Show password")
+            }
+            className="shrink-0 rounded-[6px] p-1 opacity-60 transition-opacity hover:opacity-100"
+            style={{ color: "var(--nl-fg)" }}
+          >
+            {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        }
+      />
+      <FieldBox
         type={showPass ? "text" : "password"}
         required
         label={label("password_confirm")}
@@ -516,6 +515,7 @@ export function PopupSignupForm({
         maxLength={72}
         autoComplete="new-password"
       />
+
 
       {showLists && (
         <div className="input-group input-group--on-dark">
