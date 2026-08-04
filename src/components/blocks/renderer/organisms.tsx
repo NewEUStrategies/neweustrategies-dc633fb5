@@ -331,8 +331,17 @@ export const renderPostViews: BlockRenderer = ({ block, cls, lang }) => (
 
 export const renderAuthorBio: BlockRenderer = ({ block, cls, lang }) => {
   const v = str(block.data, "variant", "card");
-  const variant: "card" | "inline" | "minimal" | "split" =
-    v === "inline" ? "inline" : v === "minimal" ? "minimal" : v === "split" ? "split" : "card";
+  const variant: "card" | "inline" | "minimal" | "split" | "profile" =
+    v === "inline"
+      ? "inline"
+      : v === "minimal"
+        ? "minimal"
+        : v === "split"
+          ? "split"
+          : v === "profile"
+            ? "profile"
+            : "card";
+
   const inlineRaw = block.data.inlineAuthor;
   const inlineAuthor =
     inlineRaw && typeof inlineRaw === "object" && !Array.isArray(inlineRaw)
