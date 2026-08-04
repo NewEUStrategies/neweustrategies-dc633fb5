@@ -754,15 +754,16 @@ function Field({
     });
   }
   return (
-    <div
-      className={`input-group pb-[18px] ${className ?? ""}`}
-      data-invalid={error ? "true" : undefined}
-    >
-      {injected}
-      <label className="user-label">{label}</label>
-      {/* Miejsce na komunikat jest rezerwowane zawsze (pb-[18px]), więc pola nie
-          przesuwają się po walidacji, a sam komunikat leży w tej rezerwie -
-          nie chowa się pod sąsiednim polem (z-20). */}
+    // Zewnętrzny wrapper rezerwuje stałe miejsce (pb-[18px]) na komunikat, więc
+    // pola nie przesuwają się po walidacji. Sam `.input-group` zachowuje własną
+    // wysokość, dzięki czemu etykieta pozostaje wycentrowana (top:50%).
+    <div className={`relative pb-[18px] ${className ?? ""}`}>
+      <div className="input-group" data-invalid={error ? "true" : undefined}>
+        {injected}
+        <label className="user-label">{label}</label>
+      </div>
+      {/* Komunikat leży w zarezerwowanej przestrzeni i ma z-20, więc nie chowa
+          się pod sąsiednim polem. */}
       {error && (
         <span className="pointer-events-none absolute bottom-0 left-1 z-20 block text-[11px] leading-tight text-destructive">
           {error}
@@ -771,4 +772,5 @@ function Field({
     </div>
   );
 }
+
 
