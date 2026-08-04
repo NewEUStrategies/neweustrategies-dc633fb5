@@ -135,8 +135,15 @@ export function NewsletterPopup() {
     setTimeout(() => close(), 1800);
   };
 
+  const showcase = s.popup_layout === "showcase";
   const split = s.popup_layout === "split";
   const eyebrow = isPl ? s.popup_eyebrow_pl || "Newsletter" : s.popup_eyebrow_en || "Newsletter";
+  const showcaseImages = (s.popup_showcase_images ?? [])
+    .filter((img) => Boolean(img?.url))
+    .map((img) => ({
+      url: img.url,
+      caption: isPl ? img.caption_pl : img.caption_en,
+    }));
   const radius = `${Math.max(0, s.popup_border_radius_px ?? 16)}px`;
   const popupStyle: React.CSSProperties = {
     backgroundColor: s.popup_bg_color || "#0a0a0a",
