@@ -5392,13 +5392,29 @@ textarea::placeholder {
     background: color-mix(in srgb, var(--nl-fg) 7%, transparent);
   }
   /* Etykieta pływająca: w spoczynku SIEDZI W POLU, po focusie/wypełnieniu jedzie
-     na ramkę - identycznie jak w formularzach kontaktowych. Chip musi mieć pełne
-     tło panelu, żeby ramka nie przecinała tekstu. */
+     CAŁKOWICIE nad pole. Bez chipa (tło przezroczyste) - zamiast maskować ramkę
+     kolorem panelu, etykieta opuszcza obrys, więc nic jej nie przecina i nie ma
+     prostokąta tła wokół tekstu. Miejsce na uniesioną etykietę robi margines
+     wrappera (nie padding - padding przesunąłby środek stanu spoczynkowego). */
+  .nlp .input-group {
+    margin-top: 0.55rem;
+  }
   .nlp .input-group > .input:focus ~ .user-label,
-  .nlp .input-group > .input:not(:placeholder-shown) ~ .user-label {
-    background-color: var(--nl-bg);
+  .nlp .input-group > .input:not(:placeholder-shown) ~ .user-label,
+  .nlp .input-group > select.input ~ .user-label {
+    top: -0.15rem;
+    transform: translateY(-100%) scale(0.85);
+    transform-origin: left bottom;
+    background-color: transparent;
+    padding: 0;
     color: var(--nl-accent);
   }
+  /* Podpowiedź w spoczynku musi być czytelna na panelu - 62% atramentu gubiło
+     się na ciemnym tle referencyjnym. */
+  .nlp .input-group > .user-label {
+    color: color-mix(in srgb, var(--nl-fg) 74%, transparent);
+  }
+
   /* Nieaktywny checkbox na ciemnym panelu potrzebuje mocniejszej kreski niż
      platformowy --border wyliczony z 18% atramentu. */
   .nlp .lov-check__svg {
