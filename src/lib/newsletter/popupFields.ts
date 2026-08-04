@@ -61,12 +61,21 @@ const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
     placeholder_pl: "Kowalski",
     placeholder_en: "Doe",
   },
-  job: { enabled: true, required: false, label_pl: "Stanowisko", label_en: "Job position" },
+  job: {
+    enabled: true,
+    required: false,
+    label_pl: "Stanowisko",
+    label_en: "Job position",
+    placeholder_pl: "Analityk polityk publicznych",
+    placeholder_en: "Public policy analyst",
+  },
   company: {
     enabled: true,
     required: false,
     label_pl: "Firma / organizacja",
     label_en: "Company",
+    placeholder_pl: "New European Strategies",
+    placeholder_en: "New European Strategies",
   },
   linkedin: {
     enabled: true,
@@ -98,6 +107,8 @@ const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
     required: true,
     label_pl: "Hasło",
     label_en: "Password",
+    placeholder_pl: "Min. 8 znaków",
+    placeholder_en: "Min. 8 characters",
     locked: true,
   },
   password_confirm: {
@@ -105,6 +116,8 @@ const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
     required: true,
     label_pl: "Powtórz hasło",
     label_en: "Repeat password",
+    placeholder_pl: "Wpisz hasło ponownie",
+    placeholder_en: "Re-enter the password",
     locked: true,
   },
   list: {
@@ -112,6 +125,8 @@ const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
     required: false,
     label_pl: "Lista mailingowa",
     label_en: "Mailing list",
+    placeholder_pl: "Wybierz listę",
+    placeholder_en: "Choose a list",
   },
   newsletter_optin: {
     enabled: true,
