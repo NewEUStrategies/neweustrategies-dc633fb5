@@ -371,6 +371,7 @@ const pl = {
         optSplit: "Split (kolorowy panel)",
         optInline: "Inline",
         optMinimal: "Minimalna",
+        optProfile: "Karta profilu",
         toggleAvatar: "Avatar",
         toggleSocial: "Linki social",
         togglePostsCount: "Licznik wpisów",
@@ -379,6 +380,8 @@ const pl = {
         variantNameSplit: "Split",
         variantNameInline: "Inline",
         variantNameMinimal: "Minimalna",
+        variantNameProfile: "Karta profilu",
+
         previewInline: "(autor inline)",
         previewFillInline: "(uzupełnij dane inline)",
         previewSample: "(przykładowe dane)",
