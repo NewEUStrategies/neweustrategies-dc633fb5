@@ -18,6 +18,8 @@ import {
 } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { ProfileCard } from "@/components/ui/profile-card";
+
 import { formatDate } from "@/lib/i18n/format";
 import {
   User,
