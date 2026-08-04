@@ -14,7 +14,9 @@ export const BLOCK_VARIANTS: Record<string, BlockVariantOption[]> = {
     { key: "card", label: "Karta" },
     { key: "split", label: "Split" },
     { key: "inline", label: "Inline" },
+    { key: "profile", label: "Karta profilu" },
   ],
+
   // Cytat: warianty spójne z rendererem `renderQuote` i edytorem `QuoteBlock`.
   quote: [
     { key: "default", label: "Border" },
