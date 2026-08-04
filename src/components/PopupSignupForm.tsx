@@ -1,21 +1,25 @@
-// Rozszerzony formularz popupu newslettera - zgodny z układem split.
-// Dodatkowe pola są zapisywane w `meta jsonb` w tabeli subscribers, więc
-// nie wymagamy migracji kolumn per field. Walidacja PL/EN, zgody RODO.
+// Formularz REJESTRACJI KONTA użytkownika w popupie (wariant split/showcase).
+// To nie jest formularz newslettera - tworzy realne konto (e-mail + hasło,
+// potwierdzenie mailem). Newsletter jest wyłącznie opcjonalnym checkboxem,
+// a dane profilowe trafiają do user_metadata i (za zgodą) do listy mailingowej.
+//
+// Konfiguracja pól (widoczność, etykiety PL/EN, wymagalność) pochodzi z
+// `newsletter_settings.popup_fields` - jedno źródło prawdy z panelem admina.
 import { useRef, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { Check, Mail } from "@/lib/lucide-shim";
+import { Check, Mail, Eye } from "@/lib/lucide-shim";
+import { EyeOff } from "lucide-react";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { supabase } from "@/integrations/supabase/client";
+import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
+import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { popupFieldMap, popupFieldLabel, type PopupFieldKey } from "@/lib/newsletter/popupFields";
-import { setMyConsent } from "@/lib/consents.functions";
-import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
-
-const MARKETING_CONSENT_KEY = "marketing_email";
 
 interface Props {
   settings: NewsletterSettings;
@@ -23,9 +27,11 @@ interface Props {
   source?: string;
   onSuccess?: () => void;
   compact?: boolean;
+  /** Podgląd w adminie: bez realnych zapisów i bez wywołań sieciowych. */
+  previewOnly?: boolean;
 }
 
-interface ExtendedFields {
+interface SignupFields {
   name: string;
   surname: string;
   job: string;
@@ -33,12 +39,15 @@ interface ExtendedFields {
   linkedin: string;
   email: string;
   phone: string;
+  password: string;
+  passwordConfirm: string;
   list: string;
+  newsletter: boolean;
   terms: boolean;
   privacy: boolean;
 }
 
-const empty: ExtendedFields = {
+const empty: SignupFields = {
   name: "",
   surname: "",
   job: "",
@@ -46,26 +55,33 @@ const empty: ExtendedFields = {
   linkedin: "",
   email: "",
   phone: "",
+  password: "",
+  passwordConfirm: "",
   list: "",
+  newsletter: true,
   terms: false,
   privacy: false,
 };
 
-export function NewsletterPopupForm({
+const MIN_PASSWORD = 8;
+
+export function PopupSignupForm({
   settings,
   lang,
   source = "popup",
   onSuccess,
   compact = false,
+  previewOnly = false,
 }: Props) {
-  const [v, setV] = useState<ExtendedFields>(empty);
+  const [v, setV] = useState<SignupFields>(empty);
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [err, setErr] = useState<string | null>(null);
-  const [emailSent, setEmailSent] = useState(true);
+  const [showPass, setShowPass] = useState(false);
   const [honey, setHoney] = useState("");
   const mountedAt = useRef<number>(Date.now());
+  const runPreAuthGuard = useServerFn(preAuthGuard);
   const subscribe = useServerFn(subscribeToNewsletter);
-  const saveConsent = useServerFn(setMyConsent);
+  const authSettings = useAuthSettings();
 
   const isPl = lang === "pl";
   const ext = settings.popup_extended_fields;
@@ -74,22 +90,18 @@ export function NewsletterPopupForm({
   const fieldOn = (key: PopupFieldKey) => fields[key].enabled;
   const label = (key: PopupFieldKey) => popupFieldLabel(fields[key], lang);
   const showLists = lists.length > 0 && fieldOn("list");
+  const showNewsletter = fieldOn("newsletter_optin");
   const requireTerms = settings.popup_require_terms;
   const requirePrivacy = settings.popup_require_privacy !== false;
   const privacyHtml =
     (isPl
       ? settings.popup_privacy_html_pl || settings.policy_html_pl
       : settings.popup_privacy_html_en || settings.policy_html_en) ?? "";
+  const termsHtml = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
 
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
-  // Telemetria: submit/success/error. Walidacja po stronie klienta też jest
-  // "error" - inaczej raport pokazywałby 100% skuteczności formularza, który
-  // realnie odbija ludzi na regexie e-maila.
-  const track = (
-    event: "submit" | "success" | "error",
-    errorCode?: string,
-  ) =>
+  const track = (event: "submit" | "success" | "error", errorCode?: string) =>
     trackNewsletterPopupEvent({
       event,
       lang,
@@ -104,12 +116,15 @@ export function NewsletterPopupForm({
     track("error", code);
   };
 
+  const upd = <K extends keyof SignupFields>(k: K, val: SignupFields[K]) =>
+    setV((p) => ({ ...p, [k]: val }));
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErr(null);
+    if (previewOnly) return;
 
-    // Honeypot: bot fills hidden "website" field, or submits in <1.2s.
-    // We silently "succeed" without writing to DB so bots get no signal.
+    // Honeypot + minimalny czas wypełnienia: boty dostają "sukces" bez zapisu.
     const elapsed = Date.now() - mountedAt.current;
     if (honey.trim() !== "" || elapsed < 1200) {
       setState("ok");
@@ -124,8 +139,8 @@ export function NewsletterPopupForm({
       return;
     }
 
+    const nameRe = /^[\p{L}\p{M}'’\- ]{2,80}$/u;
     if (ext) {
-      const nameRe = /^[\p{L}\p{M}'’\- ]{2,80}$/u;
       if (v.name.trim() && !nameRe.test(v.name.trim())) {
         fail(
           t(
@@ -147,10 +162,9 @@ export function NewsletterPopupForm({
         return;
       }
       if (v.linkedin.trim()) {
-        const li = v.linkedin.trim();
         const liOk =
           /^(https?:\/\/)?([a-z]{2,3}\.)?linkedin\.com\/(in|pub|company)\/[A-Za-z0-9_\-%.]{2,100}\/?$/i.test(
-            li,
+            v.linkedin.trim(),
           );
         if (!liOk) {
           fail(
@@ -192,111 +206,140 @@ export function NewsletterPopupForm({
       const visible = key === "list" ? showLists : ext && cfg.enabled;
       if (visible && cfg.required && !value.trim()) {
         fail(
-          t(
-            `Pole "${cfg.label_pl}" jest wymagane.`,
-            `The "${cfg.label_en}" field is required.`,
-          ),
+          t(`Pole "${cfg.label_pl}" jest wymagane.`, `The "${cfg.label_en}" field is required.`),
           `required_${key}`,
         );
         return;
       }
     }
 
-    if (requirePrivacy && privacyHtml && !v.privacy) {
+    if (v.password.length < MIN_PASSWORD) {
       fail(
         t(
-          "Wymagana akceptacja Polityki prywatności.",
-          "Please accept the Privacy Policy.",
+          `Hasło musi mieć co najmniej ${MIN_PASSWORD} znaków.`,
+          `Password must be at least ${MIN_PASSWORD} characters long.`,
         ),
+        "weak_password",
+      );
+      return;
+    }
+    if (v.password !== v.passwordConfirm) {
+      fail(t("Hasła nie są identyczne.", "Passwords do not match."), "password_mismatch");
+      return;
+    }
+
+    if (requirePrivacy && privacyHtml && !v.privacy) {
+      fail(
+        t("Wymagana akceptacja Polityki prywatności.", "Please accept the Privacy Policy."),
         "privacy_required",
       );
       return;
     }
-
     if (requireTerms && !v.terms) {
       fail(t("Wymagana akceptacja regulaminu.", "Please accept the terms."), "terms_required");
+      return;
+    }
+
+    if (!authSettings.allow_public_signup) {
+      fail(t("Rejestracja jest wyłączona.", "Sign-up is disabled."), "signup_disabled");
       return;
     }
 
     setState("loading");
     track("submit");
 
-    const displayName = [v.name.trim(), v.surname.trim()].filter(Boolean).join(" ");
-    const meta: Record<string, string> = {};
-    if (ext) {
-      if (v.name.trim()) meta.first_name = v.name.trim();
-      if (v.surname.trim()) meta.last_name = v.surname.trim();
-      if (v.job.trim()) meta.position = v.job.trim();
-      if (v.company.trim()) meta.company = v.company.trim();
-      if (v.linkedin.trim()) meta.linkedin = v.linkedin.trim();
-      if (v.phone.trim()) meta.phone = v.phone.trim();
-    }
-    if (showLists && v.list) meta.mailing_list = v.list;
+    const firstName = v.name.trim();
+    const lastName = v.surname.trim();
+    const displayName = [firstName, lastName].filter(Boolean).join(" ") || email.split("@")[0];
 
     try {
-      const consents: Array<{ key: string; text: string; given: boolean; lang: "pl" | "en" }> = [];
-      const popupTitle = (isPl ? settings.popup_title_pl : settings.popup_title_en) || undefined;
-      const nlText = isPl
-        ? "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych."
-        : "I subscribe to the newsletter and accept receiving marketing messages.";
-      consents.push({ key: "newsletter", text: nlText, given: true, lang });
-      const currentTermsHtml =
-        (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
-      if (requireTerms && v.terms && currentTermsHtml) {
-        consents.push({ key: "terms", text: currentTermsHtml, given: true, lang });
-      }
-      if (requirePrivacy && privacyHtml) {
-        consents.push({ key: "privacy", text: privacyHtml, given: v.privacy, lang });
+      // Serwerowy pre-check brute-force (per-IP i per-email), tak samo jak na /login.
+      try {
+        await runPreAuthGuard({ data: { kind: "signup", email } });
+      } catch (guardErr) {
+        const msg = guardErr instanceof Error ? guardErr.message : "";
+        if (msg.includes("rate_limited")) {
+          fail(
+            t(
+              "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
+              "Too many attempts - please try again in a few minutes.",
+            ),
+            "rate_limited",
+          );
+          return;
+        }
+        throw guardErr;
       }
 
-      const res = await subscribe({
-        data: {
-          email,
-          name: displayName || undefined,
-          firstName: v.name.trim() || undefined,
-          lastName: v.surname.trim() || undefined,
-          language: lang,
-          source,
-          formName: popupTitle,
-          consents,
-          meta: Object.keys(meta).length ? meta : undefined,
+      const redirectPath = authSettings.logged_in_redirect_url?.startsWith("/")
+        ? authSettings.logged_in_redirect_url
+        : "/";
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password: v.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}${redirectPath}`,
+          data: {
+            display_name: displayName,
+            first_name: firstName,
+            last_name: lastName,
+            full_name: displayName,
+            position: v.job.trim() || undefined,
+            company: v.company.trim() || undefined,
+            linkedin: v.linkedin.trim() || undefined,
+            phone: v.phone.trim() || undefined,
+            signup_type: "reader",
+            signup_source: source,
+            preferred_language: lang,
+            marketing_opt_in: showNewsletter ? v.newsletter : false,
+          },
         },
       });
+      if (error) throw error;
 
-      if (!res.ok) {
-        track("error", res.error.slice(0, 160));
-        setErr(
-          res.error === "not_configured" || res.error === "disabled"
-            ? t("Newsletter nie jest skonfigurowany.", "Newsletter is not configured.")
-            : res.error === "suppressed"
-              ? t(
-                  "Nie możemy wysyłać wiadomości na ten adres - został wcześniej trwale zablokowany. Napisz do nas, jeśli to pomyłka.",
-                  "We cannot email this address - it was permanently blocked earlier. Contact us if this is a mistake.",
-                )
-              : res.error,
-        );
-        setState("err");
-        return;
-      }
-      // res.emailSent is false when DOI is on but the confirmation mail could
-      // not be sent (Resend unconfigured/failed) - don't then tell the user to
-      // check an inbox for a link that never went out.
-      // Jedno źródło prawdy dla zgód zalogowanego użytkownika: `user_consents`
-      // (widoczne w profilu). Dla gości serwer zapisuje zgodę przy subskrypcji.
-      try {
-        await saveConsent({
-          data: {
-            key: MARKETING_CONSENT_KEY,
+      // Newsletter tylko gdy użytkownik świadomie zaznaczył zgodę.
+      if (showNewsletter && v.newsletter) {
+        const meta: Record<string, string> = {};
+        if (v.job.trim()) meta.position = v.job.trim();
+        if (v.company.trim()) meta.company = v.company.trim();
+        if (v.linkedin.trim()) meta.linkedin = v.linkedin.trim();
+        if (v.phone.trim()) meta.phone = v.phone.trim();
+        if (showLists && v.list) meta.mailing_list = v.list;
+        const consents: Array<{ key: string; text: string; given: boolean; lang: "pl" | "en" }> = [
+          {
+            key: "newsletter",
+            text: isPl
+              ? "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych."
+              : "I subscribe to the newsletter and accept receiving marketing messages.",
             given: true,
-            version: getConsentDefinition(MARKETING_CONSENT_KEY)?.version ?? "1.0",
             lang,
-            source: `newsletter_${source}`,
           },
-        });
-      } catch {
-        /* non-fatal - gość bez sesji */
+        ];
+        if (requirePrivacy && privacyHtml) {
+          consents.push({ key: "privacy", text: privacyHtml, given: v.privacy, lang });
+        }
+        if (requireTerms && termsHtml) {
+          consents.push({ key: "terms", text: termsHtml, given: v.terms, lang });
+        }
+        try {
+          await subscribe({
+            data: {
+              email,
+              name: displayName,
+              firstName: firstName || undefined,
+              lastName: lastName || undefined,
+              language: lang,
+              source: `signup_${source}`,
+              consents,
+              meta: Object.keys(meta).length ? meta : undefined,
+            },
+          });
+        } catch {
+          /* zapis na listę nie może blokować rejestracji konta */
+        }
       }
-      setEmailSent(res.emailSent !== false);
+
       setState("ok");
       track("success", undefined);
       setV(empty);
@@ -306,71 +349,46 @@ export function NewsletterPopupForm({
     }
   };
 
-  const upd = <K extends keyof ExtendedFields>(k: K, val: ExtendedFields[K]) =>
-    setV((p) => ({ ...p, [k]: val }));
-
-  const cta = isPl ? settings.popup_cta_pl : settings.popup_cta_en;
+  const cta = (isPl ? settings.popup_cta_pl : settings.popup_cta_en) || t("Załóż konto", "Create account");
   const note =
     (isPl ? settings.popup_note_pl : settings.popup_note_en) ??
-    t("Zero spamu. Możesz się wypisać w każdej chwili.", "Zero spam, unsubscribe at any time.");
-  const successMsg = isPl ? settings.success_message_pl : settings.success_message_en;
-  const termsHtml = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
+    t(
+      "Zakładając konto potwierdzasz adres e-mail. Zero spamu.",
+      "Creating an account confirms your e-mail. Zero spam.",
+    );
 
   if (state === "ok") {
-    const doi = settings.double_opt_in;
-    // Only claim "check your inbox" when a confirmation mail actually went out.
-    const doiSent = doi && emailSent;
-    const headline = doiSent
-      ? t("Sprawdź swoją skrzynkę!", "Check your inbox!")
-      : t("Zapisano. Dziękujemy!", "You're in. Thanks!");
-    const body = doiSent
-      ? t(
-          "Wysłaliśmy link potwierdzający - kliknij go w ciągu 48 godzin, aby aktywować subskrypcję. Sprawdź też folder Spam.",
-          "We've sent you a confirmation link - click it within 48 hours to activate your subscription. Please also check your Spam folder.",
-        )
-      : doi
-        ? t(
-            "Zapisaliśmy Twój adres. Link potwierdzający wyślemy, gdy tylko to będzie możliwe.",
-            "We've saved your address. A confirmation link will be sent as soon as possible.",
-          )
-        : successMsg;
     return (
       <div
         role="status"
         aria-live="polite"
-        className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-5 space-y-3"
+        className="rounded-[6px] bg-emerald-500/10 border border-emerald-500/30 p-5 space-y-3"
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-            {doiSent ? (
-              <Mail className="w-5 h-5 text-emerald-300" />
-            ) : (
-              <Check className="w-5 h-5 text-emerald-300" />
-            )}
+            <Mail className="w-5 h-5 text-emerald-300" />
           </div>
-          <h3 className="font-display text-lg text-emerald-100">{headline}</h3>
+          <h3 className="font-display text-lg text-emerald-100">
+            {t("Konto utworzone!", "Account created!")}
+          </h3>
         </div>
-        <p className="text-sm text-emerald-100/80 leading-relaxed">{body}</p>
-        {doi && (
-          <p className="text-[11px] text-emerald-100/60">
-            {t(
-              "Status: oczekuje potwierdzenia (double opt-in).",
-              "Status: pending confirmation (double opt-in).",
-            )}
-          </p>
-        )}
+        <p className="text-sm text-emerald-100/80 leading-relaxed">
+          {t(
+            "Wysłaliśmy link potwierdzający na Twój adres e-mail - kliknij go, aby aktywować konto. Sprawdź też folder Spam.",
+            "We've sent a confirmation link to your e-mail - click it to activate your account. Please also check your Spam folder.",
+          )}
+        </p>
+        <p className="flex items-center gap-1.5 text-[11px] text-emerald-100/60">
+          <Check className="h-3.5 w-3.5" />
+          {t("Status: oczekuje potwierdzenia e-mail.", "Status: pending e-mail confirmation.")}
+        </p>
       </div>
     );
   }
 
-  // Floating-label variant on dark hero surface. `containerClassName` picks up
-  // the `.input-group--on-dark` modifier that pairs a solid chip background
-  // (--input-group-chip-bg) with white/alpha borders. Compact mode tightens
-  // vertical spacing between fields; the field height itself stays uniform.
   const fieldContainer = "input-group--on-dark";
   return (
     <form onSubmit={onSubmit} className={compact ? "space-y-2" : "space-y-2.5"} noValidate>
-      {/* Honeypot: hidden from real users (CSS + tabIndex + aria-hidden), tempting for bots. */}
       <div
         aria-hidden="true"
         style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}
@@ -465,6 +483,40 @@ export function NewsletterPopupForm({
           autoComplete="tel"
         />
       )}
+
+      <div className="relative">
+        <FloatingInput
+          containerClassName={fieldContainer}
+          type={showPass ? "text" : "password"}
+          required
+          label={label("password")}
+          value={v.password}
+          onChange={(e) => upd("password", e.target.value)}
+          minLength={MIN_PASSWORD}
+          maxLength={72}
+          autoComplete="new-password"
+        />
+        <button
+          type="button"
+          onClick={() => setShowPass((s) => !s)}
+          aria-label={showPass ? t("Ukryj hasło", "Hide password") : t("Pokaż hasło", "Show password")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-[6px] p-1 text-white/60 transition-colors hover:text-white"
+        >
+          {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      <FloatingInput
+        containerClassName={fieldContainer}
+        type={showPass ? "text" : "password"}
+        required
+        label={label("password_confirm")}
+        value={v.passwordConfirm}
+        onChange={(e) => upd("passwordConfirm", e.target.value)}
+        minLength={MIN_PASSWORD}
+        maxLength={72}
+        autoComplete="new-password"
+      />
+
       {showLists && (
         <div className="input-group input-group--on-dark">
           <select
@@ -484,6 +536,17 @@ export function NewsletterPopupForm({
           </select>
           <label className="user-label">{label("list")}</label>
         </div>
+      )}
+
+      {showNewsletter && (
+        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed text-white/70">
+          <Checkbox
+            checked={v.newsletter}
+            onCheckedChange={(checked) => upd("newsletter", checked === true)}
+            className="mt-0.5 h-[16px] w-[16px] shrink-0"
+          />
+          <span>{label("newsletter_optin")}</span>
+        </label>
       )}
 
       {requirePrivacy && privacyHtml && (
