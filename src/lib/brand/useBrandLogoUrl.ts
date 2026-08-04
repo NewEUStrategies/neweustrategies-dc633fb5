@@ -8,6 +8,9 @@ interface ThemeLogoCfg {
   logo: {
     main: string;
     main_dark: string;
+    /** Sygnet mobilny - zwykle kwadratowy, najlepszy do małych powierzchni. */
+    mobile: string;
+    mobile_dark: string;
     transparent: string;
     transparent_dark: string;
     /** Poziome logo rozwiniętego menu admina (Wygląd → Opcje motywu → Logo). */
@@ -20,6 +23,8 @@ const THEME_LOGO_DEFAULTS: ThemeLogoCfg = {
   logo: {
     main: "",
     main_dark: "",
+    mobile: "",
+    mobile_dark: "",
     transparent: "",
     transparent_dark: "",
     sidebar_expanded: "",
@@ -60,4 +65,27 @@ export function useBrandLogoUrl(
       : [...branded, ...fallback, ...horizontal];
 
   return candidates.find((url) => typeof url === "string" && url.length > 0) ?? null;
+}
+
+/**
+ * Sygnet marki dla małych, kwadratowych powierzchni (kafel ikony w banerze
+ * cookie). Kolejność woli znak przycięty (mobile), potem logo transparentne, a
+ * dopiero na końcu pełny lockup - w wariancie zgodnym z motywem, żeby ciemny
+ * znak nie wylądował na ciemnym tle.
+ */
+export function useBrandMarkUrl(surface: "dark" | "light" = "light"): string | null {
+  const theme = useSiteSetting<ThemeLogoCfg>("theme_options", THEME_LOGO_DEFAULTS);
+  const l = theme?.logo ?? THEME_LOGO_DEFAULTS.logo;
+  const dark = surface === "dark";
+
+  const preferred = dark
+    ? [l.mobile_dark, l.transparent_dark, l.main_dark]
+    : [l.mobile, l.transparent, l.main];
+  const fallback = dark
+    ? [l.mobile, l.transparent, l.main]
+    : [l.mobile_dark, l.transparent_dark, l.main_dark];
+
+  return (
+    [...preferred, ...fallback].find((url) => typeof url === "string" && url.length > 0) ?? null
+  );
 }
