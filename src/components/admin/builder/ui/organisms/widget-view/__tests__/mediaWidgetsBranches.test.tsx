@@ -147,10 +147,6 @@ describe("PostsSliderWidget - profile autorów slajdów", () => {
       showCover: false,
     });
     await waitFor(() => expect(container.textContent).toContain("Pierwszy wpis"));
-    console.log("=== container.textContent ===");
-    console.log(container.textContent);
-    console.log("=== container.innerHTML ===");
-    console.log(container.innerHTML);
     expect(container.textContent).not.toContain("Zajawka");
   });
 });
