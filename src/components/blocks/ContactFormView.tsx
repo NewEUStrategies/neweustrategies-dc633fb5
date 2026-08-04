@@ -413,10 +413,14 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   }
 
   const submitButton: ReactNode = (
-    <button type="submit" disabled={status === "sending"} className={`cf-submit ${buttonClasses}`}>
-      {status === "sending" ? t.sending : submitLabel}
-    </button>
-  );
+    <SubscribeButton
+      disabled={status === "sending"}
+      loading={status === "sending"}
+      loadingLabel={t.sending}
+      className={`cf-submit ${buttonClasses}`}
+    >
+      {submitLabel}
+    </SubscribeButton>
 
   return (
     <div className={`cf-shell cf-shell--${variant}`} style={shellStyle}>
