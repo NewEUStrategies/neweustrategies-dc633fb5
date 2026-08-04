@@ -220,21 +220,26 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
       {open && columns.length > 0 && (
         <div
           id={panelId}
-          className={`absolute top-full mt-2 z-50 ${widthCls} bg-background border border-border rounded-xl shadow-xl p-6`}
+          className={`absolute top-full mt-2 z-50 ${widthCls} bg-background border border-border rounded-[6px] shadow-xl p-6`}
           style={widthStyle}
         >
-          <div
-            className="grid gap-6"
-            style={{
-              gridTemplateColumns: `repeat(${Math.min(Math.max(columns.length, 1), 5)}, minmax(0, 1fr))`,
-            }}
-          >
-            {columns.map((col, i) => (
-              <DesktopColumn key={i} col={col} lang={lang} />
-            ))}
-          </div>
+          {layout === "showcase" ? (
+            <MegaMenuShowcase columns={columns} lang={lang} />
+          ) : (
+            <div
+              className="grid gap-6"
+              style={{
+                gridTemplateColumns: `repeat(${Math.min(Math.max(columns.length, 1), 5)}, minmax(0, 1fr))`,
+              }}
+            >
+              {columns.map((col, i) => (
+                <DesktopColumn key={i} col={col} lang={lang} />
+              ))}
+            </div>
+          )}
         </div>
       )}
+
     </div>
   );
 });
