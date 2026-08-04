@@ -71,6 +71,36 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     onClose();
   };
 
+  // Modal na mobile: blokujemy przewijanie tła i wyłączamy je z nawigacji
+  // (inert), więc aktywna jest wyłącznie warstwa wyszukiwarki.
+  useEffect(() => {
+    if (!open || mode === "dropdown" || typeof document === "undefined") return;
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    const prevTouch = body.style.touchAction;
+    body.style.overflow = "hidden";
+    body.style.touchAction = "none";
+    const roots = Array.from(body.children).filter(
+      (el): el is HTMLElement => el instanceof HTMLElement && !el.contains(panelRef.current),
+    );
+    const restored: Array<[HTMLElement, string | null]> = [];
+    for (const el of roots) {
+      if (el.dataset["searchOverlayRoot"] === "1") continue;
+      restored.push([el, el.getAttribute("aria-hidden")]);
+      el.setAttribute("aria-hidden", "true");
+      el.setAttribute("inert", "");
+    }
+    return () => {
+      body.style.overflow = prevOverflow;
+      body.style.touchAction = prevTouch;
+      for (const [el, prev] of restored) {
+        el.removeAttribute("inert");
+        if (prev === null) el.removeAttribute("aria-hidden");
+        else el.setAttribute("aria-hidden", prev);
+      }
+    };
+  }, [open, mode]);
+
   useEffect(() => {
     if (open) {
       setQ("");
@@ -80,6 +110,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
+
 
   useEffect(() => {
     if (!open || !liveResults || q.trim().length < 2) {
