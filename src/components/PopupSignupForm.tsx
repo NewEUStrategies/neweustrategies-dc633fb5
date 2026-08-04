@@ -518,25 +518,38 @@ export function PopupSignupForm({
 
 
       {showLists && (
-        <div className="input-group input-group--on-dark">
+        <div
+          className="flex h-12 items-center gap-3 rounded-[6px] border px-4 focus-within:border-[var(--nl-accent)]"
+          style={{
+            borderColor: "color-mix(in srgb, var(--nl-fg) 18%, transparent)",
+            backgroundColor: "color-mix(in srgb, var(--nl-fg) 5%, transparent)",
+          }}
+        >
           <select
-            className="input"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            style={{ color: "var(--nl-fg)" }}
             aria-label={label("list")}
             value={v.list}
             onChange={(e) => upd("list", e.target.value)}
           >
-            <option value="">
+            <option value="" style={{ color: "#111" }}>
               {t("Wybierz listę mailingową", "Choose your main mailing list")}
             </option>
             {lists.map((l) => (
-              <option key={l.id} value={l.id}>
+              <option key={l.id} value={l.id} style={{ color: "#111" }}>
                 {isPl ? l.label_pl : l.label_en}
               </option>
             ))}
           </select>
-          <label className="user-label">{label("list")}</label>
+          <span
+            className="shrink-0 whitespace-nowrap text-sm"
+            style={{ color: "color-mix(in srgb, var(--nl-fg) 45%, transparent)" }}
+          >
+            {label("list")}
+          </span>
         </div>
       )}
+
 
       {showNewsletter && (
         <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed text-white/70">
