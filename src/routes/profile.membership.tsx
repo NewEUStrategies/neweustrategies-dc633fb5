@@ -41,6 +41,7 @@ import {
 } from "@/lib/billing/membership";
 import { formatMoney } from "@/lib/billing/types";
 import { PricingComparisonMatrix } from "@/components/pricing/PricingComparisonMatrix";
+import { SubscriptionManagerSection } from "@/components/billing/SubscriptionManagerSection";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensureMembershipI18n } from "@/lib/i18n-membership";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";
@@ -127,6 +128,11 @@ function MembershipHub() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Zarządzanie subskrypcją w miejscu, gdzie użytkownik ogląda swój pakiet
+          praw: status płatności, odnowienie/wygaśnięcie, zmiana planu,
+          wznowienie i anulowanie - ten sam komponent co /profile/subscription. */}
+      <SubscriptionManagerSection />
 
       {/* Porównanie planów w segmencie bieżącej warstwy - ta sama matryca co na
           /pricing, wyprowadzona z realnych features tenanta, z podświetloną

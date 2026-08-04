@@ -12,26 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Check } from "lucide-react";
+import { intervalLabel } from "@/lib/billing/intervalLabel";
 import { cn } from "@/lib/utils";
-
-function intervalLabel(interval: AccessPlan["interval"], t: (key: string) => string): string {
-  switch (interval) {
-    case "day":
-      return t("pricing.perDay");
-    case "week":
-      return t("pricing.perWeek");
-    case "two_weeks":
-      return t("pricing.perTwoWeeks");
-    case "month":
-      return t("pricing.perMonth");
-    case "quarter":
-      return t("pricing.perQuarter");
-    case "year":
-      return t("pricing.perYear");
-    case "one_time":
-      return t("pricing.perOnce");
-  }
-}
 
 export function PlanCard({
   plan,
@@ -92,7 +74,7 @@ export function PlanCard({
           ))}
         </ul>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex-col items-stretch gap-2">
         {isCurrent ? (
           <Button className="w-full" disabled variant="outline">
             {t("pricing.current")}
@@ -104,6 +86,13 @@ export function PlanCard({
             </Link>
           </Button>
         )}
+        {/* Pełny zakres planu (benefity, limity, porównanie) na osobnej,
+            linkowalnej stronie - karta zostaje skrótowa. */}
+        <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
+          <Link to="/plans/$planId" params={{ planId: plan.id }}>
+            {t("pricing.planDetails.cta")}
+          </Link>
+        </Button>
       </CardFooter>
     </Card>
   );
