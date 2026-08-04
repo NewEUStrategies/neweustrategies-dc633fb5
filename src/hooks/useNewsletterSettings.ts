@@ -11,6 +11,9 @@ export interface NewsletterShowcaseImage {
   url: string;
   caption_pl: string;
   caption_en: string;
+  /** Tytul kafla (opcjonalny, renderowany pod opisem). */
+  title_pl?: string;
+  title_en?: string;
 }
 export type NewsletterMode = "off" | "inline" | "popup" | "both";
 

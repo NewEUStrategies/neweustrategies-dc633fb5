@@ -8,12 +8,17 @@ import { ArrowRight } from "lucide-react";
 
 export interface ShowcaseImage {
   url: string;
+  /** Opis kafla (renderowany nad tytulem). */
   caption?: string;
+  /** Tytul kafla (renderowany pod opisem). */
+  title?: string;
 }
 
 interface Props {
   images: ShowcaseImage[];
   brand: string;
+  /** URL logotypu marki; fallback do wbudowanego znaku graficznego. */
+  logoUrl?: string | null;
   tagline?: string;
   rotateMs?: number;
   /** Etykieta a11y dla kropek, np. "Pokaz slajd" / "Show slide". */
@@ -38,6 +43,7 @@ const TILE_CLASSES = [
 export function NewsletterShowcase({
   images,
   brand,
+  logoUrl,
   tagline,
   rotateMs = 2600,
   dotLabel,
@@ -73,13 +79,17 @@ export function NewsletterShowcase({
         background: `linear-gradient(160deg, ${gradFrom || "var(--nl-accent)"} 0%, ${gradTo || "var(--nl-bg)"} 78%)`,
       }}
     >
-      {showBrand && brand && (
+      {showBrand && (brand || logoUrl) && (
         <div
           className="flex items-center justify-center gap-2 text-base font-medium tracking-tight"
           style={{ color: "var(--nl-fg)" }}
         >
-          <BrandMark className="h-5 w-5" />
-          <span>{brand}</span>
+          {logoUrl ? (
+            <img src={logoUrl} alt={brand} className="h-6 w-auto max-w-[160px] object-contain" />
+          ) : (
+            <BrandMark className="h-5 w-5" />
+          )}
+          {brand && <span>{brand}</span>}
         </div>
       )}
 
@@ -96,7 +106,7 @@ export function NewsletterShowcase({
         </div>
       )}
 
-      {showCaption && active?.caption && (
+      {showCaption && (active?.caption || active?.title) && (
         <div
           className="flex w-full items-end gap-3 rounded-[6px] border p-3 transition-opacity duration-500"
           style={{
@@ -104,9 +114,21 @@ export function NewsletterShowcase({
             backgroundColor: "color-mix(in srgb, var(--nl-fg) 6%, transparent)",
           }}
         >
-          <p className="flex-1 text-xs leading-relaxed line-clamp-4" style={{ color: "var(--nl-muted)" }}>
-            {active.caption}
-          </p>
+          <div className="min-w-0 flex-1 space-y-1">
+            {active?.caption && (
+              <p className="text-xs leading-relaxed line-clamp-3" style={{ color: "var(--nl-muted)" }}>
+                {active.caption}
+              </p>
+            )}
+            {active?.title && (
+              <p
+                className="truncate font-display text-sm font-medium leading-snug"
+                style={{ color: "var(--nl-fg)" }}
+              >
+                {active.title}
+              </p>
+            )}
+          </div>
           {count > 1 && (
             <button
               type="button"
