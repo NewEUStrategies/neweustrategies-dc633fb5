@@ -393,7 +393,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "LinkedIn URL": "LinkedIn URL",
   "YouTube URL": "YouTube URL",
   "Spotify URL": "Spotify URL",
-  "X (dawniej Twitter) URL": "X (formerly Twitter) URL",
 
   // --------------------------------------------------------- forms & consent
   "Pole: E-mail": "Field: Email",
@@ -1156,6 +1155,29 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Adres w linku z maila": "URL in the emailed link",
   "Strona, na którą prowadzi link resetu hasła. Musi renderować widget „Ustaw nowe hasło”.":
     "The page the password-reset link points at. It must render the “Set a new password” widget.",
+
+  // ------------------------------------------------- author profile card
+  Prezentacja: "Presentation",
+  "Bok zdjęcia (px)": "Photo side (px)",
+  "Kwadratowy portret na desktopie. Na węższych ekranach zdjęcie kurczy się proporcjonalnie.":
+    "A square portrait on desktop. On narrower screens the photo scales down proportionally.",
+  "Nałożenie karty na zdjęcie (px)": "Card overlap over the photo (px)",
+  "0 = karta styka się ze zdjęciem bez nakładki.":
+    "0 = the card sits next to the photo with no overlap.",
+  "Maks. szerokość układu (px)": "Max layout width (px)",
+  "Cień karty": "Card shadow",
+  delikatny: "subtle",
+  mocny: "strong",
+  "bardzo mocny": "very strong",
+  "Styl przycisków social": "Social button style",
+  "wypełnione (ikona w kontrze)": "filled (knocked-out icon)",
+  "Bok przycisku social (px)": "Social button side (px)",
+  "Wyrównanie treści (mobile)": "Content alignment (mobile)",
+  "Na desktopie karta zawsze wyrównuje treść do lewej.":
+    "On desktop the card always aligns its content to the left.",
+  "Animuj wejście karty": "Animate the card entrance",
+  "Wyłączane automatycznie przy systemowym „ogranicz ruch” (prefers-reduced-motion).":
+    "Switched off automatically under the system “reduce motion” setting (prefers-reduced-motion).",
 };
 /* eslint-enable prettier/prettier */
 

@@ -18,7 +18,7 @@ import {
 } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { ProfileCard } from "@/components/ui/profile-card";
+import { ProfileCard, type ProfileCardStyle } from "@/components/ui/profile-card";
 
 import { formatDate } from "@/lib/i18n/format";
 import {
@@ -64,7 +64,6 @@ const L = {
   },
 } as const;
 
-
 // -------- Author bio --------
 
 interface AuthorBioProps {
@@ -78,6 +77,11 @@ interface AuthorBioProps {
   authorId?: string;
   /** Fully materialized author - used by the admin preview to avoid fetching. */
   authorOverride?: CurrentPostAuthor | null;
+  /**
+   * Ustawienia prezentacji wariantu „profile". Te same klucze wystawia panel
+   * widgetu `author-profile-card` w builderze - patrz lib/builder/profileCardStyle.
+   */
+  profileStyle?: ProfileCardStyle;
 }
 
 export function AuthorBioView({
@@ -89,6 +93,7 @@ export function AuthorBioView({
   cls,
   authorId,
   authorOverride,
+  profileStyle,
 }: AuthorBioProps) {
   const ctx = useCurrentPostCtx();
   const t = L[lang];
@@ -266,11 +271,10 @@ export function AuthorBioView({
         profileHref={profileHref}
         eyebrow={t.about}
         meta={showPostsCount && postsCount !== null ? t.posts(postsCount) : undefined}
+        {...profileStyle}
       />
     );
   }
-
-
 
   if (variant === "minimal") {
     return (

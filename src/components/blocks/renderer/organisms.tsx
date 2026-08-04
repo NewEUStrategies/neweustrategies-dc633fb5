@@ -15,6 +15,7 @@
 import type { BlockRenderer } from "./context";
 import { bool, num, readBlocksArray, str, strList } from "./data";
 import type { CurrentPostAuthor } from "@/lib/builder/currentPostContext";
+import { readProfileCardStyle } from "@/lib/builder/profileCardStyle";
 // Ciężkie / rzadkie bloki dynamiczne (realtime live blog, ankieta, kalendarz)
 // dogrywamy leniwie z osobnych chunków - patrz lazyBlockViews.tsx. Czytelnik
 // zwykłego artykułu nie ściąga już ich kodu; SSR i tak wypełnia boundary.
@@ -350,6 +351,9 @@ export const renderAuthorBio: BlockRenderer = ({ block, cls, lang }) => {
   const useInline = block.data.authorSource === "inline" && !!inlineAuthor?.name;
   return (
     <AuthorBioView
+      // Wariant „profile" czyta te same klucze prezentacji, co widget
+      // `author-profile-card` w builderze - jeden czytnik dla obu edytorów.
+      profileStyle={variant === "profile" ? readProfileCardStyle(block.data) : undefined}
       showAvatar={bool(block.data, "showAvatar", true)}
       showSocial={bool(block.data, "showSocial", true)}
       showPostsCount={bool(block.data, "showPostsCount", true)}

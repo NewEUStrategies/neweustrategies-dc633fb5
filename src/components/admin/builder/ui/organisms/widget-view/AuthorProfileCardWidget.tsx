@@ -8,6 +8,7 @@
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { ProfileCard, type ProfileCardSocial } from "@/components/ui/profile-card";
+import { readProfileCardStyle } from "@/lib/builder/profileCardStyle";
 import { XIcon } from "@/components/atoms/XIcon";
 import { Facebook, Linkedin, Globe, Instagram, Youtube, Mail } from "@/lib/lucide-shim";
 import { getStr, type Lang } from "./frame";
@@ -89,6 +90,7 @@ export function AuthorProfileCardWidget({ node, lang }: { node: WidgetNode; lang
       socials={socials}
       profileHref={showProfileLink && authorSlug ? `/author/${authorSlug}` : null}
       socialsLabel={pl ? "Media społecznościowe" : "Social media"}
+      {...readProfileCardStyle(cRaw)}
     />
   );
 }

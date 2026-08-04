@@ -3,9 +3,7 @@
 // Complex list-style widgets (accordion, tabs, pricing) keep custom editors.
 import type { WidgetType } from "./types";
 import { asBool } from "./contentValue";
-import {
-  SOCIAL_IDLE_ICON_COLOR,
-} from "./socialBrand";
+import { SOCIAL_IDLE_ICON_COLOR } from "./socialBrand";
 
 /**
  * Wspólna podpowiedź widgetów `post-*`. Od naprawy wycieku danych
@@ -101,8 +99,6 @@ const SOCIAL_PLATFORM_COLOR_FIELDS: ReadonlyArray<SchemaField> = SOCIAL_PLATFORM
     };
   },
 );
-
-
 
 // Empty schemas mean "use the custom editor branch" or "no editable fields".
 export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaField>>> = {
@@ -1442,7 +1438,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "bio", type: "i18nHtml", label: "Bio", rows: 6 },
     { key: "email", type: "text", label: "Email", placeholder: "osoba@domena.pl" },
     { key: "phone", type: "text", label: "Telefon", placeholder: "+48 …" },
-    { key: "x", type: "url", label: "X (Twitter)", placeholder: "https://x.com/…" },
+    { key: "x", type: "url", label: "X", placeholder: "https://x.com/…" },
     { key: "facebook", type: "url", label: "Facebook", placeholder: "https://facebook.com/…" },
     { key: "linkedin", type: "url", label: "LinkedIn", placeholder: "https://linkedin.com/in/…" },
     { key: "instagram", type: "url", label: "Instagram", placeholder: "https://instagram.com/…" },
@@ -1490,7 +1486,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     { key: "description", type: "i18nText", label: "Opis / bio", rows: 4 },
     { key: "email", type: "text", label: "Email", placeholder: "osoba@domena.pl" },
-    { key: "x", type: "url", label: "X (Twitter)", placeholder: "https://x.com/…" },
+    { key: "x", type: "url", label: "X", placeholder: "https://x.com/…" },
     { key: "linkedin", type: "url", label: "LinkedIn", placeholder: "https://linkedin.com/in/…" },
     { key: "facebook", type: "url", label: "Facebook", placeholder: "https://facebook.com/…" },
     { key: "instagram", type: "url", label: "Instagram", placeholder: "https://instagram.com/…" },
@@ -1507,6 +1503,94 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       type: "bool",
       label: "Linkuj nazwisko do profilu publicznego",
       hint: "Działa po powiązaniu osoby z katalogu ekspertów.",
+    },
+    // --- Prezentacja: te same klucze steruja wariantem `profile` bloku
+    // `author-bio` w block editorze (patrz PROFILE_CARD_STYLE_KEYS). ---
+    {
+      key: "imageSize",
+      type: "number",
+      label: "Bok zdjęcia (px)",
+      group: "Prezentacja",
+      min: 200,
+      max: 720,
+      step: 10,
+      default: 470,
+      hint: "Kwadratowy portret na desktopie. Na węższych ekranach zdjęcie kurczy się proporcjonalnie.",
+    },
+    {
+      key: "overlap",
+      type: "number",
+      label: "Nałożenie karty na zdjęcie (px)",
+      group: "Prezentacja",
+      min: 0,
+      max: 200,
+      step: 5,
+      default: 80,
+      hint: "0 = karta styka się ze zdjęciem bez nakładki.",
+    },
+    {
+      key: "cardMaxWidth",
+      type: "number",
+      label: "Maks. szerokość układu (px)",
+      group: "Prezentacja",
+      min: 480,
+      max: 1600,
+      step: 20,
+      default: 1024,
+    },
+    {
+      key: "shadow",
+      type: "select",
+      label: "Cień karty",
+      group: "Prezentacja",
+      options: [
+        { value: "none", label: "brak" },
+        { value: "sm", label: "delikatny" },
+        { value: "md", label: "średni" },
+        { value: "lg", label: "mocny" },
+        { value: "xl", label: "bardzo mocny" },
+      ],
+      default: "xl",
+    },
+    {
+      key: "socialStyle",
+      type: "select",
+      label: "Styl przycisków social",
+      group: "Prezentacja",
+      options: [
+        { value: "solid", label: "wypełnione (ikona w kontrze)" },
+        { value: "outline", label: "obrys" },
+      ],
+      default: "solid",
+    },
+    {
+      key: "socialSize",
+      type: "number",
+      label: "Bok przycisku social (px)",
+      group: "Prezentacja",
+      min: 28,
+      max: 72,
+      step: 2,
+      default: 48,
+    },
+    {
+      key: "mobileAlign",
+      type: "select",
+      label: "Wyrównanie treści (mobile)",
+      group: "Prezentacja",
+      options: [
+        { value: "center", label: "wyśrodkowane" },
+        { value: "left", label: "do lewej" },
+      ],
+      default: "center",
+      hint: "Na desktopie karta zawsze wyrównuje treść do lewej.",
+    },
+    {
+      key: "animate",
+      type: "bool",
+      label: "Animuj wejście karty",
+      group: "Prezentacja",
+      hint: "Wyłączane automatycznie przy systemowym „ogranicz ruch” (prefers-reduced-motion).",
     },
   ],
   // "Speakers" ma dedykowany edytor (SpeakersEditor) - schema pusta, żeby
@@ -1908,7 +1992,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       key: "x",
       legacyKeys: ["twitter"],
       type: "url",
-      label: "X (dawniej Twitter) URL",
+      label: "X (URL)",
       placeholder: "https://x.com/...",
     },
     { key: "youtube", type: "url", label: "YouTube URL", placeholder: "https://youtube.com/..." },
