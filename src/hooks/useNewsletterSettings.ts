@@ -10,7 +10,6 @@ export interface NewsletterShowcaseImage {
   url: string;
   caption_pl: string;
   caption_en: string;
-  [key: string]: string;
 }
 export type NewsletterMode = "off" | "inline" | "popup" | "both";
 
