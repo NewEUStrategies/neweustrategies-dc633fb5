@@ -3,6 +3,12 @@
 // Complex list-style widgets (accordion, tabs, pricing) keep custom editors.
 import type { WidgetType } from "./types";
 import { asBool } from "./contentValue";
+import {
+  SOCIAL_HOVER_GRADIENT,
+  SOCIAL_HOVER_ICON_COLOR,
+  SOCIAL_HOVER_TEXT_COLOR,
+  SOCIAL_IDLE_ICON_COLOR,
+} from "./socialBrand";
 
 /**
  * Wspólna podpowiedź widgetów `post-*`. Od naprawy wycieku danych
@@ -42,6 +48,11 @@ export interface SchemaField {
   type: FieldType;
   label: string;
   placeholder?: string;
+  /**
+   * Kolor FAKTYCZNIE użyty, gdy pole jest puste - panel pokazuje go jako
+   * próbkę zamiast pustego kwadratu („dziedziczy z global colors").
+   */
+  inheritedValue?: string;
   /** For number fields. */
   min?: number;
   max?: number;
@@ -76,29 +87,42 @@ const SOCIAL_PLATFORMS: ReadonlyArray<{ key: string; label: string }> = [
 ];
 
 const SOCIAL_PLATFORM_COLOR_FIELDS: ReadonlyArray<SchemaField> = SOCIAL_PLATFORMS.flatMap(
-  ({ key, label }) => [
-    {
-      key: `color${key}`,
-      type: "color" as const,
-      label: `${label} - kolor ikony`,
-      group: "Kolory platform",
-      hint: "Puste = wspólne ustawienie „Kolory ikon”.",
-    },
-    {
-      key: `hoverFrom${key}`,
-      type: "color" as const,
-      label: `${label} - hover od`,
-      group: "Kolory platform",
-      visibleWhen: (c) => c.hoverMode !== "none",
-    },
-    {
-      key: `hoverTo${key}`,
-      type: "color" as const,
-      label: `${label} - hover do`,
-      group: "Kolory platform",
-      visibleWhen: (c) => c.hoverMode !== "none",
-    },
-  ],
+  ({ key, label }) => {
+    const id = key.toLowerCase();
+    const idle = SOCIAL_IDLE_ICON_COLOR[id];
+    const grad = SOCIAL_HOVER_GRADIENT[id];
+    return [
+      {
+        key: `color${key}`,
+        type: "color" as const,
+        label: `${label} - kolor ikony`,
+        group: "Kolory platform",
+        inheritedValue: idle?.light,
+        placeholder: idle?.light,
+        hint: "Puste = faktyczny kolor marki (light: rozjaśniony, dark: surowy) - próbka obok pokazuje wartość.",
+      },
+      {
+        key: `hoverFrom${key}`,
+        type: "color" as const,
+        label: `${label} - hover od`,
+        group: "Kolory platform",
+        inheritedValue: grad?.from,
+        placeholder: grad?.from,
+        hint: "Puste = kolor gradientu marki (light i dark tak samo).",
+        visibleWhen: (c) => c.hoverMode !== "none",
+      },
+      {
+        key: `hoverTo${key}`,
+        type: "color" as const,
+        label: `${label} - hover do`,
+        group: "Kolory platform",
+        inheritedValue: grad?.to,
+        placeholder: grad?.to,
+        hint: "Puste = kolor gradientu marki (light i dark tak samo).",
+        visibleWhen: (c) => c.hoverMode !== "none",
+      },
+    ];
+  },
 );
 
 const SOCIAL_HOVER_FIELDS: ReadonlyArray<SchemaField> = [
@@ -120,7 +144,9 @@ const SOCIAL_HOVER_FIELDS: ReadonlyArray<SchemaField> = [
     label: "Kolor ikony na hover",
     group: "Hover",
     visibleWhen: (c) => c.hoverMode !== "none",
-    hint: "Domyślnie biały - działa tak samo w light i dark mode.",
+    inheritedValue: SOCIAL_HOVER_ICON_COLOR,
+    placeholder: SOCIAL_HOVER_ICON_COLOR,
+    hint: "Domyślnie biały - identycznie w light i dark mode, w builderze i na stronie publicznej.",
   },
   {
     key: "hoverTextColor",
@@ -128,6 +154,9 @@ const SOCIAL_HOVER_FIELDS: ReadonlyArray<SchemaField> = [
     label: "Kolor tekstu na hover",
     group: "Hover",
     visibleWhen: (c) => c.hoverMode !== "none",
+    inheritedValue: SOCIAL_HOVER_TEXT_COLOR,
+    placeholder: SOCIAL_HOVER_TEXT_COLOR,
+    hint: "Domyślnie biały - identycznie w light i dark mode.",
   },
   {
     key: "hoverFrom",
@@ -135,6 +164,7 @@ const SOCIAL_HOVER_FIELDS: ReadonlyArray<SchemaField> = [
     label: "Gradient hover - od",
     group: "Hover",
     visibleWhen: (c) => c.hoverMode === "custom",
+    hint: "Puste = gradient marki danej platformy.",
   },
   {
     key: "hoverTo",
@@ -142,8 +172,10 @@ const SOCIAL_HOVER_FIELDS: ReadonlyArray<SchemaField> = [
     label: "Gradient hover - do",
     group: "Hover",
     visibleWhen: (c) => c.hoverMode === "custom",
+    hint: "Puste = gradient marki danej platformy.",
   },
 ];
+
 
 // Empty schemas mean "use the custom editor branch" or "no editable fields".
 export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaField>>> = {

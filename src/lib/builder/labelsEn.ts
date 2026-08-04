@@ -30,12 +30,19 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Steruje tłem wiersza / kafelka oraz kolorem ikony po najechaniu.":
     "Controls the row / tile background and the icon color on hover.",
   "Kolor ikony na hover": "Icon color on hover",
-  "Domyślnie biały - działa tak samo w light i dark mode.":
+  "Domyślnie biały - identycznie w light i dark mode, w builderze i na stronie publicznej.":
+    "White by default - identical in light and dark mode, in the builder and on the public site.",
+  "Domyślnie biały - identycznie w light i dark mode.":
     "White by default - identical in light and dark mode.",
   "Kolor tekstu na hover": "Text color on hover",
   "Gradient hover - od": "Hover gradient - from",
   "Gradient hover - do": "Hover gradient - to",
-  "Puste = wspólne ustawienie „Kolory ikon”.": 'Empty = shared "Icon colors" setting.',
+  "Puste = gradient marki danej platformy.": "Empty = the platform's brand gradient.",
+  "Puste = kolor gradientu marki (light i dark tak samo).":
+    "Empty = the brand gradient color (same in light and dark).",
+  "Puste = faktyczny kolor marki (light: rozjaśniony, dark: surowy) - próbka obok pokazuje wartość.":
+    "Empty = the actual brand color (light: lightened, dark: raw) - the swatch shows the value.",
+
   "Facebook - kolor ikony": "Facebook - icon color",
   "X - kolor ikony": "X - icon color",
   "YouTube - kolor ikony": "YouTube - icon color",

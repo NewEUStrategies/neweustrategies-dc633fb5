@@ -29,6 +29,12 @@ import {
 import { asBool, asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
 import { GalleryLightboxZone } from "./GalleryLightbox";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
+import {
+  SOCIAL_HOVER_ICON_COLOR,
+  SOCIAL_HOVER_TEXT_COLOR,
+  SOCIAL_OFFICIAL_COLOR,
+  socialBrandGradient,
+} from "@/lib/builder/socialBrand";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
@@ -375,14 +381,7 @@ export function renderSimpleWidget(
       const shape = asStr(c.shape) || "md";
       const themeAdapt = asStr(c.themeAdapt) || "auto";
 
-      const OFFICIAL: Record<string, string> = {
-        facebook: "#1877F2",
-        x: "#000000",
-        youtube: "#FF0000",
-        instagram: "#E4405F",
-        linkedin: "#0A66C2",
-        spotify: "#1DB954",
-      };
+      const OFFICIAL: Record<string, string> = SOCIAL_OFFICIAL_COLOR;
 
       const mkIcon =
         (path: string) =>
@@ -540,29 +539,17 @@ export function renderSimpleWidget(
         "dark:[--sb-off-tone:var(--sb-off,var(--brand))]",
       ].join(" ");
 
-      // Delikatny gradient marki platformy używany na hover wiersza listy.
-      // Kolory pochodzą z oficjalnych palet (OFFICIAL) - trzymamy je tutaj,
-      // bo to kolory MAREK ZEWNĘTRZNYCH, nie tokeny naszego motywu.
-      const BRAND_GRADIENT: Record<string, string> = {
-        facebook: "linear-gradient(135deg, #1877F2 0%, #0C5FD1 100%)",
-        x: "linear-gradient(135deg, #1A1A1A 0%, #000000 100%)",
-        youtube: "linear-gradient(135deg, #FF3B30 0%, #CC0000 100%)",
-        instagram: "linear-gradient(135deg, #F58529 0%, #DD2A7B 55%, #8134AF 100%)",
-        linkedin: "linear-gradient(135deg, #0A66C2 0%, #004182 100%)",
-        spotify: "linear-gradient(135deg, #1ED760 0%, #14833B 100%)",
-        // Newsletter to nasza marka - prestiżowy gradient na tokenie --brand,
-        // obrócony o 180°: przy ikonie (lewa strona) jest JAŚNIEJSZY i wygasa
-        // do głębokiej ciemności po prawej, gdzie leży białe CTA.
-        newsletter:
-          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 64%, #17110C) 0%, color-mix(in oklab, var(--brand) 40%, #0F0C0A) 52%, color-mix(in oklab, var(--brand) 16%, #0B0B10) 100%)",
-      };
+      // Gradient marki platformy na hover pochodzi ze wspólnego źródła prawdy
+      // (`@/lib/builder/socialBrand`) - panel pokazuje dokładnie te kolory,
+      // które renderuje strona publiczna.
+      const FALLBACK_GRADIENT = "linear-gradient(135deg, var(--brand), var(--brand))";
 
       // Hover jest w pełni sterowalny z panelu: tryb (gradient marki / własne
       // kolory / brak), kolor ikony, tekstu oraz opcjonalny własny gradient -
       // globalnie i per platforma (`hoverFromFacebook`, `hoverToFacebook`).
       const hoverMode = asOneOf(c.hoverMode, ["brand", "custom", "none"] as const, "brand");
-      const hoverIconColor = safeWidgetColor(c.hoverIconColor) || "#ffffff";
-      const hoverTextColor = safeWidgetColor(c.hoverTextColor) || "#ffffff";
+      const hoverIconColor = safeWidgetColor(c.hoverIconColor) || SOCIAL_HOVER_ICON_COLOR;
+      const hoverTextColor = safeWidgetColor(c.hoverTextColor) || SOCIAL_HOVER_TEXT_COLOR;
       const hoverFrom = safeWidgetColor(c.hoverFrom);
       const hoverTo = safeWidgetColor(c.hoverTo);
       const hoverGradientFor = (k: string): string => {
@@ -570,8 +557,8 @@ export function renderSimpleWidget(
         const from = safeWidgetColor(c[`hoverFrom${capKey(k)}`]) || hoverFrom;
         const to = safeWidgetColor(c[`hoverTo${capKey(k)}`]) || hoverTo;
         if (from) return `linear-gradient(135deg, ${from} 0%, ${to || from} 100%)`;
-        if (hoverMode === "custom") return "linear-gradient(135deg, var(--brand), var(--brand))";
-        return BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))";
+        if (hoverMode === "custom") return FALLBACK_GRADIENT;
+        return socialBrandGradient(k) ?? FALLBACK_GRADIENT;
       };
       const hoverVars = (k: string): CSSProperties =>
         ({
