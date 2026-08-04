@@ -310,6 +310,9 @@ export function NewsletterPopupForm({
     setV((p) => ({ ...p, [k]: val }));
 
   const cta = isPl ? settings.popup_cta_pl : settings.popup_cta_en;
+  const note =
+    (isPl ? settings.popup_note_pl : settings.popup_note_en) ??
+    t("Zero spamu. Możesz się wypisać w każdej chwili.", "Zero spam, unsubscribe at any time.");
   const successMsg = isPl ? settings.success_message_pl : settings.success_message_en;
   const termsHtml = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
 
@@ -385,65 +388,77 @@ export function NewsletterPopupForm({
         </label>
       </div>
 
-      {ext && (
-        <>
-          <FloatingInput
-            containerClassName={fieldContainer}
-            label={t("Imię", "Name")}
-            value={v.name}
-            onChange={(e) => upd("name", e.target.value)}
-            maxLength={80}
-            autoComplete="given-name"
-          />
-          <FloatingInput
-            containerClassName={fieldContainer}
-            label={t("Nazwisko", "Surname")}
-            value={v.surname}
-            onChange={(e) => upd("surname", e.target.value)}
-            maxLength={80}
-            autoComplete="family-name"
-          />
-          <FloatingInput
-            containerClassName={fieldContainer}
-            label={t("Stanowisko", "Job position")}
-            value={v.job}
-            onChange={(e) => upd("job", e.target.value)}
-            maxLength={120}
-            autoComplete="organization-title"
-          />
-          <FloatingInput
-            containerClassName={fieldContainer}
-            label={t("Firma / organizacja", "Company")}
-            value={v.company}
-            onChange={(e) => upd("company", e.target.value)}
-            maxLength={120}
-            autoComplete="organization"
-          />
-          <FloatingInput
-            containerClassName={fieldContainer}
-            label="LinkedIn"
-            value={v.linkedin}
-            onChange={(e) => upd("linkedin", e.target.value)}
-            maxLength={200}
-            inputMode="url"
-          />
-        </>
+      {ext && fieldOn("first_name") && (
+        <FloatingInput
+          containerClassName={fieldContainer}
+          label={label("first_name")}
+          required={fields.first_name.required}
+          value={v.name}
+          onChange={(e) => upd("name", e.target.value)}
+          maxLength={80}
+          autoComplete="given-name"
+        />
+      )}
+      {ext && fieldOn("last_name") && (
+        <FloatingInput
+          containerClassName={fieldContainer}
+          label={label("last_name")}
+          required={fields.last_name.required}
+          value={v.surname}
+          onChange={(e) => upd("surname", e.target.value)}
+          maxLength={80}
+          autoComplete="family-name"
+        />
+      )}
+      {ext && fieldOn("job") && (
+        <FloatingInput
+          containerClassName={fieldContainer}
+          label={label("job")}
+          required={fields.job.required}
+          value={v.job}
+          onChange={(e) => upd("job", e.target.value)}
+          maxLength={120}
+          autoComplete="organization-title"
+        />
+      )}
+      {ext && fieldOn("company") && (
+        <FloatingInput
+          containerClassName={fieldContainer}
+          label={label("company")}
+          required={fields.company.required}
+          value={v.company}
+          onChange={(e) => upd("company", e.target.value)}
+          maxLength={120}
+          autoComplete="organization"
+        />
+      )}
+      {ext && fieldOn("linkedin") && (
+        <FloatingInput
+          containerClassName={fieldContainer}
+          label={label("linkedin")}
+          required={fields.linkedin.required}
+          value={v.linkedin}
+          onChange={(e) => upd("linkedin", e.target.value)}
+          maxLength={200}
+          inputMode="url"
+        />
       )}
       <FloatingInput
         containerClassName={fieldContainer}
         type="email"
         required
-        label={t("Twój e-mail", "Your e-mail")}
+        label={label("email")}
         value={v.email}
         onChange={(e) => upd("email", e.target.value)}
         maxLength={254}
         autoComplete="email"
       />
-      {ext && (
+      {ext && fieldOn("phone") && (
         <FloatingInput
           containerClassName={fieldContainer}
           type="tel"
-          label={t("Numer telefonu", "Phone number")}
+          label={label("phone")}
+          required={fields.phone.required}
           value={v.phone}
           onChange={(e) => upd("phone", e.target.value)}
           maxLength={32}
@@ -454,7 +469,7 @@ export function NewsletterPopupForm({
         <div className="input-group input-group--on-dark">
           <select
             className="input"
-            aria-label={t("Wybierz listę mailingową", "Choose your main mailing list")}
+            aria-label={label("list")}
             value={v.list}
             onChange={(e) => upd("list", e.target.value)}
           >
@@ -467,23 +482,32 @@ export function NewsletterPopupForm({
               </option>
             ))}
           </select>
-          <label className="user-label">{t("Lista mailingowa", "Mailing list")}</label>
+          <label className="user-label">{label("list")}</label>
         </div>
       )}
 
-      <div className="pt-1">
-        <SubscribeButton loading={state === "loading"} aria-label={cta}>
-          {cta}
-        </SubscribeButton>
-      </div>
+      {requirePrivacy && privacyHtml && (
+        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed text-white/70">
+          <Checkbox
+            checked={v.privacy}
+            onCheckedChange={(checked) => upd("privacy", checked === true)}
+            aria-required="true"
+            className="mt-0.5 h-[16px] w-[16px] shrink-0"
+          />
+          <span
+            className="nl-consent"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(privacyHtml) }}
+          />
+        </label>
+      )}
 
       {requireTerms && (
-        <label className="flex items-start gap-2 text-[12px] text-white/70 leading-relaxed pt-1">
-          <input
-            type="checkbox"
+        <label className="flex cursor-pointer items-start gap-2 text-[12px] leading-relaxed text-white/70">
+          <Checkbox
             checked={v.terms}
-            onChange={(e) => upd("terms", e.target.checked)}
-            className="mt-0.5 accent-[var(--brand,#f97316)]"
+            onCheckedChange={(checked) => upd("terms", checked === true)}
+            aria-required="true"
+            className="mt-0.5 h-[16px] w-[16px] shrink-0"
           />
           <span
             className="nl-consent"
@@ -492,14 +516,15 @@ export function NewsletterPopupForm({
         </label>
       )}
 
+      <div className="pt-1">
+        <SubscribeButton loading={state === "loading"} aria-label={cta}>
+          {cta}
+        </SubscribeButton>
+      </div>
+
       {state === "err" && err && <p className="text-xs text-red-300">{err}</p>}
 
-      <p className="text-[11px] text-white/50 pt-1">
-        {t(
-          "Zero spamu. Możesz się wypisać w każdej chwili.",
-          "Zero spam, unsubscribe at any time.",
-        )}
-      </p>
+      {note && <p className="text-[11px] text-white/50 pt-1">{note}</p>}
     </form>
   );
 }
