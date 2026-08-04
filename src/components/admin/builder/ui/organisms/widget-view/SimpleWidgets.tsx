@@ -49,6 +49,7 @@ import { SearchButtonWidget } from "./SearchButtonWidget";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
 import { AccountMenuWidget, type AccountMenuConfig } from "./AccountMenuWidget";
 import { TeamMemberWidget } from "./TeamMemberWidget";
+import { AuthorProfileCardWidget } from "./AuthorProfileCardWidget";
 import { SpeakersWidget } from "./SpeakersWidget";
 import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
 import { CounterWidget } from "./CounterWidget";
@@ -1400,6 +1401,9 @@ export function renderSimpleWidget(
       // `editable` musi dojechać do komponentu - bez tego guard w
       // TeamMemberWidget (modal bio nie otwiera się w kanwie) był martwy.
       return <TeamMemberWidget node={node} lang={lang} editable={editable} />;
+    }
+    case "author-profile-card": {
+      return <AuthorProfileCardWidget node={node} lang={lang} />;
     }
     case "speakers": {
       return <SpeakersWidget node={node} lang={lang} />;

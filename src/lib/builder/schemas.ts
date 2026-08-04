@@ -1427,6 +1427,44 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       hint: "Puste = pełna szerokość kolumny. Ustaw, aby ujednolicić rozmiar karty w układach o różnej liczbie kolumn (np. 300 px = ten sam rozmiar w 3 i 4 kolumnach).",
     },
   ],
+  // Karta profilu autora: prezentacja współdzielona z wariantem `profile`
+  // bloku `author-bio` (komponent ProfileCard).
+  "author-profile-card": [
+    {
+      key: "photo",
+      type: "image",
+      label: "Zdjęcie",
+      hint: "Portret 3:4. Wgraj lub wybierz z biblioteki mediów.",
+    },
+    { key: "name", type: "text", label: "Imię i nazwisko" },
+    { key: "position", type: "i18nText", label: "Stanowisko / rola" },
+    {
+      key: "eyebrow",
+      type: "i18nText",
+      label: "Etykieta nad nazwiskiem",
+      placeholder: "np. EKSPERT",
+    },
+    { key: "description", type: "i18nText", label: "Opis / bio", rows: 4 },
+    { key: "email", type: "text", label: "Email", placeholder: "osoba@domena.pl" },
+    { key: "x", type: "url", label: "X (Twitter)", placeholder: "https://x.com/…" },
+    { key: "linkedin", type: "url", label: "LinkedIn", placeholder: "https://linkedin.com/in/…" },
+    { key: "facebook", type: "url", label: "Facebook", placeholder: "https://facebook.com/…" },
+    { key: "instagram", type: "url", label: "Instagram", placeholder: "https://instagram.com/…" },
+    { key: "youtube", type: "url", label: "YouTube", placeholder: "https://youtube.com/…" },
+    { key: "website", type: "url", label: "Strona www", placeholder: "https://…" },
+    {
+      key: "showSocials",
+      type: "bool",
+      label: "Pokaż ikony social",
+      hint: "Wyłączenie ukrywa całą listę odnośników.",
+    },
+    {
+      key: "showProfileLink",
+      type: "bool",
+      label: "Linkuj nazwisko do profilu publicznego",
+      hint: "Działa po powiązaniu osoby z katalogu ekspertów.",
+    },
+  ],
   // "Speakers" ma dedykowany edytor (SpeakersEditor) - schema pusta, żeby
   // fallback po schemacie nie próbował renderować duplikatów pól.
   speakers: [],

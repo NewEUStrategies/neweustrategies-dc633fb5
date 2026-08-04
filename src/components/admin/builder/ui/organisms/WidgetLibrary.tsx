@@ -120,6 +120,7 @@ export function WidgetLibrary({
     "rich-text": "content",
     testimonial: "content",
     "team-member": "content",
+    "author-profile-card": "content",
     "dark-featured-card": "content",
     "rated-list": "content",
     pricing: "marketing",

@@ -406,6 +406,9 @@ export type WidgetType =
   | "logo-cloud"
   | "testimonial"
   | "team-member"
+  // Karta profilu autora/eksperta: ta sama prezentacja co wariant `profile`
+  // bloku `author-bio` w block editorze (komponent ProfileCard).
+  | "author-profile-card"
   | "speakers"
   | "pricing"
   | "interactive-circle"

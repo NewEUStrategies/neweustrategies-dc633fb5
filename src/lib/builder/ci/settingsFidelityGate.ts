@@ -170,6 +170,13 @@ export const FIDELITY_WAIVERS: Partial<Record<WidgetType, WidgetFidelityWaiver>>
       image: "Alias historyczny pola `photo` (dokumenty przed ujednoliceniem nazwy).",
     },
   },
+  "author-profile-card": {
+    dead: {
+      authorId:
+        "Klucz techniczny wybranego eksperta: panel hydratuje z niego pozostałe pola, " +
+        "renderer linkuje po `authorSlug`. Nie jest ustawieniem prezentacji.",
+    },
+  },
   contact: {
     hidden: {
       showName:
