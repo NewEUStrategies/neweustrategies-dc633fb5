@@ -99,20 +99,23 @@ const HOVER_LINE_CSS = `
 // w rogach. Border jednego elementu ma zawsze idealny, zeszlifowany narożnik
 // 90 stopni, a maska tylko odsłania kolejne fragmenty tej samej ramki.
 const HOVER_ALLSIDES_CSS = `
-.ah-as { position: relative; display: inline-block; padding: 8px; cursor: pointer; --ah-bw: 3px; --ah-t: 0.5s; }
+.ah-as { position: relative; display: inline-block; padding: 8px; cursor: pointer; --ah-bw: 3px; --ah-t: 0.3s; }
 .ah-as::before {
   content: "";
   position: absolute;
   inset: 0;
   border: var(--ah-bw) solid currentColor;
   pointer-events: none;
+  transform: translateZ(0);
+  will-change: mask-size, mask-position;
+  contain: paint;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   transition:
-    -webkit-mask-size var(--ah-t) linear,
-    mask-size var(--ah-t) linear,
-    -webkit-mask-position var(--ah-t) linear,
-    mask-position var(--ah-t) linear;
+    -webkit-mask-size var(--ah-t) ease-out,
+    mask-size var(--ah-t) ease-out,
+    -webkit-mask-position var(--ah-t) ease-out,
+    mask-position var(--ah-t) ease-out;
 }
 .allsides-1::before {
   -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
@@ -150,6 +153,15 @@ const HOVER_ALLSIDES_CSS = `
   mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
 .allsides-4:hover::before { --d: 100%; --p: 0%; }
+/* Warianty 4 i 5: pozycja przeskakuje natychmiast po dorysowaniu boku
+   (tak jak w oryginale: background-position 0s .5s), nie animuje się. */
+.allsides-4::before, .allsides-5::before {
+  transition:
+    -webkit-mask-size var(--ah-t) ease-out,
+    mask-size var(--ah-t) ease-out,
+    -webkit-mask-position 0s var(--ah-t),
+    mask-position 0s var(--ah-t);
+}
 .allsides-5::before {
   -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
   mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
@@ -177,18 +189,22 @@ const HOVER_ALLSIDES_CSS = `
   mask-size: var(--p, 50%) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--p, 50%) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
 .allsides-7:hover::before { --d: 100%; --p: 100%; }
+/* Wariant 8: cztery oderwane segmenty (2 poziome 20x3, 2 pionowe 3x20)
+   wędrują - bez rozciągania - do przeciwległych rogów i tam się łączą.
+   Wszystkie animują pozycję w tym samym czasie. */
 .allsides-8::before {
-  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
-  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
-  -webkit-mask-position: 0 100%, 100% 0;
-  mask-position: 0 100%, 100% 0;
-  -webkit-mask-size: 20px 20px;
-  mask-size: 20px 20px;
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 0 100%, 0 100%, 100% 0, 100% 0;
+  mask-position: 0 100%, 0 100%, 100% 0, 100% 0;
+  -webkit-mask-size: 20px var(--ah-bw), var(--ah-bw) 20px, 20px var(--ah-bw), var(--ah-bw) 20px;
+  mask-size: 20px var(--ah-bw), var(--ah-bw) 20px, 20px var(--ah-bw), var(--ah-bw) 20px;
 }
 .allsides-8:hover::before {
-  -webkit-mask-position: 100% 100%, 0 0;
-  mask-position: 100% 100%, 0 0;
+  -webkit-mask-position: 100% 100%, 0 0, 0 0, 100% 100%;
+  mask-position: 100% 100%, 0 0, 0 0, 100% 100%;
 }
+
 `;
 
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [

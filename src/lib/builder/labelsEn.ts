@@ -20,6 +20,50 @@ export type BuilderLang = "pl" | "en";
 
 /* eslint-disable prettier/prettier */
 export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
+  // ------------------------------------------- social icons: colors + hover
+  "Kolory platform": "Platform colors",
+  Hover: "Hover",
+  "Hover (najechanie)": "Hover",
+  "gradient marki platformy": "platform brand gradient",
+  "własne kolory": "custom colors",
+  "bez efektu": "no effect",
+  "Steruje tłem wiersza / kafelka oraz kolorem ikony po najechaniu.":
+    "Controls the row / tile background and the icon color on hover.",
+  "Kolor ikony na hover": "Icon color on hover",
+  "Domyślnie biały - identycznie w light i dark mode, w builderze i na stronie publicznej.":
+    "White by default - identical in light and dark mode, in the builder and on the public site.",
+  "Domyślnie biały - identycznie w light i dark mode.":
+    "White by default - identical in light and dark mode.",
+  "Kolor tekstu na hover": "Text color on hover",
+  "Gradient hover - od": "Hover gradient - from",
+  "Gradient hover - do": "Hover gradient - to",
+  "Puste = gradient marki danej platformy.": "Empty = the platform's brand gradient.",
+  "Puste = kolor gradientu marki (light i dark tak samo).":
+    "Empty = the brand gradient color (same in light and dark).",
+  "Puste = faktyczny kolor marki (light: rozjaśniony, dark: surowy) - próbka obok pokazuje wartość.":
+    "Empty = the actual brand color (light: lightened, dark: raw) - the swatch shows the value.",
+
+  "Facebook - kolor ikony": "Facebook - icon color",
+  "X - kolor ikony": "X - icon color",
+  "YouTube - kolor ikony": "YouTube - icon color",
+  "Instagram - kolor ikony": "Instagram - icon color",
+  "LinkedIn - kolor ikony": "LinkedIn - icon color",
+  "Spotify - kolor ikony": "Spotify - icon color",
+  "Newsletter - kolor ikony": "Newsletter - icon color",
+  "Facebook - hover od": "Facebook - hover from",
+  "Facebook - hover do": "Facebook - hover to",
+  "X - hover od": "X - hover from",
+  "X - hover do": "X - hover to",
+  "YouTube - hover od": "YouTube - hover from",
+  "YouTube - hover do": "YouTube - hover to",
+  "Instagram - hover od": "Instagram - hover from",
+  "Instagram - hover do": "Instagram - hover to",
+  "LinkedIn - hover od": "LinkedIn - hover from",
+  "LinkedIn - hover do": "LinkedIn - hover to",
+  "Spotify - hover od": "Spotify - hover from",
+  "Spotify - hover do": "Spotify - hover to",
+  "Newsletter - hover od": "Newsletter - hover from",
+  "Newsletter - hover do": "Newsletter - hover to",
   // ---------------------------------------------------------------- widgets
   Nagłówek: "Heading",
   Wstęp: "Intro",

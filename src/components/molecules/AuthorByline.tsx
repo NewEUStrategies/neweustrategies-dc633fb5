@@ -81,13 +81,30 @@ export function AuthorByline({
   if (!display.visible || !safeName) return null;
 
   const safeAvatar = safeImageUrl(avatarUrl ?? undefined);
-  // Rozmiar wymuszamy inline i oznaczamy `data-typography-exempt`, bo globalna
-  // typografia sekcji (i skala nagłówków) nadpisywałaby rozmiar bylinu.
+
+  // KONTRAKT ROZMIARU JEST NIENARUSZALNY.
+  //
+  // Nie wystarczy styl inline. Warstwa typografii widgetu generuje reguły
+  // `[data-w-id="…"] span:not([data-typography-exempt]){font-size:… !important}`
+  // (patrz `lib/builder/typographyCss`), a `!important` z arkusza BIJE styl
+  // inline. Dlatego:
+  //   * KAŻDY węzeł bylinu (nie tylko korzeń) nosi `data-typography-exempt`,
+  //     więc żadna wygenerowana reguła go nie łapie,
+  //   * pudełko zdjęcia jest domknięte z obu stron (`min-*` + `max-*`) i wyjęte
+  //     ze zginania flexa, więc ani `h-5 w-5` z klasy, ani `max-width:100%`,
+  //     ani ciasny kontener nie zmienią realnych pikseli.
+  // Bez tego ustawienie w panelu było „dekoracyjne": zmieniało treść, a nie obraz.
+  const exempt = { "data-typography-exempt": "" } as const;
   const textStyle: CSSProperties = { fontSize: `${display.nameSizePx}px`, lineHeight: 1.35 };
   const avatarStyle: CSSProperties = {
     width: display.avatarSizePx,
     height: display.avatarSizePx,
+    minWidth: display.avatarSizePx,
+    minHeight: display.avatarSizePx,
+    maxWidth: display.avatarSizePx,
+    maxHeight: display.avatarSizePx,
     borderRadius: display.avatarRadiusPx,
+    flex: "0 0 auto",
   };
 
   const avatar = display.showAvatar ? (
@@ -104,6 +121,8 @@ export function AuthorByline({
         className="shrink-0 object-cover"
         style={avatarStyle}
         onError={onAvatarError}
+        data-author-byline-avatar=""
+        {...exempt}
       />
     ) : (
       // Autor bez zdjęcia dostaje inicjał, nie pusty prostokąt - byline
@@ -113,7 +132,9 @@ export function AuthorByline({
         aria-label={display.showName ? undefined : safeName}
         role={display.showName ? undefined : "img"}
         className="inline-flex shrink-0 items-center justify-center bg-muted font-semibold text-foreground/70"
-        style={{ ...avatarStyle, fontSize: Math.round(display.avatarSizePx * 0.55) }}
+        style={{ ...avatarStyle, fontSize: `${Math.round(display.avatarSizePx * 0.55)}px` }}
+        data-author-byline-avatar=""
+        {...exempt}
       >
         {safeName.charAt(0).toUpperCase()}
       </span>
@@ -131,12 +152,16 @@ export function AuthorByline({
       {avatar}
       {display.showName ? (
         display.labelPrefix ? (
-          <span className={nameCls} style={textStyle}>
-            <span className={labelCls}>{display.labelPrefix}</span>
-            <span>{safeName}</span>
+          <span className={nameCls} style={textStyle} data-author-byline-name="" {...exempt}>
+            <span className={labelCls} style={textStyle} data-author-byline-label="" {...exempt}>
+              {display.labelPrefix}
+            </span>
+            <span style={textStyle} {...exempt}>
+              {safeName}
+            </span>
           </span>
         ) : (
-          <span className={nameCls} style={textStyle}>
+          <span className={nameCls} style={textStyle} data-author-byline-name="" {...exempt}>
             {safeName}
           </span>
         )

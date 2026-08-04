@@ -339,13 +339,10 @@ export function widgetAuthorDisplayDefaults(
       // Historyczny przełącznik zdjęcia tego widgetu. Panel nie rysuje go już
       // osobno (zastąpiła go wspólna oś „Zdjęcie autora"), ale dokumenty sprzed
       // ujednolicenia muszą dalej chować awatar.
-      return { avatarRadiusPx: 999, showAvatar: asBool(content.showAvatar, true) };
-    case "post-meta":
-    case "testimonial":
-      // Byline w ciągu metadanych i podpis opinii: awatar okrągły, jak zdjęcie
-      // profilowe w reszcie platformy.
-      return { avatarRadiusPx: 999 };
+      return { showAvatar: asBool(content.showAvatar, true) };
     default:
+      // Reszta widgetów nie ma własnego baselineu - obowiązuje kontrakt
+      // globalny: 12 px nazwiska, 20 px zdjęcia, 6 px zaokrąglenia.
       return {};
   }
 }

@@ -283,9 +283,13 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
             ariaLabel={label}
             allowTransparent={true}
             allowReset={true}
-            placeholder={t("builder.schemaField.colorInherits", {
-              defaultValue: "dziedziczy z global colors (lub transparent)",
-            })}
+            inheritedValue={field.inheritedValue}
+            placeholder={
+              field.placeholder ??
+              t("builder.schemaField.colorInherits", {
+                defaultValue: "dziedziczy z global colors (lub transparent)",
+              })
+            }
           />
         </PropField>
       );
