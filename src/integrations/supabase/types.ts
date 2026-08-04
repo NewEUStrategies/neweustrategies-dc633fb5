@@ -5812,6 +5812,7 @@ export type Database = {
           popup_delay_seconds: number
           popup_description_en: string
           popup_description_pl: string
+          popup_design: Json
           popup_doc: Json | null
           popup_enabled: boolean
           popup_extended_fields: boolean
@@ -5878,6 +5879,7 @@ export type Database = {
           popup_delay_seconds?: number
           popup_description_en?: string
           popup_description_pl?: string
+          popup_design?: Json
           popup_doc?: Json | null
           popup_enabled?: boolean
           popup_extended_fields?: boolean
@@ -5944,6 +5946,7 @@ export type Database = {
           popup_delay_seconds?: number
           popup_description_en?: string
           popup_description_pl?: string
+          popup_design?: Json
           popup_doc?: Json | null
           popup_enabled?: boolean
           popup_extended_fields?: boolean
