@@ -517,6 +517,10 @@ export function renderSimpleWidget(
         instagram: "linear-gradient(135deg, #F58529 0%, #DD2A7B 55%, #8134AF 100%)",
         linkedin: "linear-gradient(135deg, #0A66C2 0%, #004182 100%)",
         spotify: "linear-gradient(135deg, #1ED760 0%, #14833B 100%)",
+        // Newsletter to nasza marka - prestiżowy gradient budowany na tokenie
+        // --brand (ciemna baza -> brand -> rozjaśnienie), a nie kolor obcej marki.
+        newsletter:
+          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 45%, #101010) 0%, var(--brand) 55%, color-mix(in oklab, var(--brand) 65%, #ffffff) 100%)",
       };
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
@@ -581,11 +585,23 @@ export function renderSimpleWidget(
             .map(({ k, Cmp, label, href, external }) => {
               if (!href && !showEmpty) return null;
               const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
-              const cta =
-                getStr(c, `${ctaKey}_${lang}`) ||
-                getStr(c, ctaKey) ||
-                defaultCta[k]?.[lang === "pl" ? "pl" : "en"] ||
-                "";
+              const target = lang === "pl" ? "pl" : "en";
+              // Zapisane wcześniej etykiety bywają jednojęzyczne (np. "Like").
+              // Jeśli nadpisanie jest jedną ze znanych fraz, tłumaczymy je na
+              // aktualny język zamiast pokazywać angielski tekst w PL.
+              const CTA_SYNONYMS: Record<string, { pl: string; en: string }> = {
+                like: { pl: "Lubię to", en: "Like" },
+                "lubię to": { pl: "Lubię to", en: "Like" },
+                "lubie to": { pl: "Lubię to", en: "Like" },
+                follow: { pl: "Obserwuj", en: "Follow" },
+                obserwuj: { pl: "Obserwuj", en: "Follow" },
+                subscribe: { pl: "Subskrybuj", en: "Subscribe" },
+                subskrybuj: { pl: "Subskrybuj", en: "Subscribe" },
+              };
+              const rawCta = getStr(c, `${ctaKey}_${lang}`) || getStr(c, ctaKey) || "";
+              const cta = rawCta
+                ? (CTA_SYNONYMS[rawCta.trim().toLowerCase()]?.[target] ?? rawCta)
+                : (defaultCta[k]?.[target] ?? "");
               const rowVars = {
                 "--sb-grad":
                   BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))",

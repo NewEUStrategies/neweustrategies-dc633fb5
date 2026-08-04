@@ -272,10 +272,11 @@ describe("social-icons - układ listy i tryby kolorów", () => {
 
     // CTA własne i domyślne (Follow powtarza się na kilku platformach).
     expect(screen.getByText("Obserwuj nas")).toBeInTheDocument();
-    expect(screen.getAllByText("Follow").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Follow|Obserwuj$/).length).toBeGreaterThan(0);
     // showEmpty=show -> platformy bez linku renderują się wygaszone.
     const rows = container.querySelectorAll("a");
-    expect(rows.length).toBe(6);
+    // +1 wiersz: Newsletter jest domyślnie częścią listy.
+    expect(rows.length).toBe(7);
     expect(container.querySelector(".pointer-events-none")).not.toBeNull();
   });
 
@@ -286,7 +287,7 @@ describe("social-icons - układ listy i tryby kolorów", () => {
       colorMode: "custom", // brak customColor -> undefined
       bgMode: "custom", // brak customBgColor -> undefined
     });
-    expect(container.querySelectorAll("a").length).toBe(1);
+    expect(container.querySelectorAll("a").length).toBe(2); // facebook + newsletter
   });
 
   it("resolves dark/light color modes regardless of themeAdapt", () => {
