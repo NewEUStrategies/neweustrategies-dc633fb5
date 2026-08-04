@@ -60,6 +60,91 @@ export interface SchemaField {
   group?: string;
 }
 
+/**
+ * Platformy widgetu „Ikony social" - jedno źródło prawdy dla pól kolorów
+ * per platforma (kolor ikony + własny gradient hoveru). Renderer czyta te same
+ * klucze (`colorFacebook`, `hoverFromFacebook`, `hoverToFacebook`).
+ */
+const SOCIAL_PLATFORMS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: "Facebook", label: "Facebook" },
+  { key: "X", label: "X" },
+  { key: "Youtube", label: "YouTube" },
+  { key: "Instagram", label: "Instagram" },
+  { key: "Linkedin", label: "LinkedIn" },
+  { key: "Spotify", label: "Spotify" },
+  { key: "Newsletter", label: "Newsletter" },
+];
+
+const SOCIAL_PLATFORM_COLOR_FIELDS: ReadonlyArray<SchemaField> = SOCIAL_PLATFORMS.flatMap(
+  ({ key, label }) => [
+    {
+      key: `color${key}`,
+      type: "color" as const,
+      label: `${label} - kolor ikony`,
+      group: "Kolory platform",
+      hint: "Puste = wspólne ustawienie „Kolory ikon”.",
+    },
+    {
+      key: `hoverFrom${key}`,
+      type: "color" as const,
+      label: `${label} - hover od`,
+      group: "Kolory platform",
+      visibleWhen: (c) => c.hoverMode !== "none",
+    },
+    {
+      key: `hoverTo${key}`,
+      type: "color" as const,
+      label: `${label} - hover do`,
+      group: "Kolory platform",
+      visibleWhen: (c) => c.hoverMode !== "none",
+    },
+  ],
+);
+
+const SOCIAL_HOVER_FIELDS: ReadonlyArray<SchemaField> = [
+  {
+    key: "hoverMode",
+    type: "select",
+    label: "Hover (najechanie)",
+    group: "Hover",
+    options: [
+      { value: "brand", label: "gradient marki platformy" },
+      { value: "custom", label: "własne kolory" },
+      { value: "none", label: "bez efektu" },
+    ],
+    hint: "Steruje tłem wiersza / kafelka oraz kolorem ikony po najechaniu.",
+  },
+  {
+    key: "hoverIconColor",
+    type: "color",
+    label: "Kolor ikony na hover",
+    group: "Hover",
+    visibleWhen: (c) => c.hoverMode !== "none",
+    hint: "Domyślnie biały - działa tak samo w light i dark mode.",
+  },
+  {
+    key: "hoverTextColor",
+    type: "color",
+    label: "Kolor tekstu na hover",
+    group: "Hover",
+    visibleWhen: (c) => c.hoverMode !== "none",
+  },
+  {
+    key: "hoverFrom",
+    type: "color",
+    label: "Gradient hover - od",
+    group: "Hover",
+    visibleWhen: (c) => c.hoverMode === "custom",
+  },
+  {
+    key: "hoverTo",
+    type: "color",
+    label: "Gradient hover - do",
+    group: "Hover",
+    visibleWhen: (c) => c.hoverMode === "custom",
+  },
+];
+
 // Empty schemas mean "use the custom editor branch" or "no editable fields".
 export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaField>>> = {
   heading: [
@@ -2048,6 +2133,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       placeholder: "Follow / Obserwuj",
       visibleWhen: (c) => c.layout === "list" && c.showNewsletter !== "0",
     },
+    ...SOCIAL_HOVER_FIELDS,
+    ...SOCIAL_PLATFORM_COLOR_FIELDS,
   ],
 
   // `rated-list` has its own custom list editor in WidgetProperties.tsx.
