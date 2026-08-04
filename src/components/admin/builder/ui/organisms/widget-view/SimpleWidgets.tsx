@@ -493,7 +493,9 @@ export function renderSimpleWidget(
         const onContrast = bgMode === "official" && active;
         return {
           ...linkStyle,
-          color: onContrast ? "#fff" : active ? resolveColor(k) : undefined,
+          // W trybie dziedziczonym ikona bierze jaśniejszy ton marki (light
+          // mode) / biel (dark mode) zamiast twardej czerni z --foreground.
+          color: onContrast ? "#fff" : active ? (resolveColor(k) ?? "var(--sb-icon)") : undefined,
           backgroundColor: bg,
         };
       };
@@ -508,6 +510,11 @@ export function renderSimpleWidget(
         return resolveSocialHref(own, globalLinks, k, linksSource);
       };
 
+      // Ton ikon dla trybu dziedziczonego: w light mode jaśniejszy odcień
+      // brandu (zamiast prawie czarnego --foreground), w dark mode biel.
+      const ICON_TONE =
+        "[--sb-icon:color-mix(in_oklab,var(--brand)_82%,#ffffff)] dark:[--sb-icon:#ffffff]";
+
       // Delikatny gradient marki platformy używany na hover wiersza listy.
       // Kolory pochodzą z oficjalnych palet (OFFICIAL) - trzymamy je tutaj,
       // bo to kolory MAREK ZEWNĘTRZNYCH, nie tokeny naszego motywu.
@@ -520,8 +527,10 @@ export function renderSimpleWidget(
         spotify: "linear-gradient(135deg, #1ED760 0%, #14833B 100%)",
         // Newsletter to nasza marka - prestiżowy gradient budowany na tokenie
         // --brand (ciemna baza -> brand -> rozjaśnienie), a nie kolor obcej marki.
+        // Bez domieszki bieli na końcu - jasny odcień zlewał się z białym CTA.
+        // Gradient idzie od głębokiej bazy do czystego brandu, jak marki obce.
         newsletter:
-          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 45%, #101010) 0%, var(--brand) 55%, color-mix(in oklab, var(--brand) 65%, #ffffff) 100%)",
+          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 40%, #0B0B10) 0%, color-mix(in oklab, var(--brand) 80%, #14141c) 52%, var(--brand) 100%)",
       };
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
@@ -652,7 +661,7 @@ export function renderSimpleWidget(
             .filter(Boolean);
           return (
             <div
-              className={`flex flex-col w-full text-foreground ${themeCls}`}
+              className={`flex w-full flex-col text-foreground ${ICON_TONE} ${themeCls}`}
               style={{ ...compactRowStyle, gap: `${gap}px` }}
             >
               {rows}
@@ -662,7 +671,7 @@ export function renderSimpleWidget(
 
         return (
           <div
-            className={`flex flex-wrap items-center text-foreground ${themeCls}`}
+            className={`flex flex-wrap items-center text-foreground ${ICON_TONE} ${themeCls}`}
             style={{ ...compactRowStyle, gap: `${gap}px` }}
           >
             {items.map(({ k, altKeys, Cmp, label }) => {
