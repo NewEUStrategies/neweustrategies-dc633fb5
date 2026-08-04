@@ -171,7 +171,7 @@ export function NewsletterPopup() {
       <div
         ref={panelRef}
         className={
-          split
+          split || showcase
             ? "relative w-full max-w-4xl my-4 max-h-[92vh] overflow-y-auto md:overflow-hidden shadow-2xl border border-white/10 grid grid-cols-1 md:grid-cols-2"
             : "relative w-full max-w-lg my-4 max-h-[92vh] overflow-y-auto shadow-2xl border border-white/10"
         }
