@@ -23,7 +23,11 @@ export function PopupPreview({ settings, lang }: PopupPreviewProps) {
   if (settings.popup_layout === "showcase") {
     const images = (settings.popup_showcase_images ?? [])
       .filter((img) => Boolean(img?.url))
-      .map((img) => ({ url: img.url, caption: lang === "pl" ? img.caption_pl : img.caption_en }));
+      .map((img) => ({
+        url: img.url,
+        caption: lang === "pl" ? img.caption_pl : img.caption_en,
+        title: lang === "pl" ? img.title_pl : img.title_en,
+      }));
     const right = settings.popup_showcase_side === "right";
     const radius = `${settings.popup_border_radius_px}px`;
     return (
