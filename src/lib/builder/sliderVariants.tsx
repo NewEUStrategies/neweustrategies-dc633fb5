@@ -382,9 +382,9 @@ const SHARED_STYLES = `
 @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 /* Stała wysokość bloku tytułu - widget nie zmienia wymiaru między slajdami. */
 .eh-slider .eh-title-clamp { display: block; overflow: hidden; padding-bottom: 4px; }
-/* Uwaga: NIE używamy `-webkit-box` na tytule - blokifikuje inline span
-   `.cms-title-underline`, przez co podkreślenie przestaje być liczone
-   per linia. Zamiast tego blok + stała wysokość 3 linii. */
+/* Uwaga: NIE uzywamy -webkit-box na tytule - blokifikuje inline span
+   .cms-title-underline, przez co podkreslenie przestaje byc liczone
+   per linia. Zamiast tego blok + stala wysokosc 3 linii. */
 .eh-slider .eh-title-clamp > * {
   display: block;
   overflow: hidden;
