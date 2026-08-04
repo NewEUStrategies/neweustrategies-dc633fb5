@@ -101,6 +101,7 @@ export function NewsletterForm({
   const [company, setCompany] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
+  const [okStatus, setOkStatus] = useState<SubscribeStatus>("pending");
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const subscribe = useServerFn(subscribeToNewsletter);
 
