@@ -1,7 +1,7 @@
 // Zakładka "Układ": wariant popupu, strona galerii, proporcje kolumn,
 // zaokrąglenie (standard platformy = 6px), szerokość, ramka i cień panelu.
 import { useTranslation } from "react-i18next";
-import { LayoutGrid, PanelsTopLeft } from "lucide-react";
+import { Clock, LayoutGrid, PanelsTopLeft } from "lucide-react";
 import { NumberRow, SectionCard, SegmentedRow, ToggleRow } from "./controls";
 import type { SignupPopupTabProps } from "./types";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
