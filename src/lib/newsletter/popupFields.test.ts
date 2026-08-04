@@ -40,4 +40,15 @@ describe("popupFields", () => {
     expect(popupFieldLabel(first, "pl")).toBe("Imię");
     expect(popupFieldLabel(first, "en")).toBe("First name");
   });
+  it("każde pole ma domyślną podpowiedź w PL i EN", () => {
+    for (const field of resolvePopupFields(null)) {
+      expect(popupFieldPlaceholder(field, "pl").trim()).not.toBe("");
+      expect(popupFieldPlaceholder(field, "en").trim()).not.toBe("");
+    }
+  });
+
+  it("pusta podpowiedź zapisana w adminie wygrywa z defaultem", () => {
+    const fields = popupFieldMap([{ key: "email", placeholder_pl: "", placeholder_en: "" }]);
+    expect(popupFieldPlaceholder(fields.email, "pl")).toBe("");
+  });
 });
