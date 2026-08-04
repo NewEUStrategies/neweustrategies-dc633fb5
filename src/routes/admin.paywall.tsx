@@ -140,7 +140,7 @@ function PaywallAdmin() {
               value={String(plans.length)}
             />
             <KpiTile
-              icon={Sparkles}
+              icon={Activity}
               label={t("admin.paywall.kpiActive", { defaultValue: "Aktywne" })}
               value={String(activePlans)}
             />
