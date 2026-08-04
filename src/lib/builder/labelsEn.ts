@@ -476,6 +476,13 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "CTA LinkedIn": "LinkedIn CTA",
   "CTA X": "X CTA",
   "CTA YouTube": "YouTube CTA",
+  "CTA Spotify": "Spotify CTA",
+  "CTA Newsletter": "Newsletter CTA",
+  "Newsletter URL": "Newsletter URL",
+  "Wiersz newslettera": "Newsletter row",
+  "Newsletter renderuje się jak pozostałe platformy (ikona + nazwa + CTA).":
+    "The newsletter renders like every other platform (icon + name + CTA).",
+
   "Opinia / Cytat": "Testimonial / quote",
   "Klucz menu": "Menu key",
 
