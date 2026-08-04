@@ -10,6 +10,12 @@ import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { popupFieldMap, popupFieldLabel, type PopupFieldKey } from "@/lib/newsletter/popupFields";
+import { setMyConsent } from "@/lib/consents.functions";
+import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
+
+const MARKETING_CONSENT_KEY = "marketing_email";
 
 interface Props {
   settings: NewsletterSettings;
@@ -29,6 +35,7 @@ interface ExtendedFields {
   phone: string;
   list: string;
   terms: boolean;
+  privacy: boolean;
 }
 
 const empty: ExtendedFields = {
@@ -41,6 +48,7 @@ const empty: ExtendedFields = {
   phone: "",
   list: "",
   terms: false,
+  privacy: false,
 };
 
 export function NewsletterPopupForm({
@@ -57,12 +65,21 @@ export function NewsletterPopupForm({
   const [honey, setHoney] = useState("");
   const mountedAt = useRef<number>(Date.now());
   const subscribe = useServerFn(subscribeToNewsletter);
+  const saveConsent = useServerFn(setMyConsent);
 
   const isPl = lang === "pl";
   const ext = settings.popup_extended_fields;
   const lists = settings.popup_mailing_lists ?? [];
-  const showLists = lists.length > 0;
+  const fields = popupFieldMap(settings.popup_fields);
+  const fieldOn = (key: PopupFieldKey) => fields[key].enabled;
+  const label = (key: PopupFieldKey) => popupFieldLabel(fields[key], lang);
+  const showLists = lists.length > 0 && fieldOn("list");
   const requireTerms = settings.popup_require_terms;
+  const requirePrivacy = settings.popup_require_privacy !== false;
+  const privacyHtml =
+    (isPl
+      ? settings.popup_privacy_html_pl || settings.policy_html_pl
+      : settings.popup_privacy_html_en || settings.policy_html_en) ?? "";
 
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
@@ -161,6 +178,41 @@ export function NewsletterPopupForm({
       }
     }
 
+    const requiredMap: Array<[PopupFieldKey, string]> = [
+      ["first_name", v.name],
+      ["last_name", v.surname],
+      ["job", v.job],
+      ["company", v.company],
+      ["linkedin", v.linkedin],
+      ["phone", v.phone],
+      ["list", v.list],
+    ];
+    for (const [key, value] of requiredMap) {
+      const cfg = fields[key];
+      const visible = key === "list" ? showLists : ext && cfg.enabled;
+      if (visible && cfg.required && !value.trim()) {
+        fail(
+          t(
+            `Pole "${cfg.label_pl}" jest wymagane.`,
+            `The "${cfg.label_en}" field is required.`,
+          ),
+          `required_${key}`,
+        );
+        return;
+      }
+    }
+
+    if (requirePrivacy && privacyHtml && !v.privacy) {
+      fail(
+        t(
+          "Wymagana akceptacja Polityki prywatności.",
+          "Please accept the Privacy Policy.",
+        ),
+        "privacy_required",
+      );
+      return;
+    }
+
     if (requireTerms && !v.terms) {
       fail(t("Wymagana akceptacja regulaminu.", "Please accept the terms."), "terms_required");
       return;
@@ -192,6 +244,9 @@ export function NewsletterPopupForm({
         (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
       if (requireTerms && v.terms && currentTermsHtml) {
         consents.push({ key: "terms", text: currentTermsHtml, given: true, lang });
+      }
+      if (requirePrivacy && privacyHtml) {
+        consents.push({ key: "privacy", text: privacyHtml, given: v.privacy, lang });
       }
 
       const res = await subscribe({
@@ -226,6 +281,21 @@ export function NewsletterPopupForm({
       // res.emailSent is false when DOI is on but the confirmation mail could
       // not be sent (Resend unconfigured/failed) - don't then tell the user to
       // check an inbox for a link that never went out.
+      // Jedno źródło prawdy dla zgód zalogowanego użytkownika: `user_consents`
+      // (widoczne w profilu). Dla gości serwer zapisuje zgodę przy subskrypcji.
+      try {
+        await saveConsent({
+          data: {
+            key: MARKETING_CONSENT_KEY,
+            given: true,
+            version: getConsentDefinition(MARKETING_CONSENT_KEY)?.version ?? "1.0",
+            lang,
+            source: `newsletter_${source}`,
+          },
+        });
+      } catch {
+        /* non-fatal - gość bez sesji */
+      }
       setEmailSent(res.emailSent !== false);
       setState("ok");
       track("success", undefined);
