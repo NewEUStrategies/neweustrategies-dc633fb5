@@ -56,7 +56,7 @@ const TMR_TITLE_CSS = `
   display: block;
   overflow: hidden;
 }
-[data-widget="tailored-must-reads"] .tmr-title-clamp > .cms-post-title {
+[data-widget="tailored-must-reads"] .tmr-title-clamp > .cms-post-title.cms-post-title {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -243,7 +243,7 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
                   <AppLink href={href} className="min-w-0">
                     <div className="tmr-title-clamp">
                       <h3 className="cms-post-title font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
-                        {title}
+                        <span className="cms-title-underline">{title}</span>
                       </h3>
                     </div>
                   </AppLink>
