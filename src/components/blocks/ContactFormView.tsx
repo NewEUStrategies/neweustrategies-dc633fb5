@@ -747,7 +747,13 @@ function Field({
     <div className={`input-group ${className ?? ""}`} data-invalid={error ? "true" : undefined}>
       {injected}
       <label className="user-label">{label}</label>
-      {error && <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{error}</span>}
+      {/* Komunikat błędu jest pozycjonowany absolutnie, więc nie zmienia wysokości
+          pola i nie przesuwa sąsiednich placeholderów w dół. */}
+      {error && (
+        <span className="pointer-events-none absolute left-1 top-full mt-1 block text-[11px] leading-tight text-destructive">
+          {error}
+        </span>
+      )}
     </div>
   );
 }
