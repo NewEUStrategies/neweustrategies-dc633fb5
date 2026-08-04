@@ -264,7 +264,7 @@ export interface NlDoc {
     accentFg?: string;
     overlay?: string;
     radius?: number;
-    layout?: "stacked" | "split";
+    layout?: "stacked" | "split" | "showcase";
     sideImage?: string | null;
   };
 }
