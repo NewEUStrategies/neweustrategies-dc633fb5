@@ -536,6 +536,7 @@ export function PopupSignupForm({
           type={showPass ? "text" : "password"}
           required
           label={label("password")}
+          placeholder={placeholder("password")}
           value={v.password}
           onChange={(e) => upd("password", e.target.value)}
           minLength={MIN_PASSWORD}
