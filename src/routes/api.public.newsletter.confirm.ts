@@ -70,7 +70,9 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: sub, error } = await supabaseAdmin
           .from("newsletter_subscribers")
-          .select("id, status, confirmation_expires_at")
+          .select(
+            "id, status, confirmation_expires_at, tenant_id, email, language, first_name, display_name",
+          )
           .eq("confirmation_token", token)
           .maybeSingle();
 
@@ -101,7 +103,31 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
         if (updErr) {
           return Response.json({ ok: false, error: updErr.message }, { status: 500 });
         }
+
+        // Potwierdzenie zapisu (kolejka transakcyjna) - ten sam mail co w
+        // ścieżce bez double opt-in. Klucz idempotencji pilnuje, że ponowne
+        // kliknięcie linku nie wyśle go drugi raz, a e-mail jest zarazem
+        // wejściem do automatyzacji sekwencji powitalnych.
+        const lang = sub.language === "en" ? "en" : "pl";
+        try {
+          const { sendTxEmail } = await import("@/lib/email/transactional.server");
+          await sendTxEmail({
+            type: "newsletter_confirmed",
+            to: sub.email,
+            lang,
+            metaName: sub.first_name ?? sub.display_name,
+            ctaPath: lang === "en" ? "/en/analyses" : "/analizy",
+            idempotencyKey: `newsletter_confirmed:${sub.tenant_id}:${sub.email}`,
+            tenantId: sub.tenant_id,
+          });
+        } catch (mailErr) {
+          // Subskrypcja jest potwierdzona - brak maila powitalnego nie może
+          // zwrócić błędu użytkownikowi.
+          console.error("[newsletter/confirm] welcome mail failed", mailErr);
+        }
+
         return Response.json({ ok: true });
+
       },
     },
   },
