@@ -547,16 +547,20 @@ export function renderSimpleWidget(
           // CTA są tłumaczone (PL/EN); pole w panelu nadal nadpisuje domyślną
           // wartość, a klucz z sufiksem języka (`ctaX_pl`) ma pierwszeństwo.
           const defaultCta: Record<string, { pl: string; en: string }> = {
-            facebook: { pl: "Lubię to", en: "Like" },
+            facebook: { pl: "Polub to", en: "Like" },
             x: { pl: "Obserwuj", en: "Follow" },
             youtube: { pl: "Subskrybuj", en: "Subscribe" },
             instagram: { pl: "Obserwuj", en: "Follow" },
             linkedin: { pl: "Obserwuj", en: "Follow" },
             spotify: { pl: "Obserwuj", en: "Follow" },
-            newsletter: { pl: "Obserwuj", en: "Follow" },
+            newsletter: { pl: "Subskrybuj", en: "Subscribe" },
           };
 
-          const newsletterHref = getStr(c, "newsletterUrl") || "/newsletter";
+          // Domyślnie kierujemy na publiczną stronę "Dołącz do newslettera";
+          // wersja EN dostaje prefiks językowy tej samej strony.
+          const newsletterHref =
+            getStr(c, "newsletterUrl") ||
+            localizedPath("/dolacz-do-newslettera", lang === "en" ? "en" : "pl");
           const listItems: Array<{
             k: string;
             altKeys?: string[];
@@ -590,9 +594,10 @@ export function renderSimpleWidget(
               // Jeśli nadpisanie jest jedną ze znanych fraz, tłumaczymy je na
               // aktualny język zamiast pokazywać angielski tekst w PL.
               const CTA_SYNONYMS: Record<string, { pl: string; en: string }> = {
-                like: { pl: "Lubię to", en: "Like" },
-                "lubię to": { pl: "Lubię to", en: "Like" },
-                "lubie to": { pl: "Lubię to", en: "Like" },
+                like: { pl: "Polub to", en: "Like" },
+                "lubię to": { pl: "Polub to", en: "Like" },
+                "lubie to": { pl: "Polub to", en: "Like" },
+                "polub to": { pl: "Polub to", en: "Like" },
                 follow: { pl: "Obserwuj", en: "Follow" },
                 obserwuj: { pl: "Obserwuj", en: "Follow" },
                 subscribe: { pl: "Subskrybuj", en: "Subscribe" },
