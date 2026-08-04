@@ -297,13 +297,31 @@ function InlineAuthorForm({
   );
 }
 
+/** Warianty bloku `author-bio` - jedno źródło prawdy dla panelu i podglądów. */
+const AUTHOR_BIO_VARIANTS = ["card", "split", "inline", "minimal", "profile"] as const;
+type AuthorBioVariant = (typeof AUTHOR_BIO_VARIANTS)[number];
+
+const AUTHOR_BIO_VARIANT_LABEL_KEY: Record<AuthorBioVariant, string> = {
+  card: "variantNameCard",
+  split: "variantNameSplit",
+  inline: "variantNameInline",
+  minimal: "variantNameMinimal",
+  profile: "variantNameProfile",
+};
+
 export function AuthorBioBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const pc = (k: string) => i18n.editor("postContextBlocks", k);
+  const variantName = (v: string) =>
+    pc(
+      AUTHOR_BIO_VARIANT_LABEL_KEY[v as AuthorBioVariant] ??
+        AUTHOR_BIO_VARIANT_LABEL_KEY.minimal,
+    );
   const showAvatar = block.data.showAvatar !== false;
   const showSocial = block.data.showSocial !== false;
   const showPostsCount = block.data.showPostsCount !== false;
   const variant = String(block.data.variant ?? "card");
+
   const authorSource: "existing" | "inline" =
     block.data.authorSource === "inline" ? "inline" : "existing";
   const selectedAuthorId = typeof block.data.authorId === "string" ? block.data.authorId : "";
