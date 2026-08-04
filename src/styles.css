@@ -159,6 +159,10 @@ body {
 .light {
   --radius: 6px;
 
+  /* Jednolita grubość animowanej linii podkreślającej (tytuły wpisów,
+     nagłówki animowane, per-line underline w widgetach). */
+  --cms-underline-thickness: 2px;
+
   /* ---- Global form-field sizing tokens ----
      Nadpisz per-widget ustawiając te zmienne na shellu widgetu
      (np. .cf-shell{ --form-input-height: 3rem }) lub inline
