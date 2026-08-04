@@ -259,7 +259,33 @@ export function NewsletterForm({
       </h3>
       {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
       {state === "ok" ? (
-        <p className="text-sm font-medium text-foreground bg-muted rounded p-3">{success}</p>
+        (() => {
+          // Jasny stan sukcesu: ikona + nagłówek + co dalej (DOI / już zapisany).
+          const copy = subscribeSuccessCopy(okStatus, lang, success);
+          return (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-start gap-3 rounded-[6px] border border-brand/40 bg-brand/10 p-4"
+            >
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">{copy.title}</p>
+                {copy.hint && <p className="mt-1 text-xs text-muted-foreground">{copy.hint}</p>}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setState("idle");
+                    setErrMsg(null);
+                  }}
+                  className="mt-2 text-xs font-medium text-brand underline-offset-2 hover:underline"
+                >
+                  {lang === "en" ? "Add another address" : "Zapisz kolejny adres"}
+                </button>
+              </div>
+            </div>
+          );
+        })()
       ) : (
         <form
           onSubmit={onSubmit}
