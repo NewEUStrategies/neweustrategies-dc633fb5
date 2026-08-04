@@ -49,6 +49,7 @@ const L = {
     viewProfile: "Zobacz profil",
     contact: "Kontakt",
     follow: "Obserwuj",
+    authorLinks: "Linki autora",
   },
   en: {
     about: "About the author",
@@ -57,8 +58,10 @@ const L = {
     viewProfile: "View profile",
     contact: "Contact",
     follow: "Follow",
+    authorLinks: "Author links",
   },
 } as const;
+
 
 // -------- Author bio --------
 
