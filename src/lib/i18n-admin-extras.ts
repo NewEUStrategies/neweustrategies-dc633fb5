@@ -293,6 +293,13 @@ export const adminExtrasPl = {
       workflows: "Automatyzacje",
     },
     pages: {
+      codePage: {
+        badge: "Z kodu",
+        hint: "Treść i układ tej strony pochodzą z kodu aplikacji - builder jej nie renderuje.",
+        title: "Strona renderowana z kodu",
+        body: "Publiczny adres {{path}} obsługuje trasa React w kodzie aplikacji. Edytowalne są tutaj wyłącznie tytuł, opis i metadane SEO - zawartość buildera nie jest publikowana pod tym adresem.",
+        open: "Otwórz stronę publiczną",
+      },
       editor: {
         builderLocked:
           "Strony używają wspólnej struktury dla PL i EN - przełącznik języka zmienia tylko teksty.",
@@ -820,6 +827,13 @@ export const adminExtrasEn = {
       workflows: "Automations",
     },
     pages: {
+      codePage: {
+        badge: "From code",
+        hint: "The content and layout of this page come from application code - the builder does not render it.",
+        title: "Page rendered from code",
+        body: "The public URL {{path}} is served by a React route in the application code. Only the title, description and SEO metadata are editable here - builder content is not published at this URL.",
+        open: "Open public page",
+      },
       editor: {
         builderLocked:
           "Pages use a shared structure for PL and EN - the language switcher changes only the text.",

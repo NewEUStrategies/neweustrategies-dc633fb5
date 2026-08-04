@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2, Home, Undo2, X, Download } from "@/lib/lucide-shim";
+import { Code2 } from "lucide-react";
 import { WordPressImportDialog } from "@/components/admin/WordPressImportDialog";
 import { TopicTabs } from "@/components/admin/molecules/TopicTabs";
 import {
@@ -36,6 +37,7 @@ import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenan
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 import { escapeLike } from "@/lib/admin/listFilters";
 import { toastError } from "@/lib/toastError";
+import { isCodePage } from "@/lib/admin/codePages";
 import {
   TOPICS,
   topicOrFilter,
@@ -628,6 +630,16 @@ function PagesList() {
                                   </span>
                                 )}
                             </Link>
+                          )}
+                          {!isTrash && isCodePage(p.slug) && (
+                            <Badge
+                              variant="secondary"
+                              className="gap-1 text-[10px] py-0 px-1.5"
+                              title={t("admin.pages.codePage.hint")}
+                            >
+                              <Code2 className="w-3 h-3" />
+                              {t("admin.pages.codePage.badge")}
+                            </Badge>
                           )}
                           {!isTrash && currentHome === p.slug && (
                             <Badge variant="outline" className="gap-1 text-[10px] py-0 px-1.5">

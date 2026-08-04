@@ -62,6 +62,8 @@ import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
 import { confirmDialog } from "@/lib/appDialogs";
 import { useAdminLang } from "@/lib/builder/labelsEn";
+import { codePage } from "@/lib/admin/codePages";
+import { Code2 } from "lucide-react";
 export const Route = createFileRoute("/admin/pages/$slug")({
   component: EditPage,
 });
@@ -107,6 +109,8 @@ interface PageForm {
 
 function EditPage() {
   const { slug: routeSlug } = Route.useParams();
+  // Publiczny adres obsługiwany przez trasę React (rejestr CODE_PAGES).
+  const codeRoute = codePage(routeSlug);
   const tenantId = useRequiredTenant();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -556,6 +560,28 @@ function EditPage() {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
+
+      {/* Strona renderowana z kodu (np. /pricing): builder nie ma tu wpływu na
+          publiczny wygląd - edytowalne są wyłącznie tytuł, opis i SEO. */}
+      {codeRoute && (
+        <div className="flex flex-wrap items-start gap-3 rounded-[6px] border border-primary/30 bg-primary/5 px-4 py-3">
+          <Code2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+          <div className="space-y-1 text-sm">
+            <p className="font-medium">{t("admin.pages.codePage.title")}</p>
+            <p className="text-muted-foreground">
+              {t("admin.pages.codePage.body", { path: codeRoute.path })}
+            </p>
+            <a
+              href={codeRoute.path}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-xs font-medium text-primary underline"
+            >
+              {t("admin.pages.codePage.open")}
+            </a>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {step === "details" ? (
