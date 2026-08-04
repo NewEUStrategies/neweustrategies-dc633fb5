@@ -2023,7 +2023,33 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       placeholder: "Follow",
       visibleWhen: (c) => c.layout === "list",
     },
+    {
+      key: "showNewsletter",
+      type: "select",
+      label: "Wiersz newslettera",
+      options: [
+        { value: "1", label: "pokaż" },
+        { value: "0", label: "ukryj" },
+      ],
+      visibleWhen: (c) => c.layout === "list",
+      hint: "Newsletter renderuje się jak pozostałe platformy (ikona + nazwa + CTA).",
+    },
+    {
+      key: "newsletterUrl",
+      type: "text",
+      label: "Newsletter URL",
+      placeholder: "/newsletter",
+      visibleWhen: (c) => c.layout === "list" && c.showNewsletter !== "0",
+    },
+    {
+      key: "ctaNewsletter",
+      type: "text",
+      label: "CTA Newsletter",
+      placeholder: "Follow / Obserwuj",
+      visibleWhen: (c) => c.layout === "list" && c.showNewsletter !== "0",
+    },
   ],
+
   // `rated-list` has its own custom list editor in WidgetProperties.tsx.
   "news-ticker": [
     {
