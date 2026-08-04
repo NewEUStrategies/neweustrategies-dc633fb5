@@ -19,6 +19,7 @@ import { ListShell } from "./ListShell";
 import { ImageSlot } from "./ImageSlot";
 import { PagePicker } from "./PagePicker";
 import { itemsOf, type Item } from "./shared";
+import { MEGA_MENU_ICON_NAMES } from "@/lib/megaMenu/showcaseIcons";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 
@@ -37,6 +38,7 @@ export function MegaMenuEditor({ c, lang, setContent }: Props) {
   const triggerOn = (str(c.triggerOn) || "hover") as "hover" | "click";
   const width = (str(c.width) || "container") as "container" | "fluid" | "fixed";
   const widthPx = typeof c.widthPx === "number" ? c.widthPx : 1140;
+  const layout = (str(c.layout) || "classic") as "classic" | "showcase";
 
   return (
     <div className="space-y-3">
@@ -83,6 +85,20 @@ export function MegaMenuEditor({ c, lang, setContent }: Props) {
           </Select>
         </PropField>
       </div>
+      <PropField label={t("builder.megaMenuEditor.layout")}>
+        <Select value={layout} onValueChange={(v) => setContent("layout", v)}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="classic">{t("builder.megaMenuEditor.layoutClassic")}</SelectItem>
+            <SelectItem value="showcase">{t("builder.megaMenuEditor.layoutShowcase")}</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {t("builder.megaMenuEditor.layoutHint")}
+        </p>
+      </PropField>
       {width === "fixed" && (
         <PropField label={t("builder.megaMenuEditor.widthPx")}>
           <NumberInput
@@ -236,6 +252,26 @@ function ColumnEditor({
                     className="h-7 text-xs"
                   />
                 </div>
+                <Select
+                  value={str(l.icon) || "none"}
+                  onValueChange={(v) =>
+                    updateLinks(
+                      links.map((x, j) => (j === i ? { ...x, icon: v === "none" ? "" : v } : x)),
+                    )
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder={t("builder.megaMenuEditor.icon")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("builder.megaMenuEditor.none")}</SelectItem>
+                    {MEGA_MENU_ICON_NAMES.map((n) => (
+                      <SelectItem key={n} value={n}>
+                        {t(`builder.megaMenuEditor.icons.${n}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input
                   placeholder={lang === "pl" ? "Opis (opcjonalnie)" : "Description (optional)"}
                   value={str(l[`desc_${lang}`])}
