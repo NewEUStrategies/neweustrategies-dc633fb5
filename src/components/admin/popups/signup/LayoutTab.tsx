@@ -15,6 +15,61 @@ export function LayoutTab({ value, design, onChange, patchPanel }: SignupPopupTa
   return (
     <div className="space-y-4">
       <SectionCard
+        title={t("adminPopupSignup.trigger.section")}
+        icon={<Clock className="h-3.5 w-3.5" />}
+      >
+        <div className="space-y-3">
+          <ToggleRow
+            label={t("adminPopupSignup.trigger.enabled")}
+            checked={value.popup_enabled}
+            onChange={(popup_enabled) => onChange({ popup_enabled })}
+            hint={t("adminPopupSignup.trigger.enabledHint")}
+          />
+          <SegmentedRow<NewsletterSettings["popup_trigger"]>
+            label={t("adminPopupSignup.trigger.mode")}
+            value={value.popup_trigger}
+            onChange={(popup_trigger) => onChange({ popup_trigger })}
+            columns={3}
+            options={[
+              { value: "delay", label: t("adminPopupSignup.trigger.delay") },
+              { value: "scroll", label: t("adminPopupSignup.trigger.scroll") },
+              { value: "exit-intent", label: t("adminPopupSignup.trigger.exit") },
+            ]}
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {value.popup_trigger === "delay" && (
+              <NumberRow
+                label={t("adminPopupSignup.trigger.delaySeconds")}
+                value={value.popup_delay_seconds}
+                min={1}
+                max={600}
+                onChange={(popup_delay_seconds) => onChange({ popup_delay_seconds })}
+                hint={t("adminPopupSignup.trigger.delaySecondsHint")}
+              />
+            )}
+            {value.popup_trigger === "scroll" && (
+              <NumberRow
+                label={t("adminPopupSignup.trigger.scrollPercent")}
+                value={value.popup_scroll_percent}
+                min={1}
+                max={100}
+                step={5}
+                onChange={(popup_scroll_percent) => onChange({ popup_scroll_percent })}
+              />
+            )}
+            <NumberRow
+              label={t("adminPopupSignup.trigger.frequencyDays")}
+              value={value.popup_frequency_days}
+              min={0}
+              max={365}
+              onChange={(popup_frequency_days) => onChange({ popup_frequency_days })}
+              hint={t("adminPopupSignup.trigger.frequencyDaysHint")}
+            />
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
         title={t("adminPopupSignup.layout.variant")}
         icon={<LayoutGrid className="h-3.5 w-3.5" />}
       >
