@@ -57,7 +57,7 @@ export const Route = createFileRoute("/plans/$planId")({
     const plan = loaderData.plan;
     const title = `${planName(plan, lang)} - ${lang === "en" ? "plan details" : "szczegóły planu"}`;
     const description =
-      planDescription(plan, lang) ??
+      planDescription(plan, lang) ||
       (lang === "en"
         ? `Benefits, limits and pricing of the ${planName(plan, "en")} plan.`
         : `Zakres, limity i cena planu ${planName(plan, "pl")}.`);
