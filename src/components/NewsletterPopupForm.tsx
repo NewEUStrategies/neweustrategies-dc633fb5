@@ -7,6 +7,7 @@ import { sanitizeHtml } from "@/lib/sanitize";
 import { Check, Mail } from "@/lib/lucide-shim";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 
@@ -65,6 +66,27 @@ export function NewsletterPopupForm({
 
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
+  // Telemetria: submit/success/error. Walidacja po stronie klienta też jest
+  // "error" - inaczej raport pokazywałby 100% skuteczności formularza, który
+  // realnie odbija ludzi na regexie e-maila.
+  const track = (
+    event: "submit" | "success" | "error",
+    errorCode?: string,
+  ) =>
+    trackNewsletterPopupEvent({
+      event,
+      lang,
+      layout: settings.popup_layout,
+      source,
+      errorCode,
+    });
+
+  const fail = (message: string, code: string) => {
+    setErr(message);
+    setState("err");
+    track("error", code);
+  };
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErr(null);
@@ -81,31 +103,30 @@ export function NewsletterPopupForm({
 
     const email = v.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setErr(t("Niepoprawny adres e-mail.", "Invalid e-mail address."));
-      setState("err");
+      fail(t("Niepoprawny adres e-mail.", "Invalid e-mail address."), "invalid_email");
       return;
     }
 
     if (ext) {
       const nameRe = /^[\p{L}\p{M}'’\- ]{2,80}$/u;
       if (v.name.trim() && !nameRe.test(v.name.trim())) {
-        setErr(
+        fail(
           t(
             "Imię zawiera niedozwolone znaki (min. 2 znaki).",
             "Name contains invalid characters (min. 2 chars).",
           ),
+          "invalid_first_name",
         );
-        setState("err");
         return;
       }
       if (v.surname.trim() && !nameRe.test(v.surname.trim())) {
-        setErr(
+        fail(
           t(
             "Nazwisko zawiera niedozwolone znaki (min. 2 znaki).",
             "Surname contains invalid characters (min. 2 chars).",
           ),
+          "invalid_last_name",
         );
-        setState("err");
         return;
       }
       if (v.linkedin.trim()) {
@@ -115,38 +136,38 @@ export function NewsletterPopupForm({
             li,
           );
         if (!liOk) {
-          setErr(
+          fail(
             t(
               "Niepoprawny URL LinkedIn (np. https://linkedin.com/in/jan-kowalski).",
               "Invalid LinkedIn URL (e.g. https://linkedin.com/in/jane-doe).",
             ),
+            "invalid_linkedin",
           );
-          setState("err");
           return;
         }
       }
       if (v.phone.trim()) {
         const phone = v.phone.trim().replace(/[\s\-().]/g, "");
         if (!/^\+?[0-9]{7,15}$/.test(phone)) {
-          setErr(
+          fail(
             t(
               "Niepoprawny numer telefonu (7-15 cyfr, opcjonalnie z +).",
               "Invalid phone number (7-15 digits, optional leading +).",
             ),
+            "invalid_phone",
           );
-          setState("err");
           return;
         }
       }
     }
 
     if (requireTerms && !v.terms) {
-      setErr(t("Wymagana akceptacja regulaminu.", "Please accept the terms."));
-      setState("err");
+      fail(t("Wymagana akceptacja regulaminu.", "Please accept the terms."), "terms_required");
       return;
     }
 
     setState("loading");
+    track("submit");
 
     const displayName = [v.name.trim(), v.surname.trim()].filter(Boolean).join(" ");
     const meta: Record<string, string> = {};
@@ -188,6 +209,7 @@ export function NewsletterPopupForm({
       });
 
       if (!res.ok) {
+        track("error", res.error.slice(0, 160));
         setErr(
           res.error === "not_configured" || res.error === "disabled"
             ? t("Newsletter nie jest skonfigurowany.", "Newsletter is not configured.")
@@ -206,11 +228,11 @@ export function NewsletterPopupForm({
       // check an inbox for a link that never went out.
       setEmailSent(res.emailSent !== false);
       setState("ok");
+      track("success", undefined);
       setV(empty);
       onSuccess?.();
     } catch (error) {
-      setErr(error instanceof Error ? error.message : String(error));
-      setState("err");
+      fail(error instanceof Error ? error.message : String(error), "exception");
     }
   };
 
