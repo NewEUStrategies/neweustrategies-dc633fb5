@@ -649,7 +649,10 @@ export function renderSimpleWidget(
                   // hiperłącze. Na hover pasek przybiera delikatny gradient
                   // marki danej platformy, a tekst i ikona kontrastują z tłem.
                   style={{ textDecoration: "none", ...rowVars }}
-                  className={`group flex items-center gap-3 rounded-[6px] border-b border-border/60 px-2 py-2.5 no-underline transition-all last:border-b-0 hover:border-transparent hover:[background-image:var(--sb-grad)] hover:[color:var(--sb-fg)] focus-visible:border-transparent focus-visible:[background-image:var(--sb-grad)] focus-visible:[color:var(--sb-fg)] ${!href ? "pointer-events-none opacity-40" : ""}`}
+                  // Na hover nadpisujemy TOKENY ikon (--sb-icon/--sb-off-tone)
+                  // na biel - inline `color: var(...)` kafelka rozwiązuje je z
+                  // kaskady, więc ikona jest jasna także w light mode.
+                  className={`group flex items-center gap-3 rounded-[6px] border-b border-border/60 px-2 py-2.5 no-underline transition-all last:border-b-0 hover:border-transparent hover:[--sb-icon:#ffffff] hover:[--sb-off-tone:#ffffff] hover:[background-image:var(--sb-grad)] hover:[color:var(--sb-fg)] focus-visible:border-transparent focus-visible:[--sb-icon:#ffffff] focus-visible:[--sb-off-tone:#ffffff] focus-visible:[background-image:var(--sb-grad)] focus-visible:[color:var(--sb-fg)] ${!href ? "pointer-events-none opacity-40" : ""}`}
                 >
                   <span
                     className={`inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors group-hover:bg-transparent group-hover:![color:var(--sb-fg)]`}
