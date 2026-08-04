@@ -10,6 +10,7 @@ import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
 import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
+import "@/lib/i18n-newsletter-popup";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { X, Send } from "@/lib/lucide-shim";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
