@@ -215,16 +215,11 @@ export function NewsletterForm({
       });
 
       if (!res.ok) {
-        setErrMsg(
-          res.error === "not_configured" || res.error === "disabled"
-            ? t("newsletterForm.notConfigured")
-            : res.error === "suppressed"
-              ? t("newsletterForm.suppressed")
-              : res.error,
-        );
+        setErrMsg(subscribeErrorMessage(res.error, lang));
         setState("err");
         return;
       }
+      setOkStatus(res.status);
       setState("ok");
       setEmail("");
       setName("");
@@ -232,7 +227,7 @@ export function NewsletterForm({
       setLastName("");
       setCompany("");
     } catch (err) {
-      setErrMsg(err instanceof Error ? err.message : String(err));
+      setErrMsg(subscribeErrorMessage(err instanceof Error ? err.message : String(err), lang));
       setState("err");
     }
   };
