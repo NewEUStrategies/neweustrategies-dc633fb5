@@ -529,15 +529,16 @@ export function renderSimpleWidget(
         return resolveSocialHref(own, globalLinks, k, linksSource);
       };
 
-      // Ton ikon: w light mode jaśniejsze odcienie (brand dla trybu
-      // dziedziczonego, rozjaśniony kolor marki dla trybu "official"),
-      // w dark mode biel / surowy kolor marki.
+      // Ton ikon = dokładnie to, co renderuje strona publiczna:
+      // w stanie spoczynku ikona ma kolor tekstu (foreground - ciemny w light
+      // mode, jasny w dark mode), a nie odcień marki. Kolory marki pojawiają
+      // się tylko wtedy, gdy ustawiono je jawnie (tryb "official" lub kolor
+      // per platforma) oraz na hover (gradient + biała ikona/tekst).
       const ICON_TONE = [
-        "[--sb-icon:color-mix(in_oklab,var(--brand)_82%,#ffffff)]",
-        "dark:[--sb-icon:#ffffff]",
-        "[--sb-off-tone:color-mix(in_oklab,var(--sb-off,var(--brand))_62%,#ffffff)]",
-        "dark:[--sb-off-tone:var(--sb-off,var(--brand))]",
+        "[--sb-icon:currentColor]",
+        "[--sb-off-tone:var(--sb-off,currentColor)]",
       ].join(" ");
+
 
       // Gradient marki platformy na hover pochodzi ze wspólnego źródła prawdy
       // (`@/lib/builder/socialBrand`) - panel pokazuje dokładnie te kolory,
