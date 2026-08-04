@@ -154,7 +154,7 @@ const HOVER_ALLSIDES_CSS = `
 }
 .allsides-4:hover::before { --d: 100%; --p: 0%; }
 /* Warianty 4 i 5: pozycja przeskakuje natychmiast po dorysowaniu boku
-   (tak jak w oryginale: `background-position 0s .5s`), nie animuje się. */
+   (tak jak w oryginale: background-position 0s .5s), nie animuje się. */
 .allsides-4::before, .allsides-5::before {
   transition:
     -webkit-mask-size var(--ah-t) ease-out,
