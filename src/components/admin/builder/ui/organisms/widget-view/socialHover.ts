@@ -302,9 +302,12 @@ export function socialHoverStyle(plan: SocialHoverPlan): { uid: string; css: str
 
   if (paintsIcon) {
     // `!important`, bo kafelek trzyma kolor i tło w atrybucie `style` (kolor
-    // ikony jest ustawieniem, więc nie da się go wyrazić klasą).
+    // ikony jest ustawieniem, więc nie da się go wyrazić klasą). Kolor trzeba
+    // wymusić również bezpośrednio na SVG: publiczny arkusz ikon nadaje SVG
+    // własne `color`, przez co samo białe `color` na wrapperze nie było
+    // dziedziczone. To był właściwy powód czarnych ikon w light mode.
     rules.push(
-      `${on(rowStates, `.${SB_CHIP}`)},${on(tileStates)}{color:var(--sb-ico-h)!important}`,
+      `${on(rowStates, `.${SB_CHIP}`)},${on(rowStates, `.${SB_CHIP} svg`)},${on(tileStates)},${on(tileStates, "svg")}{color:var(--sb-ico-h)!important}`,
       `${on(rowStates, `.${SB_CHIP}`)}{background-color:transparent!important}`,
     );
   }

@@ -57,6 +57,7 @@ describe("social-icons - ikona po najechaniu jest jasna także w light mode", ()
   it("wymusza kolor ikony regułą arkusza, nie klasą (inline style trzeba przebić)", () => {
     const css = sheet(paint({ ...LINKS, layout: "list" }));
     expect(css).toMatch(new RegExp(`\\.${SB_CHIP}[^{]*\\{color:var\\(--sb-ico-h\\)!important\\}`));
+    expect(css).toContain(`.${SB_CHIP} svg`);
     expect(css).not.toContain("group-hover");
   });
 
