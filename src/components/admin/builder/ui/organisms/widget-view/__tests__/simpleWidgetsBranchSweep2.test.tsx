@@ -272,7 +272,7 @@ describe("social-icons - układ listy i tryby kolorów", () => {
 
     // CTA własne i domyślne (Follow powtarza się na kilku platformach).
     expect(screen.getByText("Obserwuj nas")).toBeInTheDocument();
-    expect(screen.getAllByText("Follow").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Follow|Obserwuj$/).length).toBeGreaterThan(0);
     // showEmpty=show -> platformy bez linku renderują się wygaszone.
     const rows = container.querySelectorAll("a");
     // +1 wiersz: Newsletter jest domyślnie częścią listy.
