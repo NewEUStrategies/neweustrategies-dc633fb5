@@ -296,8 +296,6 @@ export function OverviewPanel() {
         </div>
       </section>
 
-      <PopupShowcasePanel value={cur} onChange={upd} />
-
       <PopupEventsPanel />
 
       <section className="bg-card border border-border rounded-xl p-5 space-y-4">
