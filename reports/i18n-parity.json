@@ -104,6 +104,8 @@
     "builder.iconPicker.media",
     "builder.iconPicker.sport",
     "builder.iconPicker.transport",
+    "builder.megaMenuEditor.icons.mail",
+    "builder.megaMenuEditor.icons.trending",
     "builder.postListEditor.fmtAudio",
     "builder.postListEditor.fmtStandard",
     "builder.pricingEditor.cta",
@@ -122,6 +124,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 385
+    "untranslated": 387
   }
 }

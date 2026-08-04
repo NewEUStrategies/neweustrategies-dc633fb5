@@ -30,8 +30,6 @@ import { asBool, asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/builder/co
 import { GalleryLightboxZone } from "./GalleryLightbox";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
 import {
-  SOCIAL_HOVER_ICON_COLOR,
-  SOCIAL_HOVER_TEXT_COLOR,
   SOCIAL_OFFICIAL_COLOR,
   socialBrandGradient,
 } from "@/lib/builder/socialBrand";
@@ -552,40 +550,35 @@ export function renderSimpleWidget(
       // w stanie spoczynku ikona ma kolor tekstu (foreground - ciemny w light
       // mode, jasny w dark mode), a nie odcień marki. Kolory marki pojawiają
       // się tylko wtedy, gdy ustawiono je jawnie (tryb "official" lub kolor
-      // per platforma) oraz na hover (gradient + biała ikona/tekst).
+      // per platforma) oraz na hover (arkusz instancji, patrz socialHover.ts).
       const ICON_TONE = [
         "[--sb-icon:currentColor]",
         "[--sb-off-tone:var(--sb-off,currentColor)]",
       ].join(" ");
 
-
-      // Gradient marki platformy na hover pochodzi ze wspólnego źródła prawdy
-      // (`@/lib/builder/socialBrand`) - panel pokazuje dokładnie te kolory,
-      // które renderuje strona publiczna.
-      const FALLBACK_GRADIENT = "linear-gradient(135deg, var(--brand), var(--brand))";
-
-      // Hover jest w pełni sterowalny z panelu: tryb (gradient marki / własne
-      // kolory / brak), kolor ikony, tekstu oraz opcjonalny własny gradient -
-      // globalnie i per platforma (`hoverFromFacebook`, `hoverToFacebook`).
-      const hoverMode = asOneOf(c.hoverMode, ["brand", "custom", "none"] as const, "brand");
-      const hoverIconColor = safeWidgetColor(c.hoverIconColor) || SOCIAL_HOVER_ICON_COLOR;
-      const hoverTextColor = safeWidgetColor(c.hoverTextColor) || SOCIAL_HOVER_TEXT_COLOR;
-      const hoverFrom = safeWidgetColor(c.hoverFrom);
-      const hoverTo = safeWidgetColor(c.hoverTo);
-      const hoverGradientFor = (k: string): string => {
-        if (hoverMode === "none") return "none";
-        const from = safeWidgetColor(c[`hoverFrom${capKey(k)}`]) || hoverFrom;
-        const to = safeWidgetColor(c[`hoverTo${capKey(k)}`]) || hoverTo;
-        if (from) return `linear-gradient(135deg, ${from} 0%, ${to || from} 100%)`;
-        if (hoverMode === "custom") return FALLBACK_GRADIENT;
-        return socialBrandGradient(k) ?? FALLBACK_GRADIENT;
+      // Ustawienia hovera czytamy BEZWARUNKOWO (tak jak `customColor`): działają
+      // w obu układach, a bramka wierności widzi je w każdej próbce.
+      const hoverPlan: SocialHoverPlan = {
+        mode: asOneOf(c.rowHover, SOCIAL_ROW_HOVER_MODES, "brand"),
+        tone: asOneOf(c.newsletterTone, SOCIAL_HOUSE_TONES, "amber"),
+        iconMode: asOneOf(c.hoverIconMode, SOCIAL_HOVER_ICON_MODES, "auto"),
+        rowColor: safeWidgetColor(c.rowHoverColor),
+        iconColor: safeWidgetColor(c.hoverIconColor),
       };
+      // Arkusz o zasięgu instancji: jedna reguła obsługuje hover, fokus i
+      // wymuszony podgląd hovera w panelu buildera. Klasa narzędziowa nie
+      // wystarczy - kafelek trzyma kolor w atrybucie `style`, więc kolor ikony
+      // na hoverze musi iść z arkusza, z `!important`.
+      const hoverSheet = socialHoverStyle(hoverPlan);
+      const hoverScope = hoverSheet?.uid ?? "";
       const hoverVars = (k: string): CSSProperties =>
         ({
-          "--sb-grad": hoverGradientFor(k),
-          "--sb-fg": hoverMode === "none" ? "inherit" : hoverTextColor,
-          "--sb-hicon": hoverMode === "none" ? "currentColor" : hoverIconColor,
+          "--sb-grad": socialHoverGradient(hoverPlan, k) ?? "none",
+          "--sb-ico-h": socialHoverIconColor(hoverPlan, k) ?? "currentColor",
         }) as CSSProperties;
+      const hoverCssTag = hoverSheet ? <style>{hoverSheet.css}</style> : null;
+
+
 
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
@@ -689,16 +682,14 @@ export function renderSimpleWidget(
                   target={href && external ? "_blank" : undefined}
                   rel={href && external ? "noopener noreferrer" : undefined}
                   // Odnośnik zewnętrzny, ale wygląda jak wiersz listy, nie jak
-                  // hiperłącze. Na hover pasek przybiera gradient ustawiony w
-                  // panelu (domyślnie gradient marki danej platformy).
+                  // hiperłącze. Gradient i ton ikony na hoverze podaje wiersz
+                  // (`--sb-grad` / `--sb-ico-h`), a maluje je arkusz instancji -
+                  // ta sama reguła obsługuje fokus i podgląd hovera w panelu.
                   style={{ textDecoration: "none", ...rowVars }}
-                  // Na hover nadpisujemy TOKENY ikon (--sb-icon/--sb-off-tone)
-                  // kolorem z panelu - inline `color: var(...)` kafelka
-                  // rozwiązuje je z kaskady, więc działa też w light mode.
-                  className={`group flex items-center gap-3 rounded-[6px] border-b border-border/60 px-2 py-2.5 no-underline transition-all last:border-b-0 hover:border-transparent hover:[--sb-icon:var(--sb-hicon)] hover:[--sb-off-tone:var(--sb-hicon)] hover:[background-image:var(--sb-grad)] hover:[color:var(--sb-fg)] focus-visible:border-transparent focus-visible:[--sb-icon:var(--sb-hicon)] focus-visible:[--sb-off-tone:var(--sb-hicon)] focus-visible:[background-image:var(--sb-grad)] focus-visible:[color:var(--sb-fg)] ${!href ? "pointer-events-none opacity-40" : ""}`}
+                  className={`${SB_ROW} flex items-center gap-3 rounded-[6px] border-b border-border/60 px-2 py-2.5 no-underline last:border-b-0 ${!href ? "pointer-events-none opacity-40" : ""}`}
                 >
                   <span
-                    className={`inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors group-hover:bg-transparent group-hover:![color:var(--sb-hicon)]`}
+                    className={`${SB_CHIP} inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors`}
                     style={chipStyle(k, Boolean(href))}
                   >
                     <Cmp size={size} />
@@ -726,7 +717,7 @@ export function renderSimpleWidget(
           return (
             <>
               <div
-                className={`flex w-full flex-col text-foreground ${themeCls} ${hoverScope}`}
+                className={`flex w-full flex-col text-foreground ${ICON_TONE} ${themeCls} ${hoverScope}`}
                 style={{ ...compactRowStyle, gap: `${gap}px` }}
               >
                 {rows}
@@ -737,51 +728,53 @@ export function renderSimpleWidget(
         }
 
         return (
-          <div
-            className={`flex flex-wrap items-center text-foreground ${ICON_TONE} ${themeCls}`}
-            style={{ ...compactRowStyle, gap: `${gap}px` }}
-          >
-            {items.map(({ k, altKeys, Cmp, label }) => {
-              const href = hrefOf(k, altKeys, globalLinks);
-              const active = !!href;
-              if (!active && !showEmpty) return null;
-              const bg = resolveBg(k, active);
-              const style: CSSProperties = {
-                ...chipStyle(k, active),
-                ...hoverVars(k),
-                opacity: active ? 1 : 0.35,
-              };
-              // Ten sam kontrakt hoveru co w układzie listy: ikona przyjmuje
-              // kolor z panelu, a tło - gradient marki / własny.
-              const hoverCls =
-                active && hoverMode !== "none"
-                  ? "hover:![color:var(--sb-hicon)] hover:[background-image:var(--sb-grad)] hover:border-transparent"
-                  : "";
-              const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-90" : "cursor-not-allowed"} ${!bg && !hoverCls ? "hover:bg-muted/40" : ""} ${hoverCls}`;
-              return active ? (
-                <AppLink
-                  key={k}
-                  href={safeUrl(href)}
-                  aria-label={label}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cls}
-                  style={style}
-                >
-                  <Cmp size={size} />
-                </AppLink>
-              ) : (
-                <span
-                  key={k}
-                  aria-label={`${label} (${lang === "pl" ? "brak linku" : "no link"})`}
-                  className={cls}
-                  style={style}
-                >
-                  <Cmp size={size} />
-                </span>
-              );
-            })}
-          </div>
+          <>
+            <div
+              className={`flex flex-wrap items-center text-foreground ${ICON_TONE} ${themeCls} ${hoverScope}`}
+              style={{ ...compactRowStyle, gap: `${gap}px` }}
+            >
+              {items.map(({ k, altKeys, Cmp, label }) => {
+                const href = hrefOf(k, altKeys, globalLinks);
+                const active = !!href;
+                if (!active && !showEmpty) return null;
+                const bg = resolveBg(k, active);
+                const style: CSSProperties = {
+                  ...chipStyle(k, active),
+                  ...hoverVars(k),
+                  opacity: active ? 1 : 0.35,
+                };
+                // Kafelek nieaktywny nie dostaje klasy hovera - podświetlanie
+                // ikony bez linku obiecywałoby działanie, którego nie ma. Gdy
+                // ustawienia nie malują hovera (tryb „brak"), zostaje dawne
+                // przygaszenie, żeby kafelek nie stał się zupełnie martwy.
+                const tileHover = hoverSheet ? SB_TILE : "hover:opacity-80";
+                const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? tileHover : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
+                return active ? (
+                  <AppLink
+                    key={k}
+                    href={safeUrl(href)}
+                    aria-label={label}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cls}
+                    style={style}
+                  >
+                    <Cmp size={size} />
+                  </AppLink>
+                ) : (
+                  <span
+                    key={k}
+                    aria-label={`${label} (${lang === "pl" ? "brak linku" : "no link"})`}
+                    className={cls}
+                    style={style}
+                  >
+                    <Cmp size={size} />
+                  </span>
+                );
+              })}
+            </div>
+            {hoverCssTag}
+          </>
         );
       };
 
