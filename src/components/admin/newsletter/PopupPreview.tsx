@@ -4,7 +4,7 @@
 // marki, hasła i rotacji były widoczne od razu przy edycji.
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
-import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
+import { PopupSignupForm } from "@/components/PopupSignupForm";
 import { sanitizeHtml } from "@/lib/sanitize";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 
@@ -72,10 +72,11 @@ export function PopupPreview({ settings, lang }: PopupPreviewProps) {
           {/* Podgląd formularza - interakcje wyłączone, żeby admin nie zapisał
               przypadkowo testowego adresu do bazy subskrybentów. */}
           <div className="pointer-events-none select-none" aria-hidden="true">
-            <NewsletterPopupForm
+            <PopupSignupForm
               settings={settings}
               lang={lang}
               source="admin-preview"
+              previewOnly
               compact
             />
           </div>
@@ -105,6 +106,7 @@ export function PopupPreview({ settings, lang }: PopupPreviewProps) {
               settings={settings}
               lang={lang}
               source="admin-preview"
+
             />
           </div>
         </div>

@@ -1,4 +1,4 @@
-// Konfiguracja pól formularza popupu newslettera (prawa strona wariantu
+// Konfiguracja pól formularza popupu rejestracyjnego (prawa strona wariantu
 // "showcase" oraz pozostałych układów). Jedno źródło prawdy dla:
 // - panelu administracyjnego (edycja etykiet PL/EN, włącz/wyłącz, wymagane)
 // - publicznego formularza (renderowanie i walidacja)
@@ -14,8 +14,12 @@ export const POPUP_FIELD_KEYS = [
   "linkedin",
   "email",
   "phone",
+  "password",
+  "password_confirm",
   "list",
+  "newsletter_optin",
 ] as const;
+
 
 export type PopupFieldKey = (typeof POPUP_FIELD_KEYS)[number];
 
@@ -55,11 +59,31 @@ const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
     locked: true,
   },
   phone: { enabled: true, required: false, label_pl: "Numer telefonu", label_en: "Phone number" },
+  password: {
+    enabled: true,
+    required: true,
+    label_pl: "Hasło",
+    label_en: "Password",
+    locked: true,
+  },
+  password_confirm: {
+    enabled: true,
+    required: true,
+    label_pl: "Powtórz hasło",
+    label_en: "Repeat password",
+    locked: true,
+  },
   list: {
     enabled: true,
     required: false,
     label_pl: "Lista mailingowa",
     label_en: "Mailing list",
+  },
+  newsletter_optin: {
+    enabled: true,
+    required: false,
+    label_pl: "Chcę otrzymywać newsletter",
+    label_en: "I want to receive the newsletter",
   },
 };
 

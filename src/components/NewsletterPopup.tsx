@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "@tanstack/react-router";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { NewsletterForm } from "@/components/NewsletterForm";
-import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
+import { PopupSignupForm } from "@/components/PopupSignupForm";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
 import "@/lib/i18n-newsletter-popup";
@@ -253,7 +253,7 @@ export function NewsletterPopup() {
                   {desc}
                 </p>
               )}
-              <NewsletterPopupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
+              <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
             </div>
           </>
         ) : s.popup_doc ? (
@@ -313,7 +313,7 @@ export function NewsletterPopup() {
                   {desc}
                 </p>
               )}
-              <NewsletterPopupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
+              <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
             </div>
           </>
         ) : (
@@ -338,7 +338,7 @@ export function NewsletterPopup() {
               {s.popup_extended_fields ||
               s.popup_mailing_lists.length > 0 ||
               s.popup_require_terms ? (
-                <NewsletterPopupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
+                <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
               ) : (
                 <NewsletterForm lang={isPl ? "pl" : "en"} source="popup" variant="inline" />
               )}
