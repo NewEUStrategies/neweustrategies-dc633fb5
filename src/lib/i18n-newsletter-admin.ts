@@ -227,18 +227,3 @@ i18n.addResourceBundle("en", "translation", en, true, true);
 
 export {};
 
-// Popup newslettera - wariant "showcase" (galeria + formularz).
-i18n.addResourceBundle(
-  "pl",
-  "translation",
-  { newsletter: { showcase: { slide: "Slajd" } } },
-  true,
-  true,
-);
-i18n.addResourceBundle(
-  "en",
-  "translation",
-  { newsletter: { showcase: { slide: "Slide" } } },
-  true,
-  true,
-);
