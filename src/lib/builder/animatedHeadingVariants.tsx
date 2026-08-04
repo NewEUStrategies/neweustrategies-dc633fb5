@@ -99,20 +99,23 @@ const HOVER_LINE_CSS = `
 // w rogach. Border jednego elementu ma zawsze idealny, zeszlifowany narożnik
 // 90 stopni, a maska tylko odsłania kolejne fragmenty tej samej ramki.
 const HOVER_ALLSIDES_CSS = `
-.ah-as { position: relative; display: inline-block; padding: 8px; cursor: pointer; --ah-bw: 3px; --ah-t: 0.5s; }
+.ah-as { position: relative; display: inline-block; padding: 8px; cursor: pointer; --ah-bw: 3px; --ah-t: 0.3s; }
 .ah-as::before {
   content: "";
   position: absolute;
   inset: 0;
   border: var(--ah-bw) solid currentColor;
   pointer-events: none;
+  transform: translateZ(0);
+  will-change: mask-size, mask-position;
+  contain: paint;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   transition:
-    -webkit-mask-size var(--ah-t) linear,
-    mask-size var(--ah-t) linear,
-    -webkit-mask-position var(--ah-t) linear,
-    mask-position var(--ah-t) linear;
+    -webkit-mask-size var(--ah-t) ease-out,
+    mask-size var(--ah-t) ease-out,
+    -webkit-mask-position var(--ah-t) ease-out,
+    mask-position var(--ah-t) ease-out;
 }
 .allsides-1::before {
   -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
