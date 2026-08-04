@@ -2,8 +2,9 @@
 // z ikony lupki w headerze. Używa DOKŁADNIE tych samych atomów wizualnych
 // (SuggestListShell / SuggestGroupHeader / SuggestRow / RecentSearchesList)
 // co header mega-box widget i /search autosuggest - jeden spójny UX.
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,16 +14,26 @@ import {
   Loader2,
   Search,
   SlidersHorizontal,
+  Tags,
+  User,
+  Users,
   X,
 } from "@/lib/lucide-shim";
 import "@/lib/i18n-public";
-import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
   addRecentSearch,
   clearRecentSearches,
   getRecentSearches,
 } from "@/lib/search/recentSearches";
+import {
+  OVERLAY_TABS,
+  emptyOverlayResults,
+  firstNonEmptyTab,
+  overlaySearchQueryOptions,
+  type OverlayTab,
+} from "@/lib/search/overlayTabs";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { trackSearch } from "@/lib/analytics/track";
 import {
@@ -32,7 +43,13 @@ import {
 } from "@/components/search/SuggestListView";
 
 type Mode = "standalone" | "dropdown" | "fullscreen";
-type Result = { id: string; slug: string; title: string; excerpt: string | null };
+
+const TAB_ICON: Record<OverlayTab, typeof FileText> = {
+  posts: FileText,
+  topics: Tags,
+  people: Users,
+  experts: User,
+};
 
 type Props = {
   open: boolean;
@@ -56,8 +73,8 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const { t } = useTranslation();
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<Result[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState<OverlayTab>("posts");
+  const [tabPinned, setTabPinned] = useState(false);
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -104,46 +121,43 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   useEffect(() => {
     if (open) {
       setQ("");
-      setResults([]);
+      setTab("posts");
+      setTabPinned(false);
       setActive(0);
       setRecent(getRecentSearches());
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
 
+  // Jedno zapytanie na frazę: wszystkie zakładki równolegle, więc liczniki są
+  // realne, a przełączanie sekcji nie odpala kolejnych round-tripów.
+  const debouncedQ = useDebouncedValue(q.trim(), 220);
+  const enabled = open && liveResults && debouncedQ.length >= 2;
+  const perTab = Math.max(1, Math.min(limit, 20));
+  const grouped = useQuery({
+    ...overlaySearchQueryOptions(debouncedQ, lang, perTab),
+    enabled,
+  });
+  const results = useMemo(
+    () => (enabled ? (grouped.data ?? emptyOverlayResults()) : emptyOverlayResults()),
+    [enabled, grouped.data],
+  );
+  const loading = enabled && grouped.isPending;
+  const totalCount = OVERLAY_TABS.reduce((sum, key) => sum + results[key].length, 0);
+  const tabResults = results[tab];
+
+  // Automatyczny wybór pierwszej niepustej zakładki - dopóki użytkownik sam
+  // nie kliknie w konkretną sekcję.
+  useEffect(() => {
+    if (!enabled || tabPinned) return;
+    setTab((current) => firstNonEmptyTab(results, current));
+    setActive(0);
+  }, [enabled, tabPinned, results]);
 
   useEffect(() => {
-    if (!open || !liveResults || q.trim().length < 2) {
-      setResults([]);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    const handle = setTimeout(async () => {
-      const { data } = await supabase.rpc("search_posts", {
-        _q: q.trim(),
-        _limit: Math.max(1, Math.min(limit, 20)),
-      });
-      if (cancelled) return;
-      setResults(
-        (data ?? []).map((r) => ({
-          id: r.id,
-          slug: r.slug,
-          title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl || "",
-          excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || null,
-        })),
-      );
-      setActive(0);
-      setLoading(false);
-      trackSearch(q.trim(), { results: (data ?? []).length, source: "overlay", mode, lang });
-    }, 220);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [q, open, liveResults, limit, lang]);
+    if (!enabled || grouped.isPending) return;
+    trackSearch(debouncedQ, { results: totalCount, source: "overlay", mode, lang });
+  }, [enabled, grouped.isPending, debouncedQ, totalCount, mode, lang]);
 
   useEffect(() => {
     if (!open) return;
@@ -151,16 +165,16 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       if (e.key === "Escape") onClose();
       else if (e.key === "ArrowDown") {
         e.preventDefault();
-        setActive((i) => Math.min(i + 1, Math.max(0, results.length - 1)));
+        setActive((i) => Math.min(i + 1, Math.max(0, tabResults.length - 1)));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setActive((i) => Math.max(i - 1, 0));
       } else if (e.key === "Enter") {
-        const r = results[active];
+        const r = tabResults[active];
         if (r) {
           addRecentSearch(q);
           onClose();
-          void router.navigate({ href: `/post/${r.slug}` } as never);
+          void router.navigate({ href: r.href } as never);
         } else if (q.trim().length >= 2) {
           addRecentSearch(q);
           onClose();
@@ -170,7 +184,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, results, active, router, q]);
+  }, [open, onClose, tabResults, active, router, q]);
 
   useEffect(() => {
     if (!open) return;
@@ -186,8 +200,8 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const placeholder = heading || (t("searchOverlay.placeholder") as string);
   const trimmed = q.trim();
   const hasQuery = trimmed.length >= 2;
-  const showEmpty = liveResults && hasQuery && !loading && results.length === 0;
-  const showResults = liveResults && hasQuery && results.length > 0;
+  const showEmpty = liveResults && hasQuery && !loading && totalCount === 0;
+  const showResults = liveResults && hasQuery && totalCount > 0;
 
   const insertOperator = (ins: string, caret?: number) => {
     const el = inputRef.current;
@@ -221,34 +235,70 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const body = (
     <>
       {showResults ? (
-        <div
-          id={listboxId}
-          role="listbox"
-          aria-label={t("searchOverlay.resultsLabel") as string}
-          className={`overflow-y-auto py-1 ${mode === "dropdown" ? "max-h-[60vh]" : "max-h-[52vh]"}`}
-        >
-          <SuggestGroupHeader
-            icon={FileText}
-            label={t("searchOverlay.resultsLabel") as string}
-            count={results.length}
-          />
-          <ul role="presentation">
-            {results.map((r, i) => (
-              <li key={r.id} role="presentation">
-                <SuggestRow
-                  id={optionId(i)}
-                  href={`/post/${r.slug}`}
-                  label={r.title}
-                  meta={r.excerpt ?? undefined}
-                  icon={FileText}
-                  active={i === active}
-                  onSelect={() => selectAndClose(q)}
-                  onHover={() => setActive(i)}
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
+        <>
+          <div
+            role="tablist"
+            aria-label={t("searchOverlay.tabs.ariaLabel") as string}
+            className="flex items-center gap-1 overflow-x-auto border-b border-border/60 px-2 py-1"
+          >
+            {OVERLAY_TABS.map((key) => {
+              const Icon = TAB_ICON[key];
+              const isActive = key === tab;
+              const count = results[key].length;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  disabled={count === 0}
+                  onClick={() => {
+                    setTab(key);
+                    setTabPinned(true);
+                    setActive(0);
+                  }}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-[6px] px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-40 ${
+                    isActive
+                      ? "bg-[color-mix(in_oklab,var(--brand)_12%,transparent)] text-[var(--brand)]"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-3 w-3" aria-hidden />
+                  {t(`searchOverlay.tabs.${key}`) as string}
+                  <span className="tabular-nums opacity-70">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label={t("searchOverlay.resultsLabel") as string}
+            className={`overflow-y-auto py-1 ${mode === "dropdown" ? "max-h-[60vh]" : "max-h-[52vh]"}`}
+          >
+            <SuggestGroupHeader
+              icon={TAB_ICON[tab]}
+              label={t(`searchOverlay.tabs.${tab}`) as string}
+              count={tabResults.length}
+            />
+            <ul role="presentation">
+              {tabResults.map((r, i) => (
+                <li key={r.id} role="presentation">
+                  <SuggestRow
+                    id={optionId(i)}
+                    href={r.href}
+                    label={r.label}
+                    meta={r.meta ?? undefined}
+                    icon={TAB_ICON[tab]}
+                    active={i === active}
+                    onSelect={() => selectAndClose(q)}
+                    onHover={() => setActive(i)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
       ) : showEmpty ? (
         <div role="status" className="px-4 py-8 text-center text-[10px] text-muted-foreground">
           {t("searchOverlay.noResults")}
