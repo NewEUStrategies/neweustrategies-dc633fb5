@@ -1103,7 +1103,7 @@ function EditorialHeroVariant(p: VariantProps) {
           (href ? (
             <AppLink href={href} className="block">
               <p
-                className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
+                className="cms-post-excerpt eh-clamp-2 mt-4 text-muted-foreground max-w-3xl mx-auto"
                 style={p.subtitleStyle}
               >
                 {sub || "\u00A0"}
@@ -1111,7 +1111,7 @@ function EditorialHeroVariant(p: VariantProps) {
             </AppLink>
           ) : (
             <p
-              className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
+              className="cms-post-excerpt eh-clamp-2 mt-4 text-muted-foreground max-w-3xl mx-auto"
               style={p.subtitleStyle}
             >
               {sub || "\u00A0"}
