@@ -585,11 +585,23 @@ export function renderSimpleWidget(
             .map(({ k, Cmp, label, href, external }) => {
               if (!href && !showEmpty) return null;
               const ctaKey = `cta${k.charAt(0).toUpperCase()}${k.slice(1)}`;
-              const cta =
-                getStr(c, `${ctaKey}_${lang}`) ||
-                getStr(c, ctaKey) ||
-                defaultCta[k]?.[lang === "pl" ? "pl" : "en"] ||
-                "";
+              const target = lang === "pl" ? "pl" : "en";
+              // Zapisane wcześniej etykiety bywają jednojęzyczne (np. "Like").
+              // Jeśli nadpisanie jest jedną ze znanych fraz, tłumaczymy je na
+              // aktualny język zamiast pokazywać angielski tekst w PL.
+              const CTA_SYNONYMS: Record<string, { pl: string; en: string }> = {
+                like: { pl: "Lubię to", en: "Like" },
+                "lubię to": { pl: "Lubię to", en: "Like" },
+                "lubie to": { pl: "Lubię to", en: "Like" },
+                follow: { pl: "Obserwuj", en: "Follow" },
+                obserwuj: { pl: "Obserwuj", en: "Follow" },
+                subscribe: { pl: "Subskrybuj", en: "Subscribe" },
+                subskrybuj: { pl: "Subskrybuj", en: "Subscribe" },
+              };
+              const rawCta = getStr(c, `${ctaKey}_${lang}`) || getStr(c, ctaKey) || "";
+              const cta = rawCta
+                ? (CTA_SYNONYMS[rawCta.trim().toLowerCase()]?.[target] ?? rawCta)
+                : (defaultCta[k]?.[target] ?? "");
               const rowVars = {
                 "--sb-grad":
                   BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))",
