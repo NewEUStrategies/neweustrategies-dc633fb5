@@ -5423,46 +5423,20 @@ textarea::placeholder {
      publicznej i w podglądzie w JASNYM adminie, a reguła autouzupełniania
      Chrome (`-webkit-box-shadow: … var(--background) inset`) nie maluje pola
      kolorem motywu adminu. Tutaj zostaje wyłącznie to, czego tokeny nie
-     załatwiają: zwarta wysokość kontrolek, subtelne wypełnienie i pewność, że
-     nagłówki nie przejmą koloru z otoczenia. */
+     załatwiają: kolor nagłówków i kreska checkboxa. */
   .nlp :is(h1, h2, h3, h4) {
     color: var(--nl-fg);
   }
-  .nlp .input-group > .input {
-    /* Zwarta wysokość jak w projekcie referencyjnym (~46 px, nie 52 px). */
-    padding: 0.8rem 0.9rem;
-    font-size: 0.9rem;
-    background: color-mix(in srgb, var(--nl-fg) 4%, transparent);
-  }
-  .nlp .input-group > .input:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--nl-fg) 7%, transparent);
-  }
-  .nlp .input-group > .input:focus,
-  .nlp .input-group > .input:not(:placeholder-shown) {
-    background: color-mix(in srgb, var(--nl-fg) 7%, transparent);
-  }
-  /* Etykieta pływająca w popupie zachowuje się DOKŁADNIE jak w widgecie
-     "dołącz do nas": w spoczynku siedzi w polu (top:50%), po focusie/wypełnieniu
-     siada na linii ramki (top:0, scale .8) - bez skoku wrappera i bez
-     dodatkowego marginesu, który wcześniej przesuwał całą kontrolkę. Chip
-     dostaje kolor panelu przez przedefiniowany token `--background`
-     (popupPaletteVars), więc nie ma prostokąta w innym kolorze niż tło. */
-  .nlp .input-group > .input:focus ~ .user-label,
-  .nlp .input-group > .input:not(:placeholder-shown) ~ .user-label,
-  .nlp .input-group > select.input ~ .user-label {
-    top: 0;
-    transform: translateY(-50%) scale(0.8);
-    transform-origin: left center;
-    background-color: var(--background);
-    padding: 0 0.35em;
-    color: var(--nl-accent);
-  }
-  /* Podpowiedź w spoczynku musi być czytelna na panelu - 62% atramentu gubiło
-     się na ciemnym tle referencyjnym. */
-  .nlp .input-group > .user-label {
-    color: color-mix(in srgb, var(--nl-fg) 74%, transparent);
-  }
 
+  /* Pola popupu to NIEZMIENIONY atom platformy (`.input-group` + `.input` +
+     `.user-label`) - ten sam, którego używa widget „Dołącz do nas". Zero reguł
+     `.nlp` na polach: geometria etykiety (w spoczynku w polu, po focusie /
+     wypełnieniu na linii ramki, chip w kolorze `--background`, kolor `--ring`),
+     wysokość, ramka i tło płyną z tokenów przemapowanych w popupPaletteVars().
+     Nie dopisuj tu nadpisań tła / rozmiaru pisma pól: reguła globalnych kolorów
+     z globalColors.ts jest BEZWARSTWOWA i wygrałaby z każdą regułą `.nlp`
+     z `@layer components` - tamtą kaskadę wygrywa się wyłącznie tokenem
+     `--gc-input-*`. Pilnuje tego test popupFieldTokens. */
 
   /* Nieaktywny checkbox na ciemnym panelu potrzebuje mocniejszej kreski niż
      platformowy --border wyliczony z 18% atramentu. */
@@ -5473,6 +5447,27 @@ textarea::placeholder {
   .nlp .lov-check:hover .lov-check__svg,
   .nlp .lov-check:focus-visible .lov-check__svg {
     stroke: var(--nl-accent);
+  }
+}
+
+/* Dekoracyjne „bąbelki" CTA (`.btn-bubbly::before/::after`) mają width:150% i
+   wystają ~94 px na boki poza przycisk. Kolumna formularza popupu jest scroll
+   containerem (`overflow-y: auto` wymusza `overflow-x: auto` - spec CSS nie
+   dopuszcza `visible` obok `auto`), więc ten wystający kawałek stawał się
+   POZIOMĄ przestrzenią do przewijania: gestem trackpada dało się przesunąć całą
+   treść popupu, a pola ucinało na krawędzi kolumny (zmierzone: scrollWidth 507
+   px przy clientWidth 455 px). W popupie trzymamy bąbelki w obrysie przycisku -
+   animacja zostaje (leci w górę i w dół), a poziomy overflow znika u źródła.
+
+   Warstwa `utilities`, nie `components`: `btn-bubbly` to `@utility`, więc jego
+   reguły siedzą w `utilities` i wygrałyby z każdą regułą z `components`
+   niezależnie od specyficzności. */
+@layer utilities {
+  .nlp .btn-bubbly::before,
+  .nlp .btn-bubbly::after {
+    width: 100%;
+    left: 0;
+    transform: none;
   }
 }
 
