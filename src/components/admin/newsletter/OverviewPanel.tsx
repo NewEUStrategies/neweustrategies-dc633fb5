@@ -43,9 +43,7 @@ import {
 } from "lucide-react";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { NewsletterForm } from "@/components/NewsletterForm";
-import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
-import { sanitizeHtml } from "@/lib/sanitize";
-import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
+import { PopupPreview } from "@/components/admin/newsletter/PopupPreview";
 import { PopupShowcasePanel } from "@/components/admin/newsletter/PopupShowcasePanel";
 import { PopupEventsPanel } from "@/components/admin/newsletter/PopupEventsPanel";
 
@@ -305,7 +303,7 @@ export function OverviewPanel() {
       <section className="bg-card border border-border rounded-xl p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Eye className="w-4 h-4 text-muted-foreground" />
-          <h3 className="font-display text-lg">Podglad na zywo</h3>
+          <h3 className="font-display text-lg">Podgląd na żywo</h3>
           <span className="ml-auto text-[11px] uppercase tracking-wider text-muted-foreground">
             Kompozycja: inline + popup
           </span>
@@ -471,7 +469,7 @@ function DualPreview({ settings }: { settings: NewsletterSettings }) {
               <NewsletterForm lang={lang} variant="card" source="admin-preview" />
             ) : (
               <p className="text-center text-sm text-muted-foreground py-8">
-                Formularz jest wylaczony.
+                Formularz jest wyłączony.
               </p>
             )}
           </div>
@@ -507,139 +505,10 @@ function PreviewFrame({
               : "bg-muted text-muted-foreground")
           }
         >
-          {active ? "aktywny" : "wylaczony"}
+          {active ? "aktywny" : "wyłączony"}
         </span>
       </div>
       <div className="min-h-[320px]">{children}</div>
-    </div>
-  );
-}
-
-function PopupPreview({ settings, lang }: { settings: NewsletterSettings; lang: "pl" | "en" }) {
-  if (!settings.popup_enabled) {
-    return <p className="text-center text-sm text-muted-foreground py-16">Popup jest wylaczony.</p>;
-  }
-
-  if (settings.popup_layout === "showcase") {
-    const images = (settings.popup_showcase_images ?? [])
-      .filter((img) => Boolean(img?.url))
-      .map((img) => ({ url: img.url, caption: lang === "pl" ? img.caption_pl : img.caption_en }));
-    return (
-      <div
-        className="m-4 grid grid-cols-1 sm:grid-cols-2 overflow-hidden border border-white/10"
-        style={{
-          backgroundColor: settings.popup_bg_color,
-          color: settings.popup_text_color,
-          borderRadius: `${settings.popup_border_radius_px}px`,
-          ["--nl-bg" as string]: settings.popup_bg_color,
-          ["--nl-fg" as string]: settings.popup_text_color,
-          ["--nl-muted" as string]: settings.popup_muted_color,
-          ["--nl-accent" as string]: settings.popup_accent_color,
-        }}
-      >
-        <NewsletterShowcase
-          images={images}
-          brand={lang === "pl" ? settings.popup_showcase_brand_pl : settings.popup_showcase_brand_en}
-          tagline={
-            lang === "pl" ? settings.popup_showcase_tagline_pl : settings.popup_showcase_tagline_en
-          }
-          rotateMs={settings.popup_showcase_rotate_ms}
-          dotLabel={lang === "pl" ? "Slajd" : "Slide"}
-        />
-        <div className="p-5 space-y-2">
-          <h3 className="font-display text-xl">
-            {lang === "pl" ? settings.popup_title_pl : settings.popup_title_en}
-          </h3>
-          <p className="text-sm" style={{ color: settings.popup_muted_color }}>
-            {lang === "pl" ? settings.popup_description_pl : settings.popup_description_en}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Zsynchronizowane z /admin/newsletter/popup - renderujemy dokument z buildera
-  // gdy jest zapisany. Legacy fallback tylko dla starych tenantow bez popup_doc.
-  if (settings.popup_doc) {
-    const p = settings.popup_doc.popup ?? {};
-    return (
-      <div className="p-6 flex items-center justify-center">
-        <div
-          className="w-full max-w-sm overflow-hidden shadow-2xl border border-white/10"
-          style={{
-            backgroundColor: p.bg ?? settings.popup_bg_color,
-            color: p.fg ?? settings.popup_text_color,
-            borderRadius: `${p.radius ?? settings.popup_border_radius_px}px`,
-          }}
-        >
-          <div className="p-5">
-            <NewsletterDocRenderer
-              doc={settings.popup_doc}
-              settings={settings}
-              lang={lang}
-              source="admin-preview"
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const title = lang === "pl" ? settings.popup_title_pl : settings.popup_title_en;
-  const desc = lang === "pl" ? settings.popup_description_pl : settings.popup_description_en;
-  const cta = lang === "pl" ? settings.popup_cta_pl : settings.popup_cta_en;
-  const policyHtml = sanitizeHtml(
-    (lang === "pl" ? settings.policy_html_pl : settings.policy_html_en) ?? "",
-  );
-  const emailPh = lang === "pl" ? "twoj@email.pl" : "you@email.com";
-
-  return (
-    <div className="p-6 flex items-center justify-center">
-      <div
-        className="w-full max-w-sm rounded-xl overflow-hidden shadow-2xl border border-white/10"
-        style={{
-          backgroundColor: settings.popup_bg_color,
-          color: settings.popup_text_color,
-          borderRadius: `${settings.popup_border_radius_px}px`,
-        }}
-      >
-        {settings.popup_cover_url && (
-          <img src={settings.popup_cover_url} alt="" className="w-full h-24 object-cover" />
-        )}
-        <div className="p-5 space-y-3">
-          <h4 className="font-display text-lg" style={{ color: settings.popup_text_color }}>
-            {title || "-"}
-          </h4>
-          {desc && (
-            <p className="text-xs" style={{ color: settings.popup_muted_color }}>
-              {desc}
-            </p>
-          )}
-          <input
-            className="w-full px-3 py-2 rounded text-xs"
-            style={{ background: "rgba(255,255,255,0.08)", color: settings.popup_text_color }}
-            placeholder={emailPh}
-            readOnly
-          />
-          <button
-            type="button"
-            className="w-full px-4 py-2 rounded text-xs font-medium"
-            style={{
-              backgroundColor: settings.popup_accent_color,
-              color: settings.popup_accent_text_color,
-            }}
-          >
-            {cta || (lang === "pl" ? "Zapisz sie" : "Subscribe")}
-          </button>
-          {policyHtml && (
-            <p
-              className="text-[10px] leading-relaxed [&_a]:underline"
-              style={{ color: settings.popup_muted_color }}
-              dangerouslySetInnerHTML={{ __html: policyHtml }}
-            />
-          )}
-        </div>
-      </div>
     </div>
   );
 }

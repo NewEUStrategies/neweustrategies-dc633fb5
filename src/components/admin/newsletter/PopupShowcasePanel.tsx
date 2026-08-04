@@ -1,27 +1,31 @@
 // Panel administracyjny wariantu popupu "showcase" (galeria + formularz).
-// Zarzadza: ukladem popupu, 4 kaflami galerii (upload + biblioteka mediow),
-// podpisami PL/EN, marka PL/EN, haslem PL/EN i tempem rotacji.
-// Rekomendowane wymiary kafli sa opisane przy kazdym slocie.
-import { Image as ImageIcon, LayoutGrid } from "lucide-react";
+// Zarządza: układem popupu, 4 kaflami galerii (upload + biblioteka mediów),
+// podpisami PL/EN, marką PL/EN, hasłem PL/EN i tempem rotacji.
+// Rekomendowane wymiary kafli są opisane przy każdym slocie.
+// Sekcja ma własny podgląd na żywo (PL/EN), żeby efekt zmian był widoczny
+// bez przewijania do sekcji "Podgląd na żywo".
+import { useState } from "react";
+import { Eye, Image as ImageIcon, LayoutGrid } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ImageSlot } from "@/components/admin/builder/ui/organisms/widget-properties/ImageSlot";
+import { PopupPreview } from "@/components/admin/newsletter/PopupPreview";
 import type {
   NewsletterSettings,
   NewsletterShowcaseImage,
 } from "@/hooks/useNewsletterSettings";
 
 const SLOT_HINTS = [
-  "Kafel glowny - rekomendowane 1200 x 1200 px (1:1), JPG/WEBP, do 400 KB.",
-  "Kafel maly - rekomendowane 600 x 600 px (1:1), JPG/WEBP, do 200 KB.",
-  "Kafel maly - rekomendowane 600 x 600 px (1:1), JPG/WEBP, do 200 KB.",
+  "Kafel główny - rekomendowane 1200 x 1200 px (1:1), JPG/WEBP, do 400 KB.",
+  "Kafel mały - rekomendowane 600 x 600 px (1:1), JPG/WEBP, do 200 KB.",
+  "Kafel mały - rekomendowane 600 x 600 px (1:1), JPG/WEBP, do 200 KB.",
   "Kafel szeroki - rekomendowane 1200 x 600 px (2:1), JPG/WEBP, do 300 KB.",
 ];
 
 const LAYOUTS: { value: NewsletterSettings["popup_layout"]; title: string; desc: string }[] = [
-  { value: "stacked", title: "Stacked", desc: "Okladka u gory, formularz pod nia." },
+  { value: "stacked", title: "Stacked", desc: "Okładka u góry, formularz pod nią." },
   { value: "split", title: "Split", desc: "Grafika po lewej, formularz po prawej." },
-  { value: "showcase", title: "Showcase", desc: "Mozaika 4 zdjec + formularz." },
+  { value: "showcase", title: "Showcase", desc: "Mozaika 4 zdjęć + formularz." },
 ];
 
 function emptySlot(): NewsletterShowcaseImage {
@@ -41,6 +45,7 @@ interface Props {
 
 export function PopupShowcasePanel({ value, onChange }: Props) {
   const slots = normalize(value.popup_showcase_images ?? []);
+  const [lang, setLang] = useState<"pl" | "en">("pl");
 
   const patchSlot = (index: number, patch: Partial<NewsletterShowcaseImage>) => {
     const next = slots.map((slot, i) => (i === index ? { ...slot, ...patch } : slot));
@@ -51,7 +56,7 @@ export function PopupShowcasePanel({ value, onChange }: Props) {
     <section className="bg-card border border-border rounded-xl p-5 space-y-5">
       <div className="flex items-center gap-2">
         <LayoutGrid className="w-4 h-4 text-muted-foreground" />
-        <h3 className="font-display text-lg">Popup - uklad i galeria</h3>
+        <h3 className="font-display text-lg">Popup - układ i galeria</h3>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -96,14 +101,14 @@ export function PopupShowcasePanel({ value, onChange }: Props) {
               />
             </div>
             <div>
-              <Label>Haslo (PL)</Label>
+              <Label>Hasło (PL)</Label>
               <Input
                 value={value.popup_showcase_tagline_pl}
                 onChange={(e) => onChange({ popup_showcase_tagline_pl: e.target.value })}
               />
             </div>
             <div>
-              <Label>Haslo (EN)</Label>
+              <Label>Hasło (EN)</Label>
               <Input
                 value={value.popup_showcase_tagline_en}
                 onChange={(e) => onChange({ popup_showcase_tagline_en: e.target.value })}
@@ -127,7 +132,7 @@ export function PopupShowcasePanel({ value, onChange }: Props) {
                 }
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Zakres 800-30000 ms. Rotacja startuje przy min. 2 zdjeciach.
+                Zakres 800-30000 ms. Rotacja startuje przy min. 2 zdjęciach.
               </p>
             </div>
           </div>
@@ -166,6 +171,34 @@ export function PopupShowcasePanel({ value, onChange }: Props) {
           </div>
         </div>
       )}
+
+      <div className="space-y-3 pt-1">
+        <div className="flex items-center gap-2">
+          <Eye className="w-4 h-4 text-muted-foreground" />
+          <h4 className="text-sm font-semibold">Podgląd popupu</h4>
+          <div className="ml-auto flex items-center gap-1">
+            {(["pl", "en"] as const).map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setLang(code)}
+                aria-pressed={lang === code}
+                className={
+                  "px-2.5 py-1 text-xs rounded-md transition-colors " +
+                  (lang === code
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground")
+                }
+              >
+                {code.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-md border border-border overflow-hidden bg-gradient-to-br from-muted/40 to-muted/10">
+          <PopupPreview settings={value} lang={lang} />
+        </div>
+      </div>
     </section>
   );
 }
