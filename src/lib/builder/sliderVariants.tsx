@@ -383,10 +383,11 @@ const SHARED_STYLES = `
 /* Stała wysokość bloku tytułu - widget nie zmienia wymiaru między slajdami. */
 .eh-slider .eh-title-clamp { display: block; overflow: hidden; padding-bottom: 4px; }
 .eh-slider .eh-title-clamp > * {
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden; height: calc(2 * 1.25em); height: 2lh;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; height: calc(3 * 1.25em); height: 3lh;
 }
-/* Excerpt block: always reserve 3 lines so the widget height stays stable. */
+/* Excerpt block: always reserve 2 lines so the widget height stays stable. */
+.eh-slider .eh-clamp-2.cms-post-excerpt { height: calc(2 * 1.5em); height: 2lh; }
 .eh-slider .eh-clamp-3.cms-post-excerpt { height: calc(3 * 1.5em); height: 3lh; }
 .eh-slider .eh-img { transform: none; transform-origin: center center; backface-visibility: hidden; }
 .eh-slider:hover .eh-img { transform: none; }
