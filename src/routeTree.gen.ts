@@ -86,6 +86,7 @@ import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as PodcastsShowRouteImport } from './routes/podcasts.$show'
 import { Route as PodcastRssDotxmlRouteImport } from './routes/podcast.rss[.]xml'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
+import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
@@ -644,6 +645,11 @@ const PodcastRssDotxmlRoute = PodcastRssDotxmlRouteImport.update({
 const PodcastSlugRoute = PodcastSlugRouteImport.update({
   id: '/podcast/$slug',
   path: '/podcast/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
+  id: '/plans/$planId',
+  path: '/plans/$planId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsletterUnsubscribeRoute = NewsletterUnsubscribeRouteImport.update({
@@ -1665,6 +1671,7 @@ export interface FileRoutesByFullPath {
   '/live/rss.xml': typeof LiveRssDotxmlRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
+  '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
   '/podcasts/$show': typeof PodcastsShowRouteWithChildren
@@ -1909,6 +1916,7 @@ export interface FileRoutesByTo {
   '/live/rss.xml': typeof LiveRssDotxmlRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
+  '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
   '/podcasts/$show': typeof PodcastsShowRouteWithChildren
@@ -2162,6 +2170,7 @@ export interface FileRoutesById {
   '/live_/rss.xml': typeof LiveRssDotxmlRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
+  '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
   '/podcasts/$show': typeof PodcastsShowRouteWithChildren
@@ -2417,6 +2426,7 @@ export interface FileRouteTypes {
     | '/live/rss.xml'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
+    | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
     | '/podcasts/$show'
@@ -2661,6 +2671,7 @@ export interface FileRouteTypes {
     | '/live/rss.xml'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
+    | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
     | '/podcasts/$show'
@@ -2913,6 +2924,7 @@ export interface FileRouteTypes {
     | '/live_/rss.xml'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
+    | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
     | '/podcasts/$show'
@@ -3101,6 +3113,7 @@ export interface RootRouteChildren {
   LiveRssDotxmlRoute: typeof LiveRssDotxmlRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
+  PlansPlanIdRoute: typeof PlansPlanIdRoute
   PodcastSlugRoute: typeof PodcastSlugRoute
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
   PodcastsShowRoute: typeof PodcastsShowRouteWithChildren
@@ -3688,6 +3701,13 @@ declare module '@tanstack/react-router' {
       path: '/podcast/$slug'
       fullPath: '/podcast/$slug'
       preLoaderRoute: typeof PodcastSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plans/$planId': {
+      id: '/plans/$planId'
+      path: '/plans/$planId'
+      fullPath: '/plans/$planId'
+      preLoaderRoute: typeof PlansPlanIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/newsletter/unsubscribe': {
@@ -5504,6 +5524,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveRssDotxmlRoute: LiveRssDotxmlRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,
+  PlansPlanIdRoute: PlansPlanIdRoute,
   PodcastSlugRoute: PodcastSlugRoute,
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
   PodcastsShowRoute: PodcastsShowRouteWithChildren,
