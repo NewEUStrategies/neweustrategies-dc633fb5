@@ -539,18 +539,10 @@ export function renderSimpleWidget(
         "dark:[--sb-off-tone:var(--sb-off,var(--brand))]",
       ].join(" ");
 
-      // Gradient marki platformy na hover - wspólne źródło prawdy z panelem
-      // (`@/lib/builder/socialBrand`), żeby edytor pokazywał dokładnie te
-      // kolory, które renderuje strona publiczna.
-      const BRAND_GRADIENT: Record<string, string> = {
-        facebook: socialBrandGradient("facebook")!,
-        x: socialBrandGradient("x")!,
-        youtube: socialBrandGradient("youtube")!,
-        instagram: socialBrandGradient("instagram")!,
-        linkedin: socialBrandGradient("linkedin")!,
-        spotify: socialBrandGradient("spotify")!,
-        newsletter: socialBrandGradient("newsletter")!,
-      };
+      // Gradient marki platformy na hover pochodzi ze wspólnego źródła prawdy
+      // (`@/lib/builder/socialBrand`) - panel pokazuje dokładnie te kolory,
+      // które renderuje strona publiczna.
+      const FALLBACK_GRADIENT = "linear-gradient(135deg, var(--brand), var(--brand))";
 
       // Hover jest w pełni sterowalny z panelu: tryb (gradient marki / własne
       // kolory / brak), kolor ikony, tekstu oraz opcjonalny własny gradient -
@@ -565,8 +557,8 @@ export function renderSimpleWidget(
         const from = safeWidgetColor(c[`hoverFrom${capKey(k)}`]) || hoverFrom;
         const to = safeWidgetColor(c[`hoverTo${capKey(k)}`]) || hoverTo;
         if (from) return `linear-gradient(135deg, ${from} 0%, ${to || from} 100%)`;
-        if (hoverMode === "custom") return "linear-gradient(135deg, var(--brand), var(--brand))";
-        return BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))";
+        if (hoverMode === "custom") return FALLBACK_GRADIENT;
+        return socialBrandGradient(k) ?? FALLBACK_GRADIENT;
       };
       const hoverVars = (k: string): CSSProperties =>
         ({
