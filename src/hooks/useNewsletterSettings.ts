@@ -2,6 +2,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { NlDoc } from "@/lib/newsletter-builder/types";
 import { resolvePopupFields, type PopupFieldConfig } from "@/lib/newsletter/popupFields";
+import {
+  defaultPopupDesign,
+  resolvePopupDesign,
+  type PopupDesign,
+} from "@/lib/newsletter/popupDesign";
 
 type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
 type NewsletterPopupLayout = "stacked" | "split" | "showcase";
@@ -72,6 +77,8 @@ export interface NewsletterSettings {
   popup_showcase_show_dots: boolean;
   // Konfiguracja pól formularza (prawa strona popupu) + notka i zgody
   popup_fields: PopupFieldConfig[];
+  /** Warstwa prezentacji popupu rejestracji - paleta jasna, siatka, układ. */
+  popup_design: PopupDesign;
   popup_note_pl: string | null;
   popup_note_en: string | null;
   popup_require_privacy: boolean;
@@ -143,17 +150,21 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     popup_showcase_show_caption: true,
     popup_showcase_show_dots: true,
     popup_fields: resolvePopupFields(null),
+    popup_design: defaultPopupDesign(),
     popup_note_pl: "Zero spamu. Możesz się wypisać w każdej chwili.",
     popup_note_en: "Zero spam, unsubscribe at any time.",
     popup_require_privacy: true,
     popup_privacy_html_pl: null,
     popup_privacy_html_en: null,
-    popup_bg_color: "#0a0a0a",
+    // Domyślna paleta ciemna zgodna z marką: --brand (#fa9346) jako akcent,
+    // ciemny atrament na akcencie (WCAG AA na pomarańczu), głębsze tło niż
+    // czysta czerń i jaśniejszy tekst pomocniczy (kontrast > 7:1).
+    popup_bg_color: "#0b0b0f",
     popup_text_color: "#ffffff",
-    popup_muted_color: "#b8b8b8",
-    popup_accent_color: "#f97316",
-    popup_accent_text_color: "#ffffff",
-    popup_overlay_color: "rgba(0,0,0,0.7)",
+    popup_muted_color: "#a8a8b3",
+    popup_accent_color: "#fa9346",
+    popup_accent_text_color: "#141414",
+    popup_overlay_color: "rgba(8,8,12,0.72)",
     popup_border_radius_px: 6,
     popup_eyebrow_pl: "Newsletter",
     popup_eyebrow_en: "Newsletter",
@@ -186,8 +197,11 @@ export function useNewsletterSettings() {
           ? (showcase as unknown as NewsletterShowcaseImage[])
           : [],
         popup_fields: resolvePopupFields(row.popup_fields),
-        popup_note_pl: typeof row.popup_note_pl === "string" ? row.popup_note_pl : def.popup_note_pl,
-        popup_note_en: typeof row.popup_note_en === "string" ? row.popup_note_en : def.popup_note_en,
+        popup_design: resolvePopupDesign(row.popup_design),
+        popup_note_pl:
+          typeof row.popup_note_pl === "string" ? row.popup_note_pl : def.popup_note_pl,
+        popup_note_en:
+          typeof row.popup_note_en === "string" ? row.popup_note_en : def.popup_note_en,
       };
     },
     staleTime: 60_000,

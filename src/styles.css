@@ -5364,6 +5364,69 @@ textarea::placeholder {
     color: var(--gc-input-placeholder-focus-dark, oklch(0.72 0 0)) !important;
     opacity: 1;
   }
+
+  /* ---- Pole popupu rejestracji, wariant "inline" ----
+     Odwzorowanie 1:1 projektu referencyjnego: wartość po lewej, etykieta po
+     prawej wewnątrz ramki. Kolory wyłącznie z tokenów popupu (--nl-*), więc
+     ten sam wariant działa na palecie ciemnej i jasnej. Rounding dziedziczy
+     platformowe 6px przez --nl-radius. Wariant "floating" (domyślny) to
+     .input-group wyżej - oba są przełączane z panelu admina. */
+  .field-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-width: 0;
+    height: 3rem;
+    padding: 0 1rem;
+    /* Kontrolki trzymają platformowe 6px niezależnie od promienia panelu -
+       dokładnie jak `.input-group > .input` wyżej. */
+    border-radius: 6px;
+    border: 1.5px solid color-mix(in srgb, var(--nl-fg) 18%, transparent);
+    background: color-mix(in srgb, var(--nl-fg) 5%, transparent);
+    transition:
+      border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .field-inline:hover {
+    border-color: color-mix(in srgb, var(--nl-fg) 30%, transparent);
+  }
+  .field-inline:focus-within {
+    border-color: var(--nl-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--nl-accent) 22%, transparent);
+  }
+  .field-inline > .field-inline__input {
+    min-width: 0;
+    flex: 1 1 auto;
+    background: transparent;
+    border: 0;
+    outline: none;
+    color: var(--nl-fg);
+    font-size: 0.9375rem;
+    line-height: 1.25rem;
+    text-align: left !important;
+  }
+  /* Bije globalny baseline `input::placeholder { … !important }` z góry pliku. */
+  .field-inline > .field-inline__input::placeholder {
+    color: color-mix(in srgb, var(--nl-fg) 38%, transparent) !important;
+    opacity: 1;
+  }
+  .field-inline__label {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    line-height: 1;
+    color: color-mix(in srgb, var(--nl-fg) 55%, transparent);
+  }
+  .field-inline[data-invalid="true"] {
+    border-color: var(--destructive);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .field-inline {
+      transition: none;
+    }
+  }
 }
 
 @layer components {
