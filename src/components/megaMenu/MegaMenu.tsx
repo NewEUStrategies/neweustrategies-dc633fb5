@@ -17,6 +17,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 // full-resolution covers, which is what made hover-opened menus feel sluggish.
 const MENU_THUMB_WIDTHS = [160, 320, 480] as const;
 import { megaMenuCategoryQueryOptions } from "@/lib/queries/megaMenu";
+import { MegaMenuShowcase } from "@/components/megaMenu/MegaMenuShowcase";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 type MegaMenuLang = "pl" | "en";
@@ -97,6 +98,7 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
   const triggerHref = safeUrl(config.href ?? "", "");
   const columns = Array.isArray(config.columns) ? config.columns : [];
   const triggerOn = config.triggerOn ?? "hover";
+  const layout: MegaMenuLayout = config.layout === "showcase" ? "showcase" : "classic";
   const panelId = useId();
 
   const [open, setOpen] = useState(false);
