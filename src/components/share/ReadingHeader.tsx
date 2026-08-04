@@ -311,6 +311,8 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             )}
           </Link>
         </div>
+        </div>
+
 
         {/* Reading: title */}
         <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">
