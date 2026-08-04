@@ -50,6 +50,20 @@ const DEFAULT_LABEL_EN = "Your tailored must-reads, {name}";
 const FALLBACK_LABEL_PL = "Dla ciebie";
 const FALLBACK_LABEL_EN = "For you";
 
+/** Per-line animated underline for the title, matching Editorial Hero. */
+const TMR_TITLE_CSS = `
+[data-widget="tailored-must-reads"] .tmr-title-clamp {
+  display: block;
+  overflow: hidden;
+}
+[data-widget="tailored-must-reads"] .tmr-title-clamp > .cms-post-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+`;
+
 function useCurrentUserFirstName(): string {
   const { user } = useAuth();
   const { data } = useQuery({
