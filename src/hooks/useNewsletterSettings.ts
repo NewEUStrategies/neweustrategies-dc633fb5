@@ -3,7 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import type { NlDoc } from "@/lib/newsletter-builder/types";
 
 type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
-type NewsletterPopupLayout = "stacked" | "split";
+type NewsletterPopupLayout = "stacked" | "split" | "showcase";
+
+/** Kafel galerii w wariancie popupu "showcase". */
+export interface NewsletterShowcaseImage {
+  url: string;
+  caption_pl: string;
+  caption_en: string;
+  [key: string]: string;
+}
 export type NewsletterMode = "off" | "inline" | "popup" | "both";
 
 export interface NewsletterMailingList {
