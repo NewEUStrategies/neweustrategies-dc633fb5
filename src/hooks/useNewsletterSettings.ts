@@ -3,7 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import type { NlDoc } from "@/lib/newsletter-builder/types";
 
 type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
-type NewsletterPopupLayout = "stacked" | "split";
+type NewsletterPopupLayout = "stacked" | "split" | "showcase";
+
+/** Kafel galerii w wariancie popupu "showcase". */
+export interface NewsletterShowcaseImage {
+  url: string;
+  caption_pl: string;
+  caption_en: string;
+}
 export type NewsletterMode = "off" | "inline" | "popup" | "both";
 
 export interface NewsletterMailingList {
@@ -46,6 +53,13 @@ export interface NewsletterSettings {
   popup_terms_html_pl: string | null;
   popup_terms_html_en: string | null;
   popup_mailing_lists: NewsletterMailingList[];
+  // Showcase layout (galeria + formularz)
+  popup_showcase_images: NewsletterShowcaseImage[];
+  popup_showcase_brand_pl: string;
+  popup_showcase_brand_en: string;
+  popup_showcase_tagline_pl: string;
+  popup_showcase_tagline_en: string;
+  popup_showcase_rotate_ms: number;
   // Style / branding
   popup_bg_color: string;
   popup_text_color: string;
@@ -99,6 +113,12 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     popup_terms_html_pl: 'Akceptuję <a href="/regulamin">regulamin</a>.',
     popup_terms_html_en: 'I accept the <a href="/terms">terms &amp; conditions</a>.',
     popup_mailing_lists: [],
+    popup_showcase_images: [],
+    popup_showcase_brand_pl: "Newsletter",
+    popup_showcase_brand_en: "Newsletter",
+    popup_showcase_tagline_pl: "Przestrzeń dla tych, którzy tworzą europejskie strategie.",
+    popup_showcase_tagline_en: "A workspace for those who shape European strategies.",
+    popup_showcase_rotate_ms: 2600,
     popup_bg_color: "#0a0a0a",
     popup_text_color: "#ffffff",
     popup_muted_color: "#b8b8b8",
@@ -126,11 +146,15 @@ export function useNewsletterSettings() {
       if (!data) return def;
       const row = data as Record<string, unknown>;
       const lists = row.popup_mailing_lists;
+      const showcase = row.popup_showcase_images;
       return {
         ...def,
         ...(data as unknown as Partial<NewsletterSettings>),
         popup_mailing_lists: Array.isArray(lists)
           ? (lists as unknown as NewsletterMailingList[])
+          : [],
+        popup_showcase_images: Array.isArray(showcase)
+          ? (showcase as unknown as NewsletterShowcaseImage[])
           : [],
       };
     },

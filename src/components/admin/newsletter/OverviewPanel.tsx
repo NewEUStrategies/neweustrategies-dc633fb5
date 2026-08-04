@@ -45,6 +45,8 @@ import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
+import { PopupShowcasePanel } from "@/components/admin/newsletter/PopupShowcasePanel";
 
 interface KpiRow {
   status: string;
@@ -295,6 +297,8 @@ export function OverviewPanel() {
         </div>
       </section>
 
+      <PopupShowcasePanel value={cur} onChange={upd} />
+
       <section className="bg-card border border-border rounded-xl p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Eye className="w-4 h-4 text-muted-foreground" />
@@ -511,6 +515,44 @@ function PreviewFrame({
 function PopupPreview({ settings, lang }: { settings: NewsletterSettings; lang: "pl" | "en" }) {
   if (!settings.popup_enabled) {
     return <p className="text-center text-sm text-muted-foreground py-16">Popup jest wylaczony.</p>;
+  }
+
+  if (settings.popup_layout === "showcase") {
+    const images = (settings.popup_showcase_images ?? [])
+      .filter((img) => Boolean(img?.url))
+      .map((img) => ({ url: img.url, caption: lang === "pl" ? img.caption_pl : img.caption_en }));
+    return (
+      <div
+        className="m-4 grid grid-cols-1 sm:grid-cols-2 overflow-hidden border border-white/10"
+        style={{
+          backgroundColor: settings.popup_bg_color,
+          color: settings.popup_text_color,
+          borderRadius: `${settings.popup_border_radius_px}px`,
+          ["--nl-bg" as string]: settings.popup_bg_color,
+          ["--nl-fg" as string]: settings.popup_text_color,
+          ["--nl-muted" as string]: settings.popup_muted_color,
+          ["--nl-accent" as string]: settings.popup_accent_color,
+        }}
+      >
+        <NewsletterShowcase
+          images={images}
+          brand={lang === "pl" ? settings.popup_showcase_brand_pl : settings.popup_showcase_brand_en}
+          tagline={
+            lang === "pl" ? settings.popup_showcase_tagline_pl : settings.popup_showcase_tagline_en
+          }
+          rotateMs={settings.popup_showcase_rotate_ms}
+          dotLabel={lang === "pl" ? "Slajd" : "Slide"}
+        />
+        <div className="p-5 space-y-2">
+          <h3 className="font-display text-xl">
+            {lang === "pl" ? settings.popup_title_pl : settings.popup_title_en}
+          </h3>
+          <p className="text-sm" style={{ color: settings.popup_muted_color }}>
+            {lang === "pl" ? settings.popup_description_pl : settings.popup_description_en}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // Zsynchronizowane z /admin/newsletter/popup - renderujemy dokument z buildera

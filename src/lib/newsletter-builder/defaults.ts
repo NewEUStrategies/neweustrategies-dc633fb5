@@ -190,7 +190,7 @@ interface DocSeed {
     accentFg?: string | null;
     overlay?: string | null;
     radius?: number | null;
-    layout?: "stacked" | "split" | null;
+    layout?: "stacked" | "split" | "showcase" | null;
     sideImage?: string | null;
   };
 }

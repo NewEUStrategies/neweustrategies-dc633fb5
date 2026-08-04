@@ -9,6 +9,8 @@ import { useLocation } from "@tanstack/react-router";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
+import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
+import "@/lib/i18n-newsletter-popup";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { X, Send } from "@/lib/lucide-shim";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
@@ -135,8 +137,15 @@ export function NewsletterPopup() {
     setTimeout(() => close(), 1800);
   };
 
+  const showcase = s.popup_layout === "showcase";
   const split = s.popup_layout === "split";
   const eyebrow = isPl ? s.popup_eyebrow_pl || "Newsletter" : s.popup_eyebrow_en || "Newsletter";
+  const showcaseImages = (s.popup_showcase_images ?? [])
+    .filter((img) => Boolean(img?.url))
+    .map((img) => ({
+      url: img.url,
+      caption: isPl ? img.caption_pl : img.caption_en,
+    }));
   const radius = `${Math.max(0, s.popup_border_radius_px ?? 16)}px`;
   const popupStyle: React.CSSProperties = {
     backgroundColor: s.popup_bg_color || "#0a0a0a",
@@ -164,7 +173,7 @@ export function NewsletterPopup() {
       <div
         ref={panelRef}
         className={
-          split
+          split || showcase
             ? "relative w-full max-w-4xl my-4 max-h-[92vh] overflow-y-auto md:overflow-hidden shadow-2xl border border-white/10 grid grid-cols-1 md:grid-cols-2"
             : "relative w-full max-w-lg my-4 max-h-[92vh] overflow-y-auto shadow-2xl border border-white/10"
         }
@@ -181,7 +190,42 @@ export function NewsletterPopup() {
           <X className="w-4 h-4" />
         </button>
 
-        {s.popup_doc ? (
+        {showcase ? (
+          <>
+            <div className="relative md:max-h-[92vh] md:overflow-hidden">
+              <NewsletterShowcase
+                images={showcaseImages}
+                brand={
+                  isPl
+                    ? s.popup_showcase_brand_pl || eyebrow
+                    : s.popup_showcase_brand_en || eyebrow
+                }
+                tagline={
+                  isPl ? s.popup_showcase_tagline_pl : s.popup_showcase_tagline_en
+                }
+                rotateMs={s.popup_showcase_rotate_ms}
+                dotLabel={t("newsletter.showcase.slide", { defaultValue: "Slide" })}
+              />
+            </div>
+            <div className="p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto">
+              <h2
+                id="nl-popup-title"
+                className="font-display text-2xl sm:text-3xl leading-tight pr-10 md:pr-0"
+              >
+                {title}
+              </h2>
+              {desc && (
+                <p
+                  className="text-sm mt-2 mb-5 leading-relaxed"
+                  style={{ color: s.popup_muted_color || "#b8b8b8" }}
+                >
+                  {desc}
+                </p>
+              )}
+              <NewsletterPopupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
+            </div>
+          </>
+        ) : s.popup_doc ? (
           <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">
             <NewsletterDocRenderer
               doc={s.popup_doc}

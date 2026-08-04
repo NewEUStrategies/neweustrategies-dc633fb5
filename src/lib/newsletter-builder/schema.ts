@@ -200,7 +200,7 @@ export const NlDocSchema = z.object({
       accentFg: z.string().max(32).optional(),
       overlay: z.string().max(64).optional(),
       radius: z.number().int().min(0).max(64).optional(),
-      layout: z.enum(["stacked", "split"]).optional(),
+      layout: z.enum(["stacked", "split", "showcase"]).optional(),
       sideImage: z.string().url().nullish(),
     })
     .optional(),
