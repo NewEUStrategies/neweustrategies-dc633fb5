@@ -552,7 +552,7 @@ export function PopupSignupForm({
 
 
       {showNewsletter && (
-        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed text-white/70">
+        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed [color:var(--nl-muted)]">
           <Checkbox
             checked={v.newsletter}
             onCheckedChange={(checked) => upd("newsletter", checked === true)}
@@ -563,7 +563,7 @@ export function PopupSignupForm({
       )}
 
       {requirePrivacy && privacyHtml && (
-        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed text-white/70">
+        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed [color:var(--nl-muted)]">
           <Checkbox
             checked={v.privacy}
             onCheckedChange={(checked) => upd("privacy", checked === true)}
@@ -578,7 +578,7 @@ export function PopupSignupForm({
       )}
 
       {requireTerms && (
-        <label className="flex cursor-pointer items-start gap-2 text-[12px] leading-relaxed text-white/70">
+        <label className="flex cursor-pointer items-start gap-2 text-[12px] leading-relaxed [color:var(--nl-muted)]">
           <Checkbox
             checked={v.terms}
             onCheckedChange={(checked) => upd("terms", checked === true)}
@@ -600,7 +600,7 @@ export function PopupSignupForm({
 
       {state === "err" && err && <p className="text-xs text-red-300">{err}</p>}
 
-      {note && <p className="text-[11px] text-white/50 pt-1">{note}</p>}
+      {note && <p className="text-[11px] pt-1 [color:var(--nl-muted)] opacity-80">{note}</p>}
     </form>
   );
 }
