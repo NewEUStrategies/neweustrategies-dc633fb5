@@ -188,7 +188,42 @@ export function NewsletterPopup() {
           <X className="w-4 h-4" />
         </button>
 
-        {s.popup_doc ? (
+        {showcase ? (
+          <>
+            <div className="relative md:max-h-[92vh] md:overflow-hidden">
+              <NewsletterShowcase
+                images={showcaseImages}
+                brand={
+                  isPl
+                    ? s.popup_showcase_brand_pl || eyebrow
+                    : s.popup_showcase_brand_en || eyebrow
+                }
+                tagline={
+                  isPl ? s.popup_showcase_tagline_pl : s.popup_showcase_tagline_en
+                }
+                rotateMs={s.popup_showcase_rotate_ms}
+                dotLabel={t("newsletter.showcase.slide", { defaultValue: "Slide" })}
+              />
+            </div>
+            <div className="p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto">
+              <h2
+                id="nl-popup-title"
+                className="font-display text-2xl sm:text-3xl leading-tight pr-10 md:pr-0"
+              >
+                {title}
+              </h2>
+              {desc && (
+                <p
+                  className="text-sm mt-2 mb-5 leading-relaxed"
+                  style={{ color: s.popup_muted_color || "#b8b8b8" }}
+                >
+                  {desc}
+                </p>
+              )}
+              <NewsletterPopupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
+            </div>
+          </>
+        ) : s.popup_doc ? (
           <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">
             <NewsletterDocRenderer
               doc={s.popup_doc}
