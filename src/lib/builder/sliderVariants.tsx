@@ -380,7 +380,14 @@ const truncate = (s: string, max: number) =>
 const SHARED_STYLES = `
 @keyframes ehFadeImg { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.eh-slider .eh-title-clamp { display: block; overflow: visible; min-height: calc(2 * 1.25em); padding-bottom: 4px; }
+/* Stała wysokość bloku tytułu - widget nie zmienia wymiaru między slajdami. */
+.eh-slider .eh-title-clamp { display: block; overflow: hidden; padding-bottom: 4px; }
+.eh-slider .eh-title-clamp > * {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; height: calc(2 * 1.25em);
+}
+/* Zajawka: zawsze rezerwuje 3 linie, niezależnie od długości tekstu. */
+.eh-slider .eh-clamp-3.cms-post-excerpt { height: calc(3 * 1.5em); }
 .eh-slider .eh-img { transform: none; transform-origin: center center; backface-visibility: hidden; }
 .eh-slider:hover .eh-img { transform: none; }
 .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
