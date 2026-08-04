@@ -60,6 +60,19 @@ export interface NewsletterSettings {
   popup_showcase_tagline_pl: string;
   popup_showcase_tagline_en: string;
   popup_showcase_rotate_ms: number;
+  popup_showcase_side: "left" | "right";
+  popup_showcase_grad_from: string | null;
+  popup_showcase_grad_to: string | null;
+  popup_showcase_show_brand: boolean;
+  popup_showcase_show_caption: boolean;
+  popup_showcase_show_dots: boolean;
+  // Konfiguracja pól formularza (prawa strona popupu) + notka i zgody
+  popup_fields: PopupFieldConfig[];
+  popup_note_pl: string | null;
+  popup_note_en: string | null;
+  popup_require_privacy: boolean;
+  popup_privacy_html_pl: string | null;
+  popup_privacy_html_en: string | null;
   // Style / branding
   popup_bg_color: string;
   popup_text_color: string;
