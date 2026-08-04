@@ -38,6 +38,7 @@ describe("social-icons - CTA dla każdej obsługiwanej platformy", () => {
       "ctaFacebook",
       "ctaInstagram",
       "ctaLinkedin",
+      "ctaNewsletter",
       "ctaSpotify",
       "ctaX",
       "ctaYoutube",
@@ -60,7 +61,14 @@ describe("social-icons - CTA dla każdej obsługiwanej platformy", () => {
       expect(field.visibleWhen?.({ layout: "row" })).toBe(false);
     }
   });
+
+  it("renders the newsletter row with a localized default CTA", () => {
+    const container = paint({ ...ALL_LINKS, layout: "list" });
+    expect(container.textContent).toContain("Newsletter");
+    expect(container.textContent).toContain("Obserwuj");
+  });
 });
+
 
 describe("social-icons - układ listy honoruje te same ustawienia co rząd", () => {
   it("applies the gap between rows", () => {
