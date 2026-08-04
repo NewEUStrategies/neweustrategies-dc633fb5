@@ -22,26 +22,7 @@ export type BuilderLang = "pl" | "en";
 export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   // ------------------------------------------- social icons: colors + hover
   "Kolory platform": "Platform colors",
-  Hover: "Hover",
-  "Hover (najechanie)": "Hover",
   "gradient marki platformy": "platform brand gradient",
-  "własne kolory": "custom colors",
-  "bez efektu": "no effect",
-  "Steruje tłem wiersza / kafelka oraz kolorem ikony po najechaniu.":
-    "Controls the row / tile background and the icon color on hover.",
-  "Kolor ikony na hover": "Icon color on hover",
-  "Domyślnie biały - identycznie w light i dark mode, w builderze i na stronie publicznej.":
-    "White by default - identical in light and dark mode, in the builder and on the public site.",
-  "Domyślnie biały - identycznie w light i dark mode.":
-    "White by default - identical in light and dark mode.",
-  "Kolor tekstu na hover": "Text color on hover",
-  "Gradient hover - od": "Hover gradient - from",
-  "Gradient hover - do": "Hover gradient - to",
-  "Puste = gradient marki danej platformy.": "Empty = the platform's brand gradient.",
-  "Puste = kolor gradientu marki (light i dark tak samo).":
-    "Empty = the brand gradient color (same in light and dark).",
-  "Puste = faktyczny kolor marki (light: rozjaśniony, dark: surowy) - próbka obok pokazuje wartość.":
-    "Empty = the actual brand color (light: lightened, dark: raw) - the swatch shows the value.",
 
   "Facebook - kolor ikony": "Facebook - icon color",
   "X - kolor ikony": "X - icon color",
@@ -50,20 +31,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "LinkedIn - kolor ikony": "LinkedIn - icon color",
   "Spotify - kolor ikony": "Spotify - icon color",
   "Newsletter - kolor ikony": "Newsletter - icon color",
-  "Facebook - hover od": "Facebook - hover from",
-  "Facebook - hover do": "Facebook - hover to",
-  "X - hover od": "X - hover from",
-  "X - hover do": "X - hover to",
-  "YouTube - hover od": "YouTube - hover from",
-  "YouTube - hover do": "YouTube - hover to",
-  "Instagram - hover od": "Instagram - hover from",
-  "Instagram - hover do": "Instagram - hover to",
-  "LinkedIn - hover od": "LinkedIn - hover from",
-  "LinkedIn - hover do": "LinkedIn - hover to",
-  "Spotify - hover od": "Spotify - hover from",
-  "Spotify - hover do": "Spotify - hover to",
-  "Newsletter - hover od": "Newsletter - hover from",
-  "Newsletter - hover do": "Newsletter - hover to",
   // ---------------------------------------------------------------- widgets
   Nagłówek: "Heading",
   Wstęp: "Intro",
@@ -112,6 +79,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Dopasuj zainteresowania": "Customize interests",
   "Mega menu": "Mega menu",
   "Ikony social": "Social icons",
+  "Puste = kolor tekstu motywu (ciemny w light, jasny w dark) - jak na stronie publicznej.":
+    "Empty = theme text colour (dark in light mode, light in dark mode) - just like the public site.",
   // Widget social-icons: źródło linków. Bramka labelsEn wymaga EN dla każdej
   // etykiety schematu - te przyszły z widgetem bez tłumaczeń (CI było czerwone).
   "Źródło linków": "Links source",
@@ -121,7 +90,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Globalne linki do mediów społecznościowych ustawia się raz w Admin → Wygląd → Opcje motywu → „Ikony social” (/admin/theme-options). Widgety zaciągają je automatycznie.": "Global social media links are set once in Admin → Appearance → Theme options → “Social icons” (/admin/theme-options). Widgets pick them up automatically.",
   // Widget social-icons: podświetlenie po najechaniu (wiersz listy / kafelek).
   "Podświetlenie po najechaniu": "Hover highlight",
-  "gradient marki platformy": "platform brand gradient",
+  // („gradient marki platformy" ma już wpis wyżej - klucz musi być unikalny.)
   "firmowy pomarańcz (jeden dla wszystkich)": "house orange (one for all)",
   "delikatne (ton marki)": "subtle (brand tint)",
   "tylko obramowanie": "outline only",
