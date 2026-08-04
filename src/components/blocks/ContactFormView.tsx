@@ -15,6 +15,7 @@ import {
 } from "react";
 
 import { useServerFn } from "@tanstack/react-start";
+import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { submitContactMessage } from "@/lib/contact.functions";
 import {
   collectCustomValues,
