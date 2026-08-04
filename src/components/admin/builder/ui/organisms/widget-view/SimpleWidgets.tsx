@@ -462,7 +462,15 @@ export function renderSimpleWidget(
       // robić z kolorem DZIEDZICZONYM (tryb "inherit"), a nie unieważniać wybór
       // redakcji - przy domyślnym `auto` opcje "ciemne"/"jasne" były no-opem
       // (zawsze currentColor), więc kontrolka wyglądała na zepsutą.
+      // Per-platforma: redakcja może nadpisać kolor ikony pojedynczego wiersza
+      // (klucz `colorFacebook`, `colorX`, ...). Pusty = wspólny `colorMode`.
+      const capKey = (k: string): string => `${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+      const perPlatformColor = (k: string): string | undefined =>
+        safeWidgetColor(c[`color${capKey(k)}`]) || undefined;
+
       const resolveColor = (k: string): string | undefined => {
+        const own = perPlatformColor(k);
+        if (own) return own;
         if (colorMode === "official") return OFFICIAL[k];
         if (colorMode === "custom") return customColor || undefined;
         if (colorMode === "brand") return "var(--brand, currentColor)";
@@ -491,7 +499,8 @@ export function renderSimpleWidget(
       const chipStyle = (k: string, active: boolean): CSSProperties => {
         const bg = resolveBg(k, active);
         const onContrast = bgMode === "official" && active;
-        const official = colorMode === "official" ? OFFICIAL[k] : undefined;
+        const official =
+          perPlatformColor(k) ?? (colorMode === "official" ? OFFICIAL[k] : undefined);
         return {
           ...linkStyle,
           // W trybie dziedziczonym ikona bierze jaśniejszy ton marki (light
@@ -547,6 +556,29 @@ export function renderSimpleWidget(
         newsletter:
           "linear-gradient(135deg, color-mix(in oklab, var(--brand) 64%, #17110C) 0%, color-mix(in oklab, var(--brand) 40%, #0F0C0A) 52%, color-mix(in oklab, var(--brand) 16%, #0B0B10) 100%)",
       };
+
+      // Hover jest w pełni sterowalny z panelu: tryb (gradient marki / własne
+      // kolory / brak), kolor ikony, tekstu oraz opcjonalny własny gradient -
+      // globalnie i per platforma (`hoverFromFacebook`, `hoverToFacebook`).
+      const hoverMode = asOneOf(c.hoverMode, ["brand", "custom", "none"] as const, "brand");
+      const hoverIconColor = safeWidgetColor(c.hoverIconColor) || "#ffffff";
+      const hoverTextColor = safeWidgetColor(c.hoverTextColor) || "#ffffff";
+      const hoverFrom = safeWidgetColor(c.hoverFrom);
+      const hoverTo = safeWidgetColor(c.hoverTo);
+      const hoverGradientFor = (k: string): string => {
+        if (hoverMode === "none") return "none";
+        const from = safeWidgetColor(c[`hoverFrom${capKey(k)}`]) || hoverFrom;
+        const to = safeWidgetColor(c[`hoverTo${capKey(k)}`]) || hoverTo;
+        if (from) return `linear-gradient(135deg, ${from} 0%, ${to || from} 100%)`;
+        if (hoverMode === "custom") return "linear-gradient(135deg, var(--brand), var(--brand))";
+        return BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))";
+      };
+      const hoverVars = (k: string): CSSProperties =>
+        ({
+          "--sb-grad": hoverGradientFor(k),
+          "--sb-fg": hoverMode === "none" ? "inherit" : hoverTextColor,
+          "--sb-hicon": hoverMode === "none" ? "currentColor" : hoverIconColor,
+        }) as CSSProperties;
 
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
@@ -633,11 +665,7 @@ export function renderSimpleWidget(
               const cta = rawCta
                 ? (CTA_SYNONYMS[rawCta.trim().toLowerCase()]?.[target] ?? rawCta)
                 : (defaultCta[k]?.[target] ?? "");
-              const rowVars = {
-                "--sb-grad":
-                  BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))",
-                "--sb-fg": "#ffffff",
-              } as CSSProperties;
+              const rowVars = hoverVars(k);
               return (
                 <AppLink
                   key={k}
@@ -646,16 +674,16 @@ export function renderSimpleWidget(
                   target={href && external ? "_blank" : undefined}
                   rel={href && external ? "noopener noreferrer" : undefined}
                   // Odnośnik zewnętrzny, ale wygląda jak wiersz listy, nie jak
-                  // hiperłącze. Na hover pasek przybiera delikatny gradient
-                  // marki danej platformy, a tekst i ikona kontrastują z tłem.
+                  // hiperłącze. Na hover pasek przybiera gradient ustawiony w
+                  // panelu (domyślnie gradient marki danej platformy).
                   style={{ textDecoration: "none", ...rowVars }}
                   // Na hover nadpisujemy TOKENY ikon (--sb-icon/--sb-off-tone)
-                  // na biel - inline `color: var(...)` kafelka rozwiązuje je z
-                  // kaskady, więc ikona jest jasna także w light mode.
-                  className={`group flex items-center gap-3 rounded-[6px] border-b border-border/60 px-2 py-2.5 no-underline transition-all last:border-b-0 hover:border-transparent hover:[--sb-icon:#ffffff] hover:[--sb-off-tone:#ffffff] hover:[background-image:var(--sb-grad)] hover:[color:var(--sb-fg)] focus-visible:border-transparent focus-visible:[--sb-icon:#ffffff] focus-visible:[--sb-off-tone:#ffffff] focus-visible:[background-image:var(--sb-grad)] focus-visible:[color:var(--sb-fg)] ${!href ? "pointer-events-none opacity-40" : ""}`}
+                  // kolorem z panelu - inline `color: var(...)` kafelka
+                  // rozwiązuje je z kaskady, więc działa też w light mode.
+                  className={`group flex items-center gap-3 rounded-[6px] border-b border-border/60 px-2 py-2.5 no-underline transition-all last:border-b-0 hover:border-transparent hover:[--sb-icon:var(--sb-hicon)] hover:[--sb-off-tone:var(--sb-hicon)] hover:[background-image:var(--sb-grad)] hover:[color:var(--sb-fg)] focus-visible:border-transparent focus-visible:[--sb-icon:var(--sb-hicon)] focus-visible:[--sb-off-tone:var(--sb-hicon)] focus-visible:[background-image:var(--sb-grad)] focus-visible:[color:var(--sb-fg)] ${!href ? "pointer-events-none opacity-40" : ""}`}
                 >
                   <span
-                    className={`inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors group-hover:bg-transparent group-hover:![color:var(--sb-fg)]`}
+                    className={`inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors group-hover:bg-transparent group-hover:![color:var(--sb-hicon)]`}
                     style={chipStyle(k, Boolean(href))}
                   >
                     <Cmp size={size} />
@@ -700,9 +728,16 @@ export function renderSimpleWidget(
               const bg = resolveBg(k, active);
               const style: CSSProperties = {
                 ...chipStyle(k, active),
+                ...hoverVars(k),
                 opacity: active ? 1 : 0.35,
               };
-              const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
+              // Ten sam kontrakt hoveru co w układzie listy: ikona przyjmuje
+              // kolor z panelu, a tło - gradient marki / własny.
+              const hoverCls =
+                active && hoverMode !== "none"
+                  ? "hover:![color:var(--sb-hicon)] hover:[background-image:var(--sb-grad)] hover:border-transparent"
+                  : "";
+              const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-90" : "cursor-not-allowed"} ${!bg && !hoverCls ? "hover:bg-muted/40" : ""} ${hoverCls}`;
               return active ? (
                 <AppLink
                   key={k}
