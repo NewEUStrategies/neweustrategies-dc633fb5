@@ -151,7 +151,7 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     popup_accent_color: "#f97316",
     popup_accent_text_color: "#ffffff",
     popup_overlay_color: "rgba(0,0,0,0.7)",
-    popup_border_radius_px: 16,
+    popup_border_radius_px: 6,
     popup_eyebrow_pl: "Newsletter",
     popup_eyebrow_en: "Newsletter",
     mode: "both",
