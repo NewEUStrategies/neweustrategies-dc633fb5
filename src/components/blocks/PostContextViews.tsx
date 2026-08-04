@@ -248,6 +248,28 @@ export function AuthorBioView({
     <>{author.name}</>
   );
 
+  // Wariant „profile": kwadratowy portret + karta nachodząca na zdjęcie.
+  // Rysuje go ta sama molekuła, co widget `author-profile-card` w builderze,
+  // więc oba edytory i strona publiczna pokazują identyczny układ.
+  if (variant === "profile") {
+    return (
+      <ProfileCard
+        className={cls}
+        name={author.name}
+        title={author.jobTitle}
+        description={bio || undefined}
+        imageUrl={showAvatar ? author.avatarUrl : undefined}
+        socials={showSocial ? socials : []}
+        socialsLabel={t.authorLinks}
+        profileHref={profileHref}
+        eyebrow={t.about}
+        meta={showPostsCount && postsCount !== null ? t.posts(postsCount) : undefined}
+      />
+    );
+  }
+
+
+
   if (variant === "minimal") {
     return (
       <div className={`not-prose flex items-center gap-3 ${cls ?? ""}`}>
