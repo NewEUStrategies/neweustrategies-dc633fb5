@@ -40,6 +40,26 @@ describe("globalne tokeny Theme Design: `.cms-post-*` mają pierwszeństwo nad u
     expect(css).toMatch(/\.cms-meta\.cms-meta\s*\{[^}]*font-size:\s*var\(--td-meta-size/);
   });
 
+  it("wieloliniowe tytuły zachowują pełne 2px podkreślenia także na ostatniej linii", () => {
+    const css = read("src/styles.css");
+    const slider = read("src/lib/builder/sliderVariants.tsx");
+    const mustReads = read(
+      "src/components/admin/builder/ui/organisms/widget-view/TailoredMustReadsView.tsx",
+    );
+
+    expect(css).toMatch(/--cms-underline-thickness:\s*2px/);
+    expect(css).toMatch(
+      /\.cms-title-underline\s*\{[^}]*background-size:\s*0%\s+var\(--cms-underline-thickness,\s*2px\)/s,
+    );
+    expect(css).toMatch(
+      /\.cms-title-underline\s*\{[^}]*padding-bottom:\s*var\(--cms-underline-thickness,\s*2px\)/s,
+    );
+
+    for (const source of [slider, mustReads]) {
+      expect(source).toContain("calc(3lh + var(--cms-underline-thickness, 2px))");
+    }
+  });
+
   const OFFENDING =
     /\b(?:leading-(?:none|tight|snug|normal|relaxed|loose)|text-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl))\b/;
   const FILES = [
