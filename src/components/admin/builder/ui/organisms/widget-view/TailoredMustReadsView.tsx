@@ -241,9 +241,11 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
                     />
                   ) : null}
                   <AppLink href={href} className="min-w-0">
-                    <h3 className="line-clamp-3 font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
-                      {title}
-                    </h3>
+                    <div className="tmr-title-clamp">
+                      <h3 className="cms-post-title font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
+                        {title}
+                      </h3>
+                    </div>
                   </AppLink>
                   {showExcerpt && excerpt ? (
                     <p className="line-clamp-2 text-sm text-muted-foreground">{excerpt}</p>
