@@ -1399,8 +1399,8 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   background-image: linear-gradient(currentColor, currentColor);
   background-position: 0 100%;
   background-repeat: no-repeat;
-  background-size: 0% 2px;
-  padding-bottom: 2px;
+  background-size: 0% var(--cms-underline-thickness, 2px);
+  padding-bottom: var(--cms-underline-thickness, 2px);
   transition:
     background-size 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     color 0.2s ease;
@@ -1411,7 +1411,7 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
 a:hover .cms-post-title,
 a:focus-visible .cms-post-title,
 *:hover > .cms-post-title {
-  background-size: 100% 2px;
+  background-size: 100% var(--cms-underline-thickness, 2px);
   color: var(--td-pt-hover, var(--gc-link-hover, var(--brand)));
 }
 
@@ -1427,8 +1427,8 @@ a:focus-visible .cms-post-title,
   background-image: linear-gradient(currentColor, currentColor);
   background-position: 0 100%;
   background-repeat: no-repeat;
-  background-size: 0% 2px;
-  padding-bottom: 2px;
+  background-size: 0% var(--cms-underline-thickness, 2px);
+  padding-bottom: var(--cms-underline-thickness, 2px);
   transition: background-size 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   text-decoration: none;
 }
@@ -1446,7 +1446,7 @@ a:focus-visible .cms-title-underline,
 li:hover .cms-title-underline,
 *:hover > .cms-title-underline,
 *:hover > * > .cms-title-underline {
-  background-size: 100% 2px;
+  background-size: 100% var(--cms-underline-thickness, 2px);
 }
 @media (prefers-reduced-motion: reduce) {
   .cms-title-underline {
