@@ -137,18 +137,43 @@ export function NumberRow({
   step?: number;
   hint?: string;
 }) {
+  // Draft tekstowy: klamrowanie na KAZDYM znaku uniemozliwialo wpisanie np.
+  // "9" w polu o min=12 (skok do 12) albo wyczyszczenie pola. Trzymamy wiec
+  // surowy tekst w trakcie pisania, propagujemy tylko wartosci w zakresie,
+  // a przy opuszczeniu pola normalizujemy do granic.
+  const [draft, setDraft] = useState<string>(String(value));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setDraft(String(value));
+  }, [value, editing]);
+
+  const clamp = (n: number) => Math.min(max, Math.max(min, n));
+
   return (
     <div className="min-w-0">
       <Label>{label}</Label>
       <Input
         type="number"
+        inputMode="numeric"
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={draft}
+        onFocus={() => setEditing(true)}
         onChange={(e) => {
-          const n = Number(e.target.value);
-          onChange(Math.min(max, Math.max(min, Number.isFinite(n) ? n : min)));
+          const raw = e.target.value;
+          setDraft(raw);
+          if (raw.trim() === "") return;
+          const n = Number(raw);
+          if (!Number.isFinite(n)) return;
+          if (n >= min && n <= max) onChange(n);
+        }}
+        onBlur={() => {
+          setEditing(false);
+          const n = Number(draft);
+          const next = Number.isFinite(n) && draft.trim() !== "" ? clamp(n) : value;
+          setDraft(String(next));
+          if (next !== value) onChange(next);
         }}
       />
       {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
