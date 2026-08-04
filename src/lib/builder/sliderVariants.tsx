@@ -1087,14 +1087,14 @@ function EditorialHeroVariant(p: VariantProps) {
             <AppLink href={href} className="inline-block w-full">
               <div className="eh-title-clamp">
                 <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
-                  {title || "\u00A0"}
+                  <span className="cms-title-underline">{title || "\u00A0"}</span>
                 </h3>
               </div>
             </AppLink>
           ) : (
             <div className="eh-title-clamp">
               <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
-                {title || "\u00A0"}
+                <span className="cms-title-underline">{title || "\u00A0"}</span>
               </h3>
             </div>
           ))}
@@ -1233,7 +1233,7 @@ function MultiCardVariant(p: VariantProps) {
                           className="cms-post-title text-foreground line-clamp-2"
                           style={p.titleStyle}
                         >
-                          {title || "\u00A0"}
+                          <span className="cms-title-underline">{title || "\u00A0"}</span>
                         </h3>
                       </AppLink>
                     ) : (
@@ -1241,7 +1241,7 @@ function MultiCardVariant(p: VariantProps) {
                         className="cms-post-title text-foreground line-clamp-2"
                         style={p.titleStyle}
                       >
-                        {title || "\u00A0"}
+                        <span className="cms-title-underline">{title || "\u00A0"}</span>
                       </h3>
                     ))}
                   {p.showExcerpt &&
@@ -1371,7 +1371,7 @@ function CinematicOverlayVariant(p: VariantProps) {
             )}
             {p.showTitle && (
               <h3 className="cms-post-title drop-shadow" style={p.titleStyle}>
-                {title || "\u00A0"}
+                <span className="cms-title-underline">{title || "\u00A0"}</span>
               </h3>
             )}
             {p.showExcerpt && sub && (
@@ -1511,12 +1511,12 @@ function SplitFeatureVariant(p: VariantProps) {
           (href ? (
             <AppLink href={href} className="block">
               <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
-                {title || "\u00A0"}
+                <span className="cms-title-underline">{title || "\u00A0"}</span>
               </h3>
             </AppLink>
           ) : (
             <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
-              {title || "\u00A0"}
+              <span className="cms-title-underline">{title || "\u00A0"}</span>
             </h3>
           ))}
         {p.showExcerpt &&
@@ -1635,7 +1635,7 @@ function MinimalStripVariant(p: VariantProps) {
           )}
           {p.showTitle && (
             <h3 className="cms-post-title line-clamp-2" style={p.titleStyle}>
-              {title || "\u00A0"}
+              <span className="cms-title-underline">{title || "\u00A0"}</span>
             </h3>
           )}
           {p.showExcerpt && sub && (
