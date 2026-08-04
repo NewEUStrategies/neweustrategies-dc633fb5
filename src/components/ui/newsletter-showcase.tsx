@@ -1,8 +1,10 @@
-// Panel wizualny popupu newslettera w wariancie "showcase":
-// mozaika 4 kafli, rotujacy fokus + podpis, kropki nawigacyjne.
-// Bez zewnetrznych zaleznosci animacyjnych - czysty CSS + rAF-free interval.
+// Panel wizualny popupu rejestracji w wariancie "showcase" - wierne odwzorowanie
+// referencyjnego layoutu auth-section-2: mozaika 4 kafli, ramki fokusa w rogach
+// aktywnego kafla, karta z podpisem + strzalka, tagline i kropki nawigacyjne.
+// Bez zewnetrznych zaleznosci animacyjnych - czysty CSS + interval.
 // 6px rounding, kolory dziedziczone z tokenow popupu (--nl-*).
 import { useEffect, useState } from "react";
+import { ArrowRight } from "lucide-react";
 
 export interface ShowcaseImage {
   url: string;
@@ -16,6 +18,8 @@ interface Props {
   rotateMs?: number;
   /** Etykieta a11y dla kropek, np. "Pokaz slajd" / "Show slide". */
   dotLabel: string;
+  /** Etykieta a11y strzalki "nastepny slajd". */
+  nextLabel?: string;
   /** Kolory gradientu tla; fallback do tokenow --nl-accent / --nl-bg. */
   gradFrom?: string | null;
   gradTo?: string | null;
@@ -28,7 +32,7 @@ const TILE_CLASSES = [
   "col-span-2 row-span-2",
   "col-span-1 row-span-1",
   "col-span-1 row-span-1",
-  "col-span-2 row-span-1",
+  "col-span-3 row-span-1",
 ];
 
 export function NewsletterShowcase({
@@ -37,6 +41,7 @@ export function NewsletterShowcase({
   tagline,
   rotateMs = 2600,
   dotLabel,
+  nextLabel,
   gradFrom,
   gradTo,
   showBrand = true,
@@ -63,22 +68,23 @@ export function NewsletterShowcase({
 
   return (
     <div
-      className="relative flex h-full flex-col justify-between gap-4 p-5 sm:p-6 md:p-8"
+      className="relative flex h-full flex-col items-center justify-between gap-5 p-5 sm:p-6 md:p-8"
       style={{
         background: `linear-gradient(160deg, ${gradFrom || "var(--nl-accent)"} 0%, ${gradTo || "var(--nl-bg)"} 78%)`,
       }}
     >
       {showBrand && brand && (
         <div
-          className="text-[11px] font-semibold uppercase tracking-[0.28em]"
+          className="flex items-center justify-center gap-2 text-base font-medium tracking-tight"
           style={{ color: "var(--nl-fg)" }}
         >
-          {brand}
+          <BrandMark className="h-5 w-5" />
+          <span>{brand}</span>
         </div>
       )}
 
       {count > 0 && (
-        <div className="grid grid-cols-3 grid-rows-3 gap-2 min-h-[180px] sm:min-h-[240px] md:min-h-[300px]">
+        <div className="grid w-full grid-cols-3 grid-rows-3 gap-2 min-h-[180px] sm:min-h-[240px] md:min-h-[300px]">
           {images.slice(0, 4).map((img, index) => (
             <ShowcaseTile
               key={`${img.url}-${index}`}
@@ -91,22 +97,41 @@ export function NewsletterShowcase({
       )}
 
       {showCaption && active?.caption && (
-        <p
-          className="text-xs leading-relaxed line-clamp-4 transition-opacity duration-500"
-          style={{ color: "var(--nl-muted)" }}
+        <div
+          className="flex w-full items-end gap-3 rounded-[6px] border p-3 transition-opacity duration-500"
+          style={{
+            borderColor: "color-mix(in srgb, var(--nl-fg) 16%, transparent)",
+            backgroundColor: "color-mix(in srgb, var(--nl-fg) 6%, transparent)",
+          }}
         >
-          {active.caption}
-        </p>
+          <p className="flex-1 text-xs leading-relaxed line-clamp-4" style={{ color: "var(--nl-muted)" }}>
+            {active.caption}
+          </p>
+          {count > 1 && (
+            <button
+              type="button"
+              onClick={() => setActiveIndex((c) => (c + 1) % count)}
+              aria-label={nextLabel ?? `${dotLabel} ${((activeIndex + 1) % count) + 1}`}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-105"
+              style={{ backgroundColor: "var(--nl-fg)", color: "var(--nl-bg)" }}
+            >
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       )}
 
       {tagline && (
-        <p className="font-display text-lg sm:text-xl leading-snug" style={{ color: "var(--nl-fg)" }}>
+        <p
+          className="max-w-[22ch] text-center font-display text-lg leading-snug sm:text-xl"
+          style={{ color: "var(--nl-fg)" }}
+        >
           {tagline}
         </p>
       )}
 
       {showDots && count > 1 && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-center gap-1.5">
           {images.slice(0, 4).map((_, index) => (
             <button
               key={index}
@@ -118,7 +143,7 @@ export function NewsletterShowcase({
               style={{
                 width: index === activeIndex ? 40 : 16,
                 backgroundColor: index === activeIndex ? "var(--nl-fg)" : "var(--nl-muted)",
-                opacity: index === activeIndex ? 1 : 0.5,
+                opacity: index === activeIndex ? 1 : 0.45,
               }}
             />
           ))}
@@ -138,13 +163,7 @@ function ShowcaseTile({
   className: string;
 }) {
   return (
-    <div
-      className={`relative overflow-hidden rounded-[6px] transition-all duration-500 ${className}`}
-      style={{
-        outline: active ? "1px solid var(--nl-fg)" : "1px solid transparent",
-        outlineOffset: 2,
-      }}
-    >
+    <div className={`relative overflow-hidden rounded-[6px] ${className}`}>
       <img
         src={src}
         alt=""
@@ -155,6 +174,44 @@ function ShowcaseTile({
           filter: active ? "none" : "saturate(0.75) brightness(0.8)",
         }}
       />
+      <FocusCorners active={active} />
     </div>
+  );
+}
+
+/** Cztery narozniki "celownika" pojawiajace sie na aktywnym kaflu. */
+function FocusCorners({ active }: { active: boolean }) {
+  const base = `pointer-events-none absolute h-4 w-4 transition-all duration-500 ease-out ${
+    active ? "opacity-100" : "opacity-0"
+  }`;
+  const border = "color-mix(in srgb, var(--nl-fg) 65%, transparent)";
+  return (
+    <>
+      <span
+        className={`${base} left-1 top-1 border-l-2 border-t-2 ${active ? "translate-x-0 translate-y-0" : "-translate-x-2 -translate-y-2"}`}
+        style={{ borderColor: border }}
+      />
+      <span
+        className={`${base} right-1 top-1 border-r-2 border-t-2 ${active ? "translate-x-0 translate-y-0" : "translate-x-2 -translate-y-2"}`}
+        style={{ borderColor: border }}
+      />
+      <span
+        className={`${base} bottom-1 left-1 border-b-2 border-l-2 ${active ? "translate-x-0 translate-y-0" : "-translate-x-2 translate-y-2"}`}
+        style={{ borderColor: border }}
+      />
+      <span
+        className={`${base} bottom-1 right-1 border-b-2 border-r-2 ${active ? "translate-x-0 translate-y-0" : "translate-x-2 translate-y-2"}`}
+        style={{ borderColor: border }}
+      />
+    </>
+  );
+}
+
+function BrandMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path d="M2 20L12 4l10 16H2z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M7.5 20l4.5-7 4.5 7" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
   );
 }
