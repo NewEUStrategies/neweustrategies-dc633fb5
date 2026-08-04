@@ -1428,6 +1428,8 @@ a:focus-visible .cms-post-title,
   background-position: 0 100%;
   background-repeat: no-repeat;
   background-size: 0% var(--cms-underline-thickness, 2px);
+  background-origin: padding-box;
+  background-clip: padding-box;
   padding-bottom: var(--cms-underline-thickness, 2px);
   transition: background-size 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   text-decoration: none;
