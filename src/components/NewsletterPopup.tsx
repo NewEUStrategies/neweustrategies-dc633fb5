@@ -161,7 +161,10 @@ export function NewsletterPopup() {
     .map((img) => ({
       url: img.url,
       caption: isPl ? img.caption_pl : img.caption_en,
+      title: isPl ? img.title_pl : img.title_en,
     }));
+  // Logo marki: ten sam zasob co formularze logowania (jasny wariant na ciemnym tle popupu).
+  const showcaseLogo = authSettings.form_logo_url_dark || authSettings.form_logo_url || null;
   const radius = `${Math.max(0, s.popup_border_radius_px ?? 16)}px`;
   const popupStyle: React.CSSProperties = {
     backgroundColor: s.popup_bg_color || "#0a0a0a",
@@ -216,6 +219,7 @@ export function NewsletterPopup() {
             >
               <NewsletterShowcase
                 images={showcaseImages}
+                logoUrl={showcaseLogo}
                 brand={
                   isPl
                     ? s.popup_showcase_brand_pl || eyebrow
