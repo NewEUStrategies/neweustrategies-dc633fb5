@@ -71,6 +71,36 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     onClose();
   };
 
+  // Modal na mobile: blokujemy przewijanie tła i wyłączamy je z nawigacji
+  // (inert), więc aktywna jest wyłącznie warstwa wyszukiwarki.
+  useEffect(() => {
+    if (!open || mode === "dropdown" || typeof document === "undefined") return;
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    const prevTouch = body.style.touchAction;
+    body.style.overflow = "hidden";
+    body.style.touchAction = "none";
+    const roots = Array.from(body.children).filter(
+      (el): el is HTMLElement => el instanceof HTMLElement && !el.contains(panelRef.current),
+    );
+    const restored: Array<[HTMLElement, string | null]> = [];
+    for (const el of roots) {
+      if (el.dataset["searchOverlayRoot"] === "1") continue;
+      restored.push([el, el.getAttribute("aria-hidden")]);
+      el.setAttribute("aria-hidden", "true");
+      el.setAttribute("inert", "");
+    }
+    return () => {
+      body.style.overflow = prevOverflow;
+      body.style.touchAction = prevTouch;
+      for (const [el, prev] of restored) {
+        el.removeAttribute("inert");
+        if (prev === null) el.removeAttribute("aria-hidden");
+        else el.setAttribute("aria-hidden", prev);
+      }
+    };
+  }, [open, mode]);
+
   useEffect(() => {
     if (open) {
       setQ("");
@@ -80,6 +110,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
+
 
   useEffect(() => {
     if (!open || !liveResults || q.trim().length < 2) {
@@ -375,9 +406,11 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 
   return createPortal(
     <div
-      className="fixed inset-x-0 bottom-0 z-[10000] bg-background top-[var(--sticky-header-h,0px)] sm:inset-0 sm:top-0 sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
+      data-search-overlay-root="1"
+      className="fixed inset-0 z-[10000] bg-background overscroll-contain sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
+
       <div className="absolute inset-x-0 top-0 flex h-full max-h-full justify-center overflow-y-auto px-0 pt-0 pb-0 sm:h-auto sm:max-h-screen sm:px-4 sm:pt-[12vh] sm:pb-8">
         <div
           ref={panelRef}
