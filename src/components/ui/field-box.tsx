@@ -20,7 +20,7 @@ export const FieldBox = forwardRef<HTMLInputElement, FieldBoxProps>(function Fie
 
   return (
     <div
-      className={`flex h-12 items-center gap-3 rounded-[6px] border px-4 transition-colors focus-within:border-[var(--nl-accent)] ${className}`}
+      className={`flex h-12 min-w-0 items-center gap-2 rounded-[6px] border px-4 transition-colors focus-within:border-[var(--nl-accent)] ${className}`}
       style={{
         borderColor: "color-mix(in srgb, var(--nl-fg) 18%, transparent)",
         backgroundColor: "color-mix(in srgb, var(--nl-fg) 5%, transparent)",
@@ -40,7 +40,7 @@ export const FieldBox = forwardRef<HTMLInputElement, FieldBoxProps>(function Fie
       {!filled && (
         <label
           htmlFor={id}
-          className="shrink-0 cursor-text select-none whitespace-nowrap text-sm"
+          className="max-w-[55%] shrink-0 cursor-text select-none truncate whitespace-nowrap text-sm"
           style={{ color: "color-mix(in srgb, var(--nl-fg) 45%, transparent)" }}
         >
           {label}
