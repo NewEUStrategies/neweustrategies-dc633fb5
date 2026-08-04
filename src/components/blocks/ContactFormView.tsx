@@ -421,6 +421,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     >
       {submitLabel}
     </SubscribeButton>
+  );
+
 
   return (
     <div className={`cf-shell cf-shell--${variant}`} style={shellStyle}>
