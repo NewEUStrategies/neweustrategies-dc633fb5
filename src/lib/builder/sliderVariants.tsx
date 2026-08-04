@@ -1116,9 +1116,10 @@ function EditorialHeroVariant(p: VariantProps) {
               {sub || "\u00A0"}
             </p>
           ))}
-        {((p.showAuthor && cur.author) || cur.readTime) && (
+        {((p.showAuthor && p.items.some((it) => Boolean(it.author))) ||
+          p.items.some((it) => Boolean(it.readTime))) && (
           <div
-            className="mt-4 flex items-center justify-center gap-2 text-muted-foreground"
+            className="mt-4 flex min-h-[20px] items-center justify-center gap-2 text-muted-foreground"
             style={p.authorStyle}
           >
             {p.showAuthor && cur.author && (
