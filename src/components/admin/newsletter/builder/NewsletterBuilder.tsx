@@ -452,7 +452,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
   // inline dostosowuje sie do dostepnej przestrzeni w kanwie.
   const popupLayout =
     variant === "popup" ? (doc.popup?.layout ?? settings.popup_layout ?? "stacked") : null;
-  const desktopPopupWidth = popupLayout === "split" ? 880 : 520;
+  const desktopPopupWidth = popupLayout === "split" || popupLayout === "showcase" ? 880 : 520;
   const canvasWidth =
     variant === "popup"
       ? device === "desktop"
