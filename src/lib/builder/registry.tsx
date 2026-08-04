@@ -703,6 +703,7 @@ export const WIDGETS: WidgetDef[] = [
       triggerOn: "hover",
       width: "container",
       widthPx: 1140,
+      layout: "classic",
       columns: [
         {
           title_pl: "Kategorie",

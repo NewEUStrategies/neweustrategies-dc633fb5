@@ -17,6 +17,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 // full-resolution covers, which is what made hover-opened menus feel sluggish.
 const MENU_THUMB_WIDTHS = [160, 320, 480] as const;
 import { megaMenuCategoryQueryOptions } from "@/lib/queries/megaMenu";
+import { MegaMenuShowcase } from "@/components/megaMenu/MegaMenuShowcase";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 type MegaMenuLang = "pl" | "en";
@@ -68,6 +69,9 @@ interface MegaMenuColumn {
   viewAllHref?: string;
 }
 
+/** Visual layout of the desktop dropdown panel. */
+export type MegaMenuLayout = "classic" | "showcase";
+
 export interface MegaMenuConfig {
   trigger_pl?: string;
   trigger_en?: string;
@@ -75,8 +79,11 @@ export interface MegaMenuConfig {
   triggerOn?: "hover" | "click";
   width?: "container" | "fluid" | "fixed";
   widthPx?: number;
+  /** "classic" = column list (default), "showcase" = grid cards + compact rows. */
+  layout?: MegaMenuLayout;
   columns?: MegaMenuColumn[];
 }
+
 
 interface Props {
   config: MegaMenuConfig;
@@ -91,6 +98,7 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
   const triggerHref = safeUrl(config.href ?? "", "");
   const columns = Array.isArray(config.columns) ? config.columns : [];
   const triggerOn = config.triggerOn ?? "hover";
+  const layout: MegaMenuLayout = config.layout === "showcase" ? "showcase" : "classic";
   const panelId = useId();
 
   const [open, setOpen] = useState(false);
@@ -214,21 +222,26 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
       {open && columns.length > 0 && (
         <div
           id={panelId}
-          className={`absolute top-full mt-2 z-50 ${widthCls} bg-background border border-border rounded-xl shadow-xl p-6`}
+          className={`absolute top-full mt-2 z-50 ${widthCls} bg-background border border-border rounded-[6px] shadow-xl p-6`}
           style={widthStyle}
         >
-          <div
-            className="grid gap-6"
-            style={{
-              gridTemplateColumns: `repeat(${Math.min(Math.max(columns.length, 1), 5)}, minmax(0, 1fr))`,
-            }}
-          >
-            {columns.map((col, i) => (
-              <DesktopColumn key={i} col={col} lang={lang} />
-            ))}
-          </div>
+          {layout === "showcase" ? (
+            <MegaMenuShowcase columns={columns} lang={lang} />
+          ) : (
+            <div
+              className="grid gap-6"
+              style={{
+                gridTemplateColumns: `repeat(${Math.min(Math.max(columns.length, 1), 5)}, minmax(0, 1fr))`,
+              }}
+            >
+              {columns.map((col, i) => (
+                <DesktopColumn key={i} col={col} lang={lang} />
+              ))}
+            </div>
+          )}
         </div>
       )}
+
     </div>
   );
 });
