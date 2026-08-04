@@ -57,9 +57,9 @@ const TMR_TITLE_CSS = `
   overflow: hidden;
 }
 [data-widget="tailored-must-reads"] .tmr-title-clamp > .cms-post-title.cms-post-title {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+  display: block;
+  max-height: calc(3 * 1.4em);
+  max-height: 3lh;
   overflow: hidden;
 }
 `;
