@@ -371,6 +371,7 @@ const pl = {
         optSplit: "Split (kolorowy panel)",
         optInline: "Inline",
         optMinimal: "Minimalna",
+        optProfile: "Karta profilu",
         toggleAvatar: "Avatar",
         toggleSocial: "Linki social",
         togglePostsCount: "Licznik wpisów",
@@ -379,6 +380,8 @@ const pl = {
         variantNameSplit: "Split",
         variantNameInline: "Inline",
         variantNameMinimal: "Minimalna",
+        variantNameProfile: "Karta profilu",
+
         previewInline: "(autor inline)",
         previewFillInline: "(uzupełnij dane inline)",
         previewSample: "(przykładowe dane)",
@@ -1013,6 +1016,7 @@ const en: typeof pl = {
         optSplit: "Split (colored panel)",
         optInline: "Inline",
         optMinimal: "Minimal",
+        optProfile: "Profile card",
         toggleAvatar: "Avatar",
         toggleSocial: "Social links",
         togglePostsCount: "Posts count",
@@ -1021,6 +1025,8 @@ const en: typeof pl = {
         variantNameSplit: "Split",
         variantNameInline: "Inline",
         variantNameMinimal: "Minimal",
+        variantNameProfile: "Profile card",
+
         previewInline: "(inline author)",
         previewFillInline: "(fill in inline data)",
         previewSample: "(sample data)",

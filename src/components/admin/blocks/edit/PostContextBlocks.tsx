@@ -297,13 +297,31 @@ function InlineAuthorForm({
   );
 }
 
+/** Warianty bloku `author-bio` - jedno źródło prawdy dla panelu i podglądów. */
+const AUTHOR_BIO_VARIANTS = ["card", "split", "inline", "minimal", "profile"] as const;
+type AuthorBioVariant = (typeof AUTHOR_BIO_VARIANTS)[number];
+
+const AUTHOR_BIO_VARIANT_LABEL_KEY: Record<AuthorBioVariant, string> = {
+  card: "variantNameCard",
+  split: "variantNameSplit",
+  inline: "variantNameInline",
+  minimal: "variantNameMinimal",
+  profile: "variantNameProfile",
+};
+
 export function AuthorBioBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const pc = (k: string) => i18n.editor("postContextBlocks", k);
+  const variantName = (v: string) =>
+    pc(
+      AUTHOR_BIO_VARIANT_LABEL_KEY[v as AuthorBioVariant] ??
+        AUTHOR_BIO_VARIANT_LABEL_KEY.minimal,
+    );
   const showAvatar = block.data.showAvatar !== false;
   const showSocial = block.data.showSocial !== false;
   const showPostsCount = block.data.showPostsCount !== false;
   const variant = String(block.data.variant ?? "card");
+
   const authorSource: "existing" | "inline" =
     block.data.authorSource === "inline" ? "inline" : "existing";
   const selectedAuthorId = typeof block.data.authorId === "string" ? block.data.authorId : "";
@@ -402,6 +420,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
           <option value="split">{pc("optSplit")}</option>
           <option value="inline">{pc("optInline")}</option>
           <option value="minimal">{pc("optMinimal")}</option>
+          <option value="profile">{pc("optProfile")}</option>
         </AdminSelect>
       </label>
 
@@ -425,14 +444,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
 
       <div className="pt-2 border-t border-border/60 space-y-3">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          {pc("previewPrefix")}{" "}
-          {variant === "card"
-            ? pc("variantNameCard")
-            : variant === "split"
-              ? pc("variantNameSplit")
-              : variant === "inline"
-                ? pc("variantNameInline")
-                : pc("variantNameMinimal")}
+          {pc("previewPrefix")} {variantName(variant)}
           {previewLabel && <span className="ml-1 italic normal-case">{previewLabel}</span>}
         </div>
         <CurrentPostProvider value={previewCtx}>
@@ -440,7 +452,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
             showAvatar={showAvatar}
             showSocial={showSocial}
             showPostsCount={showPostsCount}
-            variant={variant as "card" | "inline" | "minimal" | "split"}
+            variant={variant as AuthorBioVariant}
             authorId={!useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined}
             authorOverride={useInlinePreview ? inlineAuthor : undefined}
           />
@@ -449,35 +461,24 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         <details className="text-[11px] text-muted-foreground">
           <summary className="cursor-pointer select-none">{pc("seeOtherVariants")}</summary>
           <div className="mt-3 space-y-4">
-            {(["card", "split", "inline", "minimal"] as const)
-              .filter((v) => v !== variant)
-              .map((v) => (
-                <div key={v} className="space-y-1">
-                  <div className="text-[10px] uppercase tracking-wide">
-                    {v === "card"
-                      ? pc("variantNameCard")
-                      : v === "split"
-                        ? pc("variantNameSplit")
-                        : v === "inline"
-                          ? pc("variantNameInline")
-                          : pc("variantNameMinimal")}
-                  </div>
-                  <CurrentPostProvider value={previewCtx}>
-                    <AuthorBioView
-                      showAvatar={showAvatar}
-                      showSocial={showSocial}
-                      showPostsCount={showPostsCount}
-                      variant={v}
-                      authorId={
-                        !useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined
-                      }
-                      authorOverride={useInlinePreview ? inlineAuthor : undefined}
-                    />
-                  </CurrentPostProvider>
-                </div>
-              ))}
+            {AUTHOR_BIO_VARIANTS.filter((v) => v !== variant).map((v) => (
+              <div key={v} className="space-y-1">
+                <div className="text-[10px] uppercase tracking-wide">{variantName(v)}</div>
+                <CurrentPostProvider value={previewCtx}>
+                  <AuthorBioView
+                    showAvatar={showAvatar}
+                    showSocial={showSocial}
+                    showPostsCount={showPostsCount}
+                    variant={v}
+                    authorId={!useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined}
+                    authorOverride={useInlinePreview ? inlineAuthor : undefined}
+                  />
+                </CurrentPostProvider>
+              </div>
+            ))}
           </div>
         </details>
+
       </div>
     </Shell>
   );

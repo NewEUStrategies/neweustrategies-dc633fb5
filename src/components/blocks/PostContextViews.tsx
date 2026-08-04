@@ -18,6 +18,8 @@ import {
 } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { ProfileCard } from "@/components/ui/profile-card";
+
 import { formatDate } from "@/lib/i18n/format";
 import {
   User,
@@ -49,6 +51,7 @@ const L = {
     viewProfile: "Zobacz profil",
     contact: "Kontakt",
     follow: "Obserwuj",
+    authorLinks: "Linki autora",
   },
   en: {
     about: "About the author",
@@ -57,8 +60,10 @@ const L = {
     viewProfile: "View profile",
     contact: "Contact",
     follow: "Follow",
+    authorLinks: "Author links",
   },
 } as const;
+
 
 // -------- Author bio --------
 
@@ -66,7 +71,7 @@ interface AuthorBioProps {
   showAvatar?: boolean;
   showSocial?: boolean;
   showPostsCount?: boolean;
-  variant?: "card" | "inline" | "minimal" | "split";
+  variant?: "card" | "inline" | "minimal" | "split" | "profile";
   lang?: Lang;
   cls?: string;
   /** Explicit author id - overrides the author from the current post context. */
@@ -244,6 +249,28 @@ export function AuthorBioView({
   ) : (
     <>{author.name}</>
   );
+
+  // Wariant „profile": kwadratowy portret + karta nachodząca na zdjęcie.
+  // Rysuje go ta sama molekuła, co widget `author-profile-card` w builderze,
+  // więc oba edytory i strona publiczna pokazują identyczny układ.
+  if (variant === "profile") {
+    return (
+      <ProfileCard
+        className={cls}
+        name={author.name}
+        title={author.jobTitle}
+        description={bio || undefined}
+        imageUrl={showAvatar ? author.avatarUrl : undefined}
+        socials={showSocial ? socials : []}
+        socialsLabel={t.authorLinks}
+        profileHref={profileHref}
+        eyebrow={t.about}
+        meta={showPostsCount && postsCount !== null ? t.posts(postsCount) : undefined}
+      />
+    );
+  }
+
+
 
   if (variant === "minimal") {
     return (
