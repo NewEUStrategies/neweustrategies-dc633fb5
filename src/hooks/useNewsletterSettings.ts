@@ -147,11 +147,15 @@ export function useNewsletterSettings() {
       if (!data) return def;
       const row = data as Record<string, unknown>;
       const lists = row.popup_mailing_lists;
+      const showcase = row.popup_showcase_images;
       return {
         ...def,
         ...(data as unknown as Partial<NewsletterSettings>),
         popup_mailing_lists: Array.isArray(lists)
           ? (lists as unknown as NewsletterMailingList[])
+          : [],
+        popup_showcase_images: Array.isArray(showcase)
+          ? (showcase as unknown as NewsletterShowcaseImage[])
           : [],
       };
     },
