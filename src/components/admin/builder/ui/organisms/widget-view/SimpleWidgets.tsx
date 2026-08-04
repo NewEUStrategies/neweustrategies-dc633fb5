@@ -491,14 +491,25 @@ export function renderSimpleWidget(
       const chipStyle = (k: string, active: boolean): CSSProperties => {
         const bg = resolveBg(k, active);
         const onContrast = bgMode === "official" && active;
+        const official = colorMode === "official" ? OFFICIAL[k] : undefined;
         return {
           ...linkStyle,
           // W trybie dziedziczonym ikona bierze jaśniejszy ton marki (light
           // mode) / biel (dark mode) zamiast twardej czerni z --foreground.
-          color: onContrast ? "#fff" : active ? (resolveColor(k) ?? "var(--sb-icon)") : undefined,
+          // W trybie "official" kolor marki jest w light mode rozjaśniany
+          // (var(--sb-off-tone)), a w dark mode zostaje surowy.
+          ...(official ? ({ ["--sb-off"]: official } as CSSProperties) : null),
+          color: onContrast
+            ? "#fff"
+            : active
+              ? official
+                ? "var(--sb-off-tone)"
+                : (resolveColor(k) ?? "var(--sb-icon)")
+              : undefined,
           backgroundColor: bg,
         };
       };
+
 
       const linksSource = asOneOf(c.linksSource, ["auto", "global", "own"] as const, "auto");
       const hrefOf = (
@@ -510,10 +521,15 @@ export function renderSimpleWidget(
         return resolveSocialHref(own, globalLinks, k, linksSource);
       };
 
-      // Ton ikon dla trybu dziedziczonego: w light mode jaśniejszy odcień
-      // brandu (zamiast prawie czarnego --foreground), w dark mode biel.
-      const ICON_TONE =
-        "[--sb-icon:color-mix(in_oklab,var(--brand)_82%,#ffffff)] dark:[--sb-icon:#ffffff]";
+      // Ton ikon: w light mode jaśniejsze odcienie (brand dla trybu
+      // dziedziczonego, rozjaśniony kolor marki dla trybu "official"),
+      // w dark mode biel / surowy kolor marki.
+      const ICON_TONE = [
+        "[--sb-icon:color-mix(in_oklab,var(--brand)_82%,#ffffff)]",
+        "dark:[--sb-icon:#ffffff]",
+        "[--sb-off-tone:color-mix(in_oklab,var(--sb-off,var(--brand))_62%,#ffffff)]",
+        "dark:[--sb-off-tone:var(--sb-off,var(--brand))]",
+      ].join(" ");
 
       // Delikatny gradient marki platformy używany na hover wiersza listy.
       // Kolory pochodzą z oficjalnych palet (OFFICIAL) - trzymamy je tutaj,
@@ -525,13 +541,13 @@ export function renderSimpleWidget(
         instagram: "linear-gradient(135deg, #F58529 0%, #DD2A7B 55%, #8134AF 100%)",
         linkedin: "linear-gradient(135deg, #0A66C2 0%, #004182 100%)",
         spotify: "linear-gradient(135deg, #1ED760 0%, #14833B 100%)",
-        // Newsletter to nasza marka - prestiżowy gradient budowany na tokenie
-        // --brand (ciemna baza -> brand -> rozjaśnienie), a nie kolor obcej marki.
-        // Bez domieszki bieli na końcu - jasny odcień zlewał się z białym CTA.
-        // Gradient idzie od głębokiej bazy do czystego brandu, jak marki obce.
+        // Newsletter to nasza marka - prestiżowy, GŁĘBOKI gradient na tokenie
+        // --brand. Cały przebieg zostaje ciemny (brand jest jasną brzoskwinią),
+        // dzięki czemu białe CTA "SUBSKRYBUJ" nie zlewa się z tłem.
         newsletter:
-          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 40%, #0B0B10) 0%, color-mix(in oklab, var(--brand) 80%, #14141c) 52%, var(--brand) 100%)",
+          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 22%, #0B0B10) 0%, color-mix(in oklab, var(--brand) 46%, #17110C) 55%, color-mix(in oklab, var(--brand) 34%, #0B0B10) 100%)",
       };
+
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
       // kafelku, separator, etykieta i CTA - żeby nie odstawał wyglądem.
