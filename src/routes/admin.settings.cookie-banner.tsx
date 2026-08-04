@@ -105,6 +105,11 @@ function CopyEditor({
             placeholder="Zapisz wybrane"
           />
           <Text
+            value={copy.customize}
+            onChange={(e) => set("customize", e.target.value)}
+            placeholder="Dostosuj"
+          />
+          <Text
             value={copy.showDetails}
             onChange={(e) => set("showDetails", e.target.value)}
             placeholder="Szczegóły"

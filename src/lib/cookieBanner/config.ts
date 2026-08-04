@@ -21,6 +21,8 @@ export type CookieBannerCopy = {
   acceptAll: string;
   rejectAll: string;
   saveSelection: string;
+  /** Rozwija panel kategorii wewnątrz kompaktowego banera. */
+  customize: string;
   showDetails: string;
   hideDetails: string;
   showVendors: string;
@@ -59,10 +61,12 @@ const COPY_PL: CookieBannerCopy = {
   intro:
     "Nasza platforma wykorzystuje pliki cookie i podobne technologie w celu zapewnienia bezpieczeństwa, personalizacji oraz analizy ruchu. Poniżej znajdziesz szczegółowe informacje o każdej kategorii i podmiotach przetwarzających dane. Pełne informacje zawiera nasza",
   policyLabel: "Polityka Prywatności",
-  compactMessage: "Używamy plików cookie. Dowiedz się więcej w",
+  compactMessage:
+    "Używamy plików cookie, aby serwis działał poprawnie i by lepiej dopasować treści. Szczegóły znajdziesz w dokumentach:",
   acceptAll: "Akceptuj wszystkie",
   rejectAll: "Tylko niezbędne",
   saveSelection: "Zapisz wybrane",
+  customize: "Dostosuj",
   showDetails: "Szczegóły i podmioty",
   hideDetails: "Ukryj szczegóły",
   showVendors: "Pokaż podmioty",
@@ -86,10 +90,12 @@ const COPY_EN: CookieBannerCopy = {
   intro:
     "Our platform uses cookies and similar technologies to ensure security, personalisation and traffic analysis. Below you will find detailed information about each category and the entities processing the data. Full information is available in our",
   policyLabel: "Privacy Policy",
-  compactMessage: "We use cookies. Learn more in our",
+  compactMessage:
+    "We use cookies to keep the site working and to tailor content. You will find the details in:",
   acceptAll: "Accept all",
   rejectAll: "Only necessary",
   saveSelection: "Save selection",
+  customize: "Customize",
   showDetails: "Details and vendors",
   hideDetails: "Hide details",
   showVendors: "Show vendors",
