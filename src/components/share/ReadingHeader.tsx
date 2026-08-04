@@ -225,11 +225,16 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           }
         }
       `}</style>
-      <div className="mx-auto max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5">
-        {/* Search + horizontal logo cluster. Logo uses the same theme-aware
+      <div className="mx-auto w-full max-w-[1400px] overflow-x-clip px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5">
+        {/* JEDNA komórka gridu dla obu klastrów (desktop + mobile). Wcześniej
+            były dwoma osobnymi dziećmi, przez co przy trzech kolumnach powstawał
+            czwarty, niejawny tor i pasek wychodził poza szerokość ekranu -
+            strona dawała się przesuwać w bok, a zakładka chowała się poza kadrem. */}
+        <div className="flex min-w-0 items-center">
+          {/* Search + horizontal logo cluster. Logo uses the same theme-aware
             Branding → Logo → Mobile asset as the main header, so dark/light
             variants align automatically. */}
-        <div className="hidden sm:flex items-center gap-2 lg:gap-3 min-w-0">
+          <div className="hidden sm:flex items-center gap-2 lg:gap-3 min-w-0">
           <Link
             to="/"
             aria-label="New European Strategies"
@@ -290,13 +295,14 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           </button>
           <LangReelSwitcher label={t.lang} className="[--ls-h:28px]" />
 
-          <NotificationsBell panelWidth={260} />
-          <ChatBell panelWidth={280} />
+          {/* Dzwonki (powiadomienia/czat) na wąskich ekranach są dostępne w
+              drawerze i profilu - w pasku czytania powodowały poszerzenie
+              wiersza ponad szerokość viewportu (poziome przesuwanie strony). */}
           <Link
             to={isAuthed ? "/profile" : "/login"}
             aria-label={t.profile}
             title={t.profile}
-            className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+            className="hidden min-[420px]:grid h-7 w-7 place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
           >
             {profile?.avatar_url ? (
               <img src={profile.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover" />
@@ -305,6 +311,8 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
             )}
           </Link>
         </div>
+        </div>
+
 
         {/* Reading: title */}
         <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">

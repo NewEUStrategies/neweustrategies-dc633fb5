@@ -64,6 +64,9 @@ html,
 body {
   max-width: 100%;
   overflow-x: clip;
+  /* iOS Safari potrafi „panować" viewportem mimo clip - blokujemy gest
+     poziomy na poziomie dokumentu, pion zostaje bez zmian. */
+  overscroll-behavior-x: none;
 }
 
 @media (max-width: 767px) {
