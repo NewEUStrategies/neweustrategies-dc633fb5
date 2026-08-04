@@ -100,7 +100,7 @@ const SOCIAL_PLATFORM_COLOR_FIELDS: ReadonlyArray<SchemaField> = SOCIAL_PLATFORM
         group: "Kolory platform",
         inheritedValue: idle?.light,
         placeholder: idle?.light,
-        hint: `Puste = faktyczny kolor (${socialIdleColorHint(id)}).`,
+        hint: `Puste = faktyczny kolor marki (${socialIdleColorHint(id)}).`.replace(socialIdleColorHint(id), socialIdleColorHint(id)),
       },
       {
         key: `hoverFrom${key}`,
