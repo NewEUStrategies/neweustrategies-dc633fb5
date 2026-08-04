@@ -69,7 +69,7 @@ interface AuthorBioProps {
   showAvatar?: boolean;
   showSocial?: boolean;
   showPostsCount?: boolean;
-  variant?: "card" | "inline" | "minimal" | "split";
+  variant?: "card" | "inline" | "minimal" | "split" | "profile";
   lang?: Lang;
   cls?: string;
   /** Explicit author id - overrides the author from the current post context. */
