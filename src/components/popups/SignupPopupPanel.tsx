@@ -86,8 +86,10 @@ export function SignupPopupPanel({
 
   return (
     <div
+      /* `nlp` = zakres stylów popupu (src/styles.css): zwarta wysokość pól,
+         kolor nagłówków i kreska checkboxa liczone z palety popupu. */
       className={
-        "relative grid w-full grid-cols-1 overflow-hidden md:[grid-template-columns:var(--nl-cols)] " +
+        "nlp relative grid w-full grid-cols-1 overflow-hidden md:[grid-template-columns:var(--nl-cols)] " +
         className
       }
       style={{
@@ -111,10 +113,12 @@ export function SignupPopupPanel({
           type="button"
           aria-label={t("common.close", { defaultValue: isPl ? "Zamknij" : "Close" })}
           onClick={onClose}
-          className="absolute right-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+          className="absolute right-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border transition-colors hover:opacity-80"
           style={{
-            backgroundColor: "color-mix(in srgb, var(--nl-fg) 12%, transparent)",
+            backgroundColor: "color-mix(in srgb, var(--nl-bg) 70%, transparent)",
+            borderColor: "color-mix(in srgb, var(--nl-fg) 16%, transparent)",
             color: "var(--nl-fg)",
+            backdropFilter: "blur(4px)",
           }}
         >
           <X className="h-4 w-4" />
@@ -160,7 +164,7 @@ export function SignupPopupPanel({
         >
           {design.form.showEyebrow && eyebrow && (
             <p
-              className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em]"
+              className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.3em]"
               style={{ color: "var(--nl-accent)" }}
             >
               {eyebrow}
@@ -170,29 +174,36 @@ export function SignupPopupPanel({
           <h2
             id={titleId}
             className={
-              "font-display font-medium leading-[1.05] tracking-[-0.03em] " +
+              "font-display font-semibold leading-[1.06] tracking-[-0.035em] " +
               (design.form.titleNoWrap ? "whitespace-nowrap " : "") +
-              (onClose && !alignLeft ? "pr-8 md:pr-0" : "")
+              (onClose && !alignLeft ? "pr-10 md:pr-0" : "")
             }
-            style={{ fontSize: `clamp(1.6rem, 4vw, ${design.form.titleSizePx}px)` }}
+            style={{
+              color: "var(--nl-fg)",
+              fontSize: `clamp(1.55rem, 3.4vw, ${design.form.titleSizePx}px)`,
+            }}
           >
             {title}
           </h2>
 
           {desc && (
-            <p className="mt-2.5 text-sm leading-relaxed" style={{ color: "var(--nl-muted)" }}>
+            <p
+              className={
+                "mt-3 text-[13.5px] leading-relaxed " + (alignLeft ? "" : "mx-auto max-w-[38ch]")
+              }
+              style={{ color: "var(--nl-muted)" }}
+            >
               {desc}
             </p>
           )}
 
-          <div className="mt-6">
+          <div className="mt-7">
             <PopupSignupForm
               settings={settings}
               lang={lang}
               source={source}
               onSuccess={onSuccess}
               previewOnly={previewOnly}
-              palette={palette}
             />
           </div>
         </div>

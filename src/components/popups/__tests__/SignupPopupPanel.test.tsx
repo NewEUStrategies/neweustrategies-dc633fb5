@@ -2,7 +2,7 @@
 // i podglądu w adminie. Pilnuje rzeczy, które łatwo zepsuć przy edycji układu:
 //  1. popup zakłada KONTO (hasło + powtórzenie), a newsletter to checkbox,
 //  2. każdy tekst idzie z ustawień w wersji PL/EN (bez hardkodów),
-//  3. warianty etykiet pól (platformowa pływająca vs inline 1:1 z projektem),
+//  3. pola mają platformową etykietę pływającą (jak formularze kontaktowe),
 //  4. paleta jasna/ciemna przekłada się na tokeny --nl-* panelu,
 //  5. logo bierzemy z poziomego logotypu menu admina,
 //  6. kolejność i widoczność bloków lewej kolumny są konfigurowalne.
@@ -147,41 +147,34 @@ describe("SignupPopupPanel", () => {
     expect(panel()?.style.getPropertyValue("--nl-radius")).toBe("6px");
   });
 
-  it("wariant etykiet: pływająca (domyślnie) vs inline 1:1 z projektem", () => {
+  it("pola używają platformowej etykiety pływającej (jak formularze kontaktowe)", () => {
     const { container } = render(<SignupPopupPanel settings={settings()} lang="pl" mode="dark" />);
-    expect(container.querySelector(".input-group")).toBeTruthy();
-    expect(container.querySelector(".field-inline")).toBeNull();
-
-    cleanup();
-    const inline = render(
-      <SignupPopupPanel
-        settings={settings({
-          popup_design: design((d) => ({ ...d, form: { ...d.form, labelStyle: "inline" } })),
-        })}
-        lang="pl"
-        mode="dark"
-      />,
-    );
-    expect(inline.container.querySelector(".field-inline")).toBeTruthy();
-    expect(inline.container.querySelector(".input-group")).toBeNull();
+    const groups = container.querySelectorAll(".input-group");
+    expect(groups.length).toBeGreaterThan(0);
+    // Etykieta jest w DOM obok pola (w spoczynku siedzi w polu, po focusie
+    // wjeżdża na ramkę - mechanikę trzyma platformowe CSS `.user-label`).
+    for (const group of groups) {
+      expect(group.querySelector("input, select")).toBeTruthy();
+      expect(group.querySelector("label.user-label")?.textContent).toBeTruthy();
+    }
   });
 
-  it("przycisk Google pojawia się tylko po włączeniu w ustawieniach", () => {
-    render(<SignupPopupPanel settings={settings()} lang="pl" mode="dark" />);
-    expect(screen.queryByText("Kontynuuj z Google")).toBeNull();
+  it("nie ma rejestracji przez dostawców zewnętrznych", () => {
+    const { container } = render(<SignupPopupPanel settings={settings()} lang="pl" mode="dark" />);
+    expect(container.textContent).not.toMatch(/google|apple/i);
+    // Jedyny przycisk typu submit to CTA rejestracji; brak przycisków OAuth.
+    expect(container.querySelectorAll('button[type="submit"]')).toHaveLength(1);
+  });
 
-    cleanup();
-    render(
-      <SignupPopupPanel
-        settings={settings({
-          popup_design: design((d) => ({ ...d, form: { ...d.form, socialEnabled: true } })),
-        })}
-        lang="pl"
-        mode="dark"
-      />,
-    );
-    expect(screen.getByText("Kontynuuj z Google")).toBeTruthy();
-    expect(screen.getByText("lub")).toBeTruthy();
+  it("panel przedefiniowuje tokeny platformy (hermetyczny wygląd w adminie)", () => {
+    const s = settings();
+    render(<SignupPopupPanel settings={s} lang="pl" mode="dark" />);
+    const style = panel()?.style;
+    // Reguła autouzupełniania Chrome maluje pole `var(--background)` - w popupie
+    // musi to być tło panelu, nie tło jasnego adminu.
+    expect(style?.getPropertyValue("--background")).toBe(s.popup_bg_color);
+    expect(style?.getPropertyValue("--foreground")).toBe(s.popup_text_color);
+    expect(style?.getPropertyValue("--primary")).toBe(s.popup_accent_color);
   });
 
   it("kolejność bloków galerii wynika z ustawień", () => {

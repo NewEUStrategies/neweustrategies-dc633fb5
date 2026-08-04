@@ -107,9 +107,12 @@ export function SignupShowcase({
   }, [activeIndex, count]);
 
   const active = images[Math.min(activeIndex, Math.max(0, count - 1))];
-  const galleryDark = isDarkSurface(design.grid === "single" ? palette.gradTo : palette.gradFrom);
+  // Atrament liczymy z bazy gradientu (gradFrom). Gdy jest to `color-mix(...)`,
+  // luminancja jest nieznana - traktujemy powierzchnię jak ciemną, bo domyślna
+  // baza galerii to tło panelu.
+  const galleryDark = isDarkSurface(palette.gradFrom);
   const ink = galleryDark ? "#ffffff" : "#0b0b0f";
-  const inkMuted = galleryDark ? "rgba(255,255,255,0.62)" : "rgba(11,11,15,0.62)";
+  const inkMuted = galleryDark ? "rgba(255,255,255,0.66)" : "rgba(11,11,15,0.62)";
   const radius = `${radiusPx}px`;
   const alignLeft = design.align === "left";
 
@@ -129,7 +132,7 @@ export function SignupShowcase({
       <div
         key="brand"
         className={
-          "flex items-center gap-2.5 text-base font-medium tracking-tight " +
+          "flex shrink-0 items-center gap-2.5 text-[15px] font-medium tracking-tight " +
           (alignLeft ? "self-start" : "self-center")
         }
         style={{ color: ink }}
@@ -153,26 +156,34 @@ export function SignupShowcase({
 
   const grid =
     count > 0 ? (
-      <div key="grid" className="relative w-full">
+      <div
+        key="grid"
+        className="relative w-full flex-1"
+        style={{ minHeight: `${design.gridHeightPx}px` }}
+      >
+        {/* Wygaszenia SIEDZĄ POD zdjęciami (z-0, mozaika z-10): mają miękko
+            wtapiać krawędzie panelu w tło, a nie kłaść kolorową płachtę na
+            kadrach. */}
         {design.showFades && (
           <>
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 z-20 h-16"
+              className="pointer-events-none absolute inset-x-0 -top-6 z-0 h-16"
               style={{ background: `linear-gradient(to bottom, ${palette.gradFrom}, transparent)` }}
             />
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-20"
-              style={{ background: `linear-gradient(to top, ${palette.gradTo}, transparent)` }}
+              className="pointer-events-none absolute inset-x-0 -bottom-6 z-0 h-16"
+              style={{ background: `linear-gradient(to top, ${palette.gradFrom}, transparent)` }}
             />
           </>
         )}
+        {/* Mozaika jest pozycjonowana absolutnie w kontenerze o WYLICZONEJ
+            wysokości. Przy `height: 100%` w kontenerze auto-wysokościowym rzędy
+            brały intrinsic height zdjęć (np. 400 px) i siatka wylewała się pod
+            podpis oraz hasło - dokładnie ten defekt widać było w podglądzie. */}
         {design.grid === "single" ? (
-          <div
-            className="relative w-full overflow-hidden"
-            style={{ height: `${design.gridHeightPx}px`, borderRadius: radius }}
-          >
+          <div className="absolute inset-0 z-10 overflow-hidden" style={{ borderRadius: radius }}>
             {tiles.map((img, index) => (
               <img
                 key={`${img.url}-${index}`}
@@ -187,10 +198,9 @@ export function SignupShowcase({
           </div>
         ) : (
           <div
-            className="grid w-full"
+            className="absolute inset-0 z-10 grid"
             style={{
               gap: `${design.gapPx}px`,
-              height: `${design.gridHeightPx}px`,
               gridTemplateColumns: design.grid === "mosaic" ? "repeat(3, 1fr)" : "1.55fr 1fr",
               gridTemplateRows: design.grid === "mosaic" ? "repeat(3, 1fr)" : "1fr 1fr 0.96fr",
             }}
@@ -220,13 +230,15 @@ export function SignupShowcase({
       <div
         key="caption"
         className={
-          "flex w-full items-end gap-4 px-4 py-3.5 transition-opacity duration-500 " +
+          "flex w-full shrink-0 items-end gap-4 px-4 py-3 backdrop-blur-sm transition-opacity duration-500 " +
           (design.captionDashed ? "border border-dashed" : "border")
         }
         style={{
           borderRadius: radius,
-          borderColor: galleryDark ? "rgba(255,255,255,0.18)" : "rgba(11,11,15,0.16)",
-          backgroundColor: galleryDark ? "rgba(255,255,255,0.05)" : "rgba(11,11,15,0.04)",
+          borderColor: galleryDark ? "rgba(255,255,255,0.2)" : "rgba(11,11,15,0.16)",
+          // Podpis może wypaść nad zdjęciem - nieprzejrzysta baza gwarantuje
+          // czytelność zamiast prześwitującego kadru pod tekstem.
+          backgroundColor: galleryDark ? "rgba(10,10,14,0.72)" : "rgba(255,255,255,0.82)",
         }}
       >
         <div className="min-w-0 flex-1 space-y-1">
@@ -270,8 +282,8 @@ export function SignupShowcase({
     <p
       key="tagline"
       className={
-        "font-display text-lg leading-tight sm:text-xl " +
-        (alignLeft ? "max-w-[24ch] text-left" : "max-w-[22ch] text-center")
+        "shrink-0 font-display text-[17px] font-medium leading-snug tracking-[-0.01em] sm:text-xl " +
+        (alignLeft ? "max-w-[26ch] text-left" : "max-w-[24ch] text-center")
       }
       style={{ color: ink }}
     >
@@ -283,7 +295,9 @@ export function SignupShowcase({
     showDots && count > 1 ? (
       <div
         key="dots"
-        className={"flex items-center gap-1.5 " + (alignLeft ? "self-start" : "self-center")}
+        className={
+          "flex shrink-0 items-center gap-1.5 " + (alignLeft ? "self-start" : "self-center")
+        }
       >
         {images.slice(0, 4).map((_, index) => (
           <button
@@ -314,7 +328,7 @@ export function SignupShowcase({
   return (
     <div
       className={
-        "relative flex h-full flex-col justify-between gap-5 " +
+        "relative flex h-full min-h-0 flex-col gap-5 " +
         (alignLeft ? "items-start" : "items-center")
       }
       style={rootStyle}
@@ -351,7 +365,7 @@ function ShowcaseTile({
         src={src}
         alt=""
         loading="lazy"
-        className="h-full w-full object-cover transition-all duration-700"
+        className="absolute inset-0 h-full w-full object-cover transition-all duration-700"
         style={{
           borderRadius: `${radiusPx}px`,
           opacity: active ? 1 : 1 - inactive * 0.6,

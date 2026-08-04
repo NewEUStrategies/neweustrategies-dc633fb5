@@ -4,9 +4,12 @@
 // a dane profilowe trafiają do user_metadata i (za zgodą) do listy mailingowej.
 //
 // Konfiguracja pól (widoczność, etykiety i placeholdery PL/EN, wymagalność)
-// pochodzi z `newsletter_settings.popup_fields`, a warstwa prezentacji
-// (wariant etykiet, kolumny, separator, logowanie społecznościowe, wyrównanie)
-// z `newsletter_settings.popup_design` - jedno źródło prawdy z panelem admina.
+// pochodzi z `newsletter_settings.popup_fields`, a warstwa prezentacji (kolumny
+// par pól, podpowiedź, link do logowania) z `newsletter_settings.popup_design` -
+// jedno źródło prawdy z panelem admina.
+//
+// Kolory nie są tu hardkodowane: panel popupu (SignupPopupPanel) ustawia tokeny
+// palety, a pola i checkboxy to niezmienione komponenty platformy.
 import { useRef, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -27,11 +30,7 @@ import {
   popupFieldPlaceholder,
   type PopupFieldKey,
 } from "@/lib/newsletter/popupFields";
-import {
-  resolvePopupDesign,
-  resolvePopupPalette,
-  type PopupPalette,
-} from "@/lib/newsletter/popupDesign";
+import { resolvePopupDesign } from "@/lib/newsletter/popupDesign";
 
 interface Props {
   settings: NewsletterSettings;
@@ -41,8 +40,6 @@ interface Props {
   compact?: boolean;
   /** Podgląd w adminie: bez realnych zapisów i bez wywołań sieciowych. */
   previewOnly?: boolean;
-  /** Paleta panelu; brak = paleta ciemna z kolumn ustawień. */
-  palette?: PopupPalette;
 }
 
 interface SignupFields {
@@ -86,7 +83,6 @@ export function PopupSignupForm({
   onSuccess,
   compact = false,
   previewOnly = false,
-  palette,
 }: Props) {
   const [v, setV] = useState<SignupFields>(empty);
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
@@ -103,10 +99,10 @@ export function PopupSignupForm({
   const lists = settings.popup_mailing_lists ?? [];
   const fields = popupFieldMap(settings.popup_fields);
   const design = resolvePopupDesign(settings.popup_design);
-  const skin = palette ?? resolvePopupPalette(settings, "dark");
   const form = design.form;
-  const labelVariant = form.labelStyle;
-  const onDark = skin.onDark;
+  // W podglądzie w adminie wyłączamy autouzupełnianie: przeglądarka podstawiała
+  // tam zapisane dane logowania administratora (białe plamy w polach).
+  const autoFill = (value: string) => (previewOnly ? "off" : value);
   const fieldOn = (key: PopupFieldKey) => fields[key].enabled;
   const label = (key: PopupFieldKey) => popupFieldLabel(fields[key], lang);
   const placeholder = (key: PopupFieldKey) => popupFieldPlaceholder(fields[key], lang) || undefined;
@@ -147,23 +143,6 @@ export function PopupSignupForm({
   const redirectPath = authSettings.logged_in_redirect_url?.startsWith("/")
     ? authSettings.logged_in_redirect_url
     : "/";
-
-  // Rejestracja przez Google - ta sama ścieżka co w blokach /login, więc
-  // konfiguracja providera jest wspólna dla całej platformy.
-  const onGoogle = async () => {
-    if (previewOnly) return;
-    setErr(null);
-    setState("loading");
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: `${window.location.origin}${redirectPath}` },
-      });
-      if (error) throw error;
-    } catch (error) {
-      fail(error instanceof Error ? error.message : String(error), "oauth_google");
-    }
-  };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -437,44 +416,6 @@ export function PopupSignupForm({
   const showFirst = ext && fieldOn("first_name");
   const showLast = ext && fieldOn("last_name");
 
-  const socialBlock = form.socialEnabled ? (
-    <div className="space-y-4">
-      <button
-        type="button"
-        onClick={() => void onGoogle()}
-        disabled={state === "loading"}
-        className="flex h-11 w-full items-center justify-center gap-2 border text-sm font-medium transition-colors disabled:opacity-60"
-        style={{
-          borderRadius: 6,
-          borderColor: "color-mix(in srgb, var(--nl-fg) 22%, transparent)",
-          backgroundColor: "color-mix(in srgb, var(--nl-fg) 6%, transparent)",
-          color: "var(--nl-fg)",
-        }}
-      >
-        <GoogleIcon />
-        <span className="whitespace-nowrap">
-          {isPl ? form.socialGoogleLabelPl : form.socialGoogleLabelEn}
-        </span>
-      </button>
-      {form.showDivider && (
-        <div
-          className="flex items-center gap-4 text-xs uppercase tracking-wider"
-          style={{ color: "var(--nl-muted)" }}
-        >
-          <span
-            className="h-px flex-1"
-            style={{ backgroundColor: "color-mix(in srgb, var(--nl-fg) 16%, transparent)" }}
-          />
-          {isPl ? form.dividerPl : form.dividerEn}
-          <span
-            className="h-px flex-1"
-            style={{ backgroundColor: "color-mix(in srgb, var(--nl-fg) 16%, transparent)" }}
-          />
-        </div>
-      )}
-    </div>
-  ) : null;
-
   return (
     <form
       onSubmit={onSubmit}
@@ -498,8 +439,6 @@ export function PopupSignupForm({
         </label>
       </div>
 
-      {form.socialPosition === "top" && socialBlock}
-
       {hint && (
         <p className="pb-1 text-xs" style={{ color: "var(--nl-muted)" }}>
           {hint}
@@ -510,62 +449,52 @@ export function PopupSignupForm({
         <div className={showFirst && showLast ? pairClass : ""}>
           {showFirst && (
             <FieldBox
-              variant={labelVariant}
-              onDark={onDark}
               label={label("first_name")}
               placeholder={placeholder("first_name")}
               required={fields.first_name.required}
               value={v.name}
               onChange={(e) => upd("name", e.target.value)}
               maxLength={80}
-              autoComplete="given-name"
+              autoComplete={autoFill("given-name")}
             />
           )}
           {showLast && (
             <FieldBox
-              variant={labelVariant}
-              onDark={onDark}
               label={label("last_name")}
               placeholder={placeholder("last_name")}
               required={fields.last_name.required}
               value={v.surname}
               onChange={(e) => upd("surname", e.target.value)}
               maxLength={80}
-              autoComplete="family-name"
+              autoComplete={autoFill("family-name")}
             />
           )}
         </div>
       )}
       {ext && fieldOn("job") && (
         <FieldBox
-          variant={labelVariant}
-          onDark={onDark}
           label={label("job")}
           placeholder={placeholder("job")}
           required={fields.job.required}
           value={v.job}
           onChange={(e) => upd("job", e.target.value)}
           maxLength={120}
-          autoComplete="organization-title"
+          autoComplete={autoFill("organization-title")}
         />
       )}
       {ext && fieldOn("company") && (
         <FieldBox
-          variant={labelVariant}
-          onDark={onDark}
           label={label("company")}
           placeholder={placeholder("company")}
           required={fields.company.required}
           value={v.company}
           onChange={(e) => upd("company", e.target.value)}
           maxLength={120}
-          autoComplete="organization"
+          autoComplete={autoFill("organization")}
         />
       )}
       {ext && fieldOn("linkedin") && (
         <FieldBox
-          variant={labelVariant}
-          onDark={onDark}
           label={label("linkedin")}
           placeholder={placeholder("linkedin")}
           required={fields.linkedin.required}
@@ -578,8 +507,6 @@ export function PopupSignupForm({
       {/* E-mail + telefon w dwoch rownych kolumnach (jak imie/nazwisko). */}
       <div className={showPhone ? pairClass : ""}>
         <FieldBox
-          variant={labelVariant}
-          onDark={onDark}
           type="email"
           required
           label={label("email")}
@@ -587,12 +514,10 @@ export function PopupSignupForm({
           value={v.email}
           onChange={(e) => upd("email", e.target.value)}
           maxLength={254}
-          autoComplete="email"
+          autoComplete={autoFill("email")}
         />
         {showPhone && (
           <FieldBox
-            variant={labelVariant}
-            onDark={onDark}
             type="tel"
             label={label("phone")}
             placeholder={placeholder("phone")}
@@ -600,7 +525,7 @@ export function PopupSignupForm({
             value={v.phone}
             onChange={(e) => upd("phone", e.target.value)}
             maxLength={32}
-            autoComplete="tel"
+            autoComplete={autoFill("tel")}
           />
         )}
       </div>
@@ -608,8 +533,6 @@ export function PopupSignupForm({
       {/* Hasło + powtórzenie: dwie równe kolumny (albo jedna, gdy tak ustawione). */}
       <div className={pairClass}>
         <FieldBox
-          variant={labelVariant}
-          onDark={onDark}
           type={showPass ? "text" : "password"}
           required
           label={label("password")}
@@ -617,7 +540,7 @@ export function PopupSignupForm({
           onChange={(e) => upd("password", e.target.value)}
           minLength={MIN_PASSWORD}
           maxLength={72}
-          autoComplete="new-password"
+          autoComplete={autoFill("new-password")}
           trailing={
             <button
               type="button"
@@ -633,8 +556,6 @@ export function PopupSignupForm({
           }
         />
         <FieldBox
-          variant={labelVariant}
-          onDark={onDark}
           type={showPass ? "text" : "password"}
           required
           label={label("password_confirm")}
@@ -642,140 +563,116 @@ export function PopupSignupForm({
           onChange={(e) => upd("passwordConfirm", e.target.value)}
           minLength={MIN_PASSWORD}
           maxLength={72}
-          autoComplete="new-password"
+          autoComplete={autoFill("new-password")}
         />
       </div>
 
+      {/* Lista mailingowa idzie tym samym atomem co pola tekstowe - platformowe
+          CSS trzyma etykietę selecta na ramce (select nie ma :placeholder-shown). */}
       {showLists && (
-        <div
-          className="flex h-12 items-center gap-3 border px-4 focus-within:border-[var(--nl-accent)]"
-          style={{
-            borderRadius: 6,
-            borderColor: "color-mix(in srgb, var(--nl-fg) 18%, transparent)",
-            backgroundColor: "color-mix(in srgb, var(--nl-fg) 5%, transparent)",
-          }}
-        >
+        <div className="input-group min-w-0">
           <select
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-            style={{ color: "var(--nl-fg)" }}
-            aria-label={label("list")}
+            id="nl-popup-list"
+            className="input"
             value={v.list}
             onChange={(e) => upd("list", e.target.value)}
           >
-            <option value="" style={{ color: "#111" }}>
-              {t("Wybierz listę mailingową", "Choose your main mailing list")}
-            </option>
+            <option value="">{t("Wybierz listę", "Choose a list")}</option>
             {lists.map((l) => (
-              <option key={l.id} value={l.id} style={{ color: "#111" }}>
+              <option key={l.id} value={l.id}>
                 {isPl ? l.label_pl : l.label_en}
               </option>
             ))}
           </select>
-          <span
-            className="shrink-0 whitespace-nowrap text-sm"
-            style={{ color: "color-mix(in srgb, var(--nl-fg) 45%, transparent)" }}
-          >
+          <label htmlFor="nl-popup-list" className="user-label">
             {label("list")}
-          </span>
+            {fields.list.required ? " *" : ""}
+          </label>
         </div>
       )}
 
-      {showNewsletter && (
-        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed [color:var(--nl-muted)]">
-          <Checkbox
-            checked={v.newsletter}
-            onCheckedChange={(checked) => upd("newsletter", checked === true)}
-            className="mt-0.5 h-[16px] w-[16px] shrink-0"
-          />
-          <span>{label("newsletter_optin")}</span>
-        </label>
-      )}
+      {/* Checkboxy: domyślny komponent platformy, jeden blok, spójne odstępy. */}
+      <div className="space-y-2 pt-2.5">
+        {showNewsletter && (
+          <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
+            <Checkbox
+              checked={v.newsletter}
+              onCheckedChange={(checked) => upd("newsletter", checked === true)}
+              className="mt-px h-[16px] w-[16px] shrink-0"
+            />
+            <span>{label("newsletter_optin")}</span>
+          </label>
+        )}
 
-      {requirePrivacy && privacyHtml && (
-        <label className="flex cursor-pointer items-start gap-2 pt-1 text-[12px] leading-relaxed [color:var(--nl-muted)]">
-          <Checkbox
-            checked={v.privacy}
-            onCheckedChange={(checked) => upd("privacy", checked === true)}
-            aria-required="true"
-            className="mt-0.5 h-[16px] w-[16px] shrink-0"
-          />
-          <span
-            className="nl-consent"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(privacyHtml) }}
-          />
-        </label>
-      )}
+        {requirePrivacy && privacyHtml && (
+          <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
+            <Checkbox
+              checked={v.privacy}
+              onCheckedChange={(checked) => upd("privacy", checked === true)}
+              aria-required="true"
+              className="mt-px h-[16px] w-[16px] shrink-0"
+            />
+            <span
+              className="nl-consent"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(privacyHtml) }}
+            />
+          </label>
+        )}
 
-      {requireTerms && (
-        <label className="flex cursor-pointer items-start gap-2 text-[12px] leading-relaxed [color:var(--nl-muted)]">
-          <Checkbox
-            checked={v.terms}
-            onCheckedChange={(checked) => upd("terms", checked === true)}
-            aria-required="true"
-            className="mt-0.5 h-[16px] w-[16px] shrink-0"
-          />
-          <span
-            className="nl-consent"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(termsHtml) }}
-          />
-        </label>
-      )}
+        {requireTerms && (
+          <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
+            <Checkbox
+              checked={v.terms}
+              onCheckedChange={(checked) => upd("terms", checked === true)}
+              aria-required="true"
+              className="mt-px h-[16px] w-[16px] shrink-0"
+            />
+            <span
+              className="nl-consent"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(termsHtml) }}
+            />
+          </label>
+        )}
+      </div>
 
-      <div className="pt-2">
+      <div className="pt-3">
         <SubscribeButton
           loading={state === "loading"}
+          loadingLabel={t("Tworzę konto…", "Creating account…")}
           aria-label={cta}
           className="w-full"
-          style={{ minHeight: 48, fontSize: "1rem", borderRadius: 6 }}
+          style={{ minHeight: 46, fontSize: "0.9375rem", borderRadius: 6 }}
         >
           {cta}
         </SubscribeButton>
       </div>
 
-      {form.socialPosition === "bottom" && socialBlock}
-
       {state === "err" && err && (
-        <p className="text-xs text-red-400" role="alert">
+        <p
+          className="text-[12px] leading-relaxed"
+          role="alert"
+          style={{ color: "var(--destructive, #f87171)" }}
+        >
           {err}
         </p>
       )}
 
-      {note && <p className="pt-1 text-[11px] opacity-80 [color:var(--nl-muted)]">{note}</p>}
-
-      {form.showLoginLink && (
-        <p className="pt-1 text-[12px] [color:var(--nl-muted)]">
-          <a
-            href={form.loginLinkHref}
-            className="underline underline-offset-2 transition-opacity hover:opacity-80"
-            style={{ color: "var(--nl-fg)" }}
-          >
-            {isPl ? form.loginLinkPl : form.loginLinkEn}
-          </a>
-        </p>
+      {(note || form.showLoginLink) && (
+        <div className="space-y-1.5 pt-2">
+          {note && <p className="text-[11.5px] leading-relaxed [color:var(--nl-muted)]">{note}</p>}
+          {form.showLoginLink && (
+            <p className="text-[12px] [color:var(--nl-muted)]">
+              <a
+                href={form.loginLinkHref}
+                className="font-medium underline underline-offset-2 transition-opacity hover:opacity-80"
+                style={{ color: "var(--nl-fg)" }}
+              >
+                {isPl ? form.loginLinkPl : form.loginLinkEn}
+              </a>
+            </p>
+          )}
+        </div>
       )}
     </form>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z"
-        fill="#34A853"
-      />
-      <path
-        d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84Z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z"
-        fill="#EB4335"
-      />
-    </svg>
   );
 }
