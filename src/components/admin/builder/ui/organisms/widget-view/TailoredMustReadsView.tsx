@@ -55,13 +55,13 @@ const TMR_TITLE_CSS = `
 [data-widget="tailored-must-reads"] .tmr-title-clamp {
   display: block;
   overflow: hidden;
+  max-height: calc(3 * 1.4em + var(--cms-underline-thickness, 2px));
+  max-height: calc(3lh + var(--cms-underline-thickness, 2px));
   padding-bottom: var(--cms-underline-thickness, 2px);
 }
 [data-widget="tailored-must-reads"] .tmr-title-clamp > .cms-post-title.cms-post-title {
   display: block;
-  max-height: calc(3 * 1.4em + var(--cms-underline-thickness, 2px));
-  max-height: calc(3lh + var(--cms-underline-thickness, 2px));
-  overflow: hidden;
+  overflow: visible;
 }
 `;
 
