@@ -386,7 +386,7 @@ const SHARED_STYLES = `
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; height: calc(2 * 1.25em); height: 2lh;
 }
-/* Zajawka: zawsze rezerwuje 3 linie, niezależnie od długości tekstu. */
+/* Excerpt block: always reserve 3 lines so the widget height stays stable. */
 .eh-slider .eh-clamp-3.cms-post-excerpt { height: calc(3 * 1.5em); height: 3lh; }
 .eh-slider .eh-img { transform: none; transform-origin: center center; backface-visibility: hidden; }
 .eh-slider:hover .eh-img { transform: none; }
