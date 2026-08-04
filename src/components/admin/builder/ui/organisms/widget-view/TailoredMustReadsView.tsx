@@ -50,6 +50,20 @@ const DEFAULT_LABEL_EN = "Your tailored must-reads, {name}";
 const FALLBACK_LABEL_PL = "Dla ciebie";
 const FALLBACK_LABEL_EN = "For you";
 
+/** Per-line animated underline for the title, matching Editorial Hero. */
+const TMR_TITLE_CSS = `
+[data-widget="tailored-must-reads"] .tmr-title-clamp {
+  display: block;
+  overflow: hidden;
+}
+[data-widget="tailored-must-reads"] .tmr-title-clamp > .cms-post-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+`;
+
 function useCurrentUserFirstName(): string {
   const { user } = useAuth();
   const { data } = useQuery({
@@ -166,6 +180,7 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
 
   return (
     <section className="w-full" data-widget="tailored-must-reads">
+      <style dangerouslySetInnerHTML={{ __html: TMR_TITLE_CSS }} />
       <header className="mb-4 flex items-baseline justify-between gap-3">
         <div className="min-w-0">
           {showKicker && (
@@ -226,9 +241,11 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
                     />
                   ) : null}
                   <AppLink href={href} className="min-w-0">
-                    <h3 className="line-clamp-3 font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
-                      {title}
-                    </h3>
+                    <div className="tmr-title-clamp">
+                      <h3 className="cms-post-title font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
+                        {title}
+                      </h3>
+                    </div>
                   </AppLink>
                   {showExcerpt && excerpt ? (
                     <p className="line-clamp-2 text-sm text-muted-foreground">{excerpt}</p>
