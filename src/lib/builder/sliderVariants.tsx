@@ -384,10 +384,10 @@ const SHARED_STYLES = `
 .eh-slider .eh-title-clamp { display: block; overflow: hidden; padding-bottom: 4px; }
 .eh-slider .eh-title-clamp > * {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden; height: calc(2 * 1.25em);
+  overflow: hidden; height: calc(2 * 1.25em); height: 2lh;
 }
 /* Zajawka: zawsze rezerwuje 3 linie, niezależnie od długości tekstu. */
-.eh-slider .eh-clamp-3.cms-post-excerpt { height: calc(3 * 1.5em); }
+.eh-slider .eh-clamp-3.cms-post-excerpt { height: calc(3 * 1.5em); height: 3lh; }
 .eh-slider .eh-img { transform: none; transform-origin: center center; backface-visibility: hidden; }
 .eh-slider:hover .eh-img { transform: none; }
 .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
