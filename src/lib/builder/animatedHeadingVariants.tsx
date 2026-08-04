@@ -99,7 +99,7 @@ const HOVER_LINE_CSS = `
 // w rogach. Border jednego elementu ma zawsze idealny, zeszlifowany narożnik
 // 90 stopni, a maska tylko odsłania kolejne fragmenty tej samej ramki.
 const HOVER_ALLSIDES_CSS = `
-.ah-as { position: relative; display: inline-block; padding: 8px; cursor: pointer; --ah-bw: 3px; --ah-t: 0.3s; }
+.ah-as { position: relative; display: inline-block; padding: 8px; cursor: pointer; --ah-bw: var(--cms-underline-thickness, 2px); --ah-t: 0.3s; }
 .ah-as::before {
   content: "";
   position: absolute;
