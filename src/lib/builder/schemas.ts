@@ -8,7 +8,6 @@ import {
   SOCIAL_HOVER_ICON_COLOR,
   SOCIAL_HOVER_TEXT_COLOR,
   SOCIAL_IDLE_ICON_COLOR,
-  socialIdleColorHint,
 } from "./socialBrand";
 
 /**
@@ -100,7 +99,7 @@ const SOCIAL_PLATFORM_COLOR_FIELDS: ReadonlyArray<SchemaField> = SOCIAL_PLATFORM
         group: "Kolory platform",
         inheritedValue: idle?.light,
         placeholder: idle?.light,
-        hint: `Puste = faktyczny kolor marki (${socialIdleColorHint(id)}).`.replace(socialIdleColorHint(id), socialIdleColorHint(id)),
+        hint: "Puste = faktyczny kolor marki (light: rozjaśniony, dark: surowy) - próbka obok pokazuje wartość.",
       },
       {
         key: `hoverFrom${key}`,
@@ -109,7 +108,7 @@ const SOCIAL_PLATFORM_COLOR_FIELDS: ReadonlyArray<SchemaField> = SOCIAL_PLATFORM
         group: "Kolory platform",
         inheritedValue: grad?.from,
         placeholder: grad?.from,
-        hint: `Puste = ${grad?.from ?? "gradient marki"} (light i dark tak samo).`,
+        hint: "Puste = kolor gradientu marki (light i dark tak samo).",
         visibleWhen: (c) => c.hoverMode !== "none",
       },
       {
@@ -119,7 +118,7 @@ const SOCIAL_PLATFORM_COLOR_FIELDS: ReadonlyArray<SchemaField> = SOCIAL_PLATFORM
         group: "Kolory platform",
         inheritedValue: grad?.to,
         placeholder: grad?.to,
-        hint: `Puste = ${grad?.to ?? "gradient marki"} (light i dark tak samo).`,
+        hint: "Puste = kolor gradientu marki (light i dark tak samo).",
         visibleWhen: (c) => c.hoverMode !== "none",
       },
     ];
@@ -147,7 +146,7 @@ const SOCIAL_HOVER_FIELDS: ReadonlyArray<SchemaField> = [
     visibleWhen: (c) => c.hoverMode !== "none",
     inheritedValue: SOCIAL_HOVER_ICON_COLOR,
     placeholder: SOCIAL_HOVER_ICON_COLOR,
-    hint: `Puste = ${SOCIAL_HOVER_ICON_COLOR} (biały) - identycznie w light i dark mode, w builderze i na stronie publicznej.`,
+    hint: "Domyślnie biały - identycznie w light i dark mode, w builderze i na stronie publicznej.",
   },
   {
     key: "hoverTextColor",
@@ -157,7 +156,7 @@ const SOCIAL_HOVER_FIELDS: ReadonlyArray<SchemaField> = [
     visibleWhen: (c) => c.hoverMode !== "none",
     inheritedValue: SOCIAL_HOVER_TEXT_COLOR,
     placeholder: SOCIAL_HOVER_TEXT_COLOR,
-    hint: `Puste = ${SOCIAL_HOVER_TEXT_COLOR} (biały) w obu trybach.`,
+    hint: "Domyślnie biały - identycznie w light i dark mode.",
   },
   {
     key: "hoverFrom",
