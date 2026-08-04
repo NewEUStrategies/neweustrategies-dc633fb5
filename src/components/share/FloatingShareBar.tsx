@@ -16,12 +16,10 @@ import {
   List,
   X,
   BookOpen,
-  Bookmark,
-  BookmarkCheck,
 } from "@/lib/lucide-shim";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { toast } from "sonner";
-import { useSaveArticle } from "@/hooks/useSaveArticle";
+import { SaveArticleButton } from "@/components/atoms/SaveArticleButton";
 import type { BookmarkEntityType } from "@/hooks/useBookmarks";
 import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
 import { rafThrottle } from "@/lib/rafThrottle";
@@ -100,8 +98,6 @@ const COPY = {
     actions: "Akcje",
     tocTitle: "SPIS TREŚCI",
     read: "przeczytano",
-    saveLater: "Zapisz później",
-    saved: "Zapisano",
   },
   en: {
     share: "Share",
@@ -117,8 +113,6 @@ const COPY = {
     actions: "Actions",
     tocTitle: "ON THIS PAGE",
     read: "read",
-    saveLater: "Save for later",
-    saved: "Saved",
   },
 } as const;
 
@@ -305,16 +299,11 @@ export function FloatingShareBar({
     window.print();
   };
 
-  // "Save for later": signed-in users persist to their account (user_bookmarks,
-  // surfaced in /reading-list + /profile/bookmarks); guests fall back to device
-  // localStorage or a login nudge per the personalization settings.
-  const { isSaved, toggle: onToggleSave } = useSaveArticle({
-    entityId,
-    entityType,
-    url: u,
-    title,
-    lang,
-  });
+  // "Save for later" mieszka w atomie SaveArticleButton (jeden przycisk, jeden
+  // stan zapisu dla panelu, arkusza mobilnego i paska czytania). Sam zapis
+  // rozstrzyga useSaveArticle: zalogowany -> konto (user_bookmarks, widoczne w
+  // /reading-list i /profile/bookmarks), gość -> localStorage albo popup
+  // logowania, zgodnie z ustawieniami personalizacji.
 
   const jumpTo = (id: string): void => {
     const el = document.getElementById(id);
@@ -522,31 +511,15 @@ export function FloatingShareBar({
 
           {/* Save-later + Print/PDF - labeled action buttons */}
           {cfg.showSaveLater && (
-            <button
-              type="button"
-              onClick={onToggleSave}
-              aria-pressed={isSaved}
-              aria-label={isSaved ? t.saved : t.saveLater}
-              className={[
-                "w-full mb-1.5 inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] text-[11px] font-semibold tracking-tight transition active:scale-[0.98]",
-                isSaved
-                  ? "bg-brand/10 text-brand border border-brand/40"
-                  : "border border-border bg-background text-foreground hover:bg-muted",
-              ].join(" ")}
-            >
-              {isSaved ? (
-                <BookmarkCheck
-                  className="w-[14px] h-[14px] [&_*]:stroke-current"
-                  style={{ color: "currentColor" }}
-                />
-              ) : (
-                <Bookmark
-                  className="w-[14px] h-[14px] [&_*]:stroke-current"
-                  style={{ color: "currentColor" }}
-                />
-              )}
-              {isSaved ? t.saved : t.saveLater}
-            </button>
+            <SaveArticleButton
+              title={title}
+              lang={lang}
+              entityId={entityId}
+              entityType={entityType}
+              url={href || undefined}
+              variant="labelled"
+              className="mb-1.5 h-9 text-[11px]"
+            />
           )}
           {(cfg.showPdf || cfg.showPrint) && (
             <div className="grid gap-1.5 grid-cols-1">
@@ -790,25 +763,15 @@ export function FloatingShareBar({
               )}
             </div>
             {cfg.showSaveLater && (
-              <button
-                type="button"
-                onClick={onToggleSave}
-                aria-pressed={isSaved}
-                aria-label={isSaved ? t.saved : t.saveLater}
-                className={[
-                  "w-full mt-2.5 inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] text-[12px] font-semibold tracking-tight transition active:scale-[0.98]",
-                  isSaved
-                    ? "bg-brand/10 text-brand border border-brand/40"
-                    : "border border-border bg-background text-foreground active:bg-muted",
-                ].join(" ")}
-              >
-                {isSaved ? (
-                  <BookmarkCheck className="w-[15px] h-[15px]" />
-                ) : (
-                  <Bookmark className="w-[15px] h-[15px]" />
-                )}
-                {isSaved ? t.saved : t.saveLater}
-              </button>
+              <SaveArticleButton
+                title={title}
+                lang={lang}
+                entityId={entityId}
+                entityType={entityType}
+                url={href || undefined}
+                variant="labelled"
+                className="mt-2.5"
+              />
             )}
             {/* Same CMS config as the desktop rail - the sheet must not show
                 actions the settings turned off. */}

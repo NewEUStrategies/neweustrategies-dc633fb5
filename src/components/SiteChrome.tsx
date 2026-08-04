@@ -96,7 +96,9 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       <SkipToContentLink />
       <ImpersonationBanner />
       <RouteProgress />
-      <Header adPageType={adPageTypeForLocation(pathname, contentKind)} />
+      {/* contentKind idzie do headera nie tylko po reklamy: rozstrzyga, czy
+          górną krawędź przejmuje ReadingHeader wpisu (lib/layout/headerMode). */}
+      <Header adPageType={adPageTypeForLocation(pathname, contentKind)} contentKind={contentKind} />
       <main id="main-content" className="flex-1" style={mainStyle}>
         {children}
       </main>

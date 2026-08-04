@@ -67,6 +67,16 @@ body {
   /* iOS Safari potrafi „panować" viewportem mimo clip - blokujemy gest
      poziomy na poziomie dokumentu, pion zostaje bez zmian. */
   overscroll-behavior-x: none;
+  /* TWARDA blokada gestu: dokument wolno przesuwać wyłącznie w pionie, więc
+     nawet jeśli jakiś element (np. `fixed`, którego `overflow-x: clip` na
+     korzeniu nie przycina w WebKicie) wyjdzie poza szerokość viewportu,
+     strona nie da się przesunąć w bok.
+     `pinch-zoom` ZOSTAJE - odebranie go łamie dostępność (WCAG 1.4.4).
+     Lokalne kontenery przewijane w poziomie (tabele, <pre>, karuzele) działają
+     bez zmian: przeglądarka przy gestcie schodzi tylko do elementu, który go
+     obsługuje, więc ograniczenie korzenia ich nie dotyczy. Regresję pilnuje
+     src/lib/ci/__tests__/horizontalPanGuard.test.ts. */
+  touch-action: pan-y pinch-zoom;
 }
 
 @media (max-width: 767px) {
@@ -6324,6 +6334,17 @@ textarea::placeholder {
 }
 
 header[data-site-header].site-header-shrink {
+  /* Zwijanie skaluje `.site-header-chrome` transformem, a żeby po przeskalowaniu
+     nadal wypełniał szerokość, chrome jest W UKŁADZIE szerszy o 1/scale (przy
+     scale 0.8 to 125% szerokości headera). Wizualnie wychodzi dokładnie 100%,
+     ale nadmiarowe pudełko układu musi zostać przycięte: WebKit liczy geometrię
+     przewijania dla warstw `sticky`/kompozytowanych z pominięciem transformu
+     przodka, przez co te nadmiarowe procenty stawały się poziomym zakresem
+     przewijania dokumentu (strona dawała się przesuwać w bok na iOS).
+     Tylko poziomo - `overflow-y: visible` zostawia rozwijane menu i dropdowny
+     wychodzące w dół nietknięte. */
+  overflow-x: clip;
+  overflow-y: visible;
   --hdr-ease: cubic-bezier(0.37, 0, 0.63, 1);
   --hdr-duration: 460ms;
   --hdr-p: 0;
@@ -6423,13 +6444,30 @@ header[data-site-header][data-metrics="ready"]
   }
 }
 
-/* Kotwice (#newsletter, #kontakt itd.) nie mogą wjeżdżać pod sticky header.
-   --sticky-header-h ustawia komponent Header na podstawie realnej wysokości. */
+/* Kotwice (#newsletter, #kontakt itd.) nie mogą wjeżdżać pod przyklejony pasek.
+   --sticky-header-h ustawia komponent Header na podstawie realnej wysokości
+   (0 px, gdy header nie jest sticky), --reading-header-h opisuje pasek czytania
+   wpisu, który wtedy przejmuje górną krawędź. Kotwica odsuwa się od tego z nich,
+   który jest wyższy - bez max() na wpisie skok do nagłówka (spis treści,
+   #kotwica z adresu) chowałby go pod paskiem czytania. */
+html:has([data-reading-header]) {
+  --reading-header-h: 40px;
+}
+@media (min-width: 640px) {
+  html:has([data-reading-header]) {
+    --reading-header-h: 44px;
+  }
+}
+@media (min-width: 1024px) {
+  html:has([data-reading-header]) {
+    --reading-header-h: 48px;
+  }
+}
 html {
-  scroll-padding-top: calc(var(--sticky-header-h, 96px) + 15px);
+  scroll-padding-top: calc(max(var(--sticky-header-h, 96px), var(--reading-header-h, 0px)) + 15px);
 }
 [id] {
-  scroll-margin-top: calc(var(--sticky-header-h, 96px) + 15px);
+  scroll-margin-top: calc(max(var(--sticky-header-h, 96px), var(--reading-header-h, 0px)) + 15px);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

@@ -24,6 +24,7 @@ import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { useLang } from "@/lib/i18n/useLang";
+import { resolveHeaderMode, type ContentKind } from "@/lib/layout/headerMode";
 
 type ThemeLogoCfg = {
   logo?: {
@@ -51,6 +52,12 @@ interface HeaderProps {
   adPageType?: AdPageType;
   /** Czy header renderuje się na stronie głównej (wpływa na efekty scroll). */
   isHome?: boolean;
+  /**
+   * `kind` z loaderData dopasowanej trasy. Rozstrzyga, czy górną krawędź
+   * przejmuje pasek czytania wpisu (patrz lib/layout/headerMode) - po ścieżce
+   * tego rozpoznać nie można, bo wpisy mają adresy `<rodzic>/<slug>`.
+   */
+  contentKind?: ContentKind;
 }
 
 function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
@@ -268,15 +275,20 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   );
 }
 
-export const Header = memo(function Header({ adPageType }: HeaderProps) {
+export const Header = memo(function Header({ adPageType, contentKind = null }: HeaderProps) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isHome = pathname === "/" || pathname === "/en" || pathname === "/en/";
   // Wpisy mają własny ReadingHeader po scrollu - tam nie robimy sticky/shrink,
-  // żeby nie duplikować chrome'u. Wszystkie pozostałe strony (statyczne,
-  // archiwa, kategorie, profile itd.) zachowują się tak samo jak home:
-  // sticky top-0 + shrink na scroll.
-  const isPost = pathname.startsWith("/post/");
-  const stickyShrink = !isPost;
+  // żeby nie duplikować chrome'u (dwa przyklejone paski = pasek czytania i jego
+  // akcje znikają pod mobilnym paskiem headera). Wszystkie pozostałe strony
+  // (statyczne, archiwa, kategorie, profile itd.) zachowują się tak samo jak
+  // home: sticky top-0 + shrink na scroll.
+  //
+  // Rozpoznanie wpisu idzie z loaderData (`contentKind`), a nie ze ścieżki -
+  // kanoniczny adres wpisu to `<rodzic>/<slug>`, więc stary warunek
+  // `pathname.startsWith("/post/")` nie łapał ŻADNEGO realnego wpisu.
+  const headerMode = resolveHeaderMode({ pathname, contentKind });
+  const stickyShrink = headerMode === "sticky-shrink";
   const [scrolled, setScrolled] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -467,6 +479,7 @@ export const Header = memo(function Header({ adPageType }: HeaderProps) {
     <header
       ref={headerRef}
       data-site-header
+      data-header-mode={headerMode}
       data-scrolled={scrolled ? "true" : "false"}
       className={
         (stickyShrink ? "sticky top-0 " : "relative ") +

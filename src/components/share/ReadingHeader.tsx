@@ -3,7 +3,7 @@
 // visually and behaviourally identical (live results, popover, clear button).
 // Layout: [search] [current article title] [theme | account/login | lang]
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   Bookmark,
@@ -16,6 +16,7 @@ import {
   User,
 } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
+import { SaveArticleButton } from "@/components/atoms/SaveArticleButton";
 import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
 import { LangReelSwitcher } from "@/components/atoms/LangReelSwitcher";
 import { SearchButtonWidget } from "@/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget";
@@ -24,7 +25,7 @@ import { ChatBell } from "@/components/chat/ChatBell";
 import { useAuth } from "@/hooks/useAuth";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useHasMounted } from "@/hooks/useHasMounted";
-import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hooks/useBookmarks";
+import type { BookmarkEntityType } from "@/hooks/useBookmarks";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import { rafThrottle } from "@/lib/rafThrottle";
@@ -61,9 +62,6 @@ const COPY = {
     logout: "Wyloguj",
     lang: "Język",
     menu: "Menu konta",
-    saveForLater: "Zapisz na później",
-    saved: "Zapisano",
-    removeBookmark: "Usuń z zapisanych",
   },
   en: {
     reading: "currently reading",
@@ -77,9 +75,6 @@ const COPY = {
     logout: "Sign out",
     lang: "Language",
     menu: "Account menu",
-    saveForLater: "Save for later",
-    saved: "Saved",
-    removeBookmark: "Remove from saved",
   },
 } as const;
 
@@ -119,15 +114,6 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Save-for-later state for the current article.
-  const { data: bookmarks } = useBookmarks();
-  const toggleBookmark = useToggleBookmark();
-  const navigate = useNavigate();
-  const isSaved = entityId
-    ? (bookmarks?.some((b) => b.entity_type === entityType && b.entity_id === entityId) ?? false)
-    : false;
-  const bookmarkLabel = isSaved ? t.removeBookmark : t.saveForLater;
-
   useEffect(() => {
     if (!menuOpen) return;
     const onClick = (e: MouseEvent) => {
@@ -149,7 +135,31 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
     if (!visible) setMenuOpen(false);
   }, [visible]);
 
+  // Przekazanie górnej krawędzi: pasek czytania pojawia się DOKŁADNIE wtedy, gdy
+  // pasek serwisu wyjedzie z ekranu. Dwa efekty tego jednego warunku:
+  //   * nigdy nie ma dwóch pasków naraz - gdy header jest sticky (strony, home),
+  //     nie wyjeżdża, więc pasek czytania po prostu się nie pokazuje. Wcześniej
+  //     próg 320 px odpalał go „w ciemno" i na wpisie leżał niewidoczny pod
+  //     paskiem mobilnym razem ze swoimi akcjami;
+  //   * nie ma dziury bez chrome'u - przejęcie następuje w tej samej klatce, w
+  //     której header znika, niezależnie od jego wysokości (alert + „na czasie"
+  //     + baner potrafią mieć razem grubo ponad 320 px).
+  // IntersectionObserver zamiast matematyki na scrollu: zero odczytów layoutu w
+  // handlerze scrolla (INP/TBT strony artykułu). Próg pikselowy zostaje jako
+  // zapas dla widoków bez paska serwisu (np. własne chrome trasy).
   useEffect(() => {
+    const siteHeader = document.querySelector<HTMLElement>("[data-site-header]");
+    if (siteHeader) {
+      const io = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[entries.length - 1];
+          if (entry) setVisible(!entry.isIntersecting);
+        },
+        { threshold: 0 },
+      );
+      io.observe(siteHeader);
+      return () => io.disconnect();
+    }
     // rAF-throttle: przy szybkim scrollu handler odpala raz na klatkę,
     // nie raz na zdarzenie (INP/TBT strony artykułu).
     const onScroll = rafThrottle((): void => setVisible(window.scrollY > showAfter));
@@ -170,7 +180,12 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
       // aria-hidden-focus), otherwise keyboard users tab into invisible UI.
       inert={!visible}
       className={[
-        "fixed inset-x-0 top-0 z-30",
+        // z-[9990]: pasek czytania jest jedynym chrome'em na wpisie, więc musi
+        // leżeć NAD mobilnym paskiem headera (z-9998 tylko gdy header jest
+        // sticky - patrz lib/layout/headerMode) i pod overlayami, które mają go
+        // przykrywać: drawer (9999) i SearchOverlay (10000). Przy z-30 dawał się
+        // schować pod paskiem mobilnym - wtedy jego akcje były niedostępne.
+        "fixed inset-x-0 top-0 z-[9990]",
         "border-b border-border/70 bg-background/95 backdrop-blur-xl",
         "shadow-[0_4px_20px_-12px_rgba(0,0,0,0.25)]",
         "transition-all duration-300 ease-out",
@@ -181,10 +196,20 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
         /* Safe-space rules for the condensed reading header.
            The search mega-box popover is wider than the input; every ancestor
            of the widget must stay visible so it is never clipped by columns or
-           sections with overflow:hidden in the builder/public wrapper. */
-        [data-reading-header] :has(> .builder-search-widget),
-        [data-reading-header] :has(.builder-search-widget) {
+           sections with overflow:hidden in the builder/public wrapper.
+
+           WYJĄTEK: sam wiersz paska (data-reading-row). Reguła :has() łapała
+           też jego, bo widget siedzi w środku - i zdejmowała mu poziomy clip,
+           czyli dokładnie to zabezpieczenie, które ma trzymać pasek w
+           szerokości ekranu. Wiersz przycina więc w poziomie, a w pionie
+           zostaje widoczny, żeby popover nadal mógł wyjechać w dół. */
+        [data-reading-header] :has(> .builder-search-widget):not([data-reading-row]),
+        [data-reading-header] :has(.builder-search-widget):not([data-reading-row]) {
           overflow: visible !important;
+        }
+        [data-reading-header] [data-reading-row] {
+          overflow-x: clip;
+          overflow-y: visible;
         }
         [data-reading-header] .builder-search-widget {
           position: relative;
@@ -225,94 +250,100 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           }
         }
       `}</style>
-      <div className="mx-auto w-full max-w-[1400px] overflow-x-clip px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5">
-        {/* JEDNA komórka gridu dla obu klastrów (desktop + mobile). Wcześniej
-            były dwoma osobnymi dziećmi, przez co przy trzech kolumnach powstawał
-            czwarty, niejawny tor i pasek wychodził poza szerokość ekranu -
-            strona dawała się przesuwać w bok, a zakładka chowała się poza kadrem. */}
+      <div
+        data-reading-row
+        className="mx-auto w-full max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5"
+      >
+        {/* Kolumna 1 - nawigacja. Oba klastry (desktop + mobile) siedzą w tym
+            samym torze gridu; tylko jeden z nich jest w danej chwili widoczny
+            (`hidden sm:flex` / `flex sm:hidden`), więc tor ma zawsze szerokość
+            dokładnie jednego z nich. */}
         <div className="flex min-w-0 items-center">
           {/* Search + horizontal logo cluster. Logo uses the same theme-aware
-            Branding → Logo → Mobile asset as the main header, so dark/light
-            variants align automatically. */}
+              Branding → Logo → Mobile asset as the main header, so dark/light
+              variants align automatically. */}
           <div className="hidden sm:flex items-center gap-2 lg:gap-3 min-w-0">
-          <Link
-            to="/"
-            aria-label="New European Strategies"
-            data-reading-icon
-            className="shrink-0 inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded"
-          >
-            {horizontalLogo ? (
-              <img
-                src={horizontalLogo}
-                alt=""
-                className="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain"
-                loading="eager"
-                decoding="async"
+            <Link
+              to="/"
+              aria-label="New European Strategies"
+              data-reading-icon
+              className="shrink-0 inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded"
+            >
+              {horizontalLogo ? (
+                <img
+                  src={horizontalLogo}
+                  alt=""
+                  className="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain"
+                  loading="eager"
+                  decoding="async"
+                />
+              ) : (
+                <span className="font-display text-[12px] lg:text-[13px] font-bold tracking-tight text-foreground">
+                  New European Strategies
+                </span>
+              )}
+            </Link>
+            <div className="relative z-50 min-w-0 overflow-visible w-[160px] md:w-[200px] lg:w-[240px]">
+              <SearchButtonWidget
+                label={t.search}
+                mode="dropdown"
+                heading={t.search}
+                liveResults
+                limit={8}
+                lang={lang}
+                height={24}
+                radius={6}
+                fontSize={11}
               />
-            ) : (
-              <span className="font-display text-[12px] lg:text-[13px] font-bold tracking-tight text-foreground">
-                New European Strategies
-              </span>
-            )}
-          </Link>
-          <div className="relative z-50 min-w-0 overflow-visible w-[160px] md:w-[200px] lg:w-[240px]">
-            <SearchButtonWidget
-              label={t.search}
-              mode="dropdown"
-              heading={t.search}
-              liveResults
-              limit={8}
-              lang={lang}
-              height={24}
-              radius={6}
-              fontSize={11}
-            />
+            </div>
+          </div>
+
+          {/* Mobile-only icon cluster replacing the search widget.
+              Zawiera lupę i hamburger, które przez zdarzenia okna otwierają ten
+              sam SearchOverlay i drawer co główny pasek mobilny - bez tego po
+              scrollu na wpisie użytkownik traci dostęp do menu i szukania. */}
+          <div className="flex sm:hidden items-center gap-1 min-w-0">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("neus:open-mobile-search"))}
+              aria-label={t.search}
+              title={t.search}
+              className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("neus:open-mobile-menu"))}
+              aria-label={t.menu}
+              title={t.menu}
+              className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            {/* Dzwonki (powiadomienia/czat) na wąskich ekranach są dostępne w
+                drawerze i profilu - w pasku czytania poszerzały wiersz ponad
+                szerokość viewportu. Język i konto zostają: pasek czytania jest
+                na wpisie JEDYNYM chrome'em, więc musi je udostępniać. */}
+            <LangReelSwitcher label={t.lang} className="[--ls-h:28px]" />
+            <Link
+              to={isAuthed ? "/profile" : "/login"}
+              aria-label={t.profile}
+              title={t.profile}
+              className="hidden min-[400px]:grid h-7 w-7 place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+            >
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt=""
+                  className="h-5 w-5 rounded-full object-cover"
+                />
+              ) : (
+                <User className="w-4 h-4" />
+              )}
+            </Link>
           </div>
         </div>
-
-        {/* Mobile-only icon cluster replacing the search widget.
-            Zawiera lupę i hamburger, które przez zdarzenia okna otwierają ten
-            sam SearchOverlay i drawer co główny pasek mobilny - bez tego po
-            scrollu na wpisie użytkownik traci dostęp do menu i szukania. */}
-        <div className="flex sm:hidden items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event("neus:open-mobile-search"))}
-            aria-label={t.search}
-            title={t.search}
-            className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-          >
-            <Search className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event("neus:open-mobile-menu"))}
-            aria-label={t.menu}
-            title={t.menu}
-            className="h-7 w-7 grid place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-          <LangReelSwitcher label={t.lang} className="[--ls-h:28px]" />
-
-          {/* Dzwonki (powiadomienia/czat) na wąskich ekranach są dostępne w
-              drawerze i profilu - w pasku czytania powodowały poszerzenie
-              wiersza ponad szerokość viewportu (poziome przesuwanie strony). */}
-          <Link
-            to={isAuthed ? "/profile" : "/login"}
-            aria-label={t.profile}
-            title={t.profile}
-            className="hidden min-[420px]:grid h-7 w-7 place-items-center rounded-md transition shrink-0 text-foreground hover:text-brand hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-          >
-            {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover" />
-            ) : (
-              <User className="w-4 h-4" />
-            )}
-          </Link>
-        </div>
-        </div>
-
 
         {/* Reading: title */}
         <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">
@@ -331,8 +362,21 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           </span>
         </div>
 
-        {/* Right cluster */}
+        {/* Right cluster - akcje czytania.
+            „Zapisz na później" idzie PIERWSZE: to główna akcja paska czytania i
+            po wyjściu z ukrycia (wcześniej cały pasek leżał pod paskiem
+            mobilnym) ma być najbliżej kciuka. Współdzielony atom trzyma ten sam
+            stan zapisu co panel czytania i arkusz mobilny. */}
         <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 shrink-0">
+          {entityId && (
+            <SaveArticleButton
+              title={title}
+              lang={lang}
+              entityId={entityId}
+              entityType={entityType}
+              className="sm:h-8 sm:w-8"
+            />
+          )}
           <ThemeToggle
             data-reading-icon
             className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center"
@@ -343,34 +387,6 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
           <div data-reading-icon className="hidden sm:flex h-7 sm:h-8 items-center">
             <ChatBell panelWidth={300} />
           </div>
-          {entityId && (
-            <button
-              type="button"
-              aria-pressed={isSaved}
-              aria-label={bookmarkLabel}
-              title={bookmarkLabel}
-              disabled={toggleBookmark.isPending}
-              onClick={() => {
-                if (!isAuthed) {
-                  void navigate({ to: "/login" });
-                  return;
-                }
-                toggleBookmark.mutate({ entityType, entityId, on: !isSaved });
-              }}
-              data-reading-icon
-              className={[
-                "h-7 w-7 sm:h-8 sm:w-8 grid place-items-center rounded-md transition shrink-0",
-                "text-foreground hover:text-brand hover:bg-muted",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
-                isSaved ? "text-brand" : "",
-                toggleBookmark.isPending ? "opacity-60 cursor-wait" : "",
-              ].join(" ")}
-            >
-              <Bookmark
-                className={`w-4 h-4 sm:w-[18px] sm:h-[18px] transition-transform ${isSaved ? "fill-current scale-110" : ""}`}
-              />
-            </button>
-          )}
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
           <div
             data-reading-auth
