@@ -536,6 +536,7 @@ export function PopupSignupForm({
           type={showPass ? "text" : "password"}
           required
           label={label("password")}
+          placeholder={placeholder("password")}
           value={v.password}
           onChange={(e) => upd("password", e.target.value)}
           minLength={MIN_PASSWORD}
@@ -559,6 +560,7 @@ export function PopupSignupForm({
           type={showPass ? "text" : "password"}
           required
           label={label("password_confirm")}
+          placeholder={placeholder("password_confirm")}
           value={v.passwordConfirm}
           onChange={(e) => upd("passwordConfirm", e.target.value)}
           minLength={MIN_PASSWORD}
@@ -577,7 +579,7 @@ export function PopupSignupForm({
             value={v.list}
             onChange={(e) => upd("list", e.target.value)}
           >
-            <option value="">{t("Wybierz listę", "Choose a list")}</option>
+            <option value="">{placeholder("list") ?? t("Wybierz listę", "Choose a list")}</option>
             {lists.map((l) => (
               <option key={l.id} value={l.id}>
                 {isPl ? l.label_pl : l.label_en}
