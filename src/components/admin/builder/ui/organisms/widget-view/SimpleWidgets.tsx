@@ -514,24 +514,27 @@ export function renderSimpleWidget(
       // Wygląd kafelka ikony jest wspólny dla obu układów. Wcześniej „list"
       // rysował sam kolor ikony i ignorował tło (bgMode / customBgColor), więc
       // te same ustawienia działały tylko w jednym układzie.
+      //
+      // STAN PODSTAWOWY IKONY = `text-foreground` kontenera, czyli atrament
+      // motywu: ciemny w light mode, biały w dark mode. To wygląd ustalony na
+      // publicznej stronie kontaktu i jedyny, który jest ZE SWOJEJ NATURY
+      // spójny w kanwie, w podglądzie panelu i na froncie - nie zależy od
+      // żadnego tokenu, który mógłby się nie rozwiązać w jednym z kontekstów.
+      //
+      // Wcześniejsza próba rozjaśniania stanu podstawowego domieszką marki
+      // (`--sb-icon` / `--sb-off-tone` liczone przez `color-mix`) dała dokładnie
+      // ten rozjazd, który redakcja zgłosiła: w builderze ikony wychodziły
+      // jasnopomarańczowe, a na stronie publicznej zostawały czarne. Rozjaśnienie
+      // ikony należy do stanu HOVER (patrz socialHover.ts), nie do spoczynku.
       const chipStyle = (k: string, active: boolean): CSSProperties => {
         const bg = resolveBg(k, active);
         const onContrast = bgMode === "official" && active;
-        const official = colorMode === "official" ? SOCIAL_OFFICIAL_COLORS[k] : undefined;
         return {
           ...linkStyle,
-          // W trybie dziedziczonym ikona bierze jaśniejszy ton marki (light
-          // mode) / biel (dark mode) zamiast twardej czerni z --foreground.
-          // W trybie "official" kolor marki jest w light mode rozjaśniany
-          // (var(--sb-off-tone)), a w dark mode zostaje surowy.
-          ...(official ? ({ ["--sb-off"]: official } as CSSProperties) : null),
-          color: onContrast
-            ? "#fff"
-            : active
-              ? official
-                ? "var(--sb-off-tone)"
-                : (resolveColor(k) ?? "var(--sb-icon)")
-              : undefined,
+          // Na kontrastowym tle marki ikona musi być biała, żeby nie zniknęła.
+          // Tryb „oficjalne kolory marek" daje kolor SUROWY - rozjaśniany
+          // przestawał być kolorem YouTube'a czy Facebooka, a to obiecuje nazwa.
+          color: onContrast ? "#fff" : active ? resolveColor(k) : undefined,
           backgroundColor: bg,
         };
       };
@@ -545,16 +548,6 @@ export function renderSimpleWidget(
         const own = getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
         return resolveSocialHref(own, globalLinks, k, linksSource);
       };
-
-      // Ton ikon: w light mode jaśniejsze odcienie (brand dla trybu
-      // dziedziczonego, rozjaśniony kolor marki dla trybu "official"),
-      // w dark mode biel / surowy kolor marki.
-      const ICON_TONE = [
-        "[--sb-icon:color-mix(in_oklab,var(--brand)_82%,#ffffff)]",
-        "dark:[--sb-icon:#ffffff]",
-        "[--sb-off-tone:color-mix(in_oklab,var(--sb-off,var(--brand))_62%,#ffffff)]",
-        "dark:[--sb-off-tone:var(--sb-off,var(--brand))]",
-      ].join(" ");
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
       // kafelku, separator, etykieta i CTA - żeby nie odstawał wyglądem.
@@ -691,7 +684,7 @@ export function renderSimpleWidget(
           return (
             <>
               <div
-                className={`flex w-full flex-col text-foreground ${ICON_TONE} ${themeCls} ${hoverScope}`}
+                className={`flex w-full flex-col text-foreground ${themeCls} ${hoverScope}`}
                 style={{ ...compactRowStyle, gap: `${gap}px` }}
               >
                 {rows}
@@ -704,7 +697,7 @@ export function renderSimpleWidget(
         return (
           <>
             <div
-              className={`flex flex-wrap items-center text-foreground ${ICON_TONE} ${themeCls} ${hoverScope}`}
+              className={`flex flex-wrap items-center text-foreground ${themeCls} ${hoverScope}`}
               style={{ ...compactRowStyle, gap: `${gap}px` }}
             >
               {items.map(({ k, altKeys, Cmp, label }) => {
