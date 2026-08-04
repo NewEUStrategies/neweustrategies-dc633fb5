@@ -1454,13 +1454,13 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "website", type: "url", label: "Strona www", placeholder: "https://…" },
     {
       key: "showSocials",
-      type: "toggle",
+      type: "bool",
       label: "Pokaż ikony social",
       hint: "Wyłączenie ukrywa całą listę odnośników.",
     },
     {
       key: "showProfileLink",
-      type: "toggle",
+      type: "bool",
       label: "Linkuj nazwisko do profilu publicznego",
       hint: "Działa po powiązaniu osoby z katalogu ekspertów.",
     },

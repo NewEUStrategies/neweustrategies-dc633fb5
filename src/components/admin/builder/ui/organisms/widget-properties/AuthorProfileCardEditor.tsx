@@ -66,7 +66,7 @@ export function AuthorProfileCardEditor({ c, lang, setContent }: Props) {
         </div>
         <div className="pointer-events-none">
           <AuthorProfileCardWidget
-            node={{ id: "preview", type: "author-profile-card", content: c }}
+            node={{ id: "preview", kind: "widget", type: "author-profile-card", content: c }}
             lang={lang}
           />
         </div>
