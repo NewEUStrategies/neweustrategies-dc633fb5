@@ -86,10 +86,13 @@ export function SignupPopupPanel({
 
   return (
     <div
-      /* `nlp` = zakres stylów popupu (src/styles.css): zwarta wysokość pól,
-         kolor nagłówków i kreska checkboxa liczone z palety popupu. */
+      /* `nlp` = zakres stylów popupu (src/styles.css): kolor nagłówków, kreska
+         checkboxa i utrzymanie dekoracji CTA w obrysie przycisku.
+         `overflow-clip` (nie `hidden`): przycina tak samo, ale NIE tworzy
+         kontenera przewijania, więc panelu nie da się przesunąć - ani gestem,
+         ani programowo (np. gdy przeglądarka „dojeżdża" do focusowanego pola). */
       className={
-        "nlp relative grid w-full grid-cols-1 overflow-hidden md:[grid-template-columns:var(--nl-cols)] " +
+        "nlp relative grid w-full grid-cols-1 overflow-clip md:[grid-template-columns:var(--nl-cols)] " +
         className
       }
       style={{
@@ -127,7 +130,7 @@ export function SignupPopupPanel({
 
       <div
         className={
-          "relative min-w-0 md:max-h-[92vh] md:overflow-hidden " +
+          "relative min-w-0 md:max-h-[92vh] md:overflow-clip " +
           (galleryRight ? "md:order-2" : "md:order-1")
         }
       >
@@ -152,9 +155,17 @@ export function SignupPopupPanel({
         />
       </div>
 
+      {/* Kolumna formularza przewija się TYLKO w pionie i tylko wtedy, gdy
+          treść nie mieści się w 92vh. `overflow-x-clip` jest tu konieczne:
+          `overflow-y: auto` sam z siebie wymusza `overflow-x: auto` (spec CSS
+          nie dopuszcza `visible` na jednej osi obok `auto` na drugiej), a każdy
+          element wystający w bok - dekoracja przycisku, ring focusa, długa
+          etykieta - robił z tego poziomą przestrzeń do przewijania i całą
+          zawartość popupu dało się przesunąć trackpadem. `overscroll-contain`
+          zatrzymuje gest w popupie, bez przenoszenia go na stronę pod spodem. */}
       <div
         className={
-          "flex min-w-0 flex-col justify-center p-5 sm:p-7 md:max-h-[92vh] md:overflow-y-auto md:p-8 lg:p-10 " +
+          "flex min-w-0 flex-col justify-center overscroll-contain p-5 sm:p-7 md:max-h-[92vh] md:overflow-y-auto md:overflow-x-clip md:p-8 lg:p-10 " +
           (galleryRight ? "md:order-1" : "md:order-2")
         }
       >

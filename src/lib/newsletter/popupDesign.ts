@@ -454,13 +454,31 @@ export function popupPaletteVars(palette: PopupPalette, radiusPx: number): Recor
     "--brand": palette.accent,
     "--brand-foreground": palette.accentFg,
     "--brand-ink": palette.accent,
-    // Etykiety pływające i placeholdery pól.
-    "--gc-input-placeholder": `color-mix(in srgb, ${palette.fg} 62%, transparent)`,
-    "--gc-input-placeholder-dark": `color-mix(in srgb, ${palette.fg} 62%, transparent)`,
+    // Etykiety pływające i placeholdery pól. 74% atramentu, bo 62% gubiło się
+    // na ciemnym panelu referencyjnym - to JEDEN token dla podpowiedzi i dla
+    // etykiety w spoczynku, dokładnie jak w widgecie „Dołącz do nas".
+    "--gc-input-placeholder": `color-mix(in srgb, ${palette.fg} 74%, transparent)`,
+    "--gc-input-placeholder-dark": `color-mix(in srgb, ${palette.fg} 74%, transparent)`,
     "--gc-input-placeholder-focus": `color-mix(in srgb, ${palette.fg} 48%, transparent)`,
     "--gc-input-placeholder-focus-dark": `color-mix(in srgb, ${palette.fg} 48%, transparent)`,
     "--gc-input-hover-border": `color-mix(in srgb, ${palette.fg} 34%, transparent)`,
     "--gc-input-focus-border": palette.accent,
+    // Tło / atrament / ramka / rozmiar pisma pól. BEZ tych tokenów runtime'owy
+    // <style> globalnych kolorów (globalColors.ts) - reguła BEZWARSTWOWA, więc
+    // bije `@layer components`, niezależnie od specyficzności - malował pola
+    // popupu jasnym `--gc-input-bg` motywu strony. Na ciemnym panelu wychodziły
+    // z tego białe prostokąty, a pływająca etykieta (jasny atrament panelu)
+    // stawała się na nich niewidoczna. Wartości odwzorowują dawne reguły `.nlp`,
+    // tylko trafiają tam, gdzie wygrywają kaskadę.
+    "--gc-input-bg": `color-mix(in srgb, ${palette.fg} 4%, transparent)`,
+    "--gc-input-hover-bg": `color-mix(in srgb, ${palette.fg} 7%, transparent)`,
+    "--gc-input-text": palette.fg,
+    "--gc-input-border": border,
+    // 14 px - tyle samo co pola widgetu „Dołącz do nas" (i platformowe
+    // `--form-input-font-size`). Token, nie `!important` w CSS: mobilna
+    // bramka iOS (`font-size: 16px !important` poniżej 768 px, przeciw
+    // auto-zoomowi) musi nadal wygrywać.
+    "--gc-input-text-size": "0.875rem",
   };
 }
 

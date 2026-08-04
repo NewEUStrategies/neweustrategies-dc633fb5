@@ -194,9 +194,12 @@ export function NewsletterPopup() {
       {showcase ? (
         // Panel showcase w całości pochodzi ze wspólnego komponentu - dokładnie
         // ten sam markup renderuje podgląd w panelu admina.
+        // Na telefonie panel przewija się w pionie; `overflow-x-clip`
+        // + `overscroll-contain` odbierają mu przy tym możliwość przesuwania
+        // w poziomie (samo `overflow-y: auto` wymusza `overflow-x: auto`).
         <div
           ref={panelRef}
-          className="my-4 w-full max-h-[92vh] overflow-y-auto md:overflow-visible"
+          className="my-4 w-full max-h-[92vh] overflow-y-auto overflow-x-clip overscroll-contain md:overflow-visible"
           style={{ maxWidth: `${design.panel.maxWidthPx}px` }}
           onClick={(e) => e.stopPropagation()}
         >
