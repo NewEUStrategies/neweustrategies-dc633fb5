@@ -153,6 +153,15 @@ const HOVER_ALLSIDES_CSS = `
   mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
 .allsides-4:hover::before { --d: 100%; --p: 0%; }
+/* Warianty 4 i 5: pozycja przeskakuje natychmiast po dorysowaniu boku
+   (tak jak w oryginale: `background-position 0s .5s`), nie animuje się. */
+.allsides-4::before, .allsides-5::before {
+  transition:
+    -webkit-mask-size var(--ah-t) ease-out,
+    mask-size var(--ah-t) ease-out,
+    -webkit-mask-position 0s var(--ah-t),
+    mask-position 0s var(--ah-t);
+}
 .allsides-5::before {
   -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
   mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
