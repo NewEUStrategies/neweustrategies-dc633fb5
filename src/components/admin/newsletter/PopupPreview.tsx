@@ -4,6 +4,7 @@
 // marki, hasła i rotacji były widoczne od razu przy edycji.
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { NewsletterShowcase } from "@/components/ui/newsletter-showcase";
+import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
 import { sanitizeHtml } from "@/lib/sanitize";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 
