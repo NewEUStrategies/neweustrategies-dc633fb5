@@ -3,6 +3,7 @@ import {
   resolvePopupFields,
   popupFieldMap,
   popupFieldLabel,
+  popupFieldPlaceholder,
   isPopupFieldLocked,
   POPUP_FIELD_KEYS,
 } from "@/lib/newsletter/popupFields";
@@ -41,7 +42,9 @@ describe("popupFields", () => {
     expect(popupFieldLabel(first, "en")).toBe("First name");
   });
   it("każde pole ma domyślną podpowiedź w PL i EN", () => {
-    for (const field of resolvePopupFields(null)) {
+    // `newsletter_optin` to checkbox - etykieta jest jego całą treścią.
+    const inputs = resolvePopupFields(null).filter((f) => f.key !== "newsletter_optin");
+    for (const field of inputs) {
       expect(popupFieldPlaceholder(field, "pl").trim()).not.toBe("");
       expect(popupFieldPlaceholder(field, "en").trim()).not.toBe("");
     }
