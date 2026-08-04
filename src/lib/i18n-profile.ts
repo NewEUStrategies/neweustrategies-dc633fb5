@@ -350,6 +350,7 @@ const pl = {
     subscription: {
       title: "Twoja subskrypcja",
       none: "Nie masz aktywnej subskrypcji.",
+      paymentStatus: "Status ostatniej płatności",
       plan: "Plan",
       status: "Status",
       startedAt: "Aktywna od",
@@ -945,6 +946,7 @@ const en: typeof pl = {
     subscription: {
       title: "Your subscription",
       none: "You do not have an active subscription.",
+      paymentStatus: "Latest payment status",
       plan: "Plan",
       status: "Status",
       startedAt: "Active since",

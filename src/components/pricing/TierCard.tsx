@@ -281,6 +281,7 @@ function TierCardCta({
       );
     }
     return (
+      <div className="space-y-1.5">
       <Button asChild className={ctaClass} variant={variant}>
         <Link
           to="/checkout/$planId"
@@ -299,6 +300,13 @@ function TierCardCta({
           {t("pricing.choose")}
         </Link>
       </Button>
+      {/* Skrót do pełnych szczegółów planu (benefity, limity, porównanie). */}
+      <Button asChild variant="link" size="sm" className="h-auto w-full p-0 text-xs">
+        <Link to="/plans/$planId" params={{ planId: plan.id }}>
+          {t("pricing.planDetails.cta")}
+        </Link>
+      </Button>
+      </div>
     );
   }
 

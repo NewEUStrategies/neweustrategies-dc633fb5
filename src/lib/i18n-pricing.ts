@@ -23,6 +23,14 @@ const pricingPl = {
     contactCta: "Porozmawiajmy",
     compareAll: "Porównaj wszystkie funkcje",
     highlightsHeading: "Co wyróżnia ten plan",
+    planDetails: {
+      cta: "Zobacz szczegóły planu",
+      backToPricing: "Wróć do cennika",
+      benefits: "Co obejmuje ten plan",
+      limits: "Limity i porównanie",
+      notFound: "Nie znaleziono takiego planu - mógł zostać wycofany ze sprzedaży.",
+      guarantee: "Płatność zabezpieczona przez operatora płatności. Subskrypcję anulujesz w każdej chwili w profilu.",
+    },
     comparisonMatrix: {
       title: "Pełne porównanie planów",
       subtitle:
@@ -488,6 +496,14 @@ const pricingEn: typeof pricingPl = {
     contactCta: "Talk to us",
     compareAll: "Compare all features",
     highlightsHeading: "What sets this plan apart",
+    planDetails: {
+      cta: "See plan details",
+      backToPricing: "Back to pricing",
+      benefits: "What this plan includes",
+      limits: "Limits and comparison",
+      notFound: "We could not find this plan - it may no longer be on sale.",
+      guarantee: "Payment secured by our payment provider. You can cancel the subscription anytime in your profile.",
+    },
     comparisonMatrix: {
       title: "Full plan comparison",
       subtitle:
