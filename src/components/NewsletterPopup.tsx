@@ -15,6 +15,7 @@ import "@/lib/i18n-newsletter-popup";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { X, Send } from "@/lib/lucide-shim";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
 
 const LS_KEY = "nl_popup_last";
@@ -44,6 +45,7 @@ function markDismissed() {
 
 export function NewsletterPopup() {
   const { data: s } = useNewsletterSettings();
+  const authSettings = useAuthSettings();
   const { i18n, t } = useTranslation();
   const loc = useLocation();
   const [open, setOpen] = useState(false);

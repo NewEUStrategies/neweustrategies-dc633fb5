@@ -52,7 +52,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 function emptySlot(): NewsletterShowcaseImage {
-  return { url: "", caption_pl: "", caption_en: "" };
+  return { url: "", caption_pl: "", caption_en: "", title_pl: "", title_en: "" };
 }
 
 function normalize(images: NewsletterShowcaseImage[]): NewsletterShowcaseImage[] {
@@ -282,16 +282,27 @@ export function PopupShowcasePanel({ value, onChange }: Props) {
                   onChange={(url) => patchSlot(index, { url })}
                   hint={SLOT_HINTS[index]}
                 />
+                {/* Kolejnosc jak w popupie: najpierw opis, pod nim tytul kafla. */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <TextRow
-                    label="Podpis (PL)"
+                    label="Opis (PL)"
                     value={slot.caption_pl}
                     onChange={(v) => patchSlot(index, { caption_pl: v })}
                   />
                   <TextRow
-                    label="Podpis (EN)"
+                    label="Opis (EN)"
                     value={slot.caption_en}
                     onChange={(v) => patchSlot(index, { caption_en: v })}
+                  />
+                  <TextRow
+                    label="Tytuł (PL)"
+                    value={slot.title_pl ?? ""}
+                    onChange={(v) => patchSlot(index, { title_pl: v })}
+                  />
+                  <TextRow
+                    label="Tytuł (EN)"
+                    value={slot.title_en ?? ""}
+                    onChange={(v) => patchSlot(index, { title_en: v })}
                   />
                 </div>
               </div>
