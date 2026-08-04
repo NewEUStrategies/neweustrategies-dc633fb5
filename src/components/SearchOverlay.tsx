@@ -3,6 +3,7 @@
 // (SuggestListShell / SuggestGroupHeader / SuggestRow / RecentSearchesList)
 // co header mega-box widget i /search autosuggest - jeden spójny UX.
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -367,9 +368,14 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     );
   }
 
-  return (
+  // Portal do <body>: header ma `contain: layout`, więc bez portalu `position:
+  // fixed` liczy się względem nagłówka (kontener zawierania) i nakładka dostaje
+  // wysokość 0 - na mobile wyglądało to jakby lupa nic nie robiła.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-x-0 bottom-0 z-[60] bg-background top-[var(--sticky-header-h,64px)] sm:inset-0 sm:top-0 sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
+      className="fixed inset-x-0 bottom-0 z-[10000] bg-background top-[var(--sticky-header-h,0px)] sm:inset-0 sm:top-0 sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="absolute inset-x-0 top-0 flex h-full max-h-full justify-center overflow-y-auto px-0 pt-0 pb-0 sm:h-auto sm:max-h-screen sm:px-4 sm:pt-[12vh] sm:pb-8">
@@ -390,7 +396,8 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           </SuggestListShell>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
