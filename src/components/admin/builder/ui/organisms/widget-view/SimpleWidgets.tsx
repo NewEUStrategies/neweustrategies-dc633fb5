@@ -491,14 +491,25 @@ export function renderSimpleWidget(
       const chipStyle = (k: string, active: boolean): CSSProperties => {
         const bg = resolveBg(k, active);
         const onContrast = bgMode === "official" && active;
+        const official = colorMode === "official" ? OFFICIAL[k] : undefined;
         return {
           ...linkStyle,
           // W trybie dziedziczonym ikona bierze jaśniejszy ton marki (light
           // mode) / biel (dark mode) zamiast twardej czerni z --foreground.
-          color: onContrast ? "#fff" : active ? (resolveColor(k) ?? "var(--sb-icon)") : undefined,
+          // W trybie "official" kolor marki jest w light mode rozjaśniany
+          // (var(--sb-off-tone)), a w dark mode zostaje surowy.
+          ...(official ? ({ ["--sb-off"]: official } as CSSProperties) : null),
+          color: onContrast
+            ? "#fff"
+            : active
+              ? official
+                ? "var(--sb-off-tone)"
+                : (resolveColor(k) ?? "var(--sb-icon)")
+              : undefined,
           backgroundColor: bg,
         };
       };
+
 
       const linksSource = asOneOf(c.linksSource, ["auto", "global", "own"] as const, "auto");
       const hrefOf = (
