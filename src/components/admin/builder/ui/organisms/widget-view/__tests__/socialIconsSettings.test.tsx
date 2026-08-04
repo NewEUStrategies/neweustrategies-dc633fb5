@@ -135,10 +135,13 @@ describe("social-icons - jawny colorMode wygrywa z adaptacją motywu", () => {
     },
   );
 
-  it("still inherits the surrounding color when no explicit mode is chosen", () => {
+  it("uses the theme-aware icon tone when no explicit mode is chosen", () => {
+    // Bez jawnego colorMode ikona bierze token --sb-icon: jaśniejszy odcień
+    // brandu w light mode, biel w dark mode (zamiast czerni z --foreground).
     const container = paint({ facebook: ALL_LINKS.facebook });
-    expect((container.querySelector("a") as HTMLElement).style.color).toBe("");
+    expect((container.querySelector("a") as HTMLElement).style.color).toBe("var(--sb-icon)");
   });
+
 
   it("documents the precedence in the editor hints", () => {
     const fields = WIDGET_SCHEMAS["social-icons"] ?? [];
