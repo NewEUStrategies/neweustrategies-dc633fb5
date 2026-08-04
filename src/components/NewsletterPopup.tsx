@@ -291,8 +291,7 @@ export function NewsletterPopup() {
                   settings={s}
                   lang={isPl ? "pl" : "en"}
                   onSuccess={onSuccess}
-                  palette={palette}
-                />
+                    />
               </div>
             </>
           ) : (
@@ -321,8 +320,7 @@ export function NewsletterPopup() {
                     settings={s}
                     lang={isPl ? "pl" : "en"}
                     onSuccess={onSuccess}
-                    palette={palette}
-                  />
+                        />
                 ) : (
                   <NewsletterForm lang={isPl ? "pl" : "en"} source="popup" variant="inline" />
                 )}

@@ -5365,67 +5365,49 @@ textarea::placeholder {
     opacity: 1;
   }
 
-  /* ---- Pole popupu rejestracji, wariant "inline" ----
-     Odwzorowanie 1:1 projektu referencyjnego: wartość po lewej, etykieta po
-     prawej wewnątrz ramki. Kolory wyłącznie z tokenów popupu (--nl-*), więc
-     ten sam wariant działa na palecie ciemnej i jasnej. Rounding dziedziczy
-     platformowe 6px przez --nl-radius. Wariant "floating" (domyślny) to
-     .input-group wyżej - oba są przełączane z panelu admina. */
-  .field-inline {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    width: 100%;
-    min-width: 0;
-    height: 3rem;
-    padding: 0 1rem;
-    /* Kontrolki trzymają platformowe 6px niezależnie od promienia panelu -
-       dokładnie jak `.input-group > .input` wyżej. */
-    border-radius: 6px;
-    border: 1.5px solid color-mix(in srgb, var(--nl-fg) 18%, transparent);
-    background: color-mix(in srgb, var(--nl-fg) 5%, transparent);
-    transition:
-      border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
-      box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .field-inline:hover {
-    border-color: color-mix(in srgb, var(--nl-fg) 30%, transparent);
-  }
-  .field-inline:focus-within {
-    border-color: var(--nl-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--nl-accent) 22%, transparent);
-  }
-  .field-inline > .field-inline__input {
-    min-width: 0;
-    flex: 1 1 auto;
-    background: transparent;
-    border: 0;
-    outline: none;
+  /* ---- Popup rejestracji: hermetyczny zakres pól ----
+     Panel popupu przedefiniowuje tokeny platformy (--background, --foreground,
+     --border, --ring, --primary, --gc-input-*) na własną paletę - patrz
+     popupPaletteVars() w src/lib/newsletter/popupDesign.ts. Dzięki temu pola
+     z pływającą etykietą, checkboxy i linki zgód wyglądają tak samo na stronie
+     publicznej i w podglądzie w JASNYM adminie, a reguła autouzupełniania
+     Chrome (`-webkit-box-shadow: … var(--background) inset`) nie maluje pola
+     kolorem motywu adminu. Tutaj zostaje wyłącznie to, czego tokeny nie
+     załatwiają: zwarta wysokość kontrolek, subtelne wypełnienie i pewność, że
+     nagłówki nie przejmą koloru z otoczenia. */
+  .nlp :is(h1, h2, h3, h4) {
     color: var(--nl-fg);
-    font-size: 0.9375rem;
-    line-height: 1.25rem;
-    text-align: left !important;
   }
-  /* Bije globalny baseline `input::placeholder { … !important }` z góry pliku. */
-  .field-inline > .field-inline__input::placeholder {
-    color: color-mix(in srgb, var(--nl-fg) 38%, transparent) !important;
-    opacity: 1;
+  .nlp .input-group > .input {
+    /* Zwarta wysokość jak w projekcie referencyjnym (~46 px, nie 52 px). */
+    padding: 0.8rem 0.9rem;
+    font-size: 0.9rem;
+    background: color-mix(in srgb, var(--nl-fg) 4%, transparent);
   }
-  .field-inline__label {
-    flex: 0 0 auto;
-    white-space: nowrap;
-    font-size: 0.8125rem;
-    line-height: 1;
-    color: color-mix(in srgb, var(--nl-fg) 55%, transparent);
+  .nlp .input-group > .input:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--nl-fg) 7%, transparent);
   }
-  .field-inline[data-invalid="true"] {
-    border-color: var(--destructive);
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent);
+  .nlp .input-group > .input:focus,
+  .nlp .input-group > .input:not(:placeholder-shown) {
+    background: color-mix(in srgb, var(--nl-fg) 7%, transparent);
   }
-  @media (prefers-reduced-motion: reduce) {
-    .field-inline {
-      transition: none;
-    }
+  /* Etykieta pływająca: w spoczynku SIEDZI W POLU, po focusie/wypełnieniu jedzie
+     na ramkę - identycznie jak w formularzach kontaktowych. Chip musi mieć pełne
+     tło panelu, żeby ramka nie przecinała tekstu. */
+  .nlp .input-group > .input:focus ~ .user-label,
+  .nlp .input-group > .input:not(:placeholder-shown) ~ .user-label {
+    background-color: var(--nl-bg);
+    color: var(--nl-accent);
+  }
+  /* Nieaktywny checkbox na ciemnym panelu potrzebuje mocniejszej kreski niż
+     platformowy --border wyliczony z 18% atramentu. */
+  .nlp .lov-check__svg {
+    stroke: color-mix(in srgb, var(--nl-fg) 45%, transparent);
+  }
+  .nlp .lov-check[data-state="checked"] .lov-check__svg,
+  .nlp .lov-check:hover .lov-check__svg,
+  .nlp .lov-check:focus-visible .lov-check__svg {
+    stroke: var(--nl-accent);
   }
 }
 

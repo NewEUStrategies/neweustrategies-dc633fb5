@@ -68,14 +68,21 @@ describe("SignupPopupEditor", () => {
   it("patch prezentacji zapisuje komplet popup_design (nic nie ginie)", () => {
     render(<SignupPopupEditor value={settings()} onChange={onChange} />);
     clickTab("form");
-    fireEvent.click(screen.getByText("adminPopupSignup.form.socialEnabled"));
+    fireEvent.click(screen.getByText("adminPopupSignup.form.titleNoWrap"));
 
     expect(onChange).toHaveBeenCalledTimes(1);
     const patch = onChange.mock.calls[0][0] as Partial<NewsletterSettings>;
     expect(patch.popup_design).toEqual({
       ...defaultPopupDesign(),
-      form: { ...defaultPopupDesign().form, socialEnabled: true },
+      form: { ...defaultPopupDesign().form, titleNoWrap: true },
     });
+  });
+
+  it("zakładka prawej strony nie oferuje logowania społecznościowego", () => {
+    render(<SignupPopupEditor value={settings()} onChange={onChange} />);
+    clickTab("form");
+    expect(screen.queryByText(/social/i)).toBeNull();
+    expect(screen.queryByText("adminPopupSignup.form.labelStyle")).toBeNull();
   });
 
   it("paleta jasna jest edytowana niezależnie od kolumn palety ciemnej", () => {

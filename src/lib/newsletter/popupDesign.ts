@@ -17,10 +17,7 @@ export type PopupColorScheme = "dark" | "light" | "auto";
 /** Siatka galerii: "reference" = układ 1:1 z projektem, "mosaic" = 3x3, "single" = jeden kadr. */
 export type PopupGalleryGrid = "reference" | "mosaic" | "single";
 export type PopupAlign = "center" | "left";
-/** Etykieta pola: "floating" = platformowa pływająca, "inline" = po prawej w polu (1:1). */
-export type PopupFieldLabelStyle = "floating" | "inline";
 export type PopupSplit = "half" | "gallery-wide" | "form-wide";
-export type PopupSocialPosition = "top" | "bottom";
 
 /** Bloki lewej kolumny - kolejność jest edytowalna w panelu admina. */
 export const GALLERY_BLOCKS = ["brand", "grid", "caption", "tagline", "dots"] as const;
@@ -69,7 +66,6 @@ export interface PopupGalleryDesign {
 
 export interface PopupFormDesign {
   align: PopupAlign;
-  labelStyle: PopupFieldLabelStyle;
   showEyebrow: boolean;
   /** Nagłówek w jednej linii (`whitespace-nowrap`) jak w projekcie. */
   titleNoWrap: boolean;
@@ -77,13 +73,6 @@ export interface PopupFormDesign {
   maxWidthPx: number;
   /** Imię i nazwisko (oraz e-mail/telefon, hasła) w dwóch kolumnach. */
   twoColumnPairs: boolean;
-  showDivider: boolean;
-  dividerPl: string;
-  dividerEn: string;
-  socialEnabled: boolean;
-  socialPosition: PopupSocialPosition;
-  socialGoogleLabelPl: string;
-  socialGoogleLabelEn: string;
   /** Podpowiedź nad polami (opcjonalna, np. "Wypełnij dane"). */
   hintPl: string;
   hintEn: string;
@@ -121,7 +110,8 @@ export const GALLERY_SLOT_DIMENSIONS = [
 /**
  * Paleta jasna spójna z tokenami marki: akcent na --brand-ink (#b85410), bo
  * jasny pomarańcz nie przechodzi WCAG AA jako tło tekstu. Galeria zostaje
- * ciemna (jak w projekcie referencyjnym) - zdjęcia mają na czym oddychać.
+ * ciemna (jak w projekcie referencyjnym) - zdjęcia mają na czym oddychać,
+ * a gradient to głęboka grafitowa baza z delikatną poświatą marki na końcu.
  */
 export function defaultPopupLightTheme(): PopupThemeColors {
   return {
@@ -132,7 +122,7 @@ export function defaultPopupLightTheme(): PopupThemeColors {
     accentFg: "#ffffff",
     overlay: "rgba(10,10,15,0.55)",
     gradFrom: "#101014",
-    gradTo: "#b85410",
+    gradTo: "#241a13",
   };
 }
 
@@ -162,19 +152,11 @@ export function defaultPopupDesign(): PopupDesign {
     },
     form: {
       align: "center",
-      labelStyle: "floating",
       showEyebrow: false,
       titleNoWrap: false,
       titleSizePx: 38,
-      maxWidthPx: 460,
+      maxWidthPx: 400,
       twoColumnPairs: true,
-      showDivider: true,
-      dividerPl: "lub",
-      dividerEn: "or",
-      socialEnabled: false,
-      socialPosition: "top",
-      socialGoogleLabelPl: "Kontynuuj z Google",
-      socialGoogleLabelEn: "Continue with Google",
       hintPl: "",
       hintEn: "",
       showLoginLink: true,
@@ -284,19 +266,11 @@ export function resolvePopupDesign(raw: unknown): PopupDesign {
     },
     form: {
       align: oneOf(form.align, ["center", "left"] as const, d.form.align),
-      labelStyle: oneOf(form.labelStyle, ["floating", "inline"] as const, d.form.labelStyle),
       showEyebrow: bool(form.showEyebrow, d.form.showEyebrow),
       titleNoWrap: bool(form.titleNoWrap, d.form.titleNoWrap),
       titleSizePx: int(form.titleSizePx, d.form.titleSizePx, 18, 64),
       maxWidthPx: int(form.maxWidthPx, d.form.maxWidthPx, 280, 720),
       twoColumnPairs: bool(form.twoColumnPairs, d.form.twoColumnPairs),
-      showDivider: bool(form.showDivider, d.form.showDivider),
-      dividerPl: filled(form.dividerPl, d.form.dividerPl),
-      dividerEn: filled(form.dividerEn, d.form.dividerEn),
-      socialEnabled: bool(form.socialEnabled, d.form.socialEnabled),
-      socialPosition: oneOf(form.socialPosition, ["top", "bottom"] as const, d.form.socialPosition),
-      socialGoogleLabelPl: filled(form.socialGoogleLabelPl, d.form.socialGoogleLabelPl),
-      socialGoogleLabelEn: filled(form.socialGoogleLabelEn, d.form.socialGoogleLabelEn),
       hintPl: str(form.hintPl, d.form.hintPl),
       hintEn: str(form.hintEn, d.form.hintEn),
       showLoginLink: bool(form.showLoginLink, d.form.showLoginLink),
@@ -361,10 +335,45 @@ export function colorLuminance(color: string): number | null {
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
 }
 
-/** Czy tło jest ciemne (decyduje o wariancie pól i sile ramek). */
+/** Czy tło jest ciemne (decyduje o atramencie galerii i sile ramek). */
 export function isDarkSurface(bg: string): boolean {
   const l = colorLuminance(bg);
   return l === null ? true : l < 0.4;
+}
+
+/** Kontrast WCAG między dwoma kolorami; null gdy któregoś nie da się sparsować. */
+export function contrastRatio(a: string, b: string): number | null {
+  const la = colorLuminance(a);
+  const lb = colorLuminance(b);
+  if (la === null || lb === null) return null;
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * Czytelny atrament dla danego tła - wybieramy z dwóch kandydatów ten o
+ * lepszym kontraście, a nie po progu luminancji: markowy pomarańcz
+ * (#fa9346, L≈0.42) leży dokładnie na granicy i próg wskazywałby biel,
+ * która daje na nim 2.2:1, gdy ciemny atrament daje 8:1.
+ */
+export function readableInk(bg: string): string {
+  const dark = "#141414";
+  const light = "#ffffff";
+  const onDark = contrastRatio(bg, dark);
+  const onLight = contrastRatio(bg, light);
+  if (onDark === null || onLight === null) return light;
+  return onDark >= onLight ? dark : light;
+}
+
+/**
+ * Atrament na akcencie z bramką kontrastu: zapisany kolor wygrywa, dopóki daje
+ * min. 3:1 (progiem WCAG dla dużego tekstu i elementów UI). Historyczne wiersze
+ * mają tu białą czcionkę na jasnym pomarańczu (~2.2:1) - w takim przypadku
+ * podmieniamy na czytelny atrament, zamiast renderować nieczytelny przycisk.
+ */
+export function accentInk(accent: string, configured: string): string {
+  const ratio = contrastRatio(accent, configured);
+  if (ratio === null || ratio >= 3) return configured;
+  return readableInk(accent);
 }
 
 /** Który wariant palety obowiązuje przy danym motywie strony. */
@@ -384,26 +393,44 @@ export function resolvePopupPalette(
   const dark = defaultPopupDesign();
   if (mode === "light") {
     const l = source.popup_design.light;
-    return { ...l, mode: "light", onDark: isDarkSurface(l.bg) };
+    return {
+      ...l,
+      accentFg: accentInk(l.accent, l.accentFg),
+      mode: "light",
+      onDark: isDarkSurface(l.bg),
+    };
   }
-  const bg = source.popup_bg_color || "#0a0a0a";
-  const accent = source.popup_accent_color || "#f97316";
+  const bg = source.popup_bg_color || "#0b0b0f";
+  const accent = source.popup_accent_color || "#fa9346";
   return {
     bg,
     fg: source.popup_text_color || "#ffffff",
-    muted: source.popup_muted_color || "#b8b8b8",
+    muted: source.popup_muted_color || "#a8a8b3",
     accent,
-    accentFg: source.popup_accent_text_color || "#ffffff",
+    accentFg: accentInk(accent, source.popup_accent_text_color || "#141414"),
     overlay: source.popup_overlay_color || dark.light.overlay,
-    gradFrom: source.popup_showcase_grad_from || accent,
-    gradTo: source.popup_showcase_grad_to || bg,
+    // Domyślny gradient galerii to spokojna, ciemna baza z delikatną poświatą
+    // marki - akcent jako punkt startowy zalewał lewą kolumnę pomarańczem
+    // i zabijał czytelność zdjęć oraz podpisów.
+    gradFrom: source.popup_showcase_grad_from || bg,
+    gradTo: source.popup_showcase_grad_to || `color-mix(in srgb, ${accent} 14%, ${bg})`,
     mode: "dark",
     onDark: isDarkSurface(bg),
   };
 }
 
-/** Zmienne CSS konsumowane przez panel popupu i atomy formularza. */
+/**
+ * Zmienne CSS panelu popupu. Poza własnymi tokenami `--nl-*` przedefiniowujemy
+ * TU tokeny platformy (--background, --foreground, --border, --ring, --primary,
+ * --brand, --gc-input-*), dzięki czemu popup jest hermetycznym zakresem: te same
+ * komponenty (pola z pływającą etykietą, checkboxy, linki zgód, a nawet reguła
+ * autouzupełniania Chrome, która maluje pole `var(--background)`) renderują się
+ * poprawnie zarówno na stronie publicznej, jak i w podglądzie w jasnym adminie.
+ * Bez tego panel dziedziczył kolory motywu adminu - stąd białe plamy w polach
+ * i ciemny nagłówek na ciemnym tle.
+ */
 export function popupPaletteVars(palette: PopupPalette, radiusPx: number): Record<string, string> {
+  const border = `color-mix(in srgb, ${palette.fg} 18%, transparent)`;
   return {
     "--nl-bg": palette.bg,
     "--nl-fg": palette.fg,
@@ -411,17 +438,33 @@ export function popupPaletteVars(palette: PopupPalette, radiusPx: number): Recor
     "--nl-accent": palette.accent,
     "--nl-accent-fg": palette.accentFg,
     "--nl-radius": `${radiusPx}px`,
+    // Tokeny platformy przemapowane na paletę popupu.
+    "--background": palette.bg,
+    "--foreground": palette.fg,
+    "--card": palette.bg,
+    "--card-foreground": palette.fg,
+    "--popover": palette.bg,
+    "--popover-foreground": palette.fg,
+    "--border": border,
+    "--input": border,
+    "--ring": palette.accent,
+    "--primary": palette.accent,
+    "--primary-foreground": palette.accentFg,
+    "--muted-foreground": palette.muted,
     "--brand": palette.accent,
     "--brand-foreground": palette.accentFg,
+    "--brand-ink": palette.accent,
+    // Etykiety pływające i placeholdery pól.
+    "--gc-input-placeholder": `color-mix(in srgb, ${palette.fg} 62%, transparent)`,
+    "--gc-input-placeholder-dark": `color-mix(in srgb, ${palette.fg} 62%, transparent)`,
+    "--gc-input-placeholder-focus": `color-mix(in srgb, ${palette.fg} 48%, transparent)`,
+    "--gc-input-placeholder-focus-dark": `color-mix(in srgb, ${palette.fg} 48%, transparent)`,
+    "--gc-input-hover-border": `color-mix(in srgb, ${palette.fg} 34%, transparent)`,
+    "--gc-input-focus-border": palette.accent,
   };
 }
 
 /** Tło galerii - gradient pod kątem z ustawień. */
 export function galleryBackground(palette: PopupPalette, angleDeg: number): string {
   return `linear-gradient(${angleDeg}deg, ${palette.gradFrom} 0%, ${palette.gradTo} 78%)`;
-}
-
-/** Przezroczysta warstwa koloru tekstu - ramki, tła kafelków, chipy. */
-export function fgAlpha(percent: number): string {
-  return `color-mix(in srgb, var(--nl-fg) ${percent}%, transparent)`;
 }

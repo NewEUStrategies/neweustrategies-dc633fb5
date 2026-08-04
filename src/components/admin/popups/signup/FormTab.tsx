@@ -1,12 +1,11 @@
 // Zakładka "Prawa strona": wszystkie teksty formularza w PL i EN oraz
-// prezentacja - wyrównanie, styl etykiet pól (platformowy pływający albo
-// inline 1:1 z projektem), rozmiar tytułu, kolumny par pól, separator,
-// rejestracja przez Google i link do logowania.
+// prezentacja - wyrównanie, rozmiar tytułu, szerokość, kolumny par pól
+// i link do logowania. Etykiety pól zachowują się jak w formularzach
+// kontaktowych (platformowa etykieta pływająca), więc nie ma tu wyboru stylu.
 import { useTranslation } from "react-i18next";
 import { Type, SlidersHorizontal, LogIn } from "lucide-react";
 import { BilingualRow, NumberRow, SectionCard, SegmentedRow, TextRow, ToggleRow } from "./controls";
 import type { SignupPopupTabProps } from "./types";
-import type { PopupFieldLabelStyle } from "@/lib/newsletter/popupDesign";
 
 export function FormTab({ value, design, onChange, patchForm }: SignupPopupTabProps) {
   const { t } = useTranslation();
@@ -84,16 +83,6 @@ export function FormTab({ value, design, onChange, patchForm }: SignupPopupTabPr
               { value: "left", label: t("adminPopupSignup.form.alignLeft") },
             ]}
           />
-          <SegmentedRow<PopupFieldLabelStyle>
-            label={t("adminPopupSignup.form.labelStyle")}
-            value={f.labelStyle}
-            onChange={(labelStyle) => patchForm({ labelStyle })}
-            columns={2}
-            options={[
-              { value: "floating", label: t("adminPopupSignup.form.labelFloating") },
-              { value: "inline", label: t("adminPopupSignup.form.labelInline") },
-            ]}
-          />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <NumberRow
@@ -126,49 +115,6 @@ export function FormTab({ value, design, onChange, patchForm }: SignupPopupTabPr
             />
           </div>
         </div>
-      </SectionCard>
-
-      <SectionCard
-        title={t("adminPopupSignup.form.socials")}
-        hint={t("adminPopupSignup.form.socialHint")}
-        icon={<LogIn className="h-3.5 w-3.5" />}
-      >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <ToggleRow
-            label={t("adminPopupSignup.form.socialEnabled")}
-            checked={f.socialEnabled}
-            onChange={(socialEnabled) => patchForm({ socialEnabled })}
-          />
-          <ToggleRow
-            label={t("adminPopupSignup.form.showDivider")}
-            checked={f.showDivider}
-            onChange={(showDivider) => patchForm({ showDivider })}
-          />
-        </div>
-        <SegmentedRow<"top" | "bottom">
-          label={t("adminPopupSignup.form.socialPosition")}
-          value={f.socialPosition}
-          onChange={(socialPosition) => patchForm({ socialPosition })}
-          columns={2}
-          options={[
-            { value: "top", label: t("adminPopupSignup.form.positionTop") },
-            { value: "bottom", label: t("adminPopupSignup.form.positionBottom") },
-          ]}
-        />
-        <BilingualRow
-          label={t("adminPopupSignup.form.socialGoogle")}
-          pl={f.socialGoogleLabelPl}
-          en={f.socialGoogleLabelEn}
-          onPl={(socialGoogleLabelPl) => patchForm({ socialGoogleLabelPl })}
-          onEn={(socialGoogleLabelEn) => patchForm({ socialGoogleLabelEn })}
-        />
-        <BilingualRow
-          label={t("adminPopupSignup.form.divider")}
-          pl={f.dividerPl}
-          en={f.dividerEn}
-          onPl={(dividerPl) => patchForm({ dividerPl })}
-          onEn={(dividerEn) => patchForm({ dividerEn })}
-        />
       </SectionCard>
 
       <SectionCard

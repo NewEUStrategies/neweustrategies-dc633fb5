@@ -34,26 +34,33 @@ describe("resolvePopupDesign", () => {
     }
   });
 
-  it("zachowuje 6px rounding i platformowy styl etykiet jako domyślne", () => {
+  it("domyślnie: siatka referencyjna, paleta ciemna, link do logowania", () => {
     const d = defaultPopupDesign();
-    expect(d.form.labelStyle).toBe("floating");
     expect(d.gallery.grid).toBe("reference");
     expect(d.colorScheme).toBe("dark");
+    expect(d.form.showLoginLink).toBe(true);
   });
 
   it("scala zapisane klucze z defaultami (bez gubienia reszty grupy)", () => {
     const d = resolvePopupDesign({
       colorScheme: "auto",
       gallery: { grid: "mosaic", showArrow: false },
-      form: { labelStyle: "inline", dividerPl: "albo" },
+      form: { align: "left", hintPl: "Wypełnij dane" },
     });
     expect(d.colorScheme).toBe("auto");
     expect(d.gallery.grid).toBe("mosaic");
     expect(d.gallery.showArrow).toBe(false);
     expect(d.gallery.showCorners).toBe(true);
-    expect(d.form.labelStyle).toBe("inline");
-    expect(d.form.dividerPl).toBe("albo");
-    expect(d.form.dividerEn).toBe(defaultPopupDesign().form.dividerEn);
+    expect(d.form.align).toBe("left");
+    expect(d.form.hintPl).toBe("Wypełnij dane");
+    expect(d.form.loginLinkPl).toBe(defaultPopupDesign().form.loginLinkPl);
+  });
+
+  it("nie ma już rejestracji społecznościowej ani separatora", () => {
+    const d = resolvePopupDesign({
+      form: { socialEnabled: true, socialPosition: "bottom", dividerPl: "albo" },
+    });
+    expect(d.form).toEqual(defaultPopupDesign().form);
   });
 
   it("odrzuca wartości poza zakresem i nieznane enumy", () => {
@@ -78,10 +85,10 @@ describe("resolvePopupDesign", () => {
 
   it("puste etykiety wracają do defaultu, ale puste prefiksy zostają puste", () => {
     const d = resolvePopupDesign({
-      form: { dividerPl: "   ", loginLinkHref: "" },
+      form: { loginLinkPl: "   ", loginLinkHref: "" },
       gallery: { captionPrefixPl: "", logoUrl: "" },
     });
-    expect(d.form.dividerPl).toBe("lub");
+    expect(d.form.loginLinkPl).toBe("Masz już konto? Zaloguj się");
     expect(d.form.loginLinkHref).toBe("/login");
     expect(d.gallery.captionPrefixPl).toBe("");
     expect(d.gallery.logoUrl).toBe("");
@@ -126,10 +133,10 @@ describe("paleta", () => {
     expect(light.mode).toBe("light");
   });
 
-  it("gradient dziedziczy akcent i tło, gdy kolumny są puste", () => {
+  it("domyślny gradient galerii startuje z tła panelu, nie z akcentu", () => {
     const dark = resolvePopupPalette(source(), "dark");
-    expect(dark.gradFrom).toBe("#fa9346");
-    expect(dark.gradTo).toBe("#0b0b0f");
+    expect(dark.gradFrom).toBe("#0b0b0f");
+    expect(dark.gradTo).toBe("color-mix(in srgb, #fa9346 14%, #0b0b0f)");
   });
 
   it("jawne kolory gradientu wygrywają", () => {
@@ -151,6 +158,32 @@ describe("paleta", () => {
     expect(vars["--nl-radius"]).toBe("6px");
     expect(vars["--brand"]).toBe("#fa9346");
     expect(vars["--brand-foreground"]).toBe("#141414");
+  });
+
+  it("przedefiniowuje tokeny platformy, żeby popup był hermetyczny", () => {
+    // Bez tego pola dziedziczyły motyw adminu: reguła autouzupełniania Chrome
+    // maluje pole `var(--background)`, a nagłówek brał `var(--foreground)`.
+    const vars = popupPaletteVars(resolvePopupPalette(source(), "dark"), 6);
+    expect(vars["--background"]).toBe("#0b0b0f");
+    expect(vars["--foreground"]).toBe("#ffffff");
+    expect(vars["--ring"]).toBe("#fa9346");
+    expect(vars["--primary"]).toBe("#fa9346");
+    expect(vars["--muted-foreground"]).toBe("#a8a8b3");
+    expect(vars["--border"]).toContain("var" in vars ? "" : "color-mix");
+  });
+
+  it("atrament na akcencie przechodzi na czytelny, gdy kontrast < 3:1", () => {
+    // Historyczne wiersze: biała czcionka na jasnym pomarańczu (~2.2:1).
+    const bad = resolvePopupPalette(source({ popup_accent_text_color: "#ffffff" }), "dark");
+    expect(bad.accentFg).toBe("#141414");
+    // Poprawny zapis zostaje nietknięty.
+    const good = resolvePopupPalette(source({ popup_accent_text_color: "#141414" }), "dark");
+    expect(good.accentFg).toBe("#141414");
+    const onDarkAccent = resolvePopupPalette(
+      source({ popup_accent_color: "#1b3a6b", popup_accent_text_color: "#ffffff" }),
+      "dark",
+    );
+    expect(onDarkAccent.accentFg).toBe("#ffffff");
   });
 });
 
