@@ -1157,6 +1157,9 @@ const pl = {
       increaseHeight: "Zwiększ wysokość",
       preview: "Podgląd",
       livePreview: "Podgląd na żywo",
+      hoverPreview: "Najechanie",
+      hoverPreviewHint:
+        "Pokaż w podglądzie wygląd po najechaniu kursorem - tą samą regułą, którą stosuje strona publiczna.",
       blockLayoutTitle: "Widget zajmuje cały wiersz (pod poprzednim)",
       inlineLayoutTitle: "Widget ustawia się obok poprzedniego inline-widgetu",
       block: "Pod",
@@ -2584,6 +2587,9 @@ const en: typeof pl = {
       increaseHeight: "Increase the height",
       preview: "Preview",
       livePreview: "Live preview",
+      hoverPreview: "Hover",
+      hoverPreviewHint:
+        "Show the hover appearance in the preview - with the same rule the public page applies.",
       blockLayoutTitle: "Widget takes up the whole row (below the previous one)",
       inlineLayoutTitle: "Widget sits next to the previous inline widget",
       block: "Below",

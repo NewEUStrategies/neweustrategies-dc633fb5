@@ -75,6 +75,31 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "globalne (Opcje motywu → Ikony social)": "global (Theme options → Social icons)",
   "tylko wpisane poniżej": "only the ones entered below",
   "Globalne linki do mediów społecznościowych ustawia się raz w Admin → Wygląd → Opcje motywu → „Ikony social” (/admin/theme-options). Widgety zaciągają je automatycznie.": "Global social media links are set once in Admin → Appearance → Theme options → “Social icons” (/admin/theme-options). Widgets pick them up automatically.",
+  // Widget social-icons: podświetlenie po najechaniu (wiersz listy / kafelek).
+  "Podświetlenie po najechaniu": "Hover highlight",
+  "gradient marki platformy": "platform brand gradient",
+  "firmowy pomarańcz (jeden dla wszystkich)": "house orange (one for all)",
+  "delikatne (ton marki)": "subtle (brand tint)",
+  "tylko obramowanie": "outline only",
+  "Działa w obu układach: w liście maluje cały wiersz, w rzędzie - kafelek ikony.":
+    "Works in both layouts: it paints the whole row in the list, and the icon tile in the row layout.",
+  "Własny kolor podświetlenia": "Custom highlight colour",
+  "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności.":
+    "The gradient is built from that colour; the text colour follows its lightness automatically.",
+  "Ikony po najechaniu": "Icons on hover",
+  "automatycznie (jasne na ciemnym tle)": "automatic (light on a dark background)",
+  // „jasne (białe)" jest już przetłumaczone niżej (opcje „Kolory ikon").
+  "bez zmiany": "unchanged",
+  "Na gradiencie marki i firmowym tryb automatyczny rozjaśnia ikonę także w jasnym motywie.":
+    "On brand and house gradients the automatic mode lightens the icon in light mode too.",
+  "Własny kolor ikony (hover)": "Custom icon colour (hover)",
+  "Tonacja firmowego gradientu": "House gradient tone",
+  "Bursztyn (domyślna)": "Amber (default)",
+  Koniak: "Cognac",
+  Żar: "Ember",
+  "Zachód słońca": "Sunset",
+  "Tonacja wiersza newslettera oraz całej listy w trybie „firmowy pomarańcz”. Wszystkie rampy trzymają kontrast bieli na poziomie AA.":
+    "Tone of the newsletter row and of the whole list in “house orange” mode. Every ramp keeps white text at AA contrast.",
   "Tryb jasny/ciemny": "Light / dark mode",
   "Konto / Logowanie": "Account / sign in",
   Wyszukiwarka: "Search",
@@ -467,9 +492,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Wyrównanie przycisku": "Button alignment",
   "Ikony w rzędzie": "Icons per row",
   "Spis treści": "Table of contents",
-  Follow: "Follow",
-  Like: "Like",
-  Subscribe: "Subscribe",
   CTA: "CTA",
   "CTA Facebook": "Facebook CTA",
   "CTA Instagram": "Instagram CTA",

@@ -43,6 +43,22 @@ import {
   resolveSocialHref,
   type GlobalSocialLinks,
 } from "@/lib/social/globalSocialLinks";
+import {
+  SB_CHIP,
+  SB_CTA,
+  SB_LABEL,
+  SB_ROW,
+  SB_SEP,
+  SB_TILE,
+  SOCIAL_HOUSE_TONES,
+  SOCIAL_HOVER_ICON_MODES,
+  SOCIAL_OFFICIAL_COLORS,
+  SOCIAL_ROW_HOVER_MODES,
+  socialHoverGradient,
+  socialHoverIconColor,
+  socialHoverStyle,
+  type SocialHoverPlan,
+} from "./socialHover";
 
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
@@ -374,15 +390,25 @@ export function renderSimpleWidget(
       const customBgColor = safeWidgetColor(c.customBgColor);
       const shape = asStr(c.shape) || "md";
       const themeAdapt = asStr(c.themeAdapt) || "auto";
-
-      const OFFICIAL: Record<string, string> = {
-        facebook: "#1877F2",
-        x: "#000000",
-        youtube: "#FF0000",
-        instagram: "#E4405F",
-        linkedin: "#0A66C2",
-        spotify: "#1DB954",
+      // Ustawienia hovera czytamy BEZWARUNKOWO (tak jak `customColor`): działają
+      // w obu układach, a bramka wierności widzi je w każdej próbce.
+      const hoverPlan: SocialHoverPlan = {
+        mode: asOneOf(c.rowHover, SOCIAL_ROW_HOVER_MODES, "brand"),
+        tone: asOneOf(c.newsletterTone, SOCIAL_HOUSE_TONES, "amber"),
+        iconMode: asOneOf(c.hoverIconMode, SOCIAL_HOVER_ICON_MODES, "auto"),
+        rowColor: safeWidgetColor(c.rowHoverColor),
+        iconColor: safeWidgetColor(c.hoverIconColor),
       };
+      // Arkusz o zasięgu instancji: jedna reguła obsługuje hover, fokus i
+      // wymuszony podgląd hovera w panelu buildera - patrz socialHover.ts.
+      const hoverSheet = socialHoverStyle(hoverPlan);
+      const hoverScope = hoverSheet?.uid ?? "";
+      const hoverVars = (k: string): CSSProperties =>
+        ({
+          "--sb-grad": socialHoverGradient(hoverPlan, k) ?? "none",
+          "--sb-ico-h": socialHoverIconColor(hoverPlan, k) ?? "currentColor",
+        }) as CSSProperties;
+      const hoverCssTag = hoverSheet ? <style>{hoverSheet.css}</style> : null;
 
       const mkIcon =
         (path: string) =>
@@ -463,7 +489,7 @@ export function renderSimpleWidget(
       // redakcji - przy domyślnym `auto` opcje "ciemne"/"jasne" były no-opem
       // (zawsze currentColor), więc kontrolka wyglądała na zepsutą.
       const resolveColor = (k: string): string | undefined => {
-        if (colorMode === "official") return OFFICIAL[k];
+        if (colorMode === "official") return SOCIAL_OFFICIAL_COLORS[k];
         if (colorMode === "custom") return customColor || undefined;
         if (colorMode === "brand") return "var(--brand, currentColor)";
         if (colorMode === "dark") return "#0a0a0a";
@@ -476,7 +502,7 @@ export function renderSimpleWidget(
         if (bgMode === "none") return undefined;
         if (bgMode === "subtle") return "var(--muted)";
         if (bgMode === "brand") return "var(--brand, currentColor)";
-        if (bgMode === "official") return OFFICIAL[k];
+        if (bgMode === "official") return SOCIAL_OFFICIAL_COLORS[k];
         if (bgMode === "contrast") return "var(--foreground)";
         if (bgMode === "custom") return customBgColor || undefined;
         return undefined;
@@ -491,7 +517,7 @@ export function renderSimpleWidget(
       const chipStyle = (k: string, active: boolean): CSSProperties => {
         const bg = resolveBg(k, active);
         const onContrast = bgMode === "official" && active;
-        const official = colorMode === "official" ? OFFICIAL[k] : undefined;
+        const official = colorMode === "official" ? SOCIAL_OFFICIAL_COLORS[k] : undefined;
         return {
           ...linkStyle,
           // W trybie dziedziczonym ikona bierze jaśniejszy ton marki (light
@@ -509,7 +535,6 @@ export function renderSimpleWidget(
           backgroundColor: bg,
         };
       };
-
 
       const linksSource = asOneOf(c.linksSource, ["auto", "global", "own"] as const, "auto");
       const hrefOf = (
@@ -530,24 +555,6 @@ export function renderSimpleWidget(
         "[--sb-off-tone:color-mix(in_oklab,var(--sb-off,var(--brand))_62%,#ffffff)]",
         "dark:[--sb-off-tone:var(--sb-off,var(--brand))]",
       ].join(" ");
-
-      // Delikatny gradient marki platformy używany na hover wiersza listy.
-      // Kolory pochodzą z oficjalnych palet (OFFICIAL) - trzymamy je tutaj,
-      // bo to kolory MAREK ZEWNĘTRZNYCH, nie tokeny naszego motywu.
-      const BRAND_GRADIENT: Record<string, string> = {
-        facebook: "linear-gradient(135deg, #1877F2 0%, #0C5FD1 100%)",
-        x: "linear-gradient(135deg, #1A1A1A 0%, #000000 100%)",
-        youtube: "linear-gradient(135deg, #FF3B30 0%, #CC0000 100%)",
-        instagram: "linear-gradient(135deg, #F58529 0%, #DD2A7B 55%, #8134AF 100%)",
-        linkedin: "linear-gradient(135deg, #0A66C2 0%, #004182 100%)",
-        spotify: "linear-gradient(135deg, #1ED760 0%, #14833B 100%)",
-        // Newsletter to nasza marka - prestiżowy gradient na tokenie --brand,
-        // obrócony o 180°: przy ikonie (lewa strona) jest JAŚNIEJSZY i wygasa
-        // do głębokiej ciemności po prawej, gdzie leży białe CTA.
-        newsletter:
-          "linear-gradient(135deg, color-mix(in oklab, var(--brand) 64%, #17110C) 0%, color-mix(in oklab, var(--brand) 40%, #0F0C0A) 52%, color-mix(in oklab, var(--brand) 16%, #0B0B10) 100%)",
-      };
-
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
       // kafelku, separator, etykieta i CTA - żeby nie odstawał wyglądem.
@@ -629,15 +636,18 @@ export function renderSimpleWidget(
                 subscribe: { pl: "Subskrybuj", en: "Subscribe" },
                 subskrybuj: { pl: "Subskrybuj", en: "Subscribe" },
               };
-              const rawCta = getStr(c, `${ctaKey}_${lang}`) || getStr(c, ctaKey) || "";
+              // Panel zapisuje CTA per język (`ctaX_pl` / `ctaX_en`). Klucz
+              // BEZJĘZYKOWY to treść sprzed tej zmiany - czytamy go WYŁĄCZNIE,
+              // gdy dokument nie ma żadnej wersji językowej, bo inaczej
+              // wyczyszczone PL podstawiałoby angielski tekst (przeciek PL/EN).
+              const hasLocalizedCta = Boolean(
+                getStr(c, `${ctaKey}_pl`) || getStr(c, `${ctaKey}_en`),
+              );
+              const rawCta =
+                getStr(c, `${ctaKey}_${lang}`) || (hasLocalizedCta ? "" : getStr(c, ctaKey));
               const cta = rawCta
                 ? (CTA_SYNONYMS[rawCta.trim().toLowerCase()]?.[target] ?? rawCta)
                 : (defaultCta[k]?.[target] ?? "");
-              const rowVars = {
-                "--sb-grad":
-                  BRAND_GRADIENT[k] ?? "linear-gradient(135deg, var(--brand), var(--brand))",
-                "--sb-fg": "#ffffff",
-              } as CSSProperties;
               return (
                 <AppLink
                   key={k}
@@ -646,87 +656,99 @@ export function renderSimpleWidget(
                   target={href && external ? "_blank" : undefined}
                   rel={href && external ? "noopener noreferrer" : undefined}
                   // Odnośnik zewnętrzny, ale wygląda jak wiersz listy, nie jak
-                  // hiperłącze. Na hover pasek przybiera delikatny gradient
-                  // marki danej platformy, a tekst i ikona kontrastują z tłem.
-                  style={{ textDecoration: "none", ...rowVars }}
-                  // Na hover nadpisujemy TOKENY ikon (--sb-icon/--sb-off-tone)
-                  // na biel - inline `color: var(...)` kafelka rozwiązuje je z
-                  // kaskady, więc ikona jest jasna także w light mode.
-                  className={`group flex items-center gap-3 rounded-[6px] border-b border-border/60 px-2 py-2.5 no-underline transition-all last:border-b-0 hover:border-transparent hover:[--sb-icon:#ffffff] hover:[--sb-off-tone:#ffffff] hover:[background-image:var(--sb-grad)] hover:[color:var(--sb-fg)] focus-visible:border-transparent focus-visible:[--sb-icon:#ffffff] focus-visible:[--sb-off-tone:#ffffff] focus-visible:[background-image:var(--sb-grad)] focus-visible:[color:var(--sb-fg)] ${!href ? "pointer-events-none opacity-40" : ""}`}
+                  // hiperłącze. Gradient i ton ikony na hoverze podaje wiersz
+                  // (`--sb-grad` / `--sb-ico-h`), a maluje je arkusz instancji -
+                  // ta sama reguła obsługuje fokus i podgląd hovera w panelu.
+                  style={{ textDecoration: "none", ...hoverVars(k) }}
+                  className={`${SB_ROW} flex items-center gap-3 rounded-[6px] border-b border-border/60 px-2 py-2.5 no-underline last:border-b-0 ${!href ? "pointer-events-none opacity-40" : ""}`}
                 >
                   <span
-                    className={`inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors group-hover:bg-transparent group-hover:![color:var(--sb-fg)]`}
+                    className={`${SB_CHIP} inline-flex items-center justify-center ${radiusCls} shrink-0 transition-colors`}
                     style={chipStyle(k, Boolean(href))}
                   >
                     <Cmp size={size} />
                   </span>
                   <span
-                    className="mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors group-hover:bg-[color:var(--sb-fg)]/70"
+                    className={`${SB_SEP} mx-1 h-4 w-px shrink-0 bg-border/70 transition-colors`}
                     aria-hidden="true"
                   />
-                  <span className="flex-1 truncate text-sm font-medium text-foreground transition-colors group-hover:[color:var(--sb-fg)]">
+                  <span
+                    className={`${SB_LABEL} flex-1 truncate text-sm font-medium text-foreground transition-colors`}
+                  >
                     {label}
                   </span>
                   {cta && (
-                    <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground transition-colors group-hover:[color:var(--sb-fg)]">
+                    <span
+                      className={`${SB_CTA} shrink-0 text-xs uppercase tracking-wide text-muted-foreground transition-colors`}
+                    >
                       {cta}
                     </span>
                   )}
                 </AppLink>
               );
             })
-
-
             .filter(Boolean);
           return (
-            <div
-              className={`flex w-full flex-col text-foreground ${ICON_TONE} ${themeCls}`}
-              style={{ ...compactRowStyle, gap: `${gap}px` }}
-            >
-              {rows}
-            </div>
+            <>
+              <div
+                className={`flex w-full flex-col text-foreground ${ICON_TONE} ${themeCls} ${hoverScope}`}
+                style={{ ...compactRowStyle, gap: `${gap}px` }}
+              >
+                {rows}
+              </div>
+              {hoverCssTag}
+            </>
           );
         }
 
         return (
-          <div
-            className={`flex flex-wrap items-center text-foreground ${ICON_TONE} ${themeCls}`}
-            style={{ ...compactRowStyle, gap: `${gap}px` }}
-          >
-            {items.map(({ k, altKeys, Cmp, label }) => {
-              const href = hrefOf(k, altKeys, globalLinks);
-              const active = !!href;
-              if (!active && !showEmpty) return null;
-              const bg = resolveBg(k, active);
-              const style: CSSProperties = {
-                ...chipStyle(k, active),
-                opacity: active ? 1 : 0.35,
-              };
-              const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
-              return active ? (
-                <AppLink
-                  key={k}
-                  href={safeUrl(href)}
-                  aria-label={label}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cls}
-                  style={style}
-                >
-                  <Cmp size={size} />
-                </AppLink>
-              ) : (
-                <span
-                  key={k}
-                  aria-label={`${label} (${lang === "pl" ? "brak linku" : "no link"})`}
-                  className={cls}
-                  style={style}
-                >
-                  <Cmp size={size} />
-                </span>
-              );
-            })}
-          </div>
+          <>
+            <div
+              className={`flex flex-wrap items-center text-foreground ${ICON_TONE} ${themeCls} ${hoverScope}`}
+              style={{ ...compactRowStyle, gap: `${gap}px` }}
+            >
+              {items.map(({ k, altKeys, Cmp, label }) => {
+                const href = hrefOf(k, altKeys, globalLinks);
+                const active = !!href;
+                if (!active && !showEmpty) return null;
+                const bg = resolveBg(k, active);
+                const style: CSSProperties = {
+                  ...chipStyle(k, active),
+                  ...hoverVars(k),
+                  opacity: active ? 1 : 0.35,
+                };
+                // Kafelek nieaktywny nie dostaje klasy hovera - podświetlanie
+                // ikony bez linku obiecywałoby działanie, którego nie ma. Gdy
+                // ustawienia nie malują hovera (tryb „brak"), zostaje dawne
+                // przygaszenie, żeby kafelek nie stał się zupełnie martwy.
+                const tileHover = hoverSheet ? SB_TILE : "hover:opacity-80";
+                const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? tileHover : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
+                return active ? (
+                  <AppLink
+                    key={k}
+                    href={safeUrl(href)}
+                    aria-label={label}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cls}
+                    style={style}
+                  >
+                    <Cmp size={size} />
+                  </AppLink>
+                ) : (
+                  <span
+                    key={k}
+                    aria-label={`${label} (${lang === "pl" ? "brak linku" : "no link"})`}
+                    className={cls}
+                    style={style}
+                  >
+                    <Cmp size={size} />
+                  </span>
+                );
+              })}
+            </div>
+            {hoverCssTag}
+          </>
         );
       };
 
