@@ -5817,17 +5817,29 @@ export type Database = {
           popup_extended_fields: boolean
           popup_eyebrow_en: string | null
           popup_eyebrow_pl: string | null
+          popup_fields: Json
           popup_frequency_days: number
           popup_layout: string
           popup_mailing_lists: Json
           popup_muted_color: string | null
+          popup_note_en: string | null
+          popup_note_pl: string | null
           popup_overlay_color: string | null
+          popup_privacy_html_en: string | null
+          popup_privacy_html_pl: string | null
+          popup_require_privacy: boolean
           popup_require_terms: boolean
           popup_scroll_percent: number
           popup_showcase_brand_en: string
           popup_showcase_brand_pl: string
+          popup_showcase_grad_from: string | null
+          popup_showcase_grad_to: string | null
           popup_showcase_images: Json
           popup_showcase_rotate_ms: number
+          popup_showcase_show_brand: boolean
+          popup_showcase_show_caption: boolean
+          popup_showcase_show_dots: boolean
+          popup_showcase_side: string
           popup_showcase_tagline_en: string
           popup_showcase_tagline_pl: string
           popup_side_image_url: string | null
@@ -5871,17 +5883,29 @@ export type Database = {
           popup_extended_fields?: boolean
           popup_eyebrow_en?: string | null
           popup_eyebrow_pl?: string | null
+          popup_fields?: Json
           popup_frequency_days?: number
           popup_layout?: string
           popup_mailing_lists?: Json
           popup_muted_color?: string | null
+          popup_note_en?: string | null
+          popup_note_pl?: string | null
           popup_overlay_color?: string | null
+          popup_privacy_html_en?: string | null
+          popup_privacy_html_pl?: string | null
+          popup_require_privacy?: boolean
           popup_require_terms?: boolean
           popup_scroll_percent?: number
           popup_showcase_brand_en?: string
           popup_showcase_brand_pl?: string
+          popup_showcase_grad_from?: string | null
+          popup_showcase_grad_to?: string | null
           popup_showcase_images?: Json
           popup_showcase_rotate_ms?: number
+          popup_showcase_show_brand?: boolean
+          popup_showcase_show_caption?: boolean
+          popup_showcase_show_dots?: boolean
+          popup_showcase_side?: string
           popup_showcase_tagline_en?: string
           popup_showcase_tagline_pl?: string
           popup_side_image_url?: string | null
@@ -5925,17 +5949,29 @@ export type Database = {
           popup_extended_fields?: boolean
           popup_eyebrow_en?: string | null
           popup_eyebrow_pl?: string | null
+          popup_fields?: Json
           popup_frequency_days?: number
           popup_layout?: string
           popup_mailing_lists?: Json
           popup_muted_color?: string | null
+          popup_note_en?: string | null
+          popup_note_pl?: string | null
           popup_overlay_color?: string | null
+          popup_privacy_html_en?: string | null
+          popup_privacy_html_pl?: string | null
+          popup_require_privacy?: boolean
           popup_require_terms?: boolean
           popup_scroll_percent?: number
           popup_showcase_brand_en?: string
           popup_showcase_brand_pl?: string
+          popup_showcase_grad_from?: string | null
+          popup_showcase_grad_to?: string | null
           popup_showcase_images?: Json
           popup_showcase_rotate_ms?: number
+          popup_showcase_show_brand?: boolean
+          popup_showcase_show_caption?: boolean
+          popup_showcase_show_dots?: boolean
+          popup_showcase_side?: string
           popup_showcase_tagline_en?: string
           popup_showcase_tagline_pl?: string
           popup_side_image_url?: string | null
