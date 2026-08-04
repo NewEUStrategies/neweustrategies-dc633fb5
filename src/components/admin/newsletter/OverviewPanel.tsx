@@ -44,7 +44,6 @@ import {
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { PopupPreview } from "@/components/admin/newsletter/PopupPreview";
-import { PopupShowcasePanel } from "@/components/admin/newsletter/PopupShowcasePanel";
 import { PopupEventsPanel } from "@/components/admin/newsletter/PopupEventsPanel";
 
 interface KpiRow {
