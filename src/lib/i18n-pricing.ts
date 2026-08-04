@@ -31,6 +31,8 @@ const pricingPl = {
       yes: "Tak",
       no: "Nie",
       yourPlan: "Twój plan",
+      expertRequestDirect: "Bezpośrednio",
+      perMonth: "{{n}} / mies.",
       note: "Artykuły i analizy są dostępne bez limitu w każdej subskrypcji. Limit 5 miesięcznie w planie Essential dotyczy wyłącznie pogłębionych materiałów analitycznych za paywallem.",
       rows: [
         {
@@ -494,6 +496,8 @@ const pricingEn: typeof pricingPl = {
       yes: "Yes",
       no: "No",
       yourPlan: "Your plan",
+      expertRequestDirect: "Direct",
+      perMonth: "{{n}} / mo.",
       note: "Articles and analyses are available without limits on every subscription. The 5-per-month cap on the Essential plan applies only to in-depth analytical materials behind the paywall.",
       rows: [
         {
