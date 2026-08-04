@@ -16,7 +16,7 @@ import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
-import { FloatingInput } from "@/components/ui/floating-input";
+import { FieldBox } from "@/components/ui/field-box";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { popupFieldMap, popupFieldLabel, type PopupFieldKey } from "@/lib/newsletter/popupFields";
