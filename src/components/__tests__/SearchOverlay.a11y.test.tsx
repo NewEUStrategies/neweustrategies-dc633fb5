@@ -1,7 +1,8 @@
 // SearchOverlay - axe (structural a11y) for the modal search surface:
 // dialog semantics, combobox naming, listbox/option pattern, close button name.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 
 const rows = vi.hoisted(() => ({
