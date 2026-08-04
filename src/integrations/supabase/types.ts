@@ -5782,6 +5782,12 @@ export type Database = {
           popup_overlay_color: string | null
           popup_require_terms: boolean
           popup_scroll_percent: number
+          popup_showcase_brand_en: string
+          popup_showcase_brand_pl: string
+          popup_showcase_images: Json
+          popup_showcase_rotate_ms: number
+          popup_showcase_tagline_en: string
+          popup_showcase_tagline_pl: string
           popup_side_image_url: string | null
           popup_terms_html_en: string | null
           popup_terms_html_pl: string | null
@@ -5830,6 +5836,12 @@ export type Database = {
           popup_overlay_color?: string | null
           popup_require_terms?: boolean
           popup_scroll_percent?: number
+          popup_showcase_brand_en?: string
+          popup_showcase_brand_pl?: string
+          popup_showcase_images?: Json
+          popup_showcase_rotate_ms?: number
+          popup_showcase_tagline_en?: string
+          popup_showcase_tagline_pl?: string
           popup_side_image_url?: string | null
           popup_terms_html_en?: string | null
           popup_terms_html_pl?: string | null
@@ -5878,6 +5890,12 @@ export type Database = {
           popup_overlay_color?: string | null
           popup_require_terms?: boolean
           popup_scroll_percent?: number
+          popup_showcase_brand_en?: string
+          popup_showcase_brand_pl?: string
+          popup_showcase_images?: Json
+          popup_showcase_rotate_ms?: number
+          popup_showcase_tagline_en?: string
+          popup_showcase_tagline_pl?: string
           popup_side_image_url?: string | null
           popup_terms_html_en?: string | null
           popup_terms_html_pl?: string | null
