@@ -180,6 +180,7 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
 
   return (
     <section className="w-full" data-widget="tailored-must-reads">
+      <style dangerouslySetInnerHTML={{ __html: TMR_TITLE_CSS }} />
       <header className="mb-4 flex items-baseline justify-between gap-3">
         <div className="min-w-0">
           {showKicker && (
