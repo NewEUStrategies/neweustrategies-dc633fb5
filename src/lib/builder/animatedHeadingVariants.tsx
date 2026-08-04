@@ -189,19 +189,18 @@ const HOVER_ALLSIDES_CSS = `
   mask-size: var(--p, 50%) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--p, 50%) var(--ah-bw), var(--ah-bw) var(--d, 0);
 }
 .allsides-7:hover::before { --d: 100%; --p: 100%; }
-/* Rogi-segmenty: 4 osobne kreski - poziome rosną poziomo, pionowe rosną
-   pionowo, wszystkie w tym samym czasie, więc łączą się w rogach dokładnie
-   w tym samym momencie. */
 .allsides-8::before {
-  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
-  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
-  -webkit-mask-position: 0 0, 100% 0, 100% 100%, 0 100%;
-  mask-position: 0 0, 100% 0, 100% 100%, 0 100%;
-  -webkit-mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
-  mask-size: var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0), var(--d, 0) var(--ah-bw), var(--ah-bw) var(--d, 0);
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 0 100%, 100% 0;
+  mask-position: 0 100%, 100% 0;
+  -webkit-mask-size: 20px 20px;
+  mask-size: 20px 20px;
 }
-.allsides-8:hover::before { --d: 100%; }
-
+.allsides-8:hover::before {
+  -webkit-mask-position: 100% 100%, 0 0;
+  mask-position: 100% 100%, 0 0;
+}
 `;
 
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [
