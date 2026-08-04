@@ -16,6 +16,12 @@ interface Props {
   rotateMs?: number;
   /** Etykieta a11y dla kropek, np. "Pokaz slajd" / "Show slide". */
   dotLabel: string;
+  /** Kolory gradientu tla; fallback do tokenow --nl-accent / --nl-bg. */
+  gradFrom?: string | null;
+  gradTo?: string | null;
+  showBrand?: boolean;
+  showCaption?: boolean;
+  showDots?: boolean;
 }
 
 const TILE_CLASSES = [
@@ -31,6 +37,11 @@ export function NewsletterShowcase({
   tagline,
   rotateMs = 2600,
   dotLabel,
+  gradFrom,
+  gradTo,
+  showBrand = true,
+  showCaption = true,
+  showDots = true,
 }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const count = images.length;
@@ -54,15 +65,17 @@ export function NewsletterShowcase({
     <div
       className="relative flex h-full flex-col justify-between gap-4 p-5 sm:p-6 md:p-8"
       style={{
-        background: "linear-gradient(160deg, var(--nl-accent) 0%, var(--nl-bg) 78%)",
+        background: `linear-gradient(160deg, ${gradFrom || "var(--nl-accent)"} 0%, ${gradTo || "var(--nl-bg)"} 78%)`,
       }}
     >
-      <div
-        className="text-[11px] font-semibold uppercase tracking-[0.28em]"
-        style={{ color: "var(--nl-fg)" }}
-      >
-        {brand}
-      </div>
+      {showBrand && brand && (
+        <div
+          className="text-[11px] font-semibold uppercase tracking-[0.28em]"
+          style={{ color: "var(--nl-fg)" }}
+        >
+          {brand}
+        </div>
+      )}
 
       {count > 0 && (
         <div className="grid grid-cols-3 grid-rows-3 gap-2 min-h-[180px] sm:min-h-[240px] md:min-h-[300px]">
@@ -77,7 +90,7 @@ export function NewsletterShowcase({
         </div>
       )}
 
-      {active?.caption && (
+      {showCaption && active?.caption && (
         <p
           className="text-xs leading-relaxed line-clamp-4 transition-opacity duration-500"
           style={{ color: "var(--nl-muted)" }}
@@ -92,7 +105,7 @@ export function NewsletterShowcase({
         </p>
       )}
 
-      {count > 1 && (
+      {showDots && count > 1 && (
         <div className="flex items-center gap-1.5">
           {images.slice(0, 4).map((_, index) => (
             <button

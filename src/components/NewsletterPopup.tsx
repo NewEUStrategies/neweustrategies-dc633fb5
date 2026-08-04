@@ -208,7 +208,12 @@ export function NewsletterPopup() {
 
         {showcase ? (
           <>
-            <div className="relative md:max-h-[92vh] md:overflow-hidden">
+            <div
+              className={
+                "relative md:max-h-[92vh] md:overflow-hidden " +
+                (s.popup_showcase_side === "right" ? "md:order-2" : "md:order-1")
+              }
+            >
               <NewsletterShowcase
                 images={showcaseImages}
                 brand={
@@ -221,9 +226,19 @@ export function NewsletterPopup() {
                 }
                 rotateMs={s.popup_showcase_rotate_ms}
                 dotLabel={t("newsletter.showcase.slide", { defaultValue: "Slide" })}
+                gradFrom={s.popup_showcase_grad_from}
+                gradTo={s.popup_showcase_grad_to}
+                showBrand={s.popup_showcase_show_brand}
+                showCaption={s.popup_showcase_show_caption}
+                showDots={s.popup_showcase_show_dots}
               />
             </div>
-            <div className="p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto">
+            <div
+              className={
+                "p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto " +
+                (s.popup_showcase_side === "right" ? "md:order-1" : "md:order-2")
+              }
+            >
               <h2
                 id="nl-popup-title"
                 className="font-display text-2xl sm:text-3xl leading-tight pr-10 md:pr-0"
