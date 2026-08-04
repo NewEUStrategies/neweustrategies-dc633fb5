@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { NlDoc } from "@/lib/newsletter-builder/types";
+import { resolvePopupFields, type PopupFieldConfig } from "@/lib/newsletter/popupFields";
 
 type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
 type NewsletterPopupLayout = "stacked" | "split" | "showcase";
@@ -132,6 +133,18 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     popup_showcase_tagline_pl: "Przestrzeń dla tych, którzy tworzą europejskie strategie.",
     popup_showcase_tagline_en: "A workspace for those who shape European strategies.",
     popup_showcase_rotate_ms: 2600,
+    popup_showcase_side: "left",
+    popup_showcase_grad_from: null,
+    popup_showcase_grad_to: null,
+    popup_showcase_show_brand: true,
+    popup_showcase_show_caption: true,
+    popup_showcase_show_dots: true,
+    popup_fields: resolvePopupFields(null),
+    popup_note_pl: "Zero spamu. Możesz się wypisać w każdej chwili.",
+    popup_note_en: "Zero spam, unsubscribe at any time.",
+    popup_require_privacy: true,
+    popup_privacy_html_pl: null,
+    popup_privacy_html_en: null,
     popup_bg_color: "#0a0a0a",
     popup_text_color: "#ffffff",
     popup_muted_color: "#b8b8b8",
@@ -169,6 +182,9 @@ export function useNewsletterSettings() {
         popup_showcase_images: Array.isArray(showcase)
           ? (showcase as unknown as NewsletterShowcaseImage[])
           : [],
+        popup_fields: resolvePopupFields(row.popup_fields),
+        popup_note_pl: typeof row.popup_note_pl === "string" ? row.popup_note_pl : def.popup_note_pl,
+        popup_note_en: typeof row.popup_note_en === "string" ? row.popup_note_en : def.popup_note_en,
       };
     },
     staleTime: 60_000,
