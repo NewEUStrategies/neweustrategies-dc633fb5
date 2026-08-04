@@ -579,7 +579,7 @@ export function PopupSignupForm({
             value={v.list}
             onChange={(e) => upd("list", e.target.value)}
           >
-            <option value="">{t("Wybierz listę", "Choose a list")}</option>
+            <option value="">{placeholder("list") ?? t("Wybierz listę", "Choose a list")}</option>
             {lists.map((l) => (
               <option key={l.id} value={l.id}>
                 {isPl ? l.label_pl : l.label_en}
