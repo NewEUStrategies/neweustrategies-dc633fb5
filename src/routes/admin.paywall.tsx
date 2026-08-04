@@ -31,7 +31,14 @@ import {
 import { CHECKOUT_SETTINGS_QUERY_KEY, useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import type { CheckoutSettings } from "@/lib/billing/checkoutSettings";
 import { Plus, Trash2 as Trash } from "@/lib/lucide-shim";
-import { Layers, Gauge, SlidersHorizontal, CreditCard, Sparkles } from "lucide-react";
+import {
+  Layers,
+  Gauge,
+  SlidersHorizontal,
+  CreditCard,
+  Sparkles,
+  Activity,
+} from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
@@ -133,7 +140,7 @@ function PaywallAdmin() {
               value={String(plans.length)}
             />
             <KpiTile
-              icon={Sparkles}
+              icon={Activity}
               label={t("admin.paywall.kpiActive", { defaultValue: "Aktywne" })}
               value={String(activePlans)}
             />
@@ -152,24 +159,36 @@ function PaywallAdmin() {
 
         {/* Tabs porządkują 4 luźne sekcje w jasny podział: Plany | Metering | Wyjątki | Checkout. */}
         <Tabs defaultValue="plans" className="w-full">
-          <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-md bg-muted/40 p-1">
-            <TabsTrigger value="plans" className="gap-1.5 rounded-[6px] text-xs">
-              <Layers className="h-3.5 w-3.5" aria-hidden />
+          <TabsList className="h-11 w-full sm:w-auto flex-wrap justify-start gap-1 rounded-[6px] bg-muted/50 p-1.5 border border-border/60 shadow-sm">
+            <TabsTrigger
+              value="plans"
+              className="h-8 gap-2 rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground"
+            >
+              <Layers className="h-4 w-4" aria-hidden />
               {t("admin.paywall.tabPlans", { defaultValue: "Plany" })}
-              <span className="ml-1 rounded-[6px] bg-background/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+              <span className="ml-0.5 rounded-[4px] bg-muted px-1.5 py-0 text-[10px] font-semibold tabular-nums data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
                 {plans.length}
               </span>
             </TabsTrigger>
-            <TabsTrigger value="metering" className="gap-1.5 rounded-[6px] text-xs">
-              <Gauge className="h-3.5 w-3.5" aria-hidden />
+            <TabsTrigger
+              value="metering"
+              className="h-8 gap-2 rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground"
+            >
+              <Gauge className="h-4 w-4" aria-hidden />
               {t("admin.paywall.tabMetering", { defaultValue: "Metering" })}
             </TabsTrigger>
-            <TabsTrigger value="overrides" className="gap-1.5 rounded-[6px] text-xs">
-              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+            <TabsTrigger
+              value="overrides"
+              className="h-8 gap-2 rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground"
+            >
+              <SlidersHorizontal className="h-4 w-4" aria-hidden />
               {t("admin.paywall.tabOverrides", { defaultValue: "Wyjątki" })}
             </TabsTrigger>
-            <TabsTrigger value="checkout" className="gap-1.5 rounded-[6px] text-xs">
-              <CreditCard className="h-3.5 w-3.5" aria-hidden />
+            <TabsTrigger
+              value="checkout"
+              className="h-8 gap-2 rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground"
+            >
+              <CreditCard className="h-4 w-4" aria-hidden />
               {t("admin.paywall.tabCheckout", { defaultValue: "Checkout" })}
             </TabsTrigger>
           </TabsList>
