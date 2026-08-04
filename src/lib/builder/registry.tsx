@@ -1150,6 +1150,17 @@ export const WIDGETS: WidgetDef[] = [
       website: "",
       showSocials: true,
       showProfileLink: true,
+      // Prezentacja = odwzorowanie wzorca (duże zdjęcie, karta nachodząca,
+      // wypełnione przyciski social). Te same klucze czyta wariant `profile`
+      // bloku `author-bio` - patrz lib/builder/profileCardStyle.
+      imageSize: 470,
+      overlap: 80,
+      cardMaxWidth: 1024,
+      shadow: "xl",
+      socialStyle: "solid",
+      socialSize: 48,
+      mobileAlign: "center",
+      animate: true,
     }),
   },
   {

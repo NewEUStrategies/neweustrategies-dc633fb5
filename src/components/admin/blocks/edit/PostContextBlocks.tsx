@@ -1,6 +1,6 @@
 // Admin edytory dla bloków Phase 2 batch 7: author-bio, related-posts.
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import type { Block, Json } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
@@ -16,7 +16,9 @@ import {
   type CurrentPostAuthor,
   type CustomAuthorSocial,
 } from "@/lib/builder/currentPostContext";
-import { supabase } from "@/integrations/supabase/client";
+import { ExpertPicker } from "@/components/admin/experts/ExpertPicker";
+import { readProfileCardStyle } from "@/lib/builder/profileCardStyle";
+import { PROFILE_CARD_DEFAULTS } from "@/components/ui/profile-card";
 
 interface Props {
   block: Block;
@@ -49,41 +51,6 @@ function Toggle({
       {label}
     </label>
   );
-}
-
-interface AuthorOption {
-  id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  slug: string | null;
-  bio_pl: string | null;
-  bio_en: string | null;
-  twitter_url: string | null;
-  linkedin_url: string | null;
-  website_url: string | null;
-  email: string | null;
-  roles: string[] | null;
-}
-
-const AUTHOR_ROLES = new Set(["author", "editor", "admin", "super_admin"]);
-
-function useAuthorOptions() {
-  return useQuery({
-    queryKey: ["admin", "author-options"],
-    staleTime: 60_000,
-    queryFn: async (): Promise<AuthorOption[]> => {
-      const { data, error } = await supabase.rpc("admin_list_users");
-      if (error) throw error;
-      const rows = (data ?? []) as AuthorOption[];
-      return rows
-        .filter((r) => (r.roles ?? []).some((role) => AUTHOR_ROLES.has(role)))
-        .sort((a, b) =>
-          (a.display_name ?? "").localeCompare(b.display_name ?? "", undefined, {
-            sensitivity: "base",
-          }),
-        );
-    },
-  });
 }
 
 /**
@@ -309,14 +276,126 @@ const AUTHOR_BIO_VARIANT_LABEL_KEY: Record<AuthorBioVariant, string> = {
   profile: "variantNameProfile",
 };
 
-export function AuthorBioBlock({ block, onChange }: Props) {
+/**
+ * Ustawienia prezentacji wariantu „Karta profilu". Klucze SĄ TE SAME, co w
+ * panelu widgetu `author-profile-card` w builderze (lib/builder/profileCardStyle),
+ * więc ten sam dokument wygląda identycznie w obu edytorach i na stronie.
+ */
+function ProfileVariantSettings({
+  block,
+  set,
+}: {
+  block: Block;
+  set: (patch: Record<string, Json>) => void;
+}) {
   const i18n = useBlocksI18n();
   const pc = (k: string) => i18n.editor("postContextBlocks", k);
+  const d = PROFILE_CARD_DEFAULTS;
+  const numValue = (key: string, fallback: number) => {
+    const v = block.data[key];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
+    return fallback;
+  };
+  const strValue = (key: string, fallback: string) =>
+    typeof block.data[key] === "string" && block.data[key] ? String(block.data[key]) : fallback;
+
+  const numberField = (
+    key: string,
+    label: string,
+    fallback: number,
+    min: number,
+    max: number,
+    step: number,
+  ) => (
+    <label className="block">
+      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        className="mt-1 w-full text-xs bg-background border border-border rounded-[6px] px-2 py-2 h-9"
+        value={numValue(key, fallback)}
+        // Puste pole = „wróć do domyślnej", nie 0 px (patrz readProfileCardStyle).
+        onChange={(e) => set({ [key]: e.target.value === "" ? "" : Number(e.target.value) })}
+      />
+    </label>
+  );
+
+  return (
+    <div className="space-y-3 rounded-[6px] border border-border/60 bg-background/40 p-3">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {pc("profileStyleTitle")}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {numberField("imageSize", pc("fImageSize"), d.imageSize, 200, 720, 10)}
+        {numberField("overlap", pc("fOverlap"), d.overlap, 0, 200, 5)}
+        {numberField("cardMaxWidth", pc("fMaxWidth"), d.maxWidth, 480, 1600, 20)}
+        {numberField("socialSize", pc("fSocialSize"), d.socialSize, 28, 72, 2)}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {pc("fShadow")}
+          </span>
+          <AdminSelect
+            className="mt-1 w-full text-xs bg-background border border-border rounded-[6px] px-2 py-2 h-9"
+            value={strValue("shadow", d.shadow)}
+            onChange={(e) => set({ shadow: e.target.value })}
+          >
+            <option value="none">{pc("shadowNone")}</option>
+            <option value="sm">{pc("shadowSm")}</option>
+            <option value="md">{pc("shadowMd")}</option>
+            <option value="lg">{pc("shadowLg")}</option>
+            <option value="xl">{pc("shadowXl")}</option>
+          </AdminSelect>
+        </label>
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {pc("fSocialStyle")}
+          </span>
+          <AdminSelect
+            className="mt-1 w-full text-xs bg-background border border-border rounded-[6px] px-2 py-2 h-9"
+            value={strValue("socialStyle", d.socialStyle)}
+            onChange={(e) => set({ socialStyle: e.target.value })}
+          >
+            <option value="solid">{pc("socialSolid")}</option>
+            <option value="outline">{pc("socialOutline")}</option>
+          </AdminSelect>
+        </label>
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {pc("fMobileAlign")}
+          </span>
+          <AdminSelect
+            className="mt-1 w-full text-xs bg-background border border-border rounded-[6px] px-2 py-2 h-9"
+            value={strValue("mobileAlign", d.align)}
+            onChange={(e) => set({ mobileAlign: e.target.value })}
+          >
+            <option value="center">{pc("alignCenter")}</option>
+            <option value="left">{pc("alignLeft")}</option>
+          </AdminSelect>
+        </label>
+        <div className="flex items-end pb-2">
+          <Toggle
+            checked={block.data.animate !== false}
+            onChange={(v) => set({ animate: v })}
+            label={pc("toggleAnimate")}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AuthorBioBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const { i18n: i18next } = useTranslation();
+  const lang: "pl" | "en" = (i18next.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const pc = (k: string) => i18n.editor("postContextBlocks", k);
   const variantName = (v: string) =>
-    pc(
-      AUTHOR_BIO_VARIANT_LABEL_KEY[v as AuthorBioVariant] ??
-        AUTHOR_BIO_VARIANT_LABEL_KEY.minimal,
-    );
+    pc(AUTHOR_BIO_VARIANT_LABEL_KEY[v as AuthorBioVariant] ?? AUTHOR_BIO_VARIANT_LABEL_KEY.minimal);
   const showAvatar = block.data.showAvatar !== false;
   const showSocial = block.data.showSocial !== false;
   const showPostsCount = block.data.showPostsCount !== false;
@@ -337,7 +416,9 @@ export function AuthorBioBlock({ block, onChange }: Props) {
   const setInline = (patch: Partial<CurrentPostAuthor>) =>
     set({ inlineAuthor: { ...inlineAuthor, ...patch } as unknown as Json });
 
-  const { data: authors = [] } = useAuthorOptions();
+  // Podgląd czyta ustawienia prezentacji tym samym czytnikiem, co renderer
+  // publiczny - panel nie może obiecać innego wyglądu niż strona.
+  const profileStyle = readProfileCardStyle(block.data);
 
   const useInlinePreview = authorSource === "inline" && !!inlineAuthor.name;
   const previewCtx = useInlinePreview
@@ -377,18 +458,17 @@ export function AuthorBioBlock({ block, onChange }: Props) {
           <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
             {pc("authorLabel")}
           </span>
-          <AdminSelect
-            className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-            value={selectedAuthorId}
-            onChange={(e) => set({ authorId: e.target.value })}
-          >
-            <option value="">{pc("currentPostAuthor")}</option>
-            {authors.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.display_name ?? a.slug ?? a.id}
-              </option>
-            ))}
-          </AdminSelect>
+          {/* Ta sama kontrolka, co w builderze: wyszukiwarka po bazie
+              wewnętrznej ekspertów ze zdjęciem, stanowiskiem i licznikiem. */}
+          <div className="mt-1">
+            <ExpertPicker
+              lang={lang}
+              value={selectedAuthorId}
+              noneLabel={pc("currentPostAuthor")}
+              onSelect={(e) => set({ authorId: e.id })}
+              onClear={() => set({ authorId: "" })}
+            />
+          </div>
         </label>
       ) : (
         <>
@@ -424,6 +504,8 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         </AdminSelect>
       </label>
 
+      {variant === "profile" && <ProfileVariantSettings block={block} set={set} />}
+
       <div className="flex flex-wrap gap-3">
         <Toggle
           checked={showAvatar}
@@ -455,6 +537,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
             variant={variant as AuthorBioVariant}
             authorId={!useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined}
             authorOverride={useInlinePreview ? inlineAuthor : undefined}
+            profileStyle={profileStyle}
           />
         </CurrentPostProvider>
 
@@ -472,13 +555,13 @@ export function AuthorBioBlock({ block, onChange }: Props) {
                     variant={v}
                     authorId={!useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined}
                     authorOverride={useInlinePreview ? inlineAuthor : undefined}
+                    profileStyle={v === "profile" ? profileStyle : undefined}
                   />
                 </CurrentPostProvider>
               </div>
             ))}
           </div>
         </details>
-
       </div>
     </Shell>
   );

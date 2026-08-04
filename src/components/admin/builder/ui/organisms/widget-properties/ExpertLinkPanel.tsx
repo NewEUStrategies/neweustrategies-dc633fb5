@@ -1,24 +1,14 @@
 // Organizm: panel „Powiązany ekspert" współdzielony przez edytory widgetów
-// `team-member` i `author-profile-card`. Jedna kontrolka wyboru osoby (katalog
-// ekspertów), odświeżanie danych, link do profilu publicznego, odłączenie oraz
-// skrót do utworzenia nowego profilu w adminie.
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+// `team-member` i `author-profile-card`. Jedna kontrolka wyboru osoby (baza
+// wewnętrzna ekspertów - `ExpertPicker`), odświeżanie danych, link do profilu
+// publicznego, odłączenie oraz skrót do utworzenia nowego profilu w adminie.
+import { useState } from "react";
 import { RefreshCw, ExternalLink, Link2Off, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { PropField } from "../../atoms";
-import { expertsDirectoryQueryOptions } from "@/lib/experts/directory";
+import { ExpertPicker } from "@/components/admin/experts/ExpertPicker";
 import { fetchExpertHydration, type ExpertHydration } from "@/lib/experts/hydration";
-
-const NONE = "__none__";
 
 interface Props {
   lang: "pl" | "en";
@@ -32,8 +22,6 @@ interface Props {
 
 export function ExpertLinkPanel({ lang, authorId, authorSlug, onApply, onClear, hint }: Props) {
   const [busy, setBusy] = useState(false);
-  const { data: dir } = useQuery(expertsDirectoryQueryOptions());
-  const experts = useMemo(() => dir?.experts ?? [], [dir]);
   const pl = lang === "pl";
 
   const load = async (id: string, silent = false) => {
@@ -67,7 +55,7 @@ export function ExpertLinkPanel({ lang, authorId, authorSlug, onApply, onClear, 
         {pl ? "Powiązany ekspert" : "Linked expert"}
       </div>
       <PropField
-        label={pl ? "Wybierz z katalogu ekspertów" : "Pick from experts directory"}
+        label={pl ? "Wybierz z bazy wewnętrznej" : "Pick from the internal base"}
         hint={
           hint ??
           (pl
@@ -75,26 +63,14 @@ export function ExpertLinkPanel({ lang, authorId, authorSlug, onApply, onClear, 
             : "Selecting a person populates the card from the expert profile. Manual entries below take precedence.")
         }
       >
-        <Select
-          value={authorId || NONE}
-          onValueChange={(v) => (v === NONE ? onClear() : void load(v))}
+        <ExpertPicker
+          lang={lang}
+          value={authorId}
           disabled={busy}
-        >
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder={pl ? "- Brak -" : "- None -"} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE} className="text-xs">
-              {pl ? "- Brak (dane ręczne) -" : "- None (manual) -"}
-            </SelectItem>
-            {experts.map((e) => (
-              <SelectItem key={e.id} value={e.id} className="text-xs">
-                {e.display_name ?? e.slug ?? e.id}
-                {e.job_title ? ` - ${e.job_title}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          noneLabel={pl ? "- Brak (dane ręczne) -" : "- None (manual) -"}
+          onSelect={(e) => void load(e.id)}
+          onClear={onClear}
+        />
       </PropField>
 
       <div className="flex flex-wrap items-center gap-2 pt-1">

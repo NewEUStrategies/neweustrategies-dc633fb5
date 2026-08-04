@@ -1084,6 +1084,43 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   }
 }
 
+/* Wejście karty profilu autora (`ProfileCard`) - odpowiednik `framer-motion`
+   z wklejonego wzorca, ale bez biblioteki: sam ruch to jedno przejście przy
+   pierwszym malowaniu, więc CSS robi to taniej i działa również bez JS.
+   Desktop wjeżdża z prawej (karta nachodzi na zdjęcie), mobile z dołu. */
+@keyframes pc-rise-x {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pc-rise-y {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pc-rise-x {
+  animation: pc-rise-x 500ms ease-out both;
+}
+.pc-rise-y {
+  animation: pc-rise-y 500ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-rise-x,
+  .pc-rise-y {
+    animation: none;
+  }
+}
+
 /* Page template hooks */
 [data-header-override="transparent"] header {
   background-color: transparent !important;
