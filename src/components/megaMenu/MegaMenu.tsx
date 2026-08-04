@@ -68,6 +68,9 @@ interface MegaMenuColumn {
   viewAllHref?: string;
 }
 
+/** Visual layout of the desktop dropdown panel. */
+export type MegaMenuLayout = "classic" | "showcase";
+
 export interface MegaMenuConfig {
   trigger_pl?: string;
   trigger_en?: string;
@@ -75,8 +78,11 @@ export interface MegaMenuConfig {
   triggerOn?: "hover" | "click";
   width?: "container" | "fluid" | "fixed";
   widthPx?: number;
+  /** "classic" = column list (default), "showcase" = grid cards + compact rows. */
+  layout?: MegaMenuLayout;
   columns?: MegaMenuColumn[];
 }
+
 
 interface Props {
   config: MegaMenuConfig;
