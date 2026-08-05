@@ -68,7 +68,6 @@ import {
   useAdminSidebarExtrasSlot,
 } from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
-import { EXTERNAL_DONATIONS_URL } from "@/lib/billing/donationsExternal";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
