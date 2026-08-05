@@ -30,6 +30,21 @@ const OG_LOCALE: Record<Lang, string> = { pl: "pl_PL", en: "en_US" };
 export const SITE_DEFAULT_OG_IMAGE = "/og-default.jpg";
 
 /**
+ * Absolutny URL domyślnej karty społecznościowej dla danego originu: obrazek
+ * ustawiony w /admin/settings/social-preview (site_settings["seo"]), a gdy nie
+ * został wybrany - statyczny plik marki z `public/`. Przyjmuje zarówno pełny
+ * URL (Storage / CDN), jak i ścieżkę względną.
+ */
+export function defaultSocialImage(origin: string): string {
+  const configured = socialDefaultsFor(origin).imageUrl;
+  if (configured) {
+    if (/^https?:\/\//i.test(configured) || configured.startsWith("data:")) return configured;
+    return absoluteUrl(origin || SITE_CANONICAL_ORIGIN, configured);
+  }
+  return absoluteUrl(origin || SITE_CANONICAL_ORIGIN, SITE_DEFAULT_OG_IMAGE);
+}
+
+/**
  * Brand-default page title per language. Single source of truth shared by the
  * global <head> fallback (buildRootHead) and the homepage's own head(), so the
  * front page and any route without its own head() stay byte-identical.
