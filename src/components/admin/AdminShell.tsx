@@ -25,6 +25,7 @@ import {
   LayoutGrid,
   Shapes,
   PanelsTopLeft,
+  Smartphone,
   Newspaper,
   Megaphone,
   Mic,
