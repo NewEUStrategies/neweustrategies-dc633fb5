@@ -82,6 +82,12 @@ export interface RegistryEntry {
    * pytanie "czy zgoda została udzielona wbrew sygnałowi opt-outu".
    */
   gpc?: boolean;
+  /** Wersja banera/treści CMP obowiązująca w chwili decyzji (audyt). */
+  bannerVersion?: string;
+  /** Wspólny identyfikator wszystkich kategorii zapisanych jedną decyzją. */
+  decisionId?: string;
+  /** Adres strony (origin + path), na której decyzja zapadła. */
+  pageUrl?: string;
 }
 
 /**
