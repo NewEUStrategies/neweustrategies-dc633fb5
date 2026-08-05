@@ -382,36 +382,15 @@ export function PopupSignupForm({
 
   if (state === "ok") {
     return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="space-y-3 border border-emerald-500/30 bg-emerald-500/10 p-5"
-        style={{ borderRadius: 6 }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20">
-            <Mail className="h-5 w-5 text-emerald-500" />
-          </div>
-          <h3 className="font-display text-lg" style={{ color: "var(--nl-fg)" }}>
-            {t("Konto utworzone!", "Account created!")}
-          </h3>
-        </div>
-        <p className="text-sm leading-relaxed" style={{ color: "var(--nl-muted)" }}>
-          {t(
-            "Wysłaliśmy link potwierdzający na Twój adres e-mail - kliknij go, aby aktywować konto. Sprawdź też folder Spam.",
-            "We've sent a confirmation link to your e-mail - click it to activate your account. Please also check your Spam folder.",
-          )}
-        </p>
-        <p
-          className="flex items-center gap-1.5 text-[11px] opacity-80"
-          style={{ color: "var(--nl-muted)" }}
-        >
-          <Check className="h-3.5 w-3.5" />
-          {t("Status: oczekuje potwierdzenia e-mail.", "Status: pending e-mail confirmation.")}
-        </p>
-      </div>
+      <SignupSuccessPanel
+        email={sentTo}
+        lang={lang}
+        redirectTo={previewOnly ? undefined : `${window.location.origin}${redirectPath}`}
+        previewOnly={previewOnly}
+      />
     );
   }
+
 
   const showFirst = ext && fieldOn("first_name");
   const showLast = ext && fieldOn("last_name");
