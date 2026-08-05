@@ -115,7 +115,9 @@ export const listMyConsentEvents = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: rows, error } = await supabase
       .from("user_consent_events")
-      .select("id, consent_key, given, version, lang, source, gpc, created_at")
+      .select(
+        "id, consent_key, given, version, lang, source, gpc, banner_version, decision_id, created_at",
+      )
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(data.limit ?? 100);
