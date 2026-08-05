@@ -7,7 +7,6 @@ import { CreditCard, ShieldCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchMyStripeSubscription } from "@/lib/billing/subscriptionQueries";
@@ -107,7 +106,7 @@ export function SubscriptionStatusCard({ subscription }: Props) {
             {t("profile.planPage.statusCard.method")}
           </p>
           {methodQ.isPending && isPaymentsConfigured() ? (
-            <Skeleton className="mt-1 h-5 w-28" />
+            <span className="mt-1 block h-5 w-28 animate-pulse rounded bg-muted" />
           ) : method ? (
             <p className="mt-1 flex flex-wrap items-center gap-2 text-sm font-medium">
               <CreditCard className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
