@@ -6732,3 +6732,19 @@ html {
     animation: none;
   }
 }
+
+/* -------------------------------------------------------------------------
+   Fine print formularzy (zgoda przy checkboxie + nota o polityce prywatności)
+   -------------------------------------------------------------------------
+   Jedna typografia dla obu tekstów, żeby „Zapisując się akceptujesz…" i
+   „Zapoznałem się i akceptuję…" wyglądały identycznie także wewnątrz widgetów
+   buildera, które nadpisują rozmiary tekstu ([data-w-id]). */
+.nl-fineprint,
+[data-w-id] .nl-fineprint,
+[data-builder-renderer] .nl-fineprint {
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: normal;
+}
