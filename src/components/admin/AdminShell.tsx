@@ -378,6 +378,13 @@ function AdminShellInner({
           label: t("admin.nav.popups", { defaultValue: lang === "pl" ? "Popupy" : "Popups" }),
         },
         {
+          to: "/admin/settings/cookie-banner",
+          icon: ShieldCheck,
+          label: t("admin.nav.cookieBanner", {
+            defaultValue: lang === "pl" ? "Cookie banner" : "Cookie banner",
+          }),
+        },
+        {
           to: "/admin/versions",
           icon: HistoryIcon,
           label: t("admin.nav.versions", {

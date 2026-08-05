@@ -15,6 +15,8 @@ import {
   type CookieBannerColors,
 } from "@/lib/cookieBanner/config";
 import { ConsentBanner } from "@/components/ConsentBanner";
+import { CookieBannerBrandingSection } from "@/components/admin/cookie-banner/CookieBannerBrandingSection";
+import { DetectedElementsPanel } from "@/components/admin/cookie-banner/DetectedElementsPanel";
 import { OPEN_PREFS_EVENT } from "@/lib/ads/consent";
 
 export const Route = createFileRoute("/admin/settings/cookie-banner")({
@@ -231,6 +233,15 @@ function CookieBannerSettings() {
         </button>
       </div>
 
+      <CookieBannerBrandingSection
+        logo={draft.logo}
+        links={draft.links}
+        onLogoChange={(logo) => setDraft({ ...draft, logo })}
+        onLinksChange={(links) => setDraft({ ...draft, links })}
+      />
+
+      <DetectedElementsPanel />
+
       {/* Mechanisms */}
       <section className="mb-6">
         <h3 className="text-sm font-semibold mb-2">Mechanizmy</h3>
@@ -248,7 +259,18 @@ function CookieBannerSettings() {
             onChange={(v) => setDraft({ ...draft, languageSwitcher: v })}
           />
         </Field>
+        <Field
+          label="Automatyczna deklaracja"
+          hint="System skanuje cookies i storage, dopisuje wykryte elementy do tabel w szczegółach banera i opisuje je sam."
+        >
+          <Checkbox
+            label="Dopisuj wykryte automatycznie elementy"
+            checked={draft.autoInventory}
+            onChange={(v) => setDraft({ ...draft, autoInventory: v })}
+          />
+        </Field>
       </section>
+
 
       {/* Colors */}
       <section className="mb-6">
@@ -333,15 +355,21 @@ function CookieBannerSettings() {
         </button>
       </div>
 
-      {previewOpen && <PreviewOverlay onClose={() => setPreviewOpen(false)} />}
+      {previewOpen && <PreviewOverlay config={draft} onClose={() => setPreviewOpen(false)} />}
     </div>
   );
 }
 
-// Live preview reuses ConsentBanner in "expanded" mode by dispatching the same
-// event the footer uses. We wrap it with the current draft not-yet-saved by
-// simply relying on the last saved config; the note below explains that.
-function PreviewOverlay({ onClose }: { onClose: () => void }) {
+// Podgląd na żywo: ConsentBanner dostaje NIEZAPISANY szkic (configOverride),
+// więc kolory, logo, treści i odnośniki widać przed kliknięciem „Zapisz".
+function PreviewOverlay({
+  config,
+  onClose,
+}: {
+  config: CookieBannerConfig;
+  onClose: () => void;
+}) {
+  const [surface, setSurface] = useState<"light" | "dark">("light");
   // ConsentBanner hides once the user has decided; dispatch OPEN_PREFS_EVENT so
   // it opens the expanded modal for the preview regardless of prior consent.
   useEffectOnce(() => {
@@ -349,14 +377,23 @@ function PreviewOverlay({ onClose }: { onClose: () => void }) {
   });
   return (
     <div className="fixed inset-0 z-[70]">
-      <ConsentBanner />
-      <button
-        type="button"
-        onClick={onClose}
-        className="fixed top-4 right-4 z-[90] h-9 px-3 rounded-md border border-border bg-card text-sm shadow-sm"
-      >
-        Zamknij podgląd
-      </button>
+      <ConsentBanner configOverride={config} themeOverride={surface} />
+      <div className="fixed top-4 right-4 z-[90] flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setSurface((s) => (s === "light" ? "dark" : "light"))}
+          className="h-9 px-3 rounded-md border border-border bg-card text-sm shadow-sm"
+        >
+          {surface === "light" ? "Logo: jasne" : "Logo: ciemne"}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 px-3 rounded-md border border-border bg-card text-sm shadow-sm"
+        >
+          Zamknij podgląd
+        </button>
+      </div>
     </div>
   );
 }

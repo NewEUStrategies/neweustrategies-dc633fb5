@@ -27,7 +27,13 @@ import {
   useCookieBannerConfig,
   bannerStyleVars,
   type CookieBannerCopy,
+  type CookieBannerConfig,
 } from "@/lib/cookieBanner/config";
+import {
+  detectCollectedElements,
+  REGISTRY_BY_CATEGORY,
+  type DataElement,
+} from "@/lib/cookieBanner/registry";
 import { cn } from "@/lib/utils";
 
 type Cats = Record<ConsentCategory, boolean>;
@@ -37,125 +43,8 @@ type Cats = Record<ConsentCategory, boolean>;
 type PrivacyConfig = { privacy_page_slug: string; cookie_banner: boolean };
 const PRIVACY_DEFAULTS: PrivacyConfig = { privacy_page_slug: "", cookie_banner: true };
 
-type Vendor = {
-  name: string;
-  party_pl: string;
-  party_en: string;
-  purpose_pl: string;
-  purpose_en: string;
-  ttl_pl: string;
-  ttl_en: string;
-};
+type Vendor = DataElement;
 
-const VENDORS: Record<ConsentCategory, Vendor[]> = {
-  necessary: [
-    {
-      name: "sb-access-token / sb-refresh-token",
-      party_pl: "Lovable Cloud (backend)",
-      party_en: "Lovable Cloud (backend)",
-      purpose_pl: "Token sesji uwierzytelniającej użytkownika",
-      purpose_en: "User authentication session token",
-      ttl_pl: "1 h / 7 dni",
-      ttl_en: "1 h / 7 days",
-    },
-    {
-      name: "PKCE code verifier",
-      party_pl: "Backend Auth",
-      party_en: "Backend Auth",
-      purpose_pl: "Zabezpieczenie przepływu autoryzacji OAuth (PKCE)",
-      purpose_en: "Securing the OAuth authorization flow (PKCE)",
-      ttl_pl: "Sesja",
-      ttl_en: "Session",
-    },
-    {
-      name: "consent:v2",
-      party_pl: "Platforma (1st party)",
-      party_en: "Platform (1st party)",
-      purpose_pl: "Zapis decyzji o zgodzie na pliki cookie",
-      purpose_en: "Storage of the cookie consent decision",
-      ttl_pl: "365 dni",
-      ttl_en: "365 days",
-    },
-    {
-      name: "lovable_lang",
-      party_pl: "Platforma (1st party)",
-      party_en: "Platform (1st party)",
-      purpose_pl: "Preferencja języka interfejsu (PL/EN)",
-      purpose_en: "UI language preference (PL/EN)",
-      ttl_pl: "365 dni",
-      ttl_en: "365 days",
-    },
-  ],
-  functional: [
-    {
-      name: "theme",
-      party_pl: "Platforma (1st party)",
-      party_en: "Platform (1st party)",
-      purpose_pl: "Wybrany motyw (jasny/ciemny/systemowy)",
-      purpose_en: "Selected theme (light/dark/system)",
-      ttl_pl: "Bez limitu",
-      ttl_en: "Persistent",
-    },
-    {
-      name: "layout:*",
-      party_pl: "Platforma (1st party)",
-      party_en: "Platform (1st party)",
-      purpose_pl: "Preferencje układu list, gęstości widoku",
-      purpose_en: "List layout and view density preferences",
-      ttl_pl: "Bez limitu",
-      ttl_en: "Persistent",
-    },
-    {
-      name: "reading:prefs",
-      party_pl: "Platforma (1st party)",
-      party_en: "Platform (1st party)",
-      purpose_pl: "Rozmiar tekstu, TTS, tryb czytania",
-      purpose_en: "Text size, TTS, reading mode",
-      ttl_pl: "Bez limitu",
-      ttl_en: "Persistent",
-    },
-  ],
-  analytics: [
-    {
-      name: "web-vitals",
-      party_pl: "Platforma (1st party)",
-      party_en: "Platform (1st party)",
-      purpose_pl: "Pomiar wydajności strony (LCP, CLS, INP)",
-      purpose_en: "Page performance metrics (LCP, CLS, INP)",
-      ttl_pl: "Sesja",
-      ttl_en: "Session",
-    },
-    {
-      name: "session_id",
-      party_pl: "Platforma (1st party)",
-      party_en: "Platform (1st party)",
-      purpose_pl: "Zliczanie unikalnych sesji (zagregowane)",
-      purpose_en: "Aggregated unique-session counting",
-      ttl_pl: "30 min",
-      ttl_en: "30 min",
-    },
-  ],
-  marketing: [
-    {
-      name: "nl_click / nl_open",
-      party_pl: "Platforma (1st party)",
-      party_en: "Platform (1st party)",
-      purpose_pl: "Pomiar otwarć i kliknięć newslettera",
-      purpose_en: "Newsletter opens and click-through measurement",
-      ttl_pl: "365 dni",
-      ttl_en: "365 days",
-    },
-    {
-      name: "ad_event",
-      party_pl: "Platforma (1st party)",
-      party_en: "Platform (1st party)",
-      purpose_pl: "Pomiar odsłon i kliknięć reklam własnych",
-      purpose_en: "Own-ad impression and click measurement",
-      ttl_pl: "180 dni",
-      ttl_en: "180 days",
-    },
-  ],
-};
 
 const CATEGORY_ORDER: ConsentCategory[] = ["necessary", "functional", "analytics", "marketing"];
 
@@ -223,15 +112,25 @@ const ICON_BTN = cn(
  * Znak marki w kaflu ikony. Gdy logo nie jest skonfigurowane (albo plik nie
  * wstaje), zostaje ciasteczko z Lucide - baner nigdy nie pokazuje pustej ramki.
  */
-function ConsentMark({ src, className }: { src: string | null; className?: string }) {
+function ConsentMark({
+  src,
+  size = 36,
+  className,
+}: {
+  src: string | null;
+  size?: number;
+  className?: string;
+}) {
   const [failed, setFailed] = useState(false);
   const showLogo = !!src && !failed;
+  const px = Math.min(72, Math.max(24, Math.round(size)));
 
   return (
     <span
       aria-hidden
+      style={{ width: px, height: px }}
       className={cn(
-        "grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg",
+        "grid shrink-0 place-items-center overflow-hidden rounded-lg",
         "bg-[color:var(--cb-accent,var(--primary))]/10 text-[color:var(--cb-accent,var(--primary))]",
         "ring-1 ring-[color:var(--cb-accent,var(--primary))]/20",
         className,
@@ -241,8 +140,8 @@ function ConsentMark({ src, className }: { src: string | null; className?: strin
         <img
           src={src}
           alt=""
-          width={36}
-          height={36}
+          width={px}
+          height={px}
           loading="lazy"
           decoding="async"
           className="size-full object-contain p-1"
@@ -334,14 +233,35 @@ function CategoryRow({
   );
 }
 
-export function ConsentBanner() {
+export interface ConsentBannerProps {
+  /**
+   * Podgląd w adminie: niezapisany szkic konfiguracji zamiast wartości z bazy.
+   */
+  configOverride?: CookieBannerConfig;
+  /** Podgląd wymusza motyw kafla logo (jasny/ciemny) niezależnie od strony. */
+  themeOverride?: "light" | "dark";
+}
+
+export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerProps = {}) {
   const { i18n, t: tr } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
-  const banner = useCookieBannerConfig();
+  const saved = useCookieBannerConfig();
+  const banner = configOverride ?? saved;
   const t: CookieBannerCopy = isPl ? banner.copy.pl : banner.copy.en;
   const { theme } = useTheme();
-  const brandMark = useBrandMarkUrl(theme === "dark" ? "dark" : "light");
+  const effectiveTheme = themeOverride ?? (theme === "dark" ? "dark" : "light");
+  const brandMark = useBrandMarkUrl(effectiveTheme);
+  const logoSrc =
+    (effectiveTheme === "dark" ? banner.logo.dark || banner.logo.light : banner.logo.light) ||
+    brandMark;
+  const logoSize = banner.logo.size || 36;
+
+  // Deklaracja elementów: rejestr + realnie wykryte klucze przeglądarki.
+  // Skan biegnie po stronie klienta, dopiero gdy użytkownik otworzy szczegóły.
+  const [inventory, setInventory] = useState<Record<ConsentCategory, DataElement[]>>(
+    () => REGISTRY_BY_CATEGORY,
+  );
 
   const privacyHref = privacy.privacy_page_slug
     ? localizedPath(`/${privacy.privacy_page_slug.replace(/^\/+/, "")}`, isPl ? "pl" : "en")
@@ -376,6 +296,15 @@ export function ConsentBanner() {
     analytics: state?.categories.analytics ?? false,
     marketing: state?.categories.marketing ?? false,
   }));
+
+  // Skan uruchamiamy dopiero przy otwarciu szczegółów - baner kompaktowy nie
+  // dotyka wtedy storage'u i nie płaci za to na starcie strony.
+  useEffect(() => {
+    if (!detailsOpen || !banner.autoInventory) return;
+    setInventory(detectCollectedElements().byCategory);
+  }, [detailsOpen, banner.autoInventory]);
+
+
 
   useEffect(() => {
     setDraft({
@@ -554,8 +483,21 @@ export function ConsentBanner() {
         {tr("common.dataProcessingTerms")}
       </a>
       .
+      {/* Dodatkowe odnośniki z panelu admina (np. regulamin, RODO, kontakt). */}
+      {(banner.links ?? [])
+        .filter((l) => l.url && (isPl ? l.label_pl : l.label_en))
+        .map((l) => (
+          <span key={l.id}>
+            {" "}
+            <a href={l.url} className={LINK}>
+              {isPl ? l.label_pl : l.label_en}
+            </a>
+            .
+          </span>
+        ))}
     </>
   );
+
 
   const categoryRows = (clampDesc: boolean) =>
     CATEGORY_ORDER.map((cat) => (
@@ -600,7 +542,7 @@ export function ConsentBanner() {
           )}
         >
           <div className="flex items-center gap-3">
-            <ConsentMark src={brandMark} />
+            <ConsentMark src={logoSrc} size={logoSize} />
             <h2 id="consent-title" className={cn(TX.title, "min-w-0 flex-1")}>
               {t.title}
             </h2>
@@ -751,7 +693,7 @@ export function ConsentBanner() {
             połowy szerokości modala. */}
         <div className={cn("border-b p-4 sm:p-5", CB_BORDER)}>
           <div className="flex items-center gap-3">
-            <ConsentMark src={brandMark} />
+            <ConsentMark src={logoSrc} size={logoSize} />
             <h2 id="consent-title" className={cn(TX.title, "min-w-0 flex-1")}>
               {t.title}
             </h2>
@@ -783,7 +725,7 @@ export function ConsentBanner() {
           />
           {CATEGORY_ORDER.map((cat) => {
             const locked = cat === "necessary";
-            const vendors = VENDORS[cat];
+            const vendors: Vendor[] = inventory[cat] ?? [];
             const vendorsOpen = expandedVendors[cat];
             return (
               <CategoryRow
@@ -837,9 +779,14 @@ export function ConsentBanner() {
                         </thead>
                         <tbody className="divide-y divide-[color:var(--cb-border,var(--border))]">
                           {vendors.map((v) => (
-                            <tr key={v.name} className="align-top">
+                            <tr key={`${v.kind}:${v.name}`} className="align-top">
                               <td className="max-w-[10rem] break-words whitespace-normal px-3 py-2 font-mono text-[color:var(--cb-accent,var(--primary))]">
                                 {v.name}
+                                {v.auto && (
+                                  <span className="ml-1 rounded bg-[color:var(--cb-accent,var(--primary))]/12 px-1 py-0.5 font-sans text-[9px] uppercase">
+                                    {isPl ? "auto" : "auto"}
+                                  </span>
+                                )}
                               </td>
                               <td className="px-3 py-2">{isPl ? v.party_pl : v.party_en}</td>
                               <td className={cn("px-3 py-2", CB_DIM)}>

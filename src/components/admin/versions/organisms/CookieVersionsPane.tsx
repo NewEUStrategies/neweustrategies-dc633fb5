@@ -26,6 +26,9 @@ function asConfig(value: unknown): CookieBannerConfig {
   return {
     enabled: raw.enabled ?? COOKIE_BANNER_DEFAULTS.enabled,
     languageSwitcher: raw.languageSwitcher ?? COOKIE_BANNER_DEFAULTS.languageSwitcher,
+    autoInventory: raw.autoInventory ?? COOKIE_BANNER_DEFAULTS.autoInventory,
+    logo: { ...COOKIE_BANNER_DEFAULTS.logo, ...(raw.logo ?? {}) },
+    links: Array.isArray(raw.links) ? raw.links : COOKIE_BANNER_DEFAULTS.links,
     colors: { ...COOKIE_BANNER_DEFAULTS.colors, ...(raw.colors ?? {}) },
     copy: {
       pl: { ...COOKIE_BANNER_DEFAULTS.copy.pl, ...(raw.copy?.pl ?? {}) },
