@@ -518,65 +518,142 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
             onSubmit={submit}
             className="space-y-5 flex-1 animate-[fadeSlide_.35s_ease-out]"
           >
-            {mode === "signup" && (
-              <Field label={t.name} icon={<User className="w-4 h-4" />}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={isPl ? "Jan Kowalski" : "Jane Doe"}
-                  className="icon-input h-12 placeholder:text-muted-foreground/50 placeholder:font-normal transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
-                />
-              </Field>
-            )}
+            {/* Rejestracja: pola i etykiety pochodzą z globalnej konfiguracji
+                (Admin → Popupy / Strona logowania), więc strona, popup i widget
+                zawsze pokazują to samo. */}
+            {mode === "signup" ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {reg.visible
+                  .filter((f) => f.key !== "list" && f.key !== "newsletter_optin")
+                  .map((f) => {
+                    const full = f.key === "email" || f.key === "linkedin";
+                    if (f.key === "password" || f.key === "password_confirm") {
+                      const isMain = f.key === "password";
+                      return (
+                        <FieldBox
+                          key={f.key}
+                          className={full ? "sm:col-span-2" : ""}
+                          label={reg.label(f.key, t.password)}
+                          type={showPw ? "text" : "password"}
+                          required
+                          minLength={8}
+                          autoComplete="new-password"
+                          placeholder={reg.placeholder(f.key)}
+                          value={isMain ? password : passwordConfirm}
+                          onChange={(e) =>
+                            isMain
+                              ? setPassword(e.target.value)
+                              : setPasswordConfirm(e.target.value)
+                          }
+                          trailing={
+                            isMain ? (
+                              <button
+                                type="button"
+                                onClick={() => setShowPw((v) => !v)}
+                                aria-label={showPw ? t.hidePw : t.showPw}
+                                className="p-1 text-muted-foreground/70 transition-colors hover:text-foreground"
+                              >
+                                {showPw ? (
+                                  <EyeOff className="h-4 w-4" />
+                                ) : (
+                                  <Eye className="h-4 w-4" />
+                                )}
+                              </button>
+                            ) : undefined
+                          }
+                        />
+                      );
+                    }
+                    const isEmail = f.key === "email";
+                    return (
+                      <FieldBox
+                        key={f.key}
+                        className={full ? "sm:col-span-2" : ""}
+                        label={reg.label(f.key)}
+                        placeholder={reg.placeholder(f.key)}
+                        required={f.required}
+                        type={
+                          isEmail
+                            ? "email"
+                            : f.key === "phone"
+                              ? "tel"
+                              : f.key === "linkedin"
+                                ? "url"
+                                : "text"
+                        }
+                        autoComplete={
+                          isEmail
+                            ? "email"
+                            : f.key === "first_name"
+                              ? "given-name"
+                              : f.key === "last_name"
+                                ? "family-name"
+                                : f.key === "company"
+                                  ? "organization"
+                                  : f.key === "job"
+                                    ? "organization-title"
+                                    : f.key === "phone"
+                                      ? "tel"
+                                      : "off"
+                        }
+                        value={isEmail ? email : val(f.key)}
+                        onChange={(e) =>
+                          isEmail ? setEmail(e.target.value) : setVal(f.key, e.target.value)
+                        }
+                      />
+                    );
+                  })}
+              </div>
+            ) : (
+              <>
+                <Field label={t.email} icon={<Mail className="w-4 h-4" />}>
+                  <Input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="youremail@example.com"
+                    className="icon-input h-12 placeholder:text-muted-foreground/50 placeholder:font-normal transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
+                  />
+                </Field>
 
-            <Field label={t.email} icon={<Mail className="w-4 h-4" />}>
-              <Input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="youremail@example.com"
-                className="icon-input h-12 placeholder:text-muted-foreground/50 placeholder:font-normal transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
-              />
-            </Field>
-
-            {mode !== "reset" && (
-              <Field
-                label={t.password}
-                icon={<Lock className="w-4 h-4" />}
-                action={
-                  mode === "signin" ? (
+                {mode === "signin" && (
+                  <Field
+                    label={t.password}
+                    icon={<Lock className="w-4 h-4" />}
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => setMode("reset")}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        {t.forgot}
+                      </button>
+                    }
+                  >
+                    <Input
+                      type={showPw ? "text" : "password"}
+                      required
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={isPl ? "Minimum 8 znaków" : "At least 8 characters"}
+                      className="icon-input icon-input-with-action h-12 placeholder:text-muted-foreground/50 placeholder:font-normal tracking-wide transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
+                    />
                     <button
                       type="button"
-                      onClick={() => setMode("reset")}
-                      className="text-xs text-primary hover:underline"
+                      onClick={() => setShowPw((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground transition-colors p-1 rounded-md"
+                      aria-label={showPw ? t.hidePw : t.showPw}
                     >
-                      {t.forgot}
+                      {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
-                  ) : null
-                }
-              >
-                <Input
-                  type={showPw ? "text" : "password"}
-                  required
-                  minLength={mode === "signup" ? 8 : undefined}
-                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={isPl ? "Minimum 8 znaków" : "At least 8 characters"}
-                  className="icon-input icon-input-with-action h-12 placeholder:text-muted-foreground/50 placeholder:font-normal tracking-wide transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground transition-colors p-1 rounded-md"
-                  aria-label={showPw ? t.hidePw : t.showPw}
-                >
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </Field>
+                  </Field>
+                )}
+              </>
             )}
+
 
             {mode === "reset" && (
               <p className="text-xs text-muted-foreground -mt-2">{t.resetSub}</p>
