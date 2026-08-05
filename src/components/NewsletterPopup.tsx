@@ -66,8 +66,11 @@ export function NewsletterPopup() {
   const isPl = (i18n.language ?? "pl").startsWith("pl");
 
   useEffect(() => {
-    if (!s?.popup_enabled || !s.enabled) return;
-    if (s.mode === "off" || s.mode === "inline") return;
+    // Popup rejestracji jest niezależny od trybu newslettera (`mode`) - ten
+    // steruje wyłącznie formularzem newslettera. Jedyną bramką jest własny
+    // przełącznik popupu w Admin -> Popupy.
+    if (!s?.popup_enabled) return;
+
     if (loc.pathname.startsWith("/admin") || loc.pathname.startsWith("/auth")) return;
     if (shownThisSession) return;
     if (!shouldShow(s.popup_frequency_days)) return;
