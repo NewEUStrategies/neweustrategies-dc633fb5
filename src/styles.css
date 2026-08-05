@@ -5349,6 +5349,31 @@ textarea::placeholder {
   .input-group--on-dark > select.input ~ .user-label {
     background-color: var(--input-group-chip-bg);
   }
+  /* FormSelect (Radix) w roli pola: trigger jest <button>, więc nie ma
+     :placeholder-shown - etykieta zostaje na obramowaniu tak jak przy <select>. */
+  .input-group > button.input {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 3.25rem;
+    padding-top: 1.1rem;
+    padding-bottom: 0.5rem;
+    font-size: 0.95rem;
+  }
+  .input-group > button.input ~ .user-label {
+    top: 0;
+    height: auto;
+    transform: translateY(-50%) scale(0.8);
+    transform-origin: left center;
+    background-color: var(--background);
+    padding: 0 0.35em;
+    color: var(--ring);
+  }
+  .input-group--on-dark > button.input ~ .user-label {
+    background-color: var(--input-group-chip-bg);
+  }
+
   .dark .input-group > .user-label {
     color: var(--gc-input-placeholder-dark, oklch(0.65 0 0));
   }
@@ -6706,4 +6731,20 @@ html {
   .signup-success__actions {
     animation: none;
   }
+}
+
+/* -------------------------------------------------------------------------
+   Fine print formularzy (zgoda przy checkboxie + nota o polityce prywatności)
+   -------------------------------------------------------------------------
+   Jedna typografia dla obu tekstów, żeby „Zapisując się akceptujesz…" i
+   „Zapoznałem się i akceptuję…" wyglądały identycznie także wewnątrz widgetów
+   buildera, które nadpisują rozmiary tekstu ([data-w-id]). */
+.nl-fineprint,
+[data-w-id] .nl-fineprint,
+[data-builder-renderer] .nl-fineprint {
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: normal;
 }
