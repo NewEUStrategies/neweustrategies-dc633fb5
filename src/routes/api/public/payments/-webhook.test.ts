@@ -147,25 +147,51 @@ function req(): Request {
   return { url: "https://example.com/api/public/payments/webhook?env=live" } as unknown as Request;
 }
 
-function subEvent(eventType: string, data: Record<string, unknown>): Record<string, unknown> {
+const unix = (iso: string): number => Math.floor(Date.parse(iso) / 1000);
+
+/**
+ * Surowe zdarzenie Stripe (kształt dokładnie taki, jaki przychodzi z bramki) -
+ * normalizacja do modelu domenowego dzieje się w `normalizeStripeEvent`,
+ * którego celowo NIE mockujemy: test ma pilnować całej ścieżki.
+ */
+function subEvent(
+  stripeType: string,
+  opts: {
+    status: string;
+    startsAt?: string;
+    endsAt?: string;
+    userId?: string;
+    withoutItems?: boolean;
+    eventId?: string;
+  },
+): Record<string, unknown> {
+  const item: Record<string, unknown> = {
+    quantity: 1,
+    current_period_start: opts.startsAt ? unix(opts.startsAt) : undefined,
+    current_period_end: opts.endsAt ? unix(opts.endsAt) : undefined,
+    price: {
+      id: "pri_1",
+      lookup_key: "pro_monthly",
+      product: { id: "pro_1", metadata: { lovable_external_id: "plan_pro" } },
+    },
+  };
+
   return {
-    eventId: `evt_${Math.random().toString(36).slice(2)}`,
-    eventType,
-    occurredAt: "2026-07-29T10:00:00.000Z",
+    id: opts.eventId ?? `evt_${Math.random().toString(36).slice(2)}`,
+    type: stripeType,
+    created: unix("2026-07-29T10:00:00.000Z"),
     data: {
-      id: "sub_1",
-      customerId: "ctm_1",
-      items: [
-        {
-          quantity: 1,
-          price: { id: "pri_1", importMeta: { externalId: "pro_monthly" } },
-          product: { id: "pro_1", importMeta: { externalId: "plan_pro" } },
-        },
-      ],
-      ...data,
+      object: {
+        id: "sub_1",
+        customer: "ctm_1",
+        status: opts.status,
+        metadata: opts.userId ? { userId: opts.userId } : {},
+        items: { data: opts.withoutItems ? [] : [item] },
+      },
     },
   };
 }
+
 
 /** Domyślne odczyty: istniejąca subskrypcja, plan, profil, lead w CRM. */
 function seed(
@@ -208,9 +234,10 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
 
   it("pauza: wstrzymuje uprawnienie, oznacza CRM i powiadamia użytkownika", async () => {
     seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
-    h.event.value = subEvent("subscription.updated", {
+    h.event.value = subEvent("customer.subscription.updated", {
       status: "paused",
-      currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+      startsAt: "2026-07-01T00:00:00Z",
+      endsAt: "2026-08-01T00:00:00Z",
     });
 
     const res = await handle(req());
@@ -246,9 +273,10 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
         ],
       },
     );
-    h.event.value = subEvent("subscription.updated", {
+    h.event.value = subEvent("customer.subscription.updated", {
       status: "active",
-      currentBillingPeriod: { startsAt: "2026-08-01T00:00:00Z", endsAt: "2026-09-01T00:00:00Z" },
+      startsAt: "2026-08-01T00:00:00Z",
+      endsAt: "2026-09-01T00:00:00Z",
     });
 
     await handle(req());
@@ -258,7 +286,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
       "update",
     );
     expect(ent.status).toBe("active");
-    expect(ent.current_period_end).toBe("2026-09-01T00:00:00Z");
+    expect(ent.current_period_end).toBe("2026-09-01T00:00:00.000Z");
 
     const lead = payload<{ stage: string; tags: string[] }>("crm_leads", "update");
     expect(lead.stage).toBe("won");
@@ -269,19 +297,20 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
     );
   });
 
-  it("dedykowane zdarzenia stanu (past_due, paused, resumed, activated) są obsługiwane", async () => {
+  it("dedykowane zdarzenia stanu (past_due, paused, resumed, trialing) są obsługiwane", async () => {
     const cases: Array<[string, string]> = [
-      ["subscription.past_due", "past_due"],
-      ["subscription.paused", "paused"],
-      ["subscription.resumed", "active"],
-      ["subscription.activated", "active"],
+      ["customer.subscription.updated", "past_due"],
+      ["customer.subscription.updated", "paused"],
+      ["customer.subscription.resumed", "active"],
+      ["customer.subscription.updated", "trialing"],
     ];
-    for (const [eventType, status] of cases) {
+    for (const [stripeType, status] of cases) {
       h.state.ops = [];
       seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
-      h.event.value = subEvent(eventType, {
+      h.event.value = subEvent(stripeType, {
         status,
-        currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+        startsAt: "2026-07-01T00:00:00Z",
+        endsAt: "2026-08-01T00:00:00Z",
       });
 
       await handle(req());
@@ -291,10 +320,11 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
 
   it("aktywacja przed utworzeniem subskrypcji zakłada wiersz zamiast go zgubić", async () => {
     seed(null);
-    h.event.value = subEvent("subscription.activated", {
+    h.event.value = subEvent("customer.subscription.updated", {
       status: "active",
-      customData: { userId: "u1" },
-      currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+      userId: "u1",
+      startsAt: "2026-07-01T00:00:00Z",
+      endsAt: "2026-08-01T00:00:00Z",
     });
 
     await handle(req());
@@ -311,9 +341,10 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
         user_subscriptions: [{ data: { id: "us_1", status: "refunded" }, error: null }],
       },
     );
-    h.event.value = subEvent("subscription.updated", {
+    h.event.value = subEvent("customer.subscription.updated", {
       status: "active",
-      currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+      startsAt: "2026-07-01T00:00:00Z",
+      endsAt: "2026-08-01T00:00:00Z",
     });
 
     await handle(req());
@@ -323,9 +354,10 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
 
   it("past_due: nie odbiera dostępu, ale zapisuje stan w panelu", async () => {
     seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
-    h.event.value = subEvent("subscription.updated", {
+    h.event.value = subEvent("customer.subscription.updated", {
       status: "past_due",
-      currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
+      startsAt: "2026-07-01T00:00:00Z",
+      endsAt: "2026-08-01T00:00:00Z",
     });
 
     await handle(req());
@@ -336,38 +368,34 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
 
   it("nowy okres rozliczeniowy: przenosi datę końca do uprawnienia", async () => {
     seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
-    h.event.value = subEvent("subscription.updated", {
+    h.event.value = subEvent("customer.subscription.updated", {
       status: "active",
-      currentBillingPeriod: { startsAt: "2026-08-01T00:00:00Z", endsAt: "2026-09-01T00:00:00Z" },
+      startsAt: "2026-08-01T00:00:00Z",
+      endsAt: "2026-09-01T00:00:00Z",
     });
 
     await handle(req());
 
     expect(
       payload<{ current_period_end: string }>("subscriptions", "update").current_period_end,
-    ).toBe("2026-09-01T00:00:00Z");
+    ).toBe("2026-09-01T00:00:00.000Z");
     const ent = payload<{ status: string; current_period_end: string }>(
       "user_subscriptions",
       "update",
     );
     expect(ent.status).toBe("active");
-    expect(ent.current_period_end).toBe("2026-09-01T00:00:00Z");
+    expect(ent.current_period_end).toBe("2026-09-01T00:00:00.000Z");
   });
 
   it("zdarzenie stanu bez pozycji cennika korzysta z ceny zapisanej przy subskrypcji", async () => {
     seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
-    h.event.value = {
+    h.event.value = subEvent("customer.subscription.updated", {
       eventId: "evt_no_items",
-      eventType: "subscription.updated",
-      occurredAt: "2026-07-29T10:00:00.000Z",
-      data: {
-        id: "sub_1",
-        customerId: "ctm_1",
-        items: [],
-        status: "paused",
-        currentBillingPeriod: { startsAt: "2026-07-01T00:00:00Z", endsAt: "2026-08-01T00:00:00Z" },
-      },
-    };
+      status: "paused",
+      withoutItems: true,
+      startsAt: "2026-07-01T00:00:00Z",
+      endsAt: "2026-08-01T00:00:00Z",
+    });
 
     await handle(req());
 
@@ -382,7 +410,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
       current_period_end: "2099-01-01T00:00:00Z",
       status: "active",
     });
-    h.event.value = subEvent("subscription.canceled", { status: "canceled" });
+    h.event.value = subEvent("customer.subscription.deleted", { status: "canceled" });
 
     await handle(req());
 
@@ -412,7 +440,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
       current_period_end: "2020-01-01T00:00:00Z",
       status: "active",
     });
-    h.event.value = subEvent("subscription.canceled", { status: "canceled" });
+    h.event.value = subEvent("customer.subscription.deleted", { status: "canceled" });
 
     await handle(req());
 
@@ -422,7 +450,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   it("duplikat zdarzenia nie dotyka żadnej warstwy", async () => {
     seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
     h.state.write = { data: null, error: { code: "23505", message: "duplicate" } };
-    h.event.value = subEvent("subscription.updated", { status: "paused" });
+    h.event.value = subEvent("customer.subscription.updated", { status: "paused" });
 
     const res = await handle(req());
     expect(await res.json()).toEqual({ received: true, duplicate: true });
@@ -432,7 +460,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
 
   it("każde obsłużone zdarzenie ląduje w rejestrze webhooków (/admin/billing)", async () => {
     seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
-    h.event.value = subEvent("subscription.updated", { status: "active" });
+    h.event.value = subEvent("customer.subscription.updated", { status: "active" });
 
     await handle(req());
 
