@@ -426,7 +426,6 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       el.style.removeProperty("--hdr-nat");
       el.style.removeProperty("--hdr-tt");
       el.style.removeProperty("--hdr-extra");
-      el.style.removeProperty("--hdr-live");
     };
   }, [stickyShrink]);
 
