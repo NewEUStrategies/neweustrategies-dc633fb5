@@ -4,7 +4,7 @@
 // zajął ktoś inny. Zamiast sprzedać nieistniejące wejście, zwracamy pełną
 // kwotę od razu przy realizacji zamówienia. Skutki uprawnień obsługuje
 // webhook `adjustment.*` - tutaj tylko zlecamy korektę u operatora.
-import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
+import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
 
 export type RefundResult = { ok: true; adjustmentId: string | null } | { ok: false; error: string };
 
@@ -22,7 +22,7 @@ const REASON_TEXT: Record<RefundReason, string> = {
  * decyduje, czy zablokować realizację, czy tylko zalogować problem.
  */
 export async function refundTransactionFully(
-  env: PaddleEnv,
+  env: StripeEnv,
   transactionId: string,
   reason: RefundReason,
 ): Promise<RefundResult> {

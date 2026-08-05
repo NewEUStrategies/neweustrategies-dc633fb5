@@ -33,7 +33,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
           "Dane techniczne i analityczne: adres IP, identyfikatory urządzenia i przeglądarki, logi bezpieczeństwa, zdarzenia korzystania z Serwisu - w celu zapewnienia bezpieczeństwa, zapobiegania nadużyciom i rozwoju produktu.",
         ],
         paragraphs: [
-          "Danych kart płatniczych nie zbieramy ani nie przechowujemy - pełne dane płatnicze przetwarza Paddle jako Merchant of Record.",
+          "Danych kart płatniczych nie zbieramy ani nie przechowujemy - pełne dane płatnicze przetwarza nasz operator płatności, Stripe, który jako podprocesor obsługuje zamówienia w naszym imieniu.",
         ],
       },
       {
@@ -52,7 +52,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
         icon: "Share2",
         heading: "Komu udostępniamy dane",
         bullets: [
-          "Paddle.com Market Ltd - Merchant of Record, czyli sprzedawca naszych produktów cyfrowych: obsługa płatności, subskrypcji, faktur i rozliczeń podatkowych.",
+          "Stripe Payments Europe, Ltd. (Irlandia) oraz podmioty z grupy Stripe - nasz operator płatności: obsługa transakcji, subskrypcji, faktur oraz naliczania i rozliczania podatku od sprzedaży w imieniu sprzedawcy, którym jesteśmy my.",
           "Dostawcy infrastruktury i hostingu bazy danych, plików oraz aplikacji.",
           "Dostawcy poczty transakcyjnej i newslettera - wysyłka wiadomości systemowych i raporty doręczeń.",
           "Dostawcy analityki i monitoringu błędów - w zakresie zgodnym z Twoimi zgodami na cookies.",
@@ -125,7 +125,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
         icon: "Mail",
         heading: "Kontakt",
         paragraphs: [
-          `W sprawach prywatności napisz na ${LEGAL_CONTACT_EMAIL}. W sprawach dotyczących płatności, faktur i zwrotów obsługę prowadzi Paddle - nasz Merchant of Record - pod adresem paddle.net.`,
+          `W sprawach prywatności, płatności, faktur i zwrotów napisz na ${LEGAL_CONTACT_EMAIL}. Techniczną obsługę transakcji zapewnia nasz operator płatności, ${PAYMENT_PROVIDER_NAME}.`,
         ],
       },
     ],
@@ -159,7 +159,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
           "Technical and analytics data: IP address, device and browser identifiers, security logs, usage events - for security, abuse prevention and product improvement.",
         ],
         paragraphs: [
-          "We never collect or store card details - full payment data is processed by Paddle as Merchant of Record.",
+          "We never collect or store card details - full payment data is processed by our payment provider, Stripe, acting as a processor on our behalf.",
         ],
       },
       {
@@ -178,7 +178,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
         icon: "Share2",
         heading: "Who we share data with",
         bullets: [
-          "Paddle.com Market Ltd - our Merchant of Record and reseller of our digital products: payments, subscription management, invoicing and tax compliance.",
+          "Stripe Payments Europe, Ltd. (Ireland) and other Stripe group entities - our payment provider: transaction processing, subscription management, invoicing and calculating/remitting sales tax on behalf of the seller, which is us.",
           "Infrastructure providers hosting the database, files and application.",
           "Transactional email and newsletter providers - system messages and delivery reporting.",
           "Analytics and error-monitoring providers - within the scope of your cookie consent.",
@@ -249,7 +249,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
         icon: "Mail",
         heading: "Contact",
         paragraphs: [
-          `For privacy matters write to ${LEGAL_CONTACT_EMAIL}. Payments, invoices and refunds are handled by Paddle, our Merchant of Record, at paddle.net.`,
+          `For privacy, payment, invoice and refund matters write to ${LEGAL_CONTACT_EMAIL}. Technical transaction processing is provided by our payment provider, ${PAYMENT_PROVIDER_NAME}.`,
         ],
       },
     ],

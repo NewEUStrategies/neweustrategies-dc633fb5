@@ -47,7 +47,7 @@ vi.mock("@/lib/billing/queries", () => ({
   fetchMyOrders: async () => state.orders,
 }));
 vi.mock("@/lib/paddle", () => ({
-  getPaddleEnvironment: () => "sandbox",
+  getStripeEnvironment: () => "sandbox",
 }));
 vi.mock("@/utils/payments.functions", () => ({
   createPaddlePortalSession: async (args: unknown) => {
@@ -76,8 +76,8 @@ const activeSub = (over: Record<string, unknown> = {}) => ({
   status: "active",
   current_period_end: futureIso(30),
   cancel_at_period_end: false,
-  paddle_customer_id: "ctm_1",
-  paddle_subscription_id: "sub_abc",
+  provider_customer_id: "ctm_1",
+  provider_subscription_id: "sub_abc",
   ...over,
 });
 

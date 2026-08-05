@@ -22,7 +22,7 @@ export function isPaymentsConfigured(): boolean {
   return !!clientToken;
 }
 
-export function getPaddleEnvironment(): "sandbox" | "live" {
+export function getStripeEnvironment(): "sandbox" | "live" {
   return clientToken?.startsWith("test_") ? "sandbox" : "live";
 }
 
@@ -64,7 +64,7 @@ export async function initializePaddle(options?: {
         return;
       }
       // Środowisko live jest domyślne - `set` wołamy wyłącznie dla testów.
-      if (getPaddleEnvironment() === "sandbox") paddle.Environment.set("sandbox");
+      if (getStripeEnvironment() === "sandbox") paddle.Environment.set("sandbox");
       paddle.Initialize({
         token: clientToken,
         ...(retainCustomerId ? { pwCustomer: { id: retainCustomerId } } : {}),
@@ -78,5 +78,5 @@ export async function initializePaddle(options?: {
 }
 
 export async function getPaddlePriceId(priceId: string): Promise<string> {
-  return resolvePaddlePrice({ data: { priceId, environment: getPaddleEnvironment() } });
+  return resolvePaddlePrice({ data: { priceId, environment: getStripeEnvironment() } });
 }

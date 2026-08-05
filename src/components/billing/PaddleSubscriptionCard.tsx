@@ -28,9 +28,9 @@ import {
   isPaddleSubscriptionActive,
   type PaddleSubscriptionRow,
 } from "@/lib/billing/paddleSubscription";
-import { paddlePriceForPlan, planChangeDirection } from "@/lib/billing/paddleCatalog";
+import { catalogPriceForPlan, planChangeDirection } from "@/lib/billing/catalog";
 import { formatMoney, planName, type AccessPlan } from "@/lib/billing/types";
-import { getPaddleEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/paddle";
 import {
   cancelPaddleSubscription,
   changePaddlePlan,
@@ -53,7 +53,7 @@ import {
 /** Hook współdzielony przez profil i strażników dostępu. */
 export function useMyPaddleSubscription() {
   const { session } = useAuth();
-  const env = getPaddleEnvironment();
+  const env = getStripeEnvironment();
   return useQuery({
     queryKey: billingKeys.myPaddleSubscription(session?.user?.id, env),
     queryFn: fetchMyPaddleSubscription,
@@ -65,7 +65,7 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();
-  const environment = getPaddleEnvironment();
+  const environment = getStripeEnvironment();
   const [targetPriceId, setTargetPriceId] = useState("");
   const [seats, setSeats] = useState(Math.max(1, subscription.quantity ?? 1));
 
@@ -74,7 +74,7 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
 
   const currentPlan = useMemo<AccessPlan | null>(
     () =>
-      (plansQ.data ?? []).find((plan) => paddlePriceForPlan(plan)?.priceId === entry?.priceId) ??
+      (plansQ.data ?? []).find((plan) => catalogPriceForPlan(plan)?.priceId === entry?.priceId) ??
       null,
     [plansQ.data, entry?.priceId],
   );
@@ -82,7 +82,7 @@ export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleS
   const targets = useMemo(
     () =>
       (plansQ.data ?? [])
-        .map((plan) => ({ plan, price: paddlePriceForPlan(plan) }))
+        .map((plan) => ({ plan, price: catalogPriceForPlan(plan) }))
         .filter(
           (item): item is { plan: AccessPlan; price: NonNullable<typeof item.price> } =>
             !!item.price && item.price.priceId !== entry?.priceId,

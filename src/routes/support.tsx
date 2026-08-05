@@ -1,7 +1,7 @@
 // Publiczna strona darowizn / mecenatu obywatelskiego. URL: /support
-// Wpłaty obsługuje zewnętrzna zbiórka (zrzutka.pl) - serwis nie tworzy
-// transakcji darowizn u operatora płatności (wymóg AUP Paddle: darowizny są
-// poza wspieranymi kategoriami). Strona wyłącznie informuje i linkuje.
+// Wpłaty obsługuje zewnętrzna zbiórka (zrzutka.pl) - to decyzja produktowa,
+// darowizny prowadzimy poza naszym operatorem płatności. Strona wyłącznie
+// informuje i linkuje.
 import { useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";

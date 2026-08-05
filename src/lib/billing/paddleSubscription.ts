@@ -3,13 +3,13 @@
 // testowe i produkcyjne leżą w jednej tabeli, więc brak filtra pokazałby
 // w opublikowanej aplikacji subskrypcję z trybu testowego.
 import { supabase } from "@/integrations/supabase/client";
-import { getPaddleEnvironment } from "@/lib/paddle";
-import { catalogEntryByPriceId, type PaddlePriceEntry } from "./paddleCatalog";
+import { getStripeEnvironment } from "@/lib/paddle";
+import { catalogEntryByPriceId, type CatalogPriceEntry } from "./catalog";
 
 export interface PaddleSubscriptionRow {
   id: string;
-  paddle_subscription_id: string;
-  paddle_customer_id: string;
+  provider_subscription_id: string;
+  provider_customer_id: string;
   product_id: string;
   price_id: string;
   status: string;
@@ -22,7 +22,7 @@ export interface PaddleSubscriptionRow {
 }
 
 const COLUMNS =
-  "id, paddle_subscription_id, paddle_customer_id, product_id, price_id, status, quantity, current_period_start, current_period_end, cancel_at_period_end, environment, created_at";
+  "id, provider_subscription_id, provider_customer_id, product_id, price_id, status, quantity, current_period_start, current_period_end, cancel_at_period_end, environment, created_at";
 
 export async function fetchMyPaddleSubscription(): Promise<PaddleSubscriptionRow | null> {
   const { data: auth } = await supabase.auth.getSession();
@@ -32,7 +32,7 @@ export async function fetchMyPaddleSubscription(): Promise<PaddleSubscriptionRow
     .from("subscriptions")
     .select(COLUMNS)
     .eq("user_id", uid)
-    .eq("environment", getPaddleEnvironment())
+    .eq("environment", getStripeEnvironment())
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -61,6 +61,6 @@ export function canResumePaddleSubscription(row: PaddleSubscriptionRow | null): 
   return row.status !== "canceled" && (endsAt === null || endsAt > Date.now());
 }
 
-export function catalogEntryFor(row: PaddleSubscriptionRow | null): PaddlePriceEntry | null {
+export function catalogEntryFor(row: PaddleSubscriptionRow | null): CatalogPriceEntry | null {
   return catalogEntryByPriceId(row?.price_id);
 }

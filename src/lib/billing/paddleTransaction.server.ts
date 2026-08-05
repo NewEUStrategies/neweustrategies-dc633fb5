@@ -9,7 +9,7 @@
 // podaje kwoty.
 //
 // Moduł jest server-only (klucze bramki) - importuj wyłącznie z handlerów.
-import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
+import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
 
 /** Produkty jednorazowe utworzone w katalogu dostawcy. */
 export const ONE_TIME_PRODUCTS = {
@@ -23,7 +23,7 @@ export type OneTimeProductKey = keyof typeof ONE_TIME_PRODUCTS;
 export type OneTimeKind = "order" | "event_ticket";
 
 export interface AdhocTransactionInput {
-  environment: PaddleEnv;
+  environment: StripeEnv;
   product: OneTimeProductKey;
   /** Nazwa pozycji widoczna dla kupującego. */
   name: string;
@@ -43,7 +43,7 @@ export type AdhocTransactionResult =
 const productIdCache = new Map<string, string>();
 
 /** Wewnętrzny identyfikator produktu dostawcy dla czytelnego `external_id`. */
-async function resolveProductId(env: PaddleEnv, externalId: string): Promise<string | null> {
+async function resolveProductId(env: StripeEnv, externalId: string): Promise<string | null> {
   const cacheKey = `${env}:${externalId}`;
   const cached = productIdCache.get(cacheKey);
   if (cached) return cached;
@@ -131,7 +131,7 @@ export async function createAdhocTransaction(
  * odblokować realną treść (P0 z audytu monetyzacji). Poza produkcją honorujemy
  * żądanie klienta, żeby dev/staging mógł testować lejek w sandboxie.
  */
-export function resolveEnvironment(requested?: PaddleEnv | null): PaddleEnv {
+export function resolveEnvironment(requested?: StripeEnv | null): StripeEnv {
   if (process.env.NODE_ENV === "production") return "live";
   if (requested === "sandbox" || requested === "live") return requested;
   return "sandbox";
@@ -140,7 +140,7 @@ export function resolveEnvironment(requested?: PaddleEnv | null): PaddleEnv {
 const priceIdCache = new Map<string, string>();
 
 /** Czytelny identyfikator ceny z katalogu -> wewnętrzny identyfikator dostawcy. */
-async function resolvePriceId(env: PaddleEnv, externalId: string): Promise<string | null> {
+async function resolvePriceId(env: StripeEnv, externalId: string): Promise<string | null> {
   const cacheKey = `${env}:${externalId}`;
   const cached = priceIdCache.get(cacheKey);
   if (cached) return cached;
@@ -161,8 +161,8 @@ async function resolvePriceId(env: PaddleEnv, externalId: string): Promise<strin
 }
 
 export interface SubscriptionTransactionInput {
-  environment: PaddleEnv;
-  /** Czytelny identyfikator ceny z `PADDLE_CATALOG` (np. `pro_monthly`). */
+  environment: StripeEnv;
+  /** Czytelny identyfikator ceny z `BILLING_CATALOG` (np. `pro_monthly`). */
   priceExternalId: string;
   quantity?: number;
   customerEmail?: string | null;

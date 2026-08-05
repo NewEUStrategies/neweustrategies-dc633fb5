@@ -16,8 +16,8 @@ const inDays = (d: number) => new Date(now.getTime() + d * 86_400_000).toISOStri
 
 const sub = (over: Partial<PaddleSubscriptionRow> = {}): PaddleSubscriptionRow => ({
   id: "row-1",
-  paddle_subscription_id: "sub_1",
-  paddle_customer_id: "ctm_1",
+  provider_subscription_id: "sub_1",
+  provider_customer_id: "ctm_1",
   product_id: "starter_plan",
   price_id: "starter_monthly",
   status: "active",
@@ -84,7 +84,7 @@ describe("buildPurchaseSummary", () => {
   });
 
   it("brak klienta u operatora ukrywa portal", () => {
-    const s = buildPurchaseSummary({ subscription: sub({ paddle_customer_id: "" }), now });
+    const s = buildPurchaseSummary({ subscription: sub({ provider_customer_id: "" }), now });
     expect(s.portalAvailable).toBe(false);
   });
 

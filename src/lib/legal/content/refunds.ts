@@ -5,9 +5,8 @@ import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_ENTITY,
   LEGAL_UPDATED,
-  PADDLE_MOR_DISCLOSURE,
-  PADDLE_REFUND_POLICY_URL,
-  PADDLE_SUPPORT_URL,
+  PAYMENT_PROVIDER_DISCLOSURE,
+  PAYMENT_PROVIDER_NAME,
   REFUND_WINDOW_DAYS,
 } from "@/lib/legal/entity";
 
@@ -33,8 +32,8 @@ export const REFUNDS_CONTENT: LegalDocContent = {
         icon: "Send",
         heading: "Jak złożyć wniosek",
         bullets: [
-          `Najszybsza droga: skorzystaj z portalu obsługi kupujących Paddle pod adresem ${PADDLE_SUPPORT_URL} i podaj numer transakcji z maila potwierdzającego.`,
-          `Możesz też napisać do nas na ${LEGAL_CONTACT_EMAIL} - przekażemy zgłoszenie i potwierdzimy jego przyjęcie.`,
+          `Napisz do nas na ${LEGAL_CONTACT_EMAIL}, podając numer transakcji z maila potwierdzającego - to nasz jedyny kanał zgłoszeń zwrotów.`,
+          `Zgłoszenie przekazujemy do rozliczenia naszemu operatorowi płatności, ${PAYMENT_PROVIDER_NAME}, który technicznie realizuje zwrot środków.`,
           "Wnioski rozpatrujemy zwykle w 1-2 dni robocze.",
         ],
       },
@@ -86,8 +85,8 @@ export const REFUNDS_CONTENT: LegalDocContent = {
         icon: "Store",
         heading: "Kto obsługuje zwroty",
         paragraphs: [
-          PADDLE_MOR_DISCLOSURE.pl,
-          `Polityka zwrotów Paddle: ${PADDLE_REFUND_POLICY_URL}.`,
+          PAYMENT_PROVIDER_DISCLOSURE.pl,
+          `Zgłoszenia przyjmujemy pod adresem ${LEGAL_CONTACT_EMAIL}; techniczne rozliczenie zwrotu (w tym termin ${REFUND_WINDOW_DAYS} dni) realizuje nasz operator płatności.`,
         ],
       },
     ],
@@ -113,8 +112,8 @@ export const REFUNDS_CONTENT: LegalDocContent = {
         icon: "Send",
         heading: "How to request a refund",
         bullets: [
-          `Fastest route: use the Paddle buyer support portal at ${PADDLE_SUPPORT_URL} with the transaction number from your confirmation email.`,
-          `You can also write to ${LEGAL_CONTACT_EMAIL} - we will forward the request and confirm receipt.`,
+          `Write to ${LEGAL_CONTACT_EMAIL} with the transaction number from your confirmation email - this is our only refund request channel.`,
+          `We forward the request to our payment provider, ${PAYMENT_PROVIDER_NAME}, which technically processes the refund.`,
           "Requests are usually processed within 1-2 business days.",
         ],
       },
@@ -166,8 +165,8 @@ export const REFUNDS_CONTENT: LegalDocContent = {
         icon: "Store",
         heading: "Who handles refunds",
         paragraphs: [
-          PADDLE_MOR_DISCLOSURE.en,
-          `Paddle refund policy: ${PADDLE_REFUND_POLICY_URL}.`,
+          PAYMENT_PROVIDER_DISCLOSURE.en,
+          `Send requests to ${LEGAL_CONTACT_EMAIL}; the technical settlement of the refund (including the ${REFUND_WINDOW_DAYS}-day window) is carried out by our payment provider.`,
         ],
       },
     ],

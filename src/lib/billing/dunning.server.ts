@@ -45,7 +45,7 @@ async function loadSubscription(ctx: DunningContext): Promise<SubRow | null> {
     .select(
       "user_id, tenant_id, price_id, current_period_end, payment_failure_count, last_dunning_transaction_id",
     )
-    .eq("paddle_subscription_id", ctx.subscriptionId)
+    .eq("provider_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment)
     .maybeSingle();
   return (data as SubRow | null) ?? null;
@@ -110,7 +110,7 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
       last_dunning_at: ctx.occurredAt,
       updated_at: new Date().toISOString(),
     })
-    .eq("paddle_subscription_id", ctx.subscriptionId)
+    .eq("provider_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment);
 
   const plan = await resolvePlanForPrice(sub.price_id);
@@ -156,7 +156,7 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
       last_dunning_transaction_id: null,
       updated_at: new Date().toISOString(),
     })
-    .eq("paddle_subscription_id", ctx.subscriptionId)
+    .eq("provider_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment);
 
   // Potwierdzenie wysyłamy tylko wtedy, gdy realnie odzyskaliśmy płatność.

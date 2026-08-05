@@ -12,7 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ExternalLink, KeyRound, Loader2, Search } from "lucide-react";
 
-import { getPaddleEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/paddle";
 import { fetchMyInvoiceByTransaction, sendMyPortalLink } from "@/lib/billing/portalLink.functions";
 import { isTransactionId, normalizeTransactionId } from "@/lib/billing/transactionId";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export function InvoiceLookupCard() {
 
   const lookup = useMutation({
     mutationFn: () =>
-      findInvoice({ data: { transactionId: trimmed, environment: getPaddleEnvironment() } }),
+      findInvoice({ data: { transactionId: trimmed, environment: getStripeEnvironment() } }),
     onSuccess: (res) => {
       if (res.ok) {
         setUrl(res.url);
@@ -51,7 +51,7 @@ export function InvoiceLookupCard() {
   });
 
   const portal = useMutation({
-    mutationFn: () => sendPortal({ data: { environment: getPaddleEnvironment() } }),
+    mutationFn: () => sendPortal({ data: { environment: getStripeEnvironment() } }),
     onSuccess: (res) => {
       if (res.ok) {
         toast.success(t("profile.orders.portalEmail.sent", { email: res.email }));

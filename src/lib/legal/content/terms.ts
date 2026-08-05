@@ -5,9 +5,9 @@ import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_ENTITY,
   LEGAL_UPDATED,
-  PADDLE_BUYER_TERMS_URL,
-  PADDLE_MOR_DISCLOSURE,
-  PADDLE_SUPPORT_URL,
+  PAYMENT_PROVIDER_BUYER_TERMS_URL,
+  PAYMENT_PROVIDER_DISCLOSURE,
+  PAYMENT_PROVIDER_NAME,
   REFUND_WINDOW_DAYS,
 } from "@/lib/legal/entity";
 
@@ -91,24 +91,24 @@ export const TERMS_CONTENT: LegalDocContent = {
         heading: "Płatności i subskrypcje",
         bullets: [
           "Subskrypcje odnawiają się automatycznie w wybranym okresie rozliczeniowym do momentu anulowania.",
-          "Ceny prezentujemy w Serwisie; podatki nalicza i rozlicza Paddle zgodnie z Twoją jurysdykcją.",
+          `Ceny prezentujemy w Serwisie; podatek od sprzedaży nalicza, pobiera i rozlicza nasz operator płatności, ${PAYMENT_PROVIDER_NAME}, zgodnie z Twoją jurysdykcją.`,
           "Subskrypcję możesz anulować w dowolnej chwili w portalu klienta - dostęp zachowujesz do końca opłaconego okresu.",
-          "Szczegółowe warunki płatności, rozliczeń i anulowania określa regulamin kupującego Paddle.",
+          `Szczegółowe warunki płatności, rozliczeń i anulowania określa regulamin kupującego ${PAYMENT_PROVIDER_NAME}/Link.`,
         ],
-        paragraphs: [`Warunki kupującego Paddle: ${PADDLE_BUYER_TERMS_URL}.`],
+        paragraphs: [`Warunki kupującego ${PAYMENT_PROVIDER_NAME}: ${PAYMENT_PROVIDER_BUYER_TERMS_URL}.`],
       },
       {
         id: "paddle",
         icon: "Store",
-        heading: "Merchant of Record",
-        paragraphs: [PADDLE_MOR_DISCLOSURE.pl],
+        heading: "Sprzedawca i operator płatności",
+        paragraphs: [PAYMENT_PROVIDER_DISCLOSURE.pl],
       },
       {
         id: "zwroty",
         icon: "RotateCcw",
         heading: "Zwroty",
         paragraphs: [
-          `Obowiązuje gwarancja zwrotu pieniędzy przez ${REFUND_WINDOW_DAYS} dni od zakupu. Szczegóły opisuje nasza polityka zwrotów pod adresem /zwroty-i-reklamacje, a zgłoszenia obsługuje Paddle pod adresem ${PADDLE_SUPPORT_URL}.`,
+          `Obowiązuje gwarancja zwrotu pieniędzy przez ${REFUND_WINDOW_DAYS} dni od zakupu. Szczegóły opisuje nasza polityka zwrotów pod adresem /zwroty-i-reklamacje - zgłoszenie przyjmujemy pod adresem ${LEGAL_CONTACT_EMAIL}, a rozliczenie zwrotu realizuje nasz operator płatności.`,
         ],
       },
       {
@@ -137,7 +137,7 @@ export const TERMS_CONTENT: LegalDocContent = {
         icon: "Mail",
         heading: "Kontakt",
         paragraphs: [
-          `Pytania dotyczące regulaminu: ${LEGAL_CONTACT_EMAIL}. Sprawy płatności, faktur i zwrotów obsługuje Paddle: ${PADDLE_SUPPORT_URL}.`,
+          `Pytania dotyczące regulaminu, płatności, faktur i zwrotów: ${LEGAL_CONTACT_EMAIL}. Techniczną obsługę transakcji i podatków zapewnia nasz operator płatności, ${PAYMENT_PROVIDER_NAME}.`,
         ],
       },
     ],
@@ -221,24 +221,24 @@ export const TERMS_CONTENT: LegalDocContent = {
         heading: "Payments and subscriptions",
         bullets: [
           "Subscriptions renew automatically for the selected billing period until cancelled.",
-          "Prices are shown in the service; taxes are calculated and remitted by Paddle for your jurisdiction.",
+          `Prices are shown in the service; sales tax is calculated, collected and remitted by our payment provider, ${PAYMENT_PROVIDER_NAME}, for your jurisdiction.`,
           "You can cancel at any time in the customer portal - access continues until the end of the paid period.",
-          "Detailed payment, billing and cancellation mechanics are governed by the Paddle buyer terms.",
+          `Detailed payment, billing and cancellation mechanics are governed by the ${PAYMENT_PROVIDER_NAME}/Link buyer terms.`,
         ],
-        paragraphs: [`Paddle buyer terms: ${PADDLE_BUYER_TERMS_URL}.`],
+        paragraphs: [`${PAYMENT_PROVIDER_NAME} buyer terms: ${PAYMENT_PROVIDER_BUYER_TERMS_URL}.`],
       },
       {
         id: "paddle",
         icon: "Store",
-        heading: "Merchant of Record",
-        paragraphs: [PADDLE_MOR_DISCLOSURE.en],
+        heading: "Seller and payment provider",
+        paragraphs: [PAYMENT_PROVIDER_DISCLOSURE.en],
       },
       {
         id: "zwroty",
         icon: "RotateCcw",
         heading: "Refunds",
         paragraphs: [
-          `We offer a ${REFUND_WINDOW_DAYS}-day money-back guarantee. Details are in our refund policy at /zwroty-i-reklamacje and requests are handled by Paddle at ${PADDLE_SUPPORT_URL}.`,
+          `We offer a ${REFUND_WINDOW_DAYS}-day money-back guarantee. Details are in our refund policy at /zwroty-i-reklamacje - submit requests to ${LEGAL_CONTACT_EMAIL} and the refund itself is processed by our payment provider.`,
         ],
       },
       {
@@ -267,7 +267,7 @@ export const TERMS_CONTENT: LegalDocContent = {
         icon: "Mail",
         heading: "Contact",
         paragraphs: [
-          `Questions about these terms: ${LEGAL_CONTACT_EMAIL}. Payments, invoices and refunds are handled by Paddle: ${PADDLE_SUPPORT_URL}.`,
+          `Questions about these terms, payments, invoices and refunds: ${LEGAL_CONTACT_EMAIL}. Technical processing of transactions and taxes is provided by our payment provider, ${PAYMENT_PROVIDER_NAME}.`,
         ],
       },
     ],

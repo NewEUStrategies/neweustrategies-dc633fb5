@@ -1,7 +1,7 @@
 // Wspólny szkielet publicznych stron prawnych (regulamin, polityka
 // prywatności, polityka zwrotów). Treść jest statyczna w kodzie - nie zależy
 // od CMS - żeby zawsze była dostępna dla użytkownika i dla weryfikacji
-// dostawcy płatności (Paddle jako Merchant of Record).
+// operatora płatności (Stripe obsługuje transakcje w naszym imieniu).
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 

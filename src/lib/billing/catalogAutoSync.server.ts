@@ -6,7 +6,7 @@
 // zmiany konta). Gdy odcisk różni się od zapisanego w `payment_integration_state`,
 // katalog jest odtwarzany, zanim ktokolwiek zdąży trafić na "cena nie istnieje".
 import type { Json } from "@/integrations/supabase/types";
-import { getConnectionApiKey, type PaddleEnv } from "@/lib/paddle.server";
+import { getConnectionApiKey, type StripeEnv } from "@/lib/stripe.server";
 
 import {
   catalogFingerprintSource,
@@ -16,11 +16,11 @@ import {
   type IntegrationSyncState,
   type ResyncReason,
 } from "./catalogAutoSync";
-import { PADDLE_CATALOG } from "./paddleCatalog";
-import type { CatalogSyncReport } from "./paddleCatalogSync.server";
+import { BILLING_CATALOG } from "./catalog";
+import type { CatalogSyncReport } from "./catalogSync.server";
 
 export interface AutoSyncOutcome {
-  environment: PaddleEnv;
+  environment: StripeEnv;
   ran: boolean;
   reason: ResyncReason | null;
   report: CatalogSyncReport | null;
@@ -28,7 +28,7 @@ export interface AutoSyncOutcome {
 }
 
 export interface IntegrationStateRow extends IntegrationSyncState {
-  environment: PaddleEnv;
+  environment: StripeEnv;
   lastReason: string | null;
   lastError: string | null;
   lastReport: CatalogSyncReport | null;
@@ -46,7 +46,7 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 /** Odcisk aktualnego połączenia z operatorem (skrót, nie sekret). */
-export async function integrationFingerprint(env: PaddleEnv): Promise<string> {
+export async function integrationFingerprint(env: StripeEnv): Promise<string> {
   const key = getConnectionApiKey(env);
   return (await sha256Hex(`${env}:${key}`)).slice(0, 16);
 }
@@ -56,7 +56,7 @@ async function admin() {
   return supabaseAdmin;
 }
 
-async function readState(env: PaddleEnv): Promise<{
+async function readState(env: StripeEnv): Promise<{
   fingerprint: string | null;
   catalogFingerprint: string | null;
   lastSyncedAt: string | null;
@@ -98,7 +98,7 @@ interface PlanFingerprintRow {
 }
 
 /**
- * Odcisk treści cennika: mapowanie `PADDLE_CATALOG` (kod, zmienia się przy
+ * Odcisk treści cennika: mapowanie `BILLING_CATALOG` (kod, zmienia się przy
  * wdrożeniu) + wartości z `access_plans` (baza). Dzięki temu pierwsze zdarzenie
  * od operatora po wdrożeniu nowych planów odtwarza katalog samo.
  * Gdy odczyt bazy zawiedzie, zwracamy `null` - brak odcisku nie może wymuszać
@@ -115,7 +115,7 @@ export async function catalogFingerprint(): Promise<string | null> {
     if (error) return null;
     const plans = (data ?? []) as PlanFingerprintRow[];
 
-    const entries: CatalogFingerprintEntry[] = PADDLE_CATALOG.map((entry) => {
+    const entries: CatalogFingerprintEntry[] = BILLING_CATALOG.map((entry) => {
       const plan =
         plans.find(
           (p) => p.tier_key === entry.tierKey && (p.interval ?? "month") === entry.interval,
@@ -141,7 +141,7 @@ export async function catalogFingerprint(): Promise<string | null> {
 }
 
 /** Stan integracji dla panelu administracyjnego. */
-export async function getIntegrationState(env: PaddleEnv): Promise<IntegrationStateRow> {
+export async function getIntegrationState(env: StripeEnv): Promise<IntegrationStateRow> {
   const [state, current, catalog] = await Promise.all([
     readState(env),
     integrationFingerprint(env),
@@ -162,7 +162,7 @@ export async function getIntegrationState(env: PaddleEnv): Promise<IntegrationSt
 }
 
 /** Zapis wyniku ręcznej synchronizacji z panelu (odświeża odcisk integracji). */
-export async function recordManualSync(env: PaddleEnv, report: CatalogSyncReport): Promise<void> {
+export async function recordManualSync(env: StripeEnv, report: CatalogSyncReport): Promise<void> {
   const [supabase, fingerprint, catalog] = await Promise.all([
     admin(),
     integrationFingerprint(env),
@@ -185,8 +185,8 @@ export async function recordManualSync(env: PaddleEnv, report: CatalogSyncReport
 }
 
 /** Pamięć izolatu: nie pytamy bazy przy każdym zapytaniu o cenę. */
-const inFlight = new Map<PaddleEnv, Promise<AutoSyncOutcome>>();
-const checkedAt = new Map<PaddleEnv, number>();
+const inFlight = new Map<StripeEnv, Promise<AutoSyncOutcome>>();
+const checkedAt = new Map<StripeEnv, number>();
 const CHECK_DEBOUNCE_MS = 5 * 60 * 1000;
 
 export function __resetAutoSyncCacheForTests(): void {
@@ -194,7 +194,7 @@ export function __resetAutoSyncCacheForTests(): void {
   checkedAt.clear();
 }
 
-async function runEnsure(env: PaddleEnv, force: boolean): Promise<AutoSyncOutcome> {
+async function runEnsure(env: StripeEnv, force: boolean): Promise<AutoSyncOutcome> {
   const [state, fingerprint, catalog] = await Promise.all([
     readState(env),
     integrationFingerprint(env),
@@ -211,10 +211,10 @@ async function runEnsure(env: PaddleEnv, force: boolean): Promise<AutoSyncOutcom
   if (!reason) return { environment: env, ran: false, reason: null, report: null };
 
   const supabase = await admin();
-  const { syncPaddleCatalog } = await import("./paddleCatalogSync.server");
+  const { syncBillingCatalog } = await import("./catalogSync.server");
 
   try {
-    const report = await syncPaddleCatalog(env);
+    const report = await syncBillingCatalog(env);
     const status = syncStatusFrom(report);
     await supabase.from("payment_integration_state").upsert(
       {
@@ -259,7 +259,7 @@ async function runEnsure(env: PaddleEnv, force: boolean): Promise<AutoSyncOutcom
  * ścieżki płatności: dedupe per izolat + debounce zapytań do bazy.
  */
 export async function ensureCatalogSynced(
-  env: PaddleEnv,
+  env: StripeEnv,
   options: { force?: boolean } = {},
 ): Promise<AutoSyncOutcome> {
   const force = options.force === true;

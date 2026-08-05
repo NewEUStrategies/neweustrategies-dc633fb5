@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
-import { getPaddleEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/paddle";
 import { formatMoney } from "@/lib/billing/types";
 
 export interface EventTicketPurchaseProps {
@@ -74,7 +74,7 @@ export function EventTicketPurchase({
           event_id: eventId,
           success_path: successPath,
           cancel_path: `/events/${slug}`,
-          environment: getPaddleEnvironment(),
+          environment: getStripeEnvironment(),
         },
       });
       if (!res.ok) {

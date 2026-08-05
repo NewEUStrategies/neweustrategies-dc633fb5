@@ -1,17 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { PaddleEnv } from "@/lib/paddle.server";
+import type { StripeEnv } from "@/lib/stripe.server";
 
 const envSchema = z.enum(["sandbox", "live"]);
 
 /** Zamiana czytelnego ID ceny na wewnętrzny identyfikator dostawcy. */
 export const resolvePaddlePrice = createServerFn({ method: "GET" })
-  .inputValidator((data: { priceId: string; environment: PaddleEnv }) =>
+  .inputValidator((data: { priceId: string; environment: StripeEnv }) =>
     z.object({ priceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { gatewayFetch } = await import("@/lib/paddle.server");
+    const { gatewayFetch } = await import("@/lib/stripe.server");
     // Restart integracji (nowe konto operatora, rotacja klucza) unieważnia
     // wewnętrzne identyfikatory cen. Sprawdzenie odcisku jest tanie
     // (debounce w izolacie), a pozwala odtworzyć katalog zanim ktoś kliknie
@@ -35,7 +35,7 @@ export const resolvePaddlePrice = createServerFn({ method: "GET" })
       // Brak ceny to typowy objaw restartu integracji (nowe konto operatora,
       // odtworzone środowisko). Odtwarzamy katalog i próbujemy raz jeszcze,
       // zamiast blokować użytkownikowi zakup.
-      const { healCatalogOnce } = await import("@/lib/billing/paddleCatalogSync.server");
+      const { healCatalogOnce } = await import("@/lib/billing/catalogSync.server");
       await healCatalogOnce(data.environment);
       const retry = await gatewayFetch(
         data.environment,
@@ -57,36 +57,36 @@ export const resolvePaddlePrice = createServerFn({ method: "GET" })
  */
 export const changePaddlePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { targetPriceId: string; environment: PaddleEnv }) =>
+  .inputValidator((data: { targetPriceId: string; environment: StripeEnv }) =>
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { catalogEntryByPriceId, planChangeDirection } =
-      await import("@/lib/billing/paddleCatalog");
+      await import("@/lib/billing/catalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
 
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("paddle_subscription_id, price_id, status")
+      .select("provider_subscription_id, price_id, status")
       .eq("user_id", context.userId)
       .eq("environment", data.environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
+    if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
     const direction = planChangeDirection(sub.price_id, target.priceId);
     if (direction === "same") return { ok: true as const, direction };
 
-    const { getPaddleClient } = await import("@/lib/paddle.server");
+    const { getPaddleClient } = await import("@/lib/stripe.server");
     const paddlePriceId = await resolvePaddlePrice({
       data: { priceId: target.priceId, environment: data.environment },
     });
 
     const paddle = getPaddleClient(data.environment);
-    await paddle.subscriptions.update(sub.paddle_subscription_id, {
+    await paddle.subscriptions.update(sub.provider_subscription_id, {
       items: [{ priceId: paddlePriceId, quantity: 1 }],
       prorationBillingMode: direction === "upgrade" ? "prorated_immediately" : "do_not_bill",
       ...(direction === "downgrade" ? { onPaymentFailure: "prevent_change" as const } : {}),
@@ -98,26 +98,26 @@ export const changePaddlePlan = createServerFn({ method: "POST" })
 /** Link do portalu klienta (anulowanie, metoda płatności, faktury). */
 export const createPaddlePortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: PaddleEnv }) =>
+  .inputValidator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("paddle_customer_id, paddle_subscription_id")
+      .select("provider_customer_id, provider_subscription_id")
       .eq("user_id", context.userId)
       .eq("environment", data.environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    if (!sub?.paddle_customer_id) throw new Error("no_customer");
+    if (!sub?.provider_customer_id) throw new Error("no_customer");
 
-    const { getPaddleClient } = await import("@/lib/paddle.server");
+    const { getPaddleClient } = await import("@/lib/stripe.server");
     const paddle = getPaddleClient(data.environment);
     const session = await paddle.customerPortalSessions.create(
-      sub.paddle_customer_id,
-      sub.paddle_subscription_id ? [sub.paddle_subscription_id] : [],
+      sub.provider_customer_id,
+      sub.provider_subscription_id ? [sub.provider_subscription_id] : [],
     );
 
     // Portal wystawia osobne, jednorazowe adresy per akcja - dzięki temu
@@ -139,23 +139,23 @@ export const createPaddlePortalSession = createServerFn({ method: "POST" })
  */
 export const cancelPaddleSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: PaddleEnv }) =>
+  .inputValidator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("paddle_subscription_id")
+      .select("provider_subscription_id")
       .eq("user_id", context.userId)
       .eq("environment", data.environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
+    if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { getPaddleClient } = await import("@/lib/paddle.server");
-    await getPaddleClient(data.environment).subscriptions.cancel(sub.paddle_subscription_id, {
+    const { getPaddleClient } = await import("@/lib/stripe.server");
+    await getPaddleClient(data.environment).subscriptions.cancel(sub.provider_subscription_id, {
       effectiveFrom: "next_billing_period",
     });
     return { ok: true as const };
@@ -168,32 +168,32 @@ export const cancelPaddleSubscription = createServerFn({ method: "POST" })
  */
 export const resumePaddleSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: PaddleEnv }) =>
+  .inputValidator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("paddle_subscription_id, status")
+      .select("provider_subscription_id, status")
       .eq("user_id", context.userId)
       .eq("environment", data.environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
+    if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { getPaddleClient } = await import("@/lib/paddle.server");
+    const { getPaddleClient } = await import("@/lib/stripe.server");
     const paddle = getPaddleClient(data.environment);
 
     if (sub.status === "paused") {
-      await paddle.subscriptions.resume(sub.paddle_subscription_id, {
+      await paddle.subscriptions.resume(sub.provider_subscription_id, {
         effectiveFrom: "immediately",
       });
       return { ok: true as const, mode: "unpaused" as const };
     }
 
-    await paddle.subscriptions.update(sub.paddle_subscription_id, { scheduledChange: null });
+    await paddle.subscriptions.update(sub.provider_subscription_id, { scheduledChange: null });
     return { ok: true as const, mode: "cancellation_reverted" as const };
   });
 
@@ -208,7 +208,7 @@ export const resolvePaddleDiscount = createServerFn({ method: "POST" })
       planId: string;
       amountCents: number;
       currency: string;
-      environment: PaddleEnv;
+      environment: StripeEnv;
     }) =>
       z
         .object({
@@ -241,25 +241,25 @@ export const resolvePaddleDiscount = createServerFn({ method: "POST" })
  */
 export const previewPaddlePlanChange = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { targetPriceId: string; environment: PaddleEnv }) =>
+  .inputValidator((data: { targetPriceId: string; environment: StripeEnv }) =>
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { catalogEntryByPriceId, planChangeDirection } =
-      await import("@/lib/billing/paddleCatalog");
+      await import("@/lib/billing/catalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
 
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("paddle_subscription_id, price_id, quantity")
+      .select("provider_subscription_id, price_id, quantity")
       .eq("user_id", context.userId)
       .eq("environment", data.environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
+    if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
     const direction = planChangeDirection(sub.price_id, target.priceId);
     if (direction === "same") {
@@ -275,10 +275,10 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
     const paddlePriceId = await resolvePaddlePrice({
       data: { priceId: target.priceId, environment: data.environment },
     });
-    const { gatewayFetch } = await import("@/lib/paddle.server");
+    const { gatewayFetch } = await import("@/lib/stripe.server");
     const res = await gatewayFetch(
       data.environment,
-      `/subscriptions/${encodeURIComponent(sub.paddle_subscription_id)}/preview`,
+      `/subscriptions/${encodeURIComponent(sub.provider_subscription_id)}/preview`,
       {
         method: "PATCH",
         body: JSON.stringify({
@@ -333,33 +333,33 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
  */
 export const updatePaddleSubscriptionSeats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { quantity: number; environment: PaddleEnv }) =>
+  .inputValidator((data: { quantity: number; environment: StripeEnv }) =>
     z.object({ quantity: z.number().int().min(1).max(500), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("paddle_subscription_id, price_id, quantity, status")
+      .select("provider_subscription_id, price_id, quantity, status")
       .eq("user_id", context.userId)
       .eq("environment", data.environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    if (!sub?.paddle_subscription_id) throw new Error("no_active_subscription");
+    if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { catalogEntryByPriceId } = await import("@/lib/billing/paddleCatalog");
+    const { catalogEntryByPriceId } = await import("@/lib/billing/catalog");
     const entry = catalogEntryByPriceId(sub.price_id);
     if (!entry?.perSeat) throw new Error("not_per_seat_plan");
 
     const { updateSubscriptionQuantity } = await import("@/lib/billing/paddleSubscription.server");
-    const result = await updateSubscriptionQuantity(data.environment, sub.paddle_subscription_id, {
+    const result = await updateSubscriptionQuantity(data.environment, sub.provider_subscription_id, {
       priceExternalId: entry.priceId,
       quantity: data.quantity,
       previousQuantity: sub.quantity ?? 1,
     });
     if (!result.ok) {
-      console.error("[payments] seat change failed", sub.paddle_subscription_id, result.error);
+      console.error("[payments] seat change failed", sub.provider_subscription_id, result.error);
       throw new Error("seat_change_failed");
     }
     // Stan w bazie domknie webhook `subscription.updated`; zwracamy wartość

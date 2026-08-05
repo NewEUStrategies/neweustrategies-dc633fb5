@@ -13,13 +13,13 @@ import { runBillingRemindersNow } from "@/lib/billing/reminders.functions";
 import {
   getCatalogSyncState,
   syncPaymentCatalogNow,
-} from "@/lib/billing/paddleCatalogSync.functions";
+} from "@/lib/billing/catalogSync.functions";
 import { getJobRunnerSettings } from "@/lib/newsletter-admin.functions";
 import { Link } from "@tanstack/react-router";
 
 import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
-import { catalogEntryByPriceId } from "@/lib/billing/paddleCatalog";
+import { catalogEntryByPriceId } from "@/lib/billing/catalog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,7 @@ import { ResendPortalLinkButton } from "@/components/admin/billing/ResendPortalL
 interface SubscriptionRow {
   id: string;
   user_id: string;
-  paddle_subscription_id: string;
+  provider_subscription_id: string;
   price_id: string;
   status: string;
   quantity: number;
@@ -91,7 +91,7 @@ export function AdminBillingPanel() {
       const { data, error } = await supabase
         .from("subscriptions")
         .select(
-          "id,user_id,paddle_subscription_id,price_id,status,quantity,current_period_end,cancel_at_period_end,payment_failure_count,last_payment_failed_at,environment,created_at",
+          "id,user_id,provider_subscription_id,price_id,status,quantity,current_period_end,cancel_at_period_end,payment_failure_count,last_payment_failed_at,environment,created_at",
         )
         .order("created_at", { ascending: false })
         .limit(500);
@@ -403,7 +403,7 @@ export function AdminBillingPanel() {
                           </td>
                           <td className="px-4 py-2 text-muted-foreground">{r.environment}</td>
                           <td className="px-4 py-2 font-mono text-[0.75rem] text-muted-foreground">
-                            {r.paddle_subscription_id}
+                            {r.provider_subscription_id}
                           </td>
                           <td className="px-4 py-2 text-right">
                             <ResendPortalLinkButton

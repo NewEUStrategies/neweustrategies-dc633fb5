@@ -4663,7 +4663,7 @@ export type Database = {
           logo_v_light: string | null
           name: string
           note: string | null
-          paddle_subscription_id: string | null
+          provider_subscription_id: string | null
           seats_grace_days: number
           seats_grace_reminder_days: number[]
           seats_limit: number
@@ -4697,7 +4697,7 @@ export type Database = {
           logo_v_light?: string | null
           name: string
           note?: string | null
-          paddle_subscription_id?: string | null
+          provider_subscription_id?: string | null
           seats_grace_days?: number
           seats_grace_reminder_days?: number[]
           seats_limit?: number
@@ -4731,7 +4731,7 @@ export type Database = {
           logo_v_light?: string | null
           name?: string
           note?: string | null
-          paddle_subscription_id?: string | null
+          provider_subscription_id?: string | null
           seats_grace_days?: number
           seats_grace_reminder_days?: number[]
           seats_limit?: number
@@ -10403,11 +10403,11 @@ export type Database = {
           last_event_at: string | null
           last_payment_at: string | null
           last_payment_failed_at: string | null
-          paddle_customer_id: string
-          paddle_subscription_id: string
           payment_failure_count: number
           price_id: string
           product_id: string
+          provider_customer_id: string
+          provider_subscription_id: string
           quantity: number
           status: string
           tenant_id: string
@@ -10427,11 +10427,11 @@ export type Database = {
           last_event_at?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
-          paddle_customer_id: string
-          paddle_subscription_id: string
           payment_failure_count?: number
           price_id: string
           product_id: string
+          provider_customer_id: string
+          provider_subscription_id: string
           quantity?: number
           status?: string
           tenant_id?: string
@@ -10451,11 +10451,11 @@ export type Database = {
           last_event_at?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
-          paddle_customer_id?: string
-          paddle_subscription_id?: string
           payment_failure_count?: number
           price_id?: string
           product_id?: string
+          provider_customer_id?: string
+          provider_subscription_id?: string
           quantity?: number
           status?: string
           tenant_id?: string

@@ -318,7 +318,7 @@ const deferredStores = new WeakMap<ReadableStream<Uint8Array>, DeferredDocumentS
  * pozwala - REJESTRUJEMY odroczony zapis do L1/L2 pod tożsamością strumienia
  * body. Świadomie NIE tee-ujemy tutaj.
  *
- * INCYDENT 2026-07-30 ("Paddle widzi offline", każda strona ~61 s): egzekutor
+ * INCYDENT 2026-07-30 ("operator płatności widzi offline", każda strona ~61 s): egzekutor
  * request-middleware TanStack Start przekazuje streamowaną odpowiedź SSR jako
  * kopertę `{ response, serverSsrCleanup: "stream", dispose }` i po przejściu
  * łańcucha porównuje TOŻSAMOŚĆ `response.body` z ciałem koperty. `tee()`

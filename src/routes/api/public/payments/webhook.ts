@@ -1,56 +1,55 @@
-// Odbiornik zdarzeń od dostawcy płatności.
-// Autoryzacja: wyłącznie podpis kryptograficzny dostawcy (bez sesji Supabase) -
-// trasa musi pozostać publiczna, dlatego cała weryfikacja dzieje się poniżej.
+// Odbiornik zdarzeń od Stripe.
+// Autoryzacja: wyłącznie podpis HMAC (`stripe-signature`, `verifyWebhook`) -
+// Stripe nie publikuje stabilnej listy adresów IP dla bramki webhooków, więc
+// (inaczej niż u poprzedniego dostawcy) NIE ma tu allowlisty IP. Podpis
+// kryptograficzny jest jedyną i wystarczającą warstwą autoryzacji.
 //
 // Sama obsługa zdarzeń mieszka w `webhookDispatch.server` - ten sam kod
 // wykonuje ponowne przetworzenie z panelu admina.
 import { createFileRoute } from "@tanstack/react-router";
-import { verifyWebhook, type PaddleEnv } from "@/lib/paddle.server";
+import { verifyWebhook, type StripeEnv } from "@/lib/stripe.server";
+import { normalizeStripeEvent } from "@/lib/billing/stripeEvents.server";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 
 async function handleWebhookRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const env = (url.searchParams.get("env") === "live" ? "live" : "sandbox") as PaddleEnv;
-
-  // Warstwa 1: adres nadawcy musi należeć do operatora (lista pobierana z jego
-  // API, nigdy zaszyta w kodzie). Warstwa 2: podpis kryptograficzny poniżej.
-  const { isAllowedWebhookIp } = await import("@/lib/billing/webhookIpAllowlist.server");
-  if (!(await isAllowedWebhookIp(request, env))) {
-    console.warn("[payments] webhook rejected - IP spoza allowlisty");
-    return new Response("Forbidden", { status: 403 });
+  const envParam = url.searchParams.get("env");
+  if (envParam !== "sandbox" && envParam !== "live") {
+    return new Response("Invalid environment", { status: 400 });
   }
+  const env: StripeEnv = envParam;
 
-  let event: Awaited<ReturnType<typeof verifyWebhook>>;
+  let verified: Awaited<ReturnType<typeof verifyWebhook>>;
   try {
-    event = await verifyWebhook(request, env);
+    verified = await verifyWebhook(request, env);
   } catch (e) {
     console.error("[payments] webhook signature rejected", e);
     return new Response("Invalid signature", { status: 400 });
   }
 
+  const normalized = normalizeStripeEvent(verified);
+  const occurredAt = new Date(verified.created * 1000).toISOString();
+
   const { claimWebhookEvent, finishWebhookEvent } = await import("@/lib/billing/webhookLog.server");
-  const raw = event.data as unknown as Record<string, unknown>;
-  const occurredAt =
-    typeof event.occurredAt === "string" ? event.occurredAt : new Date().toISOString();
+  const eventType = normalized?.eventType ?? verified.type;
+  const raw = (normalized?.data ?? {}) as Record<string, unknown>;
   const ref = {
-    eventId: event.eventId,
-    eventType: String(event.eventType),
+    eventId: verified.id,
+    eventType,
     environment: env,
     occurredAt,
     subscriptionId:
       (typeof raw.subscriptionId === "string" ? raw.subscriptionId : null) ??
-      (typeof raw.id === "string" && String(event.eventType).startsWith("subscription.")
-        ? raw.id
-        : null),
+      (typeof raw.id === "string" && eventType.startsWith("subscription.") ? raw.id : null),
     customerId: typeof raw.customerId === "string" ? raw.customerId : null,
     userId:
       typeof (raw.customData as { userId?: string } | null)?.userId === "string"
         ? ((raw.customData as { userId?: string }).userId ?? null)
         : null,
-    payload: event as unknown,
+    payload: verified as unknown,
   };
 
-  // Idempotencja: operator ponawia dostarczenie tego samego zdarzenia.
+  // Idempotencja: Stripe ponawia dostarczenie tego samego zdarzenia.
   const fresh = await claimWebhookEvent(ref).catch((e) => {
     console.error("[payments] webhook log failed", e);
     return true;
@@ -58,11 +57,11 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
   if (!fresh) return Response.json({ received: true, duplicate: true });
 
   // Czas obsługi trafia do dziennika - w panelu widać od razu, czy handler
-  // zaczyna się ślimaczyć (operator ponawia po timeoucie).
+  // zaczyna się ślimaczyć (Stripe ponawia po timeoucie).
   const startedAt = Date.now();
 
-  // Zdarzenie od operatora to najwcześniejszy sygnał, że integracja znowu
-  // żyje (np. po podłączeniu nowego konta). Kontrola odcisku i ewentualne
+  // Zdarzenie od Stripe to najwcześniejszy sygnał, że integracja znowu żyje
+  // (np. po podłączeniu nowego konta). Kontrola odcisku i ewentualne
   // odtworzenie katalogu idą "za odpowiedzią", żeby nie opóźniać ACK.
   runAfterResponse(
     import("@/lib/billing/catalogAutoSync.server")
@@ -70,11 +69,18 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
       .catch((e: unknown) => console.error("[payments] auto-sync check failed", e)),
   );
 
+  if (!normalized) {
+    // Zdarzenie spoza zakresu integracji (np. sesja "unpaid" albo typ, którego
+    // nie obsługujemy) - potwierdzamy odbiór, żeby Stripe przestał ponawiać.
+    await finishWebhookEvent(ref, "skipped", { durationMs: Date.now() - startedAt });
+    return Response.json({ received: true });
+  }
+
   try {
     const { dispatchWebhookEvent } = await import("@/lib/billing/webhookDispatch.server");
     const outcome = await dispatchWebhookEvent({
-      eventType: String(event.eventType),
-      data: event.data,
+      eventType: normalized.eventType,
+      data: normalized.data,
       environment: env,
       occurredAt,
     });

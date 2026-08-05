@@ -8,7 +8,7 @@
 // Moduł jest server-only (klucze bramki + service role).
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
+import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
 import { isTransactionId } from "@/lib/billing/transactionId";
 
 export type InvoiceError =
@@ -28,7 +28,7 @@ interface TransactionOwners {
 }
 
 async function loadTransactionOwners(
-  environment: PaddleEnv,
+  environment: StripeEnv,
   transactionId: string,
 ): Promise<TransactionOwners | null> {
   const res = await gatewayFetch(environment, `/transactions/${encodeURIComponent(transactionId)}`);
@@ -78,7 +78,7 @@ async function ownsTransaction(
       .from("subscriptions")
       .select("id")
       .eq("user_id", userId)
-      .eq("paddle_customer_id", owners.customerId)
+      .eq("provider_customer_id", owners.customerId)
       .limit(1)
       .maybeSingle();
     if (sub) return true;
@@ -88,7 +88,7 @@ async function ownsTransaction(
 
 export interface InvoiceLookupInput {
   transactionId: string;
-  environment: PaddleEnv;
+  environment: StripeEnv;
   /** `null` pomija kontrolę własności - wyłącznie dla panelu administratora. */
   userId: string | null;
 }
