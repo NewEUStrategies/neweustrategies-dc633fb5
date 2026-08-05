@@ -33,7 +33,7 @@ import {
   type PurchaseSummary,
 } from "@/lib/billing/purchaseConfirmation";
 import { formatMoney } from "@/lib/billing/types";
-import { getStripeEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/stripe";
 import { createPaddlePortalSession } from "@/utils/payments.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

@@ -266,8 +266,8 @@ export async function syncCouponDiscounts(
     .eq("active", true)
     .limit(200);
 
-  const { findDiscountByCode, createDiscount } =
-    await import("@/lib/billing/paddleDiscounts.server");
+  const { createStripeClient } = await import("@/lib/stripe.server");
+  const stripe = createStripeClient(env);
 
   let created = 0;
   let existing = 0;
@@ -276,21 +276,31 @@ export async function syncCouponDiscounts(
     const code = String(row.code ?? "").toUpperCase();
     if (!code) continue;
     try {
-      const found = await findDiscountByCode(env, code);
+      const found = await findPromotionCodeByCode(env, code);
       if (found) {
         existing += 1;
         continue;
       }
-      const id = await createDiscount(env, code, {
-        discount_kind: row.discount_kind === "fixed" ? "fixed" : "percent",
-        discount_percent: row.discount_percent ?? null,
-        discount_cents: row.discount_cents ?? null,
-        currency: row.currency ?? null,
-        valid_until: row.valid_until ?? null,
-        max_redemptions: row.max_redemptions ?? null,
+      const isPercent = row.discount_kind !== "fixed";
+      const coupon = await stripe.coupons.create({
+        name: `Kupon ${code}`,
+        duration: "once",
+        ...(isPercent
+          ? { percent_off: row.discount_percent ?? 0 }
+          : {
+              amount_off: Math.max(0, row.discount_cents ?? 0),
+              currency: (row.currency ?? "PLN").toLowerCase(),
+            }),
       });
-      if (id) created += 1;
-      else failed += 1;
+      await stripe.promotionCodes.create({
+        coupon: coupon.id,
+        code,
+        ...(row.valid_until
+          ? { expires_at: Math.floor(new Date(row.valid_until).getTime() / 1000) }
+          : {}),
+        ...(row.max_redemptions ? { max_redemptions: row.max_redemptions } : {}),
+      });
+      created += 1;
     } catch (e) {
       console.error("[payments] coupon sync failed", code, e);
       failed += 1;

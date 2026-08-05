@@ -12,7 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ExternalLink, KeyRound, Loader2, Search } from "lucide-react";
 
-import { getStripeEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/stripe";
 import { fetchMyInvoiceByTransaction, sendMyPortalLink } from "@/lib/billing/portalLink.functions";
 import { isTransactionId, normalizeTransactionId } from "@/lib/billing/transactionId";
 import { Button } from "@/components/ui/button";

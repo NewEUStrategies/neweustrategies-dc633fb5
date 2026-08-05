@@ -3,7 +3,7 @@
 // testowe i produkcyjne leżą w jednej tabeli, więc brak filtra pokazałby
 // w opublikowanej aplikacji subskrypcję z trybu testowego.
 import { supabase } from "@/integrations/supabase/client";
-import { getStripeEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/stripe";
 import { catalogEntryByPriceId, type CatalogPriceEntry } from "./catalog";
 
 export interface PaddleSubscriptionRow {

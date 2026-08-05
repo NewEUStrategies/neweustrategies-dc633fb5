@@ -1,3 +1,5 @@
+// Karta subskrypcji u Stripe (dawniej Paddle) - portal klienta, zmiana planu,
+// wznowienie i anulowanie z zachowaniem opłaconego okresu.
 // Portal klienta w profilu: pełna obsługa subskrypcji bez opuszczania ekranu -
 // podgląd planu i statusu, zmiana planu (upgrade proporcjonalnie, downgrade od
 // nowego okresu), aktualizacja metody płatności oraz anulowanie z zachowaniem
@@ -30,7 +32,7 @@ import {
 } from "@/lib/billing/paddleSubscription";
 import { catalogPriceForPlan, planChangeDirection } from "@/lib/billing/catalog";
 import { formatMoney, planName, type AccessPlan } from "@/lib/billing/types";
-import { getStripeEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/stripe";
 import {
   cancelPaddleSubscription,
   changePaddlePlan,
@@ -51,7 +53,7 @@ import {
 } from "@/components/ui/select";
 
 /** Hook współdzielony przez profil i strażników dostępu. */
-export function useMyPaddleSubscription() {
+export function useMySubscriptionProvider() {
   const { session } = useAuth();
   const env = getStripeEnvironment();
   return useQuery({
@@ -61,7 +63,7 @@ export function useMyPaddleSubscription() {
   });
 }
 
-export function PaddleSubscriptionCard({ subscription }: { subscription: PaddleSubscriptionRow }) {
+export function SubscriptionCard({ subscription }: { subscription: PaddleSubscriptionRow }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();
