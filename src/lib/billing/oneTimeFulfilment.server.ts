@@ -59,8 +59,8 @@ async function refundIfOversold(
     if (!(err instanceof Error) || err.message !== "event_full") throw err;
   }
 
-  const { resolveEnvironment } = await import("@/lib/billing/paddleTransaction.server");
-  const { refundTransactionFully } = await import("@/lib/billing/paddleRefund.server");
+  const { resolveEnvironment } = await import("@/lib/billing/transactions.server");
+  const { refundTransactionFully } = await import("@/lib/billing/refundProvider.server");
   const refund = await refundTransactionFully(resolveEnvironment(null), txn.id, "oversold");
   if (!refund.ok) {
     // Zwrot nie przeszedł u operatora - nie wolno udawać, że sprawa jest

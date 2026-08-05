@@ -82,23 +82,15 @@ export async function assertAdmin(
 }
 
 async function readDestinations(env: StripeEnv) {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+  const { createStripeClient } = await import("@/lib/stripe.server");
   try {
-    const res = await gatewayFetch(env, "/notification-settings");
-    if (!res.ok) return [];
-    const body = (await res.json()) as {
-      data?: Array<{
-        id: string;
-        destination?: string;
-        active?: boolean;
-        subscribed_events?: unknown[];
-      }>;
-    };
-    return (body.data ?? []).map((d) => ({
+    const stripe = createStripeClient(env);
+    const result = await stripe.webhookEndpoints.list({ limit: 100 });
+    return result.data.map((d) => ({
       id: d.id,
-      url: d.destination ?? "",
-      active: d.active !== false,
-      events: Array.isArray(d.subscribed_events) ? d.subscribed_events.length : 0,
+      url: d.url ?? "",
+      active: d.status === "enabled",
+      events: Array.isArray(d.enabled_events) ? d.enabled_events.length : 0,
     }));
   } catch (e) {
     console.error("[payments] destinations lookup failed", e);
@@ -107,31 +99,44 @@ async function readDestinations(env: StripeEnv) {
 }
 
 async function readCatalog(env: StripeEnv): Promise<CatalogPriceStatus[]> {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+  const { createStripeClient } = await import("@/lib/stripe.server");
+  const { resolvePricesByLookupKeys } = await import("@/lib/billing/adhocCheckout.server");
   const results: CatalogPriceStatus[] = [];
-  for (const entry of BILLING_CATALOG) {
-    let providerPriceId: string | null = null;
-    try {
-      const res = await gatewayFetch(
-        env,
-        `/prices?external_id=${encodeURIComponent(entry.priceId)}`,
-      );
-      if (res.ok) {
-        const body = (await res.json()) as { data?: Array<{ id: string }> };
-        providerPriceId = body.data?.[0]?.id ?? null;
-      }
-    } catch (e) {
-      console.error("[payments] price probe failed", entry.priceId, e);
+  try {
+    const stripe = createStripeClient(env);
+    const priceByLookupKey = await resolvePricesByLookupKeys(
+      stripe,
+      BILLING_CATALOG.map((entry) => entry.priceId),
+    );
+    for (const entry of BILLING_CATALOG) {
+      results.push({
+        priceId: entry.priceId,
+        productId: entry.productId,
+        tierKey: entry.tierKey,
+        interval: entry.interval,
+        providerPriceId: priceByLookupKey.get(entry.priceId)?.id ?? null,
+      });
     }
-    results.push({
-      priceId: entry.priceId,
-      productId: entry.productId,
-      tierKey: entry.tierKey,
-      interval: entry.interval,
-      providerPriceId,
-    });
+  } catch (e) {
+    console.error("[payments] catalog probe failed", e);
+    for (const entry of BILLING_CATALOG) {
+      results.push({
+        priceId: entry.priceId,
+        productId: entry.productId,
+        tierKey: entry.tierKey,
+        interval: entry.interval,
+        providerPriceId: null,
+      });
+    }
   }
   return results;
+}
+
+async function findPromotionCodeByCode(env: StripeEnv, code: string): Promise<string | null> {
+  const { createStripeClient } = await import("@/lib/stripe.server");
+  const stripe = createStripeClient(env);
+  const result = await stripe.promotionCodes.list({ code, limit: 1 });
+  return result.data[0]?.id ?? null;
 }
 
 async function readCoupons(env: StripeEnv): Promise<CouponDiscountStatus[]> {
@@ -144,11 +149,12 @@ async function readCoupons(env: StripeEnv): Promise<CouponDiscountStatus[]> {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  const { findDiscountByCode } = await import("@/lib/billing/paddleDiscounts.server");
   const rows: CouponDiscountStatus[] = [];
   for (const c of data ?? []) {
     const code = String(c.code ?? "").toUpperCase();
-    const providerDiscountId = code ? await findDiscountByCode(env, code).catch(() => null) : null;
+    const providerDiscountId = code
+      ? await findPromotionCodeByCode(env, code).catch(() => null)
+      : null;
     rows.push({
       code,
       active: c.active !== false,
@@ -260,8 +266,8 @@ export async function syncCouponDiscounts(
     .eq("active", true)
     .limit(200);
 
-  const { findDiscountByCode, createDiscount } =
-    await import("@/lib/billing/paddleDiscounts.server");
+  const { createStripeClient } = await import("@/lib/stripe.server");
+  const stripe = createStripeClient(env);
 
   let created = 0;
   let existing = 0;
@@ -270,21 +276,32 @@ export async function syncCouponDiscounts(
     const code = String(row.code ?? "").toUpperCase();
     if (!code) continue;
     try {
-      const found = await findDiscountByCode(env, code);
+      const found = await findPromotionCodeByCode(env, code);
       if (found) {
         existing += 1;
         continue;
       }
-      const id = await createDiscount(env, code, {
-        discount_kind: row.discount_kind === "fixed" ? "fixed" : "percent",
-        discount_percent: row.discount_percent ?? null,
-        discount_cents: row.discount_cents ?? null,
-        currency: row.currency ?? null,
-        valid_until: row.valid_until ?? null,
-        max_redemptions: row.max_redemptions ?? null,
+      const isPercent = row.discount_kind !== "fixed";
+      const coupon = await stripe.coupons.create({
+        name: `Kupon ${code}`,
+        duration: "once",
+        ...(isPercent
+          ? { percent_off: row.discount_percent ?? 0 }
+          : {
+              amount_off: Math.max(0, row.discount_cents ?? 0),
+              currency: (row.currency ?? "PLN").toLowerCase(),
+            }),
       });
-      if (id) created += 1;
-      else failed += 1;
+      await stripe.promotionCodes.create({
+        // API dahlia: kupon podpinamy przez obiekt `promotion`, nie płaskie `coupon`.
+        promotion: { type: "coupon", coupon: coupon.id },
+        code,
+        ...(row.valid_until
+          ? { expires_at: Math.floor(new Date(row.valid_until).getTime() / 1000) }
+          : {}),
+        ...(row.max_redemptions ? { max_redemptions: row.max_redemptions } : {}),
+      });
+      created += 1;
     } catch (e) {
       console.error("[payments] coupon sync failed", code, e);
       failed += 1;

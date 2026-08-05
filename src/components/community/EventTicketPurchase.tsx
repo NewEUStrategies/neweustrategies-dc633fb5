@@ -12,8 +12,8 @@ import { Ticket, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
-import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
-import { getStripeEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/stripe";
+import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
 import { formatMoney } from "@/lib/billing/types";
 
 export interface EventTicketPurchaseProps {
@@ -42,7 +42,8 @@ export function EventTicketPurchase({
   const { session } = useAuth();
   const navigate = useNavigate();
   const checkout = useServerFn(createCheckoutOrder);
-  const { openCheckout } = usePaddleCheckout();
+  // `clientSecret` sesji Stripe - modal osadzonego checkoutu zamiast nakładki.
+  const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const price = formatMoney(priceCents, currency, lang);
@@ -81,12 +82,8 @@ export function EventTicketPurchase({
         toast.error(t("checkout.paymentsNotConfigured"));
         return;
       }
-      if (res.mode === "paddle") {
-        await openCheckout({
-          transactionId: res.transactionId,
-          customerEmail: session.user?.email ?? undefined,
-          successPath,
-        });
+      if (res.mode === "stripe") {
+        setCheckoutSecret(res.clientSecret);
         return;
       }
       void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
@@ -98,6 +95,13 @@ export function EventTicketPurchase({
   };
 
   return (
+    <>
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutSecret}
+        onOpenChange={(open) => {
+          if (!open) setCheckoutSecret(null);
+        }}
+      />
     <Button onClick={() => void buy()} disabled={busy || isFull}>
       <Ticket className="mr-2 h-4 w-4" aria-hidden="true" />
       {isFull
@@ -108,5 +112,6 @@ export function EventTicketPurchase({
           ? `Kup bilet - ${price}`
           : `Buy ticket - ${price}`}
     </Button>
+    </>
   );
 }

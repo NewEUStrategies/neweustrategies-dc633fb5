@@ -14,7 +14,7 @@
 export function paymentsConfiguredServer(): boolean {
   return (
     !!process.env.LOVABLE_API_KEY &&
-    (!!process.env.PADDLE_SANDBOX_API_KEY || !!process.env.PADDLE_LIVE_API_KEY)
+    (!!process.env.STRIPE_SANDBOX_API_KEY || !!process.env.STRIPE_LIVE_API_KEY)
   );
 }
 

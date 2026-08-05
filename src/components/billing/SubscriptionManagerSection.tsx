@@ -26,9 +26,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChangePlanCard } from "@/components/billing/ChangePlanCard";
 import {
-  PaddleSubscriptionCard,
-  useMyPaddleSubscription,
-} from "@/components/billing/PaddleSubscriptionCard";
+  SubscriptionCard,
+  useMySubscriptionProvider,
+} from "@/components/billing/SubscriptionCard";
 import { RetentionDialog } from "@/components/billing/RetentionDialog";
 
 /** Warstwa członkostwa wołającego (RPC; dla braku subskrypcji: domyślna). */
@@ -66,8 +66,8 @@ export function SubscriptionManagerSection() {
   });
   const lastOrder = ordersQ.data?.[0] ?? null;
 
-  const paddleQ = useMyPaddleSubscription();
-  const paddleSub = paddleQ.data ?? null;
+  const providerSubQ = useMySubscriptionProvider();
+  const providerSub = providerSubQ.data ?? null;
 
   const onCancel = async () => {
     if (!data) return;
@@ -123,10 +123,10 @@ export function SubscriptionManagerSection() {
     </div>
   ) : null;
 
-  if (paddleSub) {
+  if (providerSub) {
     return (
       <div className="space-y-6">
-        <PaddleSubscriptionCard subscription={paddleSub} />
+        <SubscriptionCard subscription={providerSub} />
         {paymentBadge}
       </div>
     );

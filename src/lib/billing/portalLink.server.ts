@@ -55,18 +55,24 @@ export async function createPortalLinkForUser(
     const sub = await latestSubscription(supabase, userId, environment);
     if (!sub) return { ok: false, error: "no_customer" };
 
-    const { getPaddleClient } = await import("@/lib/paddle.server");
-    const session = await getPaddleClient(environment).customerPortalSessions.create(
-      sub.customerId,
-      sub.subscriptionId ? [sub.subscriptionId] : [],
-    );
-    const perSubscription = session.urls.subscriptions?.[0];
+    const { createStripeClient } = await import("@/lib/stripe.server");
+    const stripe = createStripeClient(environment);
+    const returnUrl = process.env.PUBLIC_SITE_URL
+      ? `${process.env.PUBLIC_SITE_URL}/profil`
+      : "https://example.com/profil";
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.customerId,
+      return_url: returnUrl,
+    });
+    // Portal Stripe jest jednym ogólnym adresem (bez osobnych podadresów per
+    // akcja jak w Paddle) - użytkownik z niego samodzielnie wybiera anulowanie
+    // czy zmianę metody płatności.
     return {
       ok: true,
       urls: {
-        overviewUrl: session.urls.general.overview,
-        updatePaymentMethodUrl: perSubscription?.updateSubscriptionPaymentMethod ?? null,
-        cancelUrl: perSubscription?.cancelSubscription ?? null,
+        overviewUrl: session.url,
+        updatePaymentMethodUrl: null,
+        cancelUrl: null,
       },
     };
   } catch (err) {

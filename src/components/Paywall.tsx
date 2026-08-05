@@ -30,8 +30,8 @@ import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 // anglojęzyczny czytelnik widział polskie formatowanie cen na paywallu).
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
-import { getStripeEnvironment } from "@/lib/paddle";
-import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
+import { getStripeEnvironment } from "@/lib/stripe";
+import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
 import {
   formatMeterResetDate,
   meterPaywallVariant,
@@ -75,7 +75,8 @@ export function Paywall({
   const { session } = useAuth();
   const navigate = useNavigate();
   const checkout = useServerFn(createCheckoutOrder);
-  const { openCheckout } = usePaddleCheckout();
+  // `clientSecret` sesji Stripe - modal osadzonego checkoutu zamiast nakładki.
+  const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [pwdError, setPwdError] = useState(false);
@@ -193,12 +194,8 @@ export function Paywall({
         setBusy(false);
         return;
       }
-      if (res.mode === "paddle") {
-        await openCheckout({
-          transactionId: res.transactionId,
-          customerEmail: session.user?.email ?? undefined,
-          successPath: "/checkout/success",
-        });
+      if (res.mode === "stripe") {
+        setCheckoutSecret(res.clientSecret);
         setBusy(false);
       } else {
         void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
@@ -210,6 +207,13 @@ export function Paywall({
   };
 
   return (
+    <>
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutSecret}
+        onOpenChange={(open) => {
+          if (!open) setCheckoutSecret(null);
+        }}
+      />
     <div className="mt-10 border border-border rounded-xl overflow-hidden bg-gradient-to-b from-muted/40 to-background">
       {teaser && (
         <div className="px-6 pt-6 pb-2 prose prose-lg dark:prose-invert max-w-none">
@@ -459,6 +463,7 @@ export function Paywall({
         )}
       </div>
     </div>
+    </>
   );
 }
 

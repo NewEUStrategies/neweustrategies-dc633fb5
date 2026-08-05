@@ -1,19 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { periodEndFor } from "@/lib/billing/entitlement";
-import {
-  checkoutSessionExtraParams,
-  normalizeCheckoutSettings,
-} from "@/lib/billing/checkoutSettings";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 
 // Zamówienie płatnicze (server-side, RLS jako użytkownik).
 // Kwota jest zawsze wyliczana serwerowo (plan / reguła dostępu / bilet /
-// kupon / waluta prezentacji) i osadzana w transakcji u dostawcy, więc klient
-// nie może jej podmienić. Bez konfiguracji dostawcy zwracamy adres mock, żeby
-// dało się przetestować lejek w dev; na produkcji tryb mock jest fail-closed
-// (mockCheckoutAllowed) - błędna konfiguracja nie rozdaje płatnego dostępu.
+// kupon / waluta prezentacji) i osadzana w sesji Stripe Embedded Checkout, więc
+// klient nie może jej podmienić. Bez konfiguracji dostawcy zwracamy adres mock,
+// żeby dało się przetestować lejek w dev; na produkcji tryb mock jest
+// fail-closed (mockCheckoutAllowed) - błędna konfiguracja nie rozdaje płatnego
+// dostępu.
 
 const createOrderSchema = z.object({
   kind: z.enum(["subscription", "one_time"]),
@@ -38,6 +36,26 @@ const createOrderSchema = z.object({
   // Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu.
   environment: z.enum(["sandbox", "live"]).optional(),
 });
+
+/**
+ * Buduje bezwzględny adres powrotu dla Stripe Embedded Checkout ze ścieżki
+ * względnej podanej przez klienta. Origin bierzemy z nagłówków żądania
+ * (dev/preview/produkcja bez ręcznej konfiguracji domeny), a w ostatniej
+ * kolejności z `PUBLIC_SITE_URL`.
+ */
+function resolveReturnUrl(path: string): string {
+  const request = getRequest();
+  const headers = request?.headers;
+  const originHeader = headers?.get("origin");
+  const forwardedProto = headers?.get("x-forwarded-proto");
+  const forwardedHost = headers?.get("x-forwarded-host") ?? headers?.get("host");
+  const origin =
+    originHeader ??
+    (forwardedHost ? `${forwardedProto ?? "https"}://${forwardedHost}` : null) ??
+    process.env.PUBLIC_SITE_URL ??
+    "https://neweuropeanstrategies.com";
+  return new URL(path, origin).toString();
+}
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -240,9 +258,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // Środowisko jest rozstrzygane SERWEROWO (w produkcji zawsze 'live') i
     // stemplowane na zamówieniu, żeby webhook zrealizował je wyłącznie zdarzeniem
     // z tego samego środowiska (izolacja sandbox/live, P0). Tę samą wartość
-    // przekazujemy do transakcji dostawcy poniżej - order.environment === env
-    // transakcji.
-    const { resolveEnvironment } = await import("@/lib/billing/paddleTransaction.server");
+    // przekazujemy do sesji dostawcy poniżej - order.environment === env sesji.
+    const { resolveEnvironment } = await import("@/lib/stripe.server");
     const environment = resolveEnvironment(data.environment);
 
     // Insert pending order (z metadanymi kuponu - webhook potem policzy revenue netto).
@@ -257,7 +274,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         plan_id: data.plan_id ?? null,
         entity_type: data.entity_type ?? null,
         entity_id: data.entity_id ?? null,
-        provider: paymentsReady ? "paddle" : "mock",
+        provider: paymentsReady ? "stripe" : "mock",
         receipt_email: receiptEmail,
         // `environment`: kolumna z migracji 20260731220000, jeszcze nie w
         // wygenerowanym types.ts - stąd cast całego payloadu (konwencja repo).
@@ -301,38 +318,39 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     }
 
     if (paymentsReady) {
-      // Subskrypcja: transakcja z CENY KATALOGOWEJ (cykl rozliczeniowy, trial
-      // 7 dni, lokalizacja waluty przez `unit_price_overrides`). Tylko taka
-      // transakcja zakłada u operatora subskrypcję, a więc odnowienia,
-      // dunning i zdarzenia `subscription.*`. Rabat kuponu przekazujemy jako
-      // rabat operatora - kwota nadal nie pochodzi od klienta.
+      const returnUrl = resolveReturnUrl(data.success_path);
+
+      // Subskrypcja: sesja z CENY KATALOGOWEJ (cykl rozliczeniowy, trial,
+      // lokalizacja waluty przez ceny Stripe). Tylko taka sesja zakłada u
+      // operatora subskrypcję, a więc odnowienia, dunning i zdarzenia
+      // `customer.subscription.*`. Rabat kuponu przekazujemy jako rabat
+      // operatora - kwota nadal nie pochodzi od klienta.
       if (catalogPriceId) {
-        const { createSubscriptionTransaction } =
-          await import("@/lib/billing/paddleTransaction.server");
-        let discountId: string | null = null;
-        if (couponCode && data.plan_id) {
-          const { resolveDiscountForCoupon } = await import("@/lib/billing/paddleDiscounts.server");
-          const resolution = await resolveDiscountForCoupon({
-            environment,
+        const { createPlanCheckoutSession } = await import("@/lib/billing/adhocCheckout.server");
+        let discount: { coupon: string } | null = null;
+        if (couponCode && couponDiscountCents > 0) {
+          const { createStripeClient } = await import("@/lib/stripe.server");
+          const { createAdhocDiscountForCoupon } = await import(
+            "@/lib/billing/adhocCheckout.server"
+          );
+          const stripe = createStripeClient(environment);
+          const couponRef = await createAdhocDiscountForCoupon(stripe, {
             code: couponCode,
-            planId: data.plan_id,
-            amountCents: originalCents,
+            discountCents: couponDiscountCents,
             currency,
           });
-          discountId = resolution.discountId;
+          if (couponRef) discount = { coupon: couponRef };
         }
-        const createdSub = await createSubscriptionTransaction({
+        const createdSub = await createPlanCheckoutSession({
           environment,
-          priceExternalId: catalogPriceId,
+          priceLookupKey: catalogPriceId,
           quantity: catalogQuantity,
+          planId: data.plan_id as string,
+          orderId: order.id,
+          userId,
           customerEmail: receiptEmail,
-          discountId,
-          customData: {
-            kind: "subscription",
-            order_id: order.id,
-            user_id: userId,
-            userId,
-          },
+          returnUrl,
+          discount,
         });
         if (!createdSub.ok) {
           await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);
@@ -347,46 +365,44 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           }
           return {
             ok: false as const,
-            mode: "paddle" as const,
+            mode: "stripe" as const,
             error: createdSub.error,
             orderId: order.id,
           };
         }
         await supabase
           .from("payment_orders")
-          .update({ provider_session_id: createdSub.transactionId, status: "processing" })
+          .update({ provider_session_id: createdSub.sessionId, status: "processing" })
           .eq("id", order.id);
         return {
           ok: true as const,
-          mode: "paddle" as const,
-          transactionId: createdSub.transactionId,
+          mode: "stripe" as const,
+          clientSecret: createdSub.clientSecret,
           orderId: order.id,
         };
       }
 
       // Kwota jest wyliczona serwerowo (plan / reguła dostępu / kupon /
-      // waluta prezentacji), więc zamiast ceny katalogowej tworzymy
-      // transakcję z ceną osadzoną i zwracamy jej identyfikator do nakładki.
-      const { createAdhocTransaction } = await import("@/lib/billing/paddleTransaction.server");
-      const created = await createAdhocTransaction({
+      // waluta prezentacji), więc zamiast ceny katalogowej tworzymy sesję z
+      // ceną osadzoną (`price_data`) i zwracamy `clientSecret` do nakładki.
+      const { createAdhocCheckoutSession } = await import("@/lib/billing/adhocCheckout.server");
+      const created = await createAdhocCheckoutSession({
         environment,
-        product: eventId ? "eventTicket" : "contentUnlock",
         name: label || "Zamówienie",
         amountCents,
         currency,
+        orderId: order.id,
+        purpose: eventId ? "event_ticket" : "content_unlock",
+        userId,
         customerEmail: receiptEmail,
-        customData: {
-          kind: "order",
-          order_id: order.id,
-          user_id: userId,
-          ...(eventId ? { event_id: eventId } : {}),
-        },
+        returnUrl,
+        metadata: eventId ? { event_id: eventId } : {},
       });
       if (!created.ok) {
         await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);
-        // Kupon został zarezerwowany PRZED utworzeniem transakcji. Skoro
-        // dostawca odmówił, użycie musi wrócić do puli - inaczej limit
-        // przepadłby za zamówienie, którego nikt nigdy nie opłaci.
+        // Kupon został zarezerwowany PRZED utworzeniem sesji. Skoro dostawca
+        // odmówił, użycie musi wrócić do puli - inaczej limit przepadłby za
+        // zamówienie, którego nikt nigdy nie opłaci.
         if (couponId) {
           const { error: releaseErr } = await supabase.rpc("release_b2b_coupon", {
             _coupon_id: couponId,
@@ -398,7 +414,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         }
         return {
           ok: false as const,
-          mode: "paddle" as const,
+          mode: "stripe" as const,
           error: created.error,
           orderId: order.id,
         };
@@ -406,12 +422,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
       await supabase
         .from("payment_orders")
-        .update({ provider_session_id: created.transactionId, status: "processing" })
+        .update({ provider_session_id: created.sessionId, status: "processing" })
         .eq("id", order.id);
       return {
         ok: true as const,
-        mode: "paddle" as const,
-        transactionId: created.transactionId,
+        mode: "stripe" as const,
+        clientSecret: created.clientSecret,
         orderId: order.id,
       };
     }
