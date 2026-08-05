@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
  */
 export function RouteProgress() {
   const busy = useRouterState({
-    select: (s) => s.isLoading || s.isTransitioning,
+    select: (s) => s.isLoading || s.status === "pending",
   });
   const { t } = useTranslation();
 
