@@ -163,10 +163,12 @@ export function NewsletterPopup() {
   }, [open, close]);
 
   if (!s?.popup_enabled || !open) return null;
+  // Popup nie zamyka się sam: po udanym zapisie zostaje otwarty z komunikatem
+  // sukcesu, a użytkownik zamyka go świadomie (X lub Esc).
   const onSuccess = () => {
     markDismissed();
-    setTimeout(() => close(), 1800);
   };
+
 
   const showcase = s.popup_layout === "showcase";
   const split = s.popup_layout === "split";
@@ -192,8 +194,8 @@ export function NewsletterPopup() {
       aria-labelledby="nl-popup-title"
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in"
       style={{ backgroundColor: palette.overlay }}
-      onClick={close}
     >
+
       {showcase ? (
         // Panel showcase w całości pochodzi ze wspólnego komponentu - dokładnie
         // ten sam markup renderuje podgląd w panelu admina.
