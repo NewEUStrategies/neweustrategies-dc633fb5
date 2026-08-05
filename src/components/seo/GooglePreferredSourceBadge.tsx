@@ -86,10 +86,13 @@ export function GooglePreferredSourceBadge({
           })
         }
         className={cn(
-          "inline-flex items-center gap-2 h-8 rounded-[5px]",
-          iconOnly ? "w-8 justify-center px-0" : "px-3",
+          "inline-flex items-center gap-2 rounded-[5px]",
+          // Dwuwierszowe zdanie potrzebuje oddechu w pionie - stała wysokość
+          // tylko dla wariantów jednoliniowych, poza tym min-h + padding.
+          iconOnly ? "h-8 w-8 justify-center px-0" : "min-h-8 px-3 py-1",
+          compact && "h-8 py-0",
           "border border-border bg-background text-foreground",
-          "text-[12px] font-semibold tracking-tight whitespace-nowrap",
+          "tracking-[-0.01em] whitespace-nowrap",
           "hover:bg-muted hover:text-brand transition-colors active:scale-[0.98]",
         )}
       >
@@ -105,10 +108,15 @@ export function GooglePreferredSourceBadge({
           className="shrink-0 object-contain"
         />
         {!iconOnly && (
-          <span className="flex min-w-0 flex-col leading-none">
-            <span className="truncate">{t("googleSource.badgeTitle")}</span>
+          <span className="flex min-w-0 flex-col text-[11.5px] leading-[1.25]">
+            {/* Wariant kompaktowy mieści całe zdanie w jednej linii. */}
+            <span className="truncate font-medium text-muted-foreground">
+              {compact
+                ? `${t("googleSource.badgeTitle")} ${t("googleSource.badgeSub")}`
+                : t("googleSource.badgeTitle")}
+            </span>
             {!compact && (
-              <span className="mt-0.5 truncate text-[10px] font-medium text-muted-foreground">
+              <span className="truncate font-semibold text-foreground">
                 {t("googleSource.badgeSub")}
               </span>
             )}
