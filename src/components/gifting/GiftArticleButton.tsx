@@ -130,14 +130,17 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
           data-gift-article-button
           aria-label={t("gifting.button")}
           className={[
-            "inline-flex items-center gap-1.5 h-8 px-3 rounded-[5px]",
+            // Geometria zsynchronizowana z badge „Preferowane zrodlo Google":
+            // ta sama minimalna wysokosc, padding i skala typografii, a h-full
+            // pozwala wyrownac sie do wyzszego, dwuwierszowego sasiada.
+            "inline-flex items-center gap-2 min-h-8 h-full px-3 py-1 rounded-[5px]",
             "border border-border bg-background text-foreground",
-            "text-[12px] font-semibold tracking-tight whitespace-nowrap",
+            "text-[11.5px] font-semibold tracking-[-0.01em] whitespace-nowrap",
             "hover:bg-muted hover:text-brand transition-colors active:scale-[0.98]",
             className ?? "",
           ].join(" ")}
         >
-          <Gift className="w-[14px] h-[14px] text-brand" aria-hidden />
+          <Gift className="w-[18px] h-[18px] shrink-0 text-brand" aria-hidden />
           {t("gifting.button")}
         </button>
       </PopoverTrigger>

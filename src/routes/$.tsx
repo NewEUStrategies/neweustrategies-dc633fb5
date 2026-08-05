@@ -905,7 +905,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       ) : null;
     // Obok akcji podarunkowej stoi badge „Preferowane zrodlo w Google".
     const articleActions = (
-      <div className="no-print flex items-center gap-2">
+      <div className="no-print flex items-stretch gap-2">
         {giftButton}
         <GooglePreferredSourceBadge entityId={it.id} className="w-auto" />
       </div>
@@ -975,9 +975,11 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   </div>
                 ) : null}
                 {/* Mobile: akcja "Udostepnij pelny artykul" + badge Google. */}
-                <div className="no-print mb-3 flex items-center gap-2 sm:hidden">
+                <div className="no-print mb-3 flex items-stretch gap-2 sm:hidden">
                   {giftButton && (
-                    <span className="[&_button]:w-full min-w-0 flex-1">{giftButton}</span>
+                    <span className="[&_button]:w-full [&_button]:h-full min-w-0 flex-1">
+                      {giftButton}
+                    </span>
                   )}
                   <GooglePreferredSourceBadge device="mobile" entityId={it.id} className="w-auto shrink-0" />
                 </div>
