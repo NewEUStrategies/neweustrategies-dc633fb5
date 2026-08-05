@@ -12,6 +12,7 @@ import { fetchMyOrders, fetchMySubscription } from "@/lib/billing/queries";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { formatMoney, planName } from "@/lib/billing/types";
 import { PlanSwitchBoard } from "@/components/billing/PlanSwitchBoard";
+import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
