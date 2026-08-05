@@ -44,7 +44,6 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
-  const [name, setName] = useState("");
   // Wartości pól rejestracji sterowanych globalną konfiguracją (Admin →
   // Popupy / Strona logowania). Klucze = klucze rejestru pól.
   const [extra, setExtra] = useState<Partial<Record<RegistrationFieldKey, string>>>({});
@@ -199,12 +198,11 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
         if (reg.isEnabled("password_confirm") && password !== passwordConfirm) {
           throw new Error(isPl ? "Hasła nie są identyczne." : "Passwords do not match.");
         }
-        const legacy = name.trim().split(/\s+/).filter(Boolean);
         const metadata = buildSignupMetadata(
           {
             email,
-            firstName: val("first_name") || (legacy[0] ?? ""),
-            lastName: val("last_name") || legacy.slice(1).join(" "),
+            firstName: val("first_name"),
+            lastName: val("last_name"),
             job: val("job"),
             company: val("company"),
             linkedin: val("linkedin"),
