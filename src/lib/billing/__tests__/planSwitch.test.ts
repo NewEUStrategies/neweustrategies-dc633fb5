@@ -25,7 +25,7 @@ function plan(over: Partial<AccessPlan> & { id: string }): AccessPlan {
   };
 }
 
-const plus = plan({ id: "p-plus", tier_key: "plus", interval: "month" });
+const plus = plan({ id: "p-plus", tier_key: "member", interval: "month" });
 const pro = plan({ id: "p-pro", tier_key: "pro", interval: "month" });
 const business = plan({ id: "p-biz", tier_key: "business", interval: "month" });
 
@@ -51,7 +51,7 @@ describe("buildPlanSwitchBoard", () => {
   });
 
   it("pomija plany nieaktywne i bez odpowiednika w katalogu", () => {
-    const inactive = plan({ id: "p-off", tier_key: "plus", active: false });
+    const inactive = plan({ id: "p-off", tier_key: "member", active: false });
     const unknown = plan({ id: "p-unknown", tier_key: "nope" });
     const board = buildPlanSwitchBoard([inactive, unknown], pro);
     expect([...board.upgrades, ...board.downgrades]).toHaveLength(0);
