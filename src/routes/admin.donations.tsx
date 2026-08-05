@@ -233,6 +233,78 @@ function AdminDonations() {
         </Field>
       </section>
 
+      <section className="mb-6">
+        <h3 className="mb-2 text-sm font-semibold">Synchronizacja ze Stripe</h3>
+        <p className="mb-3 max-w-3xl text-sm text-muted-foreground">
+          Uzgadnia rejestr wpłat ze Stripe (ostatnie 7 dni): domyka wpłaty oczekujące, importuje
+          brakujące opłacone sesje i oznacza zwroty. Operacja jest idempotentna.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            className="h-9 rounded-md border bg-background px-2 text-sm"
+            value={environment}
+            onChange={(e) => setEnvironment(e.target.value === "live" ? "live" : "sandbox")}
+          >
+            <option value="sandbox">Środowisko testowe</option>
+            <option value="live">Środowisko produkcyjne</option>
+          </select>
+          <Button onClick={() => sync.mutate()} disabled={sync.isPending}>
+            {sync.isPending ? "Synchronizuję..." : "Synchronizuj ze Stripe"}
+          </Button>
+        </div>
+        {sync.isError && (
+          <p className="mt-2 text-sm text-destructive">
+            {sync.error instanceof Error ? sync.error.message : "Synchronizacja nie powiodła się."}
+          </p>
+        )}
+        {syncReport && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Zaksięgowane: {syncReport.settled} · zaimportowane: {syncReport.imported} · zwroty:{" "}
+            {syncReport.refunded} · wygasłe: {syncReport.expired} · przejrzane sesje:{" "}
+            {syncReport.scannedSessions}
+            {syncReport.warnings.length > 0 ? ` · ostrzeżenia: ${syncReport.warnings.length}` : ""}
+          </p>
+        )}
+      </section>
+
+      <section className="mb-6">
+        <h3 className="mb-2 text-sm font-semibold">Ostatnie wpłaty</h3>
+        {records.isPending ? (
+          <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>
+        ) : (records.data?.length ?? 0) === 0 ? (
+          <p className="text-sm text-muted-foreground">Brak zarejestrowanych wpłat.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Data</th>
+                  <th className="px-3 py-2">Kwota</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Typ</th>
+                  <th className="px-3 py-2">Darczyńca</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.data?.map((row) => (
+                  <tr key={row.id} className="border-t">
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {new Date(row.createdAt).toLocaleString(lang === "en" ? "en-GB" : "pl-PL")}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {formatDonationAmount(row.amountCents, row.currency, lang)}
+                    </td>
+                    <td className="px-3 py-2">{row.status}</td>
+                    <td className="px-3 py-2">{row.recurring ? "miesięczna" : "jednorazowa"}</td>
+                    <td className="px-3 py-2">{row.donorEmail ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <SaveBar onSave={() => save.mutate(draft)} saving={save.isPending} />
     </div>
   );
