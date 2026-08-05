@@ -62,22 +62,27 @@ export const getMenuWithItems = createServerFn({ method: "GET" })
 
 async function fetchMenuWithItems(key: string): Promise<MenuWithItems | null> {
   const supabase = serverPublicClient();
-  const { data: menu, error: menuErr } = await supabase
-    .from("menus")
-    .select("id, key, name")
-    .eq("key", key)
-    .maybeSingle();
+  // Jedno okrążenie zamiast dwóch sekwencyjnych: nagłówek pokazywał się
+  // dopiero po dwóch round-tripach do bazy (menu -> pozycje). Pozycje
+  // filtrujemy przez inner join po `menus.key`, więc obie odpowiedzi lecą
+  // równolegle i cold-start nawigacji jest ~2x krótszy.
+  const [menuRes, itemsRes] = await Promise.all([
+    supabase.from("menus").select("id, key, name").eq("key", key).maybeSingle(),
+    supabase
+      .from("menu_items")
+      .select(
+        "id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, icon, mega_enabled, mega_config, menus!inner(key)",
+      )
+      .eq("menus.key", key)
+      .order("position"),
+  ]);
+  const { data: menu, error: menuErr } = menuRes;
+  const { data: items, error: itemsErr } = itemsRes;
   if (menuErr || !menu) {
     if (menuErr) console.error("[getMenuWithItems]", menuErr.message);
     return null;
   }
-  const { data: items, error: itemsErr } = await supabase
-    .from("menu_items")
-    .select(
-      "id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, icon, mega_enabled, mega_config",
-    )
-    .eq("menu_id", menu.id)
-    .order("position");
+
   if (itemsErr) {
     console.error("[getMenuWithItems items]", itemsErr.message);
     return { id: menu.id, key: menu.key, name: menu.name, items: [] };

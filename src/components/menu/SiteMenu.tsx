@@ -529,11 +529,35 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
 /* -------------------------------- Component ------------------------------ */
 
 function SiteMenuImpl({ menuKey, lang, mobile }: Props) {
-  const { data } = useQuery(menuWithItemsQueryOptions(menuKey || "main"));
+  const { data, isPending } = useQuery(menuWithItemsQueryOptions(menuKey || "main"));
   const items = data?.items ?? [];
   const tree = buildTree(items);
 
   if (tree.length === 0) {
+    // Dopóki zapytanie trwa (brak SSR-owego warm-upu, np. w podglądzie
+    // buildera), pokazujemy szkielet o wysokości paska nawigacji zamiast
+    // komunikatu "Menu jest puste" - ten pojawiał się na ułamek sekundy przy
+    // każdym zimnym renderze i wyglądał jak błąd konfiguracji.
+    if (isPending) {
+      return (
+        <div
+          aria-hidden
+          className={
+            mobile
+              ? "flex flex-col gap-2 px-3 py-2"
+              : "flex flex-wrap items-center gap-2 px-1 py-2.5"
+          }
+        >
+          {[72, 96, 64, 88, 80].map((w, i) => (
+            <span
+              key={i}
+              className="block h-4 animate-pulse rounded bg-muted/60"
+              style={{ width: mobile ? "100%" : w }}
+            />
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="text-xs text-muted-foreground">
         {lang === "en"
@@ -542,6 +566,7 @@ function SiteMenuImpl({ menuKey, lang, mobile }: Props) {
       </div>
     );
   }
+
 
   if (mobile) {
     return (
