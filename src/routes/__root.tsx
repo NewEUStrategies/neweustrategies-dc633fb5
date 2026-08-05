@@ -46,6 +46,8 @@ import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
 import { CohesionLiveSync } from "../lib/realtime/cohesionLiveSync";
 import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
+import { parseSeoSettings, SEO_SETTINGS_KEY } from "../lib/seo/settings";
+import { rememberSocialDefaults } from "../lib/seo/socialDefaults";
 import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
