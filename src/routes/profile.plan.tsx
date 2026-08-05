@@ -20,6 +20,8 @@ import { PaymentHistoryCard } from "@/components/billing/PaymentHistoryCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMyGrants } from "@/lib/billing/membership";
+import { tierName, useCurrentTier } from "@/lib/billing/tiers";
 
 export const Route = createFileRoute("/profile/plan")({
   component: PlanPage,
@@ -36,6 +38,16 @@ function PlanPage() {
     queryFn: fetchMySubscription,
     enabled: !!session,
   });
+
+  // Dostęp z nadania (dożywotni VIP eksperta) jest „aktywnym planem" z punktu
+  // widzenia użytkownika, choć nie ma ceny ani odnowienia.
+  const grantsQ = useMyGrants();
+  const tierQ = useCurrentTier();
+  const activeGrant =
+    (grantsQ.data ?? []).find(
+      (g) =>
+        !g.revoked_at && (!g.expires_at || new Date(g.expires_at).getTime() > Date.now()),
+    ) ?? null;
 
   const subscription = subQ.data ?? null;
   const plan = subscription?.plan ?? null;
@@ -60,7 +72,33 @@ function PlanPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!plan ? (
+          {!plan && activeGrant ? (
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-muted-foreground">{t("profile.subscription.plan")}</dt>
+                <dd className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  {tierQ.data && tierQ.data.key === activeGrant.tier_key
+                    ? tierName(tierQ.data, lang === "en" ? "en" : "pl")
+                    : activeGrant.tier_key.toUpperCase()}
+                  <Badge variant="secondary">
+                    {t(`profile.planPage.grantSource.${activeGrant.source}`, {
+                      defaultValue: t("profile.planPage.grantTitle"),
+                    })}
+                  </Badge>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  {t("profile.planPage.statusCard.endsAt")}
+                </dt>
+                <dd className="text-sm">
+                  {activeGrant.expires_at
+                    ? fmtDate(activeGrant.expires_at)
+                    : t("profile.planPage.grantLifetime")}
+                </dd>
+              </div>
+            </dl>
+          ) : !plan ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">{t("profile.planPage.noPlan")}</p>
               <Button asChild size="sm">
