@@ -404,6 +404,11 @@ const pl = {
         downgradeScheduled: "Zmiana planu zaplanowana na koniec okresu rozliczeniowego",
         updatePayment: "Zaktualizuj metodę płatności",
         openPortal: "Faktury i dane płatnika",
+        manage: "Zarządzaj w portalu płatności",
+        manageHint:
+          "W portalu operatora zmienisz plan i cenę, zaktualizujesz metodę płatności, pobierzesz faktury lub anulujesz subskrypcję.",
+        opening: "Otwieram portal...",
+        noCustomer: "Nie znaleźliśmy aktywnego profilu płatności. Wykup plan, aby otworzyć portal.",
         error: "Nie udało się otworzyć portalu płatności. Spróbuj ponownie.",
         pastDue:
           "Ostatnia płatność się nie powiodła. Zaktualizuj metodę płatności, aby zachować dostęp.",
