@@ -19,9 +19,16 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowLeft, Eye, Loader2, Mail, Lock, User, LogIn } from "@/lib/lucide-shim";
 import { EyeOff, UserPlus, KeyRound, Sun, Moon } from "lucide-react";
+import { FieldBox } from "@/components/ui/field-box";
+import {
+  buildSignupMetadata,
+  useRegistrationFields,
+  type RegistrationFieldKey,
+} from "@/lib/auth/registrationFields";
 
 import illustrationLight from "@/assets/login-illustration-light.jpg";
 import illustrationDark from "@/assets/login-illustration-dark.jpg";
+
 
 export type Mode = "signin" | "signup" | "reset";
 
