@@ -109,7 +109,7 @@ describe("fulfilOneTimeTransaction - bilet na wydarzenie", () => {
     expect(updates[0]).toMatchObject({
       table: "payment_orders",
       status: "paid",
-      provider: "paddle",
+      provider: "stripe",
     });
     expect(rsvps[0]).toMatchObject({
       table: "event_rsvps",

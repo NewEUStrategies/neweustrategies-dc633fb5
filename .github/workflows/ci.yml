@@ -153,6 +153,15 @@ jobs:
       - name: SQL anon-insert invariant
         run: bun run check:sql-anon-insert
 
+      # Blocking gate after the Paddle -> Stripe migration: any live reference to
+      # the old provider outside comments (import, identifier, string literal,
+      # env var, gateway URL) means a code path that talks to a payment operator
+      # this project no longer has - it would fail only at runtime, mid-checkout.
+      - name: No live legacy payment-provider references
+        run: bun run check:no-paddle
+
+
+
       # Blocking reproducibility gate: can the database still be recreated from
       # migrations? Two classes, both invisible to an incremental `db push` and
       # both fatal to `supabase db start` - which takes down pgtap AND both e2e

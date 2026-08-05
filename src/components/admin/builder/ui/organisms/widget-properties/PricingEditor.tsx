@@ -35,7 +35,7 @@ export function PricingEditor({ c, lang, setContent }: Props) {
         >
           <option value="manual">{lang === "pl" ? "Ręcznie" : "Manual"}</option>
           <option value="plans">
-            {lang === "pl" ? "Katalog planów (Paddle)" : "Plan catalog (Paddle)"}
+            {lang === "pl" ? "Katalog planów (Stripe)" : "Plan catalog (Stripe)"}
           </option>
         </select>
       </PropField>

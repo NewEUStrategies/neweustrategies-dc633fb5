@@ -61,7 +61,12 @@ export async function reapOrphanCatalogEntries(input: ReapInput): Promise<Reaped
     const externalId = externalIdOf(product.metadata);
     if (!externalId || expectedProductIds.has(externalId)) continue;
     await stripe.products.update(product.id, { active: false });
-    reaped.push({ kind: "product", externalId, providerId: product.id, reason: reasonFor(externalId) });
+    reaped.push({
+      kind: "product",
+      externalId,
+      providerId: product.id,
+      reason: reasonFor(externalId),
+    });
   }
 
   return reaped;

@@ -58,9 +58,7 @@ export async function retrieveTransactionOwners(
         customerId: idOf(paymentIntent.customer),
         subscriptionId: null,
         userId:
-          typeof paymentIntent.metadata?.userId === "string"
-            ? paymentIntent.metadata.userId
-            : null,
+          typeof paymentIntent.metadata?.userId === "string" ? paymentIntent.metadata.userId : null,
       };
     }
     return null;

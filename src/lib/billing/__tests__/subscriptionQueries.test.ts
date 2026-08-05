@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  canResumePaddleSubscription,
-  isPaddleSubscriptionActive,
-  type PaddleSubscriptionRow,
+  canResumeStripeSubscription,
+  isStripeSubscriptionActive,
+  type StripeSubscriptionRow,
 } from "../subscriptionQueries";
 
-const base: PaddleSubscriptionRow = {
+const base: StripeSubscriptionRow = {
   id: "1",
   provider_subscription_id: "sub_1",
   provider_customer_id: "ctm_1",
@@ -22,27 +22,27 @@ const base: PaddleSubscriptionRow = {
 
 const past = new Date(Date.now() - 86_400_000).toISOString();
 
-describe("paddleSubscription", () => {
+describe("stripeSubscription", () => {
   it("traktuje aktywną subskrypcję w okresie jako dającą dostęp", () => {
-    expect(isPaddleSubscriptionActive(base)).toBe(true);
+    expect(isStripeSubscriptionActive(base)).toBe(true);
   });
 
   it("utrzymuje dostęp po anulowaniu do końca opłaconego okresu", () => {
-    expect(isPaddleSubscriptionActive({ ...base, status: "canceled" })).toBe(true);
+    expect(isStripeSubscriptionActive({ ...base, status: "canceled" })).toBe(true);
     expect(
-      isPaddleSubscriptionActive({ ...base, status: "canceled", current_period_end: past }),
+      isStripeSubscriptionActive({ ...base, status: "canceled", current_period_end: past }),
     ).toBe(false);
   });
 
   it("nie odbiera dostępu przy zaległej płatności (dunning)", () => {
-    expect(isPaddleSubscriptionActive({ ...base, status: "past_due" })).toBe(true);
+    expect(isStripeSubscriptionActive({ ...base, status: "past_due" })).toBe(true);
   });
 
   it("pozwala wznowić tylko zaplanowane anulowanie w trwającym okresie", () => {
-    expect(canResumePaddleSubscription({ ...base, cancel_at_period_end: true })).toBe(true);
-    expect(canResumePaddleSubscription(base)).toBe(false);
+    expect(canResumeStripeSubscription({ ...base, cancel_at_period_end: true })).toBe(true);
+    expect(canResumeStripeSubscription(base)).toBe(false);
     expect(
-      canResumePaddleSubscription({
+      canResumeStripeSubscription({
         ...base,
         cancel_at_period_end: true,
         current_period_end: past,
@@ -51,6 +51,6 @@ describe("paddleSubscription", () => {
   });
 
   it("zwraca brak dostępu dla pustego wiersza", () => {
-    expect(isPaddleSubscriptionActive(null)).toBe(false);
+    expect(isStripeSubscriptionActive(null)).toBe(false);
   });
 });

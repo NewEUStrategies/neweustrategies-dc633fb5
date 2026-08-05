@@ -42,7 +42,7 @@ const order = (over: Partial<PaymentOrder> = {}): PaymentOrder =>
     plan_id: null,
     entity_type: null,
     entity_id: null,
-    provider: "paddle",
+    provider: "stripe",
     provider_session_id: null,
     provider_intent_id: "txn_1",
     invoice_url: null,

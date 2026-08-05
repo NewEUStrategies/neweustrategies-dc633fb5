@@ -62,9 +62,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       }
       couponId = row.coupon_id;
       if (row.discount_cents > 0) {
-        const { createAdhocDiscountForCoupon } = await import(
-          "@/lib/billing/adhocCheckout.server"
-        );
+        const { createAdhocDiscountForCoupon } = await import("@/lib/billing/adhocCheckout.server");
         const { createStripeClient } = await import("@/lib/stripe.server");
         const stripe = createStripeClient(environment);
         const couponRef = await createAdhocDiscountForCoupon(stripe, {
@@ -108,9 +106,8 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       }
     }
 
-    const { createPlanCheckoutSession: createSession } = await import(
-      "@/lib/billing/adhocCheckout.server"
-    );
+    const { createPlanCheckoutSession: createSession } =
+      await import("@/lib/billing/adhocCheckout.server");
     const result = await createSession({
       environment,
       priceLookupKey: data.priceId,

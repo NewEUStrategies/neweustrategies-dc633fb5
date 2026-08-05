@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { catalogEntryByPriceId, type CatalogPriceEntry } from "./catalog";
 
-export interface PaddleSubscriptionRow {
+export interface StripeSubscriptionRow {
   id: string;
   provider_subscription_id: string;
   provider_customer_id: string;
@@ -24,7 +24,7 @@ export interface PaddleSubscriptionRow {
 const COLUMNS =
   "id, provider_subscription_id, provider_customer_id, product_id, price_id, status, quantity, current_period_start, current_period_end, cancel_at_period_end, environment, created_at";
 
-export async function fetchMyPaddleSubscription(): Promise<PaddleSubscriptionRow | null> {
+export async function fetchMyStripeSubscription(): Promise<StripeSubscriptionRow | null> {
   const { data: auth } = await supabase.auth.getSession();
   const uid = auth.session?.user?.id;
   if (!uid) return null;
@@ -37,11 +37,11 @@ export async function fetchMyPaddleSubscription(): Promise<PaddleSubscriptionRow
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return (data as PaddleSubscriptionRow | null) ?? null;
+  return (data as StripeSubscriptionRow | null) ?? null;
 }
 
 /** Czy subskrypcja daje dostęp (z okresem karencji po anulowaniu). */
-export function isPaddleSubscriptionActive(row: PaddleSubscriptionRow | null): boolean {
+export function isStripeSubscriptionActive(row: StripeSubscriptionRow | null): boolean {
   if (!row) return false;
   const endsAt = row.current_period_end ? new Date(row.current_period_end).getTime() : null;
   const withinPeriod = endsAt === null || endsAt > Date.now();
@@ -53,7 +53,7 @@ export function isPaddleSubscriptionActive(row: PaddleSubscriptionRow | null): b
  * Czy da się wznowić subskrypcję: cofnąć zaplanowane anulowanie (opłacony
  * okres jeszcze trwa) albo odwiesić subskrypcję wstrzymaną.
  */
-export function canResumePaddleSubscription(row: PaddleSubscriptionRow | null): boolean {
+export function canResumeStripeSubscription(row: StripeSubscriptionRow | null): boolean {
   if (!row) return false;
   if (row.status === "paused") return true;
   if (!row.cancel_at_period_end) return false;
@@ -61,9 +61,9 @@ export function canResumePaddleSubscription(row: PaddleSubscriptionRow | null): 
   return row.status !== "canceled" && (endsAt === null || endsAt > Date.now());
 }
 
-export function catalogEntryFor(row: PaddleSubscriptionRow | null): CatalogPriceEntry | null {
+export function catalogEntryFor(row: StripeSubscriptionRow | null): CatalogPriceEntry | null {
   return catalogEntryByPriceId(row?.price_id);
 }
 
 /** Alias nazewniczy po migracji na Stripe - kształt wiersza bez zmian. */
-export type ProviderSubscriptionRow = PaddleSubscriptionRow;
+export type ProviderSubscriptionRow = StripeSubscriptionRow;

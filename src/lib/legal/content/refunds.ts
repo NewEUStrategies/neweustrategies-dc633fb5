@@ -81,7 +81,7 @@ export const REFUNDS_CONTENT: LegalDocContent = {
         ],
       },
       {
-        id: "paddle",
+        id: "payment-provider",
         icon: "Store",
         heading: "Kto obsługuje zwroty",
         paragraphs: [
@@ -161,7 +161,7 @@ export const REFUNDS_CONTENT: LegalDocContent = {
         ],
       },
       {
-        id: "paddle",
+        id: "payment-provider",
         icon: "Store",
         heading: "Who handles refunds",
         paragraphs: [

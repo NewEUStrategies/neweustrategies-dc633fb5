@@ -31,14 +31,7 @@ import {
 import { CHECKOUT_SETTINGS_QUERY_KEY, useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import type { CheckoutSettings } from "@/lib/billing/checkoutSettings";
 import { Plus, Trash2 as Trash } from "@/lib/lucide-shim";
-import {
-  Layers,
-  Gauge,
-  SlidersHorizontal,
-  CreditCard,
-  Sparkles,
-  Activity,
-} from "lucide-react";
+import { Layers, Gauge, SlidersHorizontal, CreditCard, Sparkles, Activity } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
@@ -165,7 +158,9 @@ function PaywallAdmin() {
               className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground sm:h-8"
             >
               <Layers className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">{t("admin.paywall.tabPlans", { defaultValue: "Plany" })}</span>
+              <span className="truncate">
+                {t("admin.paywall.tabPlans", { defaultValue: "Plany" })}
+              </span>
               <span className="ml-0.5 rounded-[4px] bg-muted px-1.5 py-0 text-[10px] font-semibold tabular-nums data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
                 {plans.length}
               </span>
@@ -175,21 +170,27 @@ function PaywallAdmin() {
               className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground sm:h-8"
             >
               <Gauge className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">{t("admin.paywall.tabMetering", { defaultValue: "Metering" })}</span>
+              <span className="truncate">
+                {t("admin.paywall.tabMetering", { defaultValue: "Metering" })}
+              </span>
             </TabsTrigger>
             <TabsTrigger
               value="overrides"
               className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground sm:h-8"
             >
               <SlidersHorizontal className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">{t("admin.paywall.tabOverrides", { defaultValue: "Wyjątki" })}</span>
+              <span className="truncate">
+                {t("admin.paywall.tabOverrides", { defaultValue: "Wyjątki" })}
+              </span>
             </TabsTrigger>
             <TabsTrigger
               value="checkout"
               className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground sm:h-8"
             >
               <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">{t("admin.paywall.tabCheckout", { defaultValue: "Checkout" })}</span>
+              <span className="truncate">
+                {t("admin.paywall.tabCheckout", { defaultValue: "Checkout" })}
+              </span>
             </TabsTrigger>
           </TabsList>
 

@@ -330,9 +330,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         let discount: { coupon: string } | null = null;
         if (couponCode && couponDiscountCents > 0) {
           const { createStripeClient } = await import("@/lib/stripe.server");
-          const { createAdhocDiscountForCoupon } = await import(
-            "@/lib/billing/adhocCheckout.server"
-          );
+          const { createAdhocDiscountForCoupon } =
+            await import("@/lib/billing/adhocCheckout.server");
           const stripe = createStripeClient(environment);
           const couponRef = await createAdhocDiscountForCoupon(stripe, {
             code: couponCode,

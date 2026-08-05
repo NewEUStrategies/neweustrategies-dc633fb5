@@ -24,9 +24,9 @@ export const billingKeys = {
   mySubscription: (uid: string | undefined) => ["my-subscription", uid ?? "anon"] as const,
   mySubscriptionAll: () => ["my-subscription"] as const,
   /** Subskrypcja u dostawcy płatności (tabela `subscriptions`, per środowisko). */
-  myPaddleSubscription: (uid: string | undefined, env: string) =>
-    ["my-paddle-subscription", uid ?? "anon", env] as const,
-  myPaddleSubscriptionAll: () => ["my-paddle-subscription"] as const,
+  myStripeSubscription: (uid: string | undefined, env: string) =>
+    ["my-stripe-subscription", uid ?? "anon", env] as const,
+  myStripeSubscriptionAll: () => ["my-stripe-subscription"] as const,
   /** Podgląd kosztu zmiany planu (kwota liczona przez operatora). */
   planChangePreview: (subscriptionId: string, targetPriceId: string, env: string) =>
     ["plan-change-preview", subscriptionId, targetPriceId, env] as const,
@@ -77,7 +77,7 @@ export const billingKeys = {
     /** Pulpit monetyzacji (prefiks obejmuje filtry dat/planów). */
     monetization: () => ["admin", "monetization"] as const,
     /** Subskrypcje u dostawcy płatności (panel /admin/billing). */
-    paddleSubscriptions: () => ["admin", "paddle-subscriptions"] as const,
+    stripeSubscriptions: () => ["admin", "stripe-subscriptions"] as const,
     /** Historia zdarzeń webhooka operatora płatności. */
     paymentWebhookEvents: () => ["admin", "payment-webhook-events"] as const,
     /** Subskrypcje wszystkich użytkowników (lista /admin/users). */

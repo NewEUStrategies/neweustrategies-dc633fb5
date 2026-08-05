@@ -17,10 +17,7 @@ import "@/lib/i18n-donate";
 
 export const Route = createFileRoute("/admin/donations")({
   head: () => ({
-    meta: [
-      { title: "Darowizny - Panel" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
+    meta: [{ title: "Darowizny - Panel" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminDonations,
 });
@@ -45,8 +42,8 @@ function AdminDonations() {
       <h2 className="font-display text-xl">Darowizny</h2>
       <p className="mb-5 mt-1 text-sm text-muted-foreground">
         Własny checkout darowizn (jednorazowych i miesięcznych) obsługiwany przez naszego operatora
-        płatności. Publiczny formularz: <code className="rounded bg-muted px-1 py-0.5">/donate</code>
-        .
+        płatności. Publiczny formularz:{" "}
+        <code className="rounded bg-muted px-1 py-0.5">/donate</code>.
       </p>
 
       <section className="mb-6 grid gap-3 sm:grid-cols-3">
@@ -81,7 +78,10 @@ function AdminDonations() {
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={draft.provider}
             onChange={(e) =>
-              setDraft({ ...draft, provider: e.target.value === "external" ? "external" : "stripe" })
+              setDraft({
+                ...draft,
+                provider: e.target.value === "external" ? "external" : "stripe",
+              })
             }
           >
             <option value="stripe">Nasz checkout (karta, BLIK, Apple/Google Pay)</option>

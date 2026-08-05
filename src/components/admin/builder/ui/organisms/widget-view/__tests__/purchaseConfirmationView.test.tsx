@@ -41,16 +41,17 @@ vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ session: state.session }),
 }));
 vi.mock("@/lib/billing/subscriptionQueries", () => ({
-  fetchMyPaddleSubscription: async () => state.subscription,
+  fetchMyStripeSubscription: async () => state.subscription,
 }));
 vi.mock("@/lib/billing/queries", () => ({
   fetchMyOrders: async () => state.orders,
 }));
-vi.mock("@/lib/paddle", () => ({
+vi.mock("@/lib/stripe", () => ({
   getStripeEnvironment: () => "sandbox",
+  getStripeEnvironmentSafe: () => "sandbox",
 }));
 vi.mock("@/utils/payments.functions", () => ({
-  createPaddlePortalSession: async (args: unknown) => {
+  createStripePortalSession: async (args: unknown) => {
     state.portalCalls.push(args);
     if (state.portalShouldFail) throw new Error("portal down");
     return state.portalResult;

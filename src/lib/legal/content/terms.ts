@@ -98,7 +98,7 @@ export const TERMS_CONTENT: LegalDocContent = {
         paragraphs: [`Warunki kupującego ${PAYMENT_PROVIDER_NAME}: ${PAYMENT_PROVIDER_BUYER_TERMS_URL}.`],
       },
       {
-        id: "paddle",
+        id: "payment-provider",
         icon: "Store",
         heading: "Sprzedawca i operator płatności",
         paragraphs: [PAYMENT_PROVIDER_DISCLOSURE.pl],
@@ -228,7 +228,7 @@ export const TERMS_CONTENT: LegalDocContent = {
         paragraphs: [`${PAYMENT_PROVIDER_NAME} buyer terms: ${PAYMENT_PROVIDER_BUYER_TERMS_URL}.`],
       },
       {
-        id: "paddle",
+        id: "payment-provider",
         icon: "Store",
         heading: "Seller and payment provider",
         paragraphs: [PAYMENT_PROVIDER_DISCLOSURE.en],

@@ -6,7 +6,7 @@ import { getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 const envSchema = z.enum(["sandbox", "live"]);
 
 /** Zamiana czytelnego identyfikatora ceny (`lookup_key`) na `price_...` u Stripe. */
-export const resolvePaddlePrice = createServerFn({ method: "GET" })
+export const resolveStripePrice = createServerFn({ method: "GET" })
   .inputValidator((data: { priceId: string; environment: StripeEnv }) =>
     z.object({ priceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
@@ -31,14 +31,13 @@ export const resolvePaddlePrice = createServerFn({ method: "GET" })
  * - upgrade  -> natychmiast, z rozliczeniem proporcjonalnym,
  * - downgrade -> zaplanowane na koniec opłaconego okresu (bez proraty).
  */
-export const changePaddlePlan = createServerFn({ method: "POST" })
+export const changeStripePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { targetPriceId: string; environment: StripeEnv }) =>
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { catalogEntryByPriceId, planChangeDirection } =
-      await import("@/lib/billing/catalog");
+    const { catalogEntryByPriceId, planChangeDirection } = await import("@/lib/billing/catalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
 
@@ -71,7 +70,7 @@ export const changePaddlePlan = createServerFn({ method: "POST" })
   });
 
 /** Link do portalu klienta (anulowanie, metoda płatności, faktury). */
-export const createPaddlePortalSession = createServerFn({ method: "POST" })
+export const createStripePortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
@@ -117,7 +116,7 @@ export const createPaddlePortalSession = createServerFn({ method: "POST" })
  * Dostawca planuje zmianę na koniec bieżącego cyklu - webhook
  * `customer.subscription.updated` domyka stan w bazie.
  */
-export const cancelPaddleSubscription = createServerFn({ method: "POST" })
+export const cancelStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
@@ -134,9 +133,8 @@ export const cancelPaddleSubscription = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { cancelSubscriptionAtPeriodEnd } = await import(
-      "@/lib/billing/subscriptionProvider.server"
-    );
+    const { cancelSubscriptionAtPeriodEnd } =
+      await import("@/lib/billing/subscriptionProvider.server");
     const result = await cancelSubscriptionAtPeriodEnd(
       data.environment,
       sub.provider_subscription_id,
@@ -150,7 +148,7 @@ export const cancelPaddleSubscription = createServerFn({ method: "POST" })
  * - zaplanowane anulowanie -> kasujemy zmianę, okres biegnie dalej,
  * - subskrypcja wstrzymana  -> wznawiamy ją u operatora od zaraz.
  */
-export const resumePaddleSubscription = createServerFn({ method: "POST" })
+export const resumeStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
@@ -167,9 +165,8 @@ export const resumePaddleSubscription = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { resumePausedSubscription, resumeScheduledCancellation } = await import(
-      "@/lib/billing/subscriptionProvider.server"
-    );
+    const { resumePausedSubscription, resumeScheduledCancellation } =
+      await import("@/lib/billing/subscriptionProvider.server");
 
     if (sub.status === "paused") {
       const result = await resumePausedSubscription(data.environment, sub.provider_subscription_id);
@@ -189,7 +186,7 @@ export const resumePaddleSubscription = createServerFn({ method: "POST" })
  * Kod promocyjny dla nakładki płatności: waliduje kupon w bazie i zwraca
  * identyfikator rabatu u dostawcy (tworząc go leniwie, gdy jeszcze nie istnieje).
  */
-export const resolvePaddleDiscount = createServerFn({ method: "POST" })
+export const resolveStripeDiscount = createServerFn({ method: "POST" })
   .inputValidator(
     (data: {
       code: string;
@@ -227,14 +224,13 @@ export const resolvePaddleDiscount = createServerFn({ method: "POST" })
  * pozycji, żeby pokazać dopłatę (upgrade) albo kwotę kolejnego rozliczenia
  * (downgrade) bez faktycznego dotykania subskrypcji.
  */
-export const previewPaddlePlanChange = createServerFn({ method: "POST" })
+export const previewStripePlanChange = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { targetPriceId: string; environment: StripeEnv }) =>
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { catalogEntryByPriceId, planChangeDirection } =
-      await import("@/lib/billing/catalog");
+    const { catalogEntryByPriceId, planChangeDirection } = await import("@/lib/billing/catalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
 
@@ -320,7 +316,7 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
  * Zwiększenie rozlicza się proporcjonalnie od razu, zmniejszenie obowiązuje od
  * nowego okresu - opłacony okres należy się klientowi w całości.
  */
-export const updatePaddleSubscriptionSeats = createServerFn({ method: "POST" })
+export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { quantity: number; environment: StripeEnv }) =>
     z.object({ quantity: z.number().int().min(1).max(500), environment: envSchema }).parse(data),
@@ -341,14 +337,17 @@ export const updatePaddleSubscriptionSeats = createServerFn({ method: "POST" })
     const entry = catalogEntryByPriceId(sub.price_id);
     if (!entry?.perSeat) throw new Error("not_per_seat_plan");
 
-    const { updateSubscriptionQuantity } = await import(
-      "@/lib/billing/subscriptionProvider.server"
+    const { updateSubscriptionQuantity } =
+      await import("@/lib/billing/subscriptionProvider.server");
+    const result = await updateSubscriptionQuantity(
+      data.environment,
+      sub.provider_subscription_id,
+      {
+        priceExternalId: entry.priceId,
+        quantity: data.quantity,
+        previousQuantity: sub.quantity ?? 1,
+      },
     );
-    const result = await updateSubscriptionQuantity(data.environment, sub.provider_subscription_id, {
-      priceExternalId: entry.priceId,
-      quantity: data.quantity,
-      previousQuantity: sub.quantity ?? 1,
-    });
     if (!result.ok) {
       console.error("[payments] seat change failed", sub.provider_subscription_id, result.error);
       return { error: result.error };
