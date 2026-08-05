@@ -28,6 +28,12 @@ export const CODE_PAGES: readonly CodePageDef[] = [
     label_en: "Pricing (plans, segments, comparison)",
   },
   {
+    slug: "membership-registration",
+    path: "/membership-registration",
+    label_pl: "Rejestracja członkostwa (konto, logowanie, reset hasła)",
+    label_en: "Membership registration (account, sign-in, password reset)",
+  },
+  {
     slug: "contribute",
     path: "/contribute",
     label_pl: "Zgłoś artykuł",

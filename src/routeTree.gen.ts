@@ -32,6 +32,7 @@ import { Route as PeopleRouteImport } from './routes/people'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
 import { Route as NetworkRouteImport } from './routes/network'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MembershipRegistrationRouteImport } from './routes/membership-registration'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
@@ -375,6 +376,11 @@ const NetworkRoute = NetworkRouteImport.update({
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembershipRegistrationRoute = MembershipRegistrationRouteImport.update({
+  id: '/membership-registration',
+  path: '/membership-registration',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -1568,6 +1574,7 @@ export interface FileRoutesByFullPath {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/membership-registration': typeof MembershipRegistrationRoute
   '/messages': typeof MessagesRoute
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
@@ -1821,6 +1828,7 @@ export interface FileRoutesByTo {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/membership-registration': typeof MembershipRegistrationRoute
   '/messages': typeof MessagesRoute
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
@@ -2067,6 +2075,7 @@ export interface FileRoutesById {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/membership-registration': typeof MembershipRegistrationRoute
   '/messages': typeof MessagesRoute
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
@@ -2323,6 +2332,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/login'
     | '/mcp'
+    | '/membership-registration'
     | '/messages'
     | '/network'
     | '/news-sitemap.xml'
@@ -2576,6 +2586,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/login'
     | '/mcp'
+    | '/membership-registration'
     | '/messages'
     | '/network'
     | '/news-sitemap.xml'
@@ -2821,6 +2832,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/login'
     | '/mcp'
+    | '/membership-registration'
     | '/messages'
     | '/network'
     | '/news-sitemap.xml'
@@ -3076,6 +3088,7 @@ export interface RootRouteChildren {
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
+  MembershipRegistrationRoute: typeof MembershipRegistrationRoute
   MessagesRoute: typeof MessagesRoute
   NetworkRoute: typeof NetworkRouteWithChildren
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
@@ -3323,6 +3336,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/membership-registration': {
+      id: '/membership-registration'
+      path: '/membership-registration'
+      fullPath: '/membership-registration'
+      preLoaderRoute: typeof MembershipRegistrationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -5485,6 +5505,7 @@ const rootRouteChildren: RootRouteChildren = {
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
+  MembershipRegistrationRoute: MembershipRegistrationRoute,
   MessagesRoute: MessagesRoute,
   NetworkRoute: NetworkRouteWithChildren,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
