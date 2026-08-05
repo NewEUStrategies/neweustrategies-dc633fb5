@@ -95,6 +95,13 @@ export function EventTicketPurchase({
   };
 
   return (
+    <>
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutSecret}
+        onOpenChange={(open) => {
+          if (!open) setCheckoutSecret(null);
+        }}
+      />
     <Button onClick={() => void buy()} disabled={busy || isFull}>
       <Ticket className="mr-2 h-4 w-4" aria-hidden="true" />
       {isFull
@@ -105,5 +112,6 @@ export function EventTicketPurchase({
           ? `Kup bilet - ${price}`
           : `Buy ticket - ${price}`}
     </Button>
+    </>
   );
 }
