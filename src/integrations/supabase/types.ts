@@ -10668,13 +10668,16 @@ export type Database = {
       }
       user_consent_events: {
         Row: {
+          banner_version: string | null
           consent_key: string
           created_at: string
+          decision_id: string | null
           given: boolean
           gpc: boolean
           id: string
           ip: string | null
           lang: string | null
+          page_url: string | null
           source: string | null
           tenant_id: string | null
           user_agent: string | null
@@ -10682,13 +10685,16 @@ export type Database = {
           version: string
         }
         Insert: {
+          banner_version?: string | null
           consent_key: string
           created_at?: string
+          decision_id?: string | null
           given: boolean
           gpc?: boolean
           id?: string
           ip?: string | null
           lang?: string | null
+          page_url?: string | null
           source?: string | null
           tenant_id?: string | null
           user_agent?: string | null
@@ -10696,13 +10702,16 @@ export type Database = {
           version: string
         }
         Update: {
+          banner_version?: string | null
           consent_key?: string
           created_at?: string
+          decision_id?: string | null
           given?: boolean
           gpc?: boolean
           id?: string
           ip?: string | null
           lang?: string | null
+          page_url?: string | null
           source?: string | null
           tenant_id?: string | null
           user_agent?: string | null
@@ -12021,6 +12030,34 @@ export type Database = {
         Returns: undefined
       }
       admin_community_stats: { Args: never; Returns: Json }
+      admin_consent_decisions: {
+        Args: { p_limit?: number; p_offset?: number; p_source?: string }
+        Returns: {
+          banner_version: string
+          decided_at: string
+          decision_id: string
+          denied_keys: string[]
+          display_name: string
+          email: string
+          gpc: boolean
+          granted_keys: string[]
+          lang: string
+          page_url: string
+          source: string
+          user_id: string
+        }[]
+      }
+      admin_consent_stats: {
+        Args: { p_days?: number }
+        Returns: {
+          banner_versions: string[]
+          consent_key: string
+          denied: number
+          gpc_events: number
+          granted: number
+          last_event_at: string
+        }[]
+      }
       admin_delete_speaker_profile: {
         Args: { p_user_id: string }
         Returns: boolean
@@ -14596,6 +14633,42 @@ export type Database = {
               p_lang?: string
               p_source?: string
               p_user_agent?: string
+              p_version: string
+            }
+            Returns: {
+              consent_key: string
+              created_at: string
+              given: boolean
+              given_at: string | null
+              gpc: boolean
+              ip: string | null
+              lang: string | null
+              tenant_id: string | null
+              updated_at: string
+              user_agent: string | null
+              user_id: string
+              version: string
+              withdrawn_at: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "user_consents"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_banner_version: string
+              p_decision_id: string
+              p_given: boolean
+              p_gpc: boolean
+              p_ip: string
+              p_key: string
+              p_lang: string
+              p_page_url: string
+              p_source: string
+              p_user_agent: string
               p_version: string
             }
             Returns: {

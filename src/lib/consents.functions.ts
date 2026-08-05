@@ -51,6 +51,9 @@ export const setMyConsent = createServerFn({ method: "POST" })
       p_ip: ip ?? undefined,
       p_user_agent: ua ?? undefined,
       p_source: data.source ?? "account",
+      p_banner_version: data.bannerVersion ?? undefined,
+      p_decision_id: data.decisionId ?? undefined,
+      p_page_url: data.pageUrl ?? undefined,
     });
     if (error) throw new Error(error.message);
     return row ?? null;
@@ -95,6 +98,9 @@ export const setMyConsentsBulk = createServerFn({ method: "POST" })
         p_ip: ip ?? undefined,
         p_user_agent: ua ?? undefined,
         p_source: entry.source ?? "account",
+        p_banner_version: entry.bannerVersion ?? undefined,
+        p_decision_id: entry.decisionId ?? undefined,
+        p_page_url: entry.pageUrl ?? undefined,
       });
       if (error) throw new Error(`${entry.key}: ${error.message}`);
       savedKeys.push(entry.key);
@@ -109,7 +115,9 @@ export const listMyConsentEvents = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: rows, error } = await supabase
       .from("user_consent_events")
-      .select("id, consent_key, given, version, lang, source, gpc, created_at")
+      .select(
+        "id, consent_key, given, version, lang, source, gpc, banner_version, decision_id, created_at",
+      )
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(data.limit ?? 100);

@@ -19,6 +19,12 @@ export const SetConsentSchema = z.object({
    * serwerowo, więc klient może sygnał wyłącznie potwierdzić, nigdy zataić.
    */
   gpc: z.boolean().optional(),
+  /** Wersja banera/treści CMP w chwili decyzji - trafia do audytu. */
+  bannerVersion: z.string().trim().max(32).optional(),
+  /** Wspólne id decyzji obejmującej kilka kategorii naraz. */
+  decisionId: z.string().uuid().optional(),
+  /** Adres strony (origin + path), na której decyzja zapadła. */
+  pageUrl: z.string().trim().max(500).optional(),
 });
 
 // Batch: jedna podróż sieciowa dla decyzji CMP obejmującej kilka kategorii
