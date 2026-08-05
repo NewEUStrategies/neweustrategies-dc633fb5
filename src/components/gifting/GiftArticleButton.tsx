@@ -133,7 +133,7 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
             // Geometria zsynchronizowana z badge „Preferowane zrodlo Google":
             // ta sama minimalna wysokosc, padding i skala typografii, a h-full
             // pozwala wyrownac sie do wyzszego, dwuwierszowego sasiada.
-            "inline-flex items-center gap-2 min-h-8 h-full px-3 py-1 rounded-[5px]",
+            "inline-flex items-center justify-center gap-2 min-h-8 self-stretch px-3 py-1 rounded-[5px]",
             "border border-border bg-background text-foreground",
             "text-[11.5px] font-semibold tracking-[-0.01em] whitespace-nowrap",
             "hover:bg-muted hover:text-brand transition-colors active:scale-[0.98]",
