@@ -14,7 +14,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, SaveBar } from "@/components/admin/settings/fields";
-import { ImageSlot } from "@/components/admin/ImageSlot";
+import { ImageSlot, type ImageSlotTransform } from "@/components/admin/ImageSlot";
+import { formatBytes } from "@/components/admin/media/lib/mediaFormat";
+import { prepareOgImageFile, type OgIssue } from "@/lib/media/ogImage";
+import { socialSourceRows } from "@/lib/seo/socialPreviewSources";
+import "@/lib/i18n-og-upload";
 import {
   DEFAULT_SEO_SETTINGS,
   SEO_SETTINGS_KEY,
