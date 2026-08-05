@@ -5,8 +5,11 @@ import {
   applyDeferredDocumentStore,
   getDocumentCacheSnapshot,
   handleDocumentRequest,
+  probeDocumentCache,
   purgeDocumentCache,
   resetDocumentCacheForTests,
+  revalidationHeader,
+  setDocumentRevalidator,
 } from "../documentCache.server";
 
 const CACHEABLE_HEADERS = {
@@ -47,6 +50,32 @@ async function renderThroughEdge(
 async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Driver rewalidacji w tle odwzorowujący `src/server.ts`: syntetyczne żądanie
+ * ze znacznikiem izolatu przechodzi PEŁNY przebieg (handleDocumentRequest +
+ * applyDeferredDocumentStore) i rozwiązuje się dopiero po zapisie wpisu.
+ */
+function backgroundRevalidator(render: () => Response | Promise<Response>) {
+  const [marker, nonce] = revalidationHeader();
+  return vi.fn(async (request: Request): Promise<boolean> => {
+    const headers = new Headers({ [marker]: nonce });
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    if (forwardedHost) headers.set("x-forwarded-host", forwardedHost);
+
+    const result = await handleDocumentRequest(
+      new Request(request.url, { method: "GET", headers }),
+      render,
+    );
+    let work: Promise<boolean> | null = null;
+    const finalized = applyDeferredDocumentStore(result as Response, (pending) => {
+      work = pending;
+    });
+    await finalized.arrayBuffer();
+    const stored = work as Promise<boolean> | null;
+    return stored ? await stored : false;
+  });
 }
 
 beforeEach(() => {
@@ -177,6 +206,179 @@ describe("handleDocumentRequest", () => {
     await renderThroughEdge("/y", next);
     expect(next).toHaveBeenCalledTimes(2);
     expect(getDocumentCacheSnapshot().enabled).toBe(false);
+  });
+});
+
+describe("stale-while-revalidate za odpowiedzią", () => {
+  // Odświeżenia biegną ZA odpowiedzią - bez odczekania ich zapisy wpadałyby
+  // do magazynu już w kolejnym teście.
+  afterEach(async () => {
+    setDocumentRevalidator(null);
+    await settle();
+  });
+
+  /** Wpis w cache'u, przesunięty poza okno świeżości (cap 3 min), w oknie SWR. */
+  async function seedStaleEntry(path: string, body: string): Promise<void> {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await renderThroughEdge(path, () => htmlResponse(body));
+    // Asercja PO ŚCIEŻCE, nie po liczniku wpisów: odświeżenia w tle z innych
+    // testów tej suity mogą jeszcze dosypywać własne klucze do magazynu.
+    await vi.waitFor(async () => {
+      expect((await probeDocumentCache(path, "tenant-a.eu")).cached).toBe(true);
+    });
+    vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+  }
+
+  it("czytelnik dostaje STALE bez czekania na render, a wpis odświeża się w tle", async () => {
+    await seedStaleEntry("/wpis", "<html>v1</html>");
+
+    const backgroundRender = vi.fn(async () => htmlResponse("<html>v2</html>"));
+    setDocumentRevalidator(backgroundRevalidator(backgroundRender));
+
+    // Render podstawiony czytelnikowi: NIE wolno go tknąć - od tego jest tło.
+    const readerRender = vi.fn(async () => htmlResponse("<html>reader-paid</html>"));
+    const stale = await renderThroughEdge("/wpis", readerRender);
+
+    expect(stale.headers.get(NES_CACHE_HEADER)).toBe("STALE");
+    expect(await stale.text()).toBe("<html>v1</html>");
+    expect(readerRender).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => {
+      expect(backgroundRender).toHaveBeenCalledTimes(1);
+    });
+    await settle();
+
+    // Odświeżony wpis jest już świeży - kolejny czytelnik dostaje HIT z v2.
+    const refreshed = await renderThroughEdge("/wpis", readerRender);
+    expect(refreshed.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    expect(await refreshed.text()).toBe("<html>v2</html>");
+    expect(readerRender).not.toHaveBeenCalled();
+    expect(getDocumentCacheSnapshot().revalidations).toBe(1);
+    expect(getDocumentCacheSnapshot().revalidationFailures).toBe(0);
+  });
+
+  it("odświeżenie w tle nie zaniża współczynnika trafień (nie jest MISS-em)", async () => {
+    await seedStaleEntry("/raport", "<html>v1</html>");
+    const before = getDocumentCacheSnapshot().misses;
+
+    setDocumentRevalidator(backgroundRevalidator(() => htmlResponse("<html>v2</html>")));
+    const stale = await renderThroughEdge("/raport", () => htmlResponse("<html>unused</html>"));
+    expect(stale.headers.get(NES_CACHE_HEADER)).toBe("STALE");
+
+    await vi.waitFor(() => {
+      expect(getDocumentCacheSnapshot().revalidations).toBe(1);
+      expect(getDocumentCacheSnapshot().revalidationFailures).toBe(0);
+    });
+    await settle();
+
+    // Render odświeżający jest KONSEKWENCJĄ trafienia w cache, nie kosztem
+    // wizyty - karta /admin/performance liczy hitRatio z (hits+stale)/(+misses).
+    expect(getDocumentCacheSnapshot().misses).toBe(before);
+  });
+
+  it("single-flight: równoległe trafienia STALE uruchamiają JEDNO odświeżenie", async () => {
+    await seedStaleEntry("/archiwum", "<html>old</html>");
+
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const backgroundRender = vi.fn(async () => {
+      await gate;
+      return htmlResponse("<html>new</html>");
+    });
+    setDocumentRevalidator(backgroundRevalidator(backgroundRender));
+
+    const readerRender = vi.fn(async () => htmlResponse("<html>unused</html>"));
+    const responses = await Promise.all([
+      renderThroughEdge("/archiwum", readerRender),
+      renderThroughEdge("/archiwum", readerRender),
+      renderThroughEdge("/archiwum", readerRender),
+    ]);
+
+    for (const response of responses) {
+      expect(response.headers.get(NES_CACHE_HEADER)).toBe("STALE");
+    }
+    expect(readerRender).not.toHaveBeenCalled();
+    expect(backgroundRender).toHaveBeenCalledTimes(1);
+    expect(getDocumentCacheSnapshot().revalidations).toBe(1);
+
+    release?.();
+    await vi.waitFor(() => {
+      expect(getDocumentCacheSnapshot().revalidationFailures).toBe(0);
+    });
+  });
+
+  it("nieudane odświeżenie zostawia wpis STALE zamiast zepsuć odpowiedź", async () => {
+    await seedStaleEntry("/kategoria", "<html>zachowane</html>");
+
+    setDocumentRevalidator(
+      vi.fn(async () => {
+        throw new Error("db hiccup");
+      }),
+    );
+
+    const readerRender = vi.fn(async () => htmlResponse("<html>unused</html>"));
+    const stale = await renderThroughEdge("/kategoria", readerRender);
+    expect(stale.headers.get(NES_CACHE_HEADER)).toBe("STALE");
+    expect(await stale.text()).toBe("<html>zachowane</html>");
+
+    await vi.waitFor(() => {
+      expect(getDocumentCacheSnapshot().revalidationFailures).toBe(1);
+    });
+
+    // Wpis nietknięty, więc następny czytelnik znów dostaje treść, nie 500 -
+    // i uruchamia kolejną próbę (single-flight został zwolniony).
+    const retry = await renderThroughEdge("/kategoria", readerRender);
+    expect(retry.headers.get(NES_CACHE_HEADER)).toBe("STALE");
+    expect(await retry.text()).toBe("<html>zachowane</html>");
+    expect(readerRender).not.toHaveBeenCalled();
+  });
+
+  it("żądanie odświeżające pomija cache i zapisuje świeży dokument", async () => {
+    await seedStaleEntry("/program", "<html>stary</html>");
+    const [marker, nonce] = revalidationHeader();
+
+    const render = vi.fn(async () => htmlResponse("<html>nowy</html>"));
+    const result = await handleDocumentRequest(
+      new Request("https://tenant-a.eu/program", {
+        method: "GET",
+        headers: { "x-forwarded-host": "tenant-a.eu", [marker]: nonce },
+      }),
+      render,
+    );
+    const response = applyDeferredDocumentStore(result as Response);
+    // Znacznik wymusza pełny render mimo obecnego wpisu (inaczej odświeżenie
+    // odczytałoby własny nieświeży dokument i nic by nie odświeżyło).
+    expect(response.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+    expect(await response.text()).toBe("<html>nowy</html>");
+    expect(render).toHaveBeenCalledTimes(1);
+    await settle();
+
+    const reader = vi.fn(async () => htmlResponse("<html>unused</html>"));
+    const hit = await renderThroughEdge("/program", reader);
+    expect(hit.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    expect(await hit.text()).toBe("<html>nowy</html>");
+  });
+
+  it("podrobiony znacznik z zewnątrz jest ignorowany (nonce izolatu)", async () => {
+    await seedStaleEntry("/analiza", "<html>z-cache</html>");
+    setDocumentRevalidator(backgroundRevalidator(() => htmlResponse("<html>tlo</html>")));
+
+    const render = vi.fn(async () => htmlResponse("<html>wymuszony</html>"));
+    const result = await handleDocumentRequest(
+      new Request("https://tenant-a.eu/analiza", {
+        method: "GET",
+        headers: { "x-forwarded-host": "tenant-a.eu", "x-nes-revalidate": "1" },
+      }),
+      render,
+    );
+    // Bez trafienia w nonce nagłówek nie znaczy nic: żądanie jest traktowane
+    // jak zwykła wizyta (STALE z cache'a), więc nie jest darmowym
+    // cache-busterem wymuszającym pełny render na każde żądanie z zewnątrz.
+    expect((result as Response).headers.get(NES_CACHE_HEADER)).toBe("STALE");
+    expect(await (result as Response).text()).toBe("<html>z-cache</html>");
+    expect(render).not.toHaveBeenCalled();
   });
 });
 

@@ -179,6 +179,14 @@ export function EdgeCacheCard() {
                 value={number(snapshot.evictions)}
               />
               <StatTile label={t("adminEdgeCache.tiles.purges")} value={number(snapshot.purges)} />
+              <StatTile
+                label={t("adminEdgeCache.tiles.revalidations")}
+                value={number(snapshot.revalidations)}
+              />
+              <StatTile
+                label={t("adminEdgeCache.tiles.revalidationFailures")}
+                value={number(snapshot.revalidationFailures)}
+              />
             </div>
             <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
               <div className="flex flex-wrap items-center gap-2">

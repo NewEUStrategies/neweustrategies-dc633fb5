@@ -13,9 +13,14 @@
 //   - HIT: odpowiedź prosto z L1 (zero SSR, zero odczytów bazy); L1 miss
 //     próbuje L2 i - przy trafieniu - zasiewa L1, więc świeży izolat grzeje
 //     się jednym odczytem z kolonii zamiast pełnym renderem;
-//   - STALE: wpis po świeżości serwowany natychmiast, a JEDNO żądanie
-//     (single-flight) płaci rewalidację; render, który się wywali, NIE zdejmuje
-//     strony - stale działa też jako bezpiecznik na czkawkę bazy;
+//   - STALE: wpis po świeżości serwowany natychmiast, a odświeżenie biegnie
+//     ZA odpowiedzią (`ctx.waitUntil`, single-flight per klucz) - żaden
+//     czytelnik nie płaci renderu, dopóki mamy co podać. Nieudane odświeżenie
+//     zostawia wpis nietknięty, więc stale działa też jako bezpiecznik na
+//     czkawkę bazy; dopiero wypadnięcie z okna SWR daje zwykły MISS.
+//     Bez zarejestrowanego drivera (`setDocumentRevalidator`, wpinany
+//     z src/server.ts) mechanizm degraduje do wariantu blokującego: jedno
+//     żądanie płaci rewalidację synchronicznie;
 //   - MISS: middleware wyłącznie dekoruje nagłówki i REJESTRUJE odroczony
 //     zapis (WeakMap po tożsamości strumienia body); tee + zbieranie kopii do
 //     L1/L2 wykonuje `applyDeferredDocumentStore` w src/server.ts, ZA
@@ -43,6 +48,7 @@ import {
   NES_CACHE_AGE_HEADER,
   NES_CACHE_HEADER,
   NES_EDGE_CACHE_NAME,
+  NES_REVALIDATE_HEADER,
   documentStorePolicy,
   planDocumentCache,
   type NesCacheStatus,
@@ -109,6 +115,10 @@ export interface DocumentCacheSnapshot {
   stores: number;
   evictions: number;
   purges: number;
+  /** Odświeżenia wpisów uruchomione ZA odpowiedzią (stale-while-revalidate). */
+  revalidations: number;
+  /** Z tego takie, które nie odłożyły świeżego dokumentu (wpis został STALE). */
+  revalidationFailures: number;
   startedAt: string;
   /** Warstwa per-colo (Cache API); `enabled: false` poza Workers. */
   l2: DocumentCacheL2Snapshot;
@@ -149,8 +159,104 @@ const stats = {
   stores: 0,
   evictions: 0,
   purges: 0,
+  revalidations: 0,
+  revalidationFailures: 0,
   startedAt: new Date().toISOString(),
 };
+
+/**
+ * Nonce znacznika rewalidacji, losowany RAZ na izolat. Rewalidacja biegnie
+ * w procesie (ten sam izolat woła ten sam handler), więc wartość nigdy nie
+ * opuszcza pamięci workera - żądanie z zewnątrz nie ma jak jej odgadnąć,
+ * a bez trafienia w nonce nagłówek jest ignorowany. `crypto.randomUUID` jest
+ * dostępne w workerd i w Node >= 19; fallback jest tylko higieną.
+ */
+const REVALIDATE_NONCE: string = (() => {
+  try {
+    return globalThis.crypto.randomUUID();
+  } catch {
+    return `nes-${Date.now().toString(36)}`;
+  }
+})();
+
+/**
+ * Driver pełnego przebiegu potoku dla ODŚWIEŻENIA wpisu w tle. Rejestrowany
+ * z `src/server.ts` - tylko tam żyje komplet warstw (handler routera →
+ * normalizacja 500 → `applyDeferredDocumentStore`), a ten moduł ma decydować
+ * KIEDY odświeżyć, nie JAK uruchomić render.
+ *
+ * Kontrakt: rozwiązuje się dopiero, gdy odświeżony dokument jest ZAPISANY
+ * (albo gdy przebieg się nie powiódł - wtedy rzuca albo zwraca false).
+ */
+export type DocumentRevalidator = (request: Request) => Promise<boolean>;
+
+/**
+ * Sufit czasu, po którym zamek single-flight klucza jest zwalniany niezależnie
+ * od losu odświeżenia. Powyżej twardego budżetu strażnika dokumentu
+ * (DOC_GUARD_MAX_MS = 20 s), żeby normalny render zawsze zdążył pierwszy.
+ */
+const DOCUMENT_REVALIDATE_TIMEOUT_MS = 30_000;
+
+let documentRevalidator: DocumentRevalidator | null = null;
+
+/**
+ * Wpięcie drivera rewalidacji w tle (woła `src/server.ts` przy starcie
+ * modułu). Bez rejestracji mechanizm degraduje do zachowania sprzed zmiany:
+ * pierwsze żądanie w oknie STALE płaci render synchronicznie. Tak działa
+ * m.in. suita jednostkowa, która woła `handleDocumentRequest` bez potoku.
+ */
+export function setDocumentRevalidator(revalidator: DocumentRevalidator | null): void {
+  documentRevalidator = revalidator;
+}
+
+/** Żądanie jest odświeżeniem w tle wystawionym przez ten izolat? */
+function isRevalidationRequest(request: Request): boolean {
+  return request.headers.get(NES_REVALIDATE_HEADER) === REVALIDATE_NONCE;
+}
+
+/** Nagłówek znacznika do doklejenia do syntetycznego żądania rewalidacji. */
+export function revalidationHeader(): [string, string] {
+  return [NES_REVALIDATE_HEADER, REVALIDATE_NONCE];
+}
+
+/**
+ * Odświeżenie wpisu ZA odpowiedzią: czytelnik dostał już dokument STALE,
+ * a pełny render biegnie pod `ctx.waitUntil`. Single-flight po kluczu chroni
+ * przed stampede, gdy wielu czytelników trafi w to samo okno.
+ *
+ * Porażka jest bezpieczna z konstrukcji: wpis zostaje STALE, więc kolejne
+ * żądanie po prostu spróbuje ponownie, a gdy wypadnie z okna SWR - zapłaci
+ * zwykły MISS. Nic tu nie może zerwać ścieżki czytelnika.
+ */
+function scheduleRevalidation(request: Request, key: string): void {
+  const revalidator = documentRevalidator;
+  if (!revalidator || revalidating.has(key)) return;
+  revalidating.add(key);
+  stats.revalidations += 1;
+  runAfterResponse(
+    Promise.race([
+      revalidator(request),
+      // Zwolnienie zamka single-flight jest gwarantowane CZASEM, nie
+      // grzecznością drivera: render, który nigdy się nie domknie (wisząca
+      // serializacja - patrz documentStreamGuard), zablokowałby odświeżanie
+      // tego klucza do końca życia izolatu. Sufit jest wyżej niż twardy
+      // budżet strażnika dokumentu (20 s), więc normalna ścieżka nigdy tu
+      // nie dobija.
+      new Promise<boolean>((resolve) =>
+        setTimeout(() => resolve(false), DOCUMENT_REVALIDATE_TIMEOUT_MS),
+      ),
+    ])
+      .then((stored) => {
+        if (!stored) stats.revalidationFailures += 1;
+      })
+      .catch(() => {
+        stats.revalidationFailures += 1;
+      })
+      .finally(() => {
+        revalidating.delete(key);
+      }),
+  );
+}
 
 const RECENT_DECISIONS_LIMIT = 50;
 const recentDecisions: DocumentCacheDecision[] = [];
@@ -373,30 +479,41 @@ function decorateMissAndDeferStore(
  * w łańcuchu middleware zachowują ten sam obiekt strumienia, więc rejestracja
  * z wnętrza middleware jest tu widoczna 1:1.
  */
-export function applyDeferredDocumentStore(response: Response): Response {
+export function applyDeferredDocumentStore(
+  response: Response,
+  /**
+   * Przejęcie własności zapisu przez wołającego. Domyślnie zapis jedzie pod
+   * `ctx.waitUntil` i nikt na niego nie czeka (ścieżka czytelnika). Driver
+   * rewalidacji w tle podstawia tu własny kolektor, bo MUSI wiedzieć, kiedy
+   * odświeżony wpis realnie wylądował w magazynie - inaczej zwolniłby
+   * single-flight zanim cokolwiek się zapisało.
+   */
+  onStore?: (work: Promise<boolean>) => void,
+): Response {
   if (!response.body) return response;
   const record = deferredStores.get(response.body);
   if (!record) return response;
   deferredStores.delete(response.body);
 
   const [toClient, toCache] = response.body.tee();
-  runAfterResponse(
-    collectStream(toCache, DOCUMENT_CACHE_MAX_ENTRY_BYTES).then(async (body) => {
-      if (!body) return;
-      const entry: DocumentCacheEntry = {
-        body,
-        bytes: body.byteLength,
-        contentType: record.contentType,
-        cacheControl: record.cacheControl,
-        contentLanguage: record.contentLanguage,
-        storedAt: record.storedAt,
-        freshMs: record.freshMs,
-        swrMs: record.swrMs,
-      };
-      setEntry(record.key, entry);
-      await l2Put(record.host, record.key, entry);
-    }),
-  );
+  const work = collectStream(toCache, DOCUMENT_CACHE_MAX_ENTRY_BYTES).then(async (body) => {
+    if (!body) return false;
+    const entry: DocumentCacheEntry = {
+      body,
+      bytes: body.byteLength,
+      contentType: record.contentType,
+      cacheControl: record.cacheControl,
+      contentLanguage: record.contentLanguage,
+      storedAt: record.storedAt,
+      freshMs: record.freshMs,
+      swrMs: record.swrMs,
+    };
+    setEntry(record.key, entry);
+    await l2Put(record.host, record.key, entry);
+    return true;
+  });
+  if (onStore) onStore(work);
+  else runAfterResponse(work);
 
   return new Response(toClient, {
     status: response.status,
@@ -442,8 +559,14 @@ export async function handleDocumentRequest<T>(
     };
   };
 
+  // Odświeżenie w tle wystawione przez ten izolat: pomija serwowanie z cache'a
+  // (inaczej odczytałoby własny nieświeży wpis i nic by nie odświeżyło) i idzie
+  // prosto do renderu, którego wynik zapisze `decorateMissAndDeferStore`.
+  // Żadnej kolejnej rewalidacji stąd nie planujemy - rekurencja jest wykluczona.
+  const revalidation = isRevalidationRequest(request);
+
   const now = Date.now();
-  const entry = store.get(plan.key);
+  const entry = revalidation ? undefined : store.get(plan.key);
   if (entry) {
     const age = now - entry.storedAt;
     if (age < entry.freshMs) {
@@ -452,6 +575,15 @@ export async function handleDocumentRequest<T>(
       return replay(entry, "HIT", now, path);
     }
     if (age < entry.freshMs + entry.swrMs) {
+      // Właściwe stale-while-revalidate: czytelnik NIGDY nie płaci renderu,
+      // dopóki mamy co podać. Render biegnie za odpowiedzią (`ctx.waitUntil`).
+      if (documentRevalidator) {
+        scheduleRevalidation(request, plan.key);
+        stats.stale += 1;
+        return replay(entry, "STALE", now, path);
+      }
+      // Bez zarejestrowanego drivera (suita jednostkowa, obce entry) zostaje
+      // zachowanie sprzed zmiany: jedno żądanie płaci rewalidację synchronicznie.
       if (revalidating.has(plan.key)) {
         stats.stale += 1;
         return replay(entry, "STALE", now, path);
@@ -481,7 +613,7 @@ export async function handleDocumentRequest<T>(
   }
 
   // L1 pusty: zanim zapłacimy pełny render, sprawdź wpis kolonii (L2).
-  const l2Entry = await l2Match(host, plan.key);
+  const l2Entry = revalidation ? null : await l2Match(host, plan.key);
   if (l2Entry) {
     const l2Age = now - l2Entry.storedAt;
     if (l2Age < l2Entry.freshMs) {
@@ -493,6 +625,15 @@ export async function handleDocumentRequest<T>(
     }
     if (l2Age < l2Entry.freshMs + l2Entry.swrMs) {
       const staleEntry = entryFromL2(l2Entry);
+      // Wpis kolonii też zasiewa L1: kolejne żądania tego izolatu odpowiadają
+      // z pamięci, zamiast wracać po ten sam nieświeży dokument do Cache API.
+      setEntry(plan.key, staleEntry);
+      if (documentRevalidator) {
+        scheduleRevalidation(request, plan.key);
+        stats.stale += 1;
+        recordL2Serve("STALE");
+        return replay(staleEntry, "STALE", now, path);
+      }
       if (revalidating.has(plan.key)) {
         stats.stale += 1;
         recordL2Serve("STALE");
@@ -520,7 +661,12 @@ export async function handleDocumentRequest<T>(
     // Wpis L2 poza oknem SWR: ignoruj (wygaśnie własnym TTL-em Cache API).
   }
 
-  stats.misses += 1;
+  // Odświeżenie w tle NIE jest chybieniem: czytelnik dostał już dokument
+  // z cache'a, a ten render jest jego konsekwencją, nie kosztem wizyty.
+  // Doliczanie go do `misses` zaniżałoby współczynnik trafień na karcie
+  // /admin/performance o jeden render na każde serwowanie STALE. Renders
+  // trafiają za to do pierścienia decyzji (renderMs) i do `revalidations`.
+  if (!revalidation) stats.misses += 1;
   const { result, timing } = await renderWithTiming();
   const rendered = getMiddlewareResponse(result);
   if (rendered) {
@@ -602,6 +748,8 @@ export function getDocumentCacheSnapshot(): DocumentCacheSnapshot {
     stores: stats.stores,
     evictions: stats.evictions,
     purges: stats.purges,
+    revalidations: stats.revalidations,
+    revalidationFailures: stats.revalidationFailures,
     startedAt: stats.startedAt,
     l2: l2Stats(),
     recent: [...recentDecisions],
@@ -683,6 +831,9 @@ export function resetDocumentCacheForTests(): void {
   stats.stores = 0;
   stats.evictions = 0;
   stats.purges = 0;
+  stats.revalidations = 0;
+  stats.revalidationFailures = 0;
   stats.startedAt = new Date().toISOString();
   recentDecisions.length = 0;
+  documentRevalidator = null;
 }

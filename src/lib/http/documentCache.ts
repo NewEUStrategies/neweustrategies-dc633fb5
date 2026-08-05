@@ -24,6 +24,16 @@ export const NES_EDGE_CACHE_NAME = "New European Strategies Edge Cache";
 export const NES_CACHE_HEADER = "x-nes-cache";
 /** Wiek serwowanego wpisu w sekundach (tylko HIT/STALE). */
 export const NES_CACHE_AGE_HEADER = "x-nes-cache-age";
+/**
+ * Znacznik żądania ODŚWIEŻAJĄCEGO wpis w tle (nie wizyta czytelnika): pomija
+ * serwowanie z cache'a i wymusza pełny render, którego wynik ląduje w L1/L2.
+ *
+ * Wartością jest losowy nonce izolatu (`documentCache.server.ts`), nie stała:
+ * rewalidacja biegnie W PROCESIE (ten sam izolat wywołuje ten sam handler),
+ * więc nonce nigdy nie opuszcza pamięci workera i nie da się go podrobić
+ * z zewnątrz. Bez tego nagłówek byłby darmowym cache-busterem dla każdego.
+ */
+export const NES_REVALIDATE_HEADER = "x-nes-revalidate";
 
 export type NesCacheStatus = "HIT" | "STALE" | "MISS" | "BYPASS";
 
