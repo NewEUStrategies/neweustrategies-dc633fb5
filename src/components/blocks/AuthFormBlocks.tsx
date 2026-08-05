@@ -845,8 +845,6 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
       const email = valueOf("email").trim();
       const firstName = valueOf("firstName").trim();
       const lastName = valueOf("lastName").trim();
-      const fullName = [firstName, lastName].filter(Boolean).join(" ");
-      const displayName = fullName || email.split("@")[0];
       const metadata = buildSignupMetadata(
         {
           email,
