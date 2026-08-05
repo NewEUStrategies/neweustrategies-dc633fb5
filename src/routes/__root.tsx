@@ -46,6 +46,8 @@ import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
 import { CohesionLiveSync } from "../lib/realtime/cohesionLiveSync";
 import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
+import { parseSeoSettings, SEO_SETTINGS_KEY } from "../lib/seo/settings";
+import { rememberSocialDefaults } from "../lib/seo/socialDefaults";
 import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
@@ -164,7 +166,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // Branded New European Strategies defaults (PL/EN). Any route without its
       // own head() - error pages, parts of the admin, fallbacks - and the first
       // social-share preview inherit these instead of the generator defaults.
-      meta: buildRootHead(lang),
+      meta: buildRootHead(lang, getOrigin()),
       // Red Hat Display is self-hosted via @font-face in styles.css (see there),
       // so no Google Fonts stylesheet / preconnect is needed - one fewer
       // render-blocking third-party request, and no visitor IPs sent to Google.
@@ -246,6 +248,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
       siteSettingsQueryOptions.queryKey,
     );
+    // Domyślna karta społecznościowa z /admin/settings/social-preview. head()
+    // jest czystą funkcją bez dostępu do site_settings, więc mapę ustawień
+    // (pobieraną i tak na KAŻDEJ trasie) przekazujemy do builderów przez
+    // pamięć kluczowaną hostem - patrz src/lib/seo/socialDefaults.ts.
+    try {
+      const seo = parseSeoSettings(settings?.[SEO_SETTINGS_KEY]);
+      rememberSocialDefaults(getOrigin(), {
+        imageUrl: seo.default_og_image_url,
+        imageAlt: seo.default_og_image_alt,
+      });
+    } catch {
+      /* karta społecznościowa to dekoracja - nigdy nie wywraca renderu */
+    }
     // Warm the header "Na czasie" ticker for every route that shows the site
     // chrome, so the bar is part of the SSR HTML instead of appearing seconds
     // after hydration and pushing the whole page down (the worst CLS on the

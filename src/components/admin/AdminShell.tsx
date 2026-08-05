@@ -385,6 +385,13 @@ function AdminShellInner({
           label: t("admin.nav.popups", { defaultValue: lang === "pl" ? "Popupy" : "Popups" }),
         },
         {
+          to: "/admin/settings/social-preview",
+          icon: ImageIcon,
+          label: t("admin.nav.socialPreview", {
+            defaultValue: lang === "pl" ? "Podgląd linków (OG)" : "Link preview (OG)",
+          }),
+        },
+        {
           to: "/admin/settings/cookie-banner",
           icon: ShieldCheck,
           label: t("admin.nav.cookieBanner", {

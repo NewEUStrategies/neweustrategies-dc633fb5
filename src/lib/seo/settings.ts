@@ -61,6 +61,12 @@ export const SeoSettingsSchema = z.object({
   publisher_logo_url: z.string().max(2048),
   /** Optional X/Twitter handle ("@brand") for twitter:site. */
   twitter_site: z.string().max(60),
+  /** Domyślna karta społecznościowa (og:image) - 1200x630. Puste = plik marki
+   *  `public/og-default.jpg`. Używana wszędzie tam, gdzie strona nie ma
+   *  własnej okładki: strona główna, listingi, strony kodowe, dokumenty błędu. */
+  default_og_image_url: z.string().max(2048),
+  /** og:image:alt domyślnej karty (opis dla czytników ekranu i scraperów). */
+  default_og_image_alt: z.string().max(300),
 });
 
 export type SeoSettings = z.infer<typeof SeoSettingsSchema>;
@@ -78,6 +84,8 @@ export const DEFAULT_SEO_SETTINGS: SeoSettings = {
   organization_same_as: [],
   publisher_logo_url: "",
   twitter_site: "",
+  default_og_image_url: "",
+  default_og_image_alt: "",
 };
 
 /** Effective <title> suffix (null = disabled). */

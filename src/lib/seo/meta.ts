@@ -9,6 +9,7 @@ import {
   stripLangPrefix,
   type AppLang,
 } from "@/lib/i18n/localePath";
+import { socialDefaultsFor } from "@/lib/seo/socialDefaults";
 
 // The language type and the supported list live in the locale-path core (the
 // single source of truth for the language <-> URL mapping); re-exported here so
@@ -28,6 +29,21 @@ const OG_LOCALE: Record<Lang, string> = { pl: "pl_PL", en: "en_US" };
  * scrapers require. Replace with a purpose-built 1200x630 card when available.
  */
 export const SITE_DEFAULT_OG_IMAGE = "/og-default.jpg";
+
+/**
+ * Absolutny URL domyślnej karty społecznościowej dla danego originu: obrazek
+ * ustawiony w /admin/settings/social-preview (site_settings["seo"]), a gdy nie
+ * został wybrany - statyczny plik marki z `public/`. Przyjmuje zarówno pełny
+ * URL (Storage / CDN), jak i ścieżkę względną.
+ */
+export function defaultSocialImage(origin: string): string {
+  const configured = socialDefaultsFor(origin).imageUrl;
+  if (configured) {
+    if (/^https?:\/\//i.test(configured) || configured.startsWith("data:")) return configured;
+    return absoluteUrl(origin || SITE_CANONICAL_ORIGIN, configured);
+  }
+  return absoluteUrl(origin || SITE_CANONICAL_ORIGIN, SITE_DEFAULT_OG_IMAGE);
+}
 
 /**
  * Brand-default page title per language. Single source of truth shared by the
@@ -136,7 +152,7 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
   // brand default (resolved to an absolute URL via the request origin). This is
   // why every share - including the homepage, which has no cover - gets a rich
   // "summary_large_image" card rather than a bare-text preview.
-  const image = input.image || absoluteUrl(origin, SITE_DEFAULT_OG_IMAGE);
+  const image = input.image || defaultSocialImage(origin);
 
   const meta: Array<Record<string, string>> = [
     { title: input.documentTitle || input.title },
@@ -240,10 +256,15 @@ export function feedAlternateLink(input: {
  * module. Emits no `twitter:site` handle on purpose: the organization has no
  * canonical @handle, and a stale one is worse for the brand than none.
  */
-export function buildRootHead(lang: Lang): Array<Record<string, string>> {
+export function buildRootHead(
+  lang: Lang,
+  origin: string = SITE_CANONICAL_ORIGIN,
+): Array<Record<string, string>> {
   const title = SITE_DEFAULT_TITLE[lang];
   const description = SITE_DEFAULT_DESCRIPTION[lang];
-  return [
+  const image = defaultSocialImage(origin || SITE_CANONICAL_ORIGIN);
+  const alt = socialDefaultsFor(origin).imageAlt;
+  const meta: Array<Record<string, string>> = [
     { charSet: "utf-8" },
     { name: "viewport", content: "width=device-width, initial-scale=1" },
     { title },
@@ -256,15 +277,19 @@ export function buildRootHead(lang: Lang): Array<Record<string, string>> {
     { property: "og:type", content: "website" },
     { property: "og:site_name", content: SITE_NAME },
     { property: "og:locale", content: OG_LOCALE[lang] },
-    // Brand-default share image. buildRootHead is origin-less (it backs error /
-    // fallback documents), so we resolve the URL against the canonical brand
-    // origin - social scrapers ignore relative og:image paths.
-    { property: "og:image", content: `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}` },
+    // Share image: obrazek ustawiony w /admin/settings/social-preview, a gdy go
+    // nie ma - statyczny plik marki. buildRootHead bywa origin-less (dokumenty
+    // błędu / fallbacku), więc URL rozwiązujemy do absolutnego: scrapery
+    // ignorują względne og:image.
+    { property: "og:image", content: image },
     { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:image", content: `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}` },
+    { name: "twitter:image", content: image },
     { name: "twitter:title", content: title },
     { name: "twitter:description", content: description },
   ];
+  if (alt) meta.push({ property: "og:image:alt", content: alt });
+  return meta;
+
 }
 
 export interface ImagePreloadInput {

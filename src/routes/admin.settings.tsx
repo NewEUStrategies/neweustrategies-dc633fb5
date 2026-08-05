@@ -20,6 +20,10 @@ function SettingsLayout() {
     // (custom_crop_sizes + srcSet), stąd link w tym miejscu nawigacji.
     { to: "/admin/crop-sizes", label: t("admin.settingsNav.cropSizes") },
     { to: "/admin/settings/seo", label: t("admin.settingsNav.seo", { defaultValue: "SEO" }) },
+    {
+      to: "/admin/settings/social-preview",
+      label: t("admin.settingsNav.socialPreview", { defaultValue: "Podgląd linków (OG)" }),
+    },
     { to: "/admin/settings/privacy", label: t("admin.settingsNav.privacy") },
     {
       to: "/admin/settings/google-source",
