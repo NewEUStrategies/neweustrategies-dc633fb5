@@ -40,6 +40,21 @@ function AdminDonations() {
     queryFn: () => getDonationsPublicStats(),
     staleTime: 60_000,
   });
+  const [environment, setEnvironment] = useState<"sandbox" | "live">(getStripeEnvironmentSafe());
+  const [syncReport, setSyncReport] = useState<DonationsSyncReport | null>(null);
+  const records = useQuery({
+    queryKey: ["donations", "records", "admin"],
+    queryFn: () => listDonationRecords({ data: { limit: 50 } }),
+    staleTime: 30_000,
+  });
+  const sync = useMutation({
+    mutationFn: () => syncDonationsWithStripe({ data: { environment, sinceHours: 168 } }),
+    onSuccess: (report) => {
+      setSyncReport(report);
+      void records.refetch();
+      void stats.refetch();
+    },
+  });
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
 
