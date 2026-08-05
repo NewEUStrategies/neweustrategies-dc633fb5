@@ -30,6 +30,7 @@ import {
   useMySubscriptionProvider,
 } from "@/components/billing/SubscriptionCard";
 import { RetentionDialog } from "@/components/billing/RetentionDialog";
+import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
 
 /** Warstwa członkostwa wołającego (RPC; dla braku subskrypcji: domyślna). */
 function TierChip() {
@@ -207,6 +208,10 @@ export function SubscriptionManagerSection() {
                 <Button asChild variant="outline">
                   <Link to="/pricing">{t("profile.subscription.change")}</Link>
                 </Button>
+                {/* Portal operatora: zmiana planu/ceny, metoda płatności,
+                    faktury i anulowanie bez opuszczania serwisu. */}
+                <CustomerPortalButton size="default" />
+
                 {!data.canceled_at && (
                   <>
                     {/* Przepływ retencyjny zamiast prostego potwierdzenia:

@@ -155,8 +155,28 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
 
   const portal = useMutation({
     mutationFn: (mode: "payment" | "overview") =>
-      createStripePortalSession({ data: { environment } }).then((session) => ({ session, mode })),
+      createStripePortalSession({
+        data: {
+          environment,
+          returnPath:
+            typeof window !== "undefined"
+              ? `${window.location.pathname}${window.location.search}`
+              : undefined,
+        },
+      }).then((session) => ({ session, mode })),
     onSuccess: ({ session, mode }) => {
+      if ("error" in session && session.error) {
+        toast.error(
+          session.error === "no_customer"
+            ? t("profile.subscription.portal.noCustomer")
+            : t("profile.subscription.portal.error"),
+        );
+        return;
+      }
+      if (!("url" in session)) {
+        toast.error(t("profile.subscription.portal.error"));
+        return;
+      }
       const url =
         mode === "payment"
           ? (session.updatePaymentMethodUrl ?? session.overviewUrl)

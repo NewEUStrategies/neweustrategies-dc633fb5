@@ -404,6 +404,11 @@ const pl = {
         downgradeScheduled: "Zmiana planu zaplanowana na koniec okresu rozliczeniowego",
         updatePayment: "Zaktualizuj metodę płatności",
         openPortal: "Faktury i dane płatnika",
+        manage: "Zarządzaj w portalu płatności",
+        manageHint:
+          "W portalu operatora zmienisz plan i cenę, zaktualizujesz metodę płatności, pobierzesz faktury lub anulujesz subskrypcję.",
+        opening: "Otwieram portal...",
+        noCustomer: "Nie znaleźliśmy aktywnego profilu płatności. Wykup plan, aby otworzyć portal.",
         error: "Nie udało się otworzyć portalu płatności. Spróbuj ponownie.",
         pastDue:
           "Ostatnia płatność się nie powiodła. Zaktualizuj metodę płatności, aby zachować dostęp.",
@@ -1019,6 +1024,11 @@ const en: typeof pl = {
         downgradeScheduled: "Plan change scheduled for the end of the billing period",
         updatePayment: "Update payment method",
         openPortal: "Invoices and billing details",
+        manage: "Manage in the billing portal",
+        manageHint:
+          "In the provider portal you can switch plan and price, update your payment method, download invoices or cancel the subscription.",
+        opening: "Opening the portal...",
+        noCustomer: "We could not find an active billing profile. Buy a plan to open the portal.",
         error: "Could not open the payment portal. Please try again.",
         pastDue: "Your last payment failed. Update your payment method to keep access.",
         secureNote: "Card details are handled by the payment provider - we never store them.",

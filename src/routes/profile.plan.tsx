@@ -12,6 +12,7 @@ import { fetchMyOrders, fetchMySubscription } from "@/lib/billing/queries";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { formatMoney, planName } from "@/lib/billing/types";
 import { PlanSwitchBoard } from "@/components/billing/PlanSwitchBoard";
+import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -119,8 +120,17 @@ function PlanPage() {
               </div>
             </dl>
           )}
+
+          {/* Pełne zarządzanie planem, ceną i anulowaniem po stronie operatora. */}
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <CustomerPortalButton returnPath="/profile/plan" />
+            <p className="text-xs text-muted-foreground">
+              {t("profile.subscription.portal.manageHint")}
+            </p>
+          </div>
         </CardContent>
       </Card>
+
 
       <PlanSwitchBoard subscription={subscription} />
 
