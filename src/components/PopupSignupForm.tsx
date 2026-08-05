@@ -121,9 +121,12 @@ export function PopupSignupForm({
       ? settings.popup_privacy_html_pl || settings.policy_html_pl
       : settings.popup_privacy_html_en || settings.policy_html_en) ?? "";
   const termsHtml = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
-  // Dwie kolumny dopiero od `sm` - w wąskim popupie na telefonie para pól
-  // obok siebie ścina etykiety.
+  // Krótkie pola (imię/nazwisko, hasło/powtórz) stoją w dwóch kolumnach także
+  // na telefonie - to skraca scroll popupu o ~2 wiersze. Pary z długą treścią
+  // (e-mail + telefon) łamią się do jednej kolumny poniżej `sm`.
+  const pairTightClass = form.twoColumnPairs ? "grid grid-cols-2 gap-2.5" : "space-y-2.5";
   const pairClass = form.twoColumnPairs ? "grid grid-cols-1 gap-2.5 sm:grid-cols-2" : "space-y-2.5";
+
 
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
@@ -434,7 +437,7 @@ export function PopupSignupForm({
       )}
 
       {(showFirst || showLast) && (
-        <div className={showFirst && showLast ? pairClass : ""}>
+        <div className={showFirst && showLast ? pairTightClass : ""}>
           {showFirst && (
             <FieldBox
               label={label("first_name")}
@@ -519,7 +522,7 @@ export function PopupSignupForm({
       </div>
 
       {/* Hasło + powtórzenie: dwie równe kolumny (albo jedna, gdy tak ustawione). */}
-      <div className={pairClass}>
+      <div className={pairTightClass}>
         <FieldBox
           type={showPass ? "text" : "password"}
           required
