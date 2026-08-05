@@ -1457,13 +1457,27 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   text-decoration: none;
 }
 
-.cms-post-title:hover,
-a:hover .cms-post-title,
-a:focus-visible .cms-post-title,
-*:hover > .cms-post-title {
-  background-size: 100% var(--cms-underline-thickness, 2px);
-  color: var(--td-pt-hover, var(--gc-link-hover, var(--brand)));
+/* Pełnoszerokościowe podkreślenie nagłówka TYLKO na urządzeniach z realnym
+   hoverem. Na mobile iOS "przykleja" stan :hover po tapnięciu, przez co pod
+   klampowanym tytułem (display:-webkit-box) pojawiała się jedna kreska na całą
+   szerokość widgetu zamiast animowanego podkreślenia per linia. */
+@media (hover: hover) and (pointer: fine) {
+  .cms-post-title:hover,
+  a:hover .cms-post-title,
+  a:focus-visible .cms-post-title,
+  *:hover > .cms-post-title {
+    background-size: 100% var(--cms-underline-thickness, 2px);
+    color: var(--td-pt-hover, var(--gc-link-hover, var(--brand)));
+  }
 }
+@media not all and (hover: hover) {
+  .cms-post-title,
+  .cms-post-title:hover {
+    background-image: none;
+    padding-bottom: 0;
+  }
+}
+
 
 /* Reusable per-line animated underline for titles that must ALSO be
    line-clamped. `-webkit-line-clamp` requires the clamped element to be
@@ -1485,9 +1499,10 @@ a:focus-visible .cms-post-title,
   text-decoration: none;
 }
 /* When a title delegates the underline to an inner `.cms-title-underline`
-   span, the heading itself must NOT paint its own full-width line. */
-.cms-post-title:has(> .cms-title-underline),
-.cms-post-title:has(> .cms-title-underline):hover {
+   span, the heading itself must NOT paint its own full-width line.
+   Selektor bez `>` - w niektórych wariantach span jest zagnieżdżony głębiej. */
+.cms-post-title:has(.cms-title-underline),
+.cms-post-title:has(.cms-title-underline):hover {
   background-image: none;
   padding-bottom: 0;
 }
@@ -1497,9 +1512,14 @@ a:focus-visible .cms-title-underline,
 .group:hover .cms-title-underline,
 li:hover .cms-title-underline,
 *:hover > .cms-title-underline,
-*:hover > * > .cms-title-underline {
+*:hover > * > .cms-title-underline,
+/* Dotyk: podkreślenie per linia rośnie przy tapnięciu (brak hovera). */
+.cms-title-underline:active,
+a:active .cms-title-underline,
+a:active > * > .cms-title-underline {
   background-size: 100% var(--cms-underline-thickness, 2px);
 }
+
 @media (prefers-reduced-motion: reduce) {
   .cms-title-underline {
     transition: none;
