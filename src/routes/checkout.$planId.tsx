@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchMyBillingProfile, fetchPlanById } from "@/lib/billing/queries";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
@@ -11,7 +10,6 @@ import {
   displayCurrencyForLang,
   formatDisplayMoney,
 } from "@/lib/billing/displayCurrency";
-import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,11 +21,11 @@ import { FxRateNotice } from "@/components/checkout/FxRateNotice";
 import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
-import { isPaymentsConfigured } from "@/lib/paddle";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
-import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
-import { resolvePaddleDiscount } from "@/utils/payments.functions";
-import { getStripeEnvironment } from "@/lib/paddle";
+import { useCheckout } from "@/hooks/useCheckout";
+import { getStripe } from "@/lib/stripe";
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
@@ -47,8 +45,8 @@ function CheckoutPage() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
-  const checkout = useServerFn(createCheckoutOrder);
-  const { openCheckout } = usePaddleCheckout();
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const { openPlanCheckout } = useCheckout();
 
   const plan = useQuery({
     queryKey: ["plan", planId],
@@ -88,60 +86,21 @@ function CheckoutPage() {
   const submit = async () => {
     if (!plan.data || !hasBilling) return;
     setBusy(true);
-
-    // Wbudowane płatności mają pierwszeństwo, gdy plan ma odpowiednik w katalogu.
-    const paddlePrice = isPaymentsConfigured() ? catalogPriceForPlan(plan.data) : null;
-    if (paddlePrice && session?.user?.id) {
-      try {
-        // Kod promocyjny: walidacja po stronie serwera i mapowanie na rabat
-        // dostawcy, żeby overlay pokazał tę samą kwotę co podsumowanie.
-        let discountId: string | null = null;
-        if (coupon?.code) {
-          const resolved = await resolvePaddleDiscount({
-            data: {
-              code: coupon.code,
-              planId: plan.data.id,
-              amountCents: plan.data.price_cents ?? 0,
-              currency: planCurrency,
-              environment: getStripeEnvironment(),
-            },
-          });
-          if (!resolved.ok) {
-            toast.error(t("checkout.applyFailed"));
-            setBusy(false);
-            return;
-          }
-          discountId = resolved.discountId;
-        }
-        await openCheckout({
-          priceId: paddlePrice.priceId,
-          userId: session.user.id,
-          customerEmail: session.user.email ?? undefined,
-          successPath: "/checkout/success",
-          discountId,
-        });
-      } catch {
-        toast.error(t("checkout.paymentsNotConfigured"));
-      }
-      setBusy(false);
-      return;
-    }
-
     try {
-      const res = await checkout({
-        data: {
-          kind: plan.data.interval === "one_time" ? "one_time" : "subscription",
-          plan_id: plan.data.id,
-          success_path: "/checkout/success",
-          cancel_path: "/checkout/cancel",
-          display_currency: displayCurrency,
-          environment: getStripeEnvironment(),
-          ...(coupon ? { coupon_code: coupon.code } : {}),
-        },
+      const price = catalogPriceForPlan(plan.data);
+      if (!price) {
+        toast.error(t("checkout.paymentsNotConfigured"));
+        setBusy(false);
+        return;
+      }
+      const result = await openPlanCheckout({
+        planId: plan.data.id,
+        priceId: price.priceId,
+        couponCode: coupon?.code,
+        returnUrl: `${window.location.origin}/checkout/success`,
       });
-
-      if (!res.ok) {
-        if (res.mode === "coupon") {
+      if (!result.ok) {
+        if (result.error === "not_found" || result.error === "limit_reached") {
           toast.error(t("checkout.applyFailed"));
         } else {
           toast.error(t("checkout.paymentsNotConfigured"));
@@ -149,17 +108,8 @@ function CheckoutPage() {
         setBusy(false);
         return;
       }
-
-      if (res.mode === "paddle") {
-        await openCheckout({
-          transactionId: res.transactionId,
-          customerEmail: session?.user?.email ?? undefined,
-          successPath: "/checkout/success",
-        });
-        setBusy(false);
-      } else {
-        void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
-      }
+      setClientSecret(result.session.clientSecret);
+      setBusy(false);
     } catch {
       // Never surface a raw backend error string to the visitor.
       toast.error(t("checkout.paymentsNotConfigured"));
@@ -307,6 +257,14 @@ function CheckoutPage() {
                         </>
                       )}
                     </Button>
+                    {clientSecret && (
+                      <div className="space-y-2">
+                        <PaymentTestModeBanner />
+                        <EmbeddedCheckoutProvider stripe={getStripe()} options={{ clientSecret }}>
+                          <EmbeddedCheckout />
+                        </EmbeddedCheckoutProvider>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground text-center">
                       {t("checkout.terms")}
                     </p>

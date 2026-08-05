@@ -66,7 +66,7 @@ export function SubscriptionManagerSection() {
   });
   const lastOrder = ordersQ.data?.[0] ?? null;
 
-  const paddleQ = useMyPaddleSubscription();
+  const providerSubQ = useMySubscriptionProvider();
   const providerSub = providerSubQ.data ?? null;
 
   const onCancel = async () => {
