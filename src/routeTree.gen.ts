@@ -161,6 +161,7 @@ import { Route as AdminCommunityRouteImport } from './routes/admin.community'
 import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminBillingReconcileRouteImport } from './routes/admin.billing-reconcile'
 import { Route as AdminBillingRouteImport } from './routes/admin.billing'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
 import { Route as AdminAudienceRouteImport } from './routes/admin.audience'
@@ -1029,6 +1030,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminBillingReconcileRoute = AdminBillingReconcileRouteImport.update({
+  id: '/billing-reconcile',
+  path: '/billing-reconcile',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminBillingRoute = AdminBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
@@ -1649,6 +1655,7 @@ export interface FileRoutesByFullPath {
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/billing': typeof AdminBillingRoute
+  '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
@@ -1908,6 +1915,7 @@ export interface FileRoutesByTo {
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/billing': typeof AdminBillingRoute
+  '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
@@ -2162,6 +2170,7 @@ export interface FileRoutesById {
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/billing': typeof AdminBillingRoute
+  '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
@@ -2425,6 +2434,7 @@ export interface FileRouteTypes {
     | '/admin/audience'
     | '/admin/authors'
     | '/admin/billing'
+    | '/admin/billing-reconcile'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
@@ -2684,6 +2694,7 @@ export interface FileRouteTypes {
     | '/admin/audience'
     | '/admin/authors'
     | '/admin/billing'
+    | '/admin/billing-reconcile'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
@@ -2937,6 +2948,7 @@ export interface FileRouteTypes {
     | '/admin/audience'
     | '/admin/authors'
     | '/admin/billing'
+    | '/admin/billing-reconcile'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
@@ -4322,6 +4334,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/billing-reconcile': {
+      id: '/admin/billing-reconcile'
+      path: '/billing-reconcile'
+      fullPath: '/admin/billing-reconcile'
+      preLoaderRoute: typeof AdminBillingReconcileRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/billing': {
       id: '/admin/billing'
       path: '/billing'
@@ -5344,6 +5363,7 @@ interface AdminRouteChildren {
   AdminAudienceRoute: typeof AdminAudienceRoute
   AdminAuthorsRoute: typeof AdminAuthorsRoute
   AdminBillingRoute: typeof AdminBillingRoute
+  AdminBillingReconcileRoute: typeof AdminBillingReconcileRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
   AdminCommentsRoute: typeof AdminCommentsRoute
@@ -5415,6 +5435,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAudienceRoute: AdminAudienceRoute,
   AdminAuthorsRoute: AdminAuthorsRoute,
   AdminBillingRoute: AdminBillingRoute,
+  AdminBillingReconcileRoute: AdminBillingReconcileRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
   AdminCommentsRoute: AdminCommentsRoute,

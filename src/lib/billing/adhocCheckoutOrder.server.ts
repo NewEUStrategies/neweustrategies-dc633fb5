@@ -3,6 +3,7 @@
 // cienkim wrapperem `createServerFn` (patrz dyrektywy repo).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StripeEnv } from "@/lib/stripe.server";
+import type { CheckoutLocale } from "@/lib/billing/checkoutLocale";
 
 export interface AdhocOrderInput {
   purpose: "content_unlock" | "event_ticket" | "donation";
@@ -20,6 +21,8 @@ export interface BuildAdhocOrderArgs {
   supabase: SupabaseClient;
   userId: string;
   email: string | null;
+  /** Język ramki Stripe Checkout. */
+  locale?: CheckoutLocale;
 }
 
 export type BuildAdhocOrderResult =
@@ -122,7 +125,7 @@ async function resolveAmount(
  * stronie operatora oznacza zamówienie `failed` - nigdy wiszące `pending`.
  */
 export async function buildAdhocOrder(args: BuildAdhocOrderArgs): Promise<BuildAdhocOrderResult> {
-  const { data, environment, supabase, userId, email } = args;
+  const { data, environment, supabase, userId, email, locale } = args;
 
   const resolved = await resolveAmount(supabase, data, userId);
   if ("error" in resolved) return { ok: false, error: resolved.error };
@@ -157,6 +160,7 @@ export async function buildAdhocOrder(args: BuildAdhocOrderArgs): Promise<BuildA
     userId,
     customerEmail: email,
     returnUrl: data.returnUrl,
+    locale,
     metadata: resolved.metadata,
   });
 

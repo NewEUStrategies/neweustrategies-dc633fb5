@@ -12,6 +12,7 @@
 // planów i biletów).
 import type Stripe from "stripe";
 import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
+import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
 import {
   DONATIONS_DEFAULTS,
   DONATIONS_SETTINGS_KEY,
@@ -22,6 +23,36 @@ import {
 } from "@/lib/billing/donationsConfig";
 
 type SessionCreateParams = Parameters<Stripe["checkout"]["sessions"]["create"]>[0];
+
+/**
+ * Nazwa pozycji i opis widoczne w formularzu Stripe - ramka nie ma dostępu do
+ * naszego i18n, więc treść musi trafić do sesji w języku kupującego.
+ */
+const DONATION_CHECKOUT_COPY: Record<
+  CheckoutLocale,
+  Record<"once" | "recurring", { name: string; description: string }>
+> = {
+  pl: {
+    once: {
+      name: "Darowizna",
+      description: "Wsparcie działalności analitycznej New European Strategies",
+    },
+    recurring: {
+      name: "Darowizna miesięczna",
+      description: "Cykliczne wsparcie działalności analitycznej New European Strategies",
+    },
+  },
+  en: {
+    once: {
+      name: "Donation",
+      description: "Support the research work of New European Strategies",
+    },
+    recurring: {
+      name: "Monthly donation",
+      description: "Recurring support for the research work of New European Strategies",
+    },
+  },
+};
 
 export interface DonationSessionInput {
   environment: StripeEnv;
@@ -34,6 +65,8 @@ export interface DonationSessionInput {
   returnUrl: string;
   /** Klucz limitu żądań - hash IP albo identyfikator użytkownika. */
   rateKey: string;
+  /** Język formularza Stripe (ramka nie dziedziczy naszego i18n). */
+  locale?: CheckoutLocale;
 }
 
 export type DonationSessionResult =
@@ -121,6 +154,8 @@ export async function createDonationSession(
 
   try {
     const stripe = createStripeClient(input.environment);
+    const locale = normalizeCheckoutLocale(input.locale);
+    const donationCopy = DONATION_CHECKOUT_COPY[locale][input.recurring ? "recurring" : "once"];
     const metadata: Record<string, string> = {
       purpose: "donation",
       donationId: donation.id,
@@ -130,6 +165,7 @@ export async function createDonationSession(
     const params: SessionCreateParams = {
       mode: input.recurring ? "subscription" : "payment",
       ui_mode: "embedded_page",
+      locale,
       return_url: input.returnUrl,
       ...(donorEmail ? { customer_email: donorEmail } : {}),
       line_items: [
@@ -140,8 +176,8 @@ export async function createDonationSession(
             unit_amount: amountCents,
             ...(input.recurring ? { recurring: { interval: "month" as const } } : {}),
             product_data: {
-              name: input.recurring ? "Darowizna miesięczna" : "Darowizna",
-              description: "Wsparcie działalności analitycznej New European Strategies",
+              name: donationCopy.name,
+              description: donationCopy.description,
             },
           },
         },
@@ -149,7 +185,7 @@ export async function createDonationSession(
       metadata,
       ...(input.recurring
         ? { subscription_data: { metadata } }
-        : { payment_intent_data: { description: "Darowizna", metadata } }),
+        : { payment_intent_data: { description: donationCopy.name, metadata } }),
     };
 
     const session = await stripe.checkout.sessions.create(params);
