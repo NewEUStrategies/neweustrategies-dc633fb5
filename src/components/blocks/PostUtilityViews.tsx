@@ -24,6 +24,14 @@ import {
   Check,
 } from "lucide-react";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { cn } from "@/lib/utils";
+import {
+  CRUMB_PILL_CLASS,
+  CRUMB_LINK_CLASS,
+  CRUMB_CURRENT_CLASS,
+  CRUMB_SEPARATOR_CLASS,
+} from "@/components/Breadcrumbs";
+
 
 type Lang = "pl" | "en";
 
@@ -79,29 +87,40 @@ export function BreadcrumbsView({
   }
 
   return (
-    <nav aria-label="breadcrumbs" className={cls}>
-      <ol className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+    <nav aria-label="breadcrumbs" className={cn("min-w-0", cls)}>
+      <ol className={CRUMB_PILL_CLASS}>
         {items.map((c, i) => {
           const last = i === items.length - 1;
+          const isHomeIcon = i === 0 && showHome;
           return (
-            <li key={`${c.label}-${i}`} className="flex items-center gap-1.5">
-              {i > 0 && (
-                <span aria-hidden className="text-muted-foreground/60">
-                  {separator === "/" ? <ChevronRight className="w-3.5 h-3.5" /> : separator}
-                </span>
-              )}
+            <li key={`${c.label}-${i}`} className="inline-flex min-w-0 items-center gap-1.5">
+              {i > 0 &&
+                (separator === "/" ? (
+                  <ChevronRight className={CRUMB_SEPARATOR_CLASS} aria-hidden />
+                ) : (
+                  <span aria-hidden className="shrink-0 text-muted-foreground/60">
+                    {separator}
+                  </span>
+                ))}
               {!last && c.href ? (
                 <AppLink
                   href={c.href}
-                  className="hover:text-foreground transition-colors inline-flex items-center gap-1"
+                  className={cn(CRUMB_LINK_CLASS, "min-w-0 truncate")}
+                  title={isHomeIcon ? c.label : undefined}
                 >
-                  {i === 0 && showHome ? <Home className="w-3.5 h-3.5" aria-hidden /> : null}
-                  <span>{c.label}</span>
+                  {isHomeIcon ? (
+                    <>
+                      <Home className="size-4 shrink-0" aria-hidden />
+                      <span className="sr-only">{c.label}</span>
+                    </>
+                  ) : (
+                    <span className="truncate">{c.label}</span>
+                  )}
                 </AppLink>
               ) : (
                 <span
                   aria-current={last ? "page" : undefined}
-                  className={last ? "text-foreground font-medium" : ""}
+                  className={last ? CRUMB_CURRENT_CLASS : "min-w-0 truncate"}
                 >
                   {c.label}
                 </span>
@@ -113,6 +132,7 @@ export function BreadcrumbsView({
     </nav>
   );
 }
+
 
 // -------- Reading time --------
 
