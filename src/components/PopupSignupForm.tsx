@@ -22,6 +22,8 @@ import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { FieldBox } from "@/components/ui/field-box";
+import { SignupSuccessPanel } from "@/components/auth/SignupSuccessPanel";
+
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
