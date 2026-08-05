@@ -18,9 +18,22 @@ export type SubscriptionStatusKey =
   | "pastDue"
   | "paused"
   | "canceled"
+  | "grantLifetime"
+  | "grantActive"
   | "none";
 
 export type SubscriptionTone = "success" | "info" | "warning" | "danger" | "muted";
+
+/**
+ * Dostęp przyznany poza subskrypcją (membership_grants). Eksperci New European
+ * Strategies mają dożywotni VIP - bez tego wejścia status pokazywałby „brak
+ * subskrypcji", mimo że użytkownik ma pełne prawa.
+ */
+export interface AccessGrantInput {
+  tierKey: string;
+  expiresAt: string | null;
+  source: string;
+}
 
 export interface SubscriptionStatusView {
   key: SubscriptionStatusKey;
@@ -31,6 +44,8 @@ export interface SubscriptionStatusView {
   endsAt: string | null;
   /** Czy dostęp nadal przysługuje (opłacony okres trwa). */
   hasAccess: boolean;
+  /** Nadanie, z którego wynika dostęp - gdy nie ma płatnej subskrypcji. */
+  grant: AccessGrantInput | null;
 }
 
 const TONES: Record<SubscriptionStatusKey, SubscriptionTone> = {
@@ -40,8 +55,11 @@ const TONES: Record<SubscriptionStatusKey, SubscriptionTone> = {
   pastDue: "danger",
   paused: "warning",
   canceled: "muted",
+  grantLifetime: "success",
+  grantActive: "success",
   none: "muted",
 };
+
 
 function isFuture(iso: string | null, now: number): boolean {
   if (!iso) return false;
@@ -58,6 +76,8 @@ function isFuture(iso: string | null, now: number): boolean {
 export function deriveSubscriptionStatus(input: {
   local: UserSubscriptionRow | null;
   provider: StripeSubscriptionRow | null;
+  /** Aktywne nadania (np. dożywotni VIP eksperta). */
+  grants?: AccessGrantInput[];
   now?: number;
 }): SubscriptionStatusView {
   const now = input.now ?? Date.now();
@@ -67,17 +87,41 @@ export function deriveSubscriptionStatus(input: {
   const periodEnd = provider?.current_period_end ?? local?.current_period_end ?? null;
   const withinPeriod = isFuture(periodEnd, now);
 
-  const build = (key: SubscriptionStatusKey, renews: boolean, access: boolean) => ({
+  const build = (
+    key: SubscriptionStatusKey,
+    renews: boolean,
+    access: boolean,
+  ): SubscriptionStatusView => ({
     key,
     tone: TONES[key],
     renewsAt: renews ? periodEnd : null,
     endsAt: renews ? null : periodEnd,
     hasAccess: access,
+    grant: null,
+  });
+
+  // Dostęp z nadania jest ważniejszy niż „brak subskrypcji" - pokazujemy go
+  // zamiast pustego stanu, a przy dożywotnim VIP nie ma daty wygaśnięcia.
+  const activeGrants = (input.grants ?? []).filter(
+    (g) => !g.expiresAt || isFuture(g.expiresAt, now),
+  );
+  const lifetime = activeGrants.find((g) => !g.expiresAt) ?? null;
+  const grant = lifetime ?? activeGrants[0] ?? null;
+
+  const buildGrant = (): SubscriptionStatusView => ({
+    key: grant?.expiresAt ? "grantActive" : "grantLifetime",
+    tone: "success",
+    renewsAt: null,
+    endsAt: grant?.expiresAt ?? null,
+    hasAccess: true,
+    grant,
   });
 
   if (provider) {
-    if (provider.status === "paused") return build("paused", false, withinPeriod);
-    if (provider.status === "canceled") return build("canceled", false, withinPeriod);
+    if (provider.status === "paused")
+      return grant ? buildGrant() : build("paused", false, withinPeriod);
+    if (provider.status === "canceled")
+      return grant && !withinPeriod ? buildGrant() : build("canceled", false, withinPeriod);
     if (provider.cancel_at_period_end) return build("cancelScheduled", false, withinPeriod);
     if (provider.status === "past_due" || provider.status === "unpaid")
       return build("pastDue", true, withinPeriod);
@@ -85,10 +129,11 @@ export function deriveSubscriptionStatus(input: {
     if (provider.status === "active") return build("active", true, true);
   }
 
-  if (!local) return build("none", false, false);
+  if (!local) return grant ? buildGrant() : build("none", false, false);
   if (local.status === "canceled" || local.canceled_at)
-    return build("cancelScheduled", false, withinPeriod);
+    return grant && !withinPeriod ? buildGrant() : build("cancelScheduled", false, withinPeriod);
   if (local.status === "expired" || local.status === "refunded")
-    return build("canceled", false, false);
+    return grant ? buildGrant() : build("canceled", false, false);
   return build("active", true, withinPeriod || !periodEnd);
+
 }

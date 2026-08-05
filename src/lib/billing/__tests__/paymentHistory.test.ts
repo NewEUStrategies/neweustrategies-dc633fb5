@@ -78,6 +78,8 @@ describe("paymentHistoryToCsv", () => {
     currency: "Waluta",
     status: "Status",
     document: "Dokument",
+    discount: "Rabat",
+    coupon: "Kod",
   };
 
   it("emits a BOM, semicolons and machine-readable amounts", () => {
@@ -85,9 +87,10 @@ describe("paymentHistoryToCsv", () => {
     expect(csv.startsWith("\uFEFF")).toBe(true);
     const [, row] = csv.trim().split("\r\n");
     expect(row).toBe(
-      "FV/2026/02;2026-02-01;invoice;49.00;EUR;paid;https://invoice.example/1.pdf",
+      "FV/2026/02;2026-02-01;invoice;49.00;EUR;;;paid;https://invoice.example/1.pdf",
     );
   });
+
 
   it("quotes values containing the separator", () => {
     const csv = paymentHistoryToCsv(
