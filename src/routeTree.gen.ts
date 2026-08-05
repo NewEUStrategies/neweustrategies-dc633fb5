@@ -71,6 +71,7 @@ import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscr
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
 import { Route as ProfilePrivacyRouteImport } from './routes/profile.privacy'
+import { Route as ProfilePlanRouteImport } from './routes/profile.plan'
 import { Route as ProfilePersonalityRouteImport } from './routes/profile.personality'
 import { Route as ProfileOrganizationRouteImport } from './routes/profile.organization'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
@@ -579,6 +580,11 @@ const ProfileSecurityRoute = ProfileSecurityRouteImport.update({
 const ProfilePrivacyRoute = ProfilePrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfilePlanRoute = ProfilePlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfilePersonalityRoute = ProfilePersonalityRouteImport.update({
@@ -1753,6 +1759,7 @@ export interface FileRoutesByFullPath {
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/organization': typeof ProfileOrganizationRoute
   '/profile/personality': typeof ProfilePersonalityRoute
+  '/profile/plan': typeof ProfilePlanRoute
   '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
@@ -2007,6 +2014,7 @@ export interface FileRoutesByTo {
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/organization': typeof ProfileOrganizationRoute
   '/profile/personality': typeof ProfilePersonalityRoute
+  '/profile/plan': typeof ProfilePlanRoute
   '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
@@ -2270,6 +2278,7 @@ export interface FileRoutesById {
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/organization': typeof ProfileOrganizationRoute
   '/profile/personality': typeof ProfilePersonalityRoute
+  '/profile/plan': typeof ProfilePlanRoute
   '/profile/privacy': typeof ProfilePrivacyRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
@@ -2535,6 +2544,7 @@ export interface FileRouteTypes {
     | '/profile/orders'
     | '/profile/organization'
     | '/profile/personality'
+    | '/profile/plan'
     | '/profile/privacy'
     | '/profile/security'
     | '/profile/social'
@@ -2789,6 +2799,7 @@ export interface FileRouteTypes {
     | '/profile/orders'
     | '/profile/organization'
     | '/profile/personality'
+    | '/profile/plan'
     | '/profile/privacy'
     | '/profile/security'
     | '/profile/social'
@@ -3051,6 +3062,7 @@ export interface FileRouteTypes {
     | '/profile/orders'
     | '/profile/organization'
     | '/profile/personality'
+    | '/profile/plan'
     | '/profile/privacy'
     | '/profile/security'
     | '/profile/social'
@@ -3715,6 +3727,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/profile/privacy'
       preLoaderRoute: typeof ProfilePrivacyRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/plan': {
+      id: '/profile/plan'
+      path: '/plan'
+      fullPath: '/profile/plan'
+      preLoaderRoute: typeof ProfilePlanRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/personality': {
@@ -5559,6 +5578,7 @@ interface ProfileRouteChildren {
   ProfileOrdersRoute: typeof ProfileOrdersRoute
   ProfileOrganizationRoute: typeof ProfileOrganizationRoute
   ProfilePersonalityRoute: typeof ProfilePersonalityRoute
+  ProfilePlanRoute: typeof ProfilePlanRoute
   ProfilePrivacyRoute: typeof ProfilePrivacyRoute
   ProfileSecurityRoute: typeof ProfileSecurityRoute
   ProfileSocialRoute: typeof ProfileSocialRoute
@@ -5579,6 +5599,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileOrdersRoute: ProfileOrdersRoute,
   ProfileOrganizationRoute: ProfileOrganizationRoute,
   ProfilePersonalityRoute: ProfilePersonalityRoute,
+  ProfilePlanRoute: ProfilePlanRoute,
   ProfilePrivacyRoute: ProfilePrivacyRoute,
   ProfileSecurityRoute: ProfileSecurityRoute,
   ProfileSocialRoute: ProfileSocialRoute,
