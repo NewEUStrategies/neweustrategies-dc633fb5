@@ -15,6 +15,12 @@ const pl = {
     reset: "Przywróć domyślne",
     resetDone: "Przywrócono domyślną prezentację",
     unsaved: "Niezapisane zmiany",
+    shared: {
+      title: "Pola rejestracji (globalne)",
+      desc: "Jedna konfiguracja pól dla wszystkich formularzy rejestracji: strony /login i /membership-registration, popupu rejestracji, widgetu rejestracji oraz newslettera zakładającego konto. Zmiana tutaj obowiązuje wszędzie.",
+      imagesFallback:
+        "Jeśli nie wgrasz obrazu rejestracji, użyty zostanie obraz ze strony logowania. Możesz wgrać osobne obrazy dla każdego widoku (logowanie, rejestracja, reset hasła).",
+    },
     tabs: {
       layout: "Układ",
       gallery: "Lewa strona",
@@ -216,6 +222,12 @@ const en = {
     reset: "Restore defaults",
     resetDone: "Default presentation restored",
     unsaved: "Unsaved changes",
+    shared: {
+      title: "Registration fields (global)",
+      desc: "One field configuration for every registration form: the /login and /membership-registration pages, the signup popup, the registration widget and newsletter-driven account creation. Changes here apply everywhere.",
+      imagesFallback:
+        "If you do not upload a registration image, the login image is used. You can upload separate images for each view (sign in, sign up, password reset).",
+    },
     tabs: {
       layout: "Layout",
       gallery: "Left side",

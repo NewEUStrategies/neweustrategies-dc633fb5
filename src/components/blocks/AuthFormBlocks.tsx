@@ -19,6 +19,11 @@
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  buildSignupMetadata,
+  useRegistrationFields,
+  type RegistrationFieldKey,
+} from "@/lib/auth/registrationFields";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -584,7 +589,7 @@ interface RegisterFieldDef {
   /** Baza klucza w treści: `show${Key}` / `require${Key}` / `${key}Label` / `${key}Placeholder`. */
   key: string;
   id: string;
-  inputType: "text" | "email" | "tel";
+  inputType: "text" | "email" | "tel" | "url";
   autoComplete: string;
   defaultShow: boolean;
   defaultRequire: boolean;
@@ -596,11 +601,14 @@ interface RegisterFieldDef {
   fallbackPlaceholder: Readonly<Record<Lang, string>>;
   /** Pole strukturalne - Supabase signUp go wymaga, więc nie da się go ukryć. */
   structural?: boolean;
+  /** Odpowiednik w globalnym rejestrze pól rejestracji (Admin → Popupy). */
+  globalKey?: RegistrationFieldKey;
 }
 
 const REGISTER_FIELDS: ReadonlyArray<RegisterFieldDef> = [
   {
     key: "firstName",
+    globalKey: "first_name",
     id: "reg-first-name",
     inputType: "text",
     autoComplete: "given-name",
@@ -614,6 +622,7 @@ const REGISTER_FIELDS: ReadonlyArray<RegisterFieldDef> = [
   },
   {
     key: "lastName",
+    globalKey: "last_name",
     id: "reg-last-name",
     inputType: "text",
     autoComplete: "family-name",
@@ -626,6 +635,7 @@ const REGISTER_FIELDS: ReadonlyArray<RegisterFieldDef> = [
   },
   {
     key: "email",
+    globalKey: "email",
     id: "reg-email",
     inputType: "email",
     autoComplete: "email",
@@ -639,6 +649,7 @@ const REGISTER_FIELDS: ReadonlyArray<RegisterFieldDef> = [
   },
   {
     key: "phone",
+    globalKey: "phone",
     id: "reg-phone",
     inputType: "tel",
     autoComplete: "tel",
@@ -651,6 +662,7 @@ const REGISTER_FIELDS: ReadonlyArray<RegisterFieldDef> = [
   },
   {
     key: "company",
+    globalKey: "company",
     id: "reg-company",
     inputType: "text",
     autoComplete: "organization",
@@ -659,6 +671,32 @@ const REGISTER_FIELDS: ReadonlyArray<RegisterFieldDef> = [
     legacyShowKeys: [],
     i18nLabelKey: "authForms.companyLabel",
     fallbackLabel: { pl: "Firma", en: "Company" },
+    fallbackPlaceholder: { pl: "", en: "" },
+  },
+  {
+    key: "job",
+    globalKey: "job",
+    id: "reg-job",
+    inputType: "text",
+    autoComplete: "organization-title",
+    defaultShow: false,
+    defaultRequire: false,
+    legacyShowKeys: [],
+    i18nLabelKey: "authForms.jobLabel",
+    fallbackLabel: { pl: "Stanowisko", en: "Job position" },
+    fallbackPlaceholder: { pl: "", en: "" },
+  },
+  {
+    key: "linkedin",
+    globalKey: "linkedin",
+    id: "reg-linkedin",
+    inputType: "url",
+    autoComplete: "url",
+    defaultShow: false,
+    defaultRequire: false,
+    legacyShowKeys: [],
+    i18nLabelKey: "authForms.linkedinLabel",
+    fallbackLabel: { pl: "LinkedIn", en: "LinkedIn" },
     fallbackPlaceholder: { pl: "", en: "" },
   },
 ];
@@ -685,6 +723,7 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
 
   const variant = readAuthVariant(data.variant);
   const layout = AUTH_LAYOUT[variant];
+  const reg = useRegistrationFields(lang);
 
   const title = pickLang(data, "title", lang, t("authForms.signupTitle"));
   const subtitle = pickLang(data, "subtitle", lang);
@@ -711,35 +750,43 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
     [t],
   );
 
+  // Domyślna widoczność, wymagalność i etykiety pochodzą z globalnego rejestru
+  // pól rejestracji; ustawienia widgetu (jeśli redakcja je nadpisała) wygrywają.
   const fields = useMemo(
     () =>
       REGISTER_FIELDS.filter(
         (def) =>
           def.structural === true ||
-          readAuthFlag(
-            data,
-            [`show${capitalize(def.key)}`, ...def.legacyShowKeys],
-            def.defaultShow,
+          readAuthFlag(data, [`show${capitalize(def.key)}`, ...def.legacyShowKeys],
+            def.globalKey ? reg.isEnabled(def.globalKey) : def.defaultShow,
           ),
       ).map((def) => ({
         def,
         required:
           def.structural === true ||
-          readAuthFlag(data, [`require${capitalize(def.key)}`], def.defaultRequire),
+          readAuthFlag(
+            data,
+            [`require${capitalize(def.key)}`],
+            def.globalKey ? reg.isRequired(def.globalKey) : def.defaultRequire,
+          ),
         label: pickAuthText(
           data,
           [`${def.key}Label`],
           lang,
-          t(def.i18nLabelKey, { defaultValue: def.fallbackLabel[lang] }),
+          def.globalKey
+            ? reg.label(def.globalKey, def.fallbackLabel[lang])
+            : t(def.i18nLabelKey, { defaultValue: def.fallbackLabel[lang] }),
         ),
         placeholder: pickAuthText(
           data,
           [`${def.key}Placeholder`],
           lang,
-          def.fallbackPlaceholder[lang],
+          def.globalKey
+            ? reg.placeholder(def.globalKey, def.fallbackPlaceholder[lang])
+            : def.fallbackPlaceholder[lang],
         ),
       })),
-    [data, lang, t],
+    [data, lang, t, reg],
   );
 
   const customFields = useMemo<CustomField[]>(
@@ -798,24 +845,21 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
       const email = valueOf("email").trim();
       const firstName = valueOf("firstName").trim();
       const lastName = valueOf("lastName").trim();
-      const fullName = [firstName, lastName].filter(Boolean).join(" ");
-      const displayName = fullName || email.split("@")[0];
-      const phone = valueOf("phone").trim();
-      const company = valueOf("company").trim();
-      const metadata: Record<string, unknown> = {
-        display_name: displayName,
-        first_name: firstName,
-        last_name: lastName,
-        full_name: fullName || displayName,
-        newsletter_opt_in: newsletter,
-        consent_accepted_at: new Date().toISOString(),
-        // Explicit reader signup - staff/tenant provisioning happens only
-        // server-side via app_metadata (see handle_new_user).
-        signup_type: "reader",
-      };
-      if (phone) metadata.phone = phone;
-      if (company) metadata.company = company;
-      if (Object.keys(custom).length) metadata.custom_fields = custom;
+      const metadata = buildSignupMetadata(
+        {
+          email,
+          firstName,
+          lastName,
+          job: valueOf("job"),
+          company: valueOf("company"),
+          linkedin: valueOf("linkedin"),
+          phone: valueOf("phone"),
+          newsletterOptIn: newsletter,
+          customFields: Object.keys(custom).length ? custom : undefined,
+        },
+        { lang, source: "register_widget" },
+      );
+      metadata.consent_accepted_at = new Date().toISOString();
       const { error } = await supabase.auth.signUp({
         email,
         password,

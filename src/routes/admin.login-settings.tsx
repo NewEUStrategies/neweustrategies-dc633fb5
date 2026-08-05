@@ -16,6 +16,8 @@ import defaultLoginDark from "@/assets/login-illustration-dark.jpg";
 import { adminToast } from "@/lib/adminToasts";
 import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureAdminLoginSettingsI18n } from "@/lib/i18n-admin-login-settings";
+import { RegistrationFieldsSection } from "@/components/admin/auth/RegistrationFieldsSection";
+import "@/lib/i18n-admin-popup-signup";
 export const Route = createFileRoute("/admin/login-settings")({
   component: LoginSettingsPage,
 });
@@ -350,8 +352,14 @@ function LoginSettingsPage() {
                 hint={t("adminLoginSettings.hintOptFallback")}
               />
             </div>
+            <p className="rounded-md border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              {t("adminPopupSignup.shared.imagesFallback")}
+            </p>
           </section>
+
+          <RegistrationFieldsSection />
         </TabsContent>
+
       </Tabs>
     </div>
   );
