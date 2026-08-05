@@ -90,6 +90,9 @@ export function PopupSignupForm({
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [err, setErr] = useState<string | null>(null);
   const [showPass, setShowPass] = useState(false);
+  // Adres, na który poszedł link aktywacyjny - pola są czyszczone po zapisie.
+  const [sentTo, setSentTo] = useState("");
+
   const [honey, setHoney] = useState("");
   const mountedAt = useRef<number>(Date.now());
   const runPreAuthGuard = useServerFn(preAuthGuard);
