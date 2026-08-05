@@ -48,7 +48,22 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
-async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
+// Klient rozłączył się w trakcie SSR (nawigacja/refresh) - to NIE jest błąd
+// aplikacji: nie logujemy i nie renderujemy strony błędu.
+function isClientAbort(request: Request, error?: unknown): boolean {
+  if (request.signal?.aborted) return true;
+  const err = error as { code?: string; name?: string; message?: string; cause?: unknown } | undefined;
+  if (!err) return false;
+  const text = `${err.code ?? ""} ${err.name ?? ""} ${err.message ?? ""}`.toLowerCase();
+  if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort")) return true;
+  if (err.cause && err.cause !== error) return isClientAbort(request, err.cause);
+  return false;
+}
+
+async function normalizeCatastrophicSsrResponse(
+  request: Request,
+  response: Response,
+): Promise<Response> {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) return response;
@@ -59,6 +74,10 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   if (!isH3SwallowedErrorBody(body)) return response;
 
   const captured = consumeLastCapturedError();
+  if (isClientAbort(request, captured)) {
+    return new Response(null, { status: 499, headers: { "cache-control": "no-store" } });
+  }
+
   // Raw Error (nie .message) - Server Logs potrzebują .stack.
   console.error(captured ?? new Error(`h3 swallowed SSR error: ${body}`));
 
@@ -76,7 +95,7 @@ export default {
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      const normalized = await normalizeCatastrophicSsrResponse(response);
+      const normalized = await normalizeCatastrophicSsrResponse(request, response);
       // Odroczony zapis NES Edge Cache: tee strumienia dokumentu MUSI się
       // wydarzyć dopiero tutaj, ZA egzekutorem middleware TanStack Start -
       // tee w środku łańcucha łamie tożsamość body koperty SSR i egzekutor
@@ -87,6 +106,9 @@ export default {
       // ZAWSZE się kończy, niezależnie od stanu serializacji frameworka.
       return guardDocumentResponse(request, stored);
     } catch (error) {
+      if (isClientAbort(request, error)) {
+        return new Response(null, { status: 499, headers: { "cache-control": "no-store" } });
+      }
       console.error(error);
       return new Response(renderErrorPage(), {
         status: 500,
@@ -98,3 +120,4 @@ export default {
     }
   },
 };
+
