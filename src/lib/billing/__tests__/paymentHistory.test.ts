@@ -62,7 +62,7 @@ describe("mergePaymentHistory", () => {
 
   it("sorts newest first across both sources", () => {
     const rows = mergePaymentHistory(
-      [order({ id: "order-9", order_id: undefined, created_at: "2026-03-05T00:00:00.000Z" })],
+      [order({ id: "order-9", created_at: "2026-03-05T00:00:00.000Z" })],
       [document({ order_id: null, issued_at: "2026-01-05T00:00:00.000Z" })],
     );
     expect(rows.map((r) => r.source)).toEqual(["order", "document"]);
