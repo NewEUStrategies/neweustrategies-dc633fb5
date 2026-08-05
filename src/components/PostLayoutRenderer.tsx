@@ -128,18 +128,23 @@ export function PostLayoutRenderer({
       : useRatio
         ? { aspectRatio: `100 / ${ratioPct}` }
         : undefined;
+    // Domyslny cover (bez full-bleed i bez wlasnej proporcji): stala,
+    // mniejsza wysokosc niezalezna od wysokosci okna, wysrodkowana w kolumnie -
+    // kazdy wpis dostaje dokladnie ten sam kadr.
     const heightClass = isFullBleed
       ? ""
       : useRatio
         ? ""
-        : "h-[50vh] md:h-[55vh] lg:h-[60vh] min-h-[320px] md:min-h-[400px] lg:min-h-[460px]";
+        : "h-[220px] sm:h-[300px] lg:h-[360px]";
+    const frameClass = isFullBleed || useRatio ? "" : "mx-auto w-full max-w-3xl";
     return (
       <div
         className={`relative min-w-0 max-w-full ${isFullBleed ? "sm:-mx-4 lg:-mx-8" : ""} ${extraWrapClass}`}
       >
-        <div className="relative mb-8">
+        <div className={`relative mb-8 ${frameClass}`}>
           <div
             className={`relative ${heightClass} overflow-hidden bg-neutral-900`}
+
             style={{
               ...aspectStyle,
               borderRadius: "6px",
