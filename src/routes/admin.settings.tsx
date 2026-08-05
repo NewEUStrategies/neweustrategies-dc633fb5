@@ -22,6 +22,10 @@ function SettingsLayout() {
     { to: "/admin/settings/seo", label: t("admin.settingsNav.seo", { defaultValue: "SEO" }) },
     { to: "/admin/settings/privacy", label: t("admin.settingsNav.privacy") },
     {
+      to: "/admin/settings/google-source",
+      label: t("admin.settingsNav.googleSource", { defaultValue: "Preferowane źródło Google" }),
+    },
+    {
       to: "/admin/settings/cookie-banner",
       label: t("admin.settingsNav.cookieBanner", { defaultValue: "Cookie banner" }),
     },
