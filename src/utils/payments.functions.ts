@@ -11,7 +11,7 @@ export const resolvePaddlePrice = createServerFn({ method: "GET" })
     z.object({ priceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { gatewayFetch } = await import("@/lib/stripe.server");
+    const { gatewayFetch } = await import("@/lib/paddle.server");
     // Restart integracji (nowe konto operatora, rotacja klucza) unieważnia
     // wewnętrzne identyfikatory cen. Sprawdzenie odcisku jest tanie
     // (debounce w izolacie), a pozwala odtworzyć katalog zanim ktoś kliknie
@@ -80,7 +80,7 @@ export const changePaddlePlan = createServerFn({ method: "POST" })
     const direction = planChangeDirection(sub.price_id, target.priceId);
     if (direction === "same") return { ok: true as const, direction };
 
-    const { getPaddleClient } = await import("@/lib/stripe.server");
+    const { getPaddleClient } = await import("@/lib/paddle.server");
     const paddlePriceId = await resolvePaddlePrice({
       data: { priceId: target.priceId, environment: data.environment },
     });
@@ -113,7 +113,7 @@ export const createPaddlePortalSession = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!sub?.provider_customer_id) throw new Error("no_customer");
 
-    const { getPaddleClient } = await import("@/lib/stripe.server");
+    const { getPaddleClient } = await import("@/lib/paddle.server");
     const paddle = getPaddleClient(data.environment);
     const session = await paddle.customerPortalSessions.create(
       sub.provider_customer_id,
@@ -154,7 +154,7 @@ export const cancelPaddleSubscription = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { getPaddleClient } = await import("@/lib/stripe.server");
+    const { getPaddleClient } = await import("@/lib/paddle.server");
     await getPaddleClient(data.environment).subscriptions.cancel(sub.provider_subscription_id, {
       effectiveFrom: "next_billing_period",
     });
@@ -183,7 +183,7 @@ export const resumePaddleSubscription = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { getPaddleClient } = await import("@/lib/stripe.server");
+    const { getPaddleClient } = await import("@/lib/paddle.server");
     const paddle = getPaddleClient(data.environment);
 
     if (sub.status === "paused") {
@@ -275,7 +275,7 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
     const paddlePriceId = await resolvePaddlePrice({
       data: { priceId: target.priceId, environment: data.environment },
     });
-    const { gatewayFetch } = await import("@/lib/stripe.server");
+    const { gatewayFetch } = await import("@/lib/paddle.server");
     const res = await gatewayFetch(
       data.environment,
       `/subscriptions/${encodeURIComponent(sub.provider_subscription_id)}/preview`,

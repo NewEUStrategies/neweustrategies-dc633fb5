@@ -1,7 +1,12 @@
 // Serializowalna treść dokumentu prawnego (ikony jako nazwy, nie komponenty).
 // Jedno źródło prawdy dla publicznej strony oraz dla wersjonowania w /admin.
 import type { LegalDocContent } from "../types";
-import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY, LEGAL_UPDATED } from "@/lib/legal/entity";
+import {
+  LEGAL_CONTACT_EMAIL,
+  LEGAL_ENTITY,
+  LEGAL_UPDATED,
+  PAYMENT_PROVIDER_NAME,
+} from "@/lib/legal/entity";
 
 export const PRIVACY_CONTENT: LegalDocContent = {
   pl: {

@@ -9,7 +9,7 @@
 // podaje kwoty.
 //
 // Moduł jest server-only (klucze bramki) - importuj wyłącznie z handlerów.
-import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
+import { gatewayFetch, type StripeEnv } from "@/lib/paddle.server";
 
 /** Produkty jednorazowe utworzone w katalogu dostawcy. */
 export const ONE_TIME_PRODUCTS = {

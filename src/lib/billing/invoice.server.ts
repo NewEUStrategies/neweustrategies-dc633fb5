@@ -8,7 +8,7 @@
 // Moduł jest server-only (klucze bramki + service role).
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
+import { gatewayFetch, type StripeEnv } from "@/lib/paddle.server";
 import { isTransactionId } from "@/lib/billing/transactionId";
 
 export type InvoiceError =

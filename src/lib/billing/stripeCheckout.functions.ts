@@ -154,10 +154,17 @@ const adhocCheckoutSchema = z.object({
  * anonimowej) kwotę podaje ofiarodawca, ale jest walidowana minimum 50 gr.
  */
 export const createAdhocCheckoutSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .validator((input: unknown) => adhocCheckoutSchema.parse(input))
-  .handler(async ({ data, request }) => {
+  .handler(async ({ data, context }) => {
     const { resolveEnvironment } = await import("@/lib/billing/adhocCheckout.server");
     const environment = resolveEnvironment(data.environment);
     const { buildAdhocOrder } = await import("@/lib/billing/adhocCheckoutOrder.server");
-    return buildAdhocOrder({ data, environment, request });
+    return buildAdhocOrder({
+      data,
+      environment,
+      supabase: context.supabase,
+      userId: context.userId,
+      email: context.claims.email ?? null,
+    });
   });

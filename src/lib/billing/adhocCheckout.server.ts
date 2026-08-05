@@ -14,6 +14,15 @@
 import type Stripe from "stripe";
 import { createStripeClient, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
 
+// SDK Stripe (esm) nie eksportuje `Stripe.Checkout.SessionCreateParams` jako
+// nazwanego typu - wyprowadzamy go z sygnatury metody, żeby nie duplikować
+// kształtu API. `managed_payments` należy do preview API (dahlia) i nie ma go
+// jeszcze w typach SDK, stąd rozszerzenie o to jedno pole.
+type SessionCreateParams = Parameters<Stripe["checkout"]["sessions"]["create"]>[0] & {
+  managed_payments?: { enabled: boolean };
+};
+
+
 export { resolveEnvironment };
 export type { StripeEnv };
 
@@ -129,7 +138,7 @@ export async function createPlanCheckoutSession(
       email: input.customerEmail,
     });
 
-    const mode: Stripe.Checkout.SessionCreateParams.Mode =
+    const mode: NonNullable<SessionCreateParams["mode"]> =
       price.type === "recurring" ? "subscription" : "payment";
     const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), 100);
 
@@ -146,7 +155,7 @@ export async function createPlanCheckoutSession(
         ]
       : undefined;
 
-    const params: Stripe.Checkout.SessionCreateParams = {
+    const params: SessionCreateParams = {
       mode,
       ui_mode: "embedded_page",
       return_url: input.returnUrl,
@@ -169,7 +178,7 @@ export async function createPlanCheckoutSession(
       // Sprzedawca w Polsce, produkty cyfrowe -> podatek liczy operator
       // płatności (nie łączymy z automatic_tax - patrz dyrektywy repo).
       managed_payments: { enabled: true },
-    } as Stripe.Checkout.SessionCreateParams;
+    } as SessionCreateParams;
 
     const session = await stripe.checkout.sessions.create(params);
     if (!session.client_secret) return { ok: false, error: "session_missing_client_secret" };
@@ -228,7 +237,7 @@ export async function createAdhocCheckoutSession(
       ...(input.metadata ?? {}),
     };
 
-    const params: Stripe.Checkout.SessionCreateParams = {
+    const params: SessionCreateParams = {
       mode: "payment",
       ui_mode: "embedded_page",
       return_url: input.returnUrl,
@@ -255,7 +264,7 @@ export async function createAdhocCheckoutSession(
       // Sprzedawca w Polsce, produkty cyfrowe -> podatek liczy operator
       // płatności (nie łączymy z automatic_tax - patrz dyrektywy repo).
       managed_payments: { enabled: true },
-    } as Stripe.Checkout.SessionCreateParams;
+    } as SessionCreateParams;
 
     const session = await stripe.checkout.sessions.create(params);
     if (!session.client_secret) return { ok: false, error: "session_missing_client_secret" };

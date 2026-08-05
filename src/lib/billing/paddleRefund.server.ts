@@ -4,7 +4,7 @@
 // zajął ktoś inny. Zamiast sprzedać nieistniejące wejście, zwracamy pełną
 // kwotę od razu przy realizacji zamówienia. Skutki uprawnień obsługuje
 // webhook `adjustment.*` - tutaj tylko zlecamy korektę u operatora.
-import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
+import { gatewayFetch, type StripeEnv } from "@/lib/paddle.server";
 
 export type RefundResult = { ok: true; adjustmentId: string | null } | { ok: false; error: string };
 
