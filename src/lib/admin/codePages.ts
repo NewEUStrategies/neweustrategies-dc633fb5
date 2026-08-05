@@ -18,6 +18,14 @@ export interface CodePageDef {
   path: string;
   label_pl: string;
   label_en: string;
+  /**
+   * Ścieżka w panelu admina, gdzie redakcja realnie zarządza treścią tej strony
+   * (obrazy, teksty, etykiety pól i przycisków). Bez tego wpisu edytor pokazuje
+   * wyłącznie informację, że układ pochodzi z kodu.
+   */
+  manage_path?: string;
+  manage_label_pl?: string;
+  manage_label_en?: string;
 }
 
 export const CODE_PAGES: readonly CodePageDef[] = [
@@ -32,7 +40,11 @@ export const CODE_PAGES: readonly CodePageDef[] = [
     path: "/membership-registration",
     label_pl: "Rejestracja członkostwa (konto, logowanie, reset hasła)",
     label_en: "Membership registration (account, sign-in, password reset)",
+    manage_path: "/admin/login-settings",
+    manage_label_pl: "Zarządzaj treścią: Strona logowania",
+    manage_label_en: "Manage content: Login page",
   },
+
   {
     slug: "contribute",
     path: "/contribute",
