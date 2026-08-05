@@ -918,7 +918,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         <PostContentStyle />
         <div
           style={outerMaxStyle}
-          className="min-w-0 flex-1 w-full max-w-full mx-auto px-4 lg:px-8 py-10"
+          className="min-w-0 flex-1 w-full max-w-full mx-auto px-4 lg:px-8 pt-4 pb-10"
         >
           <PrintBriefHeader lang={lang} url={citationUrl} />
           <Breadcrumbs items={crumbs} />
