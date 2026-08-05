@@ -17,7 +17,7 @@ import {
   type ResyncReason,
 } from "./catalogAutoSync";
 import { BILLING_CATALOG } from "./catalog";
-import type { CatalogSyncReport } from "./paddleCatalogSync.server";
+import type { CatalogSyncReport } from "./catalogSync.server";
 
 export interface AutoSyncOutcome {
   environment: StripeEnv;
@@ -211,10 +211,10 @@ async function runEnsure(env: StripeEnv, force: boolean): Promise<AutoSyncOutcom
   if (!reason) return { environment: env, ran: false, reason: null, report: null };
 
   const supabase = await admin();
-  const { syncPaddleCatalog } = await import("./paddleCatalogSync.server");
+  const { syncBillingCatalog } = await import("./catalogSync.server");
 
   try {
-    const report = await syncPaddleCatalog(env);
+    const report = await syncBillingCatalog(env);
     const status = syncStatusFrom(report);
     await supabase.from("payment_integration_state").upsert(
       {
