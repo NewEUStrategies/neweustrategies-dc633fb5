@@ -173,16 +173,8 @@ function PopupsList() {
         <p className="text-sm text-muted-foreground">
           {t("admin.popups.loading", { defaultValue: "Ładowanie…" })}
         </p>
-      ) : popups.items.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-10 text-center space-y-2">
-          <p className="text-sm text-muted-foreground">
-            {t("admin.popups.empty", {
-              defaultValue:
-                "Nie masz jeszcze żadnych popupów. Utwórz pierwszy i zbuduj go tak samo jak stronę.",
-            })}
-          </p>
-        </div>
       ) : (
+
         <div className="border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
