@@ -157,8 +157,10 @@ export function PopupSignupForm({
     // Honeypot + minimalny czas wypełnienia: boty dostają "sukces" bez zapisu.
     const elapsed = Date.now() - mountedAt.current;
     if (honey.trim() !== "" || elapsed < 1200) {
+      setSentTo(v.email.trim().toLowerCase());
       setState("ok");
       setV(empty);
+
       onSuccess?.();
       return;
     }
