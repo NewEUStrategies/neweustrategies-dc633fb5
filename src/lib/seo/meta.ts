@@ -9,6 +9,7 @@ import {
   stripLangPrefix,
   type AppLang,
 } from "@/lib/i18n/localePath";
+import { socialDefaultsFor } from "@/lib/seo/socialDefaults";
 
 // The language type and the supported list live in the locale-path core (the
 // single source of truth for the language <-> URL mapping); re-exported here so
