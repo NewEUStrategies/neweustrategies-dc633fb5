@@ -26,7 +26,6 @@ import {
   SITE_DEFAULT_OG_IMAGE,
   SITE_DEFAULT_TITLE,
 } from "@/lib/seo/meta";
-import { currentLang } from "@/lib/i18n/localeRuntime";
 
 export const Route = createFileRoute("/admin/settings/social-preview")({
   component: SocialPreviewTab,
@@ -221,7 +220,3 @@ function SocialPreviewTab() {
   );
 }
 
-// Ostrzeżenie o niespójności języka runtime vs i18next nie dotyczy tej strony:
-// panel admina renderuje się wyłącznie po hydratacji, więc `currentLang()` nie
-// jest tu potrzebny - zostawiamy import poza grafem.
-void currentLang;
