@@ -984,7 +984,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   <GooglePreferredSourceBadge
                     device="mobile"
                     entityId={it.id}
-                    className="min-w-0 [&>a]:h-full [&>a]:w-full [&>a]:justify-center"
+                    className="min-w-0 [&>a]:h-full [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-normal"
                   />
                 </div>
 
