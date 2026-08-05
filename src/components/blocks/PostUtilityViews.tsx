@@ -24,6 +24,14 @@ import {
   Check,
 } from "lucide-react";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { cn } from "@/lib/utils";
+import {
+  CRUMB_PILL_CLASS,
+  CRUMB_LINK_CLASS,
+  CRUMB_CURRENT_CLASS,
+  CRUMB_SEPARATOR_CLASS,
+} from "@/components/Breadcrumbs";
+
 
 type Lang = "pl" | "en";
 
