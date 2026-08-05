@@ -16,6 +16,8 @@ import defaultLoginDark from "@/assets/login-illustration-dark.jpg";
 import { adminToast } from "@/lib/adminToasts";
 import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureAdminLoginSettingsI18n } from "@/lib/i18n-admin-login-settings";
+import { RegistrationFieldsSection } from "@/components/admin/auth/RegistrationFieldsSection";
+import "@/lib/i18n-admin-popup-signup";
 export const Route = createFileRoute("/admin/login-settings")({
   component: LoginSettingsPage,
 });
