@@ -9,7 +9,8 @@
 // naturalnym, więc powtórne wywołania nie tworzą duplikatów.
 //
 // Moduł server-only - importuj wyłącznie z handlera serwerowego.
-import type { StripeEnv } from "@/lib/stripe.server";
+import type Stripe from "stripe";
+import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 
 export interface PaddleDiscountResolution {
   readonly ok: boolean;
