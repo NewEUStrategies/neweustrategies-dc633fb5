@@ -55,11 +55,14 @@ describe("dokument nie przesuwa się w poziomie", () => {
 });
 
 describe("zwijany header nie poszerza dokumentu", () => {
-  it("chrome nadal jest szerszy w układzie (technika skalowania bez zmian)", () => {
-    // Gdyby ktoś zmienił technikę zwijania, poniższy warunek na clip przestaje
-    // mieć sens - test ma wtedy upaść, a nie milcząco przepuścić zmianę.
-    expect(CSS).toMatch(/width:\s*calc\(100%\s*\/\s*var\(--hdr-scale\)\)/);
+  it("chrome skaluje się bez kompensacji szerokości (technika zwijania bez zmian)", () => {
+    // Kompensacja `width: calc(100% / var(--hdr-scale))` animowała szerokość i
+    // wywoływała pętlę reflow - technika to dziś czysty transform od górnej
+    // krawędzi. Gdyby ktoś ją cofnął, ten test ma upaść.
+    expect(CSS).toMatch(/transform:\s*scale\(var\(--hdr-scale\)\)/);
+    expect(CSS).not.toMatch(/width:\s*calc\(100%\s*\/\s*var\(--hdr-scale\)\)/);
   });
+
 
   it("header przycina nadmiarową szerokość, ale nie tnie dropdownów w pionie", () => {
     const shrink = ruleBody(CSS, "header[data-site-header].site-header-shrink");
