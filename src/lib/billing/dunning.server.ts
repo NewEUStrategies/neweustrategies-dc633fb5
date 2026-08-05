@@ -9,7 +9,7 @@
 //
 // Moduł server-only - importuj wyłącznie z handlerów webhooka.
 import { notifyPaymentEmail } from "@/lib/billing/notifications.server";
-import { resolvePlanForPrice } from "@/lib/billing/paddleEffects.server";
+import { resolvePlanForPrice } from "@/lib/billing/purchaseEffects.server";
 
 export interface DunningContext {
   subscriptionId: string;

@@ -2,7 +2,7 @@
 // do kiedy ma dostęp i czy portal klienta jest dla niego dostępny.
 // Moduł jest świadomie wolny od Reacta i sieci - konsumują go widget
 // "purchase-confirmation" (builder), strona /checkout/success oraz testy.
-import type { PaddleSubscriptionRow } from "./paddleSubscription";
+import type { ProviderSubscriptionRow } from "./subscriptionQueries";
 import type { PaymentOrder } from "./types";
 
 export type PurchaseKind = "subscription" | "one_time" | "none";
@@ -40,7 +40,7 @@ export function accessUntilFromOrder(order: PaymentOrder | null | undefined): st
 }
 
 export function buildPurchaseSummary(input: {
-  subscription?: PaddleSubscriptionRow | null;
+  subscription?: ProviderSubscriptionRow | null;
   order?: PaymentOrder | null;
   now?: Date;
 }): PurchaseSummary {

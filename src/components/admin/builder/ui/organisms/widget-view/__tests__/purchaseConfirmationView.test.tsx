@@ -40,7 +40,7 @@ vi.mock("@tanstack/react-router", async (orig) => {
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ session: state.session }),
 }));
-vi.mock("@/lib/billing/paddleSubscription", () => ({
+vi.mock("@/lib/billing/subscriptionQueries", () => ({
   fetchMyPaddleSubscription: async () => state.subscription,
 }));
 vi.mock("@/lib/billing/queries", () => ({

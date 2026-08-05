@@ -8,13 +8,13 @@ import {
   daysLeft,
   formatAccessDate,
 } from "@/lib/billing/purchaseConfirmation";
-import type { PaddleSubscriptionRow } from "@/lib/billing/paddleSubscription";
+import type { ProviderSubscriptionRow } from "@/lib/billing/subscriptionQueries";
 import type { PaymentOrder } from "@/lib/billing/types";
 
 const now = new Date("2026-07-29T12:00:00Z");
 const inDays = (d: number) => new Date(now.getTime() + d * 86_400_000).toISOString();
 
-const sub = (over: Partial<PaddleSubscriptionRow> = {}): PaddleSubscriptionRow => ({
+const sub = (over: Partial<ProviderSubscriptionRow> = {}): ProviderSubscriptionRow => ({
   id: "row-1",
   provider_subscription_id: "sub_1",
   provider_customer_id: "ctm_1",

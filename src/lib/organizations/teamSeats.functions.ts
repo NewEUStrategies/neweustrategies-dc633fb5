@@ -94,7 +94,7 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
         return { ok: false as const, error: "orgs: subscription not visible" };
       }
       const { updateSubscriptionQuantity } =
-        await import("@/lib/billing/paddleSubscription.server");
+        await import("@/lib/billing/subscriptionProvider.server");
       const res = await updateSubscriptionQuantity(
         sub.environment === "live" ? "live" : "sandbox",
         org.provider_subscription_id,

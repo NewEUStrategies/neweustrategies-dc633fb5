@@ -11,7 +11,7 @@
 //
 // Moduł server-only - importuj wyłącznie z handlera crona.
 import { notifyReminderEmail } from "@/lib/billing/notifications.server";
-import { resolvePlanForPrice } from "@/lib/billing/paddleEffects.server";
+import { resolvePlanForPrice } from "@/lib/billing/purchaseEffects.server";
 
 /** Domyślne wyprzedzenie przypomnienia (w dniach). */
 export const REMINDER_LEAD_DAYS = 3;

@@ -518,7 +518,7 @@ export const cancelSubscription = createServerFn({ method: "POST" })
     if (sub.canceled_at) return { ok: true as const, alreadyCanceled: true as const };
 
     const { cancelSubscriptionAtPeriodEnd, isProviderSubscriptionRef, subscriptionEnvironment } =
-      await import("@/lib/billing/paddleSubscription.server");
+      await import("@/lib/billing/subscriptionProvider.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
       const result = await cancelSubscriptionAtPeriodEnd(
@@ -599,7 +599,7 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
       fetchSubscriptionSnapshot,
       isProviderSubscriptionRef,
       subscriptionEnvironment,
-    } = await import("@/lib/billing/paddleSubscription.server");
+    } = await import("@/lib/billing/subscriptionProvider.server");
     const { planChangeDirection } = await import("@/lib/billing/catalog");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
 
@@ -684,7 +684,7 @@ export const resumeSubscription = createServerFn({ method: "POST" })
     }
 
     const { resumeScheduledCancellation, isProviderSubscriptionRef, subscriptionEnvironment } =
-      await import("@/lib/billing/paddleSubscription.server");
+      await import("@/lib/billing/subscriptionProvider.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
       const result = await resumeScheduledCancellation(subscriptionEnvironment(), sub.external_ref);
