@@ -48,6 +48,7 @@ vi.mock("@/lib/billing/queries", () => ({
 }));
 vi.mock("@/lib/stripe", () => ({
   getStripeEnvironment: () => "sandbox",
+  getStripeEnvironmentSafe: () => "sandbox",
 }));
 vi.mock("@/utils/payments.functions", () => ({
   createStripePortalSession: async (args: unknown) => {
