@@ -34,6 +34,10 @@ function SettingsLayout() {
       label: t("admin.settingsNav.cookieBanner", { defaultValue: "Cookie banner" }),
     },
     {
+      to: "/admin/settings/mobile-bottom-bar",
+      label: t("admin.settingsNav.mobileBottomBar", { defaultValue: "Pasek mobilny" }),
+    },
+    {
       to: "/admin/settings/analytics",
       label: t("admin.settingsNav.analytics", { defaultValue: "Analityka" }),
     },

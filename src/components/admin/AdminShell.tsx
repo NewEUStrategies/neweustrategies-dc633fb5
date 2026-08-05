@@ -542,6 +542,13 @@ function AdminShellInner({
           }),
         },
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
+        {
+          to: "/admin/settings/mobile-bottom-bar",
+          icon: Smartphone,
+          label: t("admin.nav.mobileBottomBar", {
+            defaultValue: lang === "pl" ? "Pasek mobilny" : "Mobile bottom bar",
+          }),
+        },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
         { to: "/admin/expert-layouts", icon: Users, label: t("admin.nav.expertLayouts") },
         {
