@@ -8,7 +8,8 @@
 // placeholdera musi dostać spacer (`FLOATING_LABEL_SPACER`), inaczej etykieta
 // pływająca nigdy nie wróciłaby do stanu spoczynku.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { cleanup } from "@testing-library/react";
+import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
 
 const h = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -113,14 +114,24 @@ describe("register-form przekazuje placeholdery każdego pola", () => {
 
   it("bez ustawień wchodzą dwujęzyczne fallbacki", () => {
     render(<RegisterFormView data={{}} lang="en" />);
-    expect(placeholderOf("reg-first-name")).toBe("John");
+    // Fallback to teraz globalny rejestr pól rejestracji (Admin -> Popupy).
+    expect(placeholderOf("reg-first-name")).toBe("Jane");
     expect(placeholderOf("reg-last-name")).toBe("Doe");
-    expect(placeholderOf("reg-email")).toBe("name@example.com");
+    expect(placeholderOf("reg-email")).toBe("jane@company.com");
   });
 
   it("pole bez sensownego fallbacku dostaje spacer, nie pusty atrybut", () => {
-    render(<RegisterFormView data={{ showCompany: true }} lang="pl" />);
-    expect(placeholderOf("reg-company")).toBe(FLOATING_LABEL_SPACER);
+    // Pole dodatkowe bez placeholdera - etykieta pływająca potrzebuje spacera,
+    // inaczej `:placeholder-shown` nigdy nie zadziała.
+    render(
+      <RegisterFormView
+        data={{
+          customFields: [{ id: "ref", type: "text", labelPl: "Skąd o nas wiesz?" }],
+        }}
+        lang="pl"
+      />,
+    );
+    expect(placeholderOf("custom_ref")).toBe(FLOATING_LABEL_SPACER);
   });
 });
 

@@ -10,7 +10,10 @@
 //  3. warianty card/flat/inline renderujące się identycznie,
 //  4. martwe ustawienia (etykiety, pola rejestracji, OAuth, komunikaty).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+// Widoki auth czytają ustawienia przez react-query (useRegistrationFields ->
+// useNewsletterSettings), więc każdy render potrzebuje własnego QueryClienta.
+import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
 
 const h = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -349,15 +352,23 @@ describe("login-form: przełączniki naprawdę ukrywają pola", () => {
 /* ------------------------------------------------------------------ register */
 
 describe("register-form: konfigurowalny zestaw pól", () => {
-  it("domyślnie: imię, nazwisko, e-mail, hasło; bez telefonu, firmy i powtórki", () => {
+  // Widoczność pól bierze się teraz z globalnego rejestru rejestracji
+  // (`useRegistrationFields`), a ustawienia widgetu tylko go nadpisują.
+  it("domyślnie idzie za globalnym rejestrem pól; powtórka hasła zostaje wyłączona", () => {
     register();
     expect(document.getElementById("reg-first-name")).toBeTruthy();
     expect(document.getElementById("reg-last-name")).toBeTruthy();
     expect(document.getElementById("reg-email")).toBeTruthy();
     expect(document.getElementById("reg-password")).toBeTruthy();
+    expect(document.getElementById("reg-phone")).toBeTruthy();
+    expect(document.getElementById("reg-company")).toBeTruthy();
+    expect(document.getElementById("reg-confirm")).toBeNull();
+  });
+
+  it("ustawienie widgetu wygrywa z rejestrem i ukrywa telefon oraz firmę", () => {
+    register({ showPhone: false, showCompany: "0" });
     expect(document.getElementById("reg-phone")).toBeNull();
     expect(document.getElementById("reg-company")).toBeNull();
-    expect(document.getElementById("reg-confirm")).toBeNull();
   });
 
   it("pokazuje telefon i firmę po włączeniu (boolean i legacy string)", () => {
@@ -498,7 +509,7 @@ describe("register-form: walidacja i payload", () => {
   };
 
   it("blokuje submit przy pustym wymaganym polu", async () => {
-    register();
+    register({ requireFirstName: true });
     typeInto("reg-email", "jan@example.com");
     typeInto("reg-password", "haslo12345");
     fireEvent.submit(form());
