@@ -208,7 +208,7 @@ export function SignupPopupPanel({
             </p>
           )}
 
-          <div className="mt-7">
+          <div className="mt-5 sm:mt-7">
             <PopupSignupForm
               settings={settings}
               lang={lang}

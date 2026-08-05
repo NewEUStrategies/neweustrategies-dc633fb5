@@ -336,7 +336,7 @@ export function SignupShowcase({
   return (
     <div
       className={
-        "relative flex h-full min-h-0 flex-col gap-5 " +
+        "relative flex h-full min-h-0 flex-col gap-3.5 sm:gap-5 " +
         (alignLeft ? "items-start" : "items-center")
       }
       style={rootStyle}
