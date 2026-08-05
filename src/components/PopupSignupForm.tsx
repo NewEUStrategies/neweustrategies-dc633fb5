@@ -437,7 +437,7 @@ export function PopupSignupForm({
       )}
 
       {(showFirst || showLast) && (
-        <div className={showFirst && showLast ? pairClass : ""}>
+        <div className={showFirst && showLast ? pairTightClass : ""}>
           {showFirst && (
             <FieldBox
               label={label("first_name")}
@@ -522,7 +522,7 @@ export function PopupSignupForm({
       </div>
 
       {/* Hasło + powtórzenie: dwie równe kolumny (albo jedna, gdy tak ustawione). */}
-      <div className={pairClass}>
+      <div className={pairTightClass}>
         <FieldBox
           type={showPass ? "text" : "password"}
           required
