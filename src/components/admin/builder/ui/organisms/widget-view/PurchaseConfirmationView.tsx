@@ -160,7 +160,11 @@ export function PurchaseConfirmationView({ c, lang }: { c: WidgetContent; lang: 
         toast.error(copy.portalError);
         return;
       }
-      const url = "url" in result ? (result.overviewUrl || result.url) : null;
+      // Operator zwraca albo `overviewUrl` (deep link), albo samo `url`.
+      const url =
+        ("overviewUrl" in result ? result.overviewUrl : null) ??
+        ("url" in result ? result.url : null);
+
       if (url) window.open(url, "_blank", "noopener,noreferrer");
     } catch {
       toast.error(copy.portalError);
