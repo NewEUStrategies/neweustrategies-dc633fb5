@@ -51,6 +51,9 @@ export const setMyConsent = createServerFn({ method: "POST" })
       p_ip: ip ?? undefined,
       p_user_agent: ua ?? undefined,
       p_source: data.source ?? "account",
+      p_banner_version: data.bannerVersion ?? undefined,
+      p_decision_id: data.decisionId ?? undefined,
+      p_page_url: data.pageUrl ?? undefined,
     });
     if (error) throw new Error(error.message);
     return row ?? null;
