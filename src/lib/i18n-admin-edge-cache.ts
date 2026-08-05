@@ -24,6 +24,8 @@ const pl = {
       stores: "Zapisy",
       evictions: "Eksmisje LRU",
       purges: "Unieważnienia",
+      revalidations: "Odświeżenia w tle",
+      revalidationFailures: "Nieudane odświeżenia",
     },
     since: "Statystyki od {{date}} (bieżąca instancja).",
     isolateNote:
@@ -94,6 +96,8 @@ const en = {
       stores: "Stores",
       evictions: "LRU evictions",
       purges: "Purges",
+      revalidations: "Background refreshes",
+      revalidationFailures: "Failed refreshes",
     },
     since: "Stats since {{date}} (current instance).",
     isolateNote:
