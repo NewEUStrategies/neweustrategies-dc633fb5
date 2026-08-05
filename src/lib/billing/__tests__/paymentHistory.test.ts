@@ -108,3 +108,56 @@ describe("historyFileName", () => {
     );
   });
 });
+
+describe("mergePaymentHistory discounts and gifts", () => {
+  it("carries coupon metadata from the order onto its document", () => {
+    const rows = mergePaymentHistory(
+      [
+        order({
+          metadata: {
+            coupon_code: "NES20",
+            coupon_discount_cents: 1000,
+            original_amount_cents: 5900,
+          },
+        }),
+      ],
+      [document()],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].couponCode).toBe("NES20");
+    expect(rows[0].discountCents).toBe(1000);
+    expect(rows[0].originalAmountCents).toBe(5900);
+  });
+
+  it("marks zero-amount orders as gifts", () => {
+    const [row] = mergePaymentHistory([order({ amount_cents: 0 })], []);
+    expect(row.gift).toBe(true);
+  });
+
+  it("adds access grants as gift rows and skips revoked ones", () => {
+    const rows = mergePaymentHistory([], [], [
+      {
+        id: "g1",
+        tierKey: "vip",
+        source: "expert",
+        note: null,
+        startsAt: "2026-01-01T00:00:00.000Z",
+        expiresAt: null,
+        revokedAt: null,
+      },
+      {
+        id: "g2",
+        tierKey: "plus",
+        source: "manual",
+        note: null,
+        startsAt: "2026-01-02T00:00:00.000Z",
+        expiresAt: null,
+        revokedAt: "2026-02-01T00:00:00.000Z",
+      },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe("grant");
+    expect(rows[0].gift).toBe(true);
+    expect(rows[0].giftSource).toBe("expert");
+  });
+});

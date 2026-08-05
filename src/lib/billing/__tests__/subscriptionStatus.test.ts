@@ -96,3 +96,52 @@ describe("deriveSubscriptionStatus", () => {
     ).toBe("cancelScheduled");
   });
 });
+
+describe("deriveSubscriptionStatus with access grants", () => {
+  const lifetime = { tierKey: "vip", expiresAt: null, source: "expert" };
+
+  it("exposes a lifetime grant instead of an empty state", () => {
+    const view = deriveSubscriptionStatus({
+      local: null,
+      provider: null,
+      grants: [lifetime],
+      now: NOW,
+    });
+    expect(view.key).toBe("grantLifetime");
+    expect(view.hasAccess).toBe(true);
+    expect(view.grant?.tierKey).toBe("vip");
+    expect(view.endsAt).toBeNull();
+  });
+
+  it("keeps a paid active subscription ahead of a grant", () => {
+    const view = deriveSubscriptionStatus({
+      local: null,
+      provider: provider({ status: "active" }),
+      grants: [lifetime],
+      now: NOW,
+    });
+    expect(view.key).toBe("active");
+    expect(view.grant).toBeNull();
+  });
+
+  it("falls back to a time-boxed grant after cancellation", () => {
+    const view = deriveSubscriptionStatus({
+      local: null,
+      provider: provider({ status: "canceled", current_period_end: PAST }),
+      grants: [{ tierKey: "supporter", expiresAt: FUTURE, source: "donation" }],
+      now: NOW,
+    });
+    expect(view.key).toBe("grantActive");
+    expect(view.endsAt).toBe(FUTURE);
+  });
+
+  it("ignores expired grants", () => {
+    const view = deriveSubscriptionStatus({
+      local: null,
+      provider: null,
+      grants: [{ tierKey: "vip", expiresAt: PAST, source: "manual" }],
+      now: NOW,
+    });
+    expect(view.key).toBe("none");
+  });
+});
