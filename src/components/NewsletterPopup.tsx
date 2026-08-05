@@ -194,7 +194,9 @@ export function NewsletterPopup() {
       aria-labelledby="nl-popup-title"
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in"
       style={{ backgroundColor: palette.overlay }}
+      onClick={close}
     >
+
 
       {showcase ? (
         // Panel showcase w całości pochodzi ze wspólnego komponentu - dokładnie
