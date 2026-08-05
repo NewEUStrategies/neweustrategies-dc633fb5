@@ -8,7 +8,7 @@
 
 export type PlanBillingInterval = "two_weeks" | "month" | "quarter" | "year";
 
-export interface PaddlePriceEntry {
+export interface CatalogPriceEntry {
   /** external_id ceny u dostawcy. */
   priceId: string;
   /** external_id produktu u dostawcy. */
@@ -21,7 +21,7 @@ export interface PaddlePriceEntry {
   perSeat?: boolean;
 }
 
-export const PADDLE_CATALOG: readonly PaddlePriceEntry[] = [
+export const BILLING_CATALOG: readonly CatalogPriceEntry[] = [
   {
     priceId: "student_monthly",
     productId: "plan_student",
@@ -43,9 +43,9 @@ export const PADDLE_CATALOG: readonly PaddlePriceEntry[] = [
     interval: "month",
     rank: 30,
   },
-  { priceId: "plus_yearly", productId: "plan_plus", tierKey: "member", interval: "year", rank: 31 },
+  { priceId: "plus_annual", productId: "plan_plus", tierKey: "member", interval: "year", rank: 31 },
   { priceId: "pro_monthly", productId: "plan_pro", tierKey: "pro", interval: "month", rank: 40 },
-  { priceId: "pro_yearly", productId: "plan_pro", tierKey: "pro", interval: "year", rank: 41 },
+  { priceId: "pro_annual", productId: "plan_pro", tierKey: "pro", interval: "year", rank: 41 },
   {
     priceId: "team_monthly_seat",
     productId: "plan_team",
@@ -85,24 +85,24 @@ function normalizeInterval(interval: string | null | undefined): PlanBillingInte
 }
 
 /** Znajdź cenę dostawcy dla planu z `access_plans`. */
-export function paddlePriceForPlan(plan: {
+export function catalogPriceForPlan(plan: {
   tier_key?: string | null;
   interval?: string | null;
-}): PaddlePriceEntry | null {
+}): CatalogPriceEntry | null {
   const tier = plan.tier_key ?? "";
   if (!tier) return null;
   const interval = normalizeInterval(plan.interval);
   return (
-    PADDLE_CATALOG.find((e) => e.tierKey === tier && e.interval === interval) ??
-    PADDLE_CATALOG.find((e) => e.tierKey === tier) ??
+    BILLING_CATALOG.find((e) => e.tierKey === tier && e.interval === interval) ??
+    BILLING_CATALOG.find((e) => e.tierKey === tier) ??
     null
   );
 }
 
 /** Odwrotne mapowanie: czytelny identyfikator ceny -> wpis katalogu. */
-export function catalogEntryByPriceId(priceId: string | null | undefined): PaddlePriceEntry | null {
+export function catalogEntryByPriceId(priceId: string | null | undefined): CatalogPriceEntry | null {
   if (!priceId) return null;
-  return PADDLE_CATALOG.find((e) => e.priceId === priceId) ?? null;
+  return BILLING_CATALOG.find((e) => e.priceId === priceId) ?? null;
 }
 
 /** Kierunek zmiany planu: upgrade rozliczamy od razu, downgrade od nowego okresu. */
