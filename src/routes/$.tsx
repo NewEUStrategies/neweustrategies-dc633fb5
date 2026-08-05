@@ -907,7 +907,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     const articleActions = (
       <div className="no-print flex items-center gap-2">
         {giftButton}
-        <GooglePreferredSourceBadge />
+        <GooglePreferredSourceBadge entityId={it.id} className="w-auto" />
       </div>
     );
     return (
@@ -979,7 +979,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   {giftButton && (
                     <span className="[&_button]:w-full min-w-0 flex-1">{giftButton}</span>
                   )}
-                  <GooglePreferredSourceBadge variant="compact" className="shrink-0" />
+                  <GooglePreferredSourceBadge device="mobile" entityId={it.id} className="w-auto shrink-0" />
                 </div>
                 {/* Mobile: odsluch (TTS) + pobranie artykulu w miejscu paska
                     czasu czytania / aktualizacji. Odsluch idzie przez globalny

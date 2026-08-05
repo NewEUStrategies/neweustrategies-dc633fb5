@@ -204,6 +204,7 @@ import { Route as AdminSettingsSeoRouteImport } from './routes/admin.settings.se
 import { Route as AdminSettingsReadingRouteImport } from './routes/admin.settings.reading'
 import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
 import { Route as AdminSettingsMarketingRouteImport } from './routes/admin.settings.marketing'
+import { Route as AdminSettingsGoogleSourceRouteImport } from './routes/admin.settings.google-source'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin.settings.general'
 import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.settings.discussion'
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
@@ -1242,6 +1243,12 @@ const AdminSettingsMarketingRoute = AdminSettingsMarketingRouteImport.update({
   path: '/marketing',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsGoogleSourceRoute =
+  AdminSettingsGoogleSourceRouteImport.update({
+    id: '/google-source',
+    path: '/google-source',
+    getParentRoute: () => AdminSettingsRoute,
+  } as any)
 const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -1762,6 +1769,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/google-source': typeof AdminSettingsGoogleSourceRoute
   '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
@@ -2007,6 +2015,7 @@ export interface FileRoutesByTo {
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/google-source': typeof AdminSettingsGoogleSourceRoute
   '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
@@ -2263,6 +2272,7 @@ export interface FileRoutesById {
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/google-source': typeof AdminSettingsGoogleSourceRoute
   '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
@@ -2520,6 +2530,7 @@ export interface FileRouteTypes {
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
+    | '/admin/settings/google-source'
     | '/admin/settings/marketing'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
@@ -2765,6 +2776,7 @@ export interface FileRouteTypes {
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
+    | '/admin/settings/google-source'
     | '/admin/settings/marketing'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
@@ -3020,6 +3032,7 @@ export interface FileRouteTypes {
     | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
+    | '/admin/settings/google-source'
     | '/admin/settings/marketing'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
@@ -4542,6 +4555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsMarketingRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/google-source': {
+      id: '/admin/settings/google-source'
+      path: '/google-source'
+      fullPath: '/admin/settings/google-source'
+      preLoaderRoute: typeof AdminSettingsGoogleSourceRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/general': {
       id: '/admin/settings/general'
       path: '/general'
@@ -5172,6 +5192,7 @@ interface AdminSettingsRouteChildren {
   AdminSettingsDesignRoute: typeof AdminSettingsDesignRoute
   AdminSettingsDiscussionRoute: typeof AdminSettingsDiscussionRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSettingsGoogleSourceRoute: typeof AdminSettingsGoogleSourceRoute
   AdminSettingsMarketingRoute: typeof AdminSettingsMarketingRoute
   AdminSettingsPrivacyRoute: typeof AdminSettingsPrivacyRoute
   AdminSettingsReadingRoute: typeof AdminSettingsReadingRoute
@@ -5185,6 +5206,7 @@ const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsDesignRoute: AdminSettingsDesignRoute,
   AdminSettingsDiscussionRoute: AdminSettingsDiscussionRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSettingsGoogleSourceRoute: AdminSettingsGoogleSourceRoute,
   AdminSettingsMarketingRoute: AdminSettingsMarketingRoute,
   AdminSettingsPrivacyRoute: AdminSettingsPrivacyRoute,
   AdminSettingsReadingRoute: AdminSettingsReadingRoute,
