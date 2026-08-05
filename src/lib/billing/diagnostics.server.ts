@@ -293,7 +293,8 @@ export async function syncCouponDiscounts(
             }),
       });
       await stripe.promotionCodes.create({
-        coupon: coupon.id,
+        // API dahlia: kupon podpinamy przez obiekt `promotion`, nie płaskie `coupon`.
+        promotion: { type: "coupon", coupon: coupon.id },
         code,
         ...(row.valid_until
           ? { expires_at: Math.floor(new Date(row.valid_until).getTime() / 1000) }
