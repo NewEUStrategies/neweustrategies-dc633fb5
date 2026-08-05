@@ -163,10 +163,12 @@ export function NewsletterPopup() {
   }, [open, close]);
 
   if (!s?.popup_enabled || !open) return null;
+  // Popup nie zamyka się sam: po udanym zapisie zostaje otwarty z komunikatem
+  // sukcesu, a użytkownik zamyka go świadomie (X lub Esc).
   const onSuccess = () => {
     markDismissed();
-    setTimeout(() => close(), 1800);
   };
+
 
   const showcase = s.popup_layout === "showcase";
   const split = s.popup_layout === "split";
