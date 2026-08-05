@@ -82,7 +82,7 @@ export async function assertAdmin(
 }
 
 async function readDestinations(env: StripeEnv) {
-  const { gatewayFetch } = await import("@/lib/stripe.server");
+  const { gatewayFetch } = await import("@/lib/paddle.server");
   try {
     const res = await gatewayFetch(env, "/notification-settings");
     if (!res.ok) return [];
@@ -107,7 +107,7 @@ async function readDestinations(env: StripeEnv) {
 }
 
 async function readCatalog(env: StripeEnv): Promise<CatalogPriceStatus[]> {
-  const { gatewayFetch } = await import("@/lib/stripe.server");
+  const { gatewayFetch } = await import("@/lib/paddle.server");
   const results: CatalogPriceStatus[] = [];
   for (const entry of BILLING_CATALOG) {
     let providerPriceId: string | null = null;

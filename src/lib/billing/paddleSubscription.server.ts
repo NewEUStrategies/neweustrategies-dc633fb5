@@ -6,7 +6,7 @@
 // potem baza. Jeśli operator odmówi, wiersz w bazie nie może twierdzić, że
 // subskrypcja jest anulowana/zmieniona - klient byłby dalej obciążany.
 import { BILLING_CATALOG } from "@/lib/billing/catalog";
-import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
+import { gatewayFetch, type StripeEnv } from "@/lib/paddle.server";
 
 // `{}` jest tu celowe: domyślny wariant NIE dokłada żadnych pól do `{ok:true}`.
 // (Reguła ban-types została zastąpiona przez no-empty-object-type - stara nazwa

@@ -55,7 +55,7 @@ export async function createPortalLinkForUser(
     const sub = await latestSubscription(supabase, userId, environment);
     if (!sub) return { ok: false, error: "no_customer" };
 
-    const { getPaddleClient } = await import("@/lib/stripe.server");
+    const { getPaddleClient } = await import("@/lib/paddle.server");
     const session = await getPaddleClient(environment).customerPortalSessions.create(
       sub.customerId,
       sub.subscriptionId ? [sub.subscriptionId] : [],
