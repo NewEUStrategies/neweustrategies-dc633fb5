@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, Eye, Loader2, Mail, Lock, User, LogIn } from "@/lib/lucide-shim";
+import { ArrowLeft, Eye, Loader2, Mail, Lock, LogIn } from "@/lib/lucide-shim";
 import { EyeOff, UserPlus, KeyRound, Sun, Moon } from "lucide-react";
 import { FieldBox } from "@/components/ui/field-box";
 import {
