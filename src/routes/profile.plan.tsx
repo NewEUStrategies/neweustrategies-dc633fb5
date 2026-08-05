@@ -119,8 +119,17 @@ function PlanPage() {
               </div>
             </dl>
           )}
+
+          {/* Pełne zarządzanie planem, ceną i anulowaniem po stronie operatora. */}
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <CustomerPortalButton returnPath="/profile/plan" />
+            <p className="text-xs text-muted-foreground">
+              {t("profile.subscription.portal.manageHint")}
+            </p>
+          </div>
         </CardContent>
       </Card>
+
 
       <PlanSwitchBoard subscription={subscription} />
 
