@@ -902,6 +902,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       accessRule?.mode !== "password" ? (
         <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
       ) : null;
+    // Obok akcji podarunkowej stoi badge „Preferowane zrodlo w Google".
+    const articleActions = (
+      <div className="no-print flex items-center gap-2">
+        {giftButton}
+        <GooglePreferredSourceBadge />
+      </div>
+    );
     return (
       <div
         className="flex min-w-0 w-full max-w-full flex-col overflow-x-clip bg-background text-foreground"
