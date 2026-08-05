@@ -180,11 +180,38 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
         if (!settings.allow_public_signup) {
           throw new Error(isPl ? "Rejestracja jest wyłączona." : "Sign-up is disabled.");
         }
-        const trimmed = name.trim();
-        const parts = trimmed.split(/\s+/).filter(Boolean);
-        const firstName = parts[0] ?? "";
-        const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
-        const displayName = trimmed || email.split("@")[0];
+        // Wymagalność pól pochodzi z globalnej konfiguracji rejestracji.
+        const missing = reg.visible.find(
+          (f) =>
+            f.required &&
+            f.key !== "email" &&
+            f.key !== "password" &&
+            f.key !== "password_confirm" &&
+            f.key !== "newsletter_optin" &&
+            f.key !== "list" &&
+            !val(f.key).trim(),
+        );
+        if (missing) {
+          throw new Error(
+            isPl ? "Uzupełnij wymagane pola." : "Please fill in all required fields.",
+          );
+        }
+        if (reg.isEnabled("password_confirm") && password !== passwordConfirm) {
+          throw new Error(isPl ? "Hasła nie są identyczne." : "Passwords do not match.");
+        }
+        const legacy = name.trim().split(/\s+/).filter(Boolean);
+        const metadata = buildSignupMetadata(
+          {
+            email,
+            firstName: val("first_name") || (legacy[0] ?? ""),
+            lastName: val("last_name") || legacy.slice(1).join(" "),
+            job: val("job"),
+            company: val("company"),
+            linkedin: val("linkedin"),
+            phone: val("phone"),
+          },
+          { lang: isPl ? "pl" : "en", source: "auth_page" },
+        );
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -194,16 +221,11 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
                 ? settings.logged_in_redirect_url
                 : "/"
             }`,
-            data: {
-              display_name: displayName,
-              first_name: firstName,
-              last_name: lastName,
-              full_name: trimmed || displayName,
-              signup_type: "reader",
-            },
+            data: metadata,
           },
         });
         if (error) throw error;
+
         toast.success(
           isPl ? "Konto utworzone - sprawdź email." : "Account created - check your email.",
         );
