@@ -3,7 +3,7 @@
 // testowe i produkcyjne leżą w jednej tabeli, więc brak filtra pokazałby
 // w opublikowanej aplikacji subskrypcję z trybu testowego.
 import { supabase } from "@/integrations/supabase/client";
-import { getStripeEnvironment } from "@/lib/stripe";
+import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { catalogEntryByPriceId, type CatalogPriceEntry } from "./catalog";
 
 export interface PaddleSubscriptionRow {
@@ -32,7 +32,7 @@ export async function fetchMyPaddleSubscription(): Promise<PaddleSubscriptionRow
     .from("subscriptions")
     .select(COLUMNS)
     .eq("user_id", uid)
-    .eq("environment", getStripeEnvironment())
+    .eq("environment", getStripeEnvironmentSafe())
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
