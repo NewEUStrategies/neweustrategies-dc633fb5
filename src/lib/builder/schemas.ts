@@ -3341,6 +3341,8 @@ const authFieldBlock = (
   ...labelPh("email", "E-mail"),
   ...authFieldBlock("phone", "Telefon", { show: false, require: false }),
   ...authFieldBlock("company", "Firma", { show: false, require: false }),
+  ...authFieldBlock("job", "Stanowisko", { show: false, require: false }),
+  ...authFieldBlock("linkedin", "LinkedIn", { show: false, require: false }),
   ...labelPh("password", "Hasło"),
   ...authFieldBlock("passwordConfirm", "Powtórz hasło", { show: false, require: false }),
   authToggle("showShowPassword", "Pokaż przycisk pokaż hasło?", true),
