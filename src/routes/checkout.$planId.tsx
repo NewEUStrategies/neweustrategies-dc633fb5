@@ -24,10 +24,10 @@ import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { isPaymentsConfigured } from "@/lib/paddle";
-import { paddlePriceForPlan } from "@/lib/billing/paddleCatalog";
+import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import { resolvePaddleDiscount } from "@/utils/payments.functions";
-import { getPaddleEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/paddle";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
@@ -90,7 +90,7 @@ function CheckoutPage() {
     setBusy(true);
 
     // Wbudowane płatności mają pierwszeństwo, gdy plan ma odpowiednik w katalogu.
-    const paddlePrice = isPaymentsConfigured() ? paddlePriceForPlan(plan.data) : null;
+    const paddlePrice = isPaymentsConfigured() ? catalogPriceForPlan(plan.data) : null;
     if (paddlePrice && session?.user?.id) {
       try {
         // Kod promocyjny: walidacja po stronie serwera i mapowanie na rabat
@@ -103,7 +103,7 @@ function CheckoutPage() {
               planId: plan.data.id,
               amountCents: plan.data.price_cents ?? 0,
               currency: planCurrency,
-              environment: getPaddleEnvironment(),
+              environment: getStripeEnvironment(),
             },
           });
           if (!resolved.ok) {
@@ -135,7 +135,7 @@ function CheckoutPage() {
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",
           display_currency: displayCurrency,
-          environment: getPaddleEnvironment(),
+          environment: getStripeEnvironment(),
           ...(coupon ? { coupon_code: coupon.code } : {}),
         },
       });

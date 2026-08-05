@@ -1,0 +1,3 @@
+ALTER TABLE public.subscriptions RENAME COLUMN paddle_subscription_id TO provider_subscription_id;
+ALTER TABLE public.subscriptions RENAME COLUMN paddle_customer_id TO provider_customer_id;
+ALTER TABLE public.member_organizations RENAME COLUMN paddle_subscription_id TO provider_subscription_id;

@@ -1703,7 +1703,8 @@ export const WIDGETS: WidgetDef[] = [
       accent: "",
       currency: "PLN",
       // Tryb akcji: link na /support albo bezpośrednio do zewnętrznej zbiórki
-      // (zrzutka.pl). Wpłat nie obsługuje operator płatności (AUP Paddle).
+      // (zrzutka.pl). To decyzja produktowa - wpłat nie obsługuje nasz
+      // operator płatności, prowadzimy je poza nim celowo.
       mode: "link",
     }),
   },

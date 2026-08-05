@@ -12,7 +12,7 @@ export const syncPaymentCatalogNow = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((input: unknown) => inputSchema.parse(input ?? {}))
   .handler(async ({ data }) => {
-    const { syncPaddleCatalog } = await import("@/lib/billing/paddleCatalogSync.server");
+    const { syncPaddleCatalog } = await import("@/lib/billing/catalogSync.server");
     const env = data.environment ?? "sandbox";
     const report = await syncPaddleCatalog(env);
     // Ręczna synchronizacja odświeża też odcisk integracji - inaczej

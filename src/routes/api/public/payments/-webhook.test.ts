@@ -110,7 +110,7 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.client }));
-vi.mock("@/lib/paddle.server", () => ({
+vi.mock("@/lib/stripe.server", () => ({
   verifyWebhook: async () => h.event.value,
   // catalogAutoSync liczy odcisk integracji na starcie handlera.
   getConnectionApiKey: () => "test_key",

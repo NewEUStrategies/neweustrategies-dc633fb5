@@ -80,8 +80,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // `subscription.*` (odnowienia, dunning, anulowanie). Cena ad-hoc dałaby
       // pojedyncze obciążenie bez odnowienia.
       if (data.kind === "subscription") {
-        const { paddlePriceForPlan } = await import("@/lib/billing/paddleCatalog");
-        const entry = paddlePriceForPlan({
+        const { catalogPriceForPlan } = await import("@/lib/billing/catalog");
+        const entry = catalogPriceForPlan({
           tier_key: plan.tier_key as string | null,
           interval: plan.interval as string | null,
         });
@@ -584,7 +584,7 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
       isProviderSubscriptionRef,
       subscriptionEnvironment,
     } = await import("@/lib/billing/paddleSubscription.server");
-    const { planChangeDirection } = await import("@/lib/billing/paddleCatalog");
+    const { planChangeDirection } = await import("@/lib/billing/catalog");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
 
     const providerConfigured = paymentsConfiguredServer();

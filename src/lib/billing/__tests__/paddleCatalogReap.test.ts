@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const gatewayFetch = vi.fn();
-vi.mock("@/lib/paddle.server", () => ({ gatewayFetch }));
+vi.mock("@/lib/stripe.server", () => ({ gatewayFetch }));
 
 const ok = (body: unknown) =>
   ({ ok: true, status: 200, json: async () => body, text: async () => "" }) as Response;
@@ -67,14 +67,14 @@ describe("reapOrphanCatalogEntries", () => {
   });
 
   it("oznacza powód `plan_inactive`, gdy plan jest wyłączony w bazie", async () => {
-    wire([row("pri_off", "pro_yearly")], []);
+    wire([row("pri_off", "pro_annual")], []);
 
     const { reapOrphanCatalogEntries } = await import("../paddleCatalogReap.server");
     const reaped = await reapOrphanCatalogEntries({
       env: "sandbox",
       expectedPriceIds: new Set<string>(),
       expectedProductIds: new Set<string>(),
-      inactivePriceIds: new Set(["pro_yearly"]),
+      inactivePriceIds: new Set(["pro_annual"]),
     });
 
     expect(reaped[0]).toMatchObject({ kind: "price", reason: "plan_inactive" });

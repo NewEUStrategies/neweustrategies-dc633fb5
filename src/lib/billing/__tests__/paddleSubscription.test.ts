@@ -7,8 +7,8 @@ import {
 
 const base: PaddleSubscriptionRow = {
   id: "1",
-  paddle_subscription_id: "sub_1",
-  paddle_customer_id: "ctm_1",
+  provider_subscription_id: "sub_1",
+  provider_customer_id: "ctm_1",
   product_id: "plan_pro",
   price_id: "pro_monthly",
   status: "active",

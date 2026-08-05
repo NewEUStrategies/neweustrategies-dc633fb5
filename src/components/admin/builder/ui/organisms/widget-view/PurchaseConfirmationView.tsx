@@ -33,7 +33,7 @@ import {
   type PurchaseSummary,
 } from "@/lib/billing/purchaseConfirmation";
 import { formatMoney } from "@/lib/billing/types";
-import { getPaddleEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/paddle";
 import { createPaddlePortalSession } from "@/utils/payments.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -113,7 +113,7 @@ export function PurchaseConfirmationView({ c, lang }: { c: WidgetContent; lang: 
   const inBuilder = useBuilderMode() !== null;
   const { session } = useAuth();
   const uid = session?.user?.id;
-  const environment = getPaddleEnvironment();
+  const environment = getStripeEnvironment();
   const [portalPending, setPortalPending] = useState(false);
 
   const showAccessEnd = getBool(c, "showAccessEnd", true);

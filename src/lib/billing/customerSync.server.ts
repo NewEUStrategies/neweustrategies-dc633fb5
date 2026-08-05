@@ -8,7 +8,7 @@
 // prawa powstać z webhooka.
 //
 // Moduł server-only (klient service_role).
-import type { PaddleEnv } from "@/lib/paddle.server";
+import type { StripeEnv } from "@/lib/stripe.server";
 
 /** Ładunki operatora czytamy defensywnie - SDK nie typuje ich stabilnie. */
 type Raw = Record<string, unknown>;
@@ -28,13 +28,13 @@ async function admin() {
  * wiarygodnym powiązaniem jest tabela `subscriptions` - to ona powstaje z
  * `custom_data.userId` przy zakupie.
  */
-async function userForCustomer(customerId: string | null, env: PaddleEnv): Promise<string | null> {
+async function userForCustomer(customerId: string | null, env: StripeEnv): Promise<string | null> {
   if (!customerId) return null;
   const supabase = await admin();
   const { data, error } = await supabase
     .from("subscriptions")
     .select("user_id")
-    .eq("paddle_customer_id", customerId)
+    .eq("provider_customer_id", customerId)
     .eq("environment", env)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -77,7 +77,7 @@ async function patchProfile(userId: string, patch: ProfilePatch): Promise<boolea
 }
 
 /** `customer.updated` - e-mail i nazwa klienta. */
-export async function syncCustomerProfile(data: unknown, env: PaddleEnv): Promise<void> {
+export async function syncCustomerProfile(data: unknown, env: StripeEnv): Promise<void> {
   const row = (data ?? {}) as Raw;
   const userId = await userForCustomer(str(row, "id"), env);
   if (!userId) return;
@@ -91,7 +91,7 @@ export async function syncCustomerProfile(data: unknown, env: PaddleEnv): Promis
 }
 
 /** `address.updated` - adres rozliczeniowy (wpływa na stawkę podatku). */
-export async function syncCustomerAddress(data: unknown, env: PaddleEnv): Promise<void> {
+export async function syncCustomerAddress(data: unknown, env: StripeEnv): Promise<void> {
   const row = (data ?? {}) as Raw;
   const userId = await userForCustomer(str(row, "customerId"), env);
   if (!userId) return;
@@ -113,7 +113,7 @@ export async function syncCustomerAddress(data: unknown, env: PaddleEnv): Promis
 }
 
 /** `business.updated` - nazwa firmy i numer podatkowy (faktura B2B). */
-export async function syncCustomerBusiness(data: unknown, env: PaddleEnv): Promise<void> {
+export async function syncCustomerBusiness(data: unknown, env: StripeEnv): Promise<void> {
   const row = (data ?? {}) as Raw;
   const userId = await userForCustomer(str(row, "customerId"), env);
   if (!userId) return;

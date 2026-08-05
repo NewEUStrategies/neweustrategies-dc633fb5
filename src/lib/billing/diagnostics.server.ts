@@ -11,8 +11,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/integrations/supabase/types";
-import { PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
-import type { PaddleEnv } from "@/lib/paddle.server";
+import { BILLING_CATALOG } from "@/lib/billing/catalog";
+import type { StripeEnv } from "@/lib/stripe.server";
 
 export interface DiagnosticCheck {
   id: string;
@@ -59,7 +59,7 @@ export interface WebhookHealth {
 }
 
 export interface PaymentsDiagnostics {
-  environment: PaddleEnv;
+  environment: StripeEnv;
   checks: DiagnosticCheck[];
   catalog: CatalogPriceStatus[];
   coupons: CouponDiscountStatus[];
@@ -81,8 +81,8 @@ export async function assertAdmin(
   if (data !== true) throw new Error("forbidden");
 }
 
-async function readDestinations(env: PaddleEnv) {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+async function readDestinations(env: StripeEnv) {
+  const { gatewayFetch } = await import("@/lib/stripe.server");
   try {
     const res = await gatewayFetch(env, "/notification-settings");
     if (!res.ok) return [];
@@ -106,10 +106,10 @@ async function readDestinations(env: PaddleEnv) {
   }
 }
 
-async function readCatalog(env: PaddleEnv): Promise<CatalogPriceStatus[]> {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+async function readCatalog(env: StripeEnv): Promise<CatalogPriceStatus[]> {
+  const { gatewayFetch } = await import("@/lib/stripe.server");
   const results: CatalogPriceStatus[] = [];
-  for (const entry of PADDLE_CATALOG) {
+  for (const entry of BILLING_CATALOG) {
     let providerPriceId: string | null = null;
     try {
       const res = await gatewayFetch(
@@ -134,7 +134,7 @@ async function readCatalog(env: PaddleEnv): Promise<CatalogPriceStatus[]> {
   return results;
 }
 
-async function readCoupons(env: PaddleEnv): Promise<CouponDiscountStatus[]> {
+async function readCoupons(env: StripeEnv): Promise<CouponDiscountStatus[]> {
   const supabase = await admin();
   const { data } = await supabase
     .from("b2b_coupons")
@@ -168,7 +168,7 @@ async function readCoupons(env: PaddleEnv): Promise<CouponDiscountStatus[]> {
   return rows;
 }
 
-async function readWebhookHealth(env: PaddleEnv): Promise<WebhookHealth> {
+async function readWebhookHealth(env: StripeEnv): Promise<WebhookHealth> {
   const supabase = await admin();
   const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
   const { data } = await supabase
@@ -198,7 +198,7 @@ async function readWebhookHealth(env: PaddleEnv): Promise<WebhookHealth> {
 }
 
 /** Pełny raport diagnostyczny dla wskazanego środowiska. */
-export async function buildPaymentsDiagnostics(env: PaddleEnv): Promise<PaymentsDiagnostics> {
+export async function buildPaymentsDiagnostics(env: StripeEnv): Promise<PaymentsDiagnostics> {
   const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
   const configured = paymentsConfiguredServer();
 
@@ -249,7 +249,7 @@ export async function buildPaymentsDiagnostics(env: PaddleEnv): Promise<Payments
  * kod jest kluczem naturalnym po obu stronach.
  */
 export async function syncCouponDiscounts(
-  env: PaddleEnv,
+  env: StripeEnv,
 ): Promise<{ created: number; existing: number; failed: number }> {
   const supabase = await admin();
   const { data } = await supabase

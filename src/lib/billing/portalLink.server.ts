@@ -8,7 +8,7 @@
 // Moduł jest server-only (klucze bramki + service role).
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { PaddleEnv } from "@/lib/paddle.server";
+import type { StripeEnv } from "@/lib/stripe.server";
 import { resolveRecipient } from "@/lib/billing/notifications.server";
 import { sendTxEmail } from "@/lib/email/transactional.server";
 
@@ -26,27 +26,27 @@ export type PortalLinkResult =
 async function latestSubscription(
   supabase: SupabaseClient,
   userId: string,
-  environment: PaddleEnv,
+  environment: StripeEnv,
 ): Promise<{ customerId: string; subscriptionId: string | null } | null> {
   const { data, error } = await supabase
     .from("subscriptions")
-    .select("paddle_customer_id, paddle_subscription_id")
+    .select("provider_customer_id, provider_subscription_id")
     .eq("user_id", userId)
     .eq("environment", environment)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error || !data?.paddle_customer_id) return null;
+  if (error || !data?.provider_customer_id) return null;
   return {
-    customerId: data.paddle_customer_id as string,
-    subscriptionId: (data.paddle_subscription_id as string | null) ?? null,
+    customerId: data.provider_customer_id as string,
+    subscriptionId: (data.provider_subscription_id as string | null) ?? null,
   };
 }
 
 /** Tworzy sesję portalu klienta dla wskazanego użytkownika. Nigdy nie rzuca. */
 export async function createPortalLinkForUser(
   userId: string,
-  environment: PaddleEnv,
+  environment: StripeEnv,
 ): Promise<PortalLinkResult> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -55,7 +55,7 @@ export async function createPortalLinkForUser(
     const sub = await latestSubscription(supabase, userId, environment);
     if (!sub) return { ok: false, error: "no_customer" };
 
-    const { getPaddleClient } = await import("@/lib/paddle.server");
+    const { getPaddleClient } = await import("@/lib/stripe.server");
     const session = await getPaddleClient(environment).customerPortalSessions.create(
       sub.customerId,
       sub.subscriptionId ? [sub.subscriptionId] : [],
@@ -81,7 +81,7 @@ export type PortalEmailResult =
 
 export interface PortalEmailInput {
   userId: string;
-  environment: PaddleEnv;
+  environment: StripeEnv;
   /**
    * Ziarno idempotencji. Administrator wysyłający link ponownie podaje nowe
    * ziarno (znacznik czasu), żeby kolejna wysyłka nie została odrzucona jako

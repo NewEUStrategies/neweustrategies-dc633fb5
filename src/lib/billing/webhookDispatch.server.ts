@@ -8,9 +8,9 @@
 // Cała logika jest idempotentna, więc powtórka nie dubluje skutków.
 //
 // Moduł server-only (klient service_role) - importuj wyłącznie z handlerów.
-import { planChangeDirection } from "@/lib/billing/paddleCatalog";
+import { planChangeDirection } from "@/lib/billing/catalog";
 import { accessPeriodFromEvent } from "@/lib/billing/accessPeriod";
-import type { PaddleEnv } from "@/lib/paddle.server";
+import type { StripeEnv } from "@/lib/stripe.server";
 
 export type SubscriptionData = {
   id: string;
@@ -25,10 +25,10 @@ export type SubscriptionData = {
     trialDates?: { startsAt?: string | null; endsAt?: string | null } | null;
     price: {
       id: string;
-      importMeta?: { externalId?: string | null } | null;
+      externalId?: string | null;
       trialPeriod?: { interval?: string | null; frequency?: number | null } | null;
     };
-    product?: { id: string; importMeta?: { externalId?: string | null } | null } | null;
+    product?: { id: string; externalId?: string | null } | null;
   }>;
 };
 
@@ -55,8 +55,8 @@ async function admin() {
 function readIds(data: SubscriptionData) {
   const item = data.items?.[0];
   return {
-    priceId: item?.price?.importMeta?.externalId ?? null,
-    productId: item?.product?.importMeta?.externalId ?? null,
+    priceId: item?.price?.externalId ?? null,
+    productId: item?.product?.externalId ?? null,
     quantity: item?.quantity ?? 1,
     /** Koniec triala: pozycja zdarzenia jest jedynym wiarygodnym źródłem. */
     trialEndsAt: item?.trialDates?.endsAt ?? null,
@@ -77,7 +77,7 @@ function readIds(data: SubscriptionData) {
  */
 async function claimSubscriptionEvent(
   subscriptionId: string,
-  env: PaddleEnv,
+  env: StripeEnv,
   occurredAt: string,
 ): Promise<boolean> {
   const iso = new Date(occurredAt);
@@ -88,7 +88,7 @@ async function claimSubscriptionEvent(
   const { data: claimed, error } = await supabase
     .from("subscriptions")
     .update({ last_event_at: stamp })
-    .eq("paddle_subscription_id", subscriptionId)
+    .eq("provider_subscription_id", subscriptionId)
     .eq("environment", env)
     .or(`last_event_at.is.null,last_event_at.lt.${stamp}`)
     .select("id");
@@ -100,14 +100,14 @@ async function claimSubscriptionEvent(
   const { data: exists, error: existsErr } = await supabase
     .from("subscriptions")
     .select("id")
-    .eq("paddle_subscription_id", subscriptionId)
+    .eq("provider_subscription_id", subscriptionId)
     .eq("environment", env)
     .maybeSingle();
   if (existsErr) throw new Error(`subscription lookup failed: ${existsErr.message}`);
   return !exists;
 }
 
-async function handleCreated(data: SubscriptionData, env: PaddleEnv, occurredAt?: string) {
+async function handleCreated(data: SubscriptionData, env: StripeEnv, occurredAt?: string) {
   const userId = data.customData?.userId;
   const { priceId, productId, quantity, trialEndsAt } = readIds(data);
   if (!userId) {
@@ -115,7 +115,7 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv, occurredAt?
     return;
   }
   if (!priceId || !productId) {
-    console.warn("[payments] missing importMeta.externalId", data.id);
+    console.warn("[payments] missing lookup_key/metadata.lovable_external_id", data.id);
     return;
   }
 
@@ -123,8 +123,8 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv, occurredAt?
   const { error } = await supabase.from("subscriptions").upsert(
     {
       user_id: userId,
-      paddle_subscription_id: data.id,
-      paddle_customer_id: data.customerId,
+      provider_subscription_id: data.id,
+      provider_customer_id: data.customerId,
       product_id: productId,
       price_id: priceId,
       status: data.status,
@@ -140,7 +140,7 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv, occurredAt?
       ...(occurredAt ? { last_event_at: new Date(occurredAt).toISOString() } : {}),
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "paddle_subscription_id" },
+    { onConflict: "provider_subscription_id" },
   );
   if (error) throw new Error(`subscriptions upsert failed: ${error.message}`);
 
@@ -167,14 +167,14 @@ async function handleCreated(data: SubscriptionData, env: PaddleEnv, occurredAt?
  * Operator wysyła je jako osobne typy, ale ładunek ma identyczny kształt, a
  * autorytatywne jest pole `status` - dlatego obsługa jest jedna i idempotentna.
  */
-async function handleUpdated(data: SubscriptionData, env: PaddleEnv, occurredAt: string) {
+async function handleUpdated(data: SubscriptionData, env: StripeEnv, occurredAt: string) {
   const supabase = await admin();
   const { priceId: eventPriceId, quantity, trialEndsAt } = readIds(data);
 
   const { data: existing } = await supabase
     .from("subscriptions")
     .select("user_id, price_id, status, current_period_end")
-    .eq("paddle_subscription_id", data.id)
+    .eq("provider_subscription_id", data.id)
     .eq("environment", env)
     .maybeSingle();
 
@@ -212,7 +212,7 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv, occurredAt:
       cancel_at_period_end: data.scheduledChange?.action === "cancel",
       updated_at: new Date().toISOString(),
     })
-    .eq("paddle_subscription_id", data.id)
+    .eq("provider_subscription_id", data.id)
     .eq("environment", env);
   if (error) throw new Error(`subscriptions update failed: ${error.message}`);
 
@@ -271,19 +271,19 @@ async function handleUpdated(data: SubscriptionData, env: PaddleEnv, occurredAt:
   });
 }
 
-async function handleCanceled(data: SubscriptionData, env: PaddleEnv) {
+async function handleCanceled(data: SubscriptionData, env: StripeEnv) {
   const supabase = await admin();
   const { data: existing } = await supabase
     .from("subscriptions")
     .select("user_id, price_id, current_period_end")
-    .eq("paddle_subscription_id", data.id)
+    .eq("provider_subscription_id", data.id)
     .eq("environment", env)
     .maybeSingle();
 
   const { error } = await supabase
     .from("subscriptions")
     .update({ status: "canceled", trial_ends_at: null, updated_at: new Date().toISOString() })
-    .eq("paddle_subscription_id", data.id)
+    .eq("provider_subscription_id", data.id)
     .eq("environment", env);
   if (error) throw new Error(`subscriptions cancel failed: ${error.message}`);
 
@@ -324,7 +324,7 @@ function amountFromTransaction(data: TransactionData): number | null {
 
 async function handleTransaction(
   data: TransactionData,
-  env: PaddleEnv,
+  env: StripeEnv,
   occurredAt: string,
   kind: "failed" | "paid",
 ) {
@@ -368,7 +368,7 @@ async function handleTransaction(
  * niego stabilnego typu), więc czytamy pola defensywnie i całą decyzję
  * przekazujemy do `applyRefundEffects`.
  */
-async function handleAdjustment(data: Record<string, unknown>, env: PaddleEnv): Promise<void> {
+async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): Promise<void> {
   const str = (key: string): string | null =>
     typeof data[key] === "string" ? (data[key] as string) : null;
 
@@ -398,7 +398,7 @@ async function handleAdjustment(data: Record<string, unknown>, env: PaddleEnv): 
  * Zapis faktury dla transakcji. Zwraca `true`, gdy coś faktycznie zapisano -
  * `transaction.updated` bez zmian traktujemy jako pominięte zdarzenie.
  */
-async function recordDocument(data: unknown, env: PaddleEnv): Promise<boolean> {
+async function recordDocument(data: unknown, env: StripeEnv): Promise<boolean> {
   const { documentInputFromTransaction, recordTransactionDocument } =
     await import("@/lib/billing/billingDocuments.server");
   const input = documentInputFromTransaction(data, env);
@@ -435,7 +435,7 @@ export const HANDLED_EVENT_TYPES = [
 export interface DispatchInput {
   eventType: string;
   data: unknown;
-  environment: PaddleEnv;
+  environment: StripeEnv;
   occurredAt: string;
 }
 

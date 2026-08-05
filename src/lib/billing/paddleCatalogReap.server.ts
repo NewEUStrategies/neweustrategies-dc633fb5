@@ -1,6 +1,6 @@
 // Archiwizacja pozycji katalogu, które zniknęły ze źródła prawdy aplikacji.
 //
-// Katalog u operatora płatności jest odtwarzany z `PADDLE_CATALOG` + `access_plans`.
+// Katalog u operatora płatności jest odtwarzany z `BILLING_CATALOG` + `access_plans`.
 // Gdy plan zostanie usunięty z kodu albo wyłączony w bazie (`active = false`),
 // jego produkt i cena zostają po stronie operatora i nadal widnieją jako
 // aktywne - można je kupić linkiem, a panel Payments pokazuje martwe pozycje.
@@ -13,7 +13,7 @@
 //    (ręcznie założone produkty operatora zostają nietknięte),
 //  - reap nie rusza, jeśli podstawowa synchronizacja miała błąd - awaria API
 //    nie może wyglądać jak "plan zniknął ze źródła".
-import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
+import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
 
 export interface ReapedEntry {
   kind: "product" | "price";
@@ -37,7 +37,7 @@ function externalIdOf(row: ProviderRow): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-async function listActive(env: PaddleEnv, resource: "products" | "prices"): Promise<ProviderRow[]> {
+async function listActive(env: StripeEnv, resource: "products" | "prices"): Promise<ProviderRow[]> {
   const rows: ProviderRow[] = [];
   let after: string | null = null;
   // Twardy limit stron - katalog jest mały, a pętla nie może zawisnąć na
@@ -62,7 +62,7 @@ async function listActive(env: PaddleEnv, resource: "products" | "prices"): Prom
 }
 
 async function archive(
-  env: PaddleEnv,
+  env: StripeEnv,
   resource: "products" | "prices",
   providerId: string,
 ): Promise<void> {
@@ -74,7 +74,7 @@ async function archive(
 }
 
 export interface ReapInput {
-  env: PaddleEnv;
+  env: StripeEnv;
   /** `external_id` cen, które nadal mają odpowiednik w źródle prawdy. */
   expectedPriceIds: ReadonlySet<string>;
   /** `external_id` produktów, które nadal mają aktywną cenę. */

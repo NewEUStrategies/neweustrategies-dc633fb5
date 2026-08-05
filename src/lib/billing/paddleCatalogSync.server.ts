@@ -5,9 +5,9 @@
 // czytelne `external_id`. Ten moduł odtwarza katalog idempotentnie:
 // produkt/cena są zakładane, gdy ich brak, a rozjechana kwota, waluta lub
 // cykl są korygowane do wartości z `access_plans` (źródło prawdy aplikacji).
-import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
+import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
 
-import { PADDLE_CATALOG, type PaddlePriceEntry } from "./paddleCatalog";
+import { BILLING_CATALOG, type CatalogPriceEntry } from "./catalog";
 import type { ReapedEntry } from "./paddleCatalogReap.server";
 
 export type CatalogSyncAction = "created" | "updated" | "ok" | "skipped" | "failed";
@@ -21,7 +21,7 @@ export interface CatalogSyncItem {
 }
 
 export interface CatalogSyncReport {
-  environment: PaddleEnv;
+  environment: StripeEnv;
   ranAt: string;
   items: CatalogSyncItem[];
   /** Pozycje zarchiwizowane, bo zniknęły ze źródła prawdy. */
@@ -44,7 +44,7 @@ interface PlanRow {
 }
 
 async function findByExternalId(
-  env: PaddleEnv,
+  env: StripeEnv,
   resource: "products" | "prices",
   externalId: string,
 ): Promise<{ id: string; raw: Record<string, unknown> } | null> {
@@ -63,7 +63,7 @@ async function findByExternalId(
  * day/week/month/year, więc interwały aplikacji mapują się na krotności:
  * two_weeks -> week x2, quarter -> month x3.
  */
-function billingCycle(entry: PaddlePriceEntry): { interval: string; frequency: number } {
+function billingCycle(entry: CatalogPriceEntry): { interval: string; frequency: number } {
   switch (entry.interval) {
     case "two_weeks":
       return { interval: "week", frequency: 2 };
@@ -85,8 +85,8 @@ function trialPeriod(plan: PlanRow): { interval: "day"; frequency: number } | nu
 }
 
 async function syncOne(
-  env: PaddleEnv,
-  entry: PaddlePriceEntry,
+  env: StripeEnv,
+  entry: CatalogPriceEntry,
   plan: PlanRow | undefined,
 ): Promise<CatalogSyncItem> {
   const item: CatalogSyncItem = {
@@ -180,10 +180,10 @@ async function syncOne(
 }
 
 /**
- * Odtwarza katalog u operatora na podstawie `access_plans` + `PADDLE_CATALOG`.
+ * Odtwarza katalog u operatora na podstawie `access_plans` + `BILLING_CATALOG`.
  * Idempotentna: powtórne wywołanie na spójnym katalogu nic nie zmienia.
  */
-export async function syncPaddleCatalog(env: PaddleEnv = "sandbox"): Promise<CatalogSyncReport> {
+export async function syncPaddleCatalog(env: StripeEnv = "sandbox"): Promise<CatalogSyncReport> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("access_plans")
@@ -192,12 +192,12 @@ export async function syncPaddleCatalog(env: PaddleEnv = "sandbox"): Promise<Cat
     );
   const plans = (data ?? []) as PlanRow[];
 
-  const planFor = (entry: PaddlePriceEntry): PlanRow | undefined =>
+  const planFor = (entry: CatalogPriceEntry): PlanRow | undefined =>
     plans.find((p) => p.tier_key === entry.tierKey && (p.interval ?? "month") === entry.interval) ??
     plans.find((p) => p.tier_key === entry.tierKey);
 
   const items: CatalogSyncItem[] = [];
-  for (const entry of PADDLE_CATALOG) {
+  for (const entry of BILLING_CATALOG) {
     try {
       items.push(await syncOne(env, entry, planFor(entry)));
     } catch (err) {
@@ -224,7 +224,7 @@ export async function syncPaddleCatalog(env: PaddleEnv = "sandbox"): Promise<Cat
     const expectedPriceIds = new Set<string>();
     const expectedProductIds = new Set<string>();
     const inactivePriceIds = new Set<string>();
-    for (const entry of PADDLE_CATALOG) {
+    for (const entry of BILLING_CATALOG) {
       const plan = planFor(entry);
       if (plan && plan.active !== false) {
         expectedPriceIds.add(entry.priceId);
@@ -266,7 +266,7 @@ let healingRun: Promise<CatalogSyncReport> | null = null;
  * typowy objaw restartu integracji. Uruchamiamy najwyżej jedną synchronizację
  * naraz, żeby równoległe zakupy nie zasypały API operatora.
  */
-export async function healCatalogOnce(env: PaddleEnv): Promise<void> {
+export async function healCatalogOnce(env: StripeEnv): Promise<void> {
   if (!healingRun) {
     healingRun = syncPaddleCatalog(env).finally(() => {
       healingRun = null;

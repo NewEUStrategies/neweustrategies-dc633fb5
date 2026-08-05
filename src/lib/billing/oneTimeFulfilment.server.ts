@@ -16,7 +16,7 @@
 // nieudanym grancie nie może zostać pominięty przez `status='paid'`.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PaddleEnv } from "@/lib/paddle.server";
+import type { StripeEnv } from "@/lib/stripe.server";
 
 export interface OneTimeTransaction {
   /** Identyfikator transakcji u dostawcy - klucz idempotencji. */
@@ -112,7 +112,7 @@ async function refundIfOversold(
 async function fulfilOrder(
   txn: OneTimeTransaction,
   orderId: string,
-  env: PaddleEnv,
+  env: StripeEnv,
 ): Promise<OneTimeOutcome> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { grantEntitlement } = await import("@/lib/billing/grant.server");
@@ -244,7 +244,7 @@ async function fulfilOrder(
 /** Rozdziela opłaconą transakcję jednorazową na właściwy skutek biznesowy. */
 export async function fulfilOneTimeTransaction(
   txn: OneTimeTransaction,
-  env: PaddleEnv,
+  env: StripeEnv,
 ): Promise<OneTimeOutcome> {
   const kind = str(txn.customData, "kind");
   if (kind === "donation") {

@@ -1,13 +1,13 @@
 // Strażnik strumienia DOKUMENTU SSR - ostatnia, transportowa linia obrony
 // przed wiszącą odpowiedzią HTML (server-only, zero zależności poza Web API).
 //
-// PROBLEM (incydent "Paddle widzi offline", 2026-07-30): produkcyjny potok
+// PROBLEM (incydent "operator płatności widzi offline", 2026-07-30): produkcyjny potok
 // TanStack Start trzyma strumień odpowiedzi otwarty do rozstrzygnięcia
 // serializacji seroval (`transformStreamWithRouter` -> `tryFinish`). Gdy
 // jakikolwiek asynchroniczny element payloadu się nie domyka, framework ubija
 // strumień DOPIERO swoim wewnętrznym limitem `DEFAULT_SERIALIZATION_TIMEOUT_MS`
 // = 60 000 ms - i to błędem (`controller.error`), nie zamknięciem. Efekt:
-// każda strona odpowiada "kompletnie" po ~61 s, a monitor/bot (Paddle,
+// każda strona odpowiada "kompletnie" po ~61 s, a monitor/bot (operator płatności,
 // health-check) rozłącza się dużo wcześniej i raportuje stronę jako offline.
 // Wewnętrzni strażnicy (queryTimeout 5 s, queryStreamGuard <=10 s) pilnują
 // WŁASNYCH strumieni, ale żaden nie pilnował samej odpowiedzi HTTP.

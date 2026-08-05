@@ -30,7 +30,7 @@ import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 // anglojęzyczny czytelnik widział polskie formatowanie cen na paywallu).
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
-import { getPaddleEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/paddle";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import {
   formatMeterResetDate,
@@ -185,7 +185,7 @@ export function Paywall({
           entity_id: rule.entity_id,
           success_path: "/checkout/success",
           cancel_path: "/checkout/cancel",
-          environment: getPaddleEnvironment(),
+          environment: getStripeEnvironment(),
         },
       });
       if (!res.ok) {

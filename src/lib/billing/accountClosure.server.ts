@@ -6,7 +6,7 @@
 // (nie na koniec okresu) i dopiero wtedy wolno usuwać użytkownika.
 //
 // Moduł server-only (klucze bramki + service role).
-import type { PaddleEnv } from "@/lib/paddle.server";
+import type { StripeEnv } from "@/lib/stripe.server";
 
 export interface AccountClosureResult {
   /** Ile aktywnych subskrypcji anulowano u operatora. */
@@ -30,10 +30,10 @@ export async function closeBillingForUser(
   const { subscriptionEnvironment, cancelSubscriptionImmediately, isProviderSubscriptionRef } =
     await import("@/lib/billing/paddleSubscription.server");
 
-  const env: PaddleEnv = subscriptionEnvironment();
+  const env: StripeEnv = subscriptionEnvironment();
   const { data: rows, error } = await supabaseAdmin
     .from("subscriptions")
-    .select("paddle_subscription_id, status, price_id")
+    .select("provider_subscription_id, status, price_id")
     .eq("user_id", userId)
     .eq("environment", env)
     .in("status", OPEN_STATUSES);
@@ -43,7 +43,7 @@ export async function closeBillingForUser(
   const nowIso = new Date().toISOString();
 
   for (const row of rows ?? []) {
-    const ref = row.paddle_subscription_id;
+    const ref = row.provider_subscription_id;
     if (!isProviderSubscriptionRef(ref)) continue;
 
     const op = await cancelSubscriptionImmediately(env, ref);
@@ -63,7 +63,7 @@ export async function closeBillingForUser(
         trial_ends_at: null,
         updated_at: nowIso,
       })
-      .eq("paddle_subscription_id", ref)
+      .eq("provider_subscription_id", ref)
       .eq("environment", env);
     if (updErr) throw new Error(`account closure: subscription update failed: ${updErr.message}`);
 

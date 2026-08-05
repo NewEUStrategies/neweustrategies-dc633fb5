@@ -7,7 +7,7 @@ import {
   type ProviderSubscriptionStatus,
 } from "@/lib/billing/entitlementSync.server";
 import { notifySubscriptionEmail } from "@/lib/billing/notifications.server";
-import { catalogEntryByPriceId } from "@/lib/billing/paddleCatalog";
+import { catalogEntryByPriceId } from "@/lib/billing/catalog";
 import { buildPremiumNewsletterRow, canAutoSubscribe } from "@/lib/billing/premiumNewsletter";
 
 export interface PurchaseContext {

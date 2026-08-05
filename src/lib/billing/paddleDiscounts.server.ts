@@ -9,7 +9,7 @@
 // naturalnym, więc powtórne wywołania nie tworzą duplikatów.
 //
 // Moduł server-only - importuj wyłącznie z handlera serwerowego.
-import type { PaddleEnv } from "@/lib/paddle.server";
+import type { StripeEnv } from "@/lib/stripe.server";
 
 export interface PaddleDiscountResolution {
   readonly ok: boolean;
@@ -37,8 +37,8 @@ const fail = (error: string): PaddleDiscountResolution => ({
   discountCents: 0,
 });
 
-export async function findDiscountByCode(env: PaddleEnv, code: string): Promise<string | null> {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+export async function findDiscountByCode(env: StripeEnv, code: string): Promise<string | null> {
+  const { gatewayFetch } = await import("@/lib/stripe.server");
   const res = await gatewayFetch(env, `/discounts?code=${encodeURIComponent(code)}&status=active`);
   if (!res.ok) {
     console.error("[payments] discount lookup failed", res.status, await res.text());
@@ -50,11 +50,11 @@ export async function findDiscountByCode(env: PaddleEnv, code: string): Promise<
 }
 
 export async function createDiscount(
-  env: PaddleEnv,
+  env: StripeEnv,
   code: string,
   def: CouponDefinition,
 ): Promise<string | null> {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+  const { gatewayFetch } = await import("@/lib/stripe.server");
   const isPercent = def.discount_kind === "percent";
   const payload: Record<string, unknown> = {
     description: `New European Strategies coupon ${code}`,
@@ -88,7 +88,7 @@ export async function createDiscount(
  * nie obejmuje planu - overlay nie zostaje wtedy otwarty z rabatem.
  */
 export async function resolveDiscountForCoupon(params: {
-  environment: PaddleEnv;
+  environment: StripeEnv;
   code: string;
   planId: string;
   amountCents: number;

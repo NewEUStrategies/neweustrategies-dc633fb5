@@ -5,8 +5,8 @@
 // Reguła kolejności obowiązująca wszystkich wywołujących: NAJPIERW dostawca,
 // potem baza. Jeśli operator odmówi, wiersz w bazie nie może twierdzić, że
 // subskrypcja jest anulowana/zmieniona - klient byłby dalej obciążany.
-import { PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
-import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
+import { BILLING_CATALOG } from "@/lib/billing/catalog";
+import { gatewayFetch, type StripeEnv } from "@/lib/stripe.server";
 
 // `{}` jest tu celowe: domyślny wariant NIE dokłada żadnych pól do `{ok:true}`.
 // (Reguła ban-types została zastąpiona przez no-empty-object-type - stara nazwa
@@ -25,7 +25,7 @@ export function isProviderSubscriptionRef(ref: string | null | undefined): ref i
  * Środowisko bramki dla operacji serwerowej bez kontekstu klienta.
  * Produkcyjny build obsługuje wyłącznie środowisko live.
  */
-export function subscriptionEnvironment(): PaddleEnv {
+export function subscriptionEnvironment(): StripeEnv {
   return process.env.NODE_ENV === "production" ? "live" : "sandbox";
 }
 
@@ -36,7 +36,7 @@ async function readError(res: Response): Promise<string> {
 
 /** Anulowanie z zachowaniem opłaconego okresu (`next_billing_period`). */
 export async function cancelSubscriptionAtPeriodEnd(
-  env: PaddleEnv,
+  env: StripeEnv,
   subscriptionId: string,
 ): Promise<SubscriptionOpResult> {
   try {
@@ -58,7 +58,7 @@ export async function cancelSubscriptionAtPeriodEnd(
  * ustać od razu - inaczej klient płaciłby za konto, którego już nie ma.
  */
 export async function cancelSubscriptionImmediately(
-  env: PaddleEnv,
+  env: StripeEnv,
   subscriptionId: string,
 ): Promise<SubscriptionOpResult> {
   try {
@@ -75,7 +75,7 @@ export async function cancelSubscriptionImmediately(
 
 /** Cofnięcie zaplanowanego anulowania, dopóki opłacony okres trwa. */
 export async function resumeScheduledCancellation(
-  env: PaddleEnv,
+  env: StripeEnv,
   subscriptionId: string,
 ): Promise<SubscriptionOpResult> {
   try {
@@ -101,13 +101,13 @@ export function catalogPriceFor(
 ): string | null {
   if (!tierKey) return null;
   return (
-    PADDLE_CATALOG.find((e) => e.tierKey === tierKey && e.interval === interval)?.priceId ?? null
+    BILLING_CATALOG.find((e) => e.tierKey === tierKey && e.interval === interval)?.priceId ?? null
   );
 }
 
 /** Wewnętrzny identyfikator ceny dostawcy dla czytelnego `external_id`. */
 export async function resolveProviderPriceId(
-  env: PaddleEnv,
+  env: StripeEnv,
   externalId: string,
 ): Promise<string | null> {
   const res = await gatewayFetch(
@@ -131,7 +131,7 @@ export interface SubscriptionSnapshot {
 
 /** Bieżący stan subskrypcji u dostawcy - potrzebny do kierunku zmiany planu. */
 export async function fetchSubscriptionSnapshot(
-  env: PaddleEnv,
+  env: StripeEnv,
   subscriptionId: string,
 ): Promise<SubscriptionOpResult<{ snapshot: SubscriptionSnapshot }>> {
   try {
@@ -166,7 +166,7 @@ export async function fetchSubscriptionSnapshot(
  * zgodnie z regułą biznesową uzgodnioną dla subskrypcji.
  */
 export async function changeSubscriptionPrice(
-  env: PaddleEnv,
+  env: StripeEnv,
   subscriptionId: string,
   params: { newPriceExternalId: string; quantity: number; direction: "upgrade" | "downgrade" },
 ): Promise<SubscriptionOpResult<{ currentPeriodEnd: string | null }>> {
@@ -203,7 +203,7 @@ export async function changeSubscriptionPrice(
  * opłacony okres należy się klientowi w całości.
  */
 export async function updateSubscriptionQuantity(
-  env: PaddleEnv,
+  env: StripeEnv,
   subscriptionId: string,
   params: { priceExternalId: string; quantity: number; previousQuantity: number },
 ): Promise<SubscriptionOpResult<{ quantity: number }>> {

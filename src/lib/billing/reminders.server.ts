@@ -28,7 +28,7 @@ interface SubRow {
   status: string;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
-  paddle_subscription_id: string;
+  provider_subscription_id: string;
 }
 
 /** Okno [start, end) w którym końcówka okresu wypada dokładnie za `leadDays`. */
@@ -48,7 +48,7 @@ async function loadDueSubscriptions(from: string, to: string, limit: number): Pr
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
     .select(
-      "user_id, price_id, status, current_period_end, cancel_at_period_end, paddle_subscription_id",
+      "user_id, price_id, status, current_period_end, cancel_at_period_end, provider_subscription_id",
     )
     .in("status", ["active", "trialing", "past_due", "canceled"])
     .gte("current_period_end", from)
@@ -88,13 +88,13 @@ export async function runBillingReminders(
         userId: row.user_id,
         planId: plan?.planId ?? null,
         periodEnd,
-        idempotencySeed: reminderSeed(row.paddle_subscription_id, periodEnd),
+        idempotencySeed: reminderSeed(row.provider_subscription_id, periodEnd),
       });
       if (ending) expiring += 1;
       else renewal += 1;
     } catch (err) {
       skipped += 1;
-      console.error("[billing-reminders] failed", row.paddle_subscription_id, err);
+      console.error("[billing-reminders] failed", row.provider_subscription_id, err);
     }
   }
 

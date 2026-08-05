@@ -61,8 +61,8 @@ export function buildPurchaseSummary(input: {
       accessEndsAt: sub.current_period_end,
       renews,
       expired,
-      portalAvailable: Boolean(sub.paddle_customer_id),
-      reference: sub.paddle_subscription_id || null,
+      portalAvailable: Boolean(sub.provider_customer_id),
+      reference: sub.provider_subscription_id || null,
       amountCents: null,
       currency: null,
     };

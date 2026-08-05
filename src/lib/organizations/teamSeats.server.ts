@@ -6,7 +6,7 @@
 // Reguła: liczba opłaconych miejsc jest jedynym źródłem prawdy o limicie,
 // a stan subskrypcji (aktywna / wstrzymana / anulowana) steruje tym, czy
 // organizacja w ogóle nadaje uprawnienia.
-import { catalogEntryByPriceId } from "@/lib/billing/paddleCatalog";
+import { catalogEntryByPriceId } from "@/lib/billing/catalog";
 
 export interface SeatsSyncResult {
   linked: boolean;
@@ -80,7 +80,7 @@ export async function applySubscriptionOrgState(input: {
   const { data, error } = await supabaseAdmin
     .from("member_organizations")
     .update({ status: entitled ? "active" : "suspended", updated_at: new Date().toISOString() })
-    .eq("paddle_subscription_id", input.subscriptionId)
+    .eq("provider_subscription_id", input.subscriptionId)
     .select("id");
   if (error) {
     console.error("[orgs] org state sync failed", input.subscriptionId, error.message);

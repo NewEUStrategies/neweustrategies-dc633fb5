@@ -11,15 +11,15 @@ const getEnv = (key: string): string => {
 
 export { EventName };
 
-export type PaddleEnv = "sandbox" | "live";
+export type StripeEnv = "sandbox" | "live";
 
 const GATEWAY_BASE_URL = "https://connector-gateway.lovable.dev/paddle";
 
-export function getConnectionApiKey(env: PaddleEnv): string {
+export function getConnectionApiKey(env: StripeEnv): string {
   return env === "sandbox" ? getEnv("PADDLE_SANDBOX_API_KEY") : getEnv("PADDLE_LIVE_API_KEY");
 }
 
-export function getPaddleClient(env: PaddleEnv): Paddle {
+export function getPaddleClient(env: StripeEnv): Paddle {
   const connectionApiKey = getConnectionApiKey(env);
   const lovableApiKey = getEnv("LOVABLE_API_KEY");
 
@@ -34,7 +34,7 @@ export function getPaddleClient(env: PaddleEnv): Paddle {
 
 /** REST fallback dla endpointów nieobsługiwanych przez SDK (np. external_id). */
 export async function gatewayFetch(
-  env: PaddleEnv,
+  env: StripeEnv,
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
@@ -51,13 +51,13 @@ export async function gatewayFetch(
   });
 }
 
-export function getWebhookSecret(env: PaddleEnv): string {
+export function getWebhookSecret(env: StripeEnv): string {
   return env === "sandbox"
     ? getEnv("PAYMENTS_SANDBOX_WEBHOOK_SECRET")
     : getEnv("PAYMENTS_LIVE_WEBHOOK_SECRET");
 }
 
-export async function verifyWebhook(req: Request, env: PaddleEnv) {
+export async function verifyWebhook(req: Request, env: StripeEnv) {
   const signature = req.headers.get("paddle-signature");
   const body = await req.text();
   const secret = getWebhookSecret(env);

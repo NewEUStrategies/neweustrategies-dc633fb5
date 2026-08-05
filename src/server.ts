@@ -15,7 +15,7 @@
 //      każda odpowiedź text/html ma zagwarantowane domknięcie body. Bez tego
 //      wisząca serializacja seroval trzyma strumień otwarty do wewnętrznego
 //      limitu frameworka (60 s) i ubija go błędem - każda strona "odpowiada"
-//      po ~61 s, a monitory (Paddle) raportują serwis jako offline.
+//      po ~61 s, a monitory (np. operatora płatności) raportują serwis jako offline.
 //
 // Wpięcie: vite.config.ts -> tanstackStart.server.entry: "server".
 import "./lib/error-capture";

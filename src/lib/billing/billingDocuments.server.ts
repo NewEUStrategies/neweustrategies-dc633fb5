@@ -7,7 +7,7 @@
 // operator wystawia wyłącznie linki czasowe.
 //
 // Moduł server-only (klient service_role).
-import type { PaddleEnv } from "@/lib/paddle.server";
+import type { StripeEnv } from "@/lib/stripe.server";
 
 type Raw = Record<string, unknown>;
 
@@ -27,9 +27,13 @@ export interface TransactionDocumentInput {
   amountCents: number | null;
   currency: string | null;
   invoiceNumber: string | null;
+  /** Link do faktury hostowanej przez Stripe (`hosted_invoice_url`). */
+  hostedUrl: string | null;
+  /** Link do PDF faktury (`invoice_pdf`) - czasem gotowy dopiero po chwili. */
+  pdfUrl: string | null;
   status: string | null;
   issuedAt: string | null;
-  environment: PaddleEnv;
+  environment: StripeEnv;
 }
 
 /** Właściciel i tenant transakcji - z subskrypcji albo z zamówienia. */
@@ -42,7 +46,7 @@ async function ownerFor(
     const { data } = await supabase
       .from("subscriptions")
       .select("user_id, tenant_id")
-      .eq("paddle_subscription_id", input.subscriptionId)
+      .eq("provider_subscription_id", input.subscriptionId)
       .eq("environment", input.environment)
       .maybeSingle();
     if (data?.user_id) return { userId: data.user_id, tenantId: data.tenant_id };
@@ -94,12 +98,16 @@ export async function recordTransactionDocument(
       number?: string;
       amount_cents?: number;
       status?: string;
+      hosted_url?: string;
+      pdf_url?: string;
     } = { updated_at: new Date().toISOString() };
     if (input.invoiceNumber && input.invoiceNumber !== existing.number) {
       patch.number = input.invoiceNumber;
     }
     if (amount > 0 && amount !== existing.amount_cents) patch.amount_cents = amount;
     if (status !== existing.status) patch.status = status;
+    if (input.hostedUrl) patch.hosted_url = input.hostedUrl;
+    if (input.pdfUrl) patch.pdf_url = input.pdfUrl;
     if (Object.keys(patch).length === 1) return "skipped";
 
     const { error } = await supabase.from("billing_documents").update(patch).eq("id", existing.id);
@@ -115,10 +123,12 @@ export async function recordTransactionDocument(
   }
 
   const { error } = await supabase.from("billing_documents").insert({
-    provider: "paddle",
+    provider: "stripe",
     provider_document_id: input.transactionId,
     kind: "invoice",
     number: input.invoiceNumber,
+    hosted_url: input.hostedUrl,
+    pdf_url: input.pdfUrl,
     amount_cents: amount,
     currency: (input.currency ?? "EUR").toUpperCase(),
     status,
@@ -135,10 +145,14 @@ export async function recordTransactionDocument(
   return "created";
 }
 
-/** Odczyt pól dokumentu z ładunku transakcji operatora. */
+/**
+ * Odczyt pól dokumentu ze znormalizowanej transakcji Stripe (faktura albo
+ * sesja Checkout - `stripeEvents.server` dokłada `invoiceNumber`,
+ * `hostedInvoiceUrl` i `invoicePdf` przy mapowaniu zdarzeń `invoice.*`).
+ */
 export function documentInputFromTransaction(
   data: unknown,
-  environment: PaddleEnv,
+  environment: StripeEnv,
 ): TransactionDocumentInput | null {
   const row = (data ?? {}) as Raw;
   const id = str(row, "id");
@@ -152,6 +166,8 @@ export function documentInputFromTransaction(
     amountCents: Number.isFinite(grand) ? grand : null,
     currency: str(row, "currencyCode"),
     invoiceNumber: str(row, "invoiceNumber"),
+    hostedUrl: str(row, "hostedInvoiceUrl"),
+    pdfUrl: str(row, "invoicePdf"),
     status: str(row, "status"),
     issuedAt: str(row, "billedAt") ?? str(row, "createdAt"),
     environment,

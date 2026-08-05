@@ -16,9 +16,9 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
-import { getPaddleEnvironment } from "@/lib/paddle";
+import { getStripeEnvironment } from "@/lib/paddle";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
-import { PADDLE_CATALOG } from "@/lib/billing/paddleCatalog";
+import { BILLING_CATALOG } from "@/lib/billing/catalog";
 import { getPaymentsDiagnostics, syncCouponsToProvider } from "@/lib/billing/diagnostics.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,9 +53,9 @@ export function AdminPaymentsDiagnosticsPanel() {
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const { user } = useAuth();
 
-  const clientEnv = getPaddleEnvironment();
+  const clientEnv = getStripeEnvironment();
   const [env, setEnv] = useState<"sandbox" | "live">(clientEnv);
-  const [testPriceId, setTestPriceId] = useState(PADDLE_CATALOG[0]?.priceId ?? "");
+  const [testPriceId, setTestPriceId] = useState(BILLING_CATALOG[0]?.priceId ?? "");
 
   const load = useServerFn(getPaymentsDiagnostics);
   const diagQ = useQuery({
@@ -214,7 +214,7 @@ export function AdminPaymentsDiagnosticsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PADDLE_CATALOG.map((entry) => (
+                {BILLING_CATALOG.map((entry) => (
                   <SelectItem key={entry.priceId} value={entry.priceId}>
                     {entry.tierKey} ·{" "}
                     {entry.interval === "year"

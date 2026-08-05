@@ -219,11 +219,11 @@ const THIRD_PARTY_SIGNATURES: ReadonlyArray<{
     purpose_en: "Campaign attribution and B2B remarketing",
   },
   {
-    test: /paddle/i,
-    name: "Paddle",
+    test: /stripe|__stripe_mid|__stripe_sid|js\.stripe\.com/i,
+    name: "Stripe",
     category: "necessary",
-    party: "Paddle.com Market Ltd.",
-    purpose_pl: "Obsługa procesu płatności i ochrona przed nadużyciami",
+    party: "Stripe, Inc. / Stripe Payments Europe, Ltd.",
+    purpose_pl: "Obsługa procesu płatności i zapobieganie oszustwom",
     purpose_en: "Checkout processing and fraud prevention",
   },
 ];

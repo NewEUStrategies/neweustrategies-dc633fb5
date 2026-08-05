@@ -161,8 +161,9 @@ type SidebarExternalNavLinkProps = Omit<
 // Pozycja nawigacji prowadząca do usługi ZEWNĘTRZNEJ - ten sam rytm wiersza co
 // wewnętrzne <Link>, ale zawsze nowa karta z rel="noopener noreferrer" i glifem
 // "external", żeby wyjście z panelu było odróżnialne od tras wewnętrznych.
-// Przykład: Darowizny - zbiórka żyje na zrzutka.pl (AUP Paddle wyklucza
-// darowizny u operatora płatności), więc panel nie ma wewnętrznego widoku.
+// Przykład: Darowizny - zbiórka żyje na zrzutka.pl. To decyzja produktowa
+// (prowadzimy ją poza operatorem płatności), nie ograniczenie operatora,
+// więc panel nie ma wewnętrznego widoku.
 // Spread ...rest przepuszcza propsy wstrzykiwane przez Radix Slot (tooltip
 // w trybie compact) oraz ref (React 19: ref przychodzi w propsach).
 export function SidebarExternalNavLink({

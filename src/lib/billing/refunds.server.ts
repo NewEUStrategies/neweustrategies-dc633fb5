@@ -86,7 +86,7 @@ async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
   const { data: sub, error: subErr } = await supabase
     .from("subscriptions")
     .select("user_id, price_id")
-    .eq("paddle_subscription_id", subscriptionId)
+    .eq("provider_subscription_id", subscriptionId)
     .eq("environment", event.environment)
     .maybeSingle();
   if (subErr) throw new Error(`refund: subscription lookup failed: ${subErr.message}`);
@@ -101,7 +101,7 @@ async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
   const plan = sub.price_id ? await resolvePlanForPrice(sub.price_id) : null;
 
   // CRM: zwrot to utrata klienta, nie pauza.
-  const { catalogEntryByPriceId } = await import("@/lib/billing/paddleCatalog");
+  const { catalogEntryByPriceId } = await import("@/lib/billing/catalog");
   const tierKey = sub.price_id ? (catalogEntryByPriceId(sub.price_id)?.tierKey ?? null) : null;
   if (tierKey) await syncCrmSubscriptionState(sub.user_id, tierKey, "churned");
 
@@ -273,7 +273,7 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
     const { data: sub, error } = await supabase
       .from("subscriptions")
       .select("user_id, price_id, status, current_period_end")
-      .eq("paddle_subscription_id", event.subscriptionId)
+      .eq("provider_subscription_id", event.subscriptionId)
       .eq("environment", event.environment)
       .maybeSingle();
     if (error) throw new Error(`dispute: subscription lookup failed: ${error.message}`);

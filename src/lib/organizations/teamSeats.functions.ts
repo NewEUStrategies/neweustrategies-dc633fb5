@@ -76,7 +76,7 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
 
     const { data: org, error: orgError } = await supabase
       .from("member_organizations")
-      .select("id, seats_limit, seats_source, paddle_subscription_id")
+      .select("id, seats_limit, seats_source, provider_subscription_id")
       .eq("id", data.org_id)
       .maybeSingle();
     if (orgError || !org) {
@@ -84,11 +84,11 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
     }
 
     let providerSynced = false;
-    if (org.paddle_subscription_id) {
+    if (org.provider_subscription_id) {
       const { data: sub } = await supabase
         .from("subscriptions")
         .select("price_id, quantity, environment, status")
-        .eq("paddle_subscription_id", org.paddle_subscription_id)
+        .eq("provider_subscription_id", org.provider_subscription_id)
         .maybeSingle();
       if (!sub) {
         return { ok: false as const, error: "orgs: subscription not visible" };
@@ -97,7 +97,7 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
         await import("@/lib/billing/paddleSubscription.server");
       const res = await updateSubscriptionQuantity(
         sub.environment === "live" ? "live" : "sandbox",
-        org.paddle_subscription_id,
+        org.provider_subscription_id,
         {
           priceExternalId: sub.price_id,
           quantity: data.seats,
@@ -111,10 +111,10 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
       await supabase
         .from("subscriptions")
         .update({ quantity: data.seats })
-        .eq("paddle_subscription_id", org.paddle_subscription_id);
+        .eq("provider_subscription_id", org.provider_subscription_id);
     }
 
-    const source: SeatsSource = org.paddle_subscription_id ? "subscription" : "manual";
+    const source: SeatsSource = org.provider_subscription_id ? "subscription" : "manual";
     const { data: result, error } = await supabase.rpc("org_set_seats_limit", {
       p_org: data.org_id,
       p_limit: data.seats,
@@ -157,7 +157,7 @@ export const linkTeamSubscription = createServerFn({ method: "POST" })
     if (!data.subscription_id) {
       const { error } = await supabase
         .from("member_organizations")
-        .update({ paddle_subscription_id: null, seats_source: "manual" })
+        .update({ provider_subscription_id: null, seats_source: "manual" })
         .eq("id", data.org_id);
       if (error) return { ok: false as const, error: error.message.slice(0, 160) };
       return { ok: true as const, linked: false, seatsLimit: null };
@@ -166,7 +166,7 @@ export const linkTeamSubscription = createServerFn({ method: "POST" })
     const { data: sub } = await supabase
       .from("subscriptions")
       .select("quantity, price_id")
-      .eq("paddle_subscription_id", data.subscription_id)
+      .eq("provider_subscription_id", data.subscription_id)
       .maybeSingle();
     if (!sub) {
       return { ok: false as const, error: "orgs: subscription not found" };
@@ -175,7 +175,7 @@ export const linkTeamSubscription = createServerFn({ method: "POST" })
     const { error } = await supabase
       .from("member_organizations")
       .update({
-        paddle_subscription_id: data.subscription_id,
+        provider_subscription_id: data.subscription_id,
         seats_source: "subscription",
       })
       .eq("id", data.org_id);

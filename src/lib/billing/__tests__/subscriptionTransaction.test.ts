@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const gatewayFetch = vi.fn();
 
-vi.mock("@/lib/paddle.server", () => ({ gatewayFetch }));
+vi.mock("@/lib/stripe.server", () => ({ gatewayFetch }));
 
 const jsonResponse = (body: unknown): Response =>
   new Response(JSON.stringify(body), {
