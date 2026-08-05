@@ -159,6 +159,55 @@ export function missingRegistryCategories(
   return AUDITABLE_CMP_CATEGORIES.filter((cat) => !presentKeys.has(CMP_TO_REGISTRY[cat]));
 }
 
+// -------------------- Metadane decyzji (audyt) --------------------
+
+/**
+ * Wersja banera zgód zapisywana przy każdym zdarzeniu. Wyprowadzona z wersji
+ * kategorii cookie w katalogu (ta z kolei jest sprzęgnięta z CONSENT_VERSION
+ * z `src/lib/ads/consent.ts` testem inwariantu) - dzięki temu bump treści
+ * banera automatycznie odcina stare decyzje w audycie, bez drugiego licznika.
+ */
+export const CONSENT_BANNER_VERSION = `cmp-v${
+  getConsentDefinition("cookies_analytics")?.version ?? "2.0"
+}`;
+
+/**
+ * Identyfikator JEDNEJ decyzji. Jedno kliknięcie „Zapisz” potrafi zmienić kilka
+ * kategorii - bez wspólnego id audytor widziałby N niezależnych zdarzeń zamiast
+ * jednej decyzji obejmującej zbiór kategorii.
+ */
+function newDecisionId(): string | undefined {
+  try {
+    return globalThis.crypto?.randomUUID?.();
+  } catch {
+    return undefined;
+  }
+}
+
+/** Adres strony, na której decyzja zapadła (bez query - może nieść PII). */
+function currentPageUrl(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const u = new URL(window.location.href);
+    return `${u.origin}${u.pathname}`.slice(0, 500);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Doklej metadane audytowe wspólne dla całej partii wpisów. */
+export function withDecisionMetadata(entries: RegistryEntry[]): RegistryEntry[] {
+  const decisionId = newDecisionId();
+  const pageUrl = currentPageUrl();
+  return entries.map((e) => ({
+    ...e,
+    bannerVersion: e.bannerVersion ?? CONSENT_BANNER_VERSION,
+    decisionId: e.decisionId ?? decisionId,
+    pageUrl: e.pageUrl ?? pageUrl,
+  }));
+}
+
+
 // Kolejka FIFO zapisów do rejestru (per karta). Dwie szybkie decyzje to dwa
 // niezależne requesty bez gwarancji kolejności dostarczenia - wolniejszy,
 // STARSZY zapis mógłby nadpisać nowszą decyzję w user_consents i pomieszać
