@@ -34,6 +34,11 @@ import {
 import { Copy, Pencil, Plus, Trash2 } from "@/lib/lucide-shim";
 import { usePopupsAdmin, type BuilderPopup, type PopupSettings } from "@/lib/builder/popups";
 import { SignupPopupContentSection } from "@/components/admin/popups/SignupPopupContentSection";
+import {
+  useNewsletterSettings,
+  useSaveNewsletterSettings,
+} from "@/hooks/useNewsletterSettings";
+
 
 export const Route = createFileRoute("/admin/popups")({
   component: PopupsLayout,
@@ -64,7 +69,75 @@ function triggerSummary(s: PopupSettings, t: TFunction): string {
   }
 }
 
+// Wbudowany popup rejestracji (newsletter_settings) - nie jest wpisem w
+// builder_popups, ale ma być wybieralny z tej samej listy co pozostałe.
+function SignupPopupRow() {
+  const { t, i18n } = useTranslation();
+  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { data } = useNewsletterSettings();
+  const save = useSaveNewsletterSettings();
+
+  const trigger = data?.popup_trigger ?? "delay";
+  const summary =
+    trigger === "scroll"
+      ? t("admin.popups.list.triggerScroll", {
+          defaultValue: "po {{percent}}% przewinięcia",
+          percent: data?.popup_scroll_percent ?? 50,
+        })
+      : trigger === "exit-intent"
+        ? t("admin.popups.list.triggerExit", { defaultValue: "exit intent" })
+        : t("admin.popups.list.triggerDelay", {
+            defaultValue: "po {{count}} s",
+            count: data?.popup_delay_seconds ?? 15,
+          });
+
+  const goToEditor = () => {
+    document.getElementById("signup-popup-editor")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  return (
+    <tr className="border-t border-border bg-muted/10 hover:bg-muted/20">
+      <td className="px-4 py-2.5">
+        <button type="button" onClick={goToEditor} className="font-medium hover:text-brand">
+          {isPl ? "Popup rejestracji" : "Registration popup"}
+        </button>
+        <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+          {isPl ? "wbudowany" : "built-in"}
+        </span>
+      </td>
+      <td className="px-4 py-2.5 text-muted-foreground">{summary}</td>
+      <td className="px-4 py-2.5 text-muted-foreground">-</td>
+      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">-</td>
+      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">-</td>
+      <td className="px-4 py-2.5">
+        <Switch
+          checked={Boolean(data?.popup_enabled)}
+          disabled={!data}
+          onCheckedChange={(on) => {
+            if (!data) return;
+            void save.mutateAsync({ ...data, popup_enabled: on });
+          }}
+          aria-label={t("admin.popups.list.toggleActive", { defaultValue: "Przełącz aktywność" })}
+        />
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={goToEditor}
+            className="p-1.5 text-muted-foreground hover:text-brand"
+            title={t("admin.popups.list.edit", { defaultValue: "Edytuj" })}
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function PopupsList() {
+
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const popups = usePopupsAdmin();
@@ -173,16 +246,8 @@ function PopupsList() {
         <p className="text-sm text-muted-foreground">
           {t("admin.popups.loading", { defaultValue: "Ładowanie…" })}
         </p>
-      ) : popups.items.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-10 text-center space-y-2">
-          <p className="text-sm text-muted-foreground">
-            {t("admin.popups.empty", {
-              defaultValue:
-                "Nie masz jeszcze żadnych popupów. Utwórz pierwszy i zbuduj go tak samo jak stronę.",
-            })}
-          </p>
-        </div>
       ) : (
+
         <div className="border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
@@ -209,6 +274,8 @@ function PopupsList() {
               </tr>
             </thead>
             <tbody>
+              <SignupPopupRow />
+
               {popups.items.map((p) => (
                 <tr key={p.id} className="border-t border-border hover:bg-muted/20">
                   <td className="px-4 py-2.5">
@@ -287,7 +354,10 @@ function PopupsList() {
         </div>
       )}
 
-      <SignupPopupContentSection />
+      <div id="signup-popup-editor" className="scroll-mt-24">
+        <SignupPopupContentSection />
+      </div>
+
 
       <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
         <DialogContent className="sm:max-w-md">
