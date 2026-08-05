@@ -497,7 +497,7 @@ author/owner`) → Apple odrzuca feed.
 - **[DŁUG P2]** i18n core `en.ts`/`pl.ts` bez `: typeof pl` → parytet tylko w teście
   runtime, nie w `tsc`; fuzzy search `word_similarity` bez indeksu trgm (seq-scan);
   rozjazd limitu search klient 300 vs serwer 200; `buildArticleJsonLd` bez fallbacku
-  `image`; `SITE_CANONICAL_ORIGIN` zaszyty na `neweustrategies.lovable.app`.
+  `image`; `SITE_CANONICAL_ORIGIN` zaszyty na `neweustrategies.aliasu hostingu`.
 
 ### 4.9. Media, podcast, audio, web-stories, eksperci, tracker, reklamy, import WP
 

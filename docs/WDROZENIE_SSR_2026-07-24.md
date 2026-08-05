@@ -214,7 +214,7 @@ bramki `check:bundle` / `check:chunks` uruchomione na finalnym artefakcie.
   RPC amortyzowany przez `edgeTtlCache`); wygenerowane typy Supabase nie znają nowych
   funkcji - wywołania przez wąskie, skomentowane rzutowania strukturalne (wzorzec
   `popular_post_ids`), do zniknięcia przy regeneracji typów.
-- **`minify` dla workera:** gdyby na CI Lovable wrócił OOM, pierwszy krok: wyłączyć
+- **`minify` dla workera:** gdyby na CI platformy wrócił OOM, pierwszy krok: wyłączyć
   `nitro.minify`, NIE vite-owe minify klienta (komentarz w `vite.config.ts`).
 - **Budżety klienta** zostają czerwone jak na HEAD - zejście do floorów to osobna,
   gate'owana praca (pkt 10); floory świadomie NIE zostały podniesione.

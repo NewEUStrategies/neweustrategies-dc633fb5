@@ -18,7 +18,7 @@ export interface PersonalizedSettings {
   allowGuests: boolean;
   /**
    * TTL (in days) for the GUEST personalization stored on the device -
-   * currently the localStorage reading list ("lovable:saved-articles").
+   * currently the localStorage reading list (GUEST_SAVED_ARTICLES_KEY).
    * Entries older than this are dropped on read (useSaveArticle) and are
    * neither shown as saved nor merged into the account at sign-in
    * (anonMerge). 0 or less = never expire.

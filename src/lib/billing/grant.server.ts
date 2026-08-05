@@ -89,7 +89,10 @@ export async function revokeOrderEntitlement(
 
   if (entitlement.type === "purchase") {
     // Uprawnienie zakupowe jest kluczowane po użytkowniku - bez niego nie ma
-    // czego odbierać (konto usunięte, `user_purchases` zniknęło kaskadą).
+    // czego odbierać. Konto zostało usunięte, więc wiersz `user_purchases`
+    // wciąż istnieje, ale jako ZANONIMIZOWANY dowód (`user_id` NULL,
+    // `subject_ref` = pseudonim - 20260805090100). Dostępu nie ma komu odebrać,
+    // a dowód ma zostać nietknięty do końca okresu retencji.
     if (!order.user_id) return;
     const { error } = await supabaseAdmin
       .from("user_purchases")
@@ -196,6 +199,11 @@ export async function grantEntitlement(
   }
 
   if (entitlement.type === "purchase") {
+    // Zamówienie po anonimizacji konta nie ma właściciela (`user_id` NULL od
+    // 20260803090002). Retry webhooka na takim zamówieniu nie może wstawić
+    // uprawnienia „dla nikogo": wiersz z `user_id` NULL to w tej tabeli DOWÓD
+    // po usuniętym koncie, a nie nowe uprawnienie. Nie ma komu przyznać dostępu.
+    if (!order.user_id) return;
     const { error } = await supabaseAdmin.from("user_purchases").upsert(
       {
         user_id: order.user_id,

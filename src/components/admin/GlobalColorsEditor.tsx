@@ -32,12 +32,13 @@ import {
   SidebarStylePreview,
   type SidebarStyle,
 } from "@/lib/builder/sidebarStyles";
+import { BRAND_PALETTE_STORAGE_KEY, RECENT_COLORS_STORAGE_KEY } from "@/lib/storageKeys";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 
 // Paleta marki - edytowalna przez użytkownika, trzymana w localStorage.
 type BrandColor = { name: string; value: string };
-const BRAND_STORAGE_KEY = "lovable.globalColors.brandPalette.v1";
-const RECENT_STORAGE_KEY = "lovable.globalColors.recentColors.v1";
+const BRAND_STORAGE_KEY = BRAND_PALETTE_STORAGE_KEY.key;
+const RECENT_STORAGE_KEY = RECENT_COLORS_STORAGE_KEY.key;
 const RECENT_MAX = 10;
 
 const DEFAULT_BRAND_PALETTE: BrandColor[] = [

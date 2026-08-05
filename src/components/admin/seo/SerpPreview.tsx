@@ -6,7 +6,7 @@ import { truncateToPx, SERP_DESCRIPTION_LIMIT_PX, SERP_TITLE_LIMIT_PX } from "@/
 import { SITE_NAME, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
 
 /** Host shown in the SERP preview - always the canonical brand origin, so the
- * admin never sees a preview/sandbox URL like `*.lovableproject.com`. */
+ * admin never sees a preview/sandbox URL of the hosting platform. */
 const CANONICAL_HOST = SITE_CANONICAL_ORIGIN.replace(/^https?:\/\//, "");
 
 interface SerpPreviewProps {

@@ -1,6 +1,6 @@
 // Isomorphic access to the current request URL, used to build absolute canonical
 // / og:url / hreflang links. On the server it derives scheme + host from the
-// proxy-aware forwarded headers (so it is correct behind the Lovable proxy and
+// proxy-aware forwarded headers (so it is correct behind the edge proxy and
 // on custom domains); on the client it reads window.location. createIsomorphicFn
 // keeps the server-only getRequest import out of the client bundle.
 import { createIsomorphicFn } from "@tanstack/react-start";

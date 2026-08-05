@@ -15,6 +15,7 @@
 // graph (node:async_hooks, supabase admin client) is dead-code-eliminated
 // from the client bundle (see the warning in vite.config.ts).
 import { normalizeHost } from "./host";
+import { browserTenantAssertion } from "./tenantAssertion";
 
 /**
  * RAW host from an explicit Request: X-Forwarded-Host first, then Host,
@@ -69,6 +70,33 @@ export async function currentTenantHost(): Promise<string | null> {
     return await mod.currentServerHost();
   } catch {
     // Outside a request scope (warmup, tests) - no host, callers fall back.
+    return null;
+  }
+}
+
+/**
+ * Poświadczenie krawędzi dla hosta bieżącego kontekstu - wartość, której klient
+ * nie potrafi wytworzyć, i jedyny sposób, w jaki baza rozpoznaje ruch platformy
+ * od surowego wywołania PostgREST (audyt 05.08 §4.1).
+ *
+ *   * Przeglądarka: cookie `nes_tenant_assert`, ustawiane przy każdym dokumencie
+ *     przez `tenantAssertionMiddleware` (src/start.ts). Cookie jest per-host
+ *     z definicji, więc karta nie ma dostępu do poświadczenia innej domeny niż
+ *     ta, którą właśnie przegląda.
+ *   * SSR / server functions: podpis liczony na miejscu dla hosta ZWALIDOWANEGO
+ *     względem `tenants.domain`.
+ *
+ * Null = wdrożenie nie ma klucza albo nie ma wskazówki tenanta. Nigdy nie rzuca.
+ */
+export async function currentTenantAssertion(): Promise<string | null> {
+  if (typeof window !== "undefined") {
+    return browserTenantAssertion();
+  }
+  if (!import.meta.env.SSR) return null;
+  try {
+    const mod = await import("./requestHost.server");
+    return await mod.currentServerAssertion();
+  } catch {
     return null;
   }
 }

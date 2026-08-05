@@ -1,4 +1,4 @@
-// Preview iframe watchdog. Monitors two failure modes that leave the Lovable
+// Preview iframe watchdog. Monitors two failure modes that leave the
 // editor preview looking "zawieszone" (czarny prostokąt, spinner bez końca):
 //
 //  1. Boot hang - React hydration never commits (network, HMR, SSR mismatch

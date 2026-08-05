@@ -95,7 +95,7 @@ async function logAuthEvent(client: SupabaseClient, event: AuthEventLog): Promis
   }
 }
 
-export const Route = createFileRoute("/lovable/email/auth/webhook")({
+export const Route = createFileRoute("/platform/email/auth/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {

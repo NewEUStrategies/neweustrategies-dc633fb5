@@ -76,7 +76,7 @@ export function reportClientError(error: unknown, source: ClientErrorPayload["so
  * Report an error caught by a React error boundary, with structured context
  * (the boundary label and React component stack). Beacons to the configured
  * endpoint; no-op when unset. This gives per-widget/section render crashes a
- * real telemetry consumer independent of any host (Lovable) integration.
+ * real telemetry consumer independent of any hosting-platform integration.
  */
 export function reportBoundaryError(error: unknown, meta: Record<string, unknown>): boolean {
   const endpoint = observabilityEndpoint();

@@ -17,16 +17,21 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { useBookmarks, useToggleBookmark, type BookmarkEntityType } from "@/hooks/useBookmarks";
 import { usePersonalizedSettings, safeReadingListPath } from "@/hooks/usePersonalizedSettings";
+import {
+  GUEST_SAVED_ARTICLES_KEY,
+  browserStorage,
+  readStoredValue,
+  writeStoredValue,
+} from "@/lib/storageKeys";
 import { openLoginPopup } from "@/lib/loginPopupBus";
 
-const LS_KEY = "lovable:saved-articles";
 const DAY_MS = 86_400_000;
 
 type SavedItem = { url: string; title: string; savedAt: number };
 
 function readLocal(): SavedItem[] {
   try {
-    const raw = window.localStorage.getItem(LS_KEY);
+    const raw = readStoredValue(browserStorage("local"), GUEST_SAVED_ARTICLES_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? (parsed as SavedItem[]) : [];
   } catch {
@@ -84,7 +89,7 @@ export function useSaveArticle({
       // Enforce the TTL at the storage level too, so /reading-list and the
       // post-login merge see the same pruned list.
       try {
-        window.localStorage.setItem(LS_KEY, JSON.stringify(fresh));
+        writeStoredValue(browserStorage("local"), GUEST_SAVED_ARTICLES_KEY, JSON.stringify(fresh));
       } catch {
         /* private mode / storage unavailable - ignore */
       }
@@ -127,7 +132,7 @@ export function useSaveArticle({
           ...list.map((s) => (typeof s.savedAt === "number" ? s : { ...s, savedAt: Date.now() })),
         ].slice(0, 200);
     try {
-      window.localStorage.setItem(LS_KEY, JSON.stringify(next));
+      writeStoredValue(browserStorage("local"), GUEST_SAVED_ARTICLES_KEY, JSON.stringify(next));
       setLocalSaved(!exists);
       if (exists) toast.success(removedMsg);
       else savedToast();

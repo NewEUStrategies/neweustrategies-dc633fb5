@@ -75,7 +75,7 @@ const SAMPLE_DATA: Record<string, object> = {
   },
 };
 
-export const Route = createFileRoute("/lovable/email/auth/preview")({
+export const Route = createFileRoute("/platform/email/auth/preview")({
   server: {
     handlers: {
       POST: async ({ request }) => {

@@ -1,4 +1,4 @@
-// WordPress.com importer via Lovable connector gateway.
+// WordPress.com importer via the platform connector gateway.
 // Per-tenant, RLS-protected, lossless Gutenberg parsing.
 //
 // Public exports:
@@ -85,15 +85,15 @@ const ALLOWED_MEDIA_MIME = new Set([
 ]);
 
 function authHeaders(): HeadersInit {
-  const lovableKey = process.env.LOVABLE_API_KEY;
+  const platformApiKey = process.env.LOVABLE_API_KEY;
   const wpKey = process.env.WORDPRESS_COM_API_KEY;
-  if (!lovableKey) throw new Error("LOVABLE_API_KEY is not configured");
+  if (!platformApiKey) throw new Error("LOVABLE_API_KEY is not configured");
   if (!wpKey)
     throw new Error(
       "WORDPRESS_COM_API_KEY is not configured - connect WordPress.com in Connectors",
     );
   return {
-    Authorization: `Bearer ${lovableKey}`,
+    Authorization: `Bearer ${platformApiKey}`,
     "X-Connection-Api-Key": wpKey,
     Accept: "application/json",
   };

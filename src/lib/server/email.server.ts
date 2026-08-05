@@ -1,4 +1,4 @@
-// Wspólny nadawca e-maili przez bramkę Resend konektora Lovable.
+// Wspólny nadawca e-maili przez bramkę Resend konektora platformy.
 //
 // Historycznie ta funkcja żyła w trzech kopiach (newsletter.functions,
 // newsletter-campaigns.functions, contact.functions) - ten moduł jest

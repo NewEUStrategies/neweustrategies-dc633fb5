@@ -1,7 +1,7 @@
 /**
- * Server functions for Google Search Console via Lovable connector gateway.
+ * Server functions for Google Search Console via the platform connector gateway.
  *
- * Auth: OAuth managed by the Lovable connector - no manual keys.
+ * Auth: OAuth managed by the platform connector - no manual keys.
  * Gateway: https://connector-gateway.lovable.dev/google_search_console/...
  * Docs: https://developers.google.com/webmaster-tools/v1/api_reference_index
  */

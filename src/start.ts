@@ -7,6 +7,8 @@ import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
 import { langCookieHeaderValue, resolveHomepageLang } from "@/lib/i18n/langNegotiation";
 import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
 import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
+import { isPreviewHost } from "@/lib/http/host";
+import { tenantAssertionMiddleware } from "@/lib/http/tenantAssertionCookie.server";
 import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { renderErrorPage } from "@/lib/error-page";
@@ -20,12 +22,12 @@ import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middle
  * pełny błąd trafia do Server Logs). Nie ingeruje w normalne odpowiedzi.
  */
 /**
- * Trasy platformowe (`/lovable/*` - webhooki e-mail, kolejka, preview szablonów)
+ * Trasy platformowe (`/platform/*` - webhooki e-mail, kolejka, preview szablonów)
  * uwierzytelniają się same (podpis webhooka / klucz API), więc muszą omijać
  * redirecty SEO i kanonizację języka - inaczej dostawca dostaje 301/302 zamiast 200.
  */
 function isInternalPlatformPath(pathname: string): boolean {
-  return pathname.startsWith("/lovable/") || pathname === "/email/unsubscribe";
+  return pathname.startsWith("/platform/") || pathname === "/email/unsubscribe";
 }
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
@@ -176,17 +178,20 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
  *   w adminie (FontPicker wstrzykuje <link> do fonts.googleapis.com).
  */
 /**
- * Hosty edytora/podglądu Lovable osadzają aplikację w iframe z innego originu.
+ * Hosty edytora/podglądu osadzają aplikację w iframe z innego originu.
  * `frame-ancestors 'self'` + `X-Frame-Options: SAMEORIGIN` blokują takie
  * osadzenie (pusty podgląd), a narzędzia podglądu potrzebują też `eval`.
  * Rozluźnienie dotyczy WYŁĄCZNIE domen podglądu - produkcyjny origin
- * (neweuropeanstrategies.com / *.lovable.app) zostaje przy pełnej polityce.
+ * (neweuropeanstrategies.com) zostaje przy pełnej polityce.
+ *
+ * Rozpoznanie podglądu ma JEDNĄ definicję dla całej aplikacji: `isPreviewHost()`
+ * z `lib/http/host.ts` (lokalny dev + domeny hostingu + `PREVIEW_HOST_SUFFIXES`
+ * z env). Wcześniej siedział tu drugi, niezależny regex z wpisanymi na sztywno
+ * domenami dostawcy - dwie listy allowlisty CSP, które mogły się rozjechać.
  */
-const PREVIEW_HOST_RE = /(^|\.)lovableproject\.com$|(^|\.)lovable\.dev$|^localhost$|^127\.0\.0\.1$/;
-
 function isPreviewRequest(request: Request): boolean {
   try {
-    return PREVIEW_HOST_RE.test(new URL(request.url).hostname);
+    return isPreviewHost(new URL(request.url).hostname);
   } catch {
     return false;
   }
@@ -387,7 +392,12 @@ export const startInstance = createStart(() => ({
   //      `Sec-GPC` w cookie transportowym i dokłada `Vary: Sec-GPC` PO
   //      odtworzeniu wpisu z cache'a, więc `Set-Cookie` nigdy nie wchodzi do
   //      zapisanego dokumentu (patrz lib/consent/gpc.server.ts).
-  //   7. defaultCacheControlMiddleware is INNERMOST: dokłada domyślny
+  //   7. tenantAssertionMiddleware - ta sama doktryna i z tego samego powodu:
+  //      podaje przeglądarce poświadczenie hosta w cookie transportowym PO
+  //      odtworzeniu wpisu z cache'a, więc poświadczenie jednego hosta nie ma
+  //      jak wejść do dokumentu zapisanego dla innego
+  //      (patrz lib/http/tenantAssertionCookie.server.ts).
+  //   8. defaultCacheControlMiddleware is INNERMOST: dokłada domyślny
   //      Cache-Control publicznym dokumentom ZANIM odpowiedź wróci do
   //      documentCacheMiddleware - dzięki temu polityka zapisu NES Edge Cache
   //      (public + s-maxage) obejmuje także trasy bez własnego nagłówka.
@@ -412,6 +422,7 @@ export const startInstance = createStart(() => ({
     legacyLangQueryMiddleware,
     homepageLangMiddleware,
     gpcMiddleware,
+    tenantAssertionMiddleware,
     documentCacheMiddleware,
     defaultCacheControlMiddleware,
   ],

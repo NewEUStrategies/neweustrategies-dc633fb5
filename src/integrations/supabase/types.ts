@@ -12458,7 +12458,15 @@ export type Database = {
         Args: { p_since: string; p_until: string }
         Returns: Json
       }
+      anonymize_accounting_evidence_for_user: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
       anonymize_payment_orders_for_user: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
+      anonymize_user_purchases_for_user: {
         Args: { p_user_id: string }
         Returns: Json
       }
@@ -12505,6 +12513,8 @@ export type Database = {
         Args: { p_note?: string; p_slot_id: string }
         Returns: Json
       }
+      b64url_decode: { Args: { p_value: string }; Returns: string }
+      b64url_encode: { Args: { p_value: string }; Returns: string }
       bulk_generate_coupons_for_campaign: {
         Args: { _campaign_id: string }
         Returns: number
@@ -13979,6 +13989,7 @@ export type Database = {
       }
       nes_search_positive_rest: { Args: { _q: string }; Returns: string }
       nes_search_tsquery: { Args: { _q: string }; Returns: unknown }
+      normalize_public_host: { Args: { p_raw: string }; Returns: string }
       nes_search_tsquery_adv: {
         Args: { _match?: string; _q: string }
         Returns: unknown
@@ -14220,7 +14231,9 @@ export type Database = {
         Args: { p_publish?: boolean; p_session_id: string }
         Returns: Json
       }
+      purge_expired_accounting_evidence: { Args: never; Returns: Json }
       purge_expired_payment_orders: { Args: never; Returns: number }
+      purge_expired_user_purchases: { Args: never; Returns: number }
       qa_escape_html: { Args: { p_text: string }; Returns: string }
       qa_text_to_html: { Args: { p_text: string }; Returns: string }
       rate_limit_hit: {
@@ -14358,7 +14371,10 @@ export type Database = {
         Args: { p_bridge: string; p_message: string; p_target: string }
         Returns: string
       }
+      request_asserted_host: { Args: never; Returns: string }
       request_public_host: { Args: never; Returns: string }
+      request_public_host_trust: { Args: never; Returns: string }
+      request_verified_host: { Args: never; Returns: string }
       resolve_expert_inmail: {
         Args: { p_action: string; p_inmail_id: string; p_note?: string }
         Returns: Json
@@ -14733,7 +14749,13 @@ export type Database = {
           skill_id: string
         }[]
       }
+      retire_tenant_host_assertion_key: { Args: { p_kid: string }; Returns: boolean }
+      set_tenant_host_assertion_key: {
+        Args: { p_kid: string; p_secret: string }
+        Returns: string
+      }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
+      tenant_id_for_public_host: { Args: { p_host: string }; Returns: string }
       trending_posts: {
         Args: { _days?: number; _limit?: number }
         Returns: {
@@ -14776,6 +14798,7 @@ export type Database = {
           ok: boolean
         }[]
       }
+      verify_tenant_host_assertion: { Args: { p_raw: string }; Returns: string }
       verify_content_password: {
         Args: {
           _entity_id: string

@@ -7,12 +7,41 @@
 // client graph even behind a `import.meta.env.SSR` dynamic import).
 import { getRequest } from "@tanstack/react-start/server";
 import { resolveTrustedRequestHost } from "@/lib/server/tenant.server";
+import { mintTenantHostAssertion } from "@/lib/server/tenantAssertion.server";
 
 export async function currentServerHost(): Promise<string | null> {
   try {
     const request = getRequest();
     if (!request) return null;
     return await resolveTrustedRequestHost(request);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Poświadczenie krawędzi dla hosta BIEŻĄCEGO żądania (SSR / server functions).
+ * Podpisywany jest host już zwalidowany względem `tenants.domain`, więc
+ * sfałszowany `X-Forwarded-Host` nie zostanie nigdy poświadczony. Null =
+ * brak klucza albo brak wskazówki tenanta; wołający idzie wtedy szczeblem
+ * ASSERTED (patrz src/lib/http/tenantAssertion.ts).
+ */
+export async function currentServerAssertion(): Promise<string | null> {
+  try {
+    const host = await currentServerHost();
+    if (!host) return null;
+    return await mintTenantHostAssertion(host);
+  } catch {
+    return null;
+  }
+}
+
+/** Poświadczenie dla jawnego Requestu (middleware, trasy serwerowe). */
+export async function assertionForRequest(request: Request): Promise<string | null> {
+  try {
+    const host = await resolveTrustedRequestHost(request);
+    if (!host) return null;
+    return await mintTenantHostAssertion(host);
   } catch {
     return null;
   }

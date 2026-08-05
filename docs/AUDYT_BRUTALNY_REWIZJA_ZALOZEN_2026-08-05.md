@@ -1,6 +1,6 @@
 # Brutalny audyt platformy — rewizja założeń, wydanie 2026-08-05
 
-**Data:** 2026-08-05 · **HEAD:** `1672ece` (main po PR #111–#166 + 655 commitach Lovable prosto na main)
+**Data:** 2026-08-05 · **HEAD:** `1672ece` (main po PR #111–#166 + 655 commitach platformy prosto na main)
 **Gałąź:** `claude/audyt-brutalny-2026-08-05-2zmdtd`
 **Poprzednie wydania (migawki, nietknięte):** `AUDYT_BRUTALNY_REWIZJA_ZALOZEN_2026-07-30.md` (werdykt 8,0 → 7,0),
 `OCENA_FUNKCJI_TABELE_2026-08-01.md`, `OCENA_FUNKCJI_TABELE_2026-08-03.md` (rewizja 2, werdykt 8,0).
@@ -47,7 +47,7 @@ odczytów `personality_results` w CRM). **Żadna nie zregresowała.**
 | --- | --- | --- |
 | `vitest run` | **5982 pass / 50 skip / 0 fail** (573 pliki pass, 2 skip) | Było 3423 na 30.07 — **+75% testów w 6 dni**. Suita jest realna i zielona. |
 | `tsc --noEmit` | **czysto** | Bez zmian od 30.07; nadal jedyny realny gate typów (build przez esbuild nie typuje). |
-| `eslint .` | **CZERWONO — 238 problemów (104 błędy / 134 ostrzeżenia)** | Poprawa z 1888 (30.07), ale bramka na `main` **znów** nie jest zielona — a dług lintu został w tym okresie wyzerowany osobnym commitem. Wszystkie 104 błędy to `prettier/prettier` w **19 plikach**. Największy pojedynczy winowajca to **nie** Lovable: `src/lib/i18n-builder.ts` (40 błędów) z commitu autorstwa Claude; dalej `TierCard.tsx` (24), `sliderVariants.tsx` (11), `admin.paywall.tsx` (5), `PopupEventsPanel.tsx` (5) — te z commitów „Changes"/„Work in progress". Ostrzeżenia: 102× react-refresh, 32× exhaustive-deps. |
+| `eslint .` | **CZERWONO — 238 problemów (104 błędy / 134 ostrzeżenia)** | Poprawa z 1888 (30.07), ale bramka na `main` **znów** nie jest zielona — a dług lintu został w tym okresie wyzerowany osobnym commitem. Wszystkie 104 błędy to `prettier/prettier` w **19 plikach**. Największy pojedynczy winowajca to **nie** platforma hostingowa: `src/lib/i18n-builder.ts` (40 błędów) z commitu autorstwa Claude; dalej `TierCard.tsx` (24), `sliderVariants.tsx` (11), `admin.paywall.tsx` (5), `PopupEventsPanel.tsx` (5) — te z commitów „Changes"/„Work in progress". Ostrzeżenia: 102× react-refresh, 32× exhaustive-deps. |
 | `knip` | 6 martwych plików, **337 martwych eksportów, 262 martwe typy**, 21 duplikatów eksportu | Było 293/207/19 na 30.07 — **dług rośnie monotonicznie**, bo knip **nadal nie jest w CI**. |
 | `check:sql-tenant-scope` | ✓ (530 funkcji, 3 uzasadnione ścieżki publiczne) | Blokujący. |
 | `check:sql-anon-insert` | ✓ (517 polityk w stanie końcowym, 6 tabel intake chronionych) | Blokujący. Klasa błędu z 30.07 domknięta trwale. |
@@ -65,7 +65,7 @@ odczytów `personality_results` w CRM). **Żadna nie zregresowała.**
 | Progi bundla | `MAX_PUBLIC_KB=1799`, `MAX_TOTAL_KB=3005`, `MAX_CHUNK_KB=511` | Na 30.07: **1475 / 2518 / 350**. Publiczny sufit **+22% w 6 dni**; progi nadpisywalne z env (§4.5). |
 | Progi pokrycia | **19,5% instrukcji / 15,75% gałęzi / 13% funkcji / 20% linii** | **Identyczne jak 30.07**, przy suicie wyrosłej z 3423 do 5982 testów. Floor nigdy nie „zaskoczył" w górę. |
 | Bramki CI (`ci.yml`) | **16 blokujących kroków** w jobie `verify` + blokujący job `pgtap`; `continue-on-error` tylko przy pobieraniu artefaktu raportu i18n | Nowe od 30.07: **i18n parity**, **widget fidelity**, **migration replay**, **owner tenant-scope**. Osobno nowy workflow `billing-nightly.yml` — nocna sonda odnowienia i dunningu (§4.7). e2e w dwóch jobach (zwykły + zaseedowany z lokalną bazą); Lighthouse nadal nie na runtime edge. |
-| Historia git | **1185 commitów / 8 dni**; od audytu 30.07: **56 PR-ów** i **655 commitów Lovable prosto na `main`** | **~92% commitów w tym okresie omija bramki PR.** To jedno zdanie wyjaśnia większość §4.3 i §5 pkt 6. |
+| Historia git | **1185 commitów / 8 dni**; od audytu 30.07: **56 PR-ów** i **655 commitów platforma hostingowa prosto na `main`** | **~92% commitów w tym okresie omija bramki PR.** To jedno zdanie wyjaśnia większość §4.3 i §5 pkt 6. |
 
 **Wniosek z twardych sygnałów.** Safety-net jest dziś nieporównywalnie gęstszy niż 30.07: sześć
 statycznych bramek SQL (cztery nowe), parytet i18n, wierność ustawień buildera, działający pgTAP z pinem
@@ -233,7 +233,7 @@ na `/admin/permissions` — której cały sens polegał na tym, że **nie jest**
 znów może kłamić, tylko teraz przez zdryfowany snapshot.
 
 **(c) Ścieżka dostarczania omija bramki.** W zakresie od audytu 30.07: **56 zmergowanych PR-ów** i
-**655 commitów** typu „Changes" / „Work in progress" / „Lovable update" pchanych **prosto na `main`** —
+**655 commitów** typu „Changes" / „Work in progress" / „automatyczny commit platformy" pchanych **prosto na `main`** —
 około 92% commitów. Bramka lint jest w CI od 31.07, dług lintu został w tym okresie wyzerowany osobnym
 commitem, a `main` ma dziś znów 104 błędy formatowania w 19 plikach. Uczciwie: **największy pojedynczy
 winowajca nie jest botem** — `src/lib/i18n-builder.ts` z 40 błędami pochodzi z commitu autorstwa Claude.
@@ -242,7 +242,7 @@ Reszta rozkłada się na commity automatyczne. Bramka broni PR-ów; **gałęzi n
 **Rekomendacja (P0/proces).** (1) Wyciąć komentarze i `__tests__` ze skanu `check:sql-app-role` albo
 dodać allowlistę dla `src/lib/ci/**`. (2) Wpiąć `check:authz-snapshot` i `check:permissions-parity` do
 jobu `verify` i zregenerować snapshot. (3) Włączyć ochronę gałęzi `main` z wymaganymi statusami albo
-uruchomić format + bramki na ścieżce Lovable — bez tego każda kolejna bramka skończy tak samo.
+uruchomić format + bramki na ścieżce platformy — bez tego każda kolejna bramka skończy tak samo.
 
 ### 4.4 [WYSOKA / integralność przeglądu] Plik testu jest dla gita binarny — niewidoczny w każdym diffie
 
@@ -288,7 +288,7 @@ dług do spłaty, nie licznik do przewijania.
 ### 4.6 [ŚREDNIA / historia zmian] Trzy pary bliźniaczych migracji przechodzą przez bramkę replay
 
 Ta sama zmiana wjechała dwa razy — raz jako plik pisany w PR, raz jako plik wygenerowany przez dashboard
-Lovable (nazwa z UUID):
+platforma hostingowa (nazwa z UUID):
 
 - `20260804150000_newsletter_popup_design_jsonb.sql` ↔ `20260804145341_26ab64e2-…` — **treść identyczna
   po odjęciu komentarzy** (zweryfikowane `diff` po odfiltrowaniu komentarzy i pustych linii): ta sama
@@ -494,7 +494,7 @@ retencja dowodów księgowych dla `payment_orders`.
 3. **Wpiąć `check:authz-snapshot` i `check:permissions-parity` do `verify`** i zregenerować snapshot
    (zdryfowany: 589/523/505 vs 605/530/504) — inaczej macierz uprawnień znów zacznie kłamać (§4.3b).
 4. **Zamknąć ścieżkę omijającą bramki:** ochrona gałęzi `main` z wymaganymi statusami albo format +
-   bramki na ścieżce Lovable (655 z ~711 commitów weszło poza PR-ami) (§4.3c).
+   bramki na ścieżce platformy (655 z ~711 commitów weszło poza PR-ami) (§4.3c).
 
 **P1 (RODO / integralność / koszt):**
 5. **`user_purchases`** — pseudonimizacja `user_id`, `retention_until`, purge w tym samym cronie co

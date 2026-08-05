@@ -2,7 +2,7 @@
 // errors; this catches synchronous render crashes inside the tree (e.g. a
 // nested component throwing on bad data) so the whole app never goes blank.
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { reportLovableError } from "@/lib/lovable-error-reporting";
+import { reportPlatformError } from "@/lib/platform-error-reporting";
 import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 
 interface Props {
@@ -24,7 +24,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    reportLovableError(error, {
+    reportPlatformError(error, {
       boundary: this.props.name ?? "global_error_boundary",
       componentStack: info.componentStack ?? undefined,
     });

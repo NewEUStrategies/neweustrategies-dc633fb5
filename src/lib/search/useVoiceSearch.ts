@@ -1,4 +1,4 @@
-// Dyktowanie frazy wyszukiwarki. Domyślnie używa serwerowego STT (Lovable AI
+// Dyktowanie frazy wyszukiwarki. Domyślnie używa serwerowego STT (bramka AI
 // Gateway - openai/gpt-4o-mini-transcribe), który znacznie lepiej rozpoznaje
 // polską i angielską mowę niż wbudowany Web Speech API. Fallback do Web Speech
 // API działa dla anonimowych uzytkowników i tam, gdzie nagrywanie nie jest

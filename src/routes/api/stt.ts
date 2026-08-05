@@ -1,4 +1,4 @@
-// Server-side speech-to-text via Lovable AI Gateway (openai/gpt-4o-mini-transcribe).
+// Server-side speech-to-text via the platform AI gateway (openai/gpt-4o-mini-transcribe).
 // Znacznie dokładniejsze rozpoznawanie PL/EN niż Web Speech API w przeglądarce.
 // Wymaga zalogowania (żeby nie palić kredytów AI dla anonimowego ruchu),
 // dodatkowo rate-limit per uzytkownik.

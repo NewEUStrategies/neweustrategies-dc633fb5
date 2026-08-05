@@ -281,7 +281,7 @@ const pl = {
             title: "TTFB powyżej 1.8 s - serwer zbyt wolno odpowiada",
             fixes: [
               "Zprofiluj server functions: dodaj console.time w handler(), wyszukaj zapytania > 500 ms.",
-              "Sprawdź slow_queries w Lovable Cloud - dodaj indeksy na kolumnach z WHERE / ORDER BY.",
+              "Sprawdź slow_queries w panelu bazy danych - dodaj indeksy na kolumnach z WHERE / ORDER BY.",
               "Rozważ edge caching (Cache-Control: s-maxage=60, stale-while-revalidate=600) dla list publicznych.",
             ],
           },
@@ -992,7 +992,7 @@ const en = {
             title: "TTFB above 1.8 s - server responds too slowly",
             fixes: [
               "Profile server functions: add console.time in handler(), find queries > 500 ms.",
-              "Check slow_queries in Lovable Cloud - add indexes on columns used in WHERE / ORDER BY.",
+              "Check slow_queries in the database dashboard - add indexes on columns used in WHERE / ORDER BY.",
               "Consider edge caching (Cache-Control: s-maxage=60, stale-while-revalidate=600) for public lists.",
             ],
           },

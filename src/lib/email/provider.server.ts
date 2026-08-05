@@ -3,7 +3,7 @@
 // PRZYCZYNA ŹRÓDŁOWA. Repozytorium miało dwie niezależne implementacje wysyłki:
 // kampanie strzelały do gatewaya Resend (i odczytywały `id` wiadomości, bez
 // którego webhook odbicia nie ma jak trafić do odbiorcy), a procesor kolejki
-// wołał `sendLovableEmail` (bez identyfikatora wiadomości, więc odbicia poczty
+// wołał zapasowego nadawcę platformy (bez identyfikatora wiadomości, więc odbicia
 // transakcyjnej nie korelowały się z niczym). Dwie ścieżki to dwa zestawy
 // nagłówków, dwa formaty błędów i dwie klasyfikacje 429 - a przy takim
 // rozjeździe pętla zwrotna dostarczalności zamyka się tylko dla połowy poczty.
@@ -14,7 +14,7 @@
 // dostawca faktycznie odebrał wiadomość.
 //
 // Kolejność dostawców: gateway Resend jest PIERWSZY, bo zwraca identyfikator
-// wiadomości. `sendLovableEmail` zostaje jako zapas dla środowisk, w których
+// wiadomości. Nadawca platformy zostaje jako zapas dla środowisk, w których
 // nie ma klucza Resend - wtedy poczta nadal wychodzi, tylko bez korelacji.
 
 /** Adres gatewaya connectora Resend (ten sam, którym wysyłają kampanie). */
@@ -63,20 +63,20 @@ export interface SendEmailResult {
    */
   permanent?: boolean;
   /** Który dostawca obsłużył wysyłkę - do diagnostyki w logu. */
-  provider?: "resend" | "lovable" | "none";
+  provider?: "resend" | "platform" | "none";
 }
 
 function resendConfigured(): boolean {
   return Boolean(process.env.LOVABLE_API_KEY && process.env.RESEND_API_KEY);
 }
 
-function lovableConfigured(): boolean {
+function platformMailerConfigured(): boolean {
   return Boolean(process.env.LOVABLE_API_KEY);
 }
 
 /** Czy w tym środowisku istnieje jakikolwiek skonfigurowany dostawca poczty. */
 export function emailProviderConfigured(): boolean {
-  return resendConfigured() || lovableConfigured();
+  return resendConfigured() || platformMailerConfigured();
 }
 
 function retryAfterFromHeaders(headers: Headers): number | null {
@@ -173,7 +173,7 @@ function retryAfterOf(error: unknown): number | null {
   return null;
 }
 
-async function sendViaLovable(input: SendEmailInput): Promise<SendEmailResult> {
+async function sendViaPlatformMailer(input: SendEmailInput): Promise<SendEmailResult> {
   try {
     const { sendLovableEmail } = await import("@lovable.dev/email-js");
     await sendLovableEmail(
@@ -195,7 +195,7 @@ async function sendViaLovable(input: SendEmailInput): Promise<SendEmailResult> {
     );
     // Zapasowy dostawca nie zwraca identyfikatora wiadomości: odbicia dojdą do
     // logu, ale bez korelacji z odbiorcą kampanii.
-    return { ok: true, messageId: null, provider: "lovable" };
+    return { ok: true, messageId: null, provider: "platform" };
   } catch (error) {
     const status = statusOf(error);
     return {
@@ -205,7 +205,7 @@ async function sendViaLovable(input: SendEmailInput): Promise<SendEmailResult> {
       rateLimited: status === 429,
       retryAfterSeconds: retryAfterOf(error),
       permanent: status === 403 || status === 401 || status === 422,
-      provider: "lovable",
+      provider: "platform",
     };
   }
 }
@@ -235,6 +235,6 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       };
     }
   }
-  if (lovableConfigured()) return sendViaLovable(input);
+  if (platformMailerConfigured()) return sendViaPlatformMailer(input);
   return { ok: false, error: "email_not_configured", permanent: true, provider: "none" };
 }

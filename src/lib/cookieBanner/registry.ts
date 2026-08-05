@@ -78,9 +78,11 @@ export const DATA_ELEMENT_REGISTRY: readonly RegistryEntry[] = [
     ttl_en: "365 days",
   },
   {
-    name: "lovable_lang",
+    name: "nes_lang",
     category: "necessary",
     kind: "cookie",
+    // `*lang*` obejmuje też poprzednią nazwę (`lovable_lang`), którą czytamy
+    // jeszcze jako zapas - patrz LEGACY_LANG_COOKIES w lib/i18n/langCookie.ts.
     match: ["*lang*", "i18n*"],
     party_pl: PLATFORM_PL,
     party_en: PLATFORM_EN,
@@ -267,7 +269,11 @@ function describeUnknown(key: string, kind: StorageKind): DataElement {
   }
   const marketing = /(utm|ref|affil|promo|coupon|ad)/i.test(key);
   const analytics = /(stat|metric|event|track|visit|view|count)/i.test(key);
-  const category: ConsentCategory = marketing ? "marketing" : analytics ? "analytics" : "functional";
+  const category: ConsentCategory = marketing
+    ? "marketing"
+    : analytics
+      ? "analytics"
+      : "functional";
   return {
     name: key,
     category,

@@ -21,8 +21,10 @@ const DeleteAccountSchema = z.object({
  *   1. re-uwierzytelnienie hasłem,
  *   2. anulowanie subskrypcji u operatora (inaczej karta byłaby dalej
  *      obciążana za dostęp, którego już nie ma),
- *   3. anonimizacja zamówień (dowody księgowe muszą przeżyć konto -
- *      art. 74 ust. 2 uor w związku z art. 17 ust. 3 lit. b RODO),
+ *   3. anonimizacja dowodów - zamówień i uprawnień zakupowych (muszą przeżyć
+ *      konto, ale bez danych osobowych: art. 74 ust. 2 uor w związku
+ *      z art. 17 ust. 3 lit. b RODO, a jednocześnie art. 5 ust. 1 lit. e RODO
+ *      zabrania trzymania identyfikatora osoby bez podstawy i terminu),
  *   4. dopiero teraz `deleteUser`.
  * Każdy z kroków 2-3 rzuca przy awarii i przerywa usuwanie.
  */
@@ -52,9 +54,11 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     const { closeBillingForUser } = await import("@/lib/billing/accountClosure.server");
     await closeBillingForUser(userId, email);
 
-    // Potem księgi: zamówienia tracą dane osobowe, ale zostają jako dowód
-    // (FK jest `ON DELETE SET NULL`, więc samo `deleteUser` już ich nie
-    // zabiera - ten krok dokłada redakcję e-maila, metadanych i pseudonim).
+    // Potem księgi: zamówienia I uprawnienia zakupowe tracą dane osobowe, ale
+    // zostają jako dowód. Obie tabele mają FK `ON DELETE SET NULL`, więc samo
+    // `deleteUser` nie zabiera wierszy ani nie zostawia w nich surowego
+    // identyfikatora - ten krok dokłada redakcję e-maila, metadanych i
+    // pseudonim, w JEDNEJ transakcji dla obu tabel.
     // Rzuca przy awarii; konto zostaje, bo dowodów nie da się odtworzyć.
     const { retainAccountingEvidence } = await import("@/lib/billing/accountingRetention.server");
     const retention = await retainAccountingEvidence(userId);
@@ -65,10 +69,16 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
       throw new Error(`Nie udało się usunąć konta: ${deleteError.message}`);
     }
 
-    // `retainedOrders` wraca do UI, żeby komunikat po usunięciu mówił wprost,
-    // ile dowodów księgowych zostało w systemie - obowiązek informacyjny
-    // z art. 12 RODO realizuje się liczbą, nie ogólnikiem.
-    return { ok: true as const, retainedOrders: retention.retained };
+    // Liczby wracają do UI, żeby komunikat po usunięciu mówił wprost, ile
+    // dowodów zostało w systemie - obowiązek informacyjny z art. 12 RODO
+    // realizuje się liczbą, nie ogólnikiem. `retainedEvidence` obejmuje obie
+    // tabele dowodowe; `retainedOrders` zostaje dla czytelności rozbicia.
+    return {
+      ok: true as const,
+      retainedEvidence: retention.retainedTotal,
+      retainedOrders: retention.orders.retained,
+      retainedPurchases: retention.purchases.retained,
+    };
   });
 
 const ChangeEmailSchema = z.object({

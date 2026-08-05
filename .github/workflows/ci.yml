@@ -29,7 +29,7 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # The committed bun.lock pins tarballs to Lovable's private GAR cache
+      # The committed bun.lock pins tarballs to the build platform's private GAR cache
       # (europe-west4-npm.pkg.dev/...), which is unreachable from public CI. The
       # path after the cache prefix is byte-identical to the npm registry layout,
       # so repointing the host keeps the exact pinned versions + integrity while

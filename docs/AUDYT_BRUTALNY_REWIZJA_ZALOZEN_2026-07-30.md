@@ -10,7 +10,7 @@ migracjami i uruchomionymi narzędziami. Punkt odniesienia: seria `OCENA_*` / `A
 > Werdykt idzie w górę: 7,0 → **7,5** (§2). Konwencja tej rewizji: wartości i oceny z 30.07 zostają w
 > tabelach jako migawka („było"), obok dochodzi stan **01.08**; każde ustalenie §4 dostaje dopisek
 > **STATUS 01.08**. Najważniejszy nowy sygnał procesowy: lint został bramką CI po jednorazowym
-> sformatowaniu repo — i main **znów jest czerwony** (1446 problemów), bo commity Lovable idą prosto na
+> sformatowaniu repo — i main **znów jest czerwony** (1446 problemów), bo commity platformy idą prosto na
 > main z pominięciem PR-ów. Bramka broni PR-ów, nie chroni gałęzi (§1, §5 pkt 3).
 
 > **AKTUALIZACJA 2026-07-31 — wszystkie P0 domknięte.** Po tym audycie wdrożono naprawy: PR-y #115–#123
@@ -41,16 +41,16 @@ zweryfikowała każde ustalenie §4 bezpośrednio na kodzie HEAD `657da6e`.
 
 | Sprawdzenie | Wynik | Uwaga |
 | --- | --- | --- |
-| `vitest run` | **3665 pass / 50 skip / 0 fail** (421 plików; było 3423 / 399 plików) | Lokalnie nadal wymaga przepięcia `bun.lock` na publiczny rejestr (pinny wskazują prywatny GAR Lovable) — ale **CI robi to teraz samo** (krok „Repoint lockfile" w `ci.yml`), więc bramka testowa przestała zależeć od ręcznego obejścia. |
+| `vitest run` | **3665 pass / 50 skip / 0 fail** (421 plików; było 3423 / 399 plików) | Lokalnie nadal wymaga przepięcia `bun.lock` na publiczny rejestr (pinny wskazują prywatny GAR platformy) — ale **CI robi to teraz samo** (krok „Repoint lockfile" w `ci.yml`), więc bramka testowa przestała zależeć od ręcznego obejścia. |
 | `tsc --noEmit` | **czysto** (bez zmian) | Realny gate typów (build przez esbuild nie typuje). |
-| `eslint .` (`bun run lint`) | **CZERWONO — 1446 problemów** (1319 błędów, 127 ostrzeżeń; było 1888: 1759/129) | **Lint JEST teraz bramką CI** po jednorazowym sformatowaniu repo (komentarz w `ci.yml`: „backlog wyczyszczony, lint blokuje merge")… i main **znów jest czerwony**: 1313× `prettier/prettier` w 280 plikach, źródłem commity Lovable pchane **prosto na main** (top: `WidgetProperties.tsx`, `BuilderWidgetNode.tsx`, `MegaPanelView.tsx`, `lovable/email/*`). Do tego 1 realny błąd `react-hooks/rules-of-hooks` (`preview.$token.tsx:74` — warunkowy `useRef`), 92× react-refresh, 34× exhaustive-deps. |
+| `eslint .` (`bun run lint`) | **CZERWONO — 1446 problemów** (1319 błędów, 127 ostrzeżeń; było 1888: 1759/129) | **Lint JEST teraz bramką CI** po jednorazowym sformatowaniu repo (komentarz w `ci.yml`: „backlog wyczyszczony, lint blokuje merge")… i main **znów jest czerwony**: 1313× `prettier/prettier` w 280 plikach, źródłem commity automatyczne platformy pchane **prosto na main** (top: `WidgetProperties.tsx`, `BuilderWidgetNode.tsx`, `MegaPanelView.tsx`, `platform/email/*`). Do tego 1 realny błąd `react-hooks/rules-of-hooks` (`preview.$token.tsx:74` — warunkowy `useRef`), 92× react-refresh, 34× exhaustive-deps. |
 | `knip` | 7 martwych plików, **303 martwe eksporty, 219 martwych typów**, 19 duplikatów eksportu (było 8 / 293 / 207 / 19) | Nadal **nieegzekwowany w CI**; dług eksportów lekko rośnie. |
 | Migracje SQL | **557 plików** (było 548) | |
 | Polityki RLS | **998 instrukcji `CREATE POLICY`**; nowy parser gate'ów liczy **517 polityk w stanie końcowym** (uruchomione na tej sesji: `check:sql-anon-insert` ✓) | Parser stanu końcowego (CREATE/DROP odtwarzane po kolei) zamyka spór o metodę: „915" z `OCENA_FUNKCJI` liczyło churn instrukcji, „408" z 30.07 — pary nazwa+tabela. Tabel bez RLS: bez zmian **0**. |
 | Funkcje `SECURITY DEFINER` | przyrost definicji; **niezmiennie dokładnie 4 bez `SET search_path`** — kolejka `email_infra` (`enqueue_email`, `read_email_batch`, `delete_email`, `move_to_dlq`), wszystkie `REVOKE FROM PUBLIC` | |
 | Bloki / widgety | **100 bloków / 89 widgetów** (było 100 / 87; +2 widgety z 31.07 — slidery/responsive) | |
 | Trasy | **201 plików (127 admin)** — było 202 (128) | Ubyła wydmuszka `/admin/donations` (§4.10). |
-| Historia git | **4 dni, 443 commity** (było 2 dni, 212) | Nadal spłaszczona; strona Lovable dalej commituje „Changes" **prosto na main**, więc archeologia i bramki PR jej nie obejmują. |
+| Historia git | **4 dni, 443 commity** (było 2 dni, 212) | Nadal spłaszczona; strona platformy dalej commituje „Changes" **prosto na main**, więc archeologia i bramki PR jej nie obejmują. |
 | Bramki CI (`ci.yml`) | typecheck, test+coverage (progi bez zmian: **19,5% / 15,75%**), kontrakt SEO, build, bundle (progi bez zmian), **chunk-graph**, **lint (NOWA)**, SQL tenant-scope, SQL app-role, **SQL anon-insert (NOWA)**, pgTAP | **pgTAP faktycznie odpala się na lokalnej bazie**: pin `supabase/setup-cli@2.111.0` (rezolucja `latest` padała na nieautoryzowanym rate-limicie api.github.com — run PR #118 — dokładnie to maskowało czerwony test z §4.3) + krok nadający roli testowej prawo przestawiania triggerów `auth.users` (wcześniej większość plików padała od razu na `42501 must be owner of table users`). e2e i Lighthouse nadal w osobnych workflow na **dev-serwerze**. |
 
 **Wniosek z twardych sygnałów (01.08):** safety-net realnie się zagęścił — lint i anon-insert weszły
@@ -217,7 +217,7 @@ suppression warunkiem `input.type === "newsletter_confirmed"` — czyli **dla 1 
 dunning, portal, renewal, event_registered lecą na martwe adresy. Do tego `sendTxEmail`/`enqueueRawEmail`
 wrzucają do pgmq `transactional_emails`, ale **żadna migracja nie planuje drenu** — jest tylko komentarz
 o zewnętrznym narzędziu (`20260728154925...:283-303`), a jedyny drener w repo
-(`src/routes/lovable/email/queue/process.ts`) **nie jest nigdzie wołany**. Faktyczna wysyłka
+(`src/routes/platform/email/queue/process.ts`) **nie jest nigdzie wołany**. Faktyczna wysyłka
 RSVP/dunning/digest jest **nieweryfikowalna z kodu**.
 
 **STATUS 01.08: ✅ naprawione (PR #111), zweryfikowane na kodzie.** Migracja
@@ -308,7 +308,7 @@ utrzymania — realnie ~7,3 na 24.07, dziś 7,8 (rosnąco dzięki lockdownom, ni
 SQL), **blokujący w `ci.yml`**: inwariant A (żadna permisywna polityka INSERT dla `anon`/`public` z
 `WITH CHECK true`) + inwariant B (6 tabel intake bez żadnej nie-DENY polityki INSERT dla ról klienta).
 Self-test nie-pustości: wstrzyknięta permisywna polityka **failuje** gate. Wynik na tej sesji:
-`✓ 517 polityk w stanie końcowym, 6 tabel intake chronionych`. Równolegle strona Lovable dokręciła
+`✓ 517 polityk w stanie końcowym, 6 tabel intake chronionych`. Równolegle strona platformy dokręciła
 kolejne polityki (zakres tenanta na `introduction_requests` i `user_connections`, update profili tylko
 `authenticated`, drop tabeli-zaszłości) — nadal reaktywnie, ale już pod parasolem gate'u.
 
@@ -368,7 +368,7 @@ To jest sedno „brutalnej szczerości" — pojedyncze bugi są objawami, wzorce
    broni.** **[01.08: POŁOWICZNIE domknięty** — pgTAP odblokowany (pin CLI + własność triggerów), lint
    wszedł do CI, parser stanu końcowego zastąpił liczenie churnu. ALE: e2e SSR nadal asertuje sentinel,
    progi pokrycia bez zmian, knip poza CI — i doszedł **nowy przypadek tej klasy**: bramka lint broni
-   PR-ów, podczas gdy commity Lovable idą prosto na main, więc main jest czerwony mimo bramki.]
+   PR-ów, podczas gdy commity platformy idą prosto na main, więc main jest czerwony mimo bramki.]
 4. **UI odłączone od backendu = obietnica wobec użytkownika.** checkout_settings, donations, autozapis,
    alerty trackera — nie „martwy kod", lecz **panel/cennik obiecujący zachowanie, którego nie ma**.
    **[01.08: donations naprawione przez USUNIĘCIE kłamstwa (jedyna uczciwa opcja); checkout_settings,
@@ -423,7 +423,7 @@ To jest sedno „brutalnej szczerości" — pojedyncze bugi są objawami, wzorce
 - **„Partner Biznesowy"** — sprzedaż ekspozycji reklamowej przekształcona w subskrypcję B2B
   (2 tyg./mies./kwartał) zgodną z AUP Paddle; parytet katalogu pilnowany testem (migracje
   `20260730190000`/`191000`).
-- **Strona Lovable** — +2 widgety buildera (razem 89), parser wklejania z Worda, poprawki mobile,
+- **Strona platformy** — +2 widgety buildera (razem 89), parser wklejania z Worda, poprawki mobile,
   przekierowanie 301 do bloga oraz własne dokręcenia RLS (zakres tenanta na `introduction_requests`
   i `user_connections`).
 - **CI niezależne od prywatnego rejestru** — krok przepinający `bun.lock` na publiczny npm; zastrzeżenie
@@ -457,8 +457,8 @@ Status 01.08 dopisany przy każdej pozycji; szczegóły napraw w §4.
 8. ✗ Odznaki (katalog vs CHECK) i duplikat tabel programów (`programs` + `research_programs`) — bez zmian.
 9. częściowo: ✅ lint w CI; ✅ loader `/tracker`; ✗ knip poza CI; ✗ `e2e/ssr-completeness` nadal na
    sentinelu guarda (asercje treściowe niezrobione).
-10. ✅→✗ `bun run format` wykonany i lint-gate wpięty — ale **dryf wrócił**: commity Lovable prosto na
-    main znów zostawiły 1446 problemów. Realne domknięcie wymaga wymuszenia formatu na ścieżce Lovable
+10. ✅→✗ `bun run format` wykonany i lint-gate wpięty — ale **dryf wrócił**: commity platformy prosto na
+    main znów zostawiły 1446 problemów. Realne domknięcie wymaga wymuszenia formatu na ścieżce platformy
     (ochrona gałęzi main / format przy imporcie), nie kolejnego jednorazowego sprzątania.
 
 **Pozostała lista po 01.08 (zaktualizowane P2/P3):** okablować albo wyciąć `checkout_settings`;
@@ -467,7 +467,7 @@ obietnicy z cennika; unifikacja katalogu odznak z CHECK + auto-przyznawanie; roz
 tabel programów; przepisanie e2e SSR na asercje treściowe (guard wyłączony w teście); knip do CI;
 redukcja bundla publicznego (1,47 MB) i prerender; import WP niszczący drugi język; `SET NULL` +
 anonimizacja zamiast CASCADE na dowodach księgowych; naprawa `react-hooks/rules-of-hooks` w
-`preview.$token.tsx:74`; egzekucja prettiera na commitach Lovable; dwujęzyczny `head()` quizu.
+`preview.$token.tsx:74`; egzekucja prettiera na commitach platformy; dwujęzyczny `head()` quizu.
 
 ---
 
@@ -486,7 +486,7 @@ anonimizacja zamiast CASCADE na dowodach księgowych; naprawa `react-hooks/rules
 - **Oceny są kompozytem** (kompletność + inżynieria + dopracowanie + bezpieczeństwo + testy), spójnym
   ze skalą z `OCENA_FUNKCJI_2026-07-24.md`, żeby rewizje były porównywalne 1:1. Kolumna 01.08 w §3
   używa tej samej skali.
-- Historia git spłaszczona — na 01.08 to 4 dni / 443 commity; strona Lovable nadal wypycha „Changes"
+- Historia git spłaszczona — na 01.08 to 4 dni / 443 commity; strona platformy nadal wypycha „Changes"
   prosto na main, co ogranicza archeologię i omija bramki PR.
 - **Rewizja 01.08** wykonana tą samą metodą statyczną na HEAD `657da6e`: `vitest`/`tsc`/`eslint`/`knip`
   oraz gate `check:sql-anon-insert` uruchomione lokalnie (wyniki w §1), każdy STATUS w §4 zweryfikowany

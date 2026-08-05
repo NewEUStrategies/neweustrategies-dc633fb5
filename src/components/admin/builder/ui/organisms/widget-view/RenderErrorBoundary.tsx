@@ -9,7 +9,7 @@
 // It is SSR-safe: React renders the fallback when a boundary catches during
 // server rendering, so a single malformed widget can no longer 500 the page.
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { reportLovableError } from "@/lib/lovable-error-reporting";
+import { reportPlatformError } from "@/lib/platform-error-reporting";
 
 interface Props {
   children: ReactNode;
@@ -19,7 +19,7 @@ interface Props {
   fallback?: ReactNode;
   /** Force dev/prod fallback behavior. Defaults to import.meta.env.DEV. */
   dev?: boolean;
-  /** Error sink. Defaults to Lovable error reporting. */
+  /** Error sink. Defaults to the platform error reporting bridge. */
   onError?: (error: Error, info: ErrorInfo) => void;
 }
 
@@ -57,7 +57,7 @@ export class RenderErrorBoundary extends Component<Props, State> {
       this.props.onError(error, info);
       return;
     }
-    reportLovableError(error, {
+    reportPlatformError(error, {
       boundary: "builder_render_boundary",
       label: this.props.label,
       componentStack: info.componentStack ?? undefined,

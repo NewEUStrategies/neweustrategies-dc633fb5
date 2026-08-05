@@ -4,7 +4,7 @@
 // DEFINER z jawnymi checkami owner/admin; RLS na organization_seats), więc te
 // funkcje wołają RPC klientem UŻYTKOWNIKA (context.supabase) - żadnej drogi na
 // service_role z parametrami od klienta. Serwerowe są dlatego, że wysyłka
-// e-maila (Resend przez bramkę Lovable) wymaga sekretów niedostępnych w
+// e-maila (Resend przez bramkę platformy) wymaga sekretów niedostępnych w
 // przeglądarce; e-mail jest best-effort i nie unieważnia operacji na miejscu.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";

@@ -143,7 +143,7 @@ export const PLACEHOLDER_POST_CTX: CurrentPostCtx = {
   },
   categories: [{ slug: "wiadomosci", name: "Wiadomości" }],
   tags: [
-    { slug: "lovable", name: "Lovable" },
+    { slug: "przyklad", name: "Przykład" },
     { slug: "cms", name: "CMS" },
   ],
   breadcrumbs: [

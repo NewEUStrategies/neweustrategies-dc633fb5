@@ -20,7 +20,7 @@
 //                                     e-mailu.
 //
 // Rejestrujemy się do istniejącej infrastruktury: sendTransactionalEmail
-// (bramka Resend przez Lovable connector gateway) i supabaseAdmin ładowany
+// (bramka Resend przez connector gateway platformy) i supabaseAdmin ładowany
 // wewnątrz .handler() (patrz reguły import-graph).
 
 import { createServerFn } from "@tanstack/react-start";

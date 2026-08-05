@@ -10,7 +10,7 @@
  *      We assert the exact set of block-consuming columns on `posts` and
  *      `pages` plus every table the renderer's block views read from.
  *
- * Runs against Lovable Cloud with the anon key (CI-safe, no browser).
+ * Runs against the hosted database with the anon key (CI-safe, no browser).
  */
 import { describe, it, expect } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -26,7 +26,7 @@ const d = shouldRun ? describe : describe.skip;
 const client: SupabaseClient<Database> | null = shouldRun
   ? createClient<Database>(SUPABASE_URL as string, SUPABASE_KEY as string, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { "x-tenant-host": "neweustrategies.lovable.app" } },
+      global: { headers: { "x-tenant-host": "neweuropeanstrategies.com" } },
     })
   : null;
 

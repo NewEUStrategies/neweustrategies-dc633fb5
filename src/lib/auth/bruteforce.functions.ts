@@ -4,7 +4,7 @@
 // ON CONFLICT DO UPDATE RETURNING) and fail-CLOSED - a DB blip must not
 // remove the cap on credential guessing.
 //
-// IP is derived from the trusted forwarded headers (Lovable edge proxy sets
+// IP is derived from the trusted forwarded headers (the edge proxy sets
 // them); an sha256 keyed with SESSION_SECRET is stored so raw IPs never land
 // in rate_limits. Email is normalised (lowercase + trim) then hashed the same
 // way so a leaked rate_limits row cannot enumerate accounts by email.

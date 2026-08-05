@@ -40,11 +40,9 @@ describe("isPreviewHost", () => {
     expect(isPreviewHost("app.localhost")).toBe(true);
   });
 
-  it("accepts platform preview domains", () => {
+  it("accepts the hosting layer's preview domains", () => {
     expect(isPreviewHost("my-site.pages.dev")).toBe(true);
     expect(isPreviewHost("my-site.workers.dev")).toBe(true);
-    expect(isPreviewHost("preview.lovable.app")).toBe(true);
-    expect(isPreviewHost("abc123.lovableproject.com")).toBe(true);
   });
 
   it("rejects customer-looking domains and lookalikes", () => {
@@ -54,5 +52,18 @@ describe("isPreviewHost", () => {
     expect(isPreviewHost("evilpages.dev")).toBe(false);
     expect(isPreviewHost("notlocalhost.com")).toBe(false);
     expect(isPreviewHost(null)).toBe(false);
+  });
+
+  it("does NOT hardcode a vendor's preview domain", () => {
+    // Domena podglądu konkretnego dostawcy jest wpisem ALLOWLISTY istotnym dla
+    // bezpieczeństwa (poszerza fail-open planu crawlera i rozluźnia CSP), więc
+    // należy do konfiguracji wdrożenia (`PREVIEW_HOST_SUFFIXES`), nie do kodu.
+    expect(isPreviewHost("preview.lovable.app")).toBe(false);
+    expect(isPreviewHost("abc123.lovableproject.com")).toBe(false);
+  });
+
+  it("nieznana domena produkcyjna nigdy nie jest podglądem", () => {
+    expect(isPreviewHost("neweuropeanstrategies.com")).toBe(false);
+    expect(isPreviewHost("www.neweuropeanstrategies.com")).toBe(false);
   });
 });

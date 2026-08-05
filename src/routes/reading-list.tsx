@@ -10,6 +10,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
+import {
+  GUEST_SAVED_ARTICLES_KEY,
+  browserStorage,
+  readStoredValue,
+  writeStoredValue,
+} from "@/lib/storageKeys";
 import { ExternalLink, Trash2, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useBookmarks } from "@/hooks/useBookmarks";
@@ -38,7 +44,6 @@ interface PostRow {
 }
 
 // Gościnne zapisy z useSaveArticle (localStorage, to samo źródło danych).
-const GUEST_SAVED_KEY = "lovable:saved-articles";
 interface GuestSavedItem {
   url: string;
   title: string;
@@ -48,7 +53,7 @@ interface GuestSavedItem {
 function readGuestSaved(): GuestSavedItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(GUEST_SAVED_KEY);
+    const raw = readStoredValue(browserStorage("local"), GUEST_SAVED_ARTICLES_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed)
       ? (parsed as GuestSavedItem[]).filter((s) => typeof s?.url === "string")
@@ -318,7 +323,7 @@ function GuestSavedSection({ lang }: { lang: Lang }) {
     setItems((prev) => {
       const next = prev.filter((s) => s.url !== url);
       try {
-        window.localStorage.setItem(GUEST_SAVED_KEY, JSON.stringify(next));
+        writeStoredValue(browserStorage("local"), GUEST_SAVED_ARTICLES_KEY, JSON.stringify(next));
       } catch {
         /* private mode - stan i tak zaktualizowany w pamięci */
       }

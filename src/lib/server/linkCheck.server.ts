@@ -221,7 +221,7 @@ export async function runLinkCheckBatch(admin: DbClient, postsLimit = 3): Promis
   const ownHosts = [
     "neweuropeanstrategies.com",
     "www.neweuropeanstrategies.com",
-    "neweustrategies.lovable.app",
+    "neweuropeanstrategies.com",
     "localhost",
   ] as const;
 

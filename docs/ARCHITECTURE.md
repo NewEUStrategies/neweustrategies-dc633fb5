@@ -273,19 +273,43 @@ own failure contract:
 
 - **Anon content plane (RLS)** - every anon policy says
   `tenant_id = public.public_tenant_id()`. Since `20260703120000` that
-  function is host-aware: it reads the `x-tenant-host` request header
-  (`public.request_public_host()`), matches `tenants.domain` and falls back to
-  the default tenant. The header is attached by every Supabase client in
+  function is host-aware; since `20260805090000` it is also TRUST-AWARE, because
+  the edge validation alone never covered direct PostgREST calls (audit
+  2026-08-05 §4.1: a client holding the public anon key names another tenant's
+  domain and the edge never sees the request). Three tiers:
+  - **VERIFIED** - the request carries `x-tenant-assert`, an HMAC-SHA256
+    assertion over `v1:<kid>:<host>:<exp>` signed with a secret known only to
+    the edge (`TENANT_HOST_ASSERTION_KEY`) and the database (Vault, registered
+    in `tenant_host_assertion_keys`). The host holds for any tenant.
+  - **ASSERTED** - the bare `x-tenant-host` header, i.e. a client CLAIM. It is
+    honoured only when it names a domain/alias registered in `public.tenants`
+    (anything else is noise and never leaves `request_asserted_host()`), and for
+    an AUTHENTICATED caller only when it resolves to their own home tenant -
+    otherwise `current_tenant_id()` wins. **The header can never move a
+    logged-in caller into a foreign tenant**; that closes at the source the
+    class `20260724100000` had to patch function by function.
+  - **NONE** - no header (realtime, direct SQL, background jobs) -> default
+    tenant, as before.
+
+  The headers are attached by every Supabase client in
   `src/integrations/supabase/`: the browser singleton and the per-request /
   per-call server clients all route through `tenant-host-fetch.ts`
   (`fetchWithTenantHost`), which resolves the host via
   `src/lib/http/requestHost.ts` (browser: `location.host`; SSR: the active
-  request, validated - see the trusted-host contract below). The header is
-  client-controlled BY DESIGN on the browser plane - it only selects which
-  tenant's PUBLISHED content is read and where anon public INSERTs (newsletter,
-  contact) are attributed; staff/private access is pinned by
-  `current_tenant_id()` (profile-based) and ignores it. Unknown host ->
-  default tenant, so previews render (fail-open on purpose).
+  request, validated - see the trusted-host contract below) and the assertion via
+  `src/lib/http/tenantAssertion.ts` (browser: the `nes_tenant_assert` cookie set
+  by `tenantAssertionMiddleware`, which sits ABOVE `documentCacheMiddleware` so
+  `Set-Cookie` never enters a cached document; SSR: signed in place).
+  Anonymous traffic stays host-aware from the claim alone BY DESIGN - it only
+  selects which tenant's PUBLISHED content is read and where anon public INSERTs
+  (newsletter, contact) are attributed, and forging the claim is equivalent to
+  visiting that site and submitting the form. Honest limit: the assertion binds
+  the HOST, not the person - anyone can fetch tenant B's public page to obtain
+  one. Its job is to distinguish platform traffic from a raw API call so the
+  database can degrade the latter SAFELY. Unknown host -> default tenant, so
+  previews render (fail-open on purpose). With no key configured there is no
+  VERIFIED tier, so logged-in callers are always pinned to their home tenant -
+  a single-domain install behaves byte-for-byte as before.
 - **Crawler plane (service role)** - sitemap.xml, rss.xml, news-sitemap.xml,
   llms.txt, robots.txt and the redirect/404 middleware read with the service
   role (RLS bypassed), so they scope queries by
@@ -808,11 +832,11 @@ sukces.
   mogła czekać w kolejce, a adres w tym czasie odbić).
 - `src/lib/email/provider.server.ts` - jedna droga wyjścia poczty: gateway
   Resend (zwraca `id` wiadomości, więc pętla webhooków się domyka) z
-  `sendLovableEmail` jako zapasem. Ten sam moduł wysyła kampanie - wcześniej
+  zapasowym nadawcą platformy. Ten sam moduł wysyła kampanie - wcześniej
   kampanie i kolejka miały dwie kopie z innym formatem błędów.
 - Wpięcie w harmonogram: `runJobsTick` (pg_cron + pg_net co minutę) drenuje
   kolejkę zaraz po kampaniach, z własnym deadline'em 10 s, żeby zaległość nie
-  zagłodziła push-y i przypomnień. Endpoint `POST /lovable/email/queue/process`
+  zagłodziła push-y i przypomnień. Endpoint `POST /platform/email/queue/process`
   zostaje dla środowisk z własnym harmonogramem i **deleguje** do tego samego
   modułu.
 
@@ -973,7 +997,39 @@ e-mail-keyed) i pozostałe tabele intake przyjmują zapis wyłącznie przez
 service_role / SECURITY DEFINER - bramka `check:sql-anon-insert` (inwarianty
 A + B) pozostaje zielona, bo unifikacja nie dodaje żadnej polityki INSERT.
 
-### 13.1 Ochrona gałęzi `main` (rekomendacja operacyjna)
+### 13.1 Retencja dowodów przy usunięciu konta (RODO x art. 74 uor)
+
+Usunięcie konta musi jednocześnie **nie niszczyć dowodów księgowych** (art. 74
+ust. 2 ustawy o rachunkowości; art. 17 ust. 3 lit. b RODO wprost wyłącza w tym
+zakresie prawo do usunięcia) i **nie zostawiać osieroconych danych osobowych**
+(art. 5 ust. 1 lit. e RODO). Obie tabele transakcyjne łamały to w PRZECIWNE
+strony i każda z innego powodu:
+
+- `payment_orders.user_id` miało `ON DELETE CASCADE` - `deleteUser()` wynosił ze
+  sobą całą ewidencję transakcji. Naprawa: `20260803090002`.
+- `user_purchases.user_id` był `uuid NOT NULL` **bez klucza obcego** - nigdy nie
+  kaskadował, więc nie trafił na listę „miejsc z CASCADE" i umknął trzem
+  wydaniom audytu z rzędu; po usunięciu konta wiersz zostawał z SUROWYM
+  identyfikatorem osoby. Naprawa: `20260805090100`.
+
+Kontrakt jest teraz jeden dla obu tabel: `user_id` nullowalny +
+`FK ON DELETE SET NULL`, pseudonim `subject_ref` (wspólny SHA-256, więc księgi
+da się uzgodnić bez danych osobowych), `anonymized_at`, `retention_until`
+(31.12 piątego roku po roku transakcji, stemplowane triggerem), `retention_hold`
+(kontrola/spór/chargeback) oraz `CHECK` kształtu zanonimizowanego wiersza.
+Wiersze bez wartości dowodowej (porzucone szkice checkoutu, darmowe granty
+dostępu) są USUWANE - trzymanie ich pięć lat nie ma podstawy prawnej.
+
+Jeden punkt wejścia: `anonymize_accounting_evidence_for_user()` obejmuje obie
+tabele w JEDNEJ transakcji; woła go zarówno ścieżka aplikacyjna
+(`deleteMyAccount` -> `retainAccountingEvidence`, PRZED `deleteUser`), jak i
+fail-closed trigger `BEFORE DELETE ON auth.users` (dashboard, CLI, skrypty).
+Czyszczenie po terminie: `purge_expired_accounting_evidence()` w pg_cron
+(`35 3 * * *`). Bramki: `src/__tests__/accountDeletionRetention.invariant.test.ts`
+(statyczna, parametryzowana po obu tabelach) +
+`supabase/tests/accounting_retention_test.sql`.
+
+### 13.2 Ochrona gałęzi `main` (rekomendacja operacyjna)
 
 Bramki CI (w tym `check:sql-anon-insert`) blokują PR-y, ale commit pchnięty
 **prosto na main** weryfikują dopiero post-hoc - czerwony main zamiast

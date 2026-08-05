@@ -18,7 +18,7 @@ import {
 
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { errorCopy, classifyError, type ErrorKind } from "@/lib/errorCopy";
-import { reportLovableError } from "@/lib/lovable-error-reporting";
+import { reportPlatformError } from "@/lib/platform-error-reporting";
 import { cn } from "@/lib/utils";
 
 interface FriendlyErrorPageProps {
@@ -68,7 +68,7 @@ export function FriendlyErrorPage({
 
   useEffect(() => {
     if (error) {
-      reportLovableError(error instanceof Error ? error : new Error(String(error)), {
+      reportPlatformError(error instanceof Error ? error : new Error(String(error)), {
         boundary: "friendly_error_page",
         kind,
       });

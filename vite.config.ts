@@ -12,7 +12,7 @@ import { loadEnv } from "vite";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
-// Trasy serwerowe (m.in. /lovable/email/*) czytają sekrety BEZ prefiksu VITE_
+// Trasy serwerowe (m.in. /platform/email/*) czytają sekrety BEZ prefiksu VITE_
 // (SUPABASE_SERVICE_ROLE_KEY, LOVABLE_API_KEY). Domyślna konfiguracja wstrzykuje
 // wyłącznie VITE_*, więc dokładamy je do process.env - tylko po stronie serwera,
 // nigdy do envDefine/bundla klienta.
