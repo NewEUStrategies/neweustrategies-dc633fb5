@@ -419,7 +419,7 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       window.clearTimeout(timer);
       if (raf) window.cancelAnimationFrame(raf);
       ro.disconnect();
-      liveRo.disconnect();
+      
       mo.disconnect();
       window.removeEventListener("resize", schedule);
       delete el.dataset.metrics;
