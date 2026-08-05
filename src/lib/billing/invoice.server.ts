@@ -82,7 +82,9 @@ async function invoiceUrlFromSession(
   }
   if (session.payment_intent) {
     const paymentIntentId =
-      typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent.id;
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent.id;
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
       expand: ["latest_charge"],
     });
@@ -92,10 +94,7 @@ async function invoiceUrlFromSession(
 }
 
 /** Adres dokumentu rozliczeniowego dla danej referencji Stripe. Nigdy nie rzuca poza `try` wywołującego. */
-async function resolveInvoiceUrl(
-  stripe: Stripe,
-  transactionId: string,
-): Promise<string | null> {
+async function resolveInvoiceUrl(stripe: Stripe, transactionId: string): Promise<string | null> {
   if (transactionId.startsWith("in_")) {
     const invoice = await stripe.invoices.retrieve(transactionId);
     return invoice.hosted_invoice_url ?? invoice.invoice_pdf ?? null;

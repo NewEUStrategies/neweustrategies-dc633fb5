@@ -37,8 +37,7 @@ export const changeStripePlan = createServerFn({ method: "POST" })
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { catalogEntryByPriceId, planChangeDirection } =
-      await import("@/lib/billing/catalog");
+    const { catalogEntryByPriceId, planChangeDirection } = await import("@/lib/billing/catalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
 
@@ -134,9 +133,8 @@ export const cancelStripeSubscription = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { cancelSubscriptionAtPeriodEnd } = await import(
-      "@/lib/billing/subscriptionProvider.server"
-    );
+    const { cancelSubscriptionAtPeriodEnd } =
+      await import("@/lib/billing/subscriptionProvider.server");
     const result = await cancelSubscriptionAtPeriodEnd(
       data.environment,
       sub.provider_subscription_id,
@@ -167,9 +165,8 @@ export const resumeStripeSubscription = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { resumePausedSubscription, resumeScheduledCancellation } = await import(
-      "@/lib/billing/subscriptionProvider.server"
-    );
+    const { resumePausedSubscription, resumeScheduledCancellation } =
+      await import("@/lib/billing/subscriptionProvider.server");
 
     if (sub.status === "paused") {
       const result = await resumePausedSubscription(data.environment, sub.provider_subscription_id);
@@ -233,8 +230,7 @@ export const previewStripePlanChange = createServerFn({ method: "POST" })
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { catalogEntryByPriceId, planChangeDirection } =
-      await import("@/lib/billing/catalog");
+    const { catalogEntryByPriceId, planChangeDirection } = await import("@/lib/billing/catalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
 
@@ -341,14 +337,17 @@ export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
     const entry = catalogEntryByPriceId(sub.price_id);
     if (!entry?.perSeat) throw new Error("not_per_seat_plan");
 
-    const { updateSubscriptionQuantity } = await import(
-      "@/lib/billing/subscriptionProvider.server"
+    const { updateSubscriptionQuantity } =
+      await import("@/lib/billing/subscriptionProvider.server");
+    const result = await updateSubscriptionQuantity(
+      data.environment,
+      sub.provider_subscription_id,
+      {
+        priceExternalId: entry.priceId,
+        quantity: data.quantity,
+        previousQuantity: sub.quantity ?? 1,
+      },
     );
-    const result = await updateSubscriptionQuantity(data.environment, sub.provider_subscription_id, {
-      priceExternalId: entry.priceId,
-      quantity: data.quantity,
-      previousQuantity: sub.quantity ?? 1,
-    });
     if (!result.ok) {
       console.error("[payments] seat change failed", sub.provider_subscription_id, result.error);
       return { error: result.error };

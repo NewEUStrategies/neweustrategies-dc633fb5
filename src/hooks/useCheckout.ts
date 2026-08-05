@@ -16,9 +16,7 @@ export interface CheckoutSession {
   orderId: string;
 }
 
-export type CheckoutResult =
-  | { ok: true; session: CheckoutSession }
-  | { ok: false; error: string };
+export type CheckoutResult = { ok: true; session: CheckoutSession } | { ok: false; error: string };
 
 export interface PlanCheckoutOptions {
   /** Identyfikator planu w bazie (access_plans.id). */

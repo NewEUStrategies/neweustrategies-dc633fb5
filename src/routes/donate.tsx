@@ -26,9 +26,7 @@ export const Route = createFileRoute("/donate")({
       lang,
       type: "website",
       title:
-        lang === "en"
-          ? "Donate - New European Strategies"
-          : "Darowizna - New European Strategies",
+        lang === "en" ? "Donate - New European Strategies" : "Darowizna - New European Strategies",
       description:
         lang === "en"
           ? "Support independent European policy analysis with a one-off or monthly gift."

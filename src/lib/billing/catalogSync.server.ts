@@ -54,9 +54,10 @@ const DIGITAL_SERVICE_TAX_CODE = "txcd_10103000";
  * day/week/month/year, więc interwały aplikacji mapują się na krotności:
  * two_weeks -> week x2, quarter -> month x3.
  */
-function billingCycle(
-  entry: CatalogPriceEntry,
-): { interval: Stripe.PriceCreateParams.Recurring.Interval; interval_count: number } {
+function billingCycle(entry: CatalogPriceEntry): {
+  interval: Stripe.PriceCreateParams.Recurring.Interval;
+  interval_count: number;
+} {
   switch (entry.interval) {
     case "two_weeks":
       return { interval: "week", interval_count: 2 };
@@ -102,10 +103,7 @@ async function findPriceByLookupKey(
 }
 
 /** Okres próbny zapisany w metadanych ceny - odczyt dla checkoutu. */
-export async function trialDaysForPrice(
-  env: StripeEnv,
-  priceId: string,
-): Promise<number | null> {
+export async function trialDaysForPrice(env: StripeEnv, priceId: string): Promise<number | null> {
   const stripe = createStripeClient(env);
   const price = await findPriceByLookupKey(stripe, priceId);
   const raw = price?.metadata?.["trial_days"];

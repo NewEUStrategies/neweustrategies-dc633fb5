@@ -23,7 +23,6 @@ type SessionCreateParams = Parameters<Stripe["checkout"]["sessions"]["create"]>[
   managed_payments?: { enabled: boolean };
 };
 
-
 export { resolveEnvironment };
 export type { StripeEnv };
 

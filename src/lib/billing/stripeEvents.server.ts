@@ -150,7 +150,8 @@ function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
   const amountPaid = typeof invoice.amount_paid === "number" ? invoice.amount_paid : null;
   const amountDue = typeof invoice.total === "number" ? invoice.total : null;
   const grandTotal = amountPaid ?? amountDue;
-  const lines = isRecord(invoice.lines) && Array.isArray(invoice.lines.data) ? invoice.lines.data : [];
+  const lines =
+    isRecord(invoice.lines) && Array.isArray(invoice.lines.data) ? invoice.lines.data : [];
   const firstLine = isRecord(lines[0]) ? lines[0] : null;
   const period = isRecord(firstLine?.period) ? firstLine?.period : null;
   const transitions = isRecord(invoice.status_transitions) ? invoice.status_transitions : null;
@@ -181,9 +182,8 @@ function mapAdjustment(
 ): Record<string, unknown> {
   if (action === "refund") {
     // `charge.refunded` - obiekt to Charge, ewentualny zwrot jest w `refunds.data[0]`.
-    const refunds = isRecord(object.refunds) && Array.isArray(object.refunds.data)
-      ? object.refunds.data
-      : [];
+    const refunds =
+      isRecord(object.refunds) && Array.isArray(object.refunds.data) ? object.refunds.data : [];
     const refund = isRecord(refunds[0]) ? refunds[0] : null;
     return {
       id: idOf(refund?.id) ?? `refund_${idOf(object.id) ?? ""}`,
@@ -254,14 +254,23 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
       // Sesja "unpaid" (np. przelew w toku) nie ma jeszcze pieniędzy na koncie -
       // realizacja przyjdzie dopiero z `checkout.session.async_payment_succeeded`.
       if (strOf(object.payment_status) === "unpaid") return null;
-      return { eventType: "transaction.completed", data: mapTransactionFromCheckoutSession(object) };
+      return {
+        eventType: "transaction.completed",
+        data: mapTransactionFromCheckoutSession(object),
+      };
     }
 
     case "checkout.session.async_payment_succeeded":
-      return { eventType: "transaction.completed", data: mapTransactionFromCheckoutSession(object) };
+      return {
+        eventType: "transaction.completed",
+        data: mapTransactionFromCheckoutSession(object),
+      };
 
     case "checkout.session.async_payment_failed":
-      return { eventType: "transaction.payment_failed", data: mapTransactionFromCheckoutSession(object) };
+      return {
+        eventType: "transaction.payment_failed",
+        data: mapTransactionFromCheckoutSession(object),
+      };
 
     case "invoice.paid":
     case "invoice.payment_succeeded":
