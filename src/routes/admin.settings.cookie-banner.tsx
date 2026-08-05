@@ -344,15 +344,21 @@ function CookieBannerSettings() {
         </button>
       </div>
 
-      {previewOpen && <PreviewOverlay onClose={() => setPreviewOpen(false)} />}
+      {previewOpen && <PreviewOverlay config={draft} onClose={() => setPreviewOpen(false)} />}
     </div>
   );
 }
 
-// Live preview reuses ConsentBanner in "expanded" mode by dispatching the same
-// event the footer uses. We wrap it with the current draft not-yet-saved by
-// simply relying on the last saved config; the note below explains that.
-function PreviewOverlay({ onClose }: { onClose: () => void }) {
+// Podgląd na żywo: ConsentBanner dostaje NIEZAPISANY szkic (configOverride),
+// więc kolory, logo, treści i odnośniki widać przed kliknięciem „Zapisz".
+function PreviewOverlay({
+  config,
+  onClose,
+}: {
+  config: CookieBannerConfig;
+  onClose: () => void;
+}) {
+  const [surface, setSurface] = useState<"light" | "dark">("light");
   // ConsentBanner hides once the user has decided; dispatch OPEN_PREFS_EVENT so
   // it opens the expanded modal for the preview regardless of prior consent.
   useEffectOnce(() => {
@@ -360,14 +366,23 @@ function PreviewOverlay({ onClose }: { onClose: () => void }) {
   });
   return (
     <div className="fixed inset-0 z-[70]">
-      <ConsentBanner />
-      <button
-        type="button"
-        onClick={onClose}
-        className="fixed top-4 right-4 z-[90] h-9 px-3 rounded-md border border-border bg-card text-sm shadow-sm"
-      >
-        Zamknij podgląd
-      </button>
+      <ConsentBanner configOverride={config} themeOverride={surface} />
+      <div className="fixed top-4 right-4 z-[90] flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setSurface((s) => (s === "light" ? "dark" : "light"))}
+          className="h-9 px-3 rounded-md border border-border bg-card text-sm shadow-sm"
+        >
+          {surface === "light" ? "Logo: jasne" : "Logo: ciemne"}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 px-3 rounded-md border border-border bg-card text-sm shadow-sm"
+        >
+          Zamknij podgląd
+        </button>
+      </div>
     </div>
   );
 }
