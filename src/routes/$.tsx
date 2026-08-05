@@ -60,6 +60,7 @@ import { MeterBanner } from "@/components/molecules/MeterBanner";
 import { useGiftCodeFromUrl, useGiftRedemption } from "@/lib/gifting/hooks";
 import { GiftArticleButton } from "@/components/gifting/GiftArticleButton";
 import { GiftBanner } from "@/components/gifting/GiftBanner";
+import { GooglePreferredSourceBadge } from "@/components/seo/GooglePreferredSourceBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { getRequestUrl } from "@/lib/seo/request";
 import {
@@ -902,6 +903,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       accessRule?.mode !== "password" ? (
         <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
       ) : null;
+    // Obok akcji podarunkowej stoi badge „Preferowane zrodlo w Google".
+    const articleActions = (
+      <div className="no-print flex items-center gap-2">
+        {giftButton}
+        <GooglePreferredSourceBadge />
+      </div>
+    );
     return (
       <div
         className="flex min-w-0 w-full max-w-full flex-col overflow-x-clip bg-background text-foreground"
@@ -962,16 +970,17 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       publishedAt={it.published_at}
                       updatedAt={it.updated_at}
                       primaryCategory={postCategories[0]}
-                      trailing={giftButton ?? null}
+                      trailing={articleActions}
                     />
                   </div>
                 ) : null}
-                {/* Mobile: akcja "Udostepnij pelny artykul" nad widgetem akcji. */}
-                {giftButton && (
-                  <div className="no-print mb-3 flex sm:hidden">
-                    <span className="[&_button]:w-full w-full">{giftButton}</span>
-                  </div>
-                )}
+                {/* Mobile: akcja "Udostepnij pelny artykul" + badge Google. */}
+                <div className="no-print mb-3 flex items-center gap-2 sm:hidden">
+                  {giftButton && (
+                    <span className="[&_button]:w-full min-w-0 flex-1">{giftButton}</span>
+                  )}
+                  <GooglePreferredSourceBadge variant="compact" className="shrink-0" />
+                </div>
                 {/* Mobile: odsluch (TTS) + pobranie artykulu w miejscu paska
                     czasu czytania / aktualizacji. Odsluch idzie przez globalny
                     player i kanoniczny endpoint post-tts (jeden glos i jeden
@@ -991,8 +1000,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   />
                 )}
 
-                {!merged.quick_view_info && giftButton && (
-                  <div className="no-print mb-4 hidden justify-end sm:flex">{giftButton}</div>
+                {!merged.quick_view_info && (
+                  <div className="no-print mb-4 hidden justify-end sm:flex">{articleActions}</div>
                 )}
                 {contentBlock}
                 {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
