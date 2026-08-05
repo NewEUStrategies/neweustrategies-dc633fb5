@@ -20,7 +20,7 @@ import {
   type MobileBottomBarConfig,
   type MobileBottomBarItem,
 } from "@/lib/mobileBottomBar/config";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "@/lib/lucide-shim";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import "@/lib/i18n-mobile-bottom-bar";
 
 export const Route = createFileRoute("/admin/settings/mobile-bottom-bar")({
