@@ -7,6 +7,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-panes-misc";
 
+export interface ImageSlotTransform {
+  /** Zwraca plik do wysyłki (null = odrzucony) plus komunikaty dla użytkownika. */
+  (file: File): Promise<{ file: File | null; errors: string[]; warnings: string[] }>;
+}
+
 export function ImageSlot({
   label,
   icon,
@@ -16,6 +21,8 @@ export function ImageSlot({
   bucket = "media",
   folder = "theme",
   previewMode = "auto",
+  accept = "image/*",
+  transformFile,
 }: {
   label: string;
   icon?: React.ReactNode;
@@ -26,18 +33,34 @@ export function ImageSlot({
   folder?: string;
   /** Background of the preview box. 'light' uses theme body bg, 'dark' uses dark body bg, 'auto' uses neutral muted. */
   previewMode?: "auto" | "light" | "dark";
+  /** Filtr pickera plików (np. ograniczenie do JPG/PNG/WebP). */
+  accept?: string;
+  /** Walidacja + optymalizacja pliku przed uploadem (np. karta OG 1200x630). */
+  transformFile?: ImageSlotTransform;
 }) {
   const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notices, setNotices] = useState<string[]>([]);
   const { tenantId } = useAuth();
 
-  const handleFile = async (file: File) => {
+  const handleFile = async (input: File) => {
     setError(null);
+    setNotices([]);
     if (!tenantId) {
       setError(t("adminPanesMisc.imageSlot.uploadError"));
       return;
+    }
+    let file = input;
+    if (transformFile) {
+      const result = await transformFile(input);
+      setNotices(result.warnings);
+      if (!result.file) {
+        setError(result.errors.join(" ") || t("adminPanesMisc.imageSlot.uploadError"));
+        return;
+      }
+      file = result.file;
     }
     setUploading(true);
     try {
@@ -61,6 +84,7 @@ export function ImageSlot({
       setUploading(false);
     }
   };
+
 
   return (
     <div className="space-y-1.5">
@@ -101,11 +125,11 @@ export function ImageSlot({
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept={accept}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) handleFile(f);
+          if (f) void handleFile(f);
           e.target.value = "";
         }}
       />
@@ -121,7 +145,17 @@ export function ImageSlot({
           : t("adminPanesMisc.imageSlot.uploadBtn")}
       </button>
       {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
-      {error && <div className="text-[10px] text-destructive">{error}</div>}
+      {notices.map((n) => (
+        <div key={n} className="text-[10px] text-muted-foreground" role="status">
+          {n}
+        </div>
+      ))}
+      {error && (
+        <div className="text-[10px] text-destructive" role="alert">
+          {error}
+        </div>
+      )}
+
     </div>
   );
 }

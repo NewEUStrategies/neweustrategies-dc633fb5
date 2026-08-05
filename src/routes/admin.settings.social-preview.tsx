@@ -14,7 +14,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, SaveBar } from "@/components/admin/settings/fields";
-import { ImageSlot } from "@/components/admin/ImageSlot";
+import { ImageSlot, type ImageSlotTransform } from "@/components/admin/ImageSlot";
+import { formatBytes } from "@/components/admin/media/lib/mediaFormat";
+import { prepareOgImageFile, type OgIssue } from "@/lib/media/ogImage";
+import { socialSourceRows } from "@/lib/seo/socialPreviewSources";
+import "@/lib/i18n-og-upload";
 import {
   DEFAULT_SEO_SETTINGS,
   SEO_SETTINGS_KEY,
@@ -32,13 +36,26 @@ export const Route = createFileRoute("/admin/settings/social-preview")({
   head: () => ({ meta: [{ title: "Podgląd linków - Ustawienia" }] }),
 });
 
-type SourceRow = { id: string; where: string; how: string; to?: string };
-
 function SocialPreviewTab() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
   const { query, save } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);
   const [draft, setDraft] = useDraft<SeoSettings>(query.data);
+
+  const transformOgFile: ImageSlotTransform = async (file) => {
+    const result = await prepareOgImageFile(file);
+    const message = (issue: OgIssue) => t(`ogUpload.${issue.code}`, { ...(issue.params ?? {}) });
+    const errors = result.issues.filter((i) => i.severity === "error").map(message);
+    const warnings = result.issues.filter((i) => i.severity === "warning").map(message);
+    if (result.file && result.bytesAfter < result.bytesBefore)
+      warnings.push(
+        t("ogUpload.optimized", {
+          before: formatBytes(result.bytesBefore),
+          after: formatBytes(result.bytesAfter),
+        }),
+      );
+    return { file: result.file, errors, warnings };
+  };
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
   const set = <K extends keyof SeoSettings>(k: K, v: SeoSettings[K]) =>
@@ -48,61 +65,8 @@ function SocialPreviewTab() {
     ? draft.default_og_image_url.trim()
     : `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}`;
 
-  const rows: SourceRow[] = [
-    {
-      id: "home",
-      where: lang === "pl" ? "Strona główna i listingi" : "Homepage & listings",
-      how:
-        lang === "pl"
-          ? "Domyślna karta ustawiona powyżej."
-          : "The default card configured above.",
-    },
-    {
-      id: "posts",
-      where: lang === "pl" ? "Wpisy / artykuły" : "Posts / articles",
-      how:
-        lang === "pl"
-          ? "Obrazek wyróżniający wpisu; nadpisanie w panelu SEO edytora."
-          : "The post cover image; override in the editor's SEO panel.",
-      to: "/admin/posts",
-    },
-    {
-      id: "pages",
-      where: lang === "pl" ? "Strony (także kodowe </>)" : "Pages (incl. code pages </>)",
-      how:
-        lang === "pl"
-          ? "Pole „Obrazek OG” w SEO danej strony."
-          : "The \"OG image\" field in the page's SEO section.",
-      to: "/admin/pages",
-    },
-    {
-      id: "authors",
-      where: lang === "pl" ? "Profile autorów i ekspertów" : "Author & expert profiles",
-      how:
-        lang === "pl"
-          ? "Awatar profilu (z automatycznym cache-busterem)."
-          : "The profile avatar (with an automatic cache-buster).",
-      to: "/admin/experts",
-    },
-    {
-      id: "podcasts",
-      where: lang === "pl" ? "Podcasty i web stories" : "Podcasts & web stories",
-      how:
-        lang === "pl"
-          ? "Okładka odcinka / historii; brak = karta domyślna."
-          : "Episode / story cover; missing = the default card.",
-      to: "/admin/podcasts",
-    },
-    {
-      id: "newsletter",
-      where: lang === "pl" ? "Newsletter i popupy" : "Newsletter & popups",
-      how:
-        lang === "pl"
-          ? "Własne obrazy w kreatorze wiadomości i popupów."
-          : "Own images in the message and popup builders.",
-      to: "/admin/popups",
-    },
-  ];
+  const rows = socialSourceRows(lang);
+
 
   return (
     <div>
@@ -138,6 +102,8 @@ function SocialPreviewTab() {
           value={draft.default_og_image_url}
           onChange={(v) => set("default_og_image_url", v)}
           folder="social"
+          accept="image/jpeg,image/png,image/webp,image/avif"
+          transformFile={transformOgFile}
         />
       </Field>
 
