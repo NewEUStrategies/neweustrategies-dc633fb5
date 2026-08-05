@@ -201,6 +201,8 @@ function PopupsList() {
               </tr>
             </thead>
             <tbody>
+              <SignupPopupRow />
+
               {popups.items.map((p) => (
                 <tr key={p.id} className="border-t border-border hover:bg-muted/20">
                   <td className="px-4 py-2.5">
