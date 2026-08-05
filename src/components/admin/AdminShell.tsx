@@ -34,6 +34,7 @@ import {
   Share2,
   Gauge,
   MousePointerClick,
+  Cookie,
   Clock as HistoryIcon,
   Globe2,
   FlaskConical,
