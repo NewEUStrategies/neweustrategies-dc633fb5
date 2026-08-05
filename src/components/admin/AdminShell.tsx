@@ -359,6 +359,13 @@ function AdminShellInner({
           }),
         },
         {
+          to: "/admin/billing-reconcile",
+          icon: CreditCard,
+          label: t("admin.nav.billingReconcile", {
+            defaultValue: lang === "pl" ? "Uzgadnianie płatności" : "Payment reconciliation",
+          }),
+        },
+        {
           to: "/admin/donations",
           icon: HandHeart,
           label: t("admin.nav.donations", {

@@ -3,8 +3,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { CHECKOUT_LOCALES } from "@/lib/billing/checkoutLocale";
 
 const envSchema = z.enum(["sandbox", "live"]);
+// Język ramki Stripe - musi trafić do sesji, bo checkout nie zna naszego i18n.
+const localeSchema = z.enum(CHECKOUT_LOCALES);
 
 const planCheckoutSchema = z.object({
   priceId: z.string().trim().min(1).max(64),
@@ -13,6 +16,7 @@ const planCheckoutSchema = z.object({
   couponCode: z.string().trim().max(64).optional(),
   returnUrl: z.string().url(),
   environment: envSchema.optional(),
+  locale: localeSchema.optional(),
 });
 
 /**
@@ -117,6 +121,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       customerEmail: claims.email ?? null,
       returnUrl: data.returnUrl,
       discount,
+      locale: data.locale,
     });
 
     if (!result.ok) {
@@ -144,6 +149,7 @@ const adhocCheckoutSchema = z.object({
   currency: z.enum(["PLN", "EUR"]).optional(),
   returnUrl: z.string().url(),
   environment: envSchema.optional(),
+  locale: localeSchema.optional(),
 });
 
 /**
@@ -166,5 +172,6 @@ export const createAdhocCheckoutSession = createServerFn({ method: "POST" })
       supabase: context.supabase,
       userId: context.userId,
       email: context.claims.email ?? null,
+      locale: data.locale,
     });
   });

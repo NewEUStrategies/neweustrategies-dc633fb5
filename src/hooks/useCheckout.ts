@@ -2,12 +2,14 @@
 // ad-hoc (odblokowanie treści, bilet, darowizna). Zamiast nakładki Paddle.js
 // zwraca `clientSecret`, który komponent osadza przez `EmbeddedCheckoutProvider`.
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import {
   createAdhocCheckoutSession,
   createPlanCheckoutSession,
 } from "@/lib/billing/stripeCheckout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
+import { normalizeCheckoutLocale } from "@/lib/billing/checkoutLocale";
 
 export interface CheckoutSession {
   clientSecret: string;
@@ -41,6 +43,9 @@ export interface AdhocCheckoutOptions {
 /** Otwiera sesję Embedded Checkout - katalogowym planem albo kwotą ad-hoc. */
 export function useCheckout() {
   const [loading, setLoading] = useState(false);
+  const { i18n } = useTranslation();
+  // Ramka Stripe nie zna naszego i18n - język musi trafić do sesji.
+  const locale = normalizeCheckoutLocale(i18n.language);
   const planCheckout = useServerFn(createPlanCheckoutSession);
   const adhocCheckout = useServerFn(createAdhocCheckoutSession);
 
@@ -49,14 +54,14 @@ export function useCheckout() {
       setLoading(true);
       try {
         const environment = getStripeEnvironment();
-        const res = await planCheckout({ data: { ...options, environment } });
+        const res = await planCheckout({ data: { ...options, environment, locale } });
         if (!res.ok) return { ok: false, error: res.error };
         return { ok: true, session: { clientSecret: res.clientSecret, orderId: res.orderId } };
       } finally {
         setLoading(false);
       }
     },
-    [planCheckout],
+    [planCheckout, locale],
   );
 
   const openAdhocCheckout = useCallback(
@@ -64,14 +69,14 @@ export function useCheckout() {
       setLoading(true);
       try {
         const environment = getStripeEnvironment();
-        const res = await adhocCheckout({ data: { ...options, environment } });
+        const res = await adhocCheckout({ data: { ...options, environment, locale } });
         if (!res.ok) return { ok: false, error: res.error };
         return { ok: true, session: { clientSecret: res.clientSecret, orderId: res.orderId } };
       } finally {
         setLoading(false);
       }
     },
-    [adhocCheckout],
+    [adhocCheckout, locale],
   );
 
   return { openPlanCheckout, openAdhocCheckout, loading };

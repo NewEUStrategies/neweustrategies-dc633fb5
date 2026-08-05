@@ -6,6 +6,7 @@
 // rejestrem historycznych wpłat i wpisów dodawanych przez administrację;
 // widget czyta z niej wyłącznie zagregowane sumy.
 import { createServerFn } from "@tanstack/react-start";
+import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
 
 /**
  * Publiczne, zagregowane statystyki darowizn dla widgetu CMS builder.
@@ -95,6 +96,7 @@ export interface DonationCheckoutInput {
   donorEmail?: string;
   message?: string;
   returnUrl: string;
+  locale?: CheckoutLocale;
 }
 
 /**
@@ -137,6 +139,7 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       donorEmail: data.donorEmail ?? null,
       message: data.message ?? null,
       returnUrl: data.returnUrl,
+      locale: normalizeCheckoutLocale(data.locale),
       rateKey,
     });
   });

@@ -13,6 +13,7 @@
 // `createServerFn`.
 import type Stripe from "stripe";
 import { createStripeClient, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
+import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
 
 // SDK Stripe (esm) nie eksportuje `Stripe.Checkout.SessionCreateParams` jako
 // nazwanego typu - wyprowadzamy go z sygnatury metody, żeby nie duplikować
@@ -117,6 +118,8 @@ export interface PlanCheckoutSessionInput {
   returnUrl: string;
   /** Rabat wyprowadzony z kuponu B2B - identyfikator kuponu/kodu promo Stripe. */
   discount?: { coupon: string } | { promotionCode: string } | null;
+  /** Język formularza Stripe (ramka nie dziedziczy naszego i18n). */
+  locale?: CheckoutLocale;
 }
 
 /**
@@ -158,6 +161,7 @@ export async function createPlanCheckoutSession(
     const params: SessionCreateParams = {
       mode,
       ui_mode: "embedded_page",
+      locale: normalizeCheckoutLocale(input.locale),
       return_url: input.returnUrl,
       customer: customerId,
       line_items: [{ price: price.id, quantity }],
@@ -205,6 +209,8 @@ export interface AdhocCheckoutSessionInput {
   customerEmail?: string | null;
   returnUrl: string;
   metadata?: Record<string, string>;
+  /** Język formularza Stripe (ramka nie dziedziczy naszego i18n). */
+  locale?: CheckoutLocale;
 }
 
 /**
@@ -240,6 +246,7 @@ export async function createAdhocCheckoutSession(
     const params: SessionCreateParams = {
       mode: "payment",
       ui_mode: "embedded_page",
+      locale: normalizeCheckoutLocale(input.locale),
       return_url: input.returnUrl,
       ...(customerId ? { customer: customerId } : {}),
       ...(!customerId && input.customerEmail ? { customer_email: input.customerEmail } : {}),

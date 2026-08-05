@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
 import { getStripeEnvironment } from "@/lib/stripe";
+import { normalizeCheckoutLocale } from "@/lib/billing/checkoutLocale";
 import {
   createDonationCheckout,
   getDonationsConfig,
@@ -97,6 +98,7 @@ export function DonationForm({ className }: { className?: string }) {
           donorEmail: email.trim() || undefined,
           message: message.trim() || undefined,
           returnUrl: `${window.location.origin}/donate?status=thanks`,
+          locale: normalizeCheckoutLocale(lang),
         },
       });
       if (!result.ok) {
