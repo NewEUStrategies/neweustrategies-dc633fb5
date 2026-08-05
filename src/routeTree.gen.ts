@@ -210,6 +210,7 @@ import { Route as AdminSettingsSocialPreviewRouteImport } from './routes/admin.s
 import { Route as AdminSettingsSeoRouteImport } from './routes/admin.settings.seo'
 import { Route as AdminSettingsReadingRouteImport } from './routes/admin.settings.reading'
 import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
+import { Route as AdminSettingsMobileBottomBarRouteImport } from './routes/admin.settings.mobile-bottom-bar'
 import { Route as AdminSettingsMarketingRouteImport } from './routes/admin.settings.marketing'
 import { Route as AdminSettingsGoogleSourceRouteImport } from './routes/admin.settings.google-source'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin.settings.general'
@@ -1284,6 +1285,12 @@ const AdminSettingsPrivacyRoute = AdminSettingsPrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsMobileBottomBarRoute =
+  AdminSettingsMobileBottomBarRouteImport.update({
+    id: '/mobile-bottom-bar',
+    path: '/mobile-bottom-bar',
+    getParentRoute: () => AdminSettingsRoute,
+  } as any)
 const AdminSettingsMarketingRoute = AdminSettingsMarketingRouteImport.update({
   id: '/marketing',
   path: '/marketing',
@@ -1835,6 +1842,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
   '/admin/settings/google-source': typeof AdminSettingsGoogleSourceRoute
   '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
+  '/admin/settings/mobile-bottom-bar': typeof AdminSettingsMobileBottomBarRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
@@ -2090,6 +2098,7 @@ export interface FileRoutesByTo {
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
   '/admin/settings/google-source': typeof AdminSettingsGoogleSourceRoute
   '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
+  '/admin/settings/mobile-bottom-bar': typeof AdminSettingsMobileBottomBarRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
@@ -2356,6 +2365,7 @@ export interface FileRoutesById {
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
   '/admin/settings/google-source': typeof AdminSettingsGoogleSourceRoute
   '/admin/settings/marketing': typeof AdminSettingsMarketingRoute
+  '/admin/settings/mobile-bottom-bar': typeof AdminSettingsMobileBottomBarRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
@@ -2623,6 +2633,7 @@ export interface FileRouteTypes {
     | '/admin/settings/general'
     | '/admin/settings/google-source'
     | '/admin/settings/marketing'
+    | '/admin/settings/mobile-bottom-bar'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/admin/settings/seo'
@@ -2878,6 +2889,7 @@ export interface FileRouteTypes {
     | '/admin/settings/general'
     | '/admin/settings/google-source'
     | '/admin/settings/marketing'
+    | '/admin/settings/mobile-bottom-bar'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/admin/settings/seo'
@@ -3143,6 +3155,7 @@ export interface FileRouteTypes {
     | '/admin/settings/general'
     | '/admin/settings/google-source'
     | '/admin/settings/marketing'
+    | '/admin/settings/mobile-bottom-bar'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/admin/settings/seo'
@@ -4714,6 +4727,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsPrivacyRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/mobile-bottom-bar': {
+      id: '/admin/settings/mobile-bottom-bar'
+      path: '/mobile-bottom-bar'
+      fullPath: '/admin/settings/mobile-bottom-bar'
+      preLoaderRoute: typeof AdminSettingsMobileBottomBarRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/marketing': {
       id: '/admin/settings/marketing'
       path: '/marketing'
@@ -5374,6 +5394,7 @@ interface AdminSettingsRouteChildren {
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
   AdminSettingsGoogleSourceRoute: typeof AdminSettingsGoogleSourceRoute
   AdminSettingsMarketingRoute: typeof AdminSettingsMarketingRoute
+  AdminSettingsMobileBottomBarRoute: typeof AdminSettingsMobileBottomBarRoute
   AdminSettingsPrivacyRoute: typeof AdminSettingsPrivacyRoute
   AdminSettingsReadingRoute: typeof AdminSettingsReadingRoute
   AdminSettingsSeoRoute: typeof AdminSettingsSeoRoute
@@ -5389,6 +5410,7 @@ const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
   AdminSettingsGoogleSourceRoute: AdminSettingsGoogleSourceRoute,
   AdminSettingsMarketingRoute: AdminSettingsMarketingRoute,
+  AdminSettingsMobileBottomBarRoute: AdminSettingsMobileBottomBarRoute,
   AdminSettingsPrivacyRoute: AdminSettingsPrivacyRoute,
   AdminSettingsReadingRoute: AdminSettingsReadingRoute,
   AdminSettingsSeoRoute: AdminSettingsSeoRoute,
