@@ -360,10 +360,10 @@ function AdminShellInner({
           }),
         },
         {
-          href: EXTERNAL_DONATIONS_URL,
+          to: "/admin/donations",
           icon: HandHeart,
           label: t("admin.nav.donations", {
-            defaultValue: lang === "pl" ? "Darowizny (zrzutka.pl)" : "Donations (zrzutka.pl)",
+            defaultValue: lang === "pl" ? "Darowizny" : "Donations",
           }),
         },
       ],
