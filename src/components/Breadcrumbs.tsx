@@ -12,9 +12,10 @@ import { cn } from "@/lib/utils";
  * (BreadcrumbsView), aby preview i strona publiczna wyglądały identycznie.
  */
 export const CRUMB_PILL_CLASS =
-  "inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1 text-xs leading-5 text-muted-foreground";
+  "inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-[6px] border border-border bg-card/60 px-3 py-1 text-xs leading-5 text-muted-foreground";
 export const CRUMB_LINK_CLASS =
-  "inline-flex items-center gap-1.5 rounded-full transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+  "inline-flex items-center gap-1.5 rounded-[6px] transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
 export const CRUMB_CURRENT_CLASS = "min-w-0 truncate font-medium text-foreground";
 export const CRUMB_SEPARATOR_CLASS = "size-3.5 shrink-0 text-muted-foreground/60";
 
