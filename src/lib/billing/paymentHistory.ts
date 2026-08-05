@@ -7,7 +7,13 @@
 // zamówienie trafia na listę tylko wtedy, gdy nie ma jeszcze swojego dokumentu.
 import type { BillingDocument, PaymentOrder } from "./types";
 
-export type PaymentHistoryKind = "invoice" | "receipt" | "credit_note" | "subscription" | "one_time";
+export type PaymentHistoryKind =
+  | "invoice"
+  | "receipt"
+  | "credit_note"
+  | "subscription"
+  | "one_time"
+  | "grant";
 
 export interface PaymentHistoryRow {
   id: string;
@@ -22,51 +28,144 @@ export interface PaymentHistoryRow {
   /** Strona szczegółów u operatora (hosted invoice/receipt), jeśli istnieje. */
   detailsUrl: string | null;
   pdfUrl: string | null;
-  source: "document" | "order";
+  source: "document" | "order" | "grant";
+  /** Kwota rabatu w groszach - gdy zakup objęty był kodem promocyjnym. */
+  discountCents: number | null;
+  /** Kod promocyjny użyty przy zakupie. */
+  couponCode: string | null;
+  /** Cena przed rabatem (grosze), jeżeli znana. */
+  originalAmountCents: number | null;
+  /** Dostęp otrzymany bez płatności (nadanie / prezent). */
+  gift: boolean;
+  /** Źródło nadania (`expert`, `manual`, `donation`, ...). */
+  giftSource: string | null;
 }
 
 function orderLabel(order: PaymentOrder): PaymentHistoryKind {
   return order.kind === "subscription" ? "subscription" : "one_time";
 }
 
+function readNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+/** Wyciąga informacje o rabacie z metadanych zamówienia (zapisuje je checkout). */
+function discountFromOrder(order: PaymentOrder): {
+  discountCents: number | null;
+  couponCode: string | null;
+  originalAmountCents: number | null;
+} {
+  const meta = (order.metadata ?? {}) as Record<string, unknown>;
+  const discountCents = readNumber(meta["coupon_discount_cents"] ?? meta["discount_cents"]);
+  return {
+    discountCents: discountCents && discountCents > 0 ? discountCents : null,
+    couponCode: readString(meta["coupon_code"]),
+    originalAmountCents: readNumber(meta["original_amount_cents"]),
+  };
+}
+
+/** Nadanie dostępu (membership_grants) jako pozycja historii - „prezent". */
+export interface AccessGrantHistoryInput {
+  id: string;
+  tierKey: string;
+  source: string;
+  note: string | null;
+  startsAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+}
+
+export function grantsToHistory(grants: AccessGrantHistoryInput[]): PaymentHistoryRow[] {
+  return grants
+    .filter((grant) => !grant.revokedAt)
+    .map((grant) => ({
+      id: `grant:${grant.id}`,
+      number: grant.tierKey.toUpperCase(),
+      kind: "grant" as const,
+      status: "granted",
+      amountCents: 0,
+      currency: "PLN",
+      date: grant.startsAt,
+      detailsUrl: null,
+      pdfUrl: null,
+      source: "grant" as const,
+      discountCents: null,
+      couponCode: null,
+      originalAmountCents: null,
+      gift: true,
+      giftSource: grant.source,
+    }));
+}
+
 /** Scala dokumenty i zamówienia w jedną listę posortowaną malejąco po dacie. */
 export function mergePaymentHistory(
   orders: PaymentOrder[],
   documents: BillingDocument[],
+  grants: AccessGrantHistoryInput[] = [],
 ): PaymentHistoryRow[] {
   const coveredOrderIds = new Set(
     documents.map((doc) => doc.order_id).filter((id): id is string => !!id),
   );
 
-  const fromDocuments: PaymentHistoryRow[] = documents.map((doc) => ({
-    id: `doc:${doc.id}`,
-    number: doc.number ?? doc.provider_document_id,
-    kind: doc.kind,
-    status: doc.status,
-    amountCents: doc.amount_cents,
-    currency: doc.currency,
-    date: doc.issued_at,
-    detailsUrl: doc.hosted_url,
-    pdfUrl: doc.pdf_url,
-    source: "document",
-  }));
+  // Rabat opisuje zamówienie, nie dokument - przenosimy go na dokument, który
+  // to zamówienie „przykrywa", żeby zniżka nie znikła z listy.
+  const discountByOrderId = new Map(orders.map((order) => [order.id, discountFromOrder(order)]));
+
+  const fromDocuments: PaymentHistoryRow[] = documents.map((doc) => {
+    const discount = doc.order_id ? discountByOrderId.get(doc.order_id) : undefined;
+    return {
+      id: `doc:${doc.id}`,
+      number: doc.number ?? doc.provider_document_id,
+      kind: doc.kind,
+      status: doc.status,
+      amountCents: doc.amount_cents,
+      currency: doc.currency,
+      date: doc.issued_at,
+      detailsUrl: doc.hosted_url,
+      pdfUrl: doc.pdf_url,
+      source: "document" as const,
+      discountCents: discount?.discountCents ?? null,
+      couponCode: discount?.couponCode ?? null,
+      originalAmountCents: discount?.originalAmountCents ?? null,
+      gift: doc.amount_cents === 0,
+      giftSource: null,
+    };
+  });
 
   const fromOrders: PaymentHistoryRow[] = orders
     .filter((order) => !coveredOrderIds.has(order.id))
-    .map((order) => ({
-      id: `ord:${order.id}`,
-      number: order.provider_session_id ?? order.id,
-      kind: orderLabel(order),
-      status: order.status,
-      amountCents: order.amount_cents,
-      currency: order.currency,
-      date: order.created_at,
-      detailsUrl: order.invoice_url,
-      pdfUrl: order.invoice_url,
-      source: "order",
-    }));
+    .map((order) => {
+      const discount = discountFromOrder(order);
+      return {
+        id: `ord:${order.id}`,
+        number: order.provider_session_id ?? order.id,
+        kind: orderLabel(order),
+        status: order.status,
+        amountCents: order.amount_cents,
+        currency: order.currency,
+        date: order.created_at,
+        detailsUrl: order.invoice_url,
+        pdfUrl: order.invoice_url,
+        source: "order" as const,
+        discountCents: discount.discountCents,
+        couponCode: discount.couponCode,
+        originalAmountCents: discount.originalAmountCents,
+        gift: order.amount_cents === 0,
+        giftSource: null,
+      };
+    });
 
-  return [...fromDocuments, ...fromOrders].sort(
+  return [...fromDocuments, ...fromOrders, ...grantsToHistory(grants)].sort(
+
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
 }
@@ -85,6 +184,8 @@ export interface HistoryCsvLabels {
   currency: string;
   status: string;
   document: string;
+  discount: string;
+  coupon: string;
 }
 
 /**
@@ -99,6 +200,8 @@ export function paymentHistoryToCsv(rows: PaymentHistoryRow[], labels: HistoryCs
     labels.kind,
     labels.amount,
     labels.currency,
+    labels.discount,
+    labels.coupon,
     labels.status,
     labels.document,
   ];
@@ -109,11 +212,14 @@ export function paymentHistoryToCsv(rows: PaymentHistoryRow[], labels: HistoryCs
       row.kind,
       (row.amountCents / 100).toFixed(2),
       row.currency.toUpperCase(),
+      row.discountCents ? (row.discountCents / 100).toFixed(2) : "",
+      row.couponCode ?? (row.gift ? (row.giftSource ?? "gift") : ""),
       row.status,
       row.pdfUrl ?? row.detailsUrl ?? "",
     ]
       .map(csvCell)
       .join(";"),
+
   );
   return `\uFEFF${[header.map(csvCell).join(";"), ...lines].join("\r\n")}\r\n`;
 }

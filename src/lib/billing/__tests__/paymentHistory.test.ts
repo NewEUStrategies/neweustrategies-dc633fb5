@@ -78,6 +78,8 @@ describe("paymentHistoryToCsv", () => {
     currency: "Waluta",
     status: "Status",
     document: "Dokument",
+    discount: "Rabat",
+    coupon: "Kod",
   };
 
   it("emits a BOM, semicolons and machine-readable amounts", () => {
@@ -85,9 +87,10 @@ describe("paymentHistoryToCsv", () => {
     expect(csv.startsWith("\uFEFF")).toBe(true);
     const [, row] = csv.trim().split("\r\n");
     expect(row).toBe(
-      "FV/2026/02;2026-02-01;invoice;49.00;EUR;paid;https://invoice.example/1.pdf",
+      "FV/2026/02;2026-02-01;invoice;49.00;EUR;;;paid;https://invoice.example/1.pdf",
     );
   });
+
 
   it("quotes values containing the separator", () => {
     const csv = paymentHistoryToCsv(
@@ -103,5 +106,58 @@ describe("historyFileName", () => {
     expect(historyFileName("payments", "csv", new Date("2026-03-01T12:00:00Z"))).toBe(
       "payments-2026-03-01.csv",
     );
+  });
+});
+
+describe("mergePaymentHistory discounts and gifts", () => {
+  it("carries coupon metadata from the order onto its document", () => {
+    const rows = mergePaymentHistory(
+      [
+        order({
+          metadata: {
+            coupon_code: "NES20",
+            coupon_discount_cents: 1000,
+            original_amount_cents: 5900,
+          },
+        }),
+      ],
+      [document()],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].couponCode).toBe("NES20");
+    expect(rows[0].discountCents).toBe(1000);
+    expect(rows[0].originalAmountCents).toBe(5900);
+  });
+
+  it("marks zero-amount orders as gifts", () => {
+    const [row] = mergePaymentHistory([order({ amount_cents: 0 })], []);
+    expect(row.gift).toBe(true);
+  });
+
+  it("adds access grants as gift rows and skips revoked ones", () => {
+    const rows = mergePaymentHistory([], [], [
+      {
+        id: "g1",
+        tierKey: "vip",
+        source: "expert",
+        note: null,
+        startsAt: "2026-01-01T00:00:00.000Z",
+        expiresAt: null,
+        revokedAt: null,
+      },
+      {
+        id: "g2",
+        tierKey: "plus",
+        source: "manual",
+        note: null,
+        startsAt: "2026-01-02T00:00:00.000Z",
+        expiresAt: null,
+        revokedAt: "2026-02-01T00:00:00.000Z",
+      },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe("grant");
+    expect(rows[0].gift).toBe(true);
+    expect(rows[0].giftSource).toBe("expert");
   });
 });

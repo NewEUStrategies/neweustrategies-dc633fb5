@@ -33,6 +33,7 @@ import { RetentionDialog } from "@/components/billing/RetentionDialog";
 import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
 import { SyncBillingButton } from "@/components/billing/SyncBillingButton";
 import { LifetimeAccessCard } from "@/components/billing/LifetimeAccessCard";
+import { useMyGrants } from "@/lib/billing/membership";
 
 /** Warstwa członkostwa wołającego (RPC; dla braku subskrypcji: domyślna). */
 function TierChip() {
@@ -68,6 +69,14 @@ export function SubscriptionManagerSection() {
     enabled: !!session,
   });
   const lastOrder = ordersQ.data?.[0] ?? null;
+
+  // Nadanie (dożywotni VIP eksperta) zastępuje komunikat „brak subskrypcji" -
+  // użytkownik ma widzieć swój realny poziom dostępu, nie pustkę.
+  const grantsQ = useMyGrants();
+  const activeGrant =
+    (grantsQ.data ?? []).find(
+      (g) => !g.revoked_at && (!g.expires_at || new Date(g.expires_at).getTime() > Date.now()),
+    ) ?? null;
 
   const providerSubQ = useMySubscriptionProvider();
   const providerSub = providerSubQ.data ?? null;
@@ -145,7 +154,31 @@ export function SubscriptionManagerSection() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!data?.plan ? (
+          {!data?.plan && activeGrant ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  {activeGrant.tier_key.toUpperCase()}
+                  <Badge variant="secondary">
+                    {activeGrant.expires_at
+                      ? fmtDate(activeGrant.expires_at)
+                      : t("profile.planPage.grantLifetime")}
+                  </Badge>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t(`profile.planPage.grantSource.${activeGrant.source}`, {
+                    defaultValue: t("profile.planPage.grantTitle"),
+                  })}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <SyncBillingButton />
+                <Button asChild variant="outline">
+                  <Link to="/pricing">{t("profile.overview.seePlans")}</Link>
+                </Button>
+              </div>
+            </div>
+          ) : !data?.plan ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">{t("profile.subscription.none")}</p>
               <div className="flex flex-wrap gap-2">

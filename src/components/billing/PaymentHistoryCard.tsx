@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Download, ExternalLink, FileText, Printer } from "lucide-react";
+import { Download, ExternalLink, FileText, Gift, Printer, Tag } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchMyBillingDocuments, fetchMyOrders } from "@/lib/billing/queries";
+import { useMyGrants } from "@/lib/billing/membership";
 import {
   mergePaymentHistory,
   paymentHistoryToCsv,
@@ -66,9 +67,27 @@ export function PaymentHistoryCard({ limit, showExport = false, showAllLink = fa
     enabled: !!session,
   });
 
+  // Nadania (np. dożywotni VIP eksperta lub dostęp z darowizny) to też część
+  // historii - użytkownik ma widzieć, skąd wziął się jego dostęp, nawet gdy
+  // nie było za niego płatności.
+  const grantsQ = useMyGrants();
+
   const all = useMemo(
-    () => mergePaymentHistory(ordersQ.data ?? [], docsQ.data ?? []),
-    [ordersQ.data, docsQ.data],
+    () =>
+      mergePaymentHistory(
+        ordersQ.data ?? [],
+        docsQ.data ?? [],
+        (grantsQ.data ?? []).map((grant) => ({
+          id: grant.id,
+          tierKey: grant.tier_key,
+          source: grant.source,
+          note: grant.note,
+          startsAt: grant.starts_at ?? grant.created_at,
+          expiresAt: grant.expires_at,
+          revokedAt: grant.revoked_at,
+        })),
+      ),
+    [ordersQ.data, docsQ.data, grantsQ.data],
   );
   const rows = typeof limit === "number" ? all.slice(0, limit) : all;
 
@@ -92,6 +111,8 @@ export function PaymentHistoryCard({ limit, showExport = false, showAllLink = fa
       currency: t("profile.planPage.history.colCurrency"),
       status: t("profile.planPage.history.colStatus"),
       document: t("profile.planPage.history.colDocument"),
+      discount: t("profile.planPage.history.colDiscount"),
+      coupon: t("profile.planPage.history.colCoupon"),
     });
     downloadTextFile(csv, historyFileName("payments", "csv"), "text/csv");
   }
@@ -169,10 +190,38 @@ export function PaymentHistoryCard({ limit, showExport = false, showAllLink = fa
                     <TableCell className="whitespace-nowrap">{fmtDate(row.date)}</TableCell>
                     <TableCell>{kindLabel(row.kind)}</TableCell>
                     <TableCell className="whitespace-nowrap text-right">
+                      {row.originalAmountCents && row.discountCents ? (
+                        <span className="mr-1 text-xs text-muted-foreground line-through">
+                          {formatMoney(row.originalAmountCents, row.currency, lang)}
+                        </span>
+                      ) : null}
                       {formatMoney(row.amountCents, row.currency, lang)}{" "}
                       <span className="text-xs uppercase text-muted-foreground">
                         {row.currency}
                       </span>
+                      {(row.discountCents || row.gift) && (
+                        <span className="mt-1 flex flex-wrap justify-end gap-1">
+                          {row.discountCents ? (
+                            <Badge variant="secondary" className="gap-1 text-[11px]">
+                              <Tag className="h-3 w-3" aria-hidden="true" />
+                              {t("profile.planPage.history.discount", {
+                                amount: formatMoney(row.discountCents, row.currency, lang),
+                              })}
+                              {row.couponCode ? ` · ${row.couponCode}` : ""}
+                            </Badge>
+                          ) : null}
+                          {row.gift && (
+                            <Badge variant="outline" className="gap-1 text-[11px]">
+                              <Gift className="h-3 w-3" aria-hidden="true" />
+                              {row.giftSource
+                                ? t(`profile.planPage.grantSource.${row.giftSource}`, {
+                                    defaultValue: t("profile.planPage.history.gift"),
+                                  })
+                                : t("profile.planPage.history.gift")}
+                            </Badge>
+                          )}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>
