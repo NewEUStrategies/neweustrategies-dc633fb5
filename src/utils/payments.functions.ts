@@ -363,3 +363,44 @@ export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
       immediate: data.quantity > (sub.quantity ?? 1),
     };
   });
+
+/**
+ * Samoobsługowa synchronizacja: pobiera stan subskrypcji wołającego u operatora
+ * i przepuszcza go przez tę samą ścieżkę co webhook. Użytkownik używa jej, gdy
+ * po zakupie lub zmianie planu panel pokazuje nieaktualny stan (spóźniony
+ * webhook). Idempotentna - powtórzenie nie duplikuje uprawnień ani dokumentów.
+ */
+export const syncMyBillingFromProvider = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { environment: StripeEnv }) =>
+    z.object({ environment: envSchema }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    // Identyfikatory czytamy pod RLS wołającego - warstwa serwerowa nigdy nie
+    // decyduje samodzielnie, czyje subskrypcje pobiera od operatora.
+    const { data: rows, error } = await context.supabase
+      .from("subscriptions")
+      .select("provider_subscription_id")
+      .eq("user_id", context.userId)
+      .eq("environment", data.environment)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (error) throw error;
+
+    const localIds = (rows ?? [])
+      .map((row) => row.provider_subscription_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+
+    try {
+      const { syncUserSubscriptionsFromProvider } = await import("@/lib/billing/selfSync.server");
+      const result = await syncUserSubscriptionsFromProvider(
+        data.environment,
+        context.userId,
+        localIds,
+      );
+      return { ok: true as const, ...result };
+    } catch (e: unknown) {
+      console.error("[payments] self sync failed", e);
+      return { error: getStripeErrorMessage(e) };
+    }
+  });
