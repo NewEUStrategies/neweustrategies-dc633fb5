@@ -1457,13 +1457,27 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   text-decoration: none;
 }
 
-.cms-post-title:hover,
-a:hover .cms-post-title,
-a:focus-visible .cms-post-title,
-*:hover > .cms-post-title {
-  background-size: 100% var(--cms-underline-thickness, 2px);
-  color: var(--td-pt-hover, var(--gc-link-hover, var(--brand)));
+/* Pełnoszerokościowe podkreślenie nagłówka TYLKO na urządzeniach z realnym
+   hoverem. Na mobile iOS "przykleja" stan :hover po tapnięciu, przez co pod
+   klampowanym tytułem (display:-webkit-box) pojawiała się jedna kreska na całą
+   szerokość widgetu zamiast animowanego podkreślenia per linia. */
+@media (hover: hover) and (pointer: fine) {
+  .cms-post-title:hover,
+  a:hover .cms-post-title,
+  a:focus-visible .cms-post-title,
+  *:hover > .cms-post-title {
+    background-size: 100% var(--cms-underline-thickness, 2px);
+    color: var(--td-pt-hover, var(--gc-link-hover, var(--brand)));
+  }
 }
+@media not all and (hover: hover) {
+  .cms-post-title,
+  .cms-post-title:hover {
+    background-image: none;
+    padding-bottom: 0;
+  }
+}
+
 
 /* Reusable per-line animated underline for titles that must ALSO be
    line-clamped. `-webkit-line-clamp` requires the clamped element to be
