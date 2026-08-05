@@ -9,7 +9,8 @@
 // naturalnym, więc powtórne wywołania nie tworzą duplikatów.
 //
 // Moduł server-only - importuj wyłącznie z handlera serwerowego.
-import type { StripeEnv } from "@/lib/stripe.server";
+import type Stripe from "stripe";
+import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 
 export interface PaddleDiscountResolution {
   readonly ok: boolean;
@@ -38,48 +39,50 @@ const fail = (error: string): PaddleDiscountResolution => ({
 });
 
 export async function findDiscountByCode(env: StripeEnv, code: string): Promise<string | null> {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
-  const res = await gatewayFetch(env, `/discounts?code=${encodeURIComponent(code)}&status=active`);
-  if (!res.ok) {
-    console.error("[payments] discount lookup failed", res.status, await res.text());
+  try {
+    const stripe = createStripeClient(env);
+    const found = await stripe.promotionCodes.list({ code, active: true, limit: 1 });
+    return found.data[0]?.id ?? null;
+  } catch (e) {
+    console.error("[payments] discount lookup failed", getStripeErrorMessage(e));
     return null;
   }
-  const body = (await res.json()) as { data?: Array<{ id: string; code?: string }> };
-  const match = body.data?.find((d) => (d.code ?? "").toUpperCase() === code);
-  return match?.id ?? null;
 }
 
+/** Tworzy kupon Stripe z definicji bazowej i osadza go w nowym kodzie promocyjnym. */
 export async function createDiscount(
   env: StripeEnv,
   code: string,
   def: CouponDefinition,
 ): Promise<string | null> {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
-  const isPercent = def.discount_kind === "percent";
-  const payload: Record<string, unknown> = {
-    description: `New European Strategies coupon ${code}`,
-    type: isPercent ? "percentage" : "flat",
-    amount: isPercent
-      ? String(def.discount_percent ?? 0)
-      : String(Math.max(0, def.discount_cents ?? 0)),
-    enabled_for_checkout: true,
-    code,
-    recur: false,
-    ...(isPercent ? {} : { currency_code: (def.currency ?? "PLN").toUpperCase() }),
-    ...(def.valid_until ? { expires_at: new Date(def.valid_until).toISOString() } : {}),
-    ...(def.max_redemptions ? { usage_limit: def.max_redemptions } : {}),
-    custom_data: { source: "nes_b2b_coupons" },
-  };
-  const res = await gatewayFetch(env, "/discounts", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    console.error("[payments] discount create failed", res.status, await res.text());
+  try {
+    const stripe = createStripeClient(env);
+    const isPercent = def.discount_kind === "percent";
+    const coupon = await stripe.coupons.create({
+      duration: "once",
+      ...(isPercent
+        ? { percent_off: def.discount_percent ?? 0 }
+        : {
+            amount_off: Math.max(0, def.discount_cents ?? 0),
+            currency: (def.currency ?? "PLN").toLowerCase(),
+          }),
+      ...(def.max_redemptions ? { max_redemptions: def.max_redemptions } : {}),
+      ...(def.valid_until
+        ? { redeem_by: Math.floor(new Date(def.valid_until).getTime() / 1000) }
+        : {}),
+      metadata: { source: "nes_b2b_coupons", code },
+    });
+    // `coupon` nie jest w typach SDK dla przypiętej wersji API (dahlia),
+    // ale jest wymaganym polem na drucie - stąd jawne rzutowanie parametrów.
+    const promotionCode = await stripe.promotionCodes.create({
+      coupon: coupon.id,
+      code,
+    } as unknown as Stripe.PromotionCodeCreateParams);
+    return promotionCode.id;
+  } catch (e) {
+    console.error("[payments] discount create failed", getStripeErrorMessage(e));
     return null;
   }
-  const body = (await res.json()) as { data?: { id?: string } };
-  return body.data?.id ?? null;
 }
 
 /**

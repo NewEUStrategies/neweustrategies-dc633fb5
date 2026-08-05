@@ -1,15 +1,17 @@
-// Pobranie faktury po numerze transakcji operatora płatności.
+// Pobranie faktury/paragonu po numerze transakcji operatora płatności.
 //
-// Faktury nie są przechowywane u nas - operator (Merchant of Record) wystawia
-// je i udostępnia pod krótkotrwałym, podpisanym adresem. Tutaj zamieniamy
-// numer transakcji (`txn_...`, widoczny w mailu i w profilu) na taki adres,
+// Faktury nie są przechowywane u nas - Stripe (Merchant of Record) wystawia
+// je i udostępnia pod własnym adresem. Tutaj zamieniamy numer transakcji
+// (`in_...`, `cs_...`, `pi_...`, widoczny w mailu i w profilu) na taki adres,
 // ale dopiero po potwierdzeniu, że transakcja należy do pytającego.
 //
 // Moduł jest server-only (klucze bramki + service role).
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type Stripe from "stripe";
 
-import { gatewayFetch, type StripeEnv } from "@/lib/paddle.server";
+import { createStripeClient, type StripeEnv } from "@/lib/stripe.server";
 import { isTransactionId } from "@/lib/billing/transactionId";
+import { retrieveTransactionOwners } from "@/lib/billing/transactions.server";
 
 export type InvoiceError =
   | "invalid_transaction"
@@ -27,33 +29,10 @@ interface TransactionOwners {
   userId: string | null;
 }
 
-async function loadTransactionOwners(
-  environment: StripeEnv,
-  transactionId: string,
-): Promise<TransactionOwners | null> {
-  const res = await gatewayFetch(environment, `/transactions/${encodeURIComponent(transactionId)}`);
-  if (!res.ok) return null;
-  const json = (await res.json()) as {
-    data?: {
-      customer_id?: string | null;
-      subscription_id?: string | null;
-      custom_data?: Record<string, unknown> | null;
-    };
-  };
-  const d = json.data;
-  if (!d) return null;
-  const rawUser = d.custom_data?.userId;
-  return {
-    customerId: d.customer_id ?? null,
-    subscriptionId: d.subscription_id ?? null,
-    userId: typeof rawUser === "string" ? rawUser : null,
-  };
-}
-
 /**
  * Czy `userId` może zobaczyć fakturę tej transakcji?
  *
- * Trzy niezależne ścieżki - zamówienie w naszej bazie, `custom_data` z
+ * Trzy niezależne ścieżki - zamówienie w naszej bazie, `metadata` z
  * checkoutu i identyfikator klienta z subskrypcji - bo transakcje powstają
  * w różnych przepływach (subskrypcja, bilet, darowizna, odblokowanie treści).
  */
@@ -86,6 +65,54 @@ async function ownsTransaction(
   return false;
 }
 
+function chargeReceiptUrl(charge: Stripe.Charge | string | null | undefined): string | null {
+  if (!charge || typeof charge === "string") return null;
+  return charge.receipt_url ?? null;
+}
+
+/** Wydobywa adres dokumentu z sesji Checkout - faktura albo paragon z płatności. */
+async function invoiceUrlFromSession(
+  stripe: Stripe,
+  session: Stripe.Checkout.Session,
+): Promise<string | null> {
+  if (session.invoice) {
+    const invoiceId = typeof session.invoice === "string" ? session.invoice : session.invoice.id;
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+    return invoice.hosted_invoice_url ?? invoice.invoice_pdf ?? null;
+  }
+  if (session.payment_intent) {
+    const paymentIntentId =
+      typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent.id;
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+      expand: ["latest_charge"],
+    });
+    return chargeReceiptUrl(paymentIntent.latest_charge);
+  }
+  return null;
+}
+
+/** Adres dokumentu rozliczeniowego dla danej referencji Stripe. Nigdy nie rzuca poza `try` wywołującego. */
+async function resolveInvoiceUrl(
+  stripe: Stripe,
+  transactionId: string,
+): Promise<string | null> {
+  if (transactionId.startsWith("in_")) {
+    const invoice = await stripe.invoices.retrieve(transactionId);
+    return invoice.hosted_invoice_url ?? invoice.invoice_pdf ?? null;
+  }
+  if (transactionId.startsWith("cs_")) {
+    const session = await stripe.checkout.sessions.retrieve(transactionId);
+    return invoiceUrlFromSession(stripe, session);
+  }
+  if (transactionId.startsWith("pi_")) {
+    const paymentIntent = await stripe.paymentIntents.retrieve(transactionId, {
+      expand: ["latest_charge"],
+    });
+    return chargeReceiptUrl(paymentIntent.latest_charge);
+  }
+  return null;
+}
+
 export interface InvoiceLookupInput {
   transactionId: string;
   environment: StripeEnv;
@@ -93,13 +120,13 @@ export interface InvoiceLookupInput {
   userId: string | null;
 }
 
-/** Zamienia numer transakcji na krótkotrwały adres faktury PDF. Nigdy nie rzuca. */
+/** Zamienia numer transakcji na adres faktury/paragonu. Nigdy nie rzuca. */
 export async function invoiceUrlForTransaction(input: InvoiceLookupInput): Promise<InvoiceResult> {
   const transactionId = input.transactionId.trim();
   if (!isTransactionId(transactionId)) return { ok: false, error: "invalid_transaction" };
 
   try {
-    const owners = await loadTransactionOwners(input.environment, transactionId);
+    const owners = await retrieveTransactionOwners(input.environment, transactionId);
     if (!owners) return { ok: false, error: "not_found" };
 
     if (input.userId) {
@@ -109,16 +136,8 @@ export async function invoiceUrlForTransaction(input: InvoiceLookupInput): Promi
       if (!allowed) return { ok: false, error: "forbidden" };
     }
 
-    const res = await gatewayFetch(
-      input.environment,
-      `/transactions/${encodeURIComponent(transactionId)}/invoice?disposition=attachment`,
-    );
-    if (!res.ok) {
-      console.error("[billing] invoice lookup failed", transactionId, res.status);
-      return { ok: false, error: "invoice_unavailable" };
-    }
-    const json = (await res.json()) as { data?: { url?: string | null } };
-    const url = json.data?.url;
+    const stripe = createStripeClient(input.environment);
+    const url = await resolveInvoiceUrl(stripe, transactionId);
     if (!url) return { ok: false, error: "invoice_unavailable" };
     return { ok: true, url, transactionId };
   } catch (err) {

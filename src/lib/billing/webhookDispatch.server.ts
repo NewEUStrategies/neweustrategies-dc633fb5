@@ -144,7 +144,7 @@ async function handleCreated(data: SubscriptionData, env: StripeEnv, occurredAt?
   );
   if (error) throw new Error(`subscriptions upsert failed: ${error.message}`);
 
-  const { applyPurchaseEffects } = await import("@/lib/billing/paddleEffects.server");
+  const { applyPurchaseEffects } = await import("@/lib/billing/purchaseEffects.server");
   await applyPurchaseEffects({
     userId,
     priceId,
@@ -232,7 +232,7 @@ async function handleUpdated(data: SubscriptionData, env: StripeEnv, occurredAt:
   // Każda aktualizacja (pauza, wznowienie, past_due, nowy okres) musi trafić do
   // uprawnień, nie tylko zmiana planu.
   const { resolvePlanForPrice, applyStatusTransitionEffects } =
-    await import("@/lib/billing/paddleEffects.server");
+    await import("@/lib/billing/purchaseEffects.server");
   const plan = await resolvePlanForPrice(priceId);
   if (plan) {
     const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
@@ -259,7 +259,7 @@ async function handleUpdated(data: SubscriptionData, env: StripeEnv, occurredAt:
   const direction = eventPriceId ? planChangeDirection(existing.price_id, eventPriceId) : "same";
   if (direction === "same") return;
 
-  const { applyPlanChangeEffects } = await import("@/lib/billing/paddleEffects.server");
+  const { applyPlanChangeEffects } = await import("@/lib/billing/purchaseEffects.server");
   await applyPlanChangeEffects({
     userId: existing.user_id,
     priceId,
@@ -305,7 +305,7 @@ async function handleCanceled(data: SubscriptionData, env: StripeEnv) {
     priceId: existing.price_id,
   });
 
-  const { applyCancellationEffects } = await import("@/lib/billing/paddleEffects.server");
+  const { applyCancellationEffects } = await import("@/lib/billing/purchaseEffects.server");
   await applyCancellationEffects({
     userId: existing.user_id,
     priceId: existing.price_id,

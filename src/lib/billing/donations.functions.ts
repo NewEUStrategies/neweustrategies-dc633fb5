@@ -81,3 +81,62 @@ export const getDonationsPublicStats = createServerFn({ method: "GET" }).handler
     recent,
   };
 });
+
+/** Publiczna konfiguracja darowizn dla formularza i CTA (bez sekretów). */
+export const getDonationsConfig = createServerFn({ method: "GET" }).handler(async () => {
+  const { loadDonationsConfig } = await import("@/lib/billing/donations.server");
+  return loadDonationsConfig();
+});
+
+export interface DonationCheckoutInput {
+  environment: "sandbox" | "live";
+  amountCents: number;
+  recurring: boolean;
+  donorEmail?: string;
+  message?: string;
+  returnUrl: string;
+}
+
+/**
+ * Otwiera sesję Stripe Embedded Checkout dla darowizny. Endpoint jest publiczny
+ * (wpłata nie wymaga konta), więc kwota, waluta i limity są walidowane
+ * WYŁĄCZNIE po stronie serwera, a próby są limitowane per IP.
+ */
+export const createDonationCheckout = createServerFn({ method: "POST" })
+  .inputValidator((data: DonationCheckoutInput) => {
+    if (data.environment !== "sandbox" && data.environment !== "live") {
+      throw new Error("invalid_environment");
+    }
+    if (!Number.isFinite(data.amountCents)) throw new Error("invalid_amount");
+    if (typeof data.returnUrl !== "string" || !data.returnUrl.startsWith("http")) {
+      throw new Error("invalid_return_url");
+    }
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const [{ getRequest }, { createDonationSession }] = await Promise.all([
+      import("@tanstack/react-start/server"),
+      import("@/lib/billing/donations.server"),
+    ]);
+
+    let rateKey = "unknown-ip";
+    try {
+      const req = getRequest();
+      const fwd = req.headers.get("x-forwarded-for");
+      rateKey =
+        req.headers.get("cf-connecting-ip") ??
+        (fwd ? (fwd.split(",")[0]?.trim() ?? "unknown-ip") : "unknown-ip");
+    } catch {
+      /* brak kontekstu HTTP - wspólny kubełek limitu */
+    }
+
+    return createDonationSession({
+      environment: data.environment,
+      amountCents: data.amountCents,
+      recurring: Boolean(data.recurring),
+      donorEmail: data.donorEmail ?? null,
+      message: data.message ?? null,
+      returnUrl: data.returnUrl,
+      rateKey,
+    });
+  });

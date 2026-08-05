@@ -97,7 +97,7 @@ async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
   if (!sub?.user_id) return revoked ? "subscription_refunded" : "skipped";
 
   const { resolvePlanForPrice, syncCrmSubscriptionState } =
-    await import("@/lib/billing/paddleEffects.server");
+    await import("@/lib/billing/purchaseEffects.server");
   const plan = sub.price_id ? await resolvePlanForPrice(sub.price_id) : null;
 
   // CRM: zwrot to utrata klienta, nie pauza.
@@ -279,7 +279,7 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
     if (error) throw new Error(`dispute: subscription lookup failed: ${error.message}`);
     if (!sub?.user_id || !sub.price_id) return "skipped";
 
-    const { resolvePlanForPrice } = await import("@/lib/billing/paddleEffects.server");
+    const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
     const plan = await resolvePlanForPrice(sub.price_id);
     if (plan) {
       const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");

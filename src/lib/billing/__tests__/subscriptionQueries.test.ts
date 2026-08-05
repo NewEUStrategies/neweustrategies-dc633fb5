@@ -3,7 +3,7 @@ import {
   canResumePaddleSubscription,
   isPaddleSubscriptionActive,
   type PaddleSubscriptionRow,
-} from "../paddleSubscription";
+} from "../subscriptionQueries";
 
 const base: PaddleSubscriptionRow = {
   id: "1",

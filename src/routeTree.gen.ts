@@ -43,6 +43,7 @@ import { Route as FeedRouteImport } from './routes/feed'
 import { Route as ExpertsRouteImport } from './routes/experts'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as ErrorRouteImport } from './routes/error'
+import { Route as DonateRouteImport } from './routes/donate'
 import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContributorsRouteImport } from './routes/contributors'
 import { Route as ContributeRouteImport } from './routes/contribute'
@@ -148,6 +149,7 @@ import { Route as AdminGiftingRouteImport } from './routes/admin.gifting'
 import { Route as AdminExpertRequestsRouteImport } from './routes/admin.expert-requests'
 import { Route as AdminExpertLayoutsRouteImport } from './routes/admin.expert-layouts'
 import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
+import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminCrmRouteImport } from './routes/admin.crm'
@@ -435,6 +437,11 @@ const EventsRoute = EventsRouteImport.update({
 const ErrorRoute = ErrorRouteImport.update({
   id: '/error',
   path: '/error',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DonateRoute = DonateRouteImport.update({
+  id: '/donate',
+  path: '/donate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CookiesRoute = CookiesRouteImport.update({
@@ -960,6 +967,11 @@ const AdminExpertLayoutsRoute = AdminExpertLayoutsRouteImport.update({
 const AdminExperimentsRoute = AdminExperimentsRouteImport.update({
   id: '/experiments',
   path: '/experiments',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminDonationsRoute = AdminDonationsRouteImport.update({
+  id: '/donations',
+  path: '/donations',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminCustomMetaRoute = AdminCustomMetaRouteImport.update({
@@ -1593,6 +1605,7 @@ export interface FileRoutesByFullPath {
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
+  '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
@@ -1647,6 +1660,7 @@ export interface FileRoutesByFullPath {
   '/admin/crm': typeof AdminCrmRouteWithChildren
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/expert-requests': typeof AdminExpertRequestsRoute
@@ -1851,6 +1865,7 @@ export interface FileRoutesByTo {
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
+  '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
@@ -1900,6 +1915,7 @@ export interface FileRoutesByTo {
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/expert-requests': typeof AdminExpertRequestsRoute
@@ -2102,6 +2118,7 @@ export interface FileRoutesById {
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
+  '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
@@ -2156,6 +2173,7 @@ export interface FileRoutesById {
   '/admin/crm': typeof AdminCrmRouteWithChildren
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/donations': typeof AdminDonationsRoute
   '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/expert-layouts': typeof AdminExpertLayoutsRoute
   '/admin/expert-requests': typeof AdminExpertRequestsRoute
@@ -2363,6 +2381,7 @@ export interface FileRouteTypes {
     | '/contribute'
     | '/contributors'
     | '/cookies'
+    | '/donate'
     | '/error'
     | '/events'
     | '/experts'
@@ -2417,6 +2436,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
     | '/admin/expert-requests'
@@ -2621,6 +2641,7 @@ export interface FileRouteTypes {
     | '/contribute'
     | '/contributors'
     | '/cookies'
+    | '/donate'
     | '/error'
     | '/events'
     | '/experts'
@@ -2670,6 +2691,7 @@ export interface FileRouteTypes {
     | '/admin/content-area'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
     | '/admin/expert-requests'
@@ -2871,6 +2893,7 @@ export interface FileRouteTypes {
     | '/contribute'
     | '/contributors'
     | '/cookies'
+    | '/donate'
     | '/error'
     | '/events'
     | '/experts'
@@ -2925,6 +2948,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/donations'
     | '/admin/experiments'
     | '/admin/expert-layouts'
     | '/admin/expert-requests'
@@ -3131,6 +3155,7 @@ export interface RootRouteChildren {
   ContributeRoute: typeof ContributeRoute
   ContributorsRoute: typeof ContributorsRoute
   CookiesRoute: typeof CookiesRoute
+  DonateRoute: typeof DonateRoute
   ErrorRoute: typeof ErrorRoute
   EventsRoute: typeof EventsRouteWithChildren
   ExpertsRoute: typeof ExpertsRoute
@@ -3469,6 +3494,13 @@ declare module '@tanstack/react-router' {
       path: '/error'
       fullPath: '/error'
       preLoaderRoute: typeof ErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/donate': {
+      id: '/donate'
+      path: '/donate'
+      fullPath: '/donate'
+      preLoaderRoute: typeof DonateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cookies': {
@@ -4204,6 +4236,13 @@ declare module '@tanstack/react-router' {
       path: '/experiments'
       fullPath: '/admin/experiments'
       preLoaderRoute: typeof AdminExperimentsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/donations': {
+      id: '/admin/donations'
+      path: '/donations'
+      fullPath: '/admin/donations'
+      preLoaderRoute: typeof AdminDonationsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/custom-meta': {
@@ -5316,6 +5355,7 @@ interface AdminRouteChildren {
   AdminCrmRoute: typeof AdminCrmRouteWithChildren
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
+  AdminDonationsRoute: typeof AdminDonationsRoute
   AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminExpertLayoutsRoute: typeof AdminExpertLayoutsRoute
   AdminExpertRequestsRoute: typeof AdminExpertRequestsRoute
@@ -5386,6 +5426,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCrmRoute: AdminCrmRouteWithChildren,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
+  AdminDonationsRoute: AdminDonationsRoute,
   AdminExperimentsRoute: AdminExperimentsRoute,
   AdminExpertLayoutsRoute: AdminExpertLayoutsRoute,
   AdminExpertRequestsRoute: AdminExpertRequestsRoute,
@@ -5581,6 +5622,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContributeRoute: ContributeRoute,
   ContributorsRoute: ContributorsRoute,
   CookiesRoute: CookiesRoute,
+  DonateRoute: DonateRoute,
   ErrorRoute: ErrorRoute,
   EventsRoute: EventsRouteWithChildren,
   ExpertsRoute: ExpertsRoute,

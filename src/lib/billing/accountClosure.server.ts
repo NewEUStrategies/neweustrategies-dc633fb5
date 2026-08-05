@@ -28,7 +28,7 @@ export async function closeBillingForUser(
 ): Promise<AccountClosureResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { subscriptionEnvironment, cancelSubscriptionImmediately, isProviderSubscriptionRef } =
-    await import("@/lib/billing/paddleSubscription.server");
+    await import("@/lib/billing/subscriptionProvider.server");
 
   const env: StripeEnv = subscriptionEnvironment();
   const { data: rows, error } = await supabaseAdmin
@@ -76,7 +76,7 @@ export async function closeBillingForUser(
     // adres zamykanego konta.
     if (email) {
       try {
-        const { resolvePlanForPrice } = await import("@/lib/billing/paddleEffects.server");
+        const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
         const plan = row.price_id ? await resolvePlanForPrice(row.price_id) : null;
         const { notifySubscriptionEmail } = await import("@/lib/billing/notifications.server");
         await notifySubscriptionEmail({

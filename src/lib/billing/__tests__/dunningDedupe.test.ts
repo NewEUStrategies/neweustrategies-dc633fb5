@@ -5,7 +5,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const notifyPaymentEmail = vi.fn(async () => undefined);
 vi.mock("@/lib/billing/notifications.server", () => ({ notifyPaymentEmail }));
-vi.mock("@/lib/billing/paddleEffects.server", () => ({
+vi.mock("@/lib/billing/purchaseEffects.server", () => ({
   resolvePlanForPrice: async () => ({
     planId: "plan-1",
     tenantId: "tenant-1",

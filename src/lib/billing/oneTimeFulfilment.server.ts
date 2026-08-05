@@ -27,7 +27,7 @@ export interface OneTimeTransaction {
   customData: Record<string, unknown> | null;
 }
 
-export type OneTimeOutcome = "skipped" | "order" | "oversold_refunded";
+export type OneTimeOutcome = "skipped" | "order" | "donation" | "oversold_refunded";
 
 function str(source: Record<string, unknown> | null, key: string): string | null {
   const v = source?.[key];
@@ -246,16 +246,24 @@ export async function fulfilOneTimeTransaction(
   txn: OneTimeTransaction,
   env: StripeEnv,
 ): Promise<OneTimeOutcome> {
-  const kind = str(txn.customData, "kind");
+  // `kind` to nazwa historyczna (Paddle), `purpose` - obecna (Stripe).
+  const kind = str(txn.customData, "purpose") ?? str(txn.customData, "kind");
   if (kind === "donation") {
-    // Darowizny przeniesione do zewnętrznego serwisu zbiórkowego - dostawca
-    // nie tworzy już takich transakcji, więc to może być tylko ponowienie
-    // historycznego webhooka. Bez zapisu; wpłata jest już zaksięgowana.
-    console.warn("[payments] donation webhook ignored (donations moved off-provider)", txn.id);
-    return "skipped";
+    // Darowizny mają własny rejestr (`donations`) - księgujemy je tutaj, a nie
+    // przez payment_orders: nie nadają żadnego uprawnienia.
+    const { settleDonation } = await import("@/lib/billing/donations.server");
+    const settled = await settleDonation({
+      donationId: str(txn.customData, "donationId"),
+      sessionId: str(txn.customData, "sessionId") ?? txn.id,
+      intentId: txn.id,
+      amountCents: txn.amountCents,
+      currency: txn.currency,
+      donorEmail: txn.customerEmail,
+    });
+    return settled ? "donation" : "skipped";
   }
 
-  const orderId = str(txn.customData, "order_id");
+  const orderId = str(txn.customData, "orderId") ?? str(txn.customData, "order_id");
   if (orderId) return fulfilOrder(txn, orderId, env);
 
   console.warn("[payments] one-time transaction without recognised custom_data", txn.id);

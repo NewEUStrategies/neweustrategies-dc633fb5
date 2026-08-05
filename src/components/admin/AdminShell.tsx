@@ -68,7 +68,6 @@ import {
   useAdminSidebarExtrasSlot,
 } from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
-import { EXTERNAL_DONATIONS_URL } from "@/lib/billing/donationsExternal";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -360,10 +359,10 @@ function AdminShellInner({
           }),
         },
         {
-          href: EXTERNAL_DONATIONS_URL,
+          to: "/admin/donations",
           icon: HandHeart,
           label: t("admin.nav.donations", {
-            defaultValue: lang === "pl" ? "Darowizny (zrzutka.pl)" : "Donations (zrzutka.pl)",
+            defaultValue: lang === "pl" ? "Darowizny" : "Donations",
           }),
         },
       ],

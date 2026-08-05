@@ -28,8 +28,8 @@ import {
   catalogEntryFor,
   fetchMyPaddleSubscription,
   isPaddleSubscriptionActive,
-  type PaddleSubscriptionRow,
-} from "@/lib/billing/paddleSubscription";
+  type ProviderSubscriptionRow,
+} from "@/lib/billing/subscriptionQueries";
 import { catalogPriceForPlan, planChangeDirection } from "@/lib/billing/catalog";
 import { formatMoney, planName, type AccessPlan } from "@/lib/billing/types";
 import { getStripeEnvironment } from "@/lib/stripe";
@@ -63,7 +63,7 @@ export function useMySubscriptionProvider() {
   });
 }
 
-export function SubscriptionCard({ subscription }: { subscription: PaddleSubscriptionRow }) {
+export function SubscriptionCard({ subscription }: { subscription: ProviderSubscriptionRow }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();

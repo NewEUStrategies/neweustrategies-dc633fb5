@@ -24,7 +24,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
-import { fetchMyPaddleSubscription } from "@/lib/billing/paddleSubscription";
+import { fetchMyPaddleSubscription } from "@/lib/billing/subscriptionQueries";
 import { fetchMyOrders } from "@/lib/billing/queries";
 import {
   buildPurchaseSummary,

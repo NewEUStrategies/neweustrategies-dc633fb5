@@ -20,7 +20,7 @@ export const resolvePaddlePrice = createServerFn({ method: "GET" })
       console.error("[payments] auto-sync check failed", e);
     });
 
-    const { resolveProviderPriceId } = await import("@/lib/billing/subscriptionActions.server");
+    const { resolveProviderPriceId } = await import("@/lib/billing/subscriptionProvider.server");
     const id = await resolveProviderPriceId(data.environment, data.priceId);
     if (!id) throw new Error("price_not_found");
     return id;
@@ -56,7 +56,7 @@ export const changePaddlePlan = createServerFn({ method: "POST" })
     const direction = planChangeDirection(sub.price_id, target.priceId);
     if (direction === "same") return { ok: true as const, direction };
 
-    const { changeSubscriptionPrice } = await import("@/lib/billing/subscriptionActions.server");
+    const { changeSubscriptionPrice } = await import("@/lib/billing/subscriptionProvider.server");
     const result = await changeSubscriptionPrice(data.environment, sub.provider_subscription_id, {
       newPriceExternalId: target.priceId,
       quantity: sub.quantity ?? 1,
@@ -135,7 +135,7 @@ export const cancelPaddleSubscription = createServerFn({ method: "POST" })
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
     const { cancelSubscriptionAtPeriodEnd } = await import(
-      "@/lib/billing/subscriptionActions.server"
+      "@/lib/billing/subscriptionProvider.server"
     );
     const result = await cancelSubscriptionAtPeriodEnd(
       data.environment,
@@ -168,7 +168,7 @@ export const resumePaddleSubscription = createServerFn({ method: "POST" })
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
     const { resumePausedSubscription, resumeScheduledCancellation } = await import(
-      "@/lib/billing/subscriptionActions.server"
+      "@/lib/billing/subscriptionProvider.server"
     );
 
     if (sub.status === "paused") {
@@ -209,7 +209,7 @@ export const resolvePaddleDiscount = createServerFn({ method: "POST" })
         .parse(data),
   )
   .handler(async ({ data }) => {
-    const { resolveDiscountForCoupon } = await import("@/lib/billing/paddleDiscounts.server");
+    const { resolveDiscountForCoupon } = await import("@/lib/billing/discounts.server");
     return await resolveDiscountForCoupon({
       environment: data.environment,
       code: data.code,
@@ -261,7 +261,7 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
     }
 
     try {
-      const { resolveProviderPriceId } = await import("@/lib/billing/subscriptionActions.server");
+      const { resolveProviderPriceId } = await import("@/lib/billing/subscriptionProvider.server");
       const providerPriceId = await resolveProviderPriceId(data.environment, target.priceId);
       if (!providerPriceId) {
         return {
@@ -342,7 +342,7 @@ export const updatePaddleSubscriptionSeats = createServerFn({ method: "POST" })
     if (!entry?.perSeat) throw new Error("not_per_seat_plan");
 
     const { updateSubscriptionQuantity } = await import(
-      "@/lib/billing/subscriptionActions.server"
+      "@/lib/billing/subscriptionProvider.server"
     );
     const result = await updateSubscriptionQuantity(data.environment, sub.provider_subscription_id, {
       priceExternalId: entry.priceId,
