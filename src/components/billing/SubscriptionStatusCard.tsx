@@ -17,6 +17,8 @@ import {
 import type { UserSubscriptionRow } from "@/lib/billing/types";
 import { getStripeEnvironmentSafe, isPaymentsConfigured } from "@/lib/stripe";
 import { getMyPaymentMethod } from "@/utils/payments.functions";
+import { useMyGrants } from "@/lib/billing/membership";
+import { tierName, useCurrentTier } from "@/lib/billing/tiers";
 
 const TONE_CLASS: Record<SubscriptionTone, string> = {
   success: "border-transparent bg-primary/10 text-primary",
@@ -56,9 +58,17 @@ export function SubscriptionStatusCard({ subscription }: Props) {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Dostęp z nadania (dożywotni VIP ekspertów NES) jest pełnoprawnym stanem -
+  // bez niego karta pokazywałaby „brak subskrypcji" mimo aktywnych praw.
+  const grantsQ = useMyGrants();
+  const tierQ = useCurrentTier();
+
   const view = deriveSubscriptionStatus({
     local: subscription,
     provider: providerQ.data ?? null,
+    grants: (grantsQ.data ?? [])
+      .filter((g) => !g.revoked_at)
+      .map((g) => ({ tierKey: g.tier_key, expiresAt: g.expires_at, source: g.source })),
   });
 
   const fmtDate = (iso: string) =>
@@ -83,11 +93,25 @@ export function SubscriptionStatusCard({ subscription }: Props) {
           <p className="text-xs text-muted-foreground">
             {t("profile.planPage.statusCard.status")}
           </p>
-          <p className="mt-1">
+          <p className="mt-1 flex flex-wrap items-center gap-2">
             <Badge className={TONE_CLASS[view.tone]}>
               {t(`profile.planPage.subStatus.${view.key}`)}
             </Badge>
+            {view.grant && (
+              <Badge variant="outline" className="font-semibold">
+                {tierQ.data && tierQ.data.key === view.grant.tierKey
+                  ? tierName(tierQ.data, lang === "en" ? "en" : "pl")
+                  : view.grant.tierKey.toUpperCase()}
+              </Badge>
+            )}
           </p>
+          {view.grant && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t(`profile.planPage.grantSource.${view.grant.source}`, {
+                defaultValue: t("profile.planPage.grantTitle"),
+              })}
+            </p>
+          )}
         </div>
 
         <div>
@@ -97,7 +121,11 @@ export function SubscriptionStatusCard({ subscription }: Props) {
               : t("profile.planPage.statusCard.endsAt")}
           </p>
           <p className="mt-1 text-sm font-medium">
-            {view.renewsAt || view.endsAt ? fmtDate((view.renewsAt ?? view.endsAt) as string) : "-"}
+            {view.renewsAt || view.endsAt
+              ? fmtDate((view.renewsAt ?? view.endsAt) as string)
+              : view.key === "grantLifetime"
+                ? t("profile.planPage.grantLifetime")
+                : "-"}
           </p>
         </div>
 
