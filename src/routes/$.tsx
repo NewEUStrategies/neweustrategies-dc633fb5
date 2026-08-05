@@ -970,16 +970,17 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       publishedAt={it.published_at}
                       updatedAt={it.updated_at}
                       primaryCategory={postCategories[0]}
-                      trailing={giftButton ?? null}
+                      trailing={articleActions}
                     />
                   </div>
                 ) : null}
-                {/* Mobile: akcja "Udostepnij pelny artykul" nad widgetem akcji. */}
-                {giftButton && (
-                  <div className="no-print mb-3 flex sm:hidden">
-                    <span className="[&_button]:w-full w-full">{giftButton}</span>
-                  </div>
-                )}
+                {/* Mobile: akcja "Udostepnij pelny artykul" + badge Google. */}
+                <div className="no-print mb-3 flex items-center gap-2 sm:hidden">
+                  {giftButton && (
+                    <span className="[&_button]:w-full min-w-0 flex-1">{giftButton}</span>
+                  )}
+                  <GooglePreferredSourceBadge variant="compact" className="shrink-0" />
+                </div>
                 {/* Mobile: odsluch (TTS) + pobranie artykulu w miejscu paska
                     czasu czytania / aktualizacji. Odsluch idzie przez globalny
                     player i kanoniczny endpoint post-tts (jeden glos i jeden
