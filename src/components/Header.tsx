@@ -388,34 +388,26 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
 
     // Obserwujemy chrome, nie header: wysokość headera jest teraz narzucona
     // przez zmienne, więc obserwowanie jej wprost byłoby zapętleniem.
+    //
+    // Świadomie NIE ma tu drugiego, "żywego" obserwatora publikującego bieżącą
+    // wysokość chrome'u w każdej klatce. Razem z animowaną szerokością tworzył
+    // pętlę: skala -> nowa szerokość -> nawigacja przelewa się do 2 rzędu ->
+    // większa wysokość -> --hdr-live -> skok wysokości paska. Szerokość chrome'u
+    // jest teraz stała, więc pomiar spoczynkowy w zupełności wystarcza.
     const ro = new ResizeObserver(schedule);
-    // Drugi, nieopóźniony obserwator: publikuje BIEŻĄCĄ wysokość chrome'u
-    // w układzie. Formuła "naturalna - ticker" nie wystarcza, bo po przewinięciu
-    // chrome zwija się bardziej niż o sam ticker (np. zwijane rzędy nawigacji),
-    // przez co header zostawał wyższy od treści i pod paskiem pojawiała się
-    // pusta przerwa. Tu wysokość idzie 1:1 za realnym pomiarem, klatka po klatce.
-    const liveRo = new ResizeObserver(() => {
-      const chromeEl = el.querySelector<HTMLElement>(".site-header-chrome");
-      if (!chromeEl) return;
-      const live = chromeEl.offsetHeight;
-      if (live > 0) el.style.setProperty("--hdr-live", `${live}px`);
-    });
     let chrome: Element | null = null;
     const attachChrome = () => {
       const next = el.querySelector(".site-header-chrome");
       if (next === chrome) return;
-      if (chrome) {
-        ro.unobserve(chrome);
-        liveRo.unobserve(chrome);
-      }
+      if (chrome) ro.unobserve(chrome);
       chrome = next;
       if (chrome) {
         ro.observe(chrome);
-        liveRo.observe(chrome);
         schedule();
       }
     };
     attachChrome();
+
 
     // Chrome montuje się dopiero gdy rozwiąże się <Suspense> nad HeaderInner.
     const mo = new MutationObserver(attachChrome);
@@ -427,14 +419,13 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       window.clearTimeout(timer);
       if (raf) window.cancelAnimationFrame(raf);
       ro.disconnect();
-      liveRo.disconnect();
+      
       mo.disconnect();
       window.removeEventListener("resize", schedule);
       delete el.dataset.metrics;
       el.style.removeProperty("--hdr-nat");
       el.style.removeProperty("--hdr-tt");
       el.style.removeProperty("--hdr-extra");
-      el.style.removeProperty("--hdr-live");
     };
   }, [stickyShrink]);
 
