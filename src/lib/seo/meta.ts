@@ -246,7 +246,9 @@ export function buildRootHead(
 ): Array<Record<string, string>> {
   const title = SITE_DEFAULT_TITLE[lang];
   const description = SITE_DEFAULT_DESCRIPTION[lang];
-  return [
+  const image = defaultSocialImage(origin || SITE_CANONICAL_ORIGIN);
+  const alt = socialDefaultsFor(origin).imageAlt;
+  const meta: Array<Record<string, string>> = [
     { charSet: "utf-8" },
     { name: "viewport", content: "width=device-width, initial-scale=1" },
     { title },
@@ -259,15 +261,19 @@ export function buildRootHead(
     { property: "og:type", content: "website" },
     { property: "og:site_name", content: SITE_NAME },
     { property: "og:locale", content: OG_LOCALE[lang] },
-    // Brand-default share image. buildRootHead is origin-less (it backs error /
-    // fallback documents), so we resolve the URL against the canonical brand
-    // origin - social scrapers ignore relative og:image paths.
-    { property: "og:image", content: `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}` },
+    // Share image: obrazek ustawiony w /admin/settings/social-preview, a gdy go
+    // nie ma - statyczny plik marki. buildRootHead bywa origin-less (dokumenty
+    // błędu / fallbacku), więc URL rozwiązujemy do absolutnego: scrapery
+    // ignorują względne og:image.
+    { property: "og:image", content: image },
     { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:image", content: `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}` },
+    { name: "twitter:image", content: image },
     { name: "twitter:title", content: title },
     { name: "twitter:description", content: description },
   ];
+  if (alt) meta.push({ property: "og:image:alt", content: alt });
+  return meta;
+
 }
 
 export interface ImagePreloadInput {
