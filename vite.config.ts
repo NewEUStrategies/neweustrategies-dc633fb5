@@ -129,6 +129,14 @@ export default defineConfig({
         "qrcode",
         "i18n-iso-countries",
         "node-html-parser",
+        // Stripe: @stripe/react-stripe-js importuje CJS-owy `prop-types`
+        // przez default import. Bez prebundlingu przeglądarka wywalała się na
+        // "does not provide an export named 'default'", a że paywall wpisu
+        // ładuje ten moduł leniwie - CAŁA strona wpisu lądowała na error
+        // boundary ("Nie udało się załadować strony").
+        "@stripe/stripe-js",
+        "@stripe/react-stripe-js",
+        "prop-types",
 
         "@tanstack/react-router",
         "@tanstack/react-router-ssr-query",

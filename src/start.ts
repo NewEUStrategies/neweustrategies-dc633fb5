@@ -223,7 +223,10 @@ function contentSecurityPolicy(request?: Request): string {
     : "connect-src 'self' https: wss:";
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${preview ? " 'unsafe-eval'" : ""}`,
+    // Stripe.js MUSI pochodzić z js.stripe.com (wymóg PCI - Stripe nie
+    // wspiera self-hostingu tego skryptu). Bez tego wpisu CSP blokuje
+    // ładowanie SDK i checkout nie startuje.
+    `script-src 'self' 'unsafe-inline' https://js.stripe.com${preview ? " 'unsafe-eval'" : ""}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",

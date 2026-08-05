@@ -336,13 +336,18 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       }
     });
     audio.addEventListener("error", () => {
+      // `src = ""` (zamknięcie playera, odmontowanie) każe przeglądarce
+      // załadować ADRES DOKUMENTU jako media i emituje `error` - to nie jest
+      // błąd odtwarzania, więc nie pokazujemy go czytelnikowi.
+      if (!audio.getAttribute("src")) return;
       setStatus("error");
       setError("Nie udało się odtworzyć audio");
     });
     audioRef.current = audio;
     return () => {
       audio.pause();
-      audio.src = "";
+      audio.removeAttribute("src");
+      audio.load();
     };
   }, []);
 
@@ -589,7 +594,10 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         writeStoredPosition(key, audio.currentTime);
       }
       audio.pause();
-      audio.src = "";
+      // Czyścimy źródło bez `src = ""` - pusty string ładuje adres dokumentu
+      // jako media i emituje fałszywy `error`.
+      audio.removeAttribute("src");
+      audio.load();
     }
     posKeyRef.current = null;
     pendingRestoreRef.current = null;
