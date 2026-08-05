@@ -1,7 +1,7 @@
 // Stałe używane przez publiczne strony prawne (regulamin, prywatność, zwroty)
-// oraz przez komunikaty w checkoucie. Sprzedawcą (Merchant of Record) jest nasz
-// podmiot - Stripe pełni rolę operatora płatności obsługującego naliczanie
-// i pobór podatków, wsparcie transakcyjne oraz spory/obciążenia zwrotne.
+// oraz przez komunikaty w checkoucie. Sprzedawcą jest nasz podmiot - Stripe
+// pełni rolę operatora płatności obsługującego naliczanie i pobór podatków,
+// wsparcie transakcyjne oraz spory i obciążenia zwrotne.
 export const LEGAL_ENTITY = "New European Strategies";
 export const LEGAL_CONTACT_EMAIL = "office@neweuropeanstrategies.com";
 export const LEGAL_SITE_URL = "https://neweuropeanstrategies.com";
@@ -18,8 +18,8 @@ export const PAYMENT_PROVIDER_NAME = "Stripe";
 /** Deskryptor widoczny na wyciągu bankowym kupującego obok naszej nazwy. */
 export const PAYMENT_PROVIDER_STATEMENT_DESCRIPTOR = "LINK.COM*";
 /**
- * Ujawnienie rzeczywistego modelu rozliczeń: sprzedawcą (Merchant of Record)
- * jest nasz podmiot, a Stripe działa jako operator płatności - nalicza,
+ * Ujawnienie rzeczywistego modelu rozliczeń: sprzedawcą jest nasz podmiot,
+ * a Stripe działa jako operator płatności - nalicza,
  * pobiera i rozlicza podatek dla kupujących w ok. 80 krajach, obsługuje
  * oszustwa, spory i obciążenia zwrotne oraz wsparcie transakcyjne.
  */
