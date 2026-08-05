@@ -69,11 +69,13 @@ export const changeStripePlan = createServerFn({ method: "POST" })
     return { ok: true as const, direction };
   });
 
-/** Link do portalu klienta (anulowanie, metoda płatności, faktury). */
+/** Link do portalu klienta (anulowanie, zmiana planu/ceny, metoda płatności, faktury). */
 export const createStripePortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: StripeEnv }) =>
-    z.object({ environment: envSchema }).parse(data),
+  .inputValidator((data: { environment: StripeEnv; returnPath?: string }) =>
+    z
+      .object({ environment: envSchema, returnPath: z.string().max(300).optional() })
+      .parse(data),
   )
   .handler(async ({ data, context }) => {
     const { data: sub, error } = await context.supabase
@@ -85,14 +87,15 @@ export const createStripePortalSession = createServerFn({ method: "POST" })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    if (!sub?.provider_customer_id) throw new Error("no_customer");
+    if (!sub?.provider_customer_id) return { error: "no_customer" as const };
 
     try {
       const { createStripeClient } = await import("@/lib/stripe.server");
+      const { absoluteReturnUrl } = await import("@/lib/billing/returnUrl.server");
       const stripe = createStripeClient(data.environment);
-      const returnUrl = process.env.PUBLIC_SITE_URL
-        ? `${process.env.PUBLIC_SITE_URL}/profil`
-        : "https://example.com/profil";
+      // Powrót na ekran, z którego użytkownik wszedł do portalu (ścieżka jest
+      // sanityzowana - tylko adresy względne w obrębie serwisu).
+      const returnUrl = absoluteReturnUrl(data.returnPath);
       const session = await stripe.billingPortal.sessions.create({
         customer: sub.provider_customer_id,
         return_url: returnUrl,
