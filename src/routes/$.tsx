@@ -974,15 +974,20 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     />
                   </div>
                 ) : null}
-                {/* Mobile: akcja "Udostepnij pelny artykul" + badge Google. */}
-                <div className="no-print mb-3 flex items-stretch gap-2 sm:hidden">
+                {/* Mobile: akcja "Udostepnij pelny artykul" + badge Google -
+                    dwie rowne kolumny o tej samej szerokosci i wysokosci,
+                    tak jak para przyciskow na desktopie. */}
+                <div className="no-print mb-3 grid grid-cols-2 items-stretch gap-2 sm:hidden">
                   {giftButton && (
-                    <span className="[&_button]:w-full [&_button]:h-full min-w-0 flex-1">
-                      {giftButton}
-                    </span>
+                    <span className="min-w-0 [&_button]:h-full [&_button]:w-full">{giftButton}</span>
                   )}
-                  <GooglePreferredSourceBadge device="mobile" entityId={it.id} className="w-auto shrink-0" />
+                  <GooglePreferredSourceBadge
+                    device="mobile"
+                    entityId={it.id}
+                    className="min-w-0 [&>a]:h-full [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-normal"
+                  />
                 </div>
+
                 {/* Mobile: odsluch (TTS) + pobranie artykulu w miejscu paska
                     czasu czytania / aktualizacji. Odsluch idzie przez globalny
                     player i kanoniczny endpoint post-tts (jeden glos i jeden
