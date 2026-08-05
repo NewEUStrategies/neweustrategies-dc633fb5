@@ -158,9 +158,17 @@ export function SignupShowcase({
     count > 0 ? (
       <div
         key="grid"
+        data-showcase-grid=""
         className="relative w-full flex-1"
-        style={{ minHeight: `${design.gridHeightPx}px` }}
+        /* `--nl-grid-h` = wysokość z panelu admina. Na telefonie styles.css
+           ogranicza ją do ułamka viewportu, żeby mozaika nie spychała
+           formularza poza ekran. */
+        style={{
+          ["--nl-grid-h" as string]: `${design.gridHeightPx}px`,
+          minHeight: "var(--nl-grid-h)",
+        }}
       >
+
         {/* Wygaszenia SIEDZĄ POD zdjęciami (z-0, mozaika z-10): mają miękko
             wtapiać krawędzie panelu w tło, a nie kłaść kolorową płachtę na
             kadrach. */}
