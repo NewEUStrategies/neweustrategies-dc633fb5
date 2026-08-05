@@ -385,7 +385,37 @@ const pl = {
         canceled: "Anulowana",
         none: "Brak subskrypcji",
       },
+      howPayments: {
+        title: "Jak działają płatności",
+        intro:
+          "Wszystkie płatności na naszej platformie obsługuje Stripe - certyfikowany operator płatności. My otrzymujemy tylko potwierdzenie transakcji i dane potrzebne do rozliczenia dostępu.",
+        points: {
+          processor: {
+            title: "Stripe jako operator płatności",
+            body: "Zakup i odnowienia realizowane są w bezpiecznym formularzu Stripe, osadzonym w naszej stronie lub w portalu klienta Stripe.",
+          },
+          noCardData: {
+            title: "Nie przechowujemy danych karty",
+            body: "Numer karty, data ważności i kod CVC trafiają bezpośrednio do Stripe. Na naszych serwerach nigdy nie są zapisywane - widzimy wyłącznie markę karty i cztery ostatnie cyfry.",
+          },
+          security: {
+            title: "Bezpieczeństwo i zgodność",
+            body: "Stripe działa zgodnie z PCI DSS Level 1 i obsługuje silne uwierzytelnianie (3D Secure / SCA) tam, gdzie wymaga tego bank.",
+          },
+          invoices: {
+            title: "Faktury i potwierdzenia",
+            body: "Dokumenty do każdej płatności znajdziesz w historii powyżej, a pełne zestawienie - w portalu klienta Stripe.",
+          },
+          renewals: {
+            title: "Odnowienia i anulowanie",
+            body: "Subskrypcja odnawia się automatycznie do momentu anulowania. Plan, metodę płatności i rezygnację zmienisz w sekcji Płatności i bezpieczeństwo lub w portalu klienta.",
+          },
+        },
+        footnote:
+          "Masz pytanie do konkretnej transakcji? Skorzystaj z wyszukiwarki faktur powyżej lub napisz do nas - podaj numer transakcji, nigdy pełnego numeru karty.",
+      },
       history: {
+
         title: "Faktury i płatności",
         pageTitle: "Historia płatności",
         pageHint:
