@@ -25,10 +25,19 @@ import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middle
  * Trasy platformowe (`/platform/*` - webhooki e-mail, kolejka, preview szablonów)
  * uwierzytelniają się same (podpis webhooka / klucz API), więc muszą omijać
  * redirecty SEO i kanonizację języka - inaczej dostawca dostaje 301/302 zamiast 200.
+ *
+ * `/lovable/email/*` to aliasy zgodności na czas przepięcia adresów u dostawcy
+ * (PR #168 przeniósł te powierzchnie na `/platform/*`) - muszą omijać dokładnie
+ * to samo, inaczej stary adres oddawałby redirect zamiast przekazać żądanie.
  */
 function isInternalPlatformPath(pathname: string): boolean {
-  return pathname.startsWith("/platform/") || pathname === "/email/unsubscribe";
+  return (
+    pathname.startsWith("/platform/") ||
+    pathname.startsWith("/lovable/email/") ||
+    pathname === "/email/unsubscribe"
+  );
 }
+
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {

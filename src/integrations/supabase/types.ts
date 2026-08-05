@@ -10507,6 +10507,30 @@ export type Database = {
           },
         ]
       }
+      tenant_host_assertion_keys: {
+        Row: {
+          active: boolean
+          created_at: string
+          kid: string
+          retired_at: string | null
+          secret_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          kid: string
+          retired_at?: string | null
+          secret_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          kid?: string
+          retired_at?: string | null
+          secret_id?: string
+        }
+        Relationships: []
+      }
       tenant_pending_counters: {
         Row: {
           counter_key: string
@@ -10914,39 +10938,51 @@ export type Database = {
       user_purchases: {
         Row: {
           amount_cents: number
+          anonymized_at: string | null
           currency: string
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           external_ref: string | null
           id: string
           purchased_at: string
+          retention_hold: boolean
+          retention_until: string | null
           status: Database["public"]["Enums"]["purchase_status"]
+          subject_ref: string | null
           tenant_id: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           amount_cents?: number
+          anonymized_at?: string | null
           currency?: string
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           external_ref?: string | null
           id?: string
           purchased_at?: string
+          retention_hold?: boolean
+          retention_until?: string | null
           status?: Database["public"]["Enums"]["purchase_status"]
+          subject_ref?: string | null
           tenant_id: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           amount_cents?: number
+          anonymized_at?: string | null
           currency?: string
           entity_id?: string
           entity_type?: Database["public"]["Enums"]["access_entity_type"]
           external_ref?: string | null
           id?: string
           purchased_at?: string
+          retention_hold?: boolean
+          retention_until?: string | null
           status?: Database["public"]["Enums"]["purchase_status"]
+          subject_ref?: string | null
           tenant_id?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -12509,12 +12545,12 @@ export type Database = {
           revenue_cents: number
         }[]
       }
+      b64url_decode: { Args: { p_value: string }; Returns: string }
+      b64url_encode: { Args: { p_value: string }; Returns: string }
       book_meeting_slot: {
         Args: { p_note?: string; p_slot_id: string }
         Returns: Json
       }
-      b64url_decode: { Args: { p_value: string }; Returns: string }
-      b64url_encode: { Args: { p_value: string }; Returns: string }
       bulk_generate_coupons_for_campaign: {
         Args: { _campaign_id: string }
         Returns: number
@@ -13989,7 +14025,6 @@ export type Database = {
       }
       nes_search_positive_rest: { Args: { _q: string }; Returns: string }
       nes_search_tsquery: { Args: { _q: string }; Returns: unknown }
-      normalize_public_host: { Args: { p_raw: string }; Returns: string }
       nes_search_tsquery_adv: {
         Args: { _match?: string; _q: string }
         Returns: unknown
@@ -14012,6 +14047,7 @@ export type Database = {
           event: string
         }[]
       }
+      normalize_public_host: { Args: { p_raw: string }; Returns: string }
       org_add_seat: {
         Args: { p_email: string; p_org: string; p_role?: string }
         Returns: string
@@ -14366,12 +14402,12 @@ export type Database = {
         Args: { p_details?: string; p_reason: string; p_user_id: string }
         Returns: string
       }
+      request_asserted_host: { Args: never; Returns: string }
       request_correlation_id: { Args: never; Returns: string }
       request_introduction: {
         Args: { p_bridge: string; p_message: string; p_target: string }
         Returns: string
       }
-      request_asserted_host: { Args: never; Returns: string }
       request_public_host: { Args: never; Returns: string }
       request_public_host_trust: { Args: never; Returns: string }
       request_verified_host: { Args: never; Returns: string }
@@ -14394,6 +14430,10 @@ export type Database = {
       respond_recommendation: {
         Args: { p_action: string; p_id: string }
         Returns: undefined
+      }
+      retire_tenant_host_assertion_key: {
+        Args: { p_kid: string }
+        Returns: boolean
       }
       revoke_gift_link_admin: { Args: { _link_id: string }; Returns: boolean }
       rsvp_event: {
@@ -14639,6 +14679,10 @@ export type Database = {
         }
         Returns: string
       }
+      set_tenant_host_assertion_key: {
+        Args: { p_kid: string; p_secret: string }
+        Returns: string
+      }
       set_user_consent:
         | {
             Args: {
@@ -14749,11 +14793,6 @@ export type Database = {
           skill_id: string
         }[]
       }
-      retire_tenant_host_assertion_key: { Args: { p_kid: string }; Returns: boolean }
-      set_tenant_host_assertion_key: {
-        Args: { p_kid: string; p_secret: string }
-        Returns: string
-      }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
       tenant_id_for_public_host: { Args: { p_host: string }; Returns: string }
       trending_posts: {
@@ -14798,7 +14837,6 @@ export type Database = {
           ok: boolean
         }[]
       }
-      verify_tenant_host_assertion: { Args: { p_raw: string }; Returns: string }
       verify_content_password: {
         Args: {
           _entity_id: string
@@ -14814,6 +14852,7 @@ export type Database = {
           ok: boolean
         }[]
       }
+      verify_tenant_host_assertion: { Args: { p_raw: string }; Returns: string }
       vote_poll: {
         Args: { p_option_idx: number; p_poll_id: string }
         Returns: Json

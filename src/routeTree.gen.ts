@@ -179,8 +179,9 @@ import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slu
 import { Route as TagSlugRssDotxmlRouteImport } from './routes/tag.$slug.rss[.]xml'
 import { Route as ProgramsSlugRssDotxmlRouteImport } from './routes/programs.$slug.rss[.]xml'
 import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$show.rss[.]xml'
-import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as PlatformEmailSuppressionRouteImport } from './routes/platform/email/suppression'
+import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
+import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
@@ -257,6 +258,8 @@ import { Route as PlatformEmailTransactionalPreviewRouteImport } from './routes/
 import { Route as PlatformEmailQueueProcessRouteImport } from './routes/platform/email/queue/process'
 import { Route as PlatformEmailAuthWebhookRouteImport } from './routes/platform/email/auth/webhook'
 import { Route as PlatformEmailAuthPreviewRouteImport } from './routes/platform/email/auth/preview'
+import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
+import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as ApiPublicWebhooksResendRouteImport } from './routes/api/public/webhooks.resend'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
@@ -1117,14 +1120,20 @@ const PodcastsShowRssDotxmlRoute = PodcastsShowRssDotxmlRouteImport.update({
   path: '/rss.xml',
   getParentRoute: () => PodcastsShowRoute,
 } as any)
+const PlatformEmailSuppressionRoute =
+  PlatformEmailSuppressionRouteImport.update({
+    id: '/platform/email/suppression',
+    path: '/platform/email/suppression',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const NetworkMutualUserIdRoute = NetworkMutualUserIdRouteImport.update({
   id: '/mutual/$userId',
   path: '/mutual/$userId',
   getParentRoute: () => NetworkRoute,
 } as any)
-const PlatformEmailSuppressionRoute = PlatformEmailSuppressionRouteImport.update({
-  id: '/platform/email/suppression',
-  path: '/platform/email/suppression',
+const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
+  id: '/lovable/email/suppression',
+  path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CategorySlugRssDotxmlRoute = CategorySlugRssDotxmlRouteImport.update({
@@ -1518,14 +1527,27 @@ const PlatformEmailQueueProcessRoute =
     path: '/platform/email/queue/process',
     getParentRoute: () => rootRouteImport,
   } as any)
-const PlatformEmailAuthWebhookRoute = PlatformEmailAuthWebhookRouteImport.update({
-  id: '/platform/email/auth/webhook',
-  path: '/platform/email/auth/webhook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PlatformEmailAuthPreviewRoute = PlatformEmailAuthPreviewRouteImport.update({
-  id: '/platform/email/auth/preview',
-  path: '/platform/email/auth/preview',
+const PlatformEmailAuthWebhookRoute =
+  PlatformEmailAuthWebhookRouteImport.update({
+    id: '/platform/email/auth/webhook',
+    path: '/platform/email/auth/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const PlatformEmailAuthPreviewRoute =
+  PlatformEmailAuthPreviewRouteImport.update({
+    id: '/platform/email/auth/preview',
+    path: '/platform/email/auth/preview',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
+  id: '/lovable/email/auth/webhook',
+  path: '/lovable/email/auth/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWebhooksResendRoute = ApiPublicWebhooksResendRouteImport.update({
@@ -1793,8 +1815,9 @@ export interface FileRoutesByFullPath {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
-  '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
+  '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
@@ -1812,6 +1835,8 @@ export interface FileRoutesByFullPath {
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/platform/email/auth/preview': typeof PlatformEmailAuthPreviewRoute
   '/platform/email/auth/webhook': typeof PlatformEmailAuthWebhookRoute
   '/platform/email/queue/process': typeof PlatformEmailQueueProcessRoute
@@ -2039,8 +2064,9 @@ export interface FileRoutesByTo {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
-  '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
+  '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
@@ -2058,6 +2084,8 @@ export interface FileRoutesByTo {
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/platform/email/auth/preview': typeof PlatformEmailAuthPreviewRoute
   '/platform/email/auth/webhook': typeof PlatformEmailAuthWebhookRoute
   '/platform/email/queue/process': typeof PlatformEmailQueueProcessRoute
@@ -2296,8 +2324,9 @@ export interface FileRoutesById {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
-  '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
+  '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
   '/podcasts/$show/rss.xml': typeof PodcastsShowRssDotxmlRoute
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
@@ -2315,6 +2344,8 @@ export interface FileRoutesById {
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/platform/email/auth/preview': typeof PlatformEmailAuthPreviewRoute
   '/platform/email/auth/webhook': typeof PlatformEmailAuthWebhookRoute
   '/platform/email/queue/process': typeof PlatformEmailQueueProcessRoute
@@ -2554,8 +2585,9 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
-    | '/platform/email/suppression'
+    | '/lovable/email/suppression'
     | '/network/mutual/$userId'
+    | '/platform/email/suppression'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
@@ -2573,6 +2605,8 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/payments/webhook'
     | '/api/public/webhooks/resend'
+    | '/lovable/email/auth/webhook'
+    | '/lovable/email/queue/process'
     | '/platform/email/auth/preview'
     | '/platform/email/auth/webhook'
     | '/platform/email/queue/process'
@@ -2800,8 +2834,9 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
-    | '/platform/email/suppression'
+    | '/lovable/email/suppression'
     | '/network/mutual/$userId'
+    | '/platform/email/suppression'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
@@ -2819,6 +2854,8 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/payments/webhook'
     | '/api/public/webhooks/resend'
+    | '/lovable/email/auth/webhook'
+    | '/lovable/email/queue/process'
     | '/platform/email/auth/preview'
     | '/platform/email/auth/webhook'
     | '/platform/email/queue/process'
@@ -3056,8 +3093,9 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
-    | '/platform/email/suppression'
+    | '/lovable/email/suppression'
     | '/network/mutual/$userId'
+    | '/platform/email/suppression'
     | '/podcasts/$show/rss.xml'
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
@@ -3075,6 +3113,8 @@ export interface FileRouteTypes {
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/payments/webhook'
     | '/api/public/webhooks/resend'
+    | '/lovable/email/auth/webhook'
+    | '/lovable/email/queue/process'
     | '/platform/email/auth/preview'
     | '/platform/email/auth/webhook'
     | '/platform/email/queue/process'
@@ -3175,12 +3215,15 @@ export interface RootRouteChildren {
   ApiPublicTrackRoute: typeof ApiPublicTrackRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
+  LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   PlatformEmailSuppressionRoute: typeof PlatformEmailSuppressionRoute
   ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
   ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicWebhooksResendRoute: typeof ApiPublicWebhooksResendRoute
+  LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
+  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   PlatformEmailAuthPreviewRoute: typeof PlatformEmailAuthPreviewRoute
   PlatformEmailAuthWebhookRoute: typeof PlatformEmailAuthWebhookRoute
   PlatformEmailQueueProcessRoute: typeof PlatformEmailQueueProcessRoute
@@ -4380,6 +4423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PodcastsShowRssDotxmlRouteImport
       parentRoute: typeof PodcastsShowRoute
     }
+    '/platform/email/suppression': {
+      id: '/platform/email/suppression'
+      path: '/platform/email/suppression'
+      fullPath: '/platform/email/suppression'
+      preLoaderRoute: typeof PlatformEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/network/mutual/$userId': {
       id: '/network/mutual/$userId'
       path: '/mutual/$userId'
@@ -4387,11 +4437,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NetworkMutualUserIdRouteImport
       parentRoute: typeof NetworkRoute
     }
-    '/platform/email/suppression': {
-      id: '/platform/email/suppression'
-      path: '/platform/email/suppression'
-      fullPath: '/platform/email/suppression'
-      preLoaderRoute: typeof PlatformEmailSuppressionRouteImport
+    '/lovable/email/suppression': {
+      id: '/lovable/email/suppression'
+      path: '/lovable/email/suppression'
+      fullPath: '/lovable/email/suppression'
+      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/category/$slug/rss.xml': {
@@ -4924,6 +4974,20 @@ declare module '@tanstack/react-router' {
       path: '/platform/email/auth/preview'
       fullPath: '/platform/email/auth/preview'
       preLoaderRoute: typeof PlatformEmailAuthPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/webhook': {
+      id: '/lovable/email/auth/webhook'
+      path: '/lovable/email/auth/webhook'
+      fullPath: '/lovable/email/auth/webhook'
+      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/webhooks/resend': {
@@ -5603,16 +5667,20 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTrackRoute: ApiPublicTrackRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
+  LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   PlatformEmailSuppressionRoute: PlatformEmailSuppressionRoute,
   ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
   ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicWebhooksResendRoute: ApiPublicWebhooksResendRoute,
+  LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
+  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   PlatformEmailAuthPreviewRoute: PlatformEmailAuthPreviewRoute,
   PlatformEmailAuthWebhookRoute: PlatformEmailAuthWebhookRoute,
   PlatformEmailQueueProcessRoute: PlatformEmailQueueProcessRoute,
-  PlatformEmailTransactionalPreviewRoute: PlatformEmailTransactionalPreviewRoute,
+  PlatformEmailTransactionalPreviewRoute:
+    PlatformEmailTransactionalPreviewRoute,
   PlatformEmailTransactionalSendRoute: PlatformEmailTransactionalSendRoute,
 }
 export const routeTree = rootRouteImport
