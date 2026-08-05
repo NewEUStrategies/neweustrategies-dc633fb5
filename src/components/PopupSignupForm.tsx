@@ -368,7 +368,9 @@ export function PopupSignupForm({
         }
       }
 
+      setSentTo(email);
       setState("ok");
+
       track("success", undefined);
       setV(empty);
       onSuccess?.();
