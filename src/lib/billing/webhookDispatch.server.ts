@@ -16,7 +16,7 @@ export type SubscriptionData = {
   id: string;
   customerId: string;
   status: string;
-  customData?: { userId?: string } | null;
+  customData?: { userId?: string; purpose?: string; donationId?: string } | null;
   currentBillingPeriod?: { startsAt?: string; endsAt?: string } | null;
   scheduledChange?: { action?: string } | null;
   items: Array<{
@@ -346,6 +346,22 @@ async function handleTransaction(
     );
     return;
   }
+  // Odnowienie darowizny cyklicznej: brak uprawnień i windykacji planów -
+  // każda opłacona faktura ma zostać zaksięgowana jako osobna wpłata.
+  if (data.customData?.purpose === "donation") {
+    if (kind !== "paid") return;
+    const { recordRecurringDonationPayment } = await import("@/lib/billing/donations.server");
+    await recordRecurringDonationPayment({
+      donationId: (data.customData.donationId as string | undefined) ?? null,
+      subscriptionId: data.subscriptionId,
+      invoiceId: data.id,
+      amountCents: amountFromTransaction(data),
+      currency: data.currencyCode ?? null,
+      donorEmail: data.customer?.email ?? null,
+    });
+    return;
+  }
+
   const ctx = {
     subscriptionId: data.subscriptionId,
     environment: env,
@@ -444,8 +460,38 @@ export interface DispatchInput {
  * więc wywołanie z panelu admina (retry) daje ten sam skutek co dostarczenie
  * przez operatora.
  */
+/**
+ * Subskrypcja darowizny to nie plan dostępu - nie nadaje uprawnień i nie ma
+ * odpowiednika w `BILLING_CATALOG`. Rozpoznajemy ją po `metadata.purpose`
+ * ustawianym po stronie serwera przy tworzeniu sesji checkout.
+ */
+function isDonationSubscription(data: SubscriptionData): boolean {
+  return data.customData?.purpose === "donation";
+}
+
+async function handleDonationSubscription(data: SubscriptionData, status: string) {
+  const { syncDonationSubscription } = await import("@/lib/billing/donations.server");
+  await syncDonationSubscription({
+    subscriptionId: data.id,
+    donationId: data.customData?.donationId ?? null,
+    status,
+  });
+}
+
 export async function dispatchWebhookEvent(input: DispatchInput): Promise<DispatchOutcome> {
   const { eventType, environment: env, occurredAt } = input;
+
+  if (eventType.startsWith("subscription.")) {
+    const sub = input.data as SubscriptionData;
+    if (isDonationSubscription(sub)) {
+      await handleDonationSubscription(
+        sub,
+        eventType === "subscription.canceled" ? "canceled" : (sub.status ?? "active"),
+      );
+      return "processed";
+    }
+  }
+
   switch (eventType) {
     case "subscription.created":
       await handleCreated(input.data as SubscriptionData, env, occurredAt);
