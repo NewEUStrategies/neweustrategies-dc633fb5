@@ -6,7 +6,7 @@ import { getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 const envSchema = z.enum(["sandbox", "live"]);
 
 /** Zamiana czytelnego identyfikatora ceny (`lookup_key`) na `price_...` u Stripe. */
-export const resolvePaddlePrice = createServerFn({ method: "GET" })
+export const resolveStripePrice = createServerFn({ method: "GET" })
   .inputValidator((data: { priceId: string; environment: StripeEnv }) =>
     z.object({ priceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
@@ -31,7 +31,7 @@ export const resolvePaddlePrice = createServerFn({ method: "GET" })
  * - upgrade  -> natychmiast, z rozliczeniem proporcjonalnym,
  * - downgrade -> zaplanowane na koniec opłaconego okresu (bez proraty).
  */
-export const changePaddlePlan = createServerFn({ method: "POST" })
+export const changeStripePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { targetPriceId: string; environment: StripeEnv }) =>
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
@@ -71,7 +71,7 @@ export const changePaddlePlan = createServerFn({ method: "POST" })
   });
 
 /** Link do portalu klienta (anulowanie, metoda płatności, faktury). */
-export const createPaddlePortalSession = createServerFn({ method: "POST" })
+export const createStripePortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
@@ -117,7 +117,7 @@ export const createPaddlePortalSession = createServerFn({ method: "POST" })
  * Dostawca planuje zmianę na koniec bieżącego cyklu - webhook
  * `customer.subscription.updated` domyka stan w bazie.
  */
-export const cancelPaddleSubscription = createServerFn({ method: "POST" })
+export const cancelStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
@@ -150,7 +150,7 @@ export const cancelPaddleSubscription = createServerFn({ method: "POST" })
  * - zaplanowane anulowanie -> kasujemy zmianę, okres biegnie dalej,
  * - subskrypcja wstrzymana  -> wznawiamy ją u operatora od zaraz.
  */
-export const resumePaddleSubscription = createServerFn({ method: "POST" })
+export const resumeStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
@@ -189,7 +189,7 @@ export const resumePaddleSubscription = createServerFn({ method: "POST" })
  * Kod promocyjny dla nakładki płatności: waliduje kupon w bazie i zwraca
  * identyfikator rabatu u dostawcy (tworząc go leniwie, gdy jeszcze nie istnieje).
  */
-export const resolvePaddleDiscount = createServerFn({ method: "POST" })
+export const resolveStripeDiscount = createServerFn({ method: "POST" })
   .inputValidator(
     (data: {
       code: string;
@@ -227,7 +227,7 @@ export const resolvePaddleDiscount = createServerFn({ method: "POST" })
  * pozycji, żeby pokazać dopłatę (upgrade) albo kwotę kolejnego rozliczenia
  * (downgrade) bez faktycznego dotykania subskrypcji.
  */
-export const previewPaddlePlanChange = createServerFn({ method: "POST" })
+export const previewStripePlanChange = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { targetPriceId: string; environment: StripeEnv }) =>
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
@@ -320,7 +320,7 @@ export const previewPaddlePlanChange = createServerFn({ method: "POST" })
  * Zwiększenie rozlicza się proporcjonalnie od razu, zmniejszenie obowiązuje od
  * nowego okresu - opłacony okres należy się klientowi w całości.
  */
-export const updatePaddleSubscriptionSeats = createServerFn({ method: "POST" })
+export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { quantity: number; environment: StripeEnv }) =>
     z.object({ quantity: z.number().int().min(1).max(500), environment: envSchema }).parse(data),

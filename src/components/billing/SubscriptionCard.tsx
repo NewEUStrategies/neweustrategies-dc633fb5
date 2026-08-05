@@ -24,22 +24,22 @@ import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import {
-  canResumePaddleSubscription,
+  canResumeStripeSubscription,
   catalogEntryFor,
-  fetchMyPaddleSubscription,
-  isPaddleSubscriptionActive,
+  fetchMyStripeSubscription,
+  isStripeSubscriptionActive,
   type ProviderSubscriptionRow,
 } from "@/lib/billing/subscriptionQueries";
 import { catalogPriceForPlan, planChangeDirection } from "@/lib/billing/catalog";
 import { formatMoney, planName, type AccessPlan } from "@/lib/billing/types";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import {
-  cancelPaddleSubscription,
-  changePaddlePlan,
-  createPaddlePortalSession,
-  previewPaddlePlanChange,
-  resumePaddleSubscription,
-  updatePaddleSubscriptionSeats,
+  cancelStripeSubscription,
+  changeStripePlan,
+  createStripePortalSession,
+  previewStripePlanChange,
+  resumeStripeSubscription,
+  updateStripeSubscriptionSeats,
 } from "@/utils/payments.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,8 +57,8 @@ export function useMySubscriptionProvider() {
   const { session } = useAuth();
   const env = getStripeEnvironmentSafe();
   return useQuery({
-    queryKey: billingKeys.myPaddleSubscription(session?.user?.id, env),
-    queryFn: fetchMyPaddleSubscription,
+    queryKey: billingKeys.myStripeSubscription(session?.user?.id, env),
+    queryFn: fetchMyStripeSubscription,
     enabled: !!session,
   });
 }
@@ -93,13 +93,13 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   );
 
   const refresh = () => {
-    void qc.invalidateQueries({ queryKey: billingKeys.myPaddleSubscriptionAll() });
+    void qc.invalidateQueries({ queryKey: billingKeys.myStripeSubscriptionAll() });
     void qc.invalidateQueries({ queryKey: billingKeys.currentTierAll() });
   };
 
   const changePlan = useMutation({
     mutationFn: (priceId: string) =>
-      changePaddlePlan({ data: { targetPriceId: priceId, environment } }),
+      changeStripePlan({ data: { targetPriceId: priceId, environment } }),
     onSuccess: (result) => {
       setTargetPriceId("");
       refresh();
@@ -113,7 +113,7 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   });
 
   const cancel = useMutation({
-    mutationFn: () => cancelPaddleSubscription({ data: { environment } }),
+    mutationFn: () => cancelStripeSubscription({ data: { environment } }),
     onSuccess: () => {
       refresh();
       toast.success(t("profile.subscription.canceled"));
@@ -122,7 +122,7 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   });
 
   const resume = useMutation({
-    mutationFn: () => resumePaddleSubscription({ data: { environment } }),
+    mutationFn: () => resumeStripeSubscription({ data: { environment } }),
     onSuccess: (result) => {
       refresh();
       toast.success(
@@ -138,14 +138,14 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   // zmianę, żeby nikt nie zobaczył dopłaty dopiero na wyciągu z karty.
   const previewQ = useQuery({
     queryKey: billingKeys.planChangePreview(subscription.id, targetPriceId, environment),
-    queryFn: () => previewPaddlePlanChange({ data: { targetPriceId, environment } }),
+    queryFn: () => previewStripePlanChange({ data: { targetPriceId, environment } }),
     enabled: !!targetPriceId,
     staleTime: 60_000,
   });
 
   const seatsMutation = useMutation({
     mutationFn: (quantity: number) =>
-      updatePaddleSubscriptionSeats({ data: { quantity, environment } }),
+      updateStripeSubscriptionSeats({ data: { quantity, environment } }),
     onSuccess: () => {
       refresh();
       toast.success(t("profile.subscription.portal.seats.success"));
@@ -155,7 +155,7 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
 
   const portal = useMutation({
     mutationFn: (mode: "payment" | "overview") =>
-      createPaddlePortalSession({ data: { environment } }).then((session) => ({ session, mode })),
+      createStripePortalSession({ data: { environment } }).then((session) => ({ session, mode })),
     onSuccess: ({ session, mode }) => {
       const url =
         mode === "payment"
@@ -183,8 +183,8 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   const direction = targetPriceId
     ? planChangeDirection(subscription.price_id, targetPriceId)
     : "same";
-  const canResume = canResumePaddleSubscription(subscription);
-  const active = isPaddleSubscriptionActive(subscription);
+  const canResume = canResumeStripeSubscription(subscription);
+  const active = isStripeSubscriptionActive(subscription);
 
   return (
     <Card>

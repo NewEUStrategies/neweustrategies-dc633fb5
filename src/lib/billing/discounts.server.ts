@@ -12,7 +12,7 @@
 import type Stripe from "stripe";
 import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 
-export interface PaddleDiscountResolution {
+export interface StripeDiscountResolution {
   readonly ok: boolean;
   /** Identyfikator rabatu u dostawcy (do przekazania do overlaya). */
   readonly discountId: string | null;
@@ -31,7 +31,7 @@ export interface CouponDefinition {
   max_redemptions: number | null;
 }
 
-const fail = (error: string): PaddleDiscountResolution => ({
+const fail = (error: string): StripeDiscountResolution => ({
   ok: false,
   discountId: null,
   error,
@@ -96,7 +96,7 @@ export async function resolveDiscountForCoupon(params: {
   planId: string;
   amountCents: number;
   currency: string;
-}): Promise<PaddleDiscountResolution> {
+}): Promise<StripeDiscountResolution> {
   const code = params.code.trim().toUpperCase();
   if (!code) return fail("empty_code");
 

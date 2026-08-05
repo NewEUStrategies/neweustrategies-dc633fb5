@@ -86,7 +86,7 @@ export function AdminBillingPanel() {
   const [tab, setTab] = useState("subscriptions");
 
   const subsQ = useQuery({
-    queryKey: billingKeys.admin.paddleSubscriptions(),
+    queryKey: billingKeys.admin.stripeSubscriptions(),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subscriptions")

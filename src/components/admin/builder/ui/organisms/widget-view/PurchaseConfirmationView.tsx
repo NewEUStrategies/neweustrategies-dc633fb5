@@ -24,7 +24,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
-import { fetchMyPaddleSubscription } from "@/lib/billing/subscriptionQueries";
+import { fetchMyStripeSubscription } from "@/lib/billing/subscriptionQueries";
 import { fetchMyOrders } from "@/lib/billing/queries";
 import {
   buildPurchaseSummary,
@@ -34,7 +34,7 @@ import {
 } from "@/lib/billing/purchaseConfirmation";
 import { formatMoney } from "@/lib/billing/types";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
-import { createPaddlePortalSession } from "@/utils/payments.functions";
+import { createStripePortalSession } from "@/utils/payments.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -126,8 +126,8 @@ export function PurchaseConfirmationView({ c, lang }: { c: WidgetContent; lang: 
   const extraLabel = locStr(c, "ctaLabel", lang);
 
   const subQ = useQuery({
-    queryKey: billingKeys.myPaddleSubscription(uid, environment),
-    queryFn: fetchMyPaddleSubscription,
+    queryKey: billingKeys.myStripeSubscription(uid, environment),
+    queryFn: fetchMyStripeSubscription,
     enabled: !inBuilder && !!session,
   });
   const ordersQ = useQuery({
@@ -147,7 +147,7 @@ export function PurchaseConfirmationView({ c, lang }: { c: WidgetContent; lang: 
   const openPortal = async () => {
     setPortalPending(true);
     try {
-      const result = await createPaddlePortalSession({ data: { environment } });
+      const result = await createStripePortalSession({ data: { environment } });
       const url = result.overviewUrl || result.url;
       if (url) window.open(url, "_blank", "noopener,noreferrer");
     } catch {

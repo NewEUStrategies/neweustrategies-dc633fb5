@@ -73,7 +73,7 @@ async function refundIfOversold(
     .from("payment_orders")
     .update({
       status: "refunded",
-      provider: "paddle",
+      provider: "stripe",
       provider_intent_id: txn.id,
       updated_at: nowIso,
       ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
@@ -172,7 +172,7 @@ async function fulfilOrder(
     .update({
       status: "paid",
       paid_at: new Date().toISOString(),
-      provider: "paddle",
+      provider: "stripe",
       provider_intent_id: txn.id,
       provider_session_id: txn.id,
       amount_cents: amountCents,

@@ -136,7 +136,7 @@ function SuccessPage() {
       void queryClient.invalidateQueries({ queryKey: ["public", "resolved"] });
       void queryClient.invalidateQueries({ queryKey: ["unlocked-body"] });
       void queryClient.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
-      void queryClient.invalidateQueries({ queryKey: billingKeys.myPaddleSubscriptionAll() });
+      void queryClient.invalidateQueries({ queryKey: billingKeys.myStripeSubscriptionAll() });
       void queryClient.invalidateQueries({ queryKey: billingKeys.myOrdersAll() });
       void queryClient.invalidateQueries({ queryKey: billingKeys.currentTierAll() });
     };
