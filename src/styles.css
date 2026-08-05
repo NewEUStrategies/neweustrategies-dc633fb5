@@ -6578,3 +6578,79 @@ html {
     content: none;
   }
 }
+
+/* --- Animowane okienko sukcesu po rejestracji konta --------------------- */
+@keyframes signup-success-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes signup-success-mail {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes signup-success-check {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes signup-success-pulse {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+.signup-success {
+  animation: signup-success-in 0.35s ease-out both;
+}
+.signup-success__mail {
+  animation: signup-success-mail 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+.signup-success__check {
+  animation: signup-success-check 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both;
+}
+.signup-success__pulse {
+  animation: signup-success-pulse 1.8s ease-out 0.4s infinite;
+}
+.signup-success__body,
+.signup-success__actions {
+  animation: signup-success-in 0.4s ease-out 0.2s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .signup-success,
+  .signup-success__mail,
+  .signup-success__check,
+  .signup-success__pulse,
+  .signup-success__body,
+  .signup-success__actions {
+    animation: none;
+  }
+}
