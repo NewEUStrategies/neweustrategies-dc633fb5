@@ -1,0 +1,109 @@
+// Animowane okienko sukcesu po rejestracji konta.
+// Komunikuje jednoznacznie, że konto wymaga potwierdzenia linkiem z e-maila,
+// pokazuje adres docelowy i pozwala ponownie wysłać wiadomość aktywacyjną.
+// Kolory pochodzą z tokenów popupu (--nl-fg / --nl-muted) lub motywu strony.
+import { useCallback, useState } from "react";
+import { Check, Mail } from "@/lib/lucide-shim";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Props {
+  email: string;
+  lang: "pl" | "en";
+  /** Adres powrotu po kliknięciu linku aktywacyjnego. */
+  redirectTo?: string;
+  /** Podgląd w adminie - bez realnych wywołań sieciowych. */
+  previewOnly?: boolean;
+}
+
+type ResendState = "idle" | "sending" | "sent" | "error";
+
+export function SignupSuccessPanel({ email, lang, redirectTo, previewOnly = false }: Props) {
+  const isPl = lang === "pl";
+  const t = (pl: string, en: string) => (isPl ? pl : en);
+  const [resend, setResend] = useState<ResendState>("idle");
+
+  const onResend = useCallback(async () => {
+    if (previewOnly || !email || resend === "sending") return;
+    setResend("sending");
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        ...(redirectTo ? { options: { emailRedirectTo: redirectTo } } : {}),
+      });
+      setResend(error ? "error" : "sent");
+    } catch {
+      setResend("error");
+    }
+  }, [email, previewOnly, redirectTo, resend]);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="signup-success space-y-4 border border-emerald-500/30 bg-emerald-500/10 p-6 text-center"
+      style={{ borderRadius: 6 }}
+    >
+      <div className="signup-success__badge relative mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15">
+        <span className="signup-success__pulse absolute inset-0 rounded-full border border-emerald-500/40" />
+        <Mail className="signup-success__mail h-7 w-7 text-emerald-500" aria-hidden="true" />
+        <span className="signup-success__check absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500">
+          <Check className="h-3.5 w-3.5 text-white" aria-hidden="true" />
+        </span>
+      </div>
+
+      <div className="signup-success__body space-y-2">
+        <h3 className="font-display text-lg" style={{ color: "var(--nl-fg, var(--foreground))" }}>
+          {t("Dane zostały wysłane!", "Your details were sent!")}
+        </h3>
+        <p
+          className="text-sm leading-relaxed"
+          style={{ color: "var(--nl-muted, var(--muted-foreground))" }}
+        >
+          {t(
+            "Teraz potwierdź rejestrację konta w wiadomości e-mail - kliknij link aktywacyjny, który wysłaliśmy na adres:",
+            "Now confirm your registration by e-mail - click the activation link we sent to:",
+          )}
+        </p>
+        {email ? (
+          <p
+            className="break-all text-sm font-medium"
+            style={{ color: "var(--nl-fg, var(--foreground))" }}
+          >
+            {email}
+          </p>
+        ) : null}
+        <p className="text-[11px] opacity-80" style={{ color: "var(--nl-muted, var(--muted-foreground))" }}>
+          {t(
+            "Nie widzisz wiadomości? Sprawdź folder Spam lub Oferty.",
+            "Can't find the message? Check your Spam or Promotions folder.",
+          )}
+        </p>
+      </div>
+
+      <div className="signup-success__actions space-y-1.5">
+        <button
+          type="button"
+          onClick={() => void onResend()}
+          disabled={previewOnly || resend === "sending" || resend === "sent"}
+          className="text-xs underline underline-offset-4 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ color: "var(--nl-fg, var(--foreground))" }}
+        >
+          {resend === "sending"
+            ? t("Wysyłanie...", "Sending...")
+            : resend === "sent"
+              ? t("Wysłano ponownie", "Sent again")
+              : t("Wyślij link ponownie", "Resend the link")}
+        </button>
+        {resend === "error" ? (
+          <p className="text-[11px] text-destructive">
+            {t(
+              "Nie udało się wysłać ponownie - spróbuj za chwilę.",
+              "Could not resend - please try again shortly.",
+            )}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
