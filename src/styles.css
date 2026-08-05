@@ -6446,9 +6446,17 @@ header[data-site-header][data-metrics="ready"].site-header-shrink {
     var(--hdr-scale) * (var(--hdr-nat) - var(--hdr-tt) * var(--hdr-p)) + var(--hdr-extra)
   );
   height: var(--hdr-visible-h);
-  /* height + margin-bottom = const = wysokość rozwinięta. Stąd zerowy ruch
-     treści pod headerem. */
-  margin-bottom: calc(var(--hdr-nat) + var(--hdr-extra) - var(--hdr-visible-h));
+  /* Odzyskana wysokość (rozwinięty - zwinięty header) była wcześniej w CAŁOŚCI
+     oddawana jako margin-bottom, więc po przewinięciu pod przyklejonym paskiem
+     zostawała pusta przerwa dokładnie tej wielkości. Zostawiamy tylko jej część
+     (--hdr-gap-keep), resztę odzyskuje treść. Ruch jest gładki, bo margines
+     liczy się z animowanych --hdr-p/--hdr-scale (ta sama krzywa co reszta),
+     więc treść płynnie podjeżdża zamiast skakać. */
+  --hdr-gap-keep: 0.3;
+  margin-bottom: calc(
+    (var(--hdr-nat) + var(--hdr-extra) - var(--hdr-visible-h)) * var(--hdr-gap-keep)
+  );
+
 }
 header[data-site-header][data-metrics="ready"].site-header-shrink .site-header-chrome {
   width: calc(100% / var(--hdr-scale));
