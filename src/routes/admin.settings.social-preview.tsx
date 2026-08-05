@@ -102,6 +102,8 @@ function SocialPreviewTab() {
           value={draft.default_og_image_url}
           onChange={(v) => set("default_og_image_url", v)}
           folder="social"
+          accept="image/jpeg,image/png,image/webp,image/avif"
+          transformFile={transformOgFile}
         />
       </Field>
 
