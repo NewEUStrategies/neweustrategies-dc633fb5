@@ -34,6 +34,11 @@ import {
 import { Copy, Pencil, Plus, Trash2 } from "@/lib/lucide-shim";
 import { usePopupsAdmin, type BuilderPopup, type PopupSettings } from "@/lib/builder/popups";
 import { SignupPopupContentSection } from "@/components/admin/popups/SignupPopupContentSection";
+import {
+  useNewsletterSettings,
+  useSaveNewsletterSettings,
+} from "@/hooks/useNewsletterSettings";
+
 
 export const Route = createFileRoute("/admin/popups")({
   component: PopupsLayout,
