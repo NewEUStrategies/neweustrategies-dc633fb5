@@ -248,6 +248,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
       siteSettingsQueryOptions.queryKey,
     );
+    // Domyślna karta społecznościowa z /admin/settings/social-preview. head()
+    // jest czystą funkcją bez dostępu do site_settings, więc mapę ustawień
+    // (pobieraną i tak na KAŻDEJ trasie) przekazujemy do builderów przez
+    // pamięć kluczowaną hostem - patrz src/lib/seo/socialDefaults.ts.
+    try {
+      const seo = parseSeoSettings(settings?.[SEO_SETTINGS_KEY]);
+      rememberSocialDefaults(getOrigin(), {
+        imageUrl: seo.default_og_image_url,
+        imageAlt: seo.default_og_image_alt,
+      });
+    } catch {
+      /* karta społecznościowa to dekoracja - nigdy nie wywraca renderu */
+    }
     // Warm the header "Na czasie" ticker for every route that shows the site
     // chrome, so the bar is part of the SSR HTML instead of appearing seconds
     // after hydration and pushing the whole page down (the worst CLS on the
