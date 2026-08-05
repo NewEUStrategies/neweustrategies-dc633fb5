@@ -1106,7 +1106,37 @@ const en: typeof pl = {
         canceled: "Canceled",
         none: "No subscription",
       },
+      howPayments: {
+        title: "How payments work",
+        intro:
+          "All payments on our platform are handled by Stripe, a certified payment processor. We only receive the transaction confirmation and the data needed to grant your access.",
+        points: {
+          processor: {
+            title: "Stripe as the payment processor",
+            body: "Purchases and renewals run inside Stripe's secure form, embedded on our site or in the Stripe customer portal.",
+          },
+          noCardData: {
+            title: "We never store card data",
+            body: "Your card number, expiry date and CVC go straight to Stripe. They are never stored on our servers - we only see the card brand and the last four digits.",
+          },
+          security: {
+            title: "Security and compliance",
+            body: "Stripe is PCI DSS Level 1 compliant and supports strong customer authentication (3D Secure / SCA) whenever your bank requires it.",
+          },
+          invoices: {
+            title: "Invoices and receipts",
+            body: "Documents for every payment are listed in the history above, and the full statement is available in the Stripe customer portal.",
+          },
+          renewals: {
+            title: "Renewals and cancellation",
+            body: "Subscriptions renew automatically until cancelled. You can change your plan, payment method or cancel in Payments and security, or in the customer portal.",
+          },
+        },
+        footnote:
+          "Question about a specific transaction? Use the invoice lookup above or contact us - share the transaction number, never your full card number.",
+      },
       history: {
+
         title: "Invoices and payments",
         pageTitle: "Payment history",
         pageHint:
