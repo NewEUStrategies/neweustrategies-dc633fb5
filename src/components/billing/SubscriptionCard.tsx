@@ -32,7 +32,7 @@ import {
 } from "@/lib/billing/subscriptionQueries";
 import { catalogPriceForPlan, planChangeDirection } from "@/lib/billing/catalog";
 import { formatMoney, planName, type AccessPlan } from "@/lib/billing/types";
-import { getStripeEnvironment } from "@/lib/stripe";
+import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import {
   cancelPaddleSubscription,
   changePaddlePlan,
@@ -55,7 +55,7 @@ import {
 /** Hook współdzielony przez profil i strażników dostępu. */
 export function useMySubscriptionProvider() {
   const { session } = useAuth();
-  const env = getStripeEnvironment();
+  const env = getStripeEnvironmentSafe();
   return useQuery({
     queryKey: billingKeys.myPaddleSubscription(session?.user?.id, env),
     queryFn: fetchMyPaddleSubscription,
@@ -67,7 +67,7 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();
-  const environment = getStripeEnvironment();
+  const environment = getStripeEnvironmentSafe();
   const [targetPriceId, setTargetPriceId] = useState("");
   const [seats, setSeats] = useState(Math.max(1, subscription.quantity ?? 1));
 

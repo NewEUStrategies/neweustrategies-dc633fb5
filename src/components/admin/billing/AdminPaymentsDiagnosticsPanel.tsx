@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
-import { getStripeEnvironment } from "@/lib/stripe";
+import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { useCheckout } from "@/hooks/useCheckout";
 import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,7 +55,7 @@ export function AdminPaymentsDiagnosticsPanel() {
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const { user } = useAuth();
 
-  const clientEnv = getStripeEnvironment();
+  const clientEnv = getStripeEnvironmentSafe();
   const [env, setEnv] = useState<"sandbox" | "live">(clientEnv);
   // Test uruchamiamy na realnym planie z bazy - Stripe potrzebuje `planId`,
   // a cenę katalogową dobieramy po parze (tier_key, interval).
