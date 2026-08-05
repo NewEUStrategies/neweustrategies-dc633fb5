@@ -34,7 +34,7 @@ import {
   Share2,
   Gauge,
   MousePointerClick,
-  Cookie,
+  ShieldCheck,
   Clock as HistoryIcon,
   Globe2,
   FlaskConical,
@@ -380,7 +380,7 @@ function AdminShellInner({
         },
         {
           to: "/admin/settings/cookie-banner",
-          icon: Cookie,
+          icon: ShieldCheck,
           label: t("admin.nav.cookieBanner", {
             defaultValue: lang === "pl" ? "Cookie banner" : "Cookie banner",
           }),
