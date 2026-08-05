@@ -497,43 +497,26 @@ function CustomFieldRender({
   const name = `custom_${field.id}`;
 
   if (field.type === "checkbox") {
-    return (
-      <div>
-        <label className="widget-align-row flex items-start gap-2 text-xs opacity-90">
-          <input
-            type="checkbox"
-            name={name}
-            className="mt-0.5"
-            aria-required={field.required || undefined}
-          />
-          <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(label) }} />
-        </label>
-        {err && <span className="block text-[11px] text-destructive">{err}</span>}
-      </div>
-    );
+    return <ConsentCheckboxField name={name} label={label} required={field.required} err={err} />;
   }
   if (field.type === "select") {
+    // Droplista korzysta z atomu FormSelect (Radix) - popup, focus ring, radius
+    // 6px i light/dark pochodzą z naszych tokenów, a nie z systemowego <select>.
     return (
-      <FieldWrap label={label} required={field.required} showMark={showMark} error={err}>
-        <select
-          name={name}
-          required={field.required}
-          aria-required={field.required || undefined}
-          className={inputCls}
-          defaultValue=""
-        >
-          <option value="" disabled>
-            {placeholder || t("newsletterForm.selectPlaceholder")}
-          </option>
-          {(field.options ?? []).map((o) => (
-            <option key={o.value} value={o.value}>
-              {(lang === "pl" ? o.labelPl : o.labelEn) ?? o.value}
-            </option>
-          ))}
-        </select>
-      </FieldWrap>
+      <SelectField
+        name={name}
+        label={label}
+        placeholder={placeholder || t("newsletterForm.selectPlaceholder")}
+        required={field.required}
+        err={err}
+        options={(field.options ?? []).map((o) => ({
+          value: o.value,
+          label: (lang === "pl" ? o.labelPl : o.labelEn) ?? o.value,
+        }))}
+      />
     );
   }
+  void showMark;
   if (field.type === "textarea") {
     return (
       <FieldWrap label={label} required={field.required} showMark={showMark} error={err}>
