@@ -259,7 +259,18 @@ function CookieBannerSettings() {
             onChange={(v) => setDraft({ ...draft, languageSwitcher: v })}
           />
         </Field>
+        <Field
+          label="Automatyczna deklaracja"
+          hint="System skanuje cookies i storage, dopisuje wykryte elementy do tabel w szczegółach banera i opisuje je sam."
+        >
+          <Checkbox
+            label="Dopisuj wykryte automatycznie elementy"
+            checked={draft.autoInventory}
+            onChange={(v) => setDraft({ ...draft, autoInventory: v })}
+          />
+        </Field>
       </section>
+
 
       {/* Colors */}
       <section className="mb-6">
