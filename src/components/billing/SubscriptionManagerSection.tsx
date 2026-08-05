@@ -30,6 +30,7 @@ import {
   useMySubscriptionProvider,
 } from "@/components/billing/SubscriptionCard";
 import { RetentionDialog } from "@/components/billing/RetentionDialog";
+import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
 
 /** Warstwa członkostwa wołającego (RPC; dla braku subskrypcji: domyślna). */
 function TierChip() {
