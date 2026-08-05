@@ -6748,3 +6748,107 @@ html {
   font-weight: 400;
   letter-spacing: normal;
 }
+
+/* -------------------------------------------------------------------------
+   Mobilny pasek dolny (MobileBottomBar)
+   -------------------------------------------------------------------------
+   Kolory pochodzą z site_settings (zmienne --mbb-*), więc tryb jasny/ciemny
+   działa bez przebudowy. Podświetlenie aktywnej pozycji przesuwa się
+   transformem, co nie wywołuje layoutu przy zmianie zakładki. */
+.mbb-slot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--mbb-offset, 12px) + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  padding-inline: 12px;
+  pointer-events: none;
+  transition:
+    transform 0.28s ease,
+    opacity 0.28s ease;
+}
+.mbb-slot[data-hidden="true"] {
+  transform: translate3d(0, calc(100% + var(--mbb-offset, 12px) + 16px), 0);
+  opacity: 0;
+}
+.mbb {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 460px;
+  border-radius: var(--mbb-radius, 26px);
+  background: var(--mbb-bg-light, #fff);
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.35);
+  backdrop-filter: blur(8px);
+}
+.dark .mbb {
+  background: var(--mbb-bg-dark, #111318);
+}
+.mbb__list {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  margin: 0;
+  padding: 6px 8px;
+  list-style: none;
+}
+.mbb__marker {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 44px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--mbb-active, var(--brand));
+  transition: transform 0.4s cubic-bezier(0.4, 0.6, 0.3, 1.2);
+}
+.mbb[data-ready="false"] .mbb__marker {
+  opacity: 0;
+  transition: none;
+}
+.mbb__item {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.mbb__link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 2px 6px;
+  color: var(--mbb-icon-light, #6b7280);
+  text-decoration: none;
+  transition:
+    color 0.25s ease,
+    transform 0.35s cubic-bezier(0.4, 0.6, 0.3, 1.2);
+}
+.dark .mbb__link {
+  color: var(--mbb-icon-dark, #9aa3b2);
+}
+.mbb__item[data-active="true"] .mbb__link {
+  color: var(--mbb-active, var(--brand));
+  transform: translate3d(0, -2px, 0);
+}
+.mbb__item[data-active="true"] .mbb__icon {
+  filter: drop-shadow(0 4px 8px color-mix(in oklab, var(--mbb-active, var(--brand)) 45%, transparent));
+}
+.mbb__label {
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 500;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mbb-slot,
+  .mbb__marker,
+  .mbb__link {
+    transition: none;
+  }
+}
