@@ -55,13 +55,13 @@ vi.mock("@/lib/events/ticket.server", () => ({
   },
 }));
 const refunds: string[] = [];
-vi.mock("@/lib/billing/paddleRefund.server", () => ({
+vi.mock("@/lib/billing/refundProvider.server", () => ({
   refundTransactionFully: async (_env: string, txnId: string) => {
     refunds.push(txnId);
     return { ok: true as const, adjustmentId: "adj_1" };
   },
 }));
-vi.mock("@/lib/billing/paddleTransaction.server", () => ({
+vi.mock("@/lib/billing/transactions.server", () => ({
   resolveEnvironment: () => "sandbox" as const,
 }));
 vi.mock("@/lib/billing/couponEffects.server", () => ({

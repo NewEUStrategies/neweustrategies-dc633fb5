@@ -82,23 +82,15 @@ export async function assertAdmin(
 }
 
 async function readDestinations(env: StripeEnv) {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+  const { createStripeClient } = await import("@/lib/stripe.server");
   try {
-    const res = await gatewayFetch(env, "/notification-settings");
-    if (!res.ok) return [];
-    const body = (await res.json()) as {
-      data?: Array<{
-        id: string;
-        destination?: string;
-        active?: boolean;
-        subscribed_events?: unknown[];
-      }>;
-    };
-    return (body.data ?? []).map((d) => ({
+    const stripe = createStripeClient(env);
+    const result = await stripe.webhookEndpoints.list({ limit: 100 });
+    return result.data.map((d) => ({
       id: d.id,
-      url: d.destination ?? "",
-      active: d.active !== false,
-      events: Array.isArray(d.subscribed_events) ? d.subscribed_events.length : 0,
+      url: d.url ?? "",
+      active: d.status === "enabled",
+      events: Array.isArray(d.enabled_events) ? d.enabled_events.length : 0,
     }));
   } catch (e) {
     console.error("[payments] destinations lookup failed", e);
@@ -107,31 +99,44 @@ async function readDestinations(env: StripeEnv) {
 }
 
 async function readCatalog(env: StripeEnv): Promise<CatalogPriceStatus[]> {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+  const { createStripeClient } = await import("@/lib/stripe.server");
+  const { resolvePricesByLookupKeys } = await import("@/lib/billing/adhocCheckout.server");
   const results: CatalogPriceStatus[] = [];
-  for (const entry of BILLING_CATALOG) {
-    let providerPriceId: string | null = null;
-    try {
-      const res = await gatewayFetch(
-        env,
-        `/prices?external_id=${encodeURIComponent(entry.priceId)}`,
-      );
-      if (res.ok) {
-        const body = (await res.json()) as { data?: Array<{ id: string }> };
-        providerPriceId = body.data?.[0]?.id ?? null;
-      }
-    } catch (e) {
-      console.error("[payments] price probe failed", entry.priceId, e);
+  try {
+    const stripe = createStripeClient(env);
+    const priceByLookupKey = await resolvePricesByLookupKeys(
+      stripe,
+      BILLING_CATALOG.map((entry) => entry.priceId),
+    );
+    for (const entry of BILLING_CATALOG) {
+      results.push({
+        priceId: entry.priceId,
+        productId: entry.productId,
+        tierKey: entry.tierKey,
+        interval: entry.interval,
+        providerPriceId: priceByLookupKey.get(entry.priceId)?.id ?? null,
+      });
     }
-    results.push({
-      priceId: entry.priceId,
-      productId: entry.productId,
-      tierKey: entry.tierKey,
-      interval: entry.interval,
-      providerPriceId,
-    });
+  } catch (e) {
+    console.error("[payments] catalog probe failed", e);
+    for (const entry of BILLING_CATALOG) {
+      results.push({
+        priceId: entry.priceId,
+        productId: entry.productId,
+        tierKey: entry.tierKey,
+        interval: entry.interval,
+        providerPriceId: null,
+      });
+    }
   }
   return results;
+}
+
+async function findPromotionCodeByCode(env: StripeEnv, code: string): Promise<string | null> {
+  const { createStripeClient } = await import("@/lib/stripe.server");
+  const stripe = createStripeClient(env);
+  const result = await stripe.promotionCodes.list({ code, limit: 1 });
+  return result.data[0]?.id ?? null;
 }
 
 async function readCoupons(env: StripeEnv): Promise<CouponDiscountStatus[]> {
@@ -144,11 +149,12 @@ async function readCoupons(env: StripeEnv): Promise<CouponDiscountStatus[]> {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  const { findDiscountByCode } = await import("@/lib/billing/paddleDiscounts.server");
   const rows: CouponDiscountStatus[] = [];
   for (const c of data ?? []) {
     const code = String(c.code ?? "").toUpperCase();
-    const providerDiscountId = code ? await findDiscountByCode(env, code).catch(() => null) : null;
+    const providerDiscountId = code
+      ? await findPromotionCodeByCode(env, code).catch(() => null)
+      : null;
     rows.push({
       code,
       active: c.active !== false,

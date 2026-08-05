@@ -219,13 +219,15 @@ export async function changeSubscriptionPrice(
       price: typeof i.price === "string" ? i.price : i.price.id,
       quantity: i.quantity,
     }));
+    const periodStart = current.items.data[0]?.current_period_start ?? 0;
+    const periodEnd = current.items.data[0]?.current_period_end ?? 0;
     await stripe.subscriptionSchedules.update(scheduleId, {
       end_behavior: "release",
       phases: [
         {
           items: currentPhase,
-          start_date: current.current_period_start,
-          end_date: current.current_period_end,
+          start_date: periodStart,
+          end_date: periodEnd,
         },
         {
           items: [{ price: providerPriceId, quantity: Math.max(1, params.quantity) }],
@@ -234,7 +236,7 @@ export async function changeSubscriptionPrice(
     });
     return {
       ok: true,
-      currentPeriodEnd: new Date(current.current_period_end * 1000).toISOString(),
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
     };
   } catch (e) {
     return { ok: false, error: getStripeErrorMessage(e) };
