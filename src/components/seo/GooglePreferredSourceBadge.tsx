@@ -91,7 +91,6 @@ export function GooglePreferredSourceBadge({
           // tylko dla wariantów jednoliniowych, poza tym min-h + padding.
           iconOnly ? "h-8 w-8 justify-center px-0" : "min-h-8 self-stretch px-3 py-1.5",
           compact && "h-8 py-0",
-        )}
           "border border-border bg-background text-foreground",
           "tracking-[-0.01em] whitespace-nowrap",
           "hover:bg-muted hover:text-brand transition-colors active:scale-[0.98]",
