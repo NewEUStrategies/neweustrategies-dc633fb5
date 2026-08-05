@@ -281,7 +281,10 @@ function PopupsList() {
         </div>
       )}
 
-      <SignupPopupContentSection />
+      <div id="signup-popup-editor" className="scroll-mt-24">
+        <SignupPopupContentSection />
+      </div>
+
 
       <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
         <DialogContent className="sm:max-w-md">
