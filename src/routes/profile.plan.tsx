@@ -8,34 +8,22 @@ import { useQuery } from "@tanstack/react-query";
 import { CreditCard } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
-import { fetchMyOrders, fetchMySubscription } from "@/lib/billing/queries";
+import { fetchMySubscription } from "@/lib/billing/queries";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { formatMoney, planName } from "@/lib/billing/types";
 import { PlanSwitchBoard } from "@/components/billing/PlanSwitchBoard";
 import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
 import { SyncBillingButton } from "@/components/billing/SyncBillingButton";
 import { LifetimeAccessCard } from "@/components/billing/LifetimeAccessCard";
+import { SubscriptionStatusCard } from "@/components/billing/SubscriptionStatusCard";
+import { PaymentHistoryCard } from "@/components/billing/PaymentHistoryCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 export const Route = createFileRoute("/profile/plan")({
   component: PlanPage,
 });
-
-function statusVariant(s: string): "default" | "secondary" | "destructive" | "outline" {
-  if (s === "paid") return "default";
-  if (s === "failed" || s === "refunded" || s === "canceled") return "destructive";
-  return "secondary";
-}
 
 function PlanPage() {
   const { t, i18n } = useTranslation();
@@ -48,16 +36,10 @@ function PlanPage() {
     queryFn: fetchMySubscription,
     enabled: !!session,
   });
-  const ordersQ = useQuery({
-    queryKey: billingKeys.myOrders(uid),
-    queryFn: fetchMyOrders,
-    enabled: !!session,
-  });
 
   const subscription = subQ.data ?? null;
   const plan = subscription?.plan ?? null;
   const lookupKey = plan ? (catalogPriceForPlan(plan)?.priceId ?? null) : null;
-  const orders = (ordersQ.data ?? []).slice(0, 10);
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL", {
@@ -68,6 +50,8 @@ function PlanPage() {
 
   return (
     <div className="space-y-6">
+      <SubscriptionStatusCard subscription={subscription} />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -139,68 +123,7 @@ function PlanPage() {
       <PlanSwitchBoard subscription={subscription} />
 
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">{t("profile.planPage.historyTitle")}</CardTitle>
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/profile/orders">{t("profile.planPage.historyAll")}</Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {orders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("profile.orders.empty")}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("profile.orders.colDate")}</TableHead>
-                  <TableHead>{t("profile.orders.colItem")}</TableHead>
-                  <TableHead className="text-right">{t("profile.orders.colAmount")}</TableHead>
-                  <TableHead>{t("profile.orders.colStatus")}</TableHead>
-                  <TableHead>{t("profile.orders.colInvoice")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((o) => {
-                  const label =
-                    (o.metadata && typeof o.metadata.label === "string" ? o.metadata.label : null) ??
-                    (o.kind === "subscription"
-                      ? t("profile.orders.kindSubscription")
-                      : t("profile.orders.kindOneTime"));
-                  return (
-                    <TableRow key={o.id}>
-                      <TableCell>{fmtDate(o.created_at)}</TableCell>
-                      <TableCell>{label}</TableCell>
-                      <TableCell className="text-right">
-                        {formatMoney(o.amount_cents, o.currency, lang)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariant(o.status)}>
-                          {t(`profile.status.${o.status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {o.invoice_url ? (
-                          <a
-                            href={o.invoice_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            {t("profile.orders.invoice")}
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <PaymentHistoryCard limit={10} showAllLink />
     </div>
   );
 }

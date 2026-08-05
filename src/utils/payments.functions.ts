@@ -404,3 +404,42 @@ export const syncMyBillingFromProvider = createServerFn({ method: "POST" })
       return { error: getStripeErrorMessage(e) };
     }
   });
+
+/**
+ * Podgląd domyślnej metody płatności wołającego (marka + cztery ostatnie
+ * cyfry). Identyfikator klienta czytamy pod RLS wołającego z tabeli
+ * `subscriptions` - warstwa serwerowa nigdy nie decyduje samodzielnie, czyją
+ * kartę pobiera od operatora.
+ */
+export const getMyPaymentMethod = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { environment: StripeEnv }) =>
+    z.object({ environment: envSchema }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("subscriptions")
+      .select("provider_customer_id, provider_subscription_id")
+      .eq("user_id", context.userId)
+      .eq("environment", data.environment)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (error) throw error;
+
+    const row = rows?.[0] ?? null;
+    const customerId = row?.provider_customer_id ?? null;
+    if (!customerId) return { method: null };
+
+    try {
+      const { fetchPaymentMethodPreview } = await import("@/lib/billing/paymentMethod.server");
+      const method = await fetchPaymentMethodPreview({
+        customerId,
+        subscriptionId: row?.provider_subscription_id ?? null,
+        environment: data.environment,
+      });
+      return { method };
+    } catch (e: unknown) {
+      console.error("[payments] payment method preview failed", e);
+      return { error: getStripeErrorMessage(e) };
+    }
+  });

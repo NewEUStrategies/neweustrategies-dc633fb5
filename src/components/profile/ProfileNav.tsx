@@ -14,6 +14,7 @@ import {
   Building2,
   CreditCard,
   FileText,
+  Receipt,
   RefreshCw,
   Shield,
   Lock,
@@ -36,6 +37,7 @@ type NavKey =
   | "billing"
   | "subscription"
   | "orders"
+  | "payments"
   | "security"
   | "privacy"
   | "expertRequests";
@@ -73,6 +75,7 @@ const FINANCE: NavItem[] = [
   { to: "/profile/billing", key: "billing", icon: CreditCard },
   { to: "/profile/subscription", key: "subscription", icon: RefreshCw },
   { to: "/profile/orders", key: "orders", icon: FileText },
+  { to: "/profile/payments", key: "payments", icon: Receipt },
   { to: "/profile/security", key: "security", icon: Shield },
   { to: "/profile/privacy", key: "privacy", icon: Lock },
 ];
