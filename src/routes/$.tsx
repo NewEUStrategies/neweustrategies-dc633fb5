@@ -1000,8 +1000,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   />
                 )}
 
-                {!merged.quick_view_info && giftButton && (
-                  <div className="no-print mb-4 hidden justify-end sm:flex">{giftButton}</div>
+                {!merged.quick_view_info && (
+                  <div className="no-print mb-4 hidden justify-end sm:flex">{articleActions}</div>
                 )}
                 {contentBlock}
                 {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
