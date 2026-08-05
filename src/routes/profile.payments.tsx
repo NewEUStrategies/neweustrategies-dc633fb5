@@ -23,6 +23,8 @@ function PaymentsHistoryPage() {
       </header>
       <PaymentHistoryCard showExport />
       <InvoiceLookupCard />
+      <HowPaymentsWorkCard />
+
     </div>
   );
 }
