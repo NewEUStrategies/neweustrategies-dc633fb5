@@ -55,7 +55,7 @@ export const GOOGLE_SOURCE_BADGE_DEFAULTS: GoogleSourceBadgeConfig = {
   enabled: true,
   url_pl: DEFAULT_URL,
   url_en: DEFAULT_URL,
-  logo: { light: "", dark: "", size: 14 },
+  logo: { light: "", dark: "", size: 18 },
   desktop: {
     enabled: true,
     variant: "default",

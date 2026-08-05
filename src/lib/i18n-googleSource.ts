@@ -4,17 +4,17 @@ import i18n from "./i18n";
 
 const pl = {
   googleSource: {
-    badgeTitle: "Preferowane źródło",
-    badgeSub: "Ustaw nas w Google",
-    badgeLabel: "Ustaw {{site}} jako preferowane źródło w Wyszukiwarce Google",
+    badgeTitle: "Wskaż nas jako swoje",
+    badgeSub: "preferowane źródło w Google",
+    badgeLabel: "Wskaż {{site}} jako swoje preferowane źródło w Wyszukiwarce Google",
   },
 };
 
 const en = {
   googleSource: {
-    badgeTitle: "Preferred source",
-    badgeSub: "Set us in Google",
-    badgeLabel: "Set {{site}} as a preferred source in Google Search",
+    badgeTitle: "Recommend us as your",
+    badgeSub: "preferred source on Google",
+    badgeLabel: "Recommend {{site}} as your preferred source on Google Search",
   },
 };
 
