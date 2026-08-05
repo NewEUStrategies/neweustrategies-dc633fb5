@@ -167,7 +167,7 @@ export function SidebarListenCard({
       cancelled = true;
       window.clearTimeout(timer);
       el.removeEventListener("loadedmetadata", onMeta);
-      el.src = "";
+      el.removeAttribute("src");
     };
   }, [audioUrl]);
 
