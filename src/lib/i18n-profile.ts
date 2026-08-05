@@ -1024,6 +1024,11 @@ const en: typeof pl = {
         downgradeScheduled: "Plan change scheduled for the end of the billing period",
         updatePayment: "Update payment method",
         openPortal: "Invoices and billing details",
+        manage: "Manage in the billing portal",
+        manageHint:
+          "In the provider portal you can switch plan and price, update your payment method, download invoices or cancel the subscription.",
+        opening: "Opening the portal...",
+        noCustomer: "We could not find an active billing profile. Buy a plan to open the portal.",
         error: "Could not open the payment portal. Please try again.",
         pastDue: "Your last payment failed. Update your payment method to keep access.",
         secureNote: "Card details are handled by the payment provider - we never store them.",
