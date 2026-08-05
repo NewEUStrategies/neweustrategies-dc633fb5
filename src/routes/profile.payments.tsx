@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 
 import { PaymentHistoryCard } from "@/components/billing/PaymentHistoryCard";
 import { InvoiceLookupCard } from "@/components/billing/InvoiceLookupCard";
+import { HowPaymentsWorkCard } from "@/components/billing/HowPaymentsWorkCard";
+
 
 export const Route = createFileRoute("/profile/payments")({
   component: PaymentsHistoryPage,
