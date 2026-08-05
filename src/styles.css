@@ -6442,12 +6442,13 @@ header[data-site-header].site-header-shrink .site-header-chrome {
 header[data-site-header][data-metrics="ready"].site-header-shrink {
   /* Widoczna wysokość = przeskalowana wysokość chrome'u w danej chwili.
      `transform` nie zmienia wysokości w układzie, więc header musi ją znać.
-     --hdr-live to bieżący pomiar z ResizeObserver (Header.tsx); formuła
-     "naturalna - ticker" zostaje tylko jako fallback zanim pomiar dojdzie. */
+     Formuła jest CZYSTĄ funkcją pomiaru spoczynkowego (--hdr-nat/--hdr-tt) i
+     animowanych --hdr-p/--hdr-scale. Świadomie NIE czytamy tu bieżącej
+     wysokości chrome'u: sprzężenie zwrotne "pomiar w trakcie animacji ->
+     zmienna -> nowy układ -> nowy pomiar" powodowało skokowe zmiany wysokości
+     paska w trakcie zwijania. */
   --hdr-visible-h: calc(
-    var(--hdr-scale) *
-      var(--hdr-live, calc(var(--hdr-nat) - var(--hdr-tt) * var(--hdr-p))) +
-      var(--hdr-extra)
+    var(--hdr-scale) * (var(--hdr-nat) - var(--hdr-tt) * var(--hdr-p)) + var(--hdr-extra)
   );
   height: var(--hdr-visible-h);
   /* Odzyskana wysokość (rozwinięty - zwinięty header) była wcześniej w CAŁOŚCI
@@ -6462,10 +6463,16 @@ header[data-site-header][data-metrics="ready"].site-header-shrink {
   );
 
 }
+/* Chrome zachowuje STAŁĄ szerokość układu (100%) i tylko się skaluje.
+   Wcześniejsza kompensacja `width: 100% / var(--hdr-scale)` animowała szerokość
+   razem ze skalą, więc w trakcie zwijania nawigacja przelewała się do drugiego
+   rzędu i z powrotem - stąd "skaczący", dwurzędowy header na nagraniu.
+   Skalowanie od górnej krawędzi na środku daje ten sam efekt wizualny bez
+   ani jednego przeliczenia układu w trakcie animacji. */
 header[data-site-header][data-metrics="ready"].site-header-shrink .site-header-chrome {
-  width: calc(100% / var(--hdr-scale));
   transform: scale(var(--hdr-scale));
-  transform-origin: top left;
+  transform-origin: top center;
+  will-change: transform;
 }
 
 /* Trending ticker ("na czasie") zwija się razem z resztą, po tej samej krzywej
