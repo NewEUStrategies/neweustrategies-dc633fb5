@@ -251,3 +251,161 @@ export async function settleDonation(settlement: DonationSettlement): Promise<bo
   console.warn("[donations] settlement without donationId/sessionId - skipped");
   return false;
 }
+
+// ---------------------------------------------------------------------------
+// Darowizny cykliczne (Stripe subscription z `metadata.purpose = "donation"`).
+//
+// Pierwsza płatność księguje wiersz utworzony przy checkoucie, a każde kolejne
+// odnowienie zakłada NOWY wiersz - dzięki temu statystyki i eksporty księgowe
+// widzą każdą realną wpłatę. Idempotencja opiera się na unikalnym
+// `provider_session_id` (`renewal:<invoiceId>`) oraz unikalnym
+// `(provider, provider_intent_id)`.
+// ---------------------------------------------------------------------------
+
+export interface RecurringDonationPayment {
+  /** `metadata.donationId` z subskrypcji - kotwica pierwszej wpłaty. */
+  donationId?: string | null;
+  subscriptionId: string;
+  /** Identyfikator faktury/transakcji - klucz idempotencji odnowienia. */
+  invoiceId: string;
+  intentId?: string | null;
+  amountCents?: number | null;
+  currency?: string | null;
+  donorEmail?: string | null;
+}
+
+export type RecurringDonationOutcome = "settled" | "renewed" | "skipped";
+
+interface DonationAnchor {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  amount_cents: number;
+  currency: string;
+  donor_email: string | null;
+  message: string | null;
+  status: string;
+}
+
+async function findDonationAnchor(
+  payment: RecurringDonationPayment,
+): Promise<DonationAnchor | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const columns = "id, tenant_id, user_id, amount_cents, currency, donor_email, message, status";
+
+  if (payment.donationId) {
+    const { data } = await supabaseAdmin
+      .from("donations")
+      .select(columns)
+      .eq("id", payment.donationId)
+      .maybeSingle();
+    if (data) return data as DonationAnchor;
+  }
+
+  const { data } = await supabaseAdmin
+    .from("donations")
+    .select(columns)
+    .eq("provider_subscription_id", payment.subscriptionId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return (data as DonationAnchor | null) ?? null;
+}
+
+/** Księguje wpłatę cykliczną: pierwszą aktualizuje, kolejne dopisuje. */
+export async function recordRecurringDonationPayment(
+  payment: RecurringDonationPayment,
+): Promise<RecurringDonationOutcome> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const anchor = await findDonationAnchor(payment);
+  if (!anchor) {
+    console.warn("[donations] recurring payment without anchor row", payment.subscriptionId);
+    return "skipped";
+  }
+
+  const currency = payment.currency ? payment.currency.toUpperCase() : anchor.currency;
+  const amountCents = payment.amountCents && payment.amountCents > 0 ? payment.amountCents : anchor.amount_cents;
+  const donorEmail = payment.donorEmail?.toLowerCase() ?? anchor.donor_email;
+
+  if (anchor.status === "pending") {
+    const { error } = await supabaseAdmin
+      .from("donations")
+      .update({
+        status: "paid",
+        recurring: true,
+        paid_at: new Date().toISOString(),
+        provider_subscription_id: payment.subscriptionId,
+        provider_intent_id: payment.intentId ?? payment.invoiceId,
+        amount_cents: amountCents,
+        currency,
+        donor_email: donorEmail,
+      })
+      .eq("id", anchor.id)
+      .eq("status", "pending");
+    if (error) throw new Error(`donation recurring settle failed: ${error.message}`);
+    return "settled";
+  }
+
+  const { error } = await supabaseAdmin.from("donations").insert({
+    tenant_id: anchor.tenant_id,
+    user_id: anchor.user_id,
+    amount_cents: amountCents,
+    currency,
+    donor_email: donorEmail,
+    message: anchor.message,
+    provider: "stripe",
+    provider_session_id: `renewal:${payment.invoiceId}`,
+    provider_intent_id: payment.intentId ?? payment.invoiceId,
+    provider_subscription_id: payment.subscriptionId,
+    recurring: true,
+    status: "paid",
+    paid_at: new Date().toISOString(),
+  });
+
+  // 23505 = ponowione dostarczenie webhooka; wiersz odnowienia już istnieje.
+  if (error && error.code !== "23505") {
+    throw new Error(`donation renewal insert failed: ${error.message}`);
+  }
+  return error ? "skipped" : "renewed";
+}
+
+/**
+ * Odbicie statusu subskrypcji darowizny. Wpłat już zaksięgowanych nie ruszamy -
+ * anulowanie dotyczy wyłącznie wiersza, który nigdy nie został opłacony.
+ */
+export async function syncDonationSubscription(input: {
+  subscriptionId: string;
+  donationId?: string | null;
+  status: string;
+}): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const terminal = input.status === "canceled" || input.status === "incomplete_expired";
+
+  if (input.donationId) {
+    await supabaseAdmin
+      .from("donations")
+      .update({
+        provider_subscription_id: input.subscriptionId,
+        recurring: true,
+        ...(terminal ? { status: "canceled" } : {}),
+      })
+      .eq("id", input.donationId)
+      .eq("status", "pending");
+    if (!terminal) {
+      await supabaseAdmin
+        .from("donations")
+        .update({ provider_subscription_id: input.subscriptionId, recurring: true })
+        .eq("id", input.donationId)
+        .is("provider_subscription_id", null);
+    }
+    return;
+  }
+
+  if (terminal) {
+    await supabaseAdmin
+      .from("donations")
+      .update({ status: "canceled" })
+      .eq("provider_subscription_id", input.subscriptionId)
+      .eq("status", "pending");
+  }
+}

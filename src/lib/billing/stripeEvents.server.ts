@@ -104,7 +104,11 @@ export function mapStripeSubscription(sub: Raw): SubscriptionData {
     id: idOf(sub.id) ?? "",
     customerId: idOf(sub.customer) ?? "",
     status: strOf(sub.status) ?? "",
-    customData: { userId: strOf(metadata?.userId) ?? undefined },
+    customData: {
+      userId: strOf(metadata?.userId) ?? undefined,
+      purpose: strOf(metadata?.purpose) ?? undefined,
+      donationId: strOf(metadata?.donationId) ?? undefined,
+    },
     currentBillingPeriod: {
       startsAt: isoFromUnix(periodStart) ?? undefined,
       endsAt: isoFromUnix(periodEnd) ?? undefined,
@@ -157,12 +161,33 @@ function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
   const transitions = isRecord(invoice.status_transitions) ? invoice.status_transitions : null;
   const paidAt = isoFromUnix(transitions?.paid_at) ?? isoFromUnix(invoice.created);
 
+  // Basil przeniósł powiązanie z subskrypcją do `parent.subscription_details`,
+  // a metadane odnowienia żyją tam albo na pozycji faktury - na samej fakturze
+  // zwykle są puste. Bez tego fallbacku odnowienia darowizn byłyby nierozpoznane.
+  const parent = isRecord(invoice.parent) ? invoice.parent : null;
+  const subDetails = isRecord(parent?.subscription_details) ? parent?.subscription_details : null;
+  const lineParent = isRecord(firstLine?.parent) ? firstLine?.parent : null;
+  const lineSubDetails = isRecord(lineParent?.subscription_item_details)
+    ? lineParent?.subscription_item_details
+    : null;
+  const subscriptionId =
+    idOf(invoice.subscription) ??
+    idOf(subDetails?.subscription) ??
+    idOf(lineSubDetails?.subscription);
+  const metadata = isRecord(invoice.metadata) && Object.keys(invoice.metadata).length > 0
+    ? invoice.metadata
+    : isRecord(subDetails?.metadata) && Object.keys(subDetails.metadata as Raw).length > 0
+      ? (subDetails.metadata as Raw)
+      : isRecord(firstLine?.metadata) && Object.keys(firstLine?.metadata as Raw).length > 0
+        ? (firstLine?.metadata as Raw)
+        : null;
+
   return {
     id: idOf(invoice.id) ?? "",
-    subscriptionId: idOf(invoice.subscription),
+    subscriptionId,
     customerId: idOf(invoice.customer),
     currencyCode: strOf(invoice.currency)?.toUpperCase() ?? null,
-    customData: isRecord(invoice.metadata) ? invoice.metadata : null,
+    customData: metadata,
     customer: { email: strOf(invoice.customer_email) },
     details: { totals: { grandTotal: grandTotal !== null ? String(grandTotal) : null } },
     billingPeriod: { endsAt: isoFromUnix(period?.end) },
