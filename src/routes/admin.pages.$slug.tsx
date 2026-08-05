@@ -112,7 +112,8 @@ function EditPage() {
   // Publiczny adres obsługiwany przez trasę React (rejestr CODE_PAGES).
   const codeRoute = codePage(routeSlug);
   const tenantId = useRequiredTenant();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language.startsWith("en") ? "en" : "pl";
   const navigate = useNavigate();
   const router = useRouter();
   const qc = useQueryClient();
