@@ -112,7 +112,8 @@ function EditPage() {
   // Publiczny adres obsługiwany przez trasę React (rejestr CODE_PAGES).
   const codeRoute = codePage(routeSlug);
   const tenantId = useRequiredTenant();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language.startsWith("en") ? "en" : "pl";
   const navigate = useNavigate();
   const router = useRouter();
   const qc = useQueryClient();
@@ -571,14 +572,27 @@ function EditPage() {
             <p className="text-muted-foreground">
               {t("admin.pages.codePage.body", { path: codeRoute.path })}
             </p>
-            <a
-              href={codeRoute.path}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block text-xs font-medium text-primary underline"
-            >
-              {t("admin.pages.codePage.open")}
-            </a>
+            <div className="flex flex-wrap items-center gap-3 pt-0.5">
+              <a
+                href={codeRoute.path}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block text-xs font-medium text-primary underline"
+              >
+                {t("admin.pages.codePage.open")}
+              </a>
+              {codeRoute.manage_path && (
+                <Link
+                  to={codeRoute.manage_path}
+                  className="inline-block text-xs font-semibold text-primary underline"
+                >
+                  {lang === "en"
+                    ? (codeRoute.manage_label_en ?? "Manage content")
+                    : (codeRoute.manage_label_pl ?? "Zarządzaj treścią")}
+                </Link>
+              )}
+            </div>
+
           </div>
         </div>
       )}
