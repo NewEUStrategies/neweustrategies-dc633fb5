@@ -229,7 +229,7 @@ function enqueueRegistryWrite(task: () => Promise<void>): Promise<void> {
 
 async function pushEntriesToRegistry(entries: RegistryEntry[]): Promise<void> {
   const { setMyConsentsBulk } = await import("@/lib/consents.functions");
-  await setMyConsentsBulk({ data: { entries } });
+  await setMyConsentsBulk({ data: { entries: withDecisionMetadata(entries) } });
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(REGISTRY_SYNC_EVENT));
   }
