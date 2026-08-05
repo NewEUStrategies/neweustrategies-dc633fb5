@@ -62,8 +62,10 @@ export function ExpertMaterialCard({
             </span>
           )}
         </div>
-        <h3 className="font-display text-base leading-snug text-foreground group-hover:text-brand">
-          {title}
+        {/* Hover nie zmienia koloru - każda linia tytułu dostaje własne
+            animowane podkreślenie (patrz `.cms-title-underline`). */}
+        <h3 className="font-display text-base leading-snug text-foreground">
+          <span className="cms-title-underline">{title}</span>
         </h3>
         {excerpt && <p className="line-clamp-2 text-sm text-muted-foreground">{excerpt}</p>}
         {material.date && (
