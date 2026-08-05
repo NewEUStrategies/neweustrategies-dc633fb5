@@ -207,6 +207,13 @@ export function Paywall({
   };
 
   return (
+    <>
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutSecret}
+        onOpenChange={(open) => {
+          if (!open) setCheckoutSecret(null);
+        }}
+      />
     <div className="mt-10 border border-border rounded-xl overflow-hidden bg-gradient-to-b from-muted/40 to-background">
       {teaser && (
         <div className="px-6 pt-6 pb-2 prose prose-lg dark:prose-invert max-w-none">
@@ -456,6 +463,7 @@ export function Paywall({
         )}
       </div>
     </div>
+    </>
   );
 }
 
