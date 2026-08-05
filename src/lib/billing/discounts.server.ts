@@ -38,7 +38,7 @@ const fail = (error: string): PaddleDiscountResolution => ({
 });
 
 export async function findDiscountByCode(env: StripeEnv, code: string): Promise<string | null> {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+  const { gatewayFetch } = await import("@/lib/billing/legacyGateway.server");
   const res = await gatewayFetch(env, `/discounts?code=${encodeURIComponent(code)}&status=active`);
   if (!res.ok) {
     console.error("[payments] discount lookup failed", res.status, await res.text());
@@ -54,7 +54,7 @@ export async function createDiscount(
   code: string,
   def: CouponDefinition,
 ): Promise<string | null> {
-  const { gatewayFetch } = await import("@/lib/paddle.server");
+  const { gatewayFetch } = await import("@/lib/billing/legacyGateway.server");
   const isPercent = def.discount_kind === "percent";
   const payload: Record<string, unknown> = {
     description: `New European Strategies coupon ${code}`,

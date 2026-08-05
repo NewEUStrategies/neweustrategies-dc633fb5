@@ -64,3 +64,6 @@ export function canResumePaddleSubscription(row: PaddleSubscriptionRow | null): 
 export function catalogEntryFor(row: PaddleSubscriptionRow | null): CatalogPriceEntry | null {
   return catalogEntryByPriceId(row?.price_id);
 }
+
+/** Alias nazewniczy po migracji na Stripe - kształt wiersza bez zmian. */
+export type ProviderSubscriptionRow = PaddleSubscriptionRow;
