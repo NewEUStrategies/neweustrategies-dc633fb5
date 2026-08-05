@@ -13,6 +13,8 @@ import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { formatMoney, planName } from "@/lib/billing/types";
 import { PlanSwitchBoard } from "@/components/billing/PlanSwitchBoard";
 import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
+import { SyncBillingButton } from "@/components/billing/SyncBillingButton";
+import { LifetimeAccessCard } from "@/components/billing/LifetimeAccessCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,6 +126,7 @@ function PlanPage() {
           {/* Pełne zarządzanie planem, ceną i anulowaniem po stronie operatora. */}
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <CustomerPortalButton returnPath="/profile/plan" />
+            <SyncBillingButton />
             <p className="text-xs text-muted-foreground">
               {t("profile.subscription.portal.manageHint")}
             </p>
@@ -131,8 +134,10 @@ function PlanPage() {
         </CardContent>
       </Card>
 
+      <LifetimeAccessCard />
 
       <PlanSwitchBoard subscription={subscription} />
+
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">

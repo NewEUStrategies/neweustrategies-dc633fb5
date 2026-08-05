@@ -31,6 +31,8 @@ import {
 } from "@/components/billing/SubscriptionCard";
 import { RetentionDialog } from "@/components/billing/RetentionDialog";
 import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
+import { SyncBillingButton } from "@/components/billing/SyncBillingButton";
+import { LifetimeAccessCard } from "@/components/billing/LifetimeAccessCard";
 
 /** Warstwa członkostwa wołającego (RPC; dla braku subskrypcji: domyślna). */
 function TierChip() {
@@ -146,9 +148,14 @@ export function SubscriptionManagerSection() {
           {!data?.plan ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">{t("profile.subscription.none")}</p>
-              <Button asChild>
-                <Link to="/pricing">{t("profile.overview.seePlans")}</Link>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {/* Brak planu bywa artefaktem spóźnionego webhooka - pozwalamy
+                    pobrać stan wprost od operatora zamiast czekać. */}
+                <SyncBillingButton />
+                <Button asChild>
+                  <Link to="/pricing">{t("profile.overview.seePlans")}</Link>
+                </Button>
+              </div>
             </div>
           ) : (
             <>
@@ -211,6 +218,9 @@ export function SubscriptionManagerSection() {
                 {/* Portal operatora: zmiana planu/ceny, metoda płatności,
                     faktury i anulowanie bez opuszczania serwisu. */}
                 <CustomerPortalButton size="default" />
+                {/* Ratunek na spóźniony webhook: pobiera stan wprost od operatora. */}
+                <SyncBillingButton size="default" />
+
 
                 {!data.canceled_at && (
                   <>
@@ -236,6 +246,10 @@ export function SubscriptionManagerSection() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dostęp spoza planu (np. dożywotni VIP eksperta) - subskrypcji nie ma,
+          a uprawnienia jak najbardziej. */}
+      <LifetimeAccessCard />
 
       {/* Samoobsługowy upgrade/downgrade: tylko aktywna subskrypcja z
           trwającym okresem (po wygaśnięciu potrzebny nowy checkout). */}
