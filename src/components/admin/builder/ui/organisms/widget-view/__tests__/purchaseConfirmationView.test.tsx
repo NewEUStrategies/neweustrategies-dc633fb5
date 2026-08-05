@@ -170,7 +170,9 @@ describe("PurchaseConfirmationView - portal klienta", () => {
         "noopener,noreferrer",
       ),
     );
-    expect(state.portalCalls[0]).toEqual({ data: { environment: "sandbox" } });
+    // Portal dostaje też ścieżkę powrotu, żeby wrócić dokładnie na tę stronę.
+    expect(state.portalCalls[0]).toEqual({ data: { environment: "sandbox", returnPath: "/" } });
+
     open.mockRestore();
   });
 
