@@ -37,14 +37,41 @@ export type CookieBannerCopy = {
   descMarketing: string;
 };
 
+/** Logo banera - osobne warianty dla trybu jasnego i ciemnego. */
+export type CookieBannerLogo = {
+  /** Puste = sygnet marki z ustawień motywu. */
+  light: string;
+  dark: string;
+  /** Rozmiar kafla w px (24-72). */
+  size: number;
+};
+
+/** Dodatkowy odnośnik prawny pokazywany pod treścią banera. */
+export type CookieBannerLink = {
+  id: string;
+  url: string;
+  label_pl: string;
+  label_en: string;
+};
+
 export type CookieBannerConfig = {
   enabled: boolean;
   languageSwitcher: boolean;
+  /** Pokaż w szczegółach elementy wykryte automatycznie przez skaner. */
+  autoInventory: boolean;
+  logo: CookieBannerLogo;
+  links: CookieBannerLink[];
   colors: CookieBannerColors;
   copy: {
     pl: CookieBannerCopy;
     en: CookieBannerCopy;
   };
+};
+
+export const COOKIE_BANNER_LOGO_DEFAULTS: CookieBannerLogo = {
+  light: "",
+  dark: "",
+  size: 36,
 };
 
 export const COOKIE_BANNER_COLOR_DEFAULTS: CookieBannerColors = {
@@ -117,6 +144,9 @@ const COPY_EN: CookieBannerCopy = {
 export const COOKIE_BANNER_DEFAULTS: CookieBannerConfig = {
   enabled: true,
   languageSwitcher: true,
+  autoInventory: true,
+  logo: COOKIE_BANNER_LOGO_DEFAULTS,
+  links: [],
   colors: COOKIE_BANNER_COLOR_DEFAULTS,
   copy: { pl: COPY_PL, en: COPY_EN },
 };

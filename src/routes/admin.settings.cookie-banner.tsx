@@ -15,6 +15,8 @@ import {
   type CookieBannerColors,
 } from "@/lib/cookieBanner/config";
 import { ConsentBanner } from "@/components/ConsentBanner";
+import { CookieBannerBrandingSection } from "@/components/admin/cookie-banner/CookieBannerBrandingSection";
+import { DetectedElementsPanel } from "@/components/admin/cookie-banner/DetectedElementsPanel";
 import { OPEN_PREFS_EVENT } from "@/lib/ads/consent";
 
 export const Route = createFileRoute("/admin/settings/cookie-banner")({
@@ -230,6 +232,15 @@ function CookieBannerSettings() {
           Podgląd
         </button>
       </div>
+
+      <CookieBannerBrandingSection
+        logo={draft.logo}
+        links={draft.links}
+        onLogoChange={(logo) => setDraft({ ...draft, logo })}
+        onLinksChange={(links) => setDraft({ ...draft, links })}
+      />
+
+      <DetectedElementsPanel />
 
       {/* Mechanisms */}
       <section className="mb-6">
