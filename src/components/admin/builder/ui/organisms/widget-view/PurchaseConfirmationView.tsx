@@ -147,8 +147,20 @@ export function PurchaseConfirmationView({ c, lang }: { c: WidgetContent; lang: 
   const openPortal = async () => {
     setPortalPending(true);
     try {
-      const result = await createStripePortalSession({ data: { environment } });
-      const url = result.overviewUrl || result.url;
+      const result = await createStripePortalSession({
+        data: {
+          environment,
+          returnPath:
+            typeof window !== "undefined"
+              ? `${window.location.pathname}${window.location.search}`
+              : undefined,
+        },
+      });
+      if ("error" in result && result.error) {
+        toast.error(copy.portalError);
+        return;
+      }
+      const url = "url" in result ? (result.overviewUrl || result.url) : null;
       if (url) window.open(url, "_blank", "noopener,noreferrer");
     } catch {
       toast.error(copy.portalError);
