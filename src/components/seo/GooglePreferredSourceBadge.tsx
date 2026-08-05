@@ -64,7 +64,7 @@ export function GooglePreferredSourceBadge({
 
   return (
     <span
-      className={cn("no-print inline-flex w-full", alignClass(placement.align), className)}
+      className={cn("no-print inline-flex w-full self-stretch items-stretch", alignClass(placement.align), className)}
       style={placementStyle(placement)}
     >
       <a
