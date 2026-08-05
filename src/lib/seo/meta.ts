@@ -240,7 +240,10 @@ export function feedAlternateLink(input: {
  * module. Emits no `twitter:site` handle on purpose: the organization has no
  * canonical @handle, and a stale one is worse for the brand than none.
  */
-export function buildRootHead(lang: Lang): Array<Record<string, string>> {
+export function buildRootHead(
+  lang: Lang,
+  origin: string = SITE_CANONICAL_ORIGIN,
+): Array<Record<string, string>> {
   const title = SITE_DEFAULT_TITLE[lang];
   const description = SITE_DEFAULT_DESCRIPTION[lang];
   return [
