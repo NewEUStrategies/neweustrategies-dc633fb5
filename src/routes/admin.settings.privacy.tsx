@@ -40,6 +40,10 @@ function PrivacySettings() {
         />
       </Field>
       <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
+
+      {/* Audyt zgód: kto/kiedy/jakie kategorie/wersja banera - dane z RPC
+          z bramką admina i zakresem najemcy. */}
+      <ConsentAuditSummary />
     </div>
   );
 }
