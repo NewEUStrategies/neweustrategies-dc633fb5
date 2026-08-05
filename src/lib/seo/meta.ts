@@ -152,7 +152,7 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
   // brand default (resolved to an absolute URL via the request origin). This is
   // why every share - including the homepage, which has no cover - gets a rich
   // "summary_large_image" card rather than a bare-text preview.
-  const image = input.image || absoluteUrl(origin, SITE_DEFAULT_OG_IMAGE);
+  const image = input.image || defaultSocialImage(origin);
 
   const meta: Array<Record<string, string>> = [
     { title: input.documentTitle || input.title },
