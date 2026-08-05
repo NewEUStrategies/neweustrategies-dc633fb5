@@ -60,6 +60,7 @@ import { MeterBanner } from "@/components/molecules/MeterBanner";
 import { useGiftCodeFromUrl, useGiftRedemption } from "@/lib/gifting/hooks";
 import { GiftArticleButton } from "@/components/gifting/GiftArticleButton";
 import { GiftBanner } from "@/components/gifting/GiftBanner";
+import { GooglePreferredSourceBadge } from "@/components/seo/GooglePreferredSourceBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { getRequestUrl } from "@/lib/seo/request";
 import {
