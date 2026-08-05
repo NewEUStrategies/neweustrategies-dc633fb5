@@ -1,12 +1,20 @@
 // Admin → Darowizny. Konfiguracja własnego checkoutu darowizn (Stripe) oraz
 // rejestr wpłat. Zapis do site_settings[key="donations"] - dokładnie ten sam
 // kształt czyta publiczny formularz /donate.
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Checkbox, SaveBar, NumberInput } from "@/components/admin/settings/fields";
+import { Button } from "@/components/ui/button";
+import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { getDonationsPublicStats } from "@/lib/billing/donations.functions";
+import {
+  listDonationRecords,
+  syncDonationsWithStripe,
+} from "@/lib/billing/donationsAdmin.functions";
+import type { DonationsSyncReport } from "@/lib/billing/donationsAdmin.server";
 import {
   DONATIONS_DEFAULTS,
   DONATIONS_SETTINGS_KEY,
