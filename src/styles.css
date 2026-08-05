@@ -5448,6 +5448,20 @@ textarea::placeholder {
     color: var(--nl-fg);
   }
 
+  /* MOBILE: popup ma być czytelny bez długiego scrolla. Mozaika kadrów dostaje
+     twardy sufit wysokości (panel admina steruje wersją desktopową przez
+     `--nl-grid-h`), a kolumna galerii - ciaśniejsze odstępy. */
+  @media (max-width: 767px) {
+    .nlp [data-showcase-grid] {
+      min-height: min(var(--nl-grid-h, 240px), 22vh);
+      max-height: 22vh;
+    }
+    .nlp [data-showcase-grid] ~ * {
+      margin-top: 0;
+    }
+  }
+
+
   /* Pola popupu to NIEZMIENIONY atom platformy (`.input-group` + `.input` +
      `.user-label`) - ten sam, którego używa widget „Dołącz do nas". Zero reguł
      `.nlp` na polach: geometria etykiety (w spoczynku w polu, po focusie /
