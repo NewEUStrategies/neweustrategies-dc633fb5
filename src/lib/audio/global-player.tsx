@@ -594,7 +594,10 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         writeStoredPosition(key, audio.currentTime);
       }
       audio.pause();
-      audio.src = "";
+      // Czyścimy źródło bez `src = ""` - pusty string ładuje adres dokumentu
+      // jako media i emituje fałszywy `error`.
+      audio.removeAttribute("src");
+      audio.load();
     }
     posKeyRef.current = null;
     pendingRestoreRef.current = null;
