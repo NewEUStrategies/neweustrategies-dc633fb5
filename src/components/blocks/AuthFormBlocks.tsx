@@ -585,7 +585,7 @@ export function LoginFormView({ data, lang }: { data: LoginData; lang: Lang }) {
 
 /* ---------------- REGISTER ---------------- */
 
-interface RegisterFieldDef {
+export interface RegisterFieldDef {
   /** Baza klucza w treści: `show${Key}` / `require${Key}` / `${key}Label` / `${key}Placeholder`. */
   key: string;
   id: string;
@@ -605,7 +605,11 @@ interface RegisterFieldDef {
   globalKey?: RegistrationFieldKey;
 }
 
-const REGISTER_FIELDS: ReadonlyArray<RegisterFieldDef> = [
+/**
+ * Rejestr pól formularza rejestracji. Eksportowany, bo bramka wierności
+ * ustawień (`registerFormSchemaParity.test.ts`) porównuje go z panelem.
+ */
+export const REGISTER_FIELDS: ReadonlyArray<RegisterFieldDef> = [
   {
     key: "firstName",
     globalKey: "first_name",
