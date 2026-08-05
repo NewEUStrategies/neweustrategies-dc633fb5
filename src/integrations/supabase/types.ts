@@ -2732,9 +2732,12 @@ export type Database = {
           donor_email: string | null
           id: string
           message: string | null
+          paid_at: string | null
           provider: string
           provider_intent_id: string | null
           provider_session_id: string
+          provider_subscription_id: string | null
+          recurring: boolean
           status: string
           tenant_id: string
           user_id: string | null
@@ -2746,9 +2749,12 @@ export type Database = {
           donor_email?: string | null
           id?: string
           message?: string | null
+          paid_at?: string | null
           provider?: string
           provider_intent_id?: string | null
           provider_session_id: string
+          provider_subscription_id?: string | null
+          recurring?: boolean
           status?: string
           tenant_id?: string
           user_id?: string | null
@@ -2760,9 +2766,12 @@ export type Database = {
           donor_email?: string | null
           id?: string
           message?: string | null
+          paid_at?: string | null
           provider?: string
           provider_intent_id?: string | null
           provider_session_id?: string
+          provider_subscription_id?: string | null
+          recurring?: boolean
           status?: string
           tenant_id?: string
           user_id?: string | null
