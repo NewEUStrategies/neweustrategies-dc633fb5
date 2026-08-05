@@ -64,7 +64,75 @@ function triggerSummary(s: PopupSettings, t: TFunction): string {
   }
 }
 
+// Wbudowany popup rejestracji (newsletter_settings) - nie jest wpisem w
+// builder_popups, ale ma być wybieralny z tej samej listy co pozostałe.
+function SignupPopupRow() {
+  const { t, i18n } = useTranslation();
+  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { data } = useNewsletterSettings();
+  const save = useSaveNewsletterSettings();
+
+  const trigger = data?.popup_trigger ?? "delay";
+  const summary =
+    trigger === "scroll"
+      ? t("admin.popups.list.triggerScroll", {
+          defaultValue: "po {{percent}}% przewinięcia",
+          percent: data?.popup_scroll_percent ?? 50,
+        })
+      : trigger === "exit-intent"
+        ? t("admin.popups.list.triggerExit", { defaultValue: "exit intent" })
+        : t("admin.popups.list.triggerDelay", {
+            defaultValue: "po {{count}} s",
+            count: data?.popup_delay_seconds ?? 15,
+          });
+
+  const goToEditor = () => {
+    document.getElementById("signup-popup-editor")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  return (
+    <tr className="border-t border-border bg-muted/10 hover:bg-muted/20">
+      <td className="px-4 py-2.5">
+        <button type="button" onClick={goToEditor} className="font-medium hover:text-brand">
+          {isPl ? "Popup rejestracji" : "Registration popup"}
+        </button>
+        <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+          {isPl ? "wbudowany" : "built-in"}
+        </span>
+      </td>
+      <td className="px-4 py-2.5 text-muted-foreground">{summary}</td>
+      <td className="px-4 py-2.5 text-muted-foreground">-</td>
+      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">-</td>
+      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">-</td>
+      <td className="px-4 py-2.5">
+        <Switch
+          checked={Boolean(data?.popup_enabled)}
+          disabled={!data}
+          onCheckedChange={(on) => {
+            if (!data) return;
+            void save.mutateAsync({ ...data, popup_enabled: on });
+          }}
+          aria-label={t("admin.popups.list.toggleActive", { defaultValue: "Przełącz aktywność" })}
+        />
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={goToEditor}
+            className="p-1.5 text-muted-foreground hover:text-brand"
+            title={t("admin.popups.list.edit", { defaultValue: "Edytuj" })}
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function PopupsList() {
+
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const popups = usePopupsAdmin();
