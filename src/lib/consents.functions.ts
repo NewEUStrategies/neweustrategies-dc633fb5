@@ -98,6 +98,9 @@ export const setMyConsentsBulk = createServerFn({ method: "POST" })
         p_ip: ip ?? undefined,
         p_user_agent: ua ?? undefined,
         p_source: entry.source ?? "account",
+        p_banner_version: entry.bannerVersion ?? undefined,
+        p_decision_id: entry.decisionId ?? undefined,
+        p_page_url: entry.pageUrl ?? undefined,
       });
       if (error) throw new Error(`${entry.key}: ${error.message}`);
       savedKeys.push(entry.key);
