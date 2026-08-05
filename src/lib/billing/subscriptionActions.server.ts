@@ -219,7 +219,7 @@ export async function changeSubscriptionPrice(
       price: typeof i.price === "string" ? i.price : i.price.id,
       quantity: i.quantity,
     }));
-    const updatedSchedule = await stripe.subscriptionSchedules.update(scheduleId, {
+    await stripe.subscriptionSchedules.update(scheduleId, {
       end_behavior: "release",
       phases: [
         {
