@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Checkbox, SaveBar } from "@/components/admin/settings/fields";
+import { ConsentAuditSummary } from "@/components/admin/settings/ConsentAuditSummary";
 
 type Privacy = {
   privacy_page_slug: string;
