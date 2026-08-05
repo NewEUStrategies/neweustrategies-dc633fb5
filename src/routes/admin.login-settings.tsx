@@ -350,8 +350,14 @@ function LoginSettingsPage() {
                 hint={t("adminLoginSettings.hintOptFallback")}
               />
             </div>
+            <p className="rounded-md border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              {t("adminPopupSignup.shared.imagesFallback")}
+            </p>
           </section>
+
+          <RegistrationFieldsSection />
         </TabsContent>
+
       </Tabs>
     </div>
   );
