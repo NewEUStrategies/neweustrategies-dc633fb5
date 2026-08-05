@@ -23,6 +23,8 @@ import {
 import { sanitizeHtml } from "@/lib/sanitize";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FormSelect } from "@/components/atoms/FormSelect";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
 import {
   collectCustomValues,
@@ -436,7 +438,7 @@ export function NewsletterForm({
       )}
       {policy && (
         <p
-          className="nl-consent text-xs text-muted-foreground mt-3"
+          className="nl-consent nl-fineprint mt-3 text-muted-foreground"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(policy) }}
         />
       )}
@@ -544,5 +546,84 @@ function CustomFieldRender({
         maxLength={field.maxLength ?? 500}
       />
     </FieldWrap>
+  );
+}
+
+/**
+ * Zgoda (checkbox) w widgecie newslettera.
+ * Używa globalnego, animowanego atomu <Checkbox /> (ten sam co w JoinUsForm,
+ * popupach i formularzach kontaktowych) zamiast natywnego inputa - dzięki temu
+ * animacja zaznaczenia jest identyczna w całym serwisie. Tekst zgody jest
+ * wyjustowany w pionie do środka wysokości checkboxa (`items-center`).
+ * Ukryty input przenosi wartość do FormData (`collectCustomValues`).
+ */
+function ConsentCheckboxField({
+  name,
+  label,
+  required,
+  err,
+}: {
+  name: string;
+  label: string;
+  required?: boolean;
+  err?: string;
+}) {
+  const [checked, setChecked] = useState(false);
+  return (
+    <div className="sm:col-span-2">
+      <label className="widget-align-row nl-fineprint flex cursor-pointer items-center gap-2">
+        <Checkbox
+          checked={checked}
+          onCheckedChange={(v) => setChecked(v === true)}
+          aria-required={required || undefined}
+          className="h-[16px] w-[16px] shrink-0"
+        />
+        <span
+          className="min-w-0"
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(label) }}
+          onClick={(e) => {
+            // Klik w link (np. „warunki korzystania") nie może przełączać zgody.
+            if ((e.target as HTMLElement).closest("a")) e.stopPropagation();
+          }}
+        />
+      </label>
+      {checked && <input type="hidden" name={name} value="1" />}
+      {err && <span className="mt-1 block text-[11px] text-destructive">{err}</span>}
+    </div>
+  );
+}
+
+/** Droplista zgodna z layoutem serwisu (Radix + floating label). */
+function SelectField({
+  name,
+  label,
+  placeholder,
+  required,
+  err,
+  options,
+}: {
+  name: string;
+  label: string;
+  placeholder: string;
+  required?: boolean;
+  err?: string;
+  options: readonly { value: string; label: string }[];
+}) {
+  const [value, setValue] = useState("");
+  return (
+    <div className="input-group" data-invalid={err ? "true" : undefined}>
+      <FormSelect
+        className="input"
+        name={name}
+        value={value}
+        onValueChange={setValue}
+        options={options}
+        placeholder={placeholder}
+        required={required}
+        aria-label={label}
+      />
+      <label className="user-label">{label}</label>
+      {err && <span className="mt-1.5 block pl-1 text-[11px] text-destructive">{err}</span>}
+    </div>
   );
 }
