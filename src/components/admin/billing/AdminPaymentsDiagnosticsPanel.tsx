@@ -16,8 +16,10 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
-import { getStripeEnvironment } from "@/lib/paddle";
-import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
+import { getStripeEnvironment } from "@/lib/stripe";
+import { useCheckout } from "@/hooks/useCheckout";
+import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
+import { supabase } from "@/integrations/supabase/client";
 import { BILLING_CATALOG } from "@/lib/billing/catalog";
 import { getPaymentsDiagnostics, syncCouponsToProvider } from "@/lib/billing/diagnostics.functions";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +57,23 @@ export function AdminPaymentsDiagnosticsPanel() {
 
   const clientEnv = getStripeEnvironment();
   const [env, setEnv] = useState<"sandbox" | "live">(clientEnv);
-  const [testPriceId, setTestPriceId] = useState(BILLING_CATALOG[0]?.priceId ?? "");
+  // Test uruchamiamy na realnym planie z bazy - Stripe potrzebuje `planId`,
+  // a cenę katalogową dobieramy po parze (tier_key, interval).
+  const [testPlanId, setTestPlanId] = useState("");
+  const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
+  const plansQ = useQuery({
+    queryKey: ["admin", "billing", "test-plans"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("access_plans")
+        .select("id, name_pl, name_en, tier_key, interval")
+        .eq("active", true)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 60_000,
+  });
 
   const load = useServerFn(getPaymentsDiagnostics);
   const diagQ = useQuery({
@@ -79,7 +97,7 @@ export function AdminPaymentsDiagnosticsPanel() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const { openCheckout, loading: checkoutLoading } = usePaddleCheckout();
+  const { openPlanCheckout, loading: checkoutLoading } = useCheckout();
   const runTestCheckout = async () => {
     if (!user?.id) {
       toast.error(L("Zaloguj się, aby przetestować.", "Sign in to run the test."));
@@ -95,12 +113,28 @@ export function AdminPaymentsDiagnosticsPanel() {
       return;
     }
     try {
-      await openCheckout({
-        priceId: testPriceId,
-        userId: user.id,
-        customerEmail: user.email ?? undefined,
-        successPath: "/checkout/success",
+      const plan = (plansQ.data ?? []).find((row) => row.id === testPlanId);
+      if (!plan) {
+        toast.error(L("Wybierz plan do testu.", "Pick a plan to test."));
+        return;
+      }
+      const entry = BILLING_CATALOG.find(
+        (e) => e.tierKey === plan.tier_key && e.interval === plan.interval,
+      );
+      if (!entry) {
+        toast.error(L("Brak ceny w katalogu Stripe.", "No matching Stripe price in catalog."));
+        return;
+      }
+      const res = await openPlanCheckout({
+        planId: plan.id,
+        priceId: entry.priceId,
+        returnUrl: `${window.location.origin}/checkout/success`,
       });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      setCheckoutSecret(res.session.clientSecret);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
@@ -117,6 +151,12 @@ export function AdminPaymentsDiagnosticsPanel() {
 
   return (
     <div className="space-y-4">
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutSecret}
+        onOpenChange={(open) => {
+          if (!open) setCheckoutSecret(null);
+        }}
+      />
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
@@ -204,26 +244,19 @@ export function AdminPaymentsDiagnosticsPanel() {
         <CardContent className="space-y-3">
           <p className="text-[0.8125rem] text-muted-foreground">
             {L(
-              "Otwiera prawdziwą nakładkę płatności na Twoim koncie. W podglądzie to tryb testowy - użyj karty 4242 4242 4242 4242. Po opłaceniu sprawdź dziennik zdarzeń: zakup ma pojawić się jako „processed”.",
-              "Opens the real checkout overlay on your account. In preview this is test mode - use card 4242 4242 4242 4242. After paying, check the event log: the purchase should appear as “processed”.",
+              "Otwiera prawdziwy formularz płatności Stripe na Twoim koncie. W podglądzie to tryb testowy - użyj karty 4242 4242 4242 4242. Po opłaceniu sprawdź dziennik zdarzeń: zakup ma pojawić się jako „processed”.",
+              "Opens the real Stripe checkout form on your account. In preview this is test mode - use card 4242 4242 4242 4242. After paying, check the event log: the purchase should appear as “processed”.",
             )}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={testPriceId} onValueChange={setTestPriceId}>
+            <Select value={testPlanId} onValueChange={setTestPlanId}>
               <SelectTrigger className="h-9 w-60 rounded-[6px] text-[0.8125rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {BILLING_CATALOG.map((entry) => (
-                  <SelectItem key={entry.priceId} value={entry.priceId}>
-                    {entry.tierKey} ·{" "}
-                    {entry.interval === "year"
-                      ? L("rocznie", "yearly")
-                      : entry.interval === "quarter"
-                        ? L("kwartalnie", "quarterly")
-                        : entry.interval === "two_weeks"
-                          ? L("co 2 tygodnie", "every 2 weeks")
-                          : L("miesięcznie", "monthly")}
+                {(plansQ.data ?? []).map((plan) => (
+                  <SelectItem key={plan.id} value={plan.id}>
+                    {lang === "pl" ? plan.name_pl : plan.name_en}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -233,7 +266,7 @@ export function AdminPaymentsDiagnosticsPanel() {
               size="sm"
               className="h-9 rounded-[6px]"
               onClick={() => void runTestCheckout()}
-              disabled={checkoutLoading}
+              disabled={checkoutLoading || !testPlanId}
             >
               <PlayCircle className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
               {L("Uruchom test", "Run test")}
